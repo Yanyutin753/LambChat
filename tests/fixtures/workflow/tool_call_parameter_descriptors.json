@@ -1,0 +1,28 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Tool Parameter Descriptors"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "tool",
+        "type": "tool",
+        "data": {
+          "title": "Call Tool",
+          "tool_name": "workflow_list",
+          "tool_configurations": [
+            { "name": "scope", "value": "published" },
+            { "name": "owner", "value_selector": ["sys", "user_id"] }
+          ]
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{tool_result}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "tool" },
+      { "id": "e2", "source": "tool", "target": "answer" }
+    ]
+  }
+}

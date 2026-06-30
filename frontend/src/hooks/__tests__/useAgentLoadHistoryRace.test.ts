@@ -13,3 +13,15 @@ test("loadHistory ignores stale async results instead of overwriting the active 
   assert.match(source, /isStaleHistoryLoad/);
   assert.match(source, /loadHistoryRequestIdRef\.current \+= 1/);
 });
+
+test("clearMessages clears loading flags when a history load is invalidated", () => {
+  const source = readFileSync(resolve(__dirname, "../useAgent.ts"), "utf8");
+  const clearMessagesBody = source.match(
+    /const clearMessages = useCallback\(\(\) => \{([\s\S]*?)\n {2}\}, \[\]\);/,
+  )?.[1];
+
+  assert.ok(clearMessagesBody, "clearMessages callback should exist");
+  assert.match(clearMessagesBody, /setIsLoading\(false\)/);
+  assert.match(clearMessagesBody, /setIsLoadingHistory\(false\)/);
+  assert.match(clearMessagesBody, /isLoadingHistoryRef\.current = false/);
+});

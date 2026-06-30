@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input, PickerTrigger } from "../../../common";
+import { PanelSearchInput } from "../../../common/PanelSearchInput";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import { modelIconSlugs } from "../../../agent/modelIcon";
 import { PROVIDER_LABELS } from "../../AgentPanel/shared/providerLabels";
@@ -83,11 +84,12 @@ export const ModelIconSelect = React.memo(function ModelIconSelect({
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1.5 w-full rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-[var(--glass-border)] overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           <div className="px-3 pt-2.5 pb-2">
-            <Input
+            <PanelSearchInput
+              as={Input}
               ref={searchRef}
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onValueChange={setSearch}
               placeholder={t("common.search", "搜索...")}
               leadingIcon={<Search size={14} />}
               className="py-1.5 text-sm"

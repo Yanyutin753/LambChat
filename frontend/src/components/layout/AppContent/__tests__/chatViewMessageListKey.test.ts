@@ -35,11 +35,12 @@ test("does not reuse the Virtuoso remount key as a bottom-lock token", () => {
   );
 });
 
-test("lets Virtuoso follow output only when it is already at the bottom", () => {
+test("lets Virtuoso follow output smoothly only outside history restore", () => {
   assert.match(
     chatViewSource,
-    /const handleVirtuosoFollowOutput = useCallback\(\s*\(isAtBottom: boolean\) => \(isAtBottom \? "smooth" : false\),\s*\[\],\s*\);/,
+    /if \(shouldHideHistoryMeasurementFrame\) \{\s*return isAtBottom \? "auto" : false;\s*\}/,
   );
+  assert.match(chatViewSource, /return isAtBottom \? "smooth" : false;/);
   assert.match(chatViewSource, /followOutput=\{handleVirtuosoFollowOutput\}/);
   assert.doesNotMatch(chatViewSource, /followOutput=\{"smooth"\}/);
 });
@@ -58,4 +59,8 @@ test("anchors floating scroll buttons to the chat input", () => {
     /\{messages\.length > 0 && \(\s*<div className="relative">[\s\S]*<ChatInput\s+[\s\S]*\{\.\.\.chatInputProps\}[\s\S]*<\/div>\s*\)\}/,
   );
   assert.doesNotMatch(chatViewSource, /bottom-\d+/);
+});
+
+test("renders eight chat skeleton groups while loading history", () => {
+  assert.match(chatViewSource, /<ChatSkeleton count=\{8\} \/>/);
 });

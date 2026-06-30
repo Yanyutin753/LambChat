@@ -26,6 +26,7 @@ import {
   shouldDeferExternalNavigationScroll,
   shouldKeepExternalNavigationPending,
   shouldFinalizeHistoryLoadScroll,
+  shouldInferBatchedHistoryLoadReady,
 } from "../useMessageScroll.ts";
 
 test("clears the user-scrolled flag when virtuoso reports bottom reached", () => {
@@ -172,6 +173,46 @@ test("finds reveal_file tool blocks nested inside a subagent panel", () => {
         0,
       ),
       subagentChain: ["agent-1"],
+    },
+  );
+});
+
+test("finds artifact parts for file targets without reveal tool blocks", () => {
+  const messages = [
+    {
+      id: "message-1",
+      parts: [
+        {
+          type: "artifact" as const,
+          success: true,
+          artifact: {
+            kind: "file" as const,
+            id: "file:revealed/puppy.svg",
+            name: "puppy.svg",
+            path: "/workspace/puppy.svg",
+            preview: {
+              kind: "file" as const,
+              previewKey: "revealed/puppy.svg",
+              filePath: "/workspace/puppy.svg",
+              s3Key: "revealed/puppy.svg",
+              signedUrl: "/api/upload/file/revealed/puppy.svg",
+            },
+          },
+        },
+      ],
+    },
+  ];
+
+  assert.deepEqual(
+    findMessageIndexForExternalNavigation(messages, {
+      fileKey: "revealed/puppy.svg",
+      originalPath: "/workspace/puppy.svg",
+      source: "reveal_file",
+    }),
+    {
+      messageIndex: 0,
+      partIndex: 0,
+      anchorId: createToolPartAnchorId("message-1", 0),
     },
   );
 });
@@ -724,6 +765,44 @@ test("arms the history finalize scroll only once per loading cycle", () => {
       isLoadingHistory: true,
       sessionId: null,
       historyScrollArmed: false,
+    }),
+    false,
+  );
+});
+
+test("infers a batched history load when a new session receives its first messages", () => {
+  assert.equal(
+    shouldInferBatchedHistoryLoadReady({
+      previousSessionId: "session-1",
+      sessionId: "session-2",
+      previousMessageCount: 0,
+      messageCount: 8,
+      isLoadingHistory: false,
+      externalNavigationToken: null,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldInferBatchedHistoryLoadReady({
+      previousSessionId: "session-1",
+      sessionId: "session-1",
+      previousMessageCount: 7,
+      messageCount: 8,
+      isLoadingHistory: false,
+      externalNavigationToken: null,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldInferBatchedHistoryLoadReady({
+      previousSessionId: "session-1",
+      sessionId: "session-2",
+      previousMessageCount: 0,
+      messageCount: 8,
+      isLoadingHistory: false,
+      externalNavigationToken: "reveal:file",
     }),
     false,
   );

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { PersonaPreset } from "../../types";
 import type { Team, TeamCreateRequest, TeamMember } from "../../types/team";
+import { PanelSearchInput } from "../common/PanelSearchInput";
 import { TeamMemberCard } from "./TeamMemberCard";
 import { teamApi } from "../../services/api/team";
 import { modelApi } from "../../services/api/model";
@@ -793,10 +794,10 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                       size={14}
                       className="team-role-picker-dropdown__search-icon"
                     />
-                    <input
+                    <PanelSearchInput
                       type="text"
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onValueChange={setSearchQuery}
                       placeholder={t("team.searchRoles")}
                       className="ppe-input"
                       style={{ paddingLeft: "2.25rem" }}

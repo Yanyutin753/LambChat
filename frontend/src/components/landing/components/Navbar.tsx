@@ -29,7 +29,7 @@ export function Navbar({
 
   return (
     <nav
-      className={`safe-area-top fixed top-0 inset-x-0 z-50 bg-white/85 dark:bg-stone-950/85 border-b border-stone-100/60 dark:border-stone-800/40 transition-shadow duration-300 backdrop-blur-xl -webkit-backdrop-blur-xl ${
+      className={`safe-area-top fixed top-0 inset-x-0 z-50 bg-white/85 dark:bg-stone-950/85 border-b border-stone-100/60 dark:border-stone-800/40 transition-shadow duration-300 ${
         scrolled ? "blog-nav-scrolled" : ""
       }`}
     >

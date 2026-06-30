@@ -165,8 +165,8 @@ function TokenDetailsButton({
           className={clsx(
             "absolute bottom-full mb-2 left-0 z-50",
             "min-w-[150px] w-auto p-3 rounded-lg shadow-lg",
-            "bg-white dark:bg-stone-800",
-            "border border-stone-200 dark:border-stone-700",
+            "bg-theme-bg-card",
+            "border border-theme-border",
             "whitespace-nowrap",
           )}
         >
@@ -213,7 +213,7 @@ function TokenDetailsButton({
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
+                <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
                   <span className="">{t("chat.message.tokenTotal")}</span>
                   <span className="font-medium">
                     {tokenUsage.total_tokens?.toLocaleString()} tokens
@@ -222,21 +222,21 @@ function TokenDetailsButton({
               </>
             )}
             {duration && (
-              <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-1.5">
-                <span className="text-stone-500 dark:text-stone-400">
+              <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
+                <span className="text-theme-text-secondary">
                   {t("chat.message.duration")}
                 </span>
-                <span className="text-stone-700 dark:text-stone-200 font-medium">
+                <span className="text-theme-text font-medium">
                   {(duration / 1000).toFixed(2)}s
                 </span>
               </div>
             )}
             {modelDetails && (
-              <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-1.5">
-                <span className="text-stone-500 dark:text-stone-400">
+              <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
+                <span className="text-theme-text-secondary">
                   {t("chat.message.model")}
                 </span>
-                <span className="flex items-center gap-1.5 text-stone-700 dark:text-stone-200 font-medium">
+                <span className="flex items-center gap-1.5 text-theme-text font-medium">
                   <ModelIconImg
                     model={modelDetails.value}
                     provider={modelDetails.provider}
@@ -248,11 +248,11 @@ function TokenDetailsButton({
               </div>
             )}
             {timestamp && (
-              <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-1.5">
-                <span className="text-stone-500 dark:text-stone-400">
+              <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
+                <span className="text-theme-text-secondary">
                   {t("chat.message.startTime")}
                 </span>
-                <span className="text-stone-700 dark:text-stone-200 font-medium tabular-nums">
+                <span className="text-theme-text font-medium tabular-nums">
                   {formatDateTime(timestamp)}
                 </span>
               </div>
@@ -392,8 +392,8 @@ function GoalDetailsButton({
             }}
             className={clsx(
               "z-[100] w-64 p-3 rounded-lg shadow-lg",
-              "bg-white dark:bg-stone-800",
-              "border border-stone-200 dark:border-stone-700",
+              "bg-theme-bg-card",
+              "border border-theme-border",
             )}
           >
             <div className="flex items-start justify-between gap-2 mb-2">
@@ -414,25 +414,25 @@ function GoalDetailsButton({
                 {statusLabel}
               </span>
             </div>
-            <p className="text-sm text-stone-700 dark:text-stone-200 leading-relaxed break-words">
+            <p className="text-sm text-theme-text leading-relaxed break-words">
               {goal.objective}
             </p>
             {durationText && (
-              <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-2">
-                <span className="text-xs text-stone-500 dark:text-stone-400">
+              <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-2">
+                <span className="text-xs text-theme-text-secondary">
                   {t("chat.goal.duration")}
                 </span>
-                <span className="text-xs text-stone-700 dark:text-stone-200 font-medium tabular-nums">
+                <span className="text-xs text-theme-text font-medium tabular-nums">
                   {durationText}
                 </span>
               </div>
             )}
             {startedAt && (
               <div className="flex justify-between gap-4 pt-1">
-                <span className="text-xs text-stone-500 dark:text-stone-400">
+                <span className="text-xs text-theme-text-secondary">
                   {t("chat.goal.startedAt")}
                 </span>
-                <span className="text-xs text-stone-700 dark:text-stone-200 font-medium tabular-nums">
+                <span className="text-xs text-theme-text font-medium tabular-nums">
                   {formatDateTimeShort(new Date(goal.started_at!))}
                 </span>
               </div>

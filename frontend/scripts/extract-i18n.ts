@@ -223,9 +223,86 @@ async function extractI18nKeys() {
     0,
   );
 
-  if (newEnKeys.length === 0 && totalMissing === 0) {
+  // Add new keys to en.json
+  for (const key of newEnKeys) {
+    setNestedValue(translations.en, key, key);
+    console.log(`➕ Added to en.json: ${key}`);
+  }
+
+  // Add missing keys to other languages (marked as needing translation)
+  for (const [lang, missingKeys] of Object.entries(missingKeysByLang)) {
+    const placeholder = lang === "zh" ? `【待翻译】` : `[TODO]`;
+    for (const key of missingKeys) {
+      setNestedValue(translations[lang], key, `${placeholder}${key}`);
+      console.log(`⚠️  Added to ${lang}.json (needs translation): ${key}`);
+    }
+  }
+
+  // Sort keys recursively
+  function sortObjectKeys(
+    obj: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(obj).sort()) {
+      if (typeof obj[key] === "object" && obj[key] !== null) {
+        sorted[key] = sortObjectKeys(obj[key] as Record<string, unknown>);
+      } else {
+        sorted[key] = obj[key];
+      }
+    }
+    return sorted;
+  }
+
+  // Write updated translations
+  for (const [lang, filePath] of Object.entries(localeFiles)) {
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify(sortObjectKeys(translations[lang]), null, 2) + "\n",
+    );
+  }
+
+  // ---- Completeness check: all locales must have exactly the same keys as en.json ----
+  const enKeySet = existingKeys.en;
+  let completenessOk = true;
+
+  for (const [lang, langKeys] of Object.entries(existingKeys)) {
+    if (lang === "en") continue;
+
+    const missing = [...enKeySet].filter((k) => !langKeys.has(k));
+    const extra = [...langKeys].filter((k) => !enKeySet.has(k));
+
+    if (missing.length > 0 || extra.length > 0) {
+      completenessOk = false;
+      console.log(`\n❌ ${lang}.json key mismatch (vs en.json):`);
+      if (missing.length > 0) {
+        console.log(
+          `   Missing (${missing.length}): ${missing.slice(0, 10).join(", ")}${
+            missing.length > 10 ? "…" : ""
+          }`,
+        );
+      }
+      if (extra.length > 0) {
+        console.log(
+          `   Extra   (${extra.length}): ${extra.slice(0, 10).join(", ")}${
+            extra.length > 10 ? "…" : ""
+          }`,
+        );
+      }
+    }
+  }
+
+  if (newEnKeys.length === 0 && totalMissing === 0 && completenessOk) {
     console.log("✅ All translation keys are up to date!");
+    console.log(
+      "✅ Completeness check passed: all locales have identical key structure.",
+    );
     return;
+  }
+
+  if (!completenessOk) {
+    console.log(
+      "\n❌ Completeness check failed! Some locales have mismatched keys.",
+    );
   }
 
   // Add new keys to en.json

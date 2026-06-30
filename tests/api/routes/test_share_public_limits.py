@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import share as share_route
-from src.kernel.schemas.share import ShareCreate, ShareType, ShareVisibility
+from src.kernel.schemas.share import ShareCreate, ShareType, ShareUpdate, ShareVisibility
 from src.kernel.types import Permission
 
 
@@ -99,6 +99,37 @@ class _CreateShouldNotBeCalledShareStorage:
         raise AssertionError("oversized partial share should be rejected before storage")
 
 
+class _FakeUpdateShareStorage:
+    def __init__(self):
+        self.updated = None
+
+    async def get_by_id(self, share_id: str):
+        assert share_id == "share-db-id"
+        return SimpleNamespace(
+            id="share-db-id",
+            share_id="stable-share",
+            session_id="owned-session",
+            owner_id="owner-1",
+            share_type=ShareType.FULL,
+            visibility=ShareVisibility.PUBLIC,
+            run_ids=None,
+            created_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
+        )
+
+    async def update(self, share_id: str, **kwargs):
+        self.updated = {"share_id": share_id, **kwargs}
+        return SimpleNamespace(
+            id="share-db-id",
+            share_id="stable-share",
+            session_id="owned-session",
+            owner_id="owner-1",
+            share_type=ShareType.PARTIAL,
+            visibility=ShareVisibility.AUTHENTICATED,
+            run_ids=["run-1"],
+            created_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
+        )
+
+
 @pytest.mark.asyncio
 async def test_create_share_rejects_partial_share_with_too_many_run_ids(
     monkeypatch: pytest.MonkeyPatch,
@@ -122,6 +153,40 @@ async def test_create_share_rejects_partial_share_with_too_many_run_ids(
 
     assert exc_info.value.status_code == 400
     assert "run_ids" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_update_share_edits_existing_share_without_changing_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeUpdateShareStorage()
+    monkeypatch.setattr(share_route, "SessionManager", _FakeSessionManager)
+    monkeypatch.setattr(share_route, "ShareStorage", lambda: storage)
+
+    user = SimpleNamespace(
+        sub="owner-1",
+        permissions=[Permission.SESSION_SHARE.value],
+    )
+    update_data = ShareUpdate(
+        share_type=ShareType.PARTIAL,
+        run_ids=["run-1"],
+        visibility=ShareVisibility.AUTHENTICATED,
+    )
+
+    response = await share_route.update_share("share-db-id", update_data, user=user)
+
+    assert response.share_id == "stable-share"
+    assert response.url == "/shared/stable-share"
+    assert response.share_type == ShareType.PARTIAL
+    assert response.visibility == ShareVisibility.AUTHENTICATED
+    assert response.run_ids == ["run-1"]
+    assert storage.updated == {
+        "share_id": "share-db-id",
+        "owner_id": "owner-1",
+        "share_type": ShareType.PARTIAL,
+        "run_ids": ["run-1"],
+        "visibility": ShareVisibility.AUTHENTICATED,
+    }
 
 
 @pytest.mark.asyncio

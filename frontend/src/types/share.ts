@@ -25,6 +25,12 @@ export interface ShareCreate {
   visibility: ShareVisibility;
 }
 
+export interface ShareUpdate {
+  share_type?: ShareType;
+  run_ids?: string[];
+  visibility?: ShareVisibility;
+}
+
 export interface ShareResponse {
   id: string;
   share_id: string;

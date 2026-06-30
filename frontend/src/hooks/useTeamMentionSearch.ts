@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useState } from "react";
 import { teamApi } from "../services/api/team";
+import { subscribeTeamsChanged } from "./teamEvents";
 import type { Team } from "../types/team";
 
 export function useTeamMentionSearch(query: string, isActive: boolean) {
@@ -15,20 +16,27 @@ export function useTeamMentionSearch(query: string, isActive: boolean) {
 
     let cancelled = false;
     setIsLoading(true);
-    teamApi
-      .list(0, 50)
-      .then((response) => {
-        if (!cancelled) setTeams(response.teams);
-      })
-      .catch(() => {
-        if (!cancelled) setTeams([]);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
+    const loadTeams = () => {
+      teamApi
+        .list(0, 50)
+        .then((response) => {
+          if (!cancelled) setTeams(response.teams);
+        })
+        .catch(() => {
+          if (!cancelled) setTeams([]);
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false);
+        });
+    };
+    loadTeams();
+    const unsubscribe = subscribeTeamsChanged(() => {
+      loadTeams();
+    });
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [isActive]);
 

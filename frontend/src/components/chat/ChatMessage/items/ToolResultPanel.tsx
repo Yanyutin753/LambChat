@@ -137,6 +137,7 @@ export function ToolResultPanel({
     "sidebar" | "center"
   >("sidebar");
   const [internalIsFullscreen, setInternalIsFullscreen] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   const [historyAvailable, setHistoryAvailable] = useState(
@@ -270,6 +271,30 @@ export function ToolResultPanel({
       registryKey,
     );
   }, [open, registryKey]);
+
+  useEffect(() => {
+    if (!open) {
+      setContentReady(false);
+      return;
+    }
+
+    setContentReady(false);
+
+    const frameIds: number[] = [];
+    frameIds.push(
+      requestAnimationFrame(() => {
+        frameIds.push(
+          requestAnimationFrame(() => {
+            setContentReady(true);
+          }),
+        );
+      }),
+    );
+
+    return () => {
+      frameIds.forEach((frameId) => cancelAnimationFrame(frameId));
+    };
+  }, [open, children]);
 
   // Override handleResizeStart to call onUserInteraction
   const handleResize = useCallback(
@@ -572,13 +597,30 @@ export function ToolResultPanel({
 
       {/* Content */}
       <div
-        className={`tool-console-body flex-1 overflow-auto min-h-0 overscroll-contain ${
+        className={`tool-console-body relative flex-1 overflow-auto min-h-0 overscroll-contain ${
           isCenter && !hasCustomHeader && !isMobile && !isFullscreen
             ? "!overflow-hidden"
             : ""
         }`}
+        aria-busy={!contentReady}
       >
-        {children}
+        <div
+          className={`tool-console-body__content h-full min-h-full transition-opacity duration-150 ${
+            contentReady ? "opacity-100" : "opacity-0"
+          }`}
+          aria-hidden={!contentReady}
+        >
+          {children}
+        </div>
+        {!contentReady && (
+          <div className="tool-console-body__loading absolute inset-0 z-[1] flex items-center justify-center bg-theme-bg/95-[1px]">
+            <LoadingSpinner
+              size="md"
+              color="text-theme-text-tertiary"
+              className="shrink-0"
+            />
+          </div>
+        )}
       </div>
 
       {/* Footer */}

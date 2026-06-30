@@ -17,13 +17,18 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<unknown>;
 };
 
-const STATIC_CACHE = "lambchat-static-v2";
+const STATIC_CACHE = "lambchat-static-v7";
 const FONT_STYLES_CACHE = "lambchat-font-styles-v2";
 const FONT_FILES_CACHE = "lambchat-font-files-v2";
 const OFFLINE_URL = "/offline.html";
 const RETIRED_RUNTIME_CACHES = [
   "lambchat-app-shell-v1",
   "lambchat-app-shell-v2",
+  "lambchat-static-v2",
+  "lambchat-static-v3",
+  "lambchat-static-v4",
+  "lambchat-static-v5",
+  "lambchat-static-v6",
 ];
 
 cleanupOutdatedCaches();

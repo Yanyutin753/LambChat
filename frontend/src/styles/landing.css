@@ -408,8 +408,6 @@ html.dark .blog-btn-primary:hover {
 
 .blog-btn-ghost {
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 .blog-btn-ghost:hover {
   box-shadow:
@@ -799,18 +797,14 @@ html.dark .blog-nav-scrolled {
   from {
     opacity: 0;
     transform: translateY(-12px) scale(0.98);
-    backdrop-filter: blur(0);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-    backdrop-filter: blur(16px);
   }
 }
 .landing-mobile-menu {
   animation: menu-slide-down 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 /* ── Scroll Buttons ── */

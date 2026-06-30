@@ -112,9 +112,11 @@ class E2BBackend(BaseSandbox):
         sandbox: "E2BSandbox",
         timeout: int | None = None,
         env_vars: dict[str, str] | None = None,
+        work_dir: str | None = None,
     ):
         self._sandbox = sandbox
         self.env_vars = env_vars or {}
+        self._work_dir = work_dir or "/home/user"
         self._timeout = (
             timeout or settings.E2B_TIMEOUT or int(os.environ.get("E2B_TIMEOUT", _DEFAULT_TIMEOUT))
         )
@@ -125,10 +127,24 @@ class E2BBackend(BaseSandbox):
 
     @property
     def work_dir(self) -> str:
-        return "/home/user"
+        return self._work_dir
+
+    def _with_work_dir(self, command: str) -> str:
+        if command.lstrip().startswith("cd "):
+            return command
+        quoted_work_dir = shlex.quote(self.work_dir)
+        return f"mkdir -p {quoted_work_dir} && cd {quoted_work_dir} && {command}"
+
+    def _resolve_path(self, path: str) -> str:
+        if path == "/":
+            return self.work_dir
+        if path.startswith("/"):
+            return path
+        return f"{self.work_dir.rstrip('/')}/{path}"
 
     def _ensure_parent_dir(self, file_path: str) -> None:
         """Ensure the parent directory exists before writing a file."""
+        file_path = self._resolve_path(file_path)
         parent = os.path.dirname(file_path)
         if not parent:
             return
@@ -142,7 +158,7 @@ class E2BBackend(BaseSandbox):
         effective_timeout = min(timeout or self._timeout, self._timeout)
 
         try:
-            kwargs: dict = {"cmd": command, "timeout": effective_timeout}
+            kwargs: dict = {"cmd": self._with_work_dir(command), "timeout": effective_timeout}
             if self.env_vars:
                 kwargs["envs"] = self.env_vars
             result = self._sandbox.commands.run(**kwargs)
@@ -242,7 +258,7 @@ class E2BBackend(BaseSandbox):
 
         try:
             kwargs: dict = {
-                "cmd": command,
+                "cmd": self._with_work_dir(command),
                 "timeout": effective_timeout,
                 "on_stdout": _on_stdout,
                 "on_stderr": _on_stderr,
@@ -294,6 +310,7 @@ class E2BBackend(BaseSandbox):
 
     def ls_info(self, path: str) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 列出目录"""
+        path = self._resolve_path(path)
         try:
             entries = self._sandbox.files.list(path=path)
             result: list[FileInfo] = []
@@ -357,6 +374,7 @@ class E2BBackend(BaseSandbox):
 
         自动检测二进制文件，返回 data URI 而非裸 base64。
         """
+        file_path = self._resolve_path(file_path)
         try:
             size = self._file_size(file_path)
             if size is not None and size > SANDBOX_READ_MAX_BYTES:
@@ -399,6 +417,7 @@ class E2BBackend(BaseSandbox):
 
     def write(self, file_path: str, content: str) -> WriteResult:
         """使用 E2B 原生 files.write() 写入文件"""
+        file_path = self._resolve_path(file_path)
         try:
             self._ensure_parent_dir(file_path)
             self._sandbox.files.write(path=file_path, data=content)
@@ -489,7 +508,7 @@ class E2BBackend(BaseSandbox):
         try:
             import fnmatch
 
-            search_path = self.work_dir if path == "/" else path
+            search_path = self._resolve_path(path)
             command_matches = self._glob_info_via_command(pattern, search_path)
             if command_matches is not None:
                 return command_matches
@@ -562,9 +581,7 @@ class E2BBackend(BaseSandbox):
 
         responses: list[FileUploadResponse] = []
         for path, content in files:
-            if not path.startswith("/"):
-                responses.append(FileUploadResponse(path=path, error="invalid_path"))
-                continue
+            path = self._resolve_path(path)
             if len(content) > SANDBOX_UPLOAD_MAX_BYTES:
                 responses.append(file_upload_response(path=path, error="file_too_large"))
                 continue
@@ -599,11 +616,7 @@ class E2BBackend(BaseSandbox):
 
         responses: list[FileDownloadResponse] = []
         for path in paths:
-            if not path.startswith("/"):
-                responses.append(
-                    FileDownloadResponse(path=path, content=None, error="invalid_path")
-                )
-                continue
+            path = self._resolve_path(path)
             try:
                 size = self._file_size(path)
                 if size is not None and size > SANDBOX_DOWNLOAD_MAX_BYTES:

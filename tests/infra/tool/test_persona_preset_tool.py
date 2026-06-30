@@ -114,6 +114,8 @@ async def test_save_persona_preset_creates_and_offloads_result_json(
     )
 
     assert result["success"] is True
+    assert result["entity_type"] == "persona_preset"
+    assert result["action"] == "created"
     assert json.dumps in calls
 
 
@@ -204,6 +206,8 @@ async def test_save_persona_preset_promotes_named_user_preset_to_global(
     )
 
     assert result["success"] is True
+    assert result["entity_type"] == "persona_preset"
+    assert result["action"] == "updated"
     assert result["preset"]["scope"] == "global"
     assert result["preset"]["visibility"] == "public"
     assert result["preset"]["status"] == "published"

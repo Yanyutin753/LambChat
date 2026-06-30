@@ -16,6 +16,7 @@ function getActionLabel(
     env_var_list: "chat.message.toolEnvVarList",
     env_var_set: "chat.message.toolEnvVarSet",
     env_var_delete: "chat.message.toolEnvVarDelete",
+    env_var_delete_all: "chat.message.toolEnvVarDeleteAll",
   };
   return t(map[toolName] || "chat.message.toolEnvVar");
 }

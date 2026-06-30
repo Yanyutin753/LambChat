@@ -215,6 +215,8 @@ async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.Mon
     )
 
     assert result["success"] is True
+    assert result["entity_type"] == "team"
+    assert result["action"] == "created"
     assert result["team_id"] == "team-1"
     body = manager.create_team.await_args.args[0]
     assert body.name == "竞品分析团队"
@@ -267,6 +269,8 @@ async def test_create_agent_team_updates_existing_team_when_team_id_is_supplied(
     )
 
     assert result["success"] is True
+    assert result["entity_type"] == "team"
+    assert result["action"] == "updated"
     assert result["updated"] is True
     assert result["team_id"] == "team-1"
     manager.update_team.assert_awaited_once()

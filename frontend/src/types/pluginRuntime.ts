@@ -301,6 +301,7 @@ export interface PluginPackageIntegrity {
 export interface PluginRuntimePlugin {
   plugin_id: string;
   name: string | null;
+  description?: string | null;
   version: string | null;
   api_version: string | null;
   status: string;

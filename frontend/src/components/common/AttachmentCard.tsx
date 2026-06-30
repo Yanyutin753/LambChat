@@ -94,8 +94,6 @@ export const AttachmentCard = memo(function AttachmentCard({
 
   // 紧凑模式样式（用于 ChatInput）
   if (isCompact) {
-    const progress = attachment.uploadProgress ?? 0;
-
     return (
       <div
         onClick={handleClick}
@@ -111,7 +109,6 @@ export const AttachmentCard = memo(function AttachmentCard({
           "hover:-translate-y-0.5",
           "active:scale-[0.98]",
           isUploading && !onCancel && "pointer-events-none",
-          isUploading && "ring-1 ring-blue-400/30 dark:ring-blue-500/30",
         )}
       >
         {/* 图标/图片 */}
@@ -146,19 +143,14 @@ export const AttachmentCard = memo(function AttachmentCard({
           <span className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate max-w-[120px] sm:max-w-[160px] leading-tight">
             {attachment.name}
           </span>
-          <span
-            className={clsx(
-              "text-xs mt-0.5 transition-colors duration-200",
-              isUploading
-                ? "text-blue-500 dark:text-blue-400 font-medium"
-                : "text-stone-400 dark:text-stone-500",
-            )}
-          >
-            {isUploading ? `${progress}%` : formatFileSize(attachment.size)}
+          <span className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+            {isUploading
+              ? `${attachment.uploadProgress ?? 0}%`
+              : formatFileSize(attachment.size)}
           </span>
         </div>
 
-        {/* 删除/取消按钮 — 移动端始终可见，桌面端半透明可见，hover 完全可见 */}
+        {/* 删除/取消按钮 */}
         {variant === "editable" &&
           (isUploading && onCancel ? (
             <button
@@ -186,29 +178,18 @@ export const AttachmentCard = memo(function AttachmentCard({
                 onClick={handleRemove}
                 className={clsx(
                   "shrink-0 size-6 rounded-full flex items-center justify-center",
-                  "bg-stone-200/60 dark:bg-stone-600/60",
-                  "text-stone-500 dark:text-stone-400",
-                  "opacity-50 sm:opacity-40 sm:group-hover:opacity-100",
+                  "bg-stone-100/80 dark:bg-stone-700/80",
+                  "text-stone-400 dark:text-stone-500",
+                  "opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
                   "transition-all duration-200",
                   "hover:bg-red-100 dark:hover:bg-red-900/30",
                   "hover:text-red-500 dark:hover:text-red-400",
-                  "hover:opacity-100",
                 )}
               >
                 <X size={12} />
               </button>
             )
           ))}
-
-        {/* 上传进度条 */}
-        {isUploading && (
-          <div className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full overflow-hidden bg-stone-200/60 dark:bg-stone-700/60">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
       </div>
     );
   }

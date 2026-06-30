@@ -1,0 +1,39 @@
+{
+  "nav": {
+    "channels": "Channels"
+  },
+  "seo": {
+    "channels": {
+      "description": "Configure Feishu/Lark and other team channel integrations.",
+      "title": "Channels"
+    }
+  },
+  "feishu": {
+    "appId": "App ID",
+    "appIdRequired": "App ID is required",
+    "appSecret": "App Secret",
+    "appSecretRequired": "App Secret is required",
+    "autoTranscribeAudio": "Audio Transcription",
+    "behavior": "Behavior Settings",
+    "deleteConfirm": "Are you sure you want to delete your Feishu configuration? This action cannot be undone.",
+    "deleteError": "Failed to delete Feishu configuration",
+    "deleteSuccess": "Feishu configuration deleted",
+    "description": "Connect your Feishu bot to receive and send messages",
+    "enabled": "Enable Feishu Bot",
+    "groupPolicy": "Group Message Policy",
+    "groupPolicyMention": "Mention Only",
+    "groupPolicyOpen": "All Messages",
+    "loadError": "Failed to load Feishu configuration",
+    "newInstance": "New Feishu Instance",
+    "oneClickRegister": "Create Feishu App",
+    "registrationFailed": "Feishu registration failed",
+    "registrationSuccess": "Feishu app credentials received",
+    "saveError": "Failed to save Feishu configuration",
+    "saveSuccess": "Feishu configuration saved",
+    "security": "Security Settings",
+    "setupGuide": "Setup Guide",
+    "streamReply": "Streaming Cards",
+    "testError": "Failed to test connection",
+    "title": "Feishu/Lark Channel"
+  }
+}

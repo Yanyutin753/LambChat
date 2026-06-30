@@ -441,6 +441,49 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
     },
 ]
 
+PERMISSION_METADATA.update(
+    {
+        Permission.WORKFLOW_READ.value: {
+            "label": "Read workflows",
+            "description": "View workflow definitions, versions, and run history.",
+        },
+        Permission.WORKFLOW_WRITE.value: {
+            "label": "Edit workflows",
+            "description": "Create, import, and update workflow definitions.",
+        },
+        Permission.WORKFLOW_RUN.value: {
+            "label": "Run workflows",
+            "description": "Start workflow runs from chat, tools, tasks, or APIs.",
+        },
+        Permission.WORKFLOW_ADMIN.value: {
+            "label": "Admin workflows",
+            "description": "Manage workflow plugin administration and unsafe runtime settings.",
+        },
+        Permission.WORKFLOW_PUBLISH.value: {
+            "label": "Publish workflows",
+            "description": "Publish workflow versions for reuse by LambChat surfaces.",
+        },
+        Permission.WORKFLOW_CREDENTIAL_MANAGE.value: {
+            "label": "Manage workflow credentials",
+            "description": "Manage credentials used by workflow nodes.",
+        },
+    }
+)
+
+PERMISSION_GROUPS_CONFIG.append(
+    {
+        "name": "Workflows",
+        "permissions": [
+            Permission.WORKFLOW_READ.value,
+            Permission.WORKFLOW_WRITE.value,
+            Permission.WORKFLOW_RUN.value,
+            Permission.WORKFLOW_ADMIN.value,
+            Permission.WORKFLOW_PUBLISH.value,
+            Permission.WORKFLOW_CREDENTIAL_MANAGE.value,
+        ],
+    }
+)
+
 
 def get_permissions_response() -> PermissionsResponse:
     """

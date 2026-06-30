@@ -1,4 +1,5 @@
 import json
+import re
 from typing import TYPE_CHECKING, Any, Optional
 
 from src.infra.async_utils import run_blocking_io
@@ -18,6 +19,8 @@ from src.infra.skill.storage_helpers import (
     SKILL_FILES_PER_SKILL_LIMIT,
     SKILL_MD_SCAN_LIMIT,
     SKILL_METADATA_LIST_LIMIT,
+    normalize_skill_file_path,
+    normalize_skill_files,
     normalize_skill_name_list,
 )
 from src.infra.skill.types import InstalledFrom, SkillMeta
@@ -74,7 +77,7 @@ class SkillStorage:
         )
         async for doc in cursor:
             if doc["file_path"] != "__meta__":
-                files[doc["file_path"]] = doc["content"]
+                files[normalize_skill_file_path(doc["file_path"])] = doc["content"]
                 if len(files) >= SKILL_FILES_PER_SKILL_LIMIT:
                     break
         return files
@@ -82,6 +85,7 @@ class SkillStorage:
     async def get_skill_file(self, skill_name: str, file_path: str, user_id: str) -> Optional[str]:
         """获取用户某个 Skill 的单个文件"""
         collection = self._get_files_collection()
+        file_path = normalize_skill_file_path(file_path)
         doc = await collection.find_one(
             {
                 "skill_name": skill_name,
@@ -89,6 +93,15 @@ class SkillStorage:
                 "file_path": file_path,
             }
         )
+        if not doc and (file_path.endswith("/SKILL.md") or file_path == "SKILL.md"):
+            legacy_path_pattern = re.escape(file_path[:-8]) + r"skill\.md"
+            doc = await collection.find_one(
+                {
+                    "skill_name": skill_name,
+                    "user_id": user_id,
+                    "file_path": {"$regex": f"^{legacy_path_pattern}$", "$options": "i"},
+                }
+            )
         return doc["content"] if doc else None
 
     async def set_skill_file(
@@ -96,6 +109,7 @@ class SkillStorage:
     ) -> None:
         """原子 upsert 单个文件（文本内容）"""
         collection = self._get_files_collection()
+        file_path = normalize_skill_file_path(file_path)
         now = utc_now_iso()
         await collection.update_one(
             {"skill_name": skill_name, "user_id": user_id, "file_path": file_path},
@@ -157,6 +171,7 @@ class SkillStorage:
             True 如果更新成功，False 如果内容已被其他人修改
         """
         collection = self._get_files_collection()
+        file_path = normalize_skill_file_path(file_path)
         now = utc_now_iso()
         result = await collection.update_one(
             {
@@ -174,6 +189,7 @@ class SkillStorage:
     async def delete_skill_file(self, skill_name: str, file_path: str, user_id: str) -> None:
         """删除单个文件（如果是二进制引用，同时删除 S3 对象）"""
         collection = self._get_files_collection()
+        file_path = normalize_skill_file_path(file_path)
         doc = await collection.find_one(
             {"skill_name": skill_name, "user_id": user_id, "file_path": file_path},
         )
@@ -198,6 +214,7 @@ class SkillStorage:
 
     async def sync_skill_files(self, skill_name: str, files: dict[str, str], user_id: str) -> None:
         """批量同步文件（替换所有，但保留 __meta__）。支持文本和二进制引用。"""
+        files = normalize_skill_files(files)
         if not files:
             return
         if len(files) > SKILL_FILES_PER_SKILL_LIMIT:
@@ -257,6 +274,7 @@ class SkillStorage:
         user_id: str,
     ) -> int:
         """Upsert a bounded batch of text skill files without deleting other paths."""
+        files = normalize_skill_files(files)
         if not files:
             return 0
 
@@ -307,7 +325,7 @@ class SkillStorage:
             {"file_path": 1},
         ).limit(SKILL_FILES_PER_SKILL_LIMIT)
         async for doc in cursor:
-            paths.append(doc["file_path"])
+            paths.append(normalize_skill_file_path(doc["file_path"]))
         return paths
 
     async def get_skill_file_stats(self, skill_name: str, user_id: str) -> dict[str, Any]:
@@ -479,31 +497,6 @@ class SkillStorage:
             )
 
         return result
-
-    @staticmethod
-    def _timestamp_sort_value(value: Any) -> float:
-        if value is None:
-            return 0
-        if hasattr(value, "timestamp"):
-            return float(value.timestamp())
-        if isinstance(value, str):
-            from datetime import datetime
-
-            try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-            except ValueError:
-                return 0
-        return 0
-
-    @classmethod
-    def _preference_sort_key(cls, skill: dict[str, Any]) -> tuple:
-        return (
-            0 if skill.get("is_pinned") else 1,
-            0 if skill.get("is_favorite") else 1,
-            -cls._timestamp_sort_value(skill.get("updated_at")),
-            -cls._timestamp_sort_value(skill.get("created_at")),
-            skill.get("skill_name", ""),
-        )
 
     async def _get_user_skill_preference(self, user_id: str) -> dict[str, list[str]]:
         from src.infra.user.storage import UserStorage
@@ -741,7 +734,7 @@ class SkillStorage:
                 }
             ).limit(SKILL_FILES_PER_SKILL_LIMIT)
             async for doc in cursor:
-                result[key][doc["file_path"]] = doc["content"]
+                result[key][normalize_skill_file_path(doc["file_path"])] = doc["content"]
 
         return result
 
@@ -980,6 +973,7 @@ class SkillStorage:
         if not files and not binary_files:
             raise ValueError("Skill must have at least one file")
 
+        files = normalize_skill_files(files)
         await self.sync_skill_files(skill_name, files, user_id)
 
         # 上传二进制文件

@@ -71,3 +71,21 @@ test("shared page shows team identity for shared team sessions", () => {
   assert.match(sharedPageSource, /personaName=\{sharedAssistant\.name\}/);
   assert.match(sharedPageSource, /personaAvatar=\{sharedAssistant\.avatar\}/);
 });
+
+test("share dialog supports editing existing shares without replacing the public link", () => {
+  const shareDialogSource = readFileSync(
+    resolve(__dirname, "../ShareDialog.tsx"),
+    "utf8",
+  );
+  const shareApiSource = readFileSync(
+    resolve(__dirname, "../../../services/api/share.ts"),
+    "utf8",
+  );
+
+  assert.match(shareApiSource, /async update\(/);
+  assert.match(shareApiSource, /method: "PATCH"/);
+  assert.match(shareDialogSource, /editingShare/);
+  assert.match(shareDialogSource, /handleEditShare/);
+  assert.match(shareDialogSource, /handleSaveShare/);
+  assert.match(shareDialogSource, /share\.saveShare/);
+});

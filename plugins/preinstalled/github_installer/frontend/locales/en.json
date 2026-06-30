@@ -1,0 +1,10 @@
+{
+  "skills": {
+    "github": "GitHub",
+    "githubRepoUrl": "GitHub repository URL",
+    "importFromGitHub": "Import from GitHub",
+    "importFromGitHubTitle": "Import Skills from GitHub",
+    "installGitHubFailed": "Failed to install GitHub skills",
+    "previewGitHubFailed": "Failed to preview GitHub skills"
+  }
+}

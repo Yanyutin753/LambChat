@@ -34,6 +34,20 @@ def plugin_option_from_metadata(
     return plugin_options_from_metadata(metadata).get(plugin_id, {}).get(key)
 
 
+def plugin_result_from_agent_options(
+    agent_options: dict[str, Any] | None,
+    *,
+    plugin_id: str,
+) -> Any:
+    """Return one structured plugin result from runtime agent options."""
+    if not isinstance(agent_options, dict):
+        return None
+    plugin_results = agent_options.get("_plugin_results")
+    if not isinstance(plugin_results, dict):
+        return None
+    return plugin_results.get(plugin_id)
+
+
 def filter_declared_plugin_options(
     runtime: Any,
     metadata: dict[str, Any] | None,

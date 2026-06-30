@@ -250,7 +250,7 @@ export function UsagePanel() {
 
       {/* KPI Cards */}
       {stats && (
-        <div className="mx-auto w-full max-w-[1760px] px-3 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5">
+        <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
           <div className="usage-surface grid grid-cols-2 overflow-hidden rounded-xl md:grid-cols-3 xl:grid-cols-6">
             <StatMetric
               icon={Zap}
@@ -308,20 +308,18 @@ export function UsagePanel() {
       )}
 
       {/* Dashboard sections */}
-      <div className="mx-auto w-full max-w-[1760px] flex-1 px-3 pt-2 pb-5 sm:px-6 sm:pt-3 sm:pb-7">
+      <div className="mx-auto w-full flex-1 px-4 pt-3 pb-5 sm:px-6 sm:pt-4 sm:pb-6 lg:px-8">
         {/* Section header */}
         {dashboard && (
-          <div className="mb-5 flex items-center gap-2.5 sm:mb-6">
-            <LayoutDashboard
-              size={14}
-              strokeWidth={2}
-              className="text-theme-text-tertiary"
-            />
-            <div>
-              <h2 className="text-[13px] font-bold text-theme-text sm:text-sm">
+          <div className="mb-5 flex items-center gap-3 sm:mb-6 sm:gap-3.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--usage-icon-bg)] text-[var(--theme-primary)] sm:h-9 sm:w-9">
+              <LayoutDashboard size={15} strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-[13px] font-bold tracking-tight text-theme-text sm:text-sm">
                 {dashboardTitle}
               </h2>
-              <p className="text-[10px] text-theme-text-tertiary sm:text-[11px]">
+              <p className="mt-0.5 truncate text-[10px] leading-snug text-theme-text-tertiary sm:text-[11px]">
                 {dashboardSubtitle}
               </p>
             </div>
@@ -330,16 +328,16 @@ export function UsagePanel() {
 
         {/* Insights */}
         {dashboard && (
-          <div className="mb-6 sm:mb-7">
+          <div className="mb-5 sm:mb-6">
             <InsightStrip dashboard={dashboard} />
           </div>
         )}
 
         {/* Chart + Rankings */}
         {dashboard && (
-          <div className="mb-6 grid gap-5 sm:mb-7 xl:grid-cols-[minmax(0,1.45fr)_minmax(24rem,0.95fr)]">
+          <div className="mb-5 grid gap-5 sm:mb-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(24rem,0.95fr)]">
             <MiniTrend points={dashboard.daily} />
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="grid gap-5 xl:grid-cols-1">
               <RankingList
                 title={personaRankingTitle}
                 icon={BadgeCheck}
@@ -362,7 +360,7 @@ export function UsagePanel() {
 
         {/* Bottom grid */}
         {dashboard && (
-          <div className="mb-6 grid grid-cols-1 gap-5 sm:mb-7 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="mb-5 grid grid-cols-1 gap-5 sm:mb-6 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
             <RankingList
               title={agentRankingTitle}
               icon={Bot}
@@ -395,7 +393,7 @@ export function UsagePanel() {
 
         {/* Triggers */}
         {isAdmin && dashboard && dashboard.triggers.length > 0 && (
-          <div className="mb-6 sm:mb-7">
+          <div className="mb-5 sm:mb-6">
             <DistributionList
               title={t("usage.ranking.triggers")}
               icon={CalendarClock}
@@ -429,7 +427,7 @@ export function UsagePanel() {
 
       {/* Pagination */}
       {total > pageSize && (
-        <div className="glass-divider px-3 py-2.5 sm:px-6 sm:py-3">
+        <div className="glass-divider px-4 py-2.5 sm:px-6 sm:py-3 lg:px-8">
           <Pagination
             page={page}
             pageSize={pageSize}

@@ -95,6 +95,40 @@ test("keeps the base latest auto preview lookup unchanged", () => {
   );
 });
 
+test("returns the latest artifact part for chat auto preview", () => {
+  assert.deepEqual(
+    getLatestChatAutoPreviewTarget({
+      messages: [
+        {
+          id: "message-1",
+          parts: [
+            {
+              type: "artifact",
+              success: true,
+              artifact: {
+                kind: "file",
+                id: "file:revealed/report.pdf",
+                name: "report.pdf",
+                path: "/workspace/report.pdf",
+                preview: {
+                  kind: "file",
+                  previewKey: "revealed/report.pdf",
+                  filePath: "/workspace/report.pdf",
+                },
+              },
+            },
+          ],
+        },
+      ],
+      suppressAutoPreview: false,
+    }),
+    {
+      messageId: "message-1",
+      partIndex: 0,
+    },
+  );
+});
+
 test("does not auto preview historical reveal results until a streaming message completes", () => {
   const messages = [
     {

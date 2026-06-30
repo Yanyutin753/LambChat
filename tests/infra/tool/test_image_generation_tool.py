@@ -1067,6 +1067,7 @@ async def test_search_agent_context_includes_image_generation_tool(
     )
 
     monkeypatch.setattr(search_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
+    monkeypatch.setattr(search_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(search_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SKILLS", False)
@@ -1107,6 +1108,7 @@ async def test_fast_agent_context_includes_image_generation_tool(
     )
 
     monkeypatch.setattr(fast_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
+    monkeypatch.setattr(fast_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(fast_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", False)

@@ -14,23 +14,25 @@ from src.kernel.config.base import settings
 
 FILE_WORKSPACE_GUIDE = """
 ### File and Workspace Creation
-Before creating files/directories, check whether the target path exists. If work is unrelated to the current project, do not develop inside it; create a clearly named directory under the active writable workspace/work_dir. Only touch an existing project when requested or clearly related.
+Before creating files/directories, check whether the target path exists. If work is unrelated to the current project, do not develop inside it; create a clearly named directory under the current session workspace/work_dir. Only touch an existing project when requested or clearly related.
 """
 
 FILE_REVEAL_GUIDE = """
-### File Reveal (REQUIRED)
-After creating/modifying files, MUST call `reveal_file` immediately. If the user asks to see/open/show a file, call `reveal_file`; returning only a path is not sufficient because the user cannot directly access the isolated filesystem. Call `write_file` first, wait for completion, then call `reveal_file`.
+### Artifact Delivery (REQUIRED)
+Files created or modified through normal file tools such as `write_file` and `edit_file` are automatically staged for final delivery. In sandbox mode, files created or modified by `execute` shell commands inside the current session workspace are also detected by workspace snapshots. The runtime reveals these auto-staged files before completion so the user can find them in the file/artifact summary without the agent manually registering each one.
 
-`reveal_file` accepts either a local workspace path or an already-accessible `http(s)` URL. For local files, pass the local path so it can be exposed to the user. For files that already have a direct URL, pass that URL as `file_path`; the tool will return the URL directly instead of trying to read it from the filesystem.
+Use explicit delivery only for artifacts the runtime cannot infer or when the user needs the artifact visible before the final response: external `http(s)` URLs should use `reveal_file(file_path="<url>")`, and project or folder deliverables should use `reveal_project(project_path=..., name=...)`.
+
+`reveal_file` accepts either a local workspace path or an already-accessible `http(s)` URL. For files that already have a direct URL, pass that URL as `file_path`; the tool will return the URL directly instead of trying to read it from the filesystem.
 
 ### Resource References in Documents (IMPORTANT)
-For Markdown/HTML/documents that reference local images, video, audio, or other files, call `reveal_file` for each resource first and use the returned `url`. Never put local sandbox paths such as `/home/user/chart.png` or `./images/photo.jpg` in user-facing documents.
+For Markdown/HTML/documents that reference local images, video, audio, or other files, call `reveal_file` for each resource first and use the returned `url`. Never put local sandbox paths from the current session workspace/work_dir, or relative paths such as `./images/photo.jpg`, in user-facing documents.
 
 ### Project / Folder Reveal
 For multi-file frontend projects or ordinary folders with many files, call `reveal_project(project_path, name, template?)` so the user can preview/browse them directly. It returns `mode: "project"` for runnable frontend entries, otherwise `mode: "folder"`.
 
 ### Artifact Completion Gate (REQUIRED)
-If a task creates, edits, or delivers any file/folder artifact, reveal the actual artifact before the final answer. Use `reveal_file` for one or a few specific files, and `reveal_project` for multi-file projects, generated folders, or too many files to expose one by one. Do not claim the file or project is done until the appropriate reveal tool call has succeeded. If reveal fails, say that it failed and do not present the artifact as delivered.
+If a task creates, edits, links, or delivers any file/folder/project/URL artifact, make sure the actual artifact is either auto-staged by the runtime or explicitly revealed before the final answer. The runtime auto-stages high-confidence file writes, edits, uploads, and sandbox shell outputs in the current workspace. Use `reveal_file` for external URLs or one-off files that should be visible immediately, and `reveal_project` for multi-file projects, generated folders, or too many files to expose one by one. Do not claim the file or project is done until the appropriate auto-delivery or reveal action has succeeded. If reveal fails, say that it failed and do not present the artifact as delivered.
 """
 
 SAFETY_AND_VERIFICATION_GUIDE = """
@@ -66,11 +68,11 @@ TOOL_DISCOVERY_GUIDE = """
 ### File Transfer
 Backends are routed by path prefix:
 - `/skills/*` → skill store (MongoDB)
-- Other paths → active workspace/work_dir
+- Other paths → current session workspace/work_dir
 
 Tools:
 - `transfer_file(src, dst)` — transfer one text file between backends.
-- `transfer_path(src_dir, prefix)` — batch transfer a directory; the directory name becomes the target sub-path (e.g., `/skills/Foo/` → `/home/user/Foo/`).
+- `transfer_path(src_dir, prefix)` — batch transfer a directory; the directory name becomes the target sub-path (e.g., `/skills/Foo/` → current session workspace + `/Foo/`).
 
 Text only. Limits: single file 10MB, batch 100MB/200 files. `/skills/` is virtual storage, not a sandbox directory; never execute `/skills/...` directly from shell. Transfer files into the workspace before running them.
 

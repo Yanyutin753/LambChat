@@ -41,6 +41,43 @@ class StreamEventMixin:
         self._output_buffer.write(clipped)
         self._output_buffer_chars += len(clipped)
 
+    def _message_content_text(self, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get("type") == "text" and block.get("text"):
+                        parts.append(str(block["text"]))
+                    elif block.get("content"):
+                        parts.append(str(block["content"]))
+                elif block:
+                    parts.append(str(block))
+            return "".join(parts)
+        return "" if content is None else str(content)
+
+    async def _handle_chat_model_end_output(
+        self,
+        event: StreamEvent,
+        current_agent_id: str | None,
+        current_depth: int,
+    ) -> None:
+        response = event.get("data", {}).get("output")
+        if not response:
+            return
+        content = getattr(response, "content", None)
+        text = self._message_content_text(content)
+        if not text:
+            return
+        text_id = getattr(response, "id", None)
+        if current_depth == 0 and self._output_buffer_chars <= 0:
+            self._append_output_text(text)
+        ready_flushes = self._buffer_text_chunk(text, current_depth, current_agent_id, text_id)
+        if ready_flushes:
+            for ready in ready_flushes:
+                await self._emit_text_flush(*ready)
+
     async def _flush_chunk_buffer(self) -> None:
         text, key = self._chunk_buffer.consume()
         await self._emit_text_flush(text, key)

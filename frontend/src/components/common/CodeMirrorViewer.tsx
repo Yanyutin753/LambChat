@@ -253,6 +253,17 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
         ".cm-line": {
           userSelect: "text",
         },
+        ".cm-selectionLayer .cm-selectionBackground, &.cm-focused .cm-selectionLayer .cm-selectionBackground":
+          {
+            backgroundColor: isDark
+              ? "rgba(96, 165, 250, 0.46)"
+              : "rgba(37, 99, 235, 0.26)",
+          },
+        ".cm-content ::selection": {
+          backgroundColor: isDark
+            ? "rgba(96, 165, 250, 0.46)"
+            : "rgba(37, 99, 235, 0.26)",
+        },
         ".cm-gutters, .cm-gutter": {
           minHeight: "100% !important",
           backgroundColor: `${isDark ? "#282c34" : "#fafafa"} !important`,

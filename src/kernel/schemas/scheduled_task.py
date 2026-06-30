@@ -100,7 +100,7 @@ class ScheduledTaskCreate(BaseModel):
     enabled: bool = Field(True)
     run_on_start: bool = Field(False)
     max_retries: int = Field(0, ge=0, le=10)
-    timeout_seconds: int = Field(1800, ge=10, le=3600)
+    timeout_seconds: int = Field(3600, ge=10, le=7200)
     source_session_id: Optional[str] = Field(
         None, description="Conversation session where the task was created"
     )
@@ -125,7 +125,7 @@ class ScheduledTaskUpdate(BaseModel):
     enabled: Optional[bool] = None
     run_on_start: Optional[bool] = None
     max_retries: Optional[int] = Field(None, ge=0, le=10)
-    timeout_seconds: Optional[int] = Field(None, ge=10, le=3600)
+    timeout_seconds: Optional[int] = Field(None, ge=10, le=7200)
     delivery: Optional[ChannelDeliveryConfig] = None
 
 
@@ -146,7 +146,7 @@ class ScheduledTask(BaseModel):
     enabled: bool = True
     run_on_start: bool = False
     max_retries: int = 0
-    timeout_seconds: int = 1800
+    timeout_seconds: int = 3600
     owner_id: str = Field(..., description="Creator user_id")
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None

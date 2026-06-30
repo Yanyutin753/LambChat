@@ -400,23 +400,17 @@ class PluginRuntime:
 
     def permissions(self, *, enabled_only: bool = True) -> list[str]:
         return PluginRegistry(self.manifests(enabled_only=enabled_only)).permissions(
-            enabled_only=enabled_only
+            enabled_only=False
         )
 
     def routes(self, *, enabled_only: bool = True) -> list[PluginRouteRegistration]:
-        return PluginRegistry(self.manifests(enabled_only=enabled_only)).routes(
-            enabled_only=enabled_only
-        )
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).routes(enabled_only=False)
 
     def tools(self, *, enabled_only: bool = True) -> list[PluginToolRegistration]:
-        return PluginRegistry(self.manifests(enabled_only=enabled_only)).tools(
-            enabled_only=enabled_only
-        )
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).tools(enabled_only=False)
 
     def agents(self, *, enabled_only: bool = True) -> list[PluginAgentRegistration]:
-        return PluginRegistry(self.manifests(enabled_only=enabled_only)).agents(
-            enabled_only=enabled_only
-        )
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).agents(enabled_only=False)
 
     def plugin_for_agent(self, agent_id: str) -> str | None:
         """Return the plugin that owns an agent catalog entry, if any."""
@@ -484,17 +478,24 @@ class PluginRuntime:
         self,
         *,
         phase: LifecyclePhase | None = None,
+        plugin_id: str | None = None,
         enabled_only: bool = True,
     ) -> list[PluginLifecycleHookRegistration]:
-        return PluginRegistry(self.manifests(enabled_only=enabled_only)).lifecycle_hooks(
+        registrations = PluginRegistry(self.manifests(enabled_only=enabled_only)).lifecycle_hooks(
             phase=phase,
-            enabled_only=enabled_only,
+            enabled_only=False,
         )
+        if plugin_id is None:
+            return registrations
+        return [
+            registration for registration in registrations if registration.plugin_id == plugin_id
+        ]
 
     async def execute_lifecycle_hooks(
         self,
         *,
         phase: LifecyclePhase,
+        plugin_id: str | None = None,
         executor: HookExecutor,
         timeout_seconds: float = 5.0,
     ) -> list[PluginHookExecutionResult]:
@@ -504,7 +505,7 @@ class PluginRuntime:
         caller, preserving core startup/shutdown flow.
         """
         results: list[PluginHookExecutionResult] = []
-        for registration in self.lifecycle_hooks(phase=phase):
+        for registration in self.lifecycle_hooks(phase=phase, plugin_id=plugin_id):
             started = perf_counter()
             try:
                 await asyncio.wait_for(

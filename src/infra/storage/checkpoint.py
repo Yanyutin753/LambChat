@@ -13,8 +13,10 @@ Checkpoint 存储实现
 import asyncio
 import copy
 import inspect
+import random
 import time
 from collections import OrderedDict
+from types import MethodType
 from typing import Any, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -53,6 +55,28 @@ _mongo_checkpointer: Optional[BaseCheckpointSaver[Any]] = None
 _pg_checkpointer: Optional[BaseCheckpointSaver[Any]] = None
 _pg_checkpointer_pool: Any | None = None
 _pg_checkpointer_lock: asyncio.Lock | None = None
+
+
+def _ensure_string_channel_version_support(
+    checkpointer: BaseCheckpointSaver[Any],
+) -> BaseCheckpointSaver[Any]:
+    """Patch savers that still inherit LangGraph's int-only version generator."""
+    if type(checkpointer).get_next_version is not BaseCheckpointSaver.get_next_version:
+        return checkpointer
+
+    def _get_next_version(self: BaseCheckpointSaver[Any], current: Any, channel: None) -> Any:
+        del self, channel
+        if isinstance(current, str):
+            current_v = int(current.split(".", 1)[0])
+            next_v = current_v + 1
+            next_h = random.random()
+            return f"{next_v:032}.{next_h:016}"
+        if current is None:
+            return 1
+        return current + 1
+
+    checkpointer.get_next_version = MethodType(_get_next_version, checkpointer)  # type: ignore[method-assign]
+    return checkpointer
 
 
 def _get_pg_checkpointer_lock() -> asyncio.Lock:
@@ -316,7 +340,7 @@ async def get_async_checkpointer(thread_id: str | None = None) -> BaseCheckpoint
     if checkpointer is None:
         logger.warning("MongoDB checkpointer unavailable, falling back")
     if checkpointer is not None:
-        return checkpointer
+        return _ensure_string_channel_version_support(checkpointer)
 
     # MemorySaver fallback
     from langgraph.checkpoint.memory import MemorySaver

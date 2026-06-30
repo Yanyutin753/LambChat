@@ -408,6 +408,33 @@ function matchesRevealFilePart(
   part: NonNullable<Message["parts"]>[number],
   targetFile: ExternalNavigationTargetFile,
 ): boolean {
+  if (part.type === "artifact" && part.artifact.kind === "file") {
+    const artifact = part.artifact;
+    const resultKey =
+      artifact.preview.s3Key?.trim() || artifact.preview.previewKey?.trim();
+    const targetKey = targetFile.fileKey?.trim();
+    const targetPath = targetFile.originalPath;
+    const resultName = artifact.name?.trim() || getPathBasename(artifact.path);
+    const targetName = targetFile.fileName?.trim();
+
+    if (targetKey) {
+      return !!resultKey && targetKey === resultKey;
+    }
+
+    if (targetPath) {
+      return Boolean(
+        pathsMatch(targetPath, artifact.path) ||
+          pathsMatch(targetPath, artifact.preview.filePath),
+      );
+    }
+
+    if (targetName) {
+      return !!resultName && targetName === resultName;
+    }
+
+    return false;
+  }
+
   if (part.type !== "tool" || part.name !== "reveal_file") {
     return false;
   }
@@ -446,6 +473,26 @@ function matchesRevealProjectPart(
   part: NonNullable<Message["parts"]>[number],
   targetFile: ExternalNavigationTargetFile,
 ): boolean {
+  if (part.type === "artifact" && part.artifact.kind === "project") {
+    const artifact = part.artifact;
+    const project = artifact.preview.project;
+    const projectPath =
+      typeof project.path === "string" ? project.path : undefined;
+    const targetPath = targetFile.originalPath;
+    const targetName = targetFile.fileName?.trim();
+    const resultName = artifact.name?.trim() || getPathBasename(projectPath);
+
+    if (targetName && resultName) {
+      return targetName === resultName;
+    }
+
+    return Boolean(
+      targetPath &&
+        (pathsMatch(targetPath, projectPath) ||
+          pathsMatch(targetPath, artifact.preview.previewKey)),
+    );
+  }
+
   if (part.type !== "tool" || part.name !== "reveal_project") {
     return false;
   }

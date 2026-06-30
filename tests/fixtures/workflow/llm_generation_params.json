@@ -1,0 +1,34 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "LLM Generation Params"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "llm",
+          "data": {
+            "type": "llm",
+            "title": "Think",
+            "model": { "provider": "openai", "name": "gpt-4o-mini" },
+            "prompt_template": "Answer {{message}}",
+            "model_parameters": {
+              "max_tokens": 128,
+              "top_p": 0.8,
+              "presence_penalty": 0.1,
+              "frequencyPenalty": 0.2,
+              "stop_sequences": ["END"]
+            }
+          }
+        },
+        { "id": "answer", "data": { "type": "answer", "title": "Answer", "answer": "{{llm_text}}" } }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "llm" },
+        { "id": "e2", "source": "llm", "target": "answer" }
+      ]
+    }
+  }
+}

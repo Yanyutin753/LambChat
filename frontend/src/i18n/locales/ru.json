@@ -12,6 +12,19 @@
     "title": "О LambChat",
     "upToDate": "У вас последняя версия!",
     "updateAvailable": "Доступна новая версия!",
+    "updateChecking": "Проверка обновлений...",
+    "updateDownload": "Обновить сейчас",
+    "updateDownloadProgress": "Загружено {{percent}}%",
+    "updateDownloading": "Загрузка...",
+    "updateError": "Ошибка обновления",
+    "updateGoToDownload": "Перейти к загрузке",
+    "updateInstall": "Установить сейчас",
+    "updateNewVersion": "Доступна новая версия {{version}}",
+    "updatePublishedAt": "Опубликовано {{date}}",
+    "updateReleaseNotes": "Примечания к выпуску",
+    "updateRetry": "Повторить",
+    "updateSkip": "Позже",
+    "updateSuccess": "Обновление готово! Перезагрузка...",
     "viewOnGitHub": "Смотреть на GitHub",
     "viewUpdate": "Обновить"
   },
@@ -490,10 +503,13 @@
     "deleteSuccess": "Конфигурация удалена",
     "deleteTitle": "Удалить экземпляр канала",
     "description": "Подключите любимые чат-платформы к LambChat",
+    "disabled": "Отключено",
     "disconnected": "Отключено",
     "enabled": "Включить канал",
     "enabledDesc": "Включить или отключить этот канал",
     "fieldRequired": "{{field.title}} обязательно",
+    "instanceCount_one": "{{count}} экземпляр",
+    "instanceCount_other": "{{count}} экземпляров",
     "instanceName": "Название экземпляра",
     "instanceNamePlaceholder": "Введите название экземпляра",
     "leaveEmpty": "оставьте пустым, чтобы сохранить текущее значение",
@@ -519,7 +535,9 @@
     "testError": "Не удалось проверить подключение",
     "testFailed": "Подключение не удалось",
     "testSuccess": "Подключение успешно",
-    "title": "Каналы"
+    "title": "Каналы",
+    "webhookShort": "Hook",
+    "websocketShort": "WS"
   },
   "chat": {
     "addMoreFiles": "[TODO]chat.addMoreFiles",
@@ -527,11 +545,11 @@
     "attachFile": "Прикрепить файл",
     "cancelled": "Отменено",
     "commands": {
-      "runSkillsCount": "[TODO]chat.commands.runSkillsCount",
-      "tools": "Инструменты",
-      "team": "Команда",
+      "agent": "Агент",
       "persona": "Персона",
-      "agent": "Агент"
+      "runSkillsCount": "[TODO]chat.commands.runSkillsCount",
+      "team": "Команда",
+      "tools": "Инструменты"
     },
     "dropFilesHere": "Перетащите файлы сюда для загрузки",
     "enterToSend": "для отправки",
@@ -548,13 +566,13 @@
       "clear": "Очистить цель",
       "command": "Цель",
       "completed": "Завершено",
+      "description": "Установить цель беседы",
       "duration": "Длительность",
       "placeholder": "Введите цель…",
       "required": "Введите цель",
       "running": "Выполнение",
       "runningStatus": "Выполняется",
-      "startedAt": "Начало",
-      "description": "Установить цель беседы"
+      "startedAt": "Начало"
     },
     "goodAfternoon": "Добрый день, {{name}}",
     "goodEvening": "Добрый вечер, {{name}}",
@@ -578,6 +596,7 @@
       "askHumanYourAnswer": "Ваш ответ",
       "assistant": "Ассистент",
       "cancelled": "Генерация отменена",
+      "codePreview": "Предпросмотр кода",
       "collapse": "Свернуть",
       "complete": "завершено",
       "copied": "Скопировано!",
@@ -636,6 +655,7 @@
       "toolEditRemoved": "Удалено",
       "toolEnvVar": "Переменная",
       "toolEnvVarDelete": "Удалить переменную",
+      "toolEnvVarDeleteAll": "Удалить все переменные",
       "toolEnvVarList": "Список переменных",
       "toolEnvVarSet": "Задать переменную",
       "toolExecute": "Запуск",
@@ -643,11 +663,11 @@
       "toolFailed": "Команда не удалась",
       "toolFile": "файл",
       "toolFileCount": "{{count}} файлов",
-      "toolFileCount_few": "{{count}} файла",
-      "toolFileCount_many": "{{count}} файлов",
       "toolFileCount_one": "{{count}} файл",
       "toolFileCount_other": "{{count}} файлов",
       "toolGlob": "Glob",
+      "toolImageAnalyze": "Анализ изображения",
+      "toolImageAnalyzeCount": "{{count}} изображений",
       "toolImageCount": "{{count}} изображений",
       "toolImageGenerate": "Генерация",
       "toolImageGenerateDesc": "Генерация изображений с помощью ИИ",
@@ -682,7 +702,11 @@
       "toolScheduledTask": "Задача",
       "toolScheduledTaskCreate": "Создать задачу",
       "toolScheduledTaskDelete": "Удалить задачу",
+      "toolScheduledTaskGet": "Получить задачу",
       "toolScheduledTaskList": "Список задач",
+      "toolScheduledTaskPause": "Приостановить задачу",
+      "toolScheduledTaskResume": "Возобновить задачу",
+      "toolScheduledTaskRun": "Запустить задачу",
       "toolScheduledTaskUpdate": "Обновить задачу",
       "toolSearch": "Поиск",
       "toolSearchAlreadyAvailable": "Доступен",
@@ -693,6 +717,9 @@
       "toolSearchTools": "Поиск инструментов",
       "toolSuccess": "Команда выполнена",
       "toolTaskName": "Имя",
+      "toolTransferFile": "Перенести файл",
+      "toolTransferPath": "Перенести путь",
+      "toolUploadUrlToSandbox": "Загрузить URL в песочницу",
       "toolVarCount": "{{count}} переменных",
       "toolWrite": "Запись"
     },
@@ -722,6 +749,10 @@
     "shiftEnterNewLine": "для новой строки",
     "skillCreated": "Навык создан",
     "skillUpdated": "Навык обновлён",
+    "slashCommands": {
+      "commands": "Команды",
+      "skills": "Навыки"
+    },
     "status": {
       "cancelled": "Отменено"
     },
@@ -743,11 +774,7 @@
     "waitingForUpload": "Пожалуйста, дождитесь завершения загрузки файла",
     "welcomeRefresh": "Обновить",
     "welcomeSubtitle": "Чем могу помочь?",
-    "welcomeSuggestions": "Предложения",
-    "slashCommands": {
-      "commands": "Команды",
-      "skills": "Навыки"
-    }
+    "welcomeSuggestions": "Предложения"
   },
   "common": {
     "about": "О программе",
@@ -1424,6 +1451,8 @@
       "createServer": "Создать сервер",
       "dailyLimit": "Дневной лимит",
       "enabled": "Включён",
+      "disableInlineExposure": "Искать по требованию",
+      "enableInlineExposure": "Показывать как функцию",
       "envKeys": "Переменные окружения",
       "envKeysDescription": "Выберите переменные окружения для внедрения в процесс MCP сервера. Они должны быть предварительно определены в настройках переменных окружения.",
       "envKeysPlaceholder": "Выберите переменные окружения...",
@@ -1431,6 +1460,8 @@
       "envVars": "Переменные окружения",
       "headerNamePlaceholder": "Имя-Заголовка",
       "httpHeaders": "HTTP заголовки",
+      "inlineExposure": "Показывать как функцию",
+      "inlineExposureDescription": "Для часто используемых инструментов: они сразу видны модели. Если выключено, загрузка идёт через search_tools.",
       "keyPlaceholder": "КЛЮЧ",
       "noEnvVars": "Нет переменных окружения",
       "noHeaders": "Нет пользовательских заголовков",
@@ -1551,6 +1582,35 @@
   "mermaidViewer": {
     "hideCode": "Скрыть код",
     "showCode": "Показать код"
+  },
+  "workflowPlugin": {
+    "chat": {
+      "entry": "Вход",
+      "exit": "Выход",
+      "inputOverrideSet": "Переопределение входа задано",
+      "inputs": "Входы",
+      "none": "нет",
+      "outputs": "Выходы",
+      "selectWorkflow": "Рабочий процесс"
+    },
+    "nav": {
+      "editorLabel": "Редактор рабочего процесса",
+      "label": "Рабочие процессы",
+      "runLabel": "Запуск рабочего процесса"
+    },
+    "project": {
+      "defaultWorkflow": "Рабочий процесс по умолчанию",
+      "defaultWorkflowVersion": "Версия рабочего процесса по умолчанию"
+    },
+    "scheduledTask": {
+      "workflow": "Рабочий процесс",
+      "workflowVersion": "Версия рабочего процесса"
+    },
+    "session": {
+      "selectedWorkflow": "Выбранный рабочий процесс",
+      "selectedWorkflowVersion": "Выбранная версия рабочего процесса",
+      "selectedWorkflowInput": "Выбранный вход рабочего процесса"
+    }
   },
   "nav": {
     "adminMarketplace": "Администрирование магазина",
@@ -2043,6 +2103,14 @@
       "description": "Управляйте подключениями серверов Model Context Protocol. Подключайте внешние инструменты, базы данных и сервисы для расширения возможностей AI-агента.",
       "title": "Управление MCP-серверами"
     },
+    "workflows": {
+      "description": "Создавайте, собирайте, версионируйте, запускайте и отлаживайте рабочие процессы.",
+      "editorDescription": "Редактируйте граф рабочего процесса с явными входами, выходами, узлами и трассировкой запусков.",
+      "editorTitle": "Редактор рабочего процесса",
+      "runDescription": "Просматривайте трассировку запуска рабочего процесса, события узлов, вывод, ошибки и состояние согласования.",
+      "runTitle": "Запуск рабочего процесса",
+      "title": "Рабочие процессы"
+    },
     "memory": {
       "description": "Просматривайте и управляйте содержимым памяти AI. Персистентное хранение контекста и знаний для долгосрочного понимания AI-агента между диалогами.",
       "title": "Память AI"
@@ -2109,6 +2177,15 @@
     "CHECKPOINT_PG_POOL_MIN_SIZE": "Минимальный размер пула подключений PostgreSQL для контрольных точек",
     "CHECKPOINT_PG_PORT": "Порт PostgreSQL для хранения контрольных точек",
     "CHECKPOINT_PG_USER": "Имя пользователя PostgreSQL для хранения контрольных точек. Оставьте пустым для использования POSTGRES_USER.",
+    "CUBE_API_URL": "CubeSandbox API URL, например http://127.0.0.1:13000",
+    "CUBE_AUTO_PAUSE": "Автоматически приостанавливать песочницы CubeSandbox по таймауту вместо их уничтожения",
+    "CUBE_AUTO_RESUME": "Автоматически возобновлять приостановленные песочницы CubeSandbox при следующем подключении",
+    "CUBE_PROXY_NODE_IP": "IP узла CubeProxy. Для локальной разработки обычно 127.0.0.1, обходит DNS cube.app",
+    "CUBE_PROXY_PORT_HTTP": "HTTP-порт CubeProxy. Для локальной разработки обычно 11080",
+    "CUBE_REQUEST_TIMEOUT": "Таймаут запросов к контрольной панели CubeSandbox в секундах",
+    "CUBE_SANDBOX_DOMAIN": "Суффикс домена песочницы CubeSandbox, например cube.app",
+    "CUBE_TEMPLATE": "ID шаблона CubeSandbox",
+    "CUBE_TIMEOUT": "Таймаут песочницы CubeSandbox в секундах",
     "DAYTONA_API_KEY": "Ключ API Daytona",
     "DAYTONA_AUTO_ARCHIVE_INTERVAL": "Интервал автоархивации песочницы Daytona в минутах",
     "DAYTONA_AUTO_DELETE_INTERVAL": "Интервал авт удаления песочницы Daytona в минутах после архивации",
@@ -2132,6 +2209,7 @@
     "ENABLE_CODE_INTERPRETER": "Включить экспериментальный интерпретатор кода QuickJS для запусков агента",
     "ENABLE_DEFERRED_TOOL_LOADING": "Включить отложенную загрузку инструментов MCP (уменьшает начальный размер контекста)",
     "ENABLE_EVENT_MERGER": "Включить объединение событий для уменьшения их количества",
+    "ENABLE_IMAGE_ANALYSIS": "Включить инструмент анализа изображений для агентов",
     "ENABLE_IMAGE_GENERATION": "Включить инструмент генерации и редактирования изображений для агентов",
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "Разрешить reveal/download-потокам использовать локальную файловую систему сервера как резервный вариант при сбое загрузки через backend",
     "ENABLE_MCP": "Включить функцию MCP",
@@ -2154,6 +2232,9 @@
     "FILE_UPLOAD_MAX_SIZE_DOCUMENT": "Максимальный размер документа в МБ",
     "FILE_UPLOAD_MAX_SIZE_IMAGE": "Максимальный размер файла изображения в МБ",
     "FILE_UPLOAD_MAX_SIZE_VIDEO": "Максимальный размер видеофайла в МБ",
+    "IMAGE_ANALYSIS_MAX_ATTEMPTS": "Максимальное число попыток вызова модели анализа изображений",
+    "IMAGE_ANALYSIS_MODEL_ID": "ID конфигурации VLM-модели для инструмента image_analyze. Выберите модель, помеченную в настройках как поддерживающую зрение.",
+    "IMAGE_ANALYSIS_RETRY_DELAY": "Базовая задержка повтора анализа изображений в секундах (начало экспоненциальной задержки)",
     "IMAGE_GENERATION_API_KEY": "Ключ API генерации/редактирования изображений",
     "IMAGE_GENERATION_BASE_URL": "Базовый URL OpenAI-совместимого API изображений",
     "IMAGE_GENERATION_MODEL": "Имя модели генерации изображений",
@@ -2328,6 +2409,7 @@
     "agent": "Агент",
     "authenticated": "Требуется вход",
     "authenticatedDesc": "Только авторизованные пользователи могут просматривать",
+    "cancelEdit": "Отменить редактирование",
     "conversationHistory": "История диалога",
     "copyLink": "Копировать ссылку",
     "createChat": "Создать чат",
@@ -2339,6 +2421,7 @@
     "deleteShare": "Закрыть доступ",
     "deleteSuccess": "Общий доступ удалён",
     "deselectAll": "Снять все",
+    "editShare": "Редактировать доступ",
     "events": "сообщения",
     "existingShares": "Существующие ссылки",
     "fullSession": "Полная сессия",
@@ -2368,6 +2451,7 @@
     "round": "Раунд {{number}}",
     "run": "Запуск",
     "runNumber": "Запуск {{number}}",
+    "saveShare": "Сохранить изменения",
     "selectAll": "Выбрать все",
     "selectRuns": "Выберите разговоры для общего доступа",
     "session": "Сессия",
@@ -2379,6 +2463,8 @@
     "taskPending": "Ожидание",
     "taskRunning": "Выполняется",
     "title": "Поделиться сессией",
+    "updateFailed": "Не удалось обновить общий доступ",
+    "updateSuccess": "Общий доступ обновлён",
     "userMessage": "(Сообщение пользователя: {{message}})",
     "visibility": "Контроль доступа"
   },
@@ -2402,7 +2488,11 @@
   "sidebar": {
     "addToFavorites": "Добавить в избранное",
     "batchDeleteConfirm": "Удалить {{count}} выбранных сессий? Это действие нельзя отменить.",
+    "batchDeletePartialFailed": "Не удалось удалить {{count}} сеанс(ов)",
+    "batchDeleted": "Удалено {{count}} сеанс(ов)",
     "batchMoveConfirm": "Переместить {{count}} выбранных сессий в «{{project}}»?",
+    "batchMovePartialFailed": "Не удалось переместить {{count}} сеанс(ов)",
+    "batchMoved": "Перемещено {{count}} сеанс(ов)",
     "chats": "Чаты",
     "clearVisibleSelection": "Снять всё",
     "clickToEditIcon": "Нажмите, чтобы изменить иконку",
@@ -2811,6 +2901,7 @@
       "${cat}": "{{cat}}",
       "builtin": "Встроенный",
       "human": "Пользователь",
+      "internal": "Внутренний",
       "mcp": "MCP",
       "sandbox": "Песочница",
       "skill": "Навыки"
@@ -2819,8 +2910,10 @@
     "done": "Готово",
     "loadFailed": "Не удалось загрузить инструменты",
     "noDescription": "Нет описания",
+    "noMatchingTools": "Подходящих инструментов нет",
     "noTools": "Нет доступных инструментов",
     "parameters": "Параметры",
+    "searchPlaceholder": "Поиск инструментов...",
     "selectAll": "Выделить всё",
     "selected": "Выбрано {{enabled}} из {{total}}",
     "systemDisabled": "Системный отключён",

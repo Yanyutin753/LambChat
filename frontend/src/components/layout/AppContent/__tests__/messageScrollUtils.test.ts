@@ -658,6 +658,44 @@ test("keeps history bottom lock alive for late layout shifts after the first set
   assert.equal(completionReason, "settled");
 });
 
+test("reports the first stable bottom before the post-settle observation window finishes", async () => {
+  const scroller = {
+    scrollTop: 400,
+    clientHeight: 200,
+    scrollHeight: 600,
+  };
+  let initialSettleCalls = 0;
+  let completeCalls = 0;
+  const virtuoso = {
+    scrollTo: () => {
+      scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
+    },
+  };
+
+  const stop = startVirtuosoScrollToBottom({
+    virtuoso,
+    scroller,
+    intervalMs: 5,
+    maxAttempts: 20,
+    settleWindowMs: 15,
+    observeLayoutChanges: true,
+    observeAfterSettleMs: 100,
+    onInitialSettle: () => {
+      initialSettleCalls += 1;
+    },
+    onComplete: () => {
+      completeCalls += 1;
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 45));
+
+  assert.equal(initialSettleCalls, 1);
+  assert.equal(completeCalls, 0);
+
+  stop();
+});
+
 test("does not keep extending post-settle observation on repeated layout changes", async () => {
   let resizeCallback: () => void = () => {
     assert.fail("resize observer was not registered");

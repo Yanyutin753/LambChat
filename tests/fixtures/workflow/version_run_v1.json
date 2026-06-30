@@ -1,0 +1,22 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Version Run V1"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "answer",
+        "type": "answer",
+        "data": {
+          "title": "Answer",
+          "answer": "version-one {{message}}"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "answer" }
+    ]
+  }
+}

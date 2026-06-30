@@ -40,6 +40,30 @@
       }
     },
     {
+      "event": "artifact:result",
+      "data": {
+        "artifact": {
+          "kind": "file",
+          "id": "file:revealed_files/report.svg",
+          "name": "report.svg",
+          "path": "/workspace/report.svg",
+          "description": "File created by the agent",
+          "fileSize": 128,
+          "preview": {
+            "kind": "file",
+            "previewKey": "revealed_files/report.svg",
+            "filePath": "/workspace/report.svg",
+            "s3Key": "revealed_files/report.svg",
+            "signedUrl": "/api/upload/file/revealed_files/report.svg",
+            "fileSize": 128
+          }
+        },
+        "success": true,
+        "timestamp": "2026-05-30T00:00:00Z",
+        "agent_id": "default"
+      }
+    },
+    {
       "event": "complete",
       "data": {
         "status": "completed",

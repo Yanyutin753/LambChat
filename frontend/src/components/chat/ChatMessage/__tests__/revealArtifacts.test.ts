@@ -142,6 +142,48 @@ test("deduplicates repeated file reveal artifacts by source path and keeps the l
   assert.equal(artifacts[0].fileSize, 2048);
 });
 
+test("collects artifact parts without requiring reveal tool parts", () => {
+  const artifacts = collectRevealArtifacts([
+    {
+      type: "artifact",
+      success: true,
+      artifact: {
+        kind: "file",
+        id: "file:revealed/puppy.svg",
+        name: "puppy.svg",
+        path: "/workspace/puppy.svg",
+        fileSize: 4096,
+        preview: {
+          kind: "file",
+          previewKey: "revealed/puppy.svg",
+          filePath: "/workspace/puppy.svg",
+          signedUrl: "/api/upload/file/revealed/puppy.svg",
+          fileSize: 4096,
+        },
+      },
+    },
+    {
+      type: "artifact",
+      success: false,
+      artifact: {
+        kind: "file",
+        id: "file:revealed/secret.env",
+        name: "secret.env",
+        path: "/workspace/secret.env",
+        preview: {
+          kind: "file",
+          previewKey: "revealed/secret.env",
+          filePath: "/workspace/secret.env",
+        },
+      },
+    },
+  ]);
+
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].kind, "file");
+  assert.equal(artifacts[0].name, "puppy.svg");
+});
+
 test("builds stable nested artifact tree metadata", () => {
   const artifacts: RevealArtifact[] = [
     {

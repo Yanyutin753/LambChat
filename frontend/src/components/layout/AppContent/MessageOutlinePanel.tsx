@@ -78,7 +78,7 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
         "outline-flow-node",
         "px-3.5 py-3 rounded-xl w-[232px] cursor-pointer",
         "transition-all duration-200 ease-out",
-        "border backdrop-blur-sm",
+        "border",
         isUser
           ? "bg-white/70 dark:bg-stone-800/50 border-stone-200/60 dark:border-stone-600/40"
           : "bg-stone-50/80 dark:bg-stone-800/60 border-stone-200/50 dark:border-stone-600/30",

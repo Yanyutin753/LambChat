@@ -55,6 +55,22 @@ class E2BConfig(SandboxConfig):
     auto_resume: bool = True
 
 
+@dataclass
+class CubeSandboxConfig(SandboxConfig):
+    """CubeSandbox 配置"""
+
+    platform: str = field(default="cubesandbox", init=False)
+    api_url: str = "http://127.0.0.1:3000"
+    template: str = ""
+    proxy_node_ip: str = ""
+    proxy_port_http: int = 80
+    sandbox_domain: str = "cube.app"
+    timeout: int = 3600
+    request_timeout: float = 120.0
+    auto_pause: bool = True
+    auto_resume: bool = True
+
+
 # =============================================================================
 # 工厂类
 # =============================================================================
@@ -341,6 +357,42 @@ class SandboxFactory:
                 auto_pause=config.auto_pause,
                 auto_resume=config.auto_resume,
             )
+        elif config.platform == "cubesandbox":
+            if not isinstance(config, CubeSandboxConfig):
+                raise ValueError("Invalid config type for cubesandbox platform")
+            from cubesandbox import Config, Sandbox
+
+            from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+            lifecycle = None
+            if config.auto_pause:
+                lifecycle = {
+                    "on_timeout": "pause",
+                    "auto_resume": config.auto_resume,
+                }
+            sandbox = Sandbox.create(
+                template=config.template,
+                timeout=config.timeout,
+                lifecycle=lifecycle,
+                config=Config(
+                    api_url=config.api_url,
+                    template_id=config.template,
+                    proxy_node_ip=config.proxy_node_ip or None,
+                    proxy_port=config.proxy_port_http,
+                    sandbox_domain=config.sandbox_domain,
+                    timeout=config.timeout,
+                    request_timeout=config.request_timeout,
+                ),
+            )
+            backend = CubeSandboxBackend(sandbox=sandbox, timeout=config.timeout)
+            cls._sandbox_registry[sandbox.sandbox_id] = (backend, sandbox)
+            logger.info(
+                "Created CubeSandbox sandbox: %s, template=%s, timeout=%ss",
+                sandbox.sandbox_id,
+                config.template,
+                config.timeout,
+            )
+            return backend
         else:
             raise ValueError(f"Unknown sandbox platform: {config.platform}")
 
@@ -367,6 +419,18 @@ def get_sandbox_config_from_settings() -> SandboxConfig:
             timeout=getattr(settings, "E2B_TIMEOUT", 3600),
             auto_pause=getattr(settings, "E2B_AUTO_PAUSE", True),
             auto_resume=getattr(settings, "E2B_AUTO_RESUME", True),
+        )
+    elif platform == "cubesandbox":
+        return CubeSandboxConfig(
+            api_url=getattr(settings, "CUBE_API_URL", "http://127.0.0.1:3000"),
+            template=getattr(settings, "CUBE_TEMPLATE", ""),
+            proxy_node_ip=getattr(settings, "CUBE_PROXY_NODE_IP", ""),
+            proxy_port_http=getattr(settings, "CUBE_PROXY_PORT_HTTP", 80),
+            sandbox_domain=getattr(settings, "CUBE_SANDBOX_DOMAIN", "cube.app"),
+            timeout=getattr(settings, "CUBE_TIMEOUT", 3600),
+            request_timeout=getattr(settings, "CUBE_REQUEST_TIMEOUT", 120.0),
+            auto_pause=getattr(settings, "CUBE_AUTO_PAUSE", True),
+            auto_resume=getattr(settings, "CUBE_AUTO_RESUME", True),
         )
     else:
         raise ValueError(f"Unsupported sandbox platform: {platform}")

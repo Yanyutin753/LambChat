@@ -3,6 +3,19 @@
   #root {
     transition: max-width 300ms ease-out;
   }
+  html[data-sidebar-preview="open"],
+  html[data-sidebar-preview="open"] body {
+    background: var(--theme-bg);
+  }
+  html[data-sidebar-preview="open"] body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 0 auto;
+    width: var(--sidebar-preview-width, 60%);
+    background: var(--theme-bg);
+    pointer-events: none;
+    z-index: 199;
+  }
   html[data-sidebar-preview="open"] #root {
     max-width: calc(100% - var(--sidebar-preview-width, 60%)) !important;
   }
@@ -200,9 +213,24 @@ body {
 html.allow-scroll,
 html.allow-scroll body,
 html.allow-scroll #root {
-  overflow-y: scroll;
+  overflow-y: auto;
   height: auto;
   overscroll-behavior: auto;
+  scrollbar-gutter: auto;
+}
+
+html.allow-scroll[data-sidebar-preview="open"],
+html.allow-scroll[data-sidebar-preview="open"] body,
+html.allow-scroll[data-sidebar-preview="open"] #root {
+  scrollbar-width: none;
+}
+
+html.allow-scroll[data-sidebar-preview="open"]::-webkit-scrollbar,
+html.allow-scroll[data-sidebar-preview="open"] body::-webkit-scrollbar,
+html.allow-scroll[data-sidebar-preview="open"] #root::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 html[data-browser-chrome-nudge],

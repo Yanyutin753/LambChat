@@ -235,3 +235,59 @@ test("tool result panel exposes console chrome styling hooks", () => {
     "header icon should not render an extra corner status dot",
   );
 });
+
+test("tool result panel masks rich content until the first panel paint settles", () => {
+  const componentSource = readFileSync(
+    new URL("../ToolResultPanel.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    componentSource,
+    /const \[contentReady, setContentReady\] = useState\(false\)/,
+    "panel should track whether rich content is ready to reveal",
+  );
+  assert.match(
+    componentSource,
+    /requestAnimationFrame\(\(\) => \{\s*frameIds\.push\(\s*requestAnimationFrame\(\(\) => \{/s,
+    "panel should wait for two animation frames so lazy markdown and code viewers can settle",
+  );
+  assert.match(
+    componentSource,
+    /aria-busy=\{!contentReady\}/,
+    "body should expose busy state while the reveal mask is active",
+  );
+  assert.match(
+    componentSource,
+    /className=\{`tool-console-body__content h-full min-h-full[\s\S]*?\$\{\s*contentReady \? "opacity-100" : "opacity-0"/,
+    "rich content should keep a full-height parent while visually hidden until ready",
+  );
+  assert.match(
+    componentSource,
+    /tool-console-body__loading/s,
+    "panel should show a loading overlay while rich content is hidden",
+  );
+});
+
+test("tool detail sections keep visible separation in light mode", () => {
+  const componentsSource = readFileSync(
+    new URL("../../../../../styles/components.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    componentsSource,
+    /\.tool-detail-section\s*\{[\s\S]*?background:\s*var\(--theme-bg-card\);[\s\S]*?box-shadow:/,
+    "detail sections should use a card surface and shadow so light mode blocks do not blend into the page background",
+  );
+  assert.match(
+    componentsSource,
+    /\.tool-detail-section\.is-expanded\s*\{[\s\S]*?background:\s*var\(--theme-bg-card\);[\s\S]*?0 8px 24px -18px/,
+    "expanded detail sections should keep a stronger but restrained light-mode elevation",
+  );
+  assert.match(
+    componentsSource,
+    /\.dark \.tool-detail-section\s*\{[\s\S]*?background:\s*color-mix\(in srgb, var\(--theme-bg\) 35%, transparent\);/,
+    "dark mode should retain its existing lower-contrast dark surface treatment",
+  );
+});

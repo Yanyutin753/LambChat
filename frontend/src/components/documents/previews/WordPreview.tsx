@@ -2,7 +2,12 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { FileText, AlertCircle } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import DOMPurify from "dompurify";
-import { docxTextToHtml, extractDocxTextFallback } from "./wordPreviewUtils";
+import {
+  decodeTextLikeArrayBuffer,
+  docxTextToHtml,
+  extractDocxTextFallback,
+  isDocxZipArrayBuffer,
+} from "./wordPreviewUtils";
 import { renderDocxPreviewHtml } from "./wordPreviewRenderer";
 import {
   extractLegacyDocText,
@@ -267,6 +272,15 @@ const WordPreview = memo(function WordPreview({
           if (!renderText(legacyText)) {
             setError(t("documents.wordConversionError"));
           }
+          return;
+        }
+
+        if (!isDocxZipArrayBuffer(arrayBuffer)) {
+          const text = decodeTextLikeArrayBuffer(arrayBuffer);
+          if (text && renderText(text)) {
+            return;
+          }
+          setError(t("documents.wordConversionError"));
           return;
         }
 

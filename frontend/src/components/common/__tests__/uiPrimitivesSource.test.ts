@@ -379,6 +379,8 @@ test("normal skill form uses shared primitives for generic form controls", () =>
   assert.match(source, /<Input[\s\S]*adminMarketplace\.tagsPlaceholder/);
   assert.match(source, /<Input[\s\S]*skills\.form\.filePathPlaceholder/);
   assert.match(source, /<IconButton[\s\S]*addFile/);
+  assert.match(source, /<IconButton[\s\S]*editFullscreen/);
+  assert.match(source, /icon=\{<Pencil size=\{15\} \/>/);
   assert.match(source, /<IconButton[\s\S]*toggleFullscreen\(true\)/);
   assert.match(source, /<Button[\s\S]*type="submit"/);
   assert.doesNotMatch(
@@ -506,6 +508,16 @@ test("mcp panel generic shell actions use shared buttons", () => {
   assert.doesNotMatch(source, /className="btn-(primary|secondary|icon)[^"]*"/);
   assert.doesNotMatch(source, /className="glass-input es-textarea/);
   assert.doesNotMatch(source, /<input[\s\S]*type="checkbox"/);
+});
+
+test("mcp tool expanded settings expose inline function policy toggle", () => {
+  const source = readSource("../../mcp/MCPServerToolsSidebar.tsx");
+
+  assert.match(source, /server\.can_edit\s*&&\s*server\.is_system/);
+  assert.match(source, /mcp\.form\.inlineExposure/);
+  assert.match(source, /mcp\.form\.inlineExposureDescription/);
+  assert.match(source, /inline_exposure:\s*!\(tool\.inline_exposure/);
+  assert.match(source, /mcpApi\.updateToolPolicy[\s\S]*inline_exposure/);
 });
 
 test("core admin crud panels use shared panel controls for generic actions", () => {

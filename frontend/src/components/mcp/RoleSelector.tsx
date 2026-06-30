@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { ChevronDown, X, Search, Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { roleApi } from "../../services/api/role";
+import { PanelSearchInput } from "../common/PanelSearchInput";
 import { McpSelectorEmptyState } from "./McpSelectorEmptyState";
 
 interface RoleSelectorProps {
@@ -123,10 +124,10 @@ export function RoleSelector({ selectedRoles, onChange }: RoleSelectorProps) {
                 size={12}
                 className="text-stone-400 dark:text-stone-500"
               />
-              <input
+              <PanelSearchInput
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onValueChange={setSearch}
                 placeholder={t("mcp.form.searchRoles")}
                 className="flex-1 bg-transparent text-xs text-stone-700 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
                 autoFocus

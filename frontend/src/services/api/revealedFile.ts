@@ -34,6 +34,7 @@ export interface RevealedFileItem {
   project_id: string | null;
   user_id: string;
   source: "reveal_file" | "reveal_project";
+  delivery_source?: "artifact_auto" | string | null;
   description: string | null;
   original_path: string | null;
   created_at: string;

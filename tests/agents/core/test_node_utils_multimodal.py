@@ -368,6 +368,32 @@ async def test_force_data_url_emits_data_url_in_human_message(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_force_data_url_keeps_original_url_in_text_summary(monkeypatch):
+    """When URL is converted to data URL, the model should still receive the original URL."""
+    storage = FakeImageStorage()
+
+    async def fake_get_or_init_storage():
+        return storage
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage",
+        fake_get_or_init_storage,
+    )
+
+    attachments = await inline_image_attachments_as_data_urls(
+        [image_attachment()],
+        force_data_url=True,
+    )
+
+    message = build_human_message("describe", attachments, supports_vision=True)
+
+    assert isinstance(message.content, list)
+    assert "Corresponding image: #1" in message.content[0]["text"]
+    assert "/api/upload/file/uploads/img.png" in message.content[0]["text"]
+    assert message.content[1]["image_url"]["url"] == "data:image/png;base64,aW1hZ2UtYnl0ZXM="
+
+
+@pytest.mark.asyncio
 async def test_force_data_url_cleared_url_not_double_downloaded_by_middleware(monkeypatch):
     """After force_data_url clears url, the middleware should skip data: URLs."""
     storage = FakeImageStorage()

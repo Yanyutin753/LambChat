@@ -187,7 +187,11 @@ export function useSkillsActions() {
         const oldFiles = editingSkill.filePaths?.length
           ? editingSkill.filePaths
           : Object.keys(editingSkill.files);
-        const newFiles = data.files ? Object.keys(data.files) : [];
+        const newFiles = data.filePaths?.length
+          ? data.filePaths
+          : data.files
+            ? Object.keys(data.files)
+            : [];
         const deletedFiles = oldFiles.filter((f) => !newFiles.includes(f));
         success = await updateSkill(editingSkill.name, {
           description: data.description,

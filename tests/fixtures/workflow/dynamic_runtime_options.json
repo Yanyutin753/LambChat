@@ -1,0 +1,34 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Dynamic Runtime Options"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "knowledge",
+        "type": "knowledge-retrieval",
+        "data": {
+          "title": "Search Knowledge",
+          "query": "{{message}}",
+          "top_k_selector": ["retrieval", "limit"],
+          "scoreThreshold": "{{retrieval.threshold}}"
+        }
+      },
+      {
+        "id": "loop",
+        "type": "iteration",
+        "data": {
+          "title": "Loop Items",
+          "iterator_selector": ["items"],
+          "max_items_selector": ["limits", "max"]
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "knowledge" },
+      { "id": "e2", "source": "knowledge", "target": "loop" }
+    ]
+  }
+}

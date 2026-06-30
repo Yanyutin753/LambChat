@@ -503,10 +503,13 @@
     "deleteSuccess": "配置已删除",
     "deleteTitle": "删除渠道实例",
     "description": "连接您喜欢的聊天平台到 LambChat",
+    "disabled": "已禁用",
     "disconnected": "未连接",
     "enabled": "启用渠道",
     "enabledDesc": "启用或禁用此渠道",
     "fieldRequired": "此字段为必填项",
+    "instanceCount_one": "{{count}} 个实例",
+    "instanceCount_other": "{{count}} 个实例",
     "instanceName": "实例名称",
     "instanceNamePlaceholder": "输入实例名称",
     "leaveEmpty": "留空保持当前值",
@@ -532,7 +535,9 @@
     "testError": "测试连接失败",
     "testFailed": "连接失败",
     "testSuccess": "连接成功",
-    "title": "渠道管理"
+    "title": "渠道管理",
+    "webhookShort": "Hook",
+    "websocketShort": "WS"
   },
   "chat": {
     "addMoreFiles": "添加更多文件",
@@ -540,11 +545,11 @@
     "attachFile": "附件",
     "cancelled": "已取消",
     "commands": {
-      "runSkillsCount": "下条消息启用 {{count}} 个技能",
-      "tools": "工具",
-      "team": "团队",
+      "agent": "智能体",
       "persona": "人设",
-      "agent": "智能体"
+      "runSkillsCount": "下条消息启用 {{count}} 个技能",
+      "team": "团队",
+      "tools": "工具"
     },
     "dropFilesHere": "拖放文件到此处上传",
     "enterToSend": "发送",
@@ -561,13 +566,13 @@
       "clear": "清除目标",
       "command": "目标",
       "completed": "已完成",
+      "description": "设置对话目标",
       "duration": "运行",
       "placeholder": "输入你的目标…",
       "required": "请输入目标内容",
       "running": "运行",
       "runningStatus": "运行中",
-      "startedAt": "开始时间",
-      "description": "设置对话目标"
+      "startedAt": "开始时间"
     },
     "goodAfternoon": "下午好，{{name}}",
     "goodEvening": "晚上好，{{name}}",
@@ -591,6 +596,7 @@
       "askHumanYourAnswer": "你的回答",
       "assistant": "Assistant",
       "cancelled": "生成已取消",
+      "codePreview": "代码预览",
       "collapse": "收起",
       "complete": "完成",
       "copied": "已复制!",
@@ -649,6 +655,7 @@
       "toolEditRemoved": "删除",
       "toolEnvVar": "环境变量",
       "toolEnvVarDelete": "删除变量",
+      "toolEnvVarDeleteAll": "删除全部变量",
       "toolEnvVarList": "列出变量",
       "toolEnvVarSet": "设置变量",
       "toolExecute": "执行",
@@ -659,6 +666,8 @@
       "toolFileCount_one": "{{count}} 个文件",
       "toolFileCount_other": "{{count}} 个文件",
       "toolGlob": "匹配",
+      "toolImageAnalyze": "图片分析",
+      "toolImageAnalyzeCount": "{{count}} 张图片",
       "toolImageCount": "{{count}} 张图片",
       "toolImageGenerate": "生成",
       "toolImageGenerateDesc": "AI 驱动的图像生成",
@@ -693,7 +702,11 @@
       "toolScheduledTask": "任务",
       "toolScheduledTaskCreate": "创建任务",
       "toolScheduledTaskDelete": "删除任务",
+      "toolScheduledTaskGet": "获取任务",
       "toolScheduledTaskList": "列出任务",
+      "toolScheduledTaskPause": "暂停任务",
+      "toolScheduledTaskResume": "恢复任务",
+      "toolScheduledTaskRun": "运行任务",
       "toolScheduledTaskUpdate": "更新任务",
       "toolSearch": "搜索",
       "toolSearchAlreadyAvailable": "已可用",
@@ -704,6 +717,9 @@
       "toolSearchTools": "搜索工具",
       "toolSuccess": "命令执行成功",
       "toolTaskName": "名称",
+      "toolTransferFile": "传输文件",
+      "toolTransferPath": "传输目录",
+      "toolUploadUrlToSandbox": "上传 URL 到沙箱",
       "toolVarCount": "{{count}} 个变量",
       "toolWrite": "写入"
     },
@@ -733,6 +749,10 @@
     "shiftEnterNewLine": "换行",
     "skillCreated": "技能已创建",
     "skillUpdated": "技能已更新",
+    "slashCommands": {
+      "commands": "命令",
+      "skills": "技能"
+    },
     "status": {
       "cancelled": "已取消"
     },
@@ -754,11 +774,7 @@
     "waitingForUpload": "请等待文件上传完成",
     "welcomeRefresh": "换一批",
     "welcomeSubtitle": "✨ 我能为你做什么？",
-    "welcomeSuggestions": "建议",
-    "slashCommands": {
-      "commands": "命令",
-      "skills": "技能"
-    }
+    "welcomeSuggestions": "建议"
   },
   "common": {
     "about": "关于",
@@ -1435,6 +1451,8 @@
       "createServer": "创建服务器",
       "dailyLimit": "每日限制",
       "enabled": "启用",
+      "disableInlineExposure": "改为按需搜索",
+      "enableInlineExposure": "直接暴露为函数",
       "envKeys": "环境变量",
       "envKeysDescription": "选择要注入到此 MCP 服务器进程的环境变量。需先在个人设置中定义。",
       "envKeysPlaceholder": "选择环境变量...",
@@ -1442,6 +1460,8 @@
       "envVars": "环境变量",
       "headerNamePlaceholder": "头名称",
       "httpHeaders": "HTTP 头",
+      "inlineExposure": "直接暴露为函数",
+      "inlineExposureDescription": "高频工具可直接出现在模型工具列表中；关闭后通过 search_tools 按需加载。",
       "keyPlaceholder": "键",
       "noEnvVars": "暂无环境变量，请先在个人设置中添加。",
       "noHeaders": "无自定义头",
@@ -1562,6 +1582,35 @@
   "mermaidViewer": {
     "hideCode": "隐藏代码",
     "showCode": "查看代码"
+  },
+  "workflowPlugin": {
+    "chat": {
+      "entry": "入口",
+      "exit": "出口",
+      "inputOverrideSet": "已设置输入覆盖",
+      "inputs": "输入",
+      "none": "无",
+      "outputs": "输出",
+      "selectWorkflow": "工作流"
+    },
+    "nav": {
+      "editorLabel": "工作流编辑器",
+      "label": "工作流",
+      "runLabel": "工作流运行"
+    },
+    "project": {
+      "defaultWorkflow": "默认工作流",
+      "defaultWorkflowVersion": "默认工作流版本"
+    },
+    "scheduledTask": {
+      "workflow": "工作流",
+      "workflowVersion": "工作流版本"
+    },
+    "session": {
+      "selectedWorkflow": "已选择工作流",
+      "selectedWorkflowVersion": "已选择工作流版本",
+      "selectedWorkflowInput": "已选择工作流输入"
+    }
   },
   "nav": {
     "adminMarketplace": "管理员技能商店",
@@ -2056,6 +2105,14 @@
       "description": "管理模型上下文协议服务器连接。连接外部工具、数据库和服务，扩展 AI 智能体能力。",
       "title": "MCP 服务器管理"
     },
+    "workflows": {
+      "description": "创建、编排、版本化、运行和调试工作流。",
+      "editorDescription": "编辑工作流图，包括显式输入、输出、节点和运行 trace。",
+      "editorTitle": "工作流编辑器",
+      "runDescription": "查看工作流运行 trace、节点事件、输出、错误和审批状态。",
+      "runTitle": "工作流运行",
+      "title": "工作流"
+    },
     "memory": {
       "description": "查看和管理 AI 记忆内容。持久化上下文和知识存储，实现跨对话的 AI 智能体长期理解。",
       "title": "AI 记忆空间"
@@ -2126,6 +2183,15 @@
     "CHECKPOINT_PG_POOL_MIN_SIZE": "检查点 PostgreSQL 连接池最小大小",
     "CHECKPOINT_PG_PORT": "检查点存储的 PostgreSQL 端口",
     "CHECKPOINT_PG_USER": "检查点存储的 PostgreSQL 用户名。留空使用 POSTGRES_USER。",
+    "CUBE_API_URL": "CubeSandbox API 地址，例如 http://127.0.0.1:13000",
+    "CUBE_AUTO_PAUSE": "超时时自动暂停 CubeSandbox 沙箱而非销毁",
+    "CUBE_AUTO_RESUME": "下次连接时自动恢复已暂停的 CubeSandbox 沙箱",
+    "CUBE_PROXY_NODE_IP": "CubeProxy 节点 IP；本地开发通常为 127.0.0.1，用于绕过 cube.app DNS",
+    "CUBE_PROXY_PORT_HTTP": "CubeProxy HTTP 端口；本地开发通常为 11080",
+    "CUBE_REQUEST_TIMEOUT": "CubeSandbox 控制面请求超时时间（秒）",
+    "CUBE_SANDBOX_DOMAIN": "CubeSandbox 沙箱域名后缀，例如 cube.app",
+    "CUBE_TEMPLATE": "CubeSandbox 模板 ID",
+    "CUBE_TIMEOUT": "CubeSandbox 沙箱超时时间（秒）",
     "DAYTONA_API_KEY": "Daytona API 密钥",
     "DAYTONA_AUTO_ARCHIVE_INTERVAL": "Daytona 沙箱自动归档间隔（分钟）",
     "DAYTONA_AUTO_DELETE_INTERVAL": "Daytona 沙箱自动删除间隔（分钟，归档后计算）",
@@ -2149,6 +2215,7 @@
     "ENABLE_CODE_INTERPRETER": "启用实验性的 QuickJS 代码解释器供 Agent 运行使用",
     "ENABLE_DEFERRED_TOOL_LOADING": "启用 MCP 工具延迟加载（减少初始上下文大小）",
     "ENABLE_EVENT_MERGER": "启用事件合并以减少事件数量",
+    "ENABLE_IMAGE_ANALYSIS": "启用供 Agent 使用的图片识别工具",
     "ENABLE_IMAGE_GENERATION": "启用供 Agent 使用的图像生成工具",
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "当后端下载失败时，允许 reveal/download 流程回退到服务器本地文件系统",
     "ENABLE_MCP": "启用 MCP 功能",
@@ -2171,6 +2238,9 @@
     "FILE_UPLOAD_MAX_SIZE_DOCUMENT": "最大文档文件大小（MB）",
     "FILE_UPLOAD_MAX_SIZE_IMAGE": "最大图片文件大小（MB）",
     "FILE_UPLOAD_MAX_SIZE_VIDEO": "最大视频文件大小（MB）",
+    "IMAGE_ANALYSIS_MAX_ATTEMPTS": "图片识别模型调用最大尝试次数",
+    "IMAGE_ANALYSIS_MODEL_ID": "image_analyze 工具使用的 VLM 模型配置 ID。请选择已在模型配置中标记支持视觉的模型。",
+    "IMAGE_ANALYSIS_RETRY_DELAY": "图片识别重试基础等待时间（秒，指数退避起始值）",
     "IMAGE_GENERATION_API_KEY": "图像生成/编辑 API 密钥",
     "IMAGE_GENERATION_BASE_URL": "OpenAI 兼容图像 API 基础 URL",
     "IMAGE_GENERATION_MODEL": "图像生成模型名称",
@@ -2345,6 +2415,7 @@
     "agent": "智能体",
     "authenticated": "需要登录",
     "authenticatedDesc": "只有登录用户可以查看",
+    "cancelEdit": "取消编辑",
     "conversationHistory": "对话历史",
     "copyLink": "复制链接",
     "createChat": "创建对话",
@@ -2356,6 +2427,7 @@
     "deleteShare": "取消分享",
     "deleteSuccess": "分享已取消",
     "deselectAll": "取消全选",
+    "editShare": "编辑分享",
     "events": "条消息",
     "existingShares": "已有分享",
     "fullSession": "完整会话",
@@ -2385,6 +2457,7 @@
     "round": "第 {{number}} 轮",
     "run": "轮",
     "runNumber": "第 {{number}} 轮",
+    "saveShare": "保存修改",
     "selectAll": "全选",
     "selectRuns": "选择要分享的对话轮次",
     "session": "会话",
@@ -2396,6 +2469,8 @@
     "taskPending": "等待中",
     "taskRunning": "运行中",
     "title": "分享会话",
+    "updateFailed": "更新分享失败",
+    "updateSuccess": "分享已更新",
     "userMessage": "（用户消息：{{message}}）",
     "visibility": "访问权限"
   },
@@ -2832,6 +2907,7 @@
       "${cat}": "{{cat}}",
       "builtin": "内置",
       "human": "人工",
+      "internal": "内部",
       "mcp": "MCP",
       "sandbox": "沙箱",
       "skill": "技能"
@@ -2840,8 +2916,10 @@
     "done": "完成",
     "loadFailed": "加载工具失败",
     "noDescription": "无描述",
+    "noMatchingTools": "没有匹配的工具",
     "noTools": "暂无可用工具",
     "parameters": "参数",
+    "searchPlaceholder": "搜索工具...",
     "selectAll": "全选",
     "selected": "已选择 {{enabled}}/{{total}}",
     "systemDisabled": "系统禁用",

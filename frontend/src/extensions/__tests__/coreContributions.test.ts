@@ -446,6 +446,106 @@ function enabledAgentTeamPlugin(): PluginRuntimeContributionState {
   };
 }
 
+function enabledWorkflowPluginPlugin(): PluginRuntimeContributionState {
+  return {
+    plugin_id: "workflow",
+    enabled: true,
+    executable: true,
+    status: "enabled",
+    frontend: {
+      app_tabs: [
+        {
+          id: "workflow:workflows-tab",
+          tab: "workflows",
+          path: "/workflows",
+          label: "workflowPlugin.nav.label",
+          panel: "workflow:workflows-panel",
+          insert_after: "agent-team",
+          order: 700,
+          permissions: [Permission.WORKFLOW_READ],
+        },
+        {
+          id: "workflow:workflow-editor-tab",
+          tab: "workflows-editor",
+          path: "/workflows/:workflowId/editor",
+          label: "workflowPlugin.nav.editorLabel",
+          panel: "workflow:workflow-editor-panel",
+          insert_after: "workflows",
+          order: 701,
+          permissions: [Permission.WORKFLOW_READ],
+        },
+        {
+          id: "workflow:workflow-run-tab",
+          tab: "workflows-run",
+          path: "/workflows/:workflowId/runs/:runId",
+          label: "workflowPlugin.nav.runLabel",
+          panel: "workflow:workflow-run-panel",
+          insert_after: "workflows-editor",
+          order: 702,
+          permissions: [Permission.WORKFLOW_READ],
+        },
+      ],
+      app_panels: [
+        {
+          id: "workflow:workflows-panel",
+          tab: "workflows",
+          renderer: "workflow.WorkflowPanel",
+        },
+        {
+          id: "workflow:workflow-editor-panel",
+          tab: "workflows-editor",
+          renderer: "workflow.WorkflowPanel",
+        },
+        {
+          id: "workflow:workflow-run-panel",
+          tab: "workflows-run",
+          renderer: "workflow.WorkflowPanel",
+        },
+      ],
+      sidebar_items: [
+        {
+          id: "workflow:workflows-nav",
+          path: "/workflows",
+          label: "workflowPlugin.nav.label",
+          icon: "Workflow",
+          order: 30,
+          permissions: [Permission.WORKFLOW_READ],
+        },
+      ],
+      chat_input_options: [
+        {
+          id: "workflow:select-workflow",
+          slot: "enhance",
+          label: "workflowPlugin.chat.selectWorkflow",
+          icon: "Workflow",
+          panel: "workflow:workflow-picker",
+          selected_renderer: "workflow.SelectedWorkflowChip",
+          shortcut: "mod+w",
+          order: 30,
+          option_binding: {
+            plugin_id: "workflow",
+            key: "SELECTED_WORKFLOW_ID",
+            scope: "session",
+          },
+        },
+      ],
+      chat_input_panels: [
+        {
+          id: "workflow:workflow-picker",
+          renderer: "workflow.WorkflowPickerModal",
+          create_path: "/workflows?create=blank",
+          manage_path: "/workflows",
+          option_binding: {
+            plugin_id: "workflow",
+            key: "SELECTED_WORKFLOW_ID",
+            scope: "session",
+          },
+        },
+      ],
+    },
+  };
+}
+
 test("core app routes preserve legacy paths, SEO paths, and permissions", () => {
   const routes = new Map(CORE_APP_ROUTES.map((route) => [route.id, route]));
 
@@ -592,6 +692,40 @@ test("structured plugin app tab and panel declarations drive runtime routes", ()
   assert.equal(findAppRouteContribution("usage", runtimePlugins)?.path, "/usage");
   assert.equal(panels.get("usage")?.renderer, "usage_reports.UsagePanel");
   assert.equal(findPanelContribution("usage", runtimePlugins)?.renderer, "usage_reports.UsagePanel");
+});
+
+test("Workflow registers as an Agent Team peer with dedicated editor and run routes", () => {
+  const runtimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+    enabledWorkflowPluginPlugin(),
+  ];
+
+  const routes = buildAppRouteContributions(runtimePlugins);
+  const routeIds = routes.map((route) => route.id);
+  const routeById = new Map(routes.map((route) => [route.id, route]));
+  const panels = new Map(buildPanelContributions(runtimePlugins).map((panel) => [panel.id, panel]));
+  const pluginNavItems = buildSidebarMoreNavContributions(runtimePlugins).filter(
+    (item) => item.pluginId === "agent_team" || item.pluginId === "workflow",
+  );
+
+  assert.equal(routeIds.indexOf("workflows"), routeIds.indexOf("agent-team") + 1);
+  assert.equal(routeIds.indexOf("workflows-editor"), routeIds.indexOf("workflows") + 1);
+  assert.equal(routeIds.indexOf("workflows-run"), routeIds.indexOf("workflows-editor") + 1);
+
+  assert.equal(routeById.get("workflows")?.pluginId, "workflow");
+  assert.equal(routeById.get("workflows")?.path, "/workflows");
+  assert.equal(routeById.get("workflows")?.insertAfterId, "agent-team");
+  assert.deepEqual(routeById.get("workflows")?.permissions, [Permission.WORKFLOW_READ]);
+  assert.equal(routeById.get("workflows-editor")?.path, "/workflows/:workflowId/editor");
+  assert.equal(routeById.get("workflows-editor")?.insertAfterId, "workflows");
+  assert.equal(routeById.get("workflows-run")?.path, "/workflows/:workflowId/runs/:runId");
+  assert.equal(routeById.get("workflows-run")?.insertAfterId, "workflows-editor");
+
+  assert.equal(panels.get("workflows")?.renderer, "workflow.WorkflowPanel");
+  assert.equal(panels.get("workflows-editor")?.renderer, "workflow.WorkflowPanel");
+  assert.equal(panels.get("workflows-run")?.renderer, "workflow.WorkflowPanel");
+  assert.deepEqual(pluginNavItems.map((item) => item.path), ["/agent-team", "/workflows"]);
+  assert.equal(pluginNavItems[1]?.labelKey, "workflowPlugin.nav.label");
 });
 
 test("runtime route and panel lookup respects disabled plugin state", () => {
@@ -775,6 +909,133 @@ test("runtime app tab declarations can add new plugin-owned pages", () => {
     buildUserMenuContributions(runtimePlugins).find((item) => item.path === "/reviews")?.pluginId,
     "review_center",
   );
+});
+
+test("runtime app tab declarations can insert after another plugin route", () => {
+  const runtimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+    enabledWorkflowPluginPlugin(),
+  ];
+
+  const routes = buildAppRouteContributions(runtimePlugins);
+  const routeIds = routes.map((route) => route.id);
+
+  assert.equal(routes.find((route) => route.id === "workflows")?.path, "/workflows");
+  assert.equal(
+    routes.find((route) => route.id === "workflows-editor")?.path,
+    "/workflows/:workflowId/editor",
+  );
+  assert.equal(
+    routes.find((route) => route.id === "workflows-run")?.path,
+    "/workflows/:workflowId/runs/:runId",
+  );
+  assert.equal(
+    routeIds.indexOf("workflows"),
+    routeIds.indexOf("agent-team") + 1,
+  );
+  assert.equal(
+    routeIds.indexOf("workflows-editor"),
+    routeIds.indexOf("workflows") + 1,
+  );
+  assert.equal(
+    routeIds.indexOf("workflows-run"),
+    routeIds.indexOf("workflows-editor") + 1,
+  );
+  assert.equal(
+    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "workflows")?.renderer,
+    "workflow.WorkflowPanel",
+  );
+  assert.equal(
+    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "workflows-editor")?.renderer,
+    "workflow.WorkflowPanel",
+  );
+  assert.equal(
+    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "workflows-run")?.renderer,
+    "workflow.WorkflowPanel",
+  );
+  const workflowNav = buildSidebarMoreNavContributions(runtimePlugins).find(
+    (item) => item.id === "workflows",
+  );
+  assert.equal(workflowNav?.path, "/workflows");
+  assert.equal(workflowNav?.labelKey, "workflowPlugin.nav.label");
+  assert.deepEqual(workflowNav?.requiredAnyPermissions, [Permission.WORKFLOW_READ]);
+});
+
+test("Workflow route panel and nav follow plugin runtime state", () => {
+  const enabledRuntimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+    enabledWorkflowPluginPlugin(),
+  ];
+  const disabledRuntimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+    disabledPlugin(enabledWorkflowPluginPlugin()),
+  ];
+
+  assert.deepEqual(
+    buildAppRouteContributions(enabledRuntimePlugins)
+      .filter((route) => route.pluginId === "workflow")
+      .map((route) => `${route.id}:${route.path}`),
+    [
+      "workflows:/workflows",
+      "workflows-editor:/workflows/:workflowId/editor",
+      "workflows-run:/workflows/:workflowId/runs/:runId",
+    ],
+  );
+  assert.deepEqual(
+    buildPanelContributions(enabledRuntimePlugins)
+      .filter((panel) => panel.pluginId === "workflow")
+      .map((panel) => `${panel.id}:${panel.renderer}`),
+    [
+      "workflows:workflow.WorkflowPanel",
+      "workflows-editor:workflow.WorkflowPanel",
+      "workflows-run:workflow.WorkflowPanel",
+    ],
+  );
+  assert.deepEqual(
+    buildSidebarMoreNavContributions(enabledRuntimePlugins)
+      .filter((item) => item.pluginId === "workflow")
+      .map((item) => `${item.id}:${item.path}:${item.labelKey}`),
+    ["workflows:/workflows:workflowPlugin.nav.label"],
+  );
+  assert.equal(
+    buildAppRouteContributions(disabledRuntimePlugins).some(
+      (route) => route.pluginId === "workflow",
+    ),
+    false,
+  );
+  assert.equal(
+    buildPanelContributions(disabledRuntimePlugins).some(
+      (panel) => panel.pluginId === "workflow",
+    ),
+    false,
+  );
+  assert.equal(
+    buildSidebarMoreNavContributions(disabledRuntimePlugins).some(
+      (item) => item.pluginId === "workflow",
+    ),
+    false,
+  );
+});
+
+test("Workflow chat input picker contributes a session workflow binding", () => {
+  const runtimePlugins: PluginRuntimeContributionState[] = [
+    enabledWorkflowPluginPlugin(),
+  ];
+
+  assert.deepEqual(
+    buildChatInputOptionContributions(runtimePlugins, { agentId: "default" }).map(
+      (option) => `${option.id}:${option.optionBinding?.pluginId}.${option.optionBinding?.key}:${option.selectedRenderer}:${option.suppressesCorePersonaSelector}:${option.shortcut}`,
+    ),
+    ["workflow:select-workflow:workflow.SELECTED_WORKFLOW_ID:workflow.SelectedWorkflowChip:false:mod+w"],
+  );
+  assert.deepEqual(
+    buildChatInputPanelContributions(runtimePlugins, { agentId: "default" }).map(
+      (panel) => `${panel.id}:${panel.optionBinding?.pluginId}.${panel.optionBinding?.key}:${panel.renderer}:${panel.createPath}:${panel.managePath}`,
+    ),
+    ["workflow:workflow-picker:workflow.SELECTED_WORKFLOW_ID:workflow.WorkflowPickerModal:/workflows?create=blank:/workflows"],
+  );
+  assert.deepEqual(buildChatInputOptionContributions([disabledPlugin(runtimePlugins[0])]), []);
+  assert.deepEqual(buildChatInputPanelContributions([disabledPlugin(runtimePlugins[0])]), []);
 });
 
 test("runtime app tab declarations cannot replace the core chat tab", () => {

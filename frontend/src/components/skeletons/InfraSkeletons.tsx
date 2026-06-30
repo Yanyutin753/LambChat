@@ -1,6 +1,9 @@
 import { SkeletonLine } from "./primitives";
 import { PanelHeaderSkeleton } from "./PanelHeaderSkeleton";
-import { PanelPaginationSkeleton } from "./PanelSkeletonHelpers";
+import {
+  PANEL_CARD_SKELETON_COUNT,
+  PanelPaginationSkeleton,
+} from "./PanelSkeletonHelpers";
 
 /** MCP panel: card grid matching real MCPServerCard (pps-card) structure */
 export function MCPPanelSkeleton() {
@@ -9,7 +12,7 @@ export function MCPPanelSkeleton() {
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
         <div className="grid auto-grid-cols gap-3">
-          {Array.from({ length: 12 }).map((_, i) => (
+          {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
             <div
               key={i}
               className="pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm"
@@ -185,7 +188,7 @@ export function ScheduledTaskPanelSkeleton() {
 
       <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">
         <div className="grid auto-grid-cols gap-3">
-          {Array.from({ length: 12 }).map((_, i) => (
+          {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
             <div
               key={i}
               className="group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] p-4 sm:p-5 shadow-sm"

@@ -20,6 +20,7 @@ import {
   PersonaAvatarImage,
 } from "../../persona/PersonaAvatarIcon";
 import { isPersonaImageAvatar } from "../../persona/personaAvatar";
+import { PanelSearchInput } from "../../common/PanelSearchInput";
 
 const PAGE_LIMIT = 20;
 
@@ -219,11 +220,11 @@ export function ChannelPersonaSelect({
                 size={14}
                 className="shrink-0 text-[var(--theme-text-secondary)]"
               />
-              <input
+              <PanelSearchInput
                 ref={searchRef}
                 type="search"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onValueChange={setSearchQuery}
                 placeholder={t("personaPresets.search", "搜索角色")}
                 className="channel-persona-select__search-input"
               />

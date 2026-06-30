@@ -45,6 +45,8 @@ from src.infra.revealed_file.storage import get_revealed_file_storage
 from src.infra.tool.backend_utils import (
     get_backend_from_runtime,
     get_base_url_from_runtime,
+    get_delivery_source_from_runtime,
+    get_session_id_from_runtime,
     get_trace_id_from_runtime,
     get_user_id_from_runtime,
 )
@@ -645,7 +647,7 @@ async def reveal_project(
         try:
             ctx = TraceContext.get_request_context()
             user_id = ctx.user_id or get_user_id_from_runtime(runtime) or ""
-            session_id = ctx.session_id or ""
+            session_id = ctx.session_id or get_session_id_from_runtime(runtime) or ""
             trace_id = (
                 ctx.trace_id
                 or TraceContext.get().trace_id
@@ -677,6 +679,20 @@ async def reveal_project(
                 "file_count": len(files_manifest),
                 "files": {k: dict(v) for k, v in files_manifest.items()},
             }
+            data: dict[str, Any] = {
+                "file_type": "project",
+                "mime_type": None,
+                "file_size": 0,
+                "url": None,
+                "session_id": session_id,
+                "project_id": session_project_id,
+                "description": description or "",
+                "original_path": project_path,
+                "project_meta": project_meta,
+            }
+            delivery_source = get_delivery_source_from_runtime(runtime)
+            if delivery_source:
+                data["delivery_source"] = delivery_source
 
             await get_revealed_file_storage().upsert_by_name(
                 user_id=user_id,
@@ -684,17 +700,7 @@ async def reveal_project(
                 source="reveal_project",
                 file_key=folder_name,
                 trace_id=trace_id,
-                data={
-                    "file_type": "project",
-                    "mime_type": None,
-                    "file_size": 0,
-                    "url": None,
-                    "session_id": session_id,
-                    "project_id": session_project_id,
-                    "description": description or "",
-                    "original_path": project_path,
-                    "project_meta": project_meta,
-                },
+                data=data,
             )
         except Exception as e:
             logger.warning(f"Failed to index revealed project {project_name}: {e}")

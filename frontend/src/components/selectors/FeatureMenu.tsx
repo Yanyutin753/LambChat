@@ -26,6 +26,7 @@ import {
   Plug,
   Settings2,
   ToggleLeft,
+  Workflow,
 } from "lucide-react";
 import { THINKING_LEVEL_COLOR } from "../chat/chatInputConstants";
 
@@ -51,6 +52,7 @@ const FILE_CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
 
 const PLUGIN_OPTION_ICONS: Record<string, React.ElementType> = {
   UsersRound,
+  Workflow,
   Plug,
 };
 

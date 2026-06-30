@@ -12,6 +12,19 @@
     "title": "LambChat について",
     "upToDate": "最新バージョンをお使いです！",
     "updateAvailable": "新しいバージョンが利用可能です！",
+    "updateChecking": "更新を確認中...",
+    "updateDownload": "今すぐ更新",
+    "updateDownloadProgress": "{{percent}}% ダウンロード済み",
+    "updateDownloading": "ダウンロード中...",
+    "updateError": "更新に失敗しました",
+    "updateGoToDownload": "ダウンロードページへ",
+    "updateInstall": "今すぐインストール",
+    "updateNewVersion": "新バージョン {{version}} が利用可能です",
+    "updatePublishedAt": "公開日 {{date}}",
+    "updateReleaseNotes": "リリースノート",
+    "updateRetry": "再試行",
+    "updateSkip": "後で",
+    "updateSuccess": "更新準備完了！再起動中...",
     "viewOnGitHub": "GitHub で見る",
     "viewUpdate": "更新"
   },
@@ -490,10 +503,13 @@
     "deleteSuccess": "設定を削除しました",
     "deleteTitle": "チャンネルインスタンスを削除",
     "description": "お気に入りのチャットプラットフォームをLambChatに接続",
+    "disabled": "無効",
     "disconnected": "未接続",
     "enabled": "チャンネルを有効化",
     "enabledDesc": "このチャンネルを有効化または無効化",
     "fieldRequired": "{{field.title}}は必須です",
+    "instanceCount_one": "{{count}} インスタンス",
+    "instanceCount_other": "{{count}} インスタンス",
     "instanceName": "インスタンス名",
     "instanceNamePlaceholder": "インスタンス名を入力",
     "leaveEmpty": "現在の値を保持するには空欄のまま",
@@ -519,7 +535,9 @@
     "testError": "接続テストに失敗しました",
     "testFailed": "接続失敗",
     "testSuccess": "接続成功",
-    "title": "チャンネル"
+    "title": "チャンネル",
+    "webhookShort": "Hook",
+    "websocketShort": "WS"
   },
   "chat": {
     "addMoreFiles": "[TODO]chat.addMoreFiles",
@@ -527,11 +545,11 @@
     "attachFile": "ファイルを添付",
     "cancelled": "キャンセル済み",
     "commands": {
-      "runSkillsCount": "[TODO]chat.commands.runSkillsCount",
-      "tools": "ツール",
-      "team": "チーム",
+      "agent": "エージェント",
       "persona": "ペルソナ",
-      "agent": "エージェント"
+      "runSkillsCount": "[TODO]chat.commands.runSkillsCount",
+      "team": "チーム",
+      "tools": "ツール"
     },
     "dropFilesHere": "ファイルをここにドロップしてアップロード",
     "enterToSend": "で送信",
@@ -548,13 +566,13 @@
       "clear": "目標をクリア",
       "command": "目標",
       "completed": "完了",
+      "description": "会話の目標を設定",
       "duration": "実行時間",
       "placeholder": "目標を入力…",
       "required": "目標を入力してください",
       "running": "実行中",
       "runningStatus": "実行中",
-      "startedAt": "開始時間",
-      "description": "会話の目標を設定"
+      "startedAt": "開始時間"
     },
     "goodAfternoon": "こんにちは、{{name}}",
     "goodEvening": "こんばんは、{{name}}",
@@ -578,6 +596,7 @@
       "askHumanYourAnswer": "あなたの回答",
       "assistant": "アシスタント",
       "cancelled": "生成がキャンセルされました",
+      "codePreview": "コードプレビュー",
       "collapse": "折りたたむ",
       "complete": "完了",
       "copied": "コピーしました！",
@@ -636,6 +655,7 @@
       "toolEditRemoved": "削除",
       "toolEnvVar": "環境変数",
       "toolEnvVarDelete": "変数削除",
+      "toolEnvVarDeleteAll": "全変数削除",
       "toolEnvVarList": "変数一覧",
       "toolEnvVarSet": "変数設定",
       "toolExecute": "実行",
@@ -646,6 +666,8 @@
       "toolFileCount_one": "{{count}} ファイル",
       "toolFileCount_other": "{{count}} ファイル",
       "toolGlob": "Glob",
+      "toolImageAnalyze": "画像分析",
+      "toolImageAnalyzeCount": "{{count}} 枚の画像",
       "toolImageCount": "{{count}} 枚の画像",
       "toolImageGenerate": "生成",
       "toolImageGenerateDesc": "AIによる画像生成",
@@ -680,7 +702,11 @@
       "toolScheduledTask": "タスク",
       "toolScheduledTaskCreate": "タスク作成",
       "toolScheduledTaskDelete": "タスク削除",
+      "toolScheduledTaskGet": "タスク取得",
       "toolScheduledTaskList": "タスク一覧",
+      "toolScheduledTaskPause": "タスク一時停止",
+      "toolScheduledTaskResume": "タスク再開",
+      "toolScheduledTaskRun": "タスク実行",
       "toolScheduledTaskUpdate": "タスク更新",
       "toolSearch": "検索",
       "toolSearchAlreadyAvailable": "利用可能",
@@ -691,6 +717,9 @@
       "toolSearchTools": "ツール検索",
       "toolSuccess": "コマンド成功",
       "toolTaskName": "名前",
+      "toolTransferFile": "ファイル転送",
+      "toolTransferPath": "ディレクトリ転送",
+      "toolUploadUrlToSandbox": "URLをサンドボックスへアップロード",
       "toolVarCount": "{{count}} 個の変数",
       "toolWrite": "書込"
     },
@@ -720,6 +749,10 @@
     "shiftEnterNewLine": "で改行",
     "skillCreated": "スキルが作成されました",
     "skillUpdated": "スキルが更新されました",
+    "slashCommands": {
+      "commands": "コマンド",
+      "skills": "スキル"
+    },
     "status": {
       "cancelled": "キャンセル済み"
     },
@@ -741,11 +774,7 @@
     "waitingForUpload": "ファイルのアップロードが完了するまでお待ちください",
     "welcomeRefresh": "更新",
     "welcomeSubtitle": "何かお手伝いできることはありますか？",
-    "welcomeSuggestions": "おすすめ",
-    "slashCommands": {
-      "commands": "コマンド",
-      "skills": "スキル"
-    }
+    "welcomeSuggestions": "おすすめ"
   },
   "common": {
     "about": "について",
@@ -1422,6 +1451,8 @@
       "createServer": "サーバーを作成",
       "dailyLimit": "1日の制限",
       "enabled": "有効",
+      "disableInlineExposure": "必要時検索に戻す",
+      "enableInlineExposure": "関数として直接公開",
       "envKeys": "環境変数",
       "envKeysDescription": "このMCPサーバープロセスに注入する環境変数を選択してください。事前に環境変数設定で定義されている必要があります。",
       "envKeysPlaceholder": "環境変数を選択...",
@@ -1429,6 +1460,8 @@
       "envVars": "環境変数",
       "headerNamePlaceholder": "ヘッダー名",
       "httpHeaders": "HTTPヘッダー",
+      "inlineExposure": "関数として直接公開",
+      "inlineExposureDescription": "よく使うツールをモデルのツール一覧に直接表示します。オフの場合は search_tools で必要時に読み込みます。",
       "keyPlaceholder": "キー",
       "noEnvVars": "環境変数なし",
       "noHeaders": "カスタムヘッダーなし",
@@ -1549,6 +1582,35 @@
   "mermaidViewer": {
     "hideCode": "コードを隠す",
     "showCode": "コードを表示"
+  },
+  "workflowPlugin": {
+    "chat": {
+      "entry": "入口",
+      "exit": "出口",
+      "inputOverrideSet": "入力上書き設定済み",
+      "inputs": "入力",
+      "none": "なし",
+      "outputs": "出力",
+      "selectWorkflow": "ワークフロー"
+    },
+    "nav": {
+      "editorLabel": "ワークフローエディター",
+      "label": "ワークフロー",
+      "runLabel": "ワークフロー実行"
+    },
+    "project": {
+      "defaultWorkflow": "既定のワークフロー",
+      "defaultWorkflowVersion": "既定のワークフローバージョン"
+    },
+    "scheduledTask": {
+      "workflow": "ワークフロー",
+      "workflowVersion": "ワークフローバージョン"
+    },
+    "session": {
+      "selectedWorkflow": "選択中のワークフロー",
+      "selectedWorkflowVersion": "選択中のワークフローバージョン",
+      "selectedWorkflowInput": "選択中のワークフロー入力"
+    }
   },
   "nav": {
     "adminMarketplace": "管理マーケット",
@@ -2041,6 +2103,14 @@
       "description": "Model Context Protocolサーバー接続の管理。外部ツール、データベース、サービスを接続してAIエージェントの能力を拡張。",
       "title": "MCPサーバー管理"
     },
+    "workflows": {
+      "description": "ワークフローを作成、編成、バージョン管理、実行、デバッグします。",
+      "editorDescription": "明示的な入力、出力、ノード、実行トレースを持つワークフローグラフを編集します。",
+      "editorTitle": "ワークフローエディター",
+      "runDescription": "ワークフロー実行トレース、ノードイベント、出力、エラー、承認状態を確認します。",
+      "runTitle": "ワークフロー実行",
+      "title": "ワークフロー"
+    },
     "memory": {
       "description": "AIメモリコンテンツの表示と管理。永続的なコンテキストと知識保存で対話間の長期的なAIエージェント理解を実現。",
       "title": "AIメモリスペース"
@@ -2107,6 +2177,15 @@
     "CHECKPOINT_PG_POOL_MIN_SIZE": "チェックポイントPostgreSQL接続プール最小サイズ",
     "CHECKPOINT_PG_PORT": "チェックポイント保存用PostgreSQLポート",
     "CHECKPOINT_PG_USER": "チェックポイント保存用PostgreSQLユーザー名。空の場合はPOSTGRES_USERを使用。",
+    "CUBE_API_URL": "CubeSandbox API URL、例：http://127.0.0.1:13000",
+    "CUBE_AUTO_PAUSE": "タイムアウト時にCubeSandboxサンドボックスを破棄せず一時停止する",
+    "CUBE_AUTO_RESUME": "次回接続時に一時停止中のCubeSandboxサンドボックスを自動的に再開する",
+    "CUBE_PROXY_NODE_IP": "CubeProxyノードIP。ローカル開発では通常127.0.0.1で、cube.app DNSをバイパスします",
+    "CUBE_PROXY_PORT_HTTP": "CubeProxy HTTPポート。ローカル開発では通常11080",
+    "CUBE_REQUEST_TIMEOUT": "CubeSandbox制御プレーンのリクエストタイムアウト（秒）",
+    "CUBE_SANDBOX_DOMAIN": "CubeSandboxサンドボックスのドメインサフィックス、例：cube.app",
+    "CUBE_TEMPLATE": "CubeSandboxテンプレートID",
+    "CUBE_TIMEOUT": "CubeSandboxサンドボックスのタイムアウト（秒）",
     "DAYTONA_API_KEY": "Daytona APIキー",
     "DAYTONA_AUTO_ARCHIVE_INTERVAL": "Daytonaサンドボックス自動アーカイブ間隔（分）",
     "DAYTONA_AUTO_DELETE_INTERVAL": "アーカイブ後のDaytonaサンドボックス自動削除間隔（分）",
@@ -2130,6 +2209,7 @@
     "ENABLE_CODE_INTERPRETER": "エージェント実行用の実験的な QuickJS コードインタープリターを有効化",
     "ENABLE_DEFERRED_TOOL_LOADING": "MCPツールの遅延読み込みを有効化（初期コンテキストサイズを削減）",
     "ENABLE_EVENT_MERGER": "イベントマージを有効化してイベント数を削減",
+    "ENABLE_IMAGE_ANALYSIS": "エージェント用の画像解析ツールを有効化",
     "ENABLE_IMAGE_GENERATION": "エージェント用の画像生成・編集ツールを有効化",
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "バックエンドでのダウンロードに失敗した場合、reveal/download フローでサーバーのローカルファイルシステムへのフォールバックを許可する",
     "ENABLE_MCP": "MCP機能を有効化",
@@ -2152,6 +2232,9 @@
     "FILE_UPLOAD_MAX_SIZE_DOCUMENT": "最大ドキュメントファイルサイズ（MB）",
     "FILE_UPLOAD_MAX_SIZE_IMAGE": "最大画像ファイルサイズ（MB）",
     "FILE_UPLOAD_MAX_SIZE_VIDEO": "最大動画ファイルサイズ（MB）",
+    "IMAGE_ANALYSIS_MAX_ATTEMPTS": "画像解析モデル呼び出しの最大試行回数",
+    "IMAGE_ANALYSIS_MODEL_ID": "image_analyze ツールで使う VLM モデル設定 ID。モデル設定で視覚対応としてマークしたモデルを選択してください。",
+    "IMAGE_ANALYSIS_RETRY_DELAY": "画像解析リトライの基本待機時間（秒、指数バックオフの開始値）",
     "IMAGE_GENERATION_API_KEY": "画像生成・編集 API キー",
     "IMAGE_GENERATION_BASE_URL": "OpenAI互換画像APIのベースURL",
     "IMAGE_GENERATION_MODEL": "画像生成モデル名",
@@ -2326,6 +2409,7 @@
     "agent": "エージェント",
     "authenticated": "ログイン必須",
     "authenticatedDesc": "ログイン済みユーザーのみ閲覧可能",
+    "cancelEdit": "編集をキャンセル",
     "conversationHistory": "会話履歴",
     "copyLink": "リンクをコピー",
     "createChat": "チャット作成",
@@ -2337,6 +2421,7 @@
     "deleteShare": "共有解除",
     "deleteSuccess": "共有を削除しました",
     "deselectAll": "すべて解除",
+    "editShare": "共有を編集",
     "events": "件のメッセージ",
     "existingShares": "既存の共有",
     "fullSession": "セッション全体",
@@ -2366,6 +2451,7 @@
     "round": "ターン {{number}}",
     "run": "実行",
     "runNumber": "実行 {{number}}",
+    "saveShare": "変更を保存",
     "selectAll": "すべて選択",
     "selectRuns": "共有する会話を選択",
     "session": "セッション",
@@ -2377,6 +2463,8 @@
     "taskPending": "待機中",
     "taskRunning": "実行中",
     "title": "セッションを共有",
+    "updateFailed": "共有の更新に失敗しました",
+    "updateSuccess": "共有を更新しました",
     "userMessage": "（ユーザーメッセージ：{{message}}）",
     "visibility": "アクセス制御"
   },
@@ -2400,7 +2488,11 @@
   "sidebar": {
     "addToFavorites": "お気に入りに追加",
     "batchDeleteConfirm": "選択した{{count}}件のセッションを削除しますか？この操作は取り消せません。",
+    "batchDeletePartialFailed": "{{count}}件のセッションの削除に失敗しました",
+    "batchDeleted": "{{count}}件のセッションを削除しました",
     "batchMoveConfirm": "選択した{{count}}件のセッションを「{{project}}」に移動しますか？",
+    "batchMovePartialFailed": "{{count}}件のセッションの移動に失敗しました",
+    "batchMoved": "{{count}}件のセッションを移動しました",
     "chats": "チャット",
     "clearVisibleSelection": "すべて解除",
     "clickToEditIcon": "クリックしてアイコンを編集",
@@ -2809,6 +2901,7 @@
       "${cat}": "{{cat}}",
       "builtin": "組み込み",
       "human": "手動",
+      "internal": "内部",
       "mcp": "MCP",
       "sandbox": "サンドボックス",
       "skill": "スキル"
@@ -2817,8 +2910,10 @@
     "done": "完了",
     "loadFailed": "ツールの読み込みに失敗しました",
     "noDescription": "説明なし",
+    "noMatchingTools": "一致するツールがありません",
     "noTools": "利用可能なツールがありません",
     "parameters": "パラメータ",
+    "searchPlaceholder": "ツールを検索...",
     "selectAll": "すべて選択",
     "selected": "{{total}}件中{{enabled}}件選択",
     "systemDisabled": "システム無効",

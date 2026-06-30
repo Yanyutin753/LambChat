@@ -46,6 +46,38 @@ export function docxTextToHtml(text: string): string {
     .join("");
 }
 
+export function isDocxZipArrayBuffer(arrayBuffer: ArrayBuffer): boolean {
+  const signature = new Uint8Array(
+    arrayBuffer,
+    0,
+    Math.min(4, arrayBuffer.byteLength),
+  );
+  return (
+    signature.length >= 4 &&
+    signature[0] === 0x50 &&
+    signature[1] === 0x4b &&
+    ((signature[2] === 0x03 && signature[3] === 0x04) ||
+      (signature[2] === 0x05 && signature[3] === 0x06) ||
+      (signature[2] === 0x07 && signature[3] === 0x08))
+  );
+}
+
+export function decodeTextLikeArrayBuffer(
+  arrayBuffer: ArrayBuffer,
+): string | null {
+  const bytes = new Uint8Array(arrayBuffer);
+  if (bytes.length === 0 || bytes.includes(0)) {
+    return null;
+  }
+
+  const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes).trim();
+  if (!text || text.includes("\uFFFD")) {
+    return null;
+  }
+
+  return text;
+}
+
 function xmlHasInvalidTagName(xml: string): boolean {
   const tagRegex = /<\s*(\/?)([^!?/\s>][^\s/>]*)/g;
 

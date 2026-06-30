@@ -490,7 +490,7 @@ async def _list_dir_files(
 async def transfer_path(
     source_dir: Annotated[
         str,
-        "源目录路径（如 /home/user/my-project/ 或 /skills/MySkill/）。路径前缀决定源 backend：/skills/* → 技能存储, 其他 → 沙箱。",
+        "源目录路径（如当前 session 工作区下的 my-project/ 或 /skills/MySkill/）。路径前缀决定源 backend：/skills/* → 技能存储, 其他 → 沙箱。",
     ],
     target_prefix: Annotated[
         str,
@@ -505,7 +505,7 @@ async def transfer_path(
     - 沙箱 → /skills/ (批量创建 skill)
     - /skills/ → 沙箱 (将 skill 文件复制到工作区)
 
-    目录名自动作为目标子路径名称（如 /skills/Foo/ → /home/user/Foo/）。
+    目录名自动作为目标子路径名称（如 /skills/Foo/ → 当前 session 工作区下的 Foo/）。
 
     安全限制：
     - 仅支持文本文件，不支持二进制文件
@@ -514,8 +514,8 @@ async def transfer_path(
     - 禁止路径穿越（..）
 
     常见用途：
-    - 从沙箱目录批量创建 skill（如 /home/user/my-skill/ → /skills/my-skill/）
-    - 将 skill 文件批量复制到沙箱工作区（如 /skills/MySkill/ → /home/user/MySkill/）
+    - 从沙箱目录批量创建 skill（如当前 session 工作区下的 my-skill/ → /skills/my-skill/）
+    - 将 skill 文件批量复制到沙箱工作区（如 /skills/MySkill/ → 当前 session 工作区下的 MySkill/）
 
     Args:
         source_dir: 源目录路径

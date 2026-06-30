@@ -96,6 +96,7 @@ export function MCPToolPolicyEditor({
       toolName: string,
       updates: {
         disabled?: boolean;
+        inline_exposure?: boolean;
         allowed_roles?: string[];
         role_quotas?: Record<string, MCPRoleQuota>;
       },
@@ -107,11 +108,14 @@ export function MCPToolPolicyEditor({
       const nextAllowedRoles =
         updates.allowed_roles ?? current.allowed_roles ?? [];
       const nextRoleQuotas = updates.role_quotas ?? current.role_quotas ?? {};
+      const nextInlineExposure =
+        updates.inline_exposure ?? current.inline_exposure ?? false;
 
       setSavingTool(toolName);
       try {
         await mcpApi.updateToolPolicy(serverName, toolName, {
           disabled: nextDisabled,
+          inline_exposure: nextInlineExposure,
           allowed_roles: nextAllowedRoles,
           role_quotas: nextRoleQuotas,
         });
@@ -121,6 +125,7 @@ export function MCPToolPolicyEditor({
               ? {
                   ...tool,
                   system_disabled: nextDisabled,
+                  inline_exposure: nextInlineExposure,
                   allowed_roles: nextAllowedRoles,
                   role_quotas: nextRoleQuotas,
                   policy_configured: true,
@@ -234,6 +239,25 @@ export function MCPToolPolicyEditor({
                   )}
 
                   <div className="mt-2">
+                    <div className="mb-2 flex items-center justify-between gap-3 rounded-md bg-stone-50 px-2 py-1.5 text-[11px] text-stone-500 dark:bg-stone-800/70 dark:text-stone-400">
+                      <span>{t("mcp.form.inlineExposure")}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          savePolicy(tool.name, {
+                            inline_exposure: !(tool.inline_exposure ?? false),
+                          })
+                        }
+                        className={`team-toggle ${
+                          tool.inline_exposure ? "team-toggle--on" : ""
+                        }`}
+                        title={
+                          tool.inline_exposure
+                            ? t("mcp.form.disableInlineExposure")
+                            : t("mcp.form.enableInlineExposure")
+                        }
+                      />
+                    </div>
                     <RoleSelector
                       selectedRoles={tool.allowed_roles ?? []}
                       onChange={(roles) =>

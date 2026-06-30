@@ -30,3 +30,9 @@ export function shouldAutoOpenSubagentPanel({
 }): boolean {
   return status === "running" && !anyPanelOpen && !autoOpenDismissed;
 }
+
+export function shouldExpandSubagentProcessByDefault(
+  status: SubagentPanelStatus | undefined,
+): boolean {
+  return status === "running";
+}

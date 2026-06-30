@@ -84,14 +84,14 @@ export function FeedbackButtons({
 
   if (submittedFeedback) {
     return (
-      <div className={clsx("flex items-center gap-1", className)}>
+      <div className={clsx("flex items-center", className)}>
         <span
           className={clsx(
-            "flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all",
+            "flex items-center justify-center rounded-md p-1.5 transition-all",
             !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
             submittedFeedback === "up"
-              ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
-              : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700",
+              ? "text-stone-600 dark:text-stone-300"
+              : "text-stone-600 dark:text-stone-300",
           )}
           title={t("feedback.alreadySubmitted") || "Feedback submitted"}
         >

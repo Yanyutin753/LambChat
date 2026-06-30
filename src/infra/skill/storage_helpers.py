@@ -30,6 +30,25 @@ def normalize_skill_name_list(
     return bounded
 
 
+def normalize_skill_file_path(file_path: str) -> str:
+    """Canonicalize the primary skill instruction filename."""
+    parts = file_path.replace("\\", "/").split("/")
+    if parts and parts[-1].lower() == "skill.md":
+        parts[-1] = "SKILL.md"
+    return "/".join(parts)
+
+
+def normalize_skill_files(files: dict[str, str]) -> dict[str, str]:
+    """Normalize skill file keys while letting explicit canonical paths win."""
+    normalized: dict[str, str] = {}
+    for file_path, content in files.items():
+        canonical_path = normalize_skill_file_path(file_path)
+        if canonical_path in normalized and file_path != canonical_path:
+            continue
+        normalized[canonical_path] = content
+    return normalized
+
+
 async def _parse_skill_md_offload(content: str) -> tuple[Optional[str], str, list[str]]:
     from src.infra.skill.parser import parse_skill_md
 

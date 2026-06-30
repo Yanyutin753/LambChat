@@ -1,23 +1,30 @@
 """
 User-Sandbox 绑定管理器
 
-管理 User 与 Sandbox 的绑定关系，支持 Daytona 和 E2B 平台。
+管理 User 与 Sandbox 的绑定关系，支持 Daytona、E2B 和 CubeSandbox 平台。
 - 沙箱绑定关系存储在 MongoDB user_sandbox_bindings 集合中
 - 每个用户对应一个沙箱，跨 session 共享
 - 沙箱在空闲时自动 stop/archive (Daytona) 或超时销毁 (E2B)
 - 使用 deepagents.CompositeBackend 组合 Sandbox 和 Skills Store
+
+平台特定的生命周期逻辑分别放在 _daytona_helpers、_e2b_helpers、
+_cubesandbox_helpers 模块中，通过 mixin 组合到本类。
 """
 
 import asyncio
+import re
+import shlex
 import threading
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
+    from cubesandbox import Sandbox as CubeSandbox
     from daytona import Daytona
     from e2b import Sandbox as E2BSandbox
 
 from deepagents.backends import CompositeBackend
+from deepagents.backends.protocol import SandboxBackendProtocol
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.backend.daytona import DaytonaBackend
@@ -27,181 +34,35 @@ from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
 
+from ._adapters import (
+    _MAX_CACHE_ENTRIES,
+    _MAX_LOCKS,
+    _MAX_READY_WORK_DIRS,
+    BINDING_COLLECTION,
+    DEFAULT_DAYTONA_TIMEOUT,
+    READY_STATES,
+    RESUMABLE_STATES,
+    TRANSITIONAL_STATES,
+    UNAVAILABLE_STATES,
+    CubeSandboxAdapter,
+    E2BSandboxAdapter,
+)
+from ._cubesandbox_helpers import _CubeSandboxMixin
+from ._daytona_helpers import _DaytonaMixin
+from ._e2b_helpers import _E2BMixin
+
 logger = get_logger(__name__)
 
-# Daytona API 操作的默认超时（秒）
-DEFAULT_DAYTONA_TIMEOUT = 120
-
-# 等待沙箱状态轮询间隔（秒）
-STATE_POLL_INTERVAL = 3
-
-# 等待中间状态完成的最大等待时间（秒）
-STATE_WAIT_TIMEOUT = 180
-
-# 需要等待的中间状态
-TRANSITIONAL_STATES = {
-    "creating",
-    "restoring",
-    "starting",
-    "stopping",
-    "building_snapshot",
-    "pulling_snapshot",
-    "pending_build",
-    "archiving",
-    "resizing",
-}
-
-# 可用的最终状态
-READY_STATES = {"running", "started"}
-
-# 需要恢复的暂停状态
-RESUMABLE_STATES = {"stopped", "archived"}
-
-# 不可用状态
-UNAVAILABLE_STATES = {"destroyed", "destroying", "error", "build_failed", "unknown"}
-
-# MongoDB 集合名
-BINDING_COLLECTION = "user_sandbox_bindings"
-
-# 每用户锁的最大数量（LRU 淘汰）
-_MAX_LOCKS = 10_000
-
-# 内存缓存的最大条目数（LRU 淘汰，防止内存泄漏）
-_MAX_CACHE_ENTRIES = 5_000
+# Re-export for backward compatibility (tests access sandbox_module.BINDING_COLLECTION)
+__all__ = [
+    "SessionSandboxManager",
+    "close_session_sandbox_manager",
+    "ensure_sandbox_mcp",
+    "get_session_sandbox_manager",
+]
 
 
-class E2BSandboxAdapter:
-    """E2B 沙箱生命周期适配器
-
-    支持：
-    - Auto-Pause + Auto-Resume：超时自动暂停，下次操作自动恢复
-    - Metadata：创建沙箱时传入 user_id 用于可观测性
-    - Pause/Resume：stop() 时暂停而非 kill，保留数据
-    """
-
-    def __init__(
-        self,
-        api_key: str,
-        template: str,
-        timeout: int,
-        auto_pause: bool = True,
-        auto_resume: bool = True,
-    ):
-        self._api_key = api_key
-        self._template = template
-        self._timeout = timeout
-        self._auto_pause = auto_pause
-        self._auto_resume = auto_resume
-
-    def _sync_from_settings(self) -> None:
-        """Sync config values from global settings (after DB update)."""
-        from src.kernel.config.base import settings
-
-        self._template = settings.E2B_TEMPLATE
-        self._api_key = settings.E2B_API_KEY
-        self._timeout = settings.E2B_TIMEOUT
-        self._auto_pause = getattr(settings, "E2B_AUTO_PAUSE", True)
-        self._auto_resume = getattr(settings, "E2B_AUTO_RESUME", True)
-
-    def _get_e2b_class(self):
-        from e2b import Sandbox as E2BSandbox
-
-        return E2BSandbox
-
-    def create_sandbox(
-        self, user_id: str | None = None, envs: dict[str, str] | None = None
-    ) -> tuple[object, str]:
-        """创建沙箱，支持 lifecycle 配置和 metadata"""
-        self._sync_from_settings()
-        e2b_class = self._get_e2b_class()
-
-        kwargs: dict = {
-            "template": self._template,
-            "timeout": self._timeout,
-            "api_key": self._api_key or None,
-        }
-
-        # Auto-Pause + Auto-Resume lifecycle
-        if self._auto_pause:
-            kwargs["lifecycle"] = {
-                "on_timeout": "pause",
-                "auto_resume": self._auto_resume,
-            }
-
-        # Metadata 用于可观测性
-        if user_id:
-            kwargs["metadata"] = {"user_id": user_id}
-
-        # 用户环境变量注入
-        if envs:
-            kwargs["envs"] = envs
-
-        sandbox = e2b_class.create(**kwargs)
-        return sandbox, "/home/user"
-
-    def get_sandbox(self, sandbox_id: str) -> object | None:
-        """连接到沙箱（自动恢复暂停状态）"""
-        try:
-            e2b_class = self._get_e2b_class()
-            return e2b_class.connect(
-                sandbox_id=sandbox_id,
-                timeout=self._timeout,
-                api_key=self._api_key or None,
-            )
-        except Exception:
-            return None
-
-    def get_sandbox_id(self, sandbox) -> str:
-        return sandbox.sandbox_id
-
-    def get_work_dir(self, sandbox) -> str:
-        return "/home/user"
-
-    def pause_sandbox(self, sandbox) -> None:
-        """暂停沙箱（保留文件系统和内存状态）"""
-        try:
-            sandbox.pause()
-        except Exception as e:
-            logger.warning(f"[E2B] Failed to pause sandbox: {e}")
-
-    def stop_sandbox(self, sandbox) -> None:
-        """停止沙箱 — 优先 pause（保留状态），失败则 kill"""
-        try:
-            sandbox.pause()
-        except Exception:
-            try:
-                sandbox.kill()
-            except Exception:
-                pass
-
-    def kill_sandbox(self, sandbox) -> None:
-        """永久销毁沙箱（数据丢失）"""
-        sandbox.kill()
-
-    def sandbox_is_running(self, sandbox) -> bool:
-        try:
-            return sandbox.is_running()
-        except Exception:
-            return False
-
-    def extend_timeout(self, sandbox, timeout: int) -> None:
-        sandbox.set_timeout(timeout)
-
-    def get_sandbox_info(self, sandbox) -> dict:
-        """获取沙箱状态信息"""
-        try:
-            info = sandbox.get_info()
-            return {
-                "sandbox_id": info.sandbox_id,
-                "state": info.state.name.lower()
-                if hasattr(info.state, "name")
-                else str(info.state),
-            }
-        except Exception:
-            return {"sandbox_id": self.get_sandbox_id(sandbox), "state": "unknown"}
-
-
-class SessionSandboxManager:
+class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
     """管理 User 与 Sandbox 的绑定关系（每个用户一个沙箱，跨 session 共享）"""
 
     _index_task: asyncio.Task[None] | None = None
@@ -210,8 +71,10 @@ class SessionSandboxManager:
     def __init__(self):
         self._daytona_client: Optional["Daytona"] = None
         self._e2b_adapter: Optional[E2BSandboxAdapter] = None
+        self._cube_adapter: Optional[CubeSandboxAdapter] = None
         self._collection: Any = None
         self._cache: OrderedDict[str, tuple[str, CompositeBackend, object | None]] = OrderedDict()
+        self._ready_work_dirs: OrderedDict[str, None] = OrderedDict()
         self._locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
         self._locks_mutex = threading.Lock()
 
@@ -224,6 +87,20 @@ class SessionSandboxManager:
                 auto_pause=getattr(settings, "E2B_AUTO_PAUSE", True),
                 auto_resume=getattr(settings, "E2B_AUTO_RESUME", True),
             )
+        elif platform == "cubesandbox":
+            self._cube_adapter = CubeSandboxAdapter(
+                api_url=settings.CUBE_API_URL,
+                template=settings.CUBE_TEMPLATE,
+                proxy_node_ip=settings.CUBE_PROXY_NODE_IP,
+                proxy_port_http=settings.CUBE_PROXY_PORT_HTTP,
+                sandbox_domain=settings.CUBE_SANDBOX_DOMAIN,
+                timeout=settings.CUBE_TIMEOUT,
+                request_timeout=settings.CUBE_REQUEST_TIMEOUT,
+                auto_pause=getattr(settings, "CUBE_AUTO_PAUSE", True),
+                auto_resume=getattr(settings, "CUBE_AUTO_RESUME", True),
+            )
+
+    # ── Infrastructure / state plumbing ─────────────────────────────
 
     @property
     def _bindings(self):
@@ -265,18 +142,6 @@ class SessionSandboxManager:
         except Exception as e:
             logger.warning(f"Failed to create index on {BINDING_COLLECTION}: {e}")
 
-    def _get_daytona_client(self):
-        """获取或创建 Daytona 客户端"""
-        from daytona import Daytona, DaytonaConfig
-
-        if self._daytona_client is None:
-            config = DaytonaConfig(
-                api_key=settings.DAYTONA_API_KEY,
-                server_url=settings.DAYTONA_SERVER_URL,
-            )
-            self._daytona_client = Daytona(config)
-        return self._daytona_client
-
     def _get_user_lock(self, user_id: str) -> asyncio.Lock:
         """获取用户级锁（线程安全，LRU 淘汰）"""
         with self._locks_mutex:
@@ -299,10 +164,30 @@ class SessionSandboxManager:
                 self._locks[user_id] = asyncio.Lock()
             return self._locks[user_id]
 
+    def _binding_platform(self) -> str:
+        """Return the active sandbox platform used to scope persisted bindings."""
+        return settings.SANDBOX_PLATFORM.lower()
+
     async def _get_binding(self, user_id: str) -> Optional[dict]:
-        """从 MongoDB 获取用户的沙箱绑定"""
+        """从 MongoDB 获取当前平台的用户沙箱绑定"""
         doc = await self._bindings.find_one({"user_id": user_id})
-        return doc
+        if not doc:
+            return None
+
+        platform = self._binding_platform()
+        platform_binding = (doc.get("sandboxes") or {}).get(platform)
+        if platform_binding:
+            scoped_doc = dict(doc)
+            scoped_doc.update(platform_binding)
+            scoped_doc["sandbox_platform"] = platform
+            return scoped_doc
+
+        # Backward compatibility for records written before platform-scoped
+        # bindings existed. Once saved again, the platform slot is populated.
+        legacy_platform = doc.get("sandbox_platform")
+        if legacy_platform is None or legacy_platform == platform:
+            return doc
+        return None
 
     def _evict_if_needed(self) -> None:
         """淘汰最久未使用的缓存条目（LRU），防止内存泄漏。
@@ -317,6 +202,83 @@ class SessionSandboxManager:
                 f"user={evicted_user_id}, sandbox={sandbox_id}"
             )
 
+    # ── Work-directory management ───────────────────────────────────
+
+    def _session_work_dir(self, base_work_dir: str, session_id: str) -> str:
+        """Return a stable, shell-safe workspace directory for a session."""
+        safe_session_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", session_id).strip(".-")
+        if not safe_session_id:
+            safe_session_id = "session"
+        return f"{base_work_dir.rstrip('/')}/sessions/{safe_session_id[:80]}"
+
+    async def _ensure_work_dir(self, backend: CompositeBackend, work_dir: str) -> None:
+        sandbox_backend = cast(SandboxBackendProtocol, backend.default)
+        sandbox_id = str(getattr(sandbox_backend, "id", "unknown"))
+        cache_key = f"{sandbox_id}:{work_dir}"
+        if cache_key in self._ready_work_dirs:
+            self._ready_work_dirs.move_to_end(cache_key)
+            return
+
+        result = await sandbox_backend.aexecute(f"mkdir -p {shlex.quote(work_dir)}")
+        if getattr(result, "exit_code", 0) != 0:
+            raise RuntimeError(f"Failed to create session work_dir {work_dir}: {result.output}")
+        self._ready_work_dirs[cache_key] = None
+        while len(self._ready_work_dirs) > _MAX_READY_WORK_DIRS:
+            self._ready_work_dirs.popitem(last=False)
+
+    # ── Backend scoping ──────────────────────────────────────────────
+
+    def _scope_daytona_backend(
+        self,
+        backend: CompositeBackend,
+        user_id: str,
+        work_dir: str,
+    ) -> CompositeBackend:
+        default = backend.default
+        if not isinstance(default, DaytonaBackend):
+            return backend
+        daytona_backend = DaytonaBackend(
+            sandbox=default._sandbox,
+            timeout=default._timeout,
+            env_vars=default.env_vars,
+            work_dir=work_dir,
+        )
+        return CompositeBackend(
+            default=daytona_backend,
+            routes={"/skills/": create_skills_backend(user_id=user_id)},
+        )
+
+    def _scope_e2b_backend(
+        self,
+        provider_obj: object,
+        user_id: str,
+        work_dir: str,
+    ) -> CompositeBackend:
+        from src.infra.backend.e2b import E2BBackend
+
+        return CompositeBackend(
+            default=E2BBackend(sandbox=cast("E2BSandbox", provider_obj), work_dir=work_dir),
+            routes={"/skills/": create_skills_backend(user_id=user_id)},
+        )
+
+    def _scope_cube_backend(
+        self,
+        provider_obj: object,
+        user_id: str,
+        work_dir: str,
+    ) -> CompositeBackend:
+        from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+        return CompositeBackend(
+            default=CubeSandboxBackend(
+                sandbox=cast("CubeSandbox", provider_obj),
+                work_dir=work_dir,
+            ),
+            routes={"/skills/": create_skills_backend(user_id=user_id)},
+        )
+
+    # ── Binding persistence ─────────────────────────────────────────
+
     async def _save_binding(
         self,
         user_id: str,
@@ -326,24 +288,36 @@ class SessionSandboxManager:
     ) -> None:
         """保存/更新用户的沙箱绑定"""
         now = utc_now_iso()
+        platform = self._binding_platform()
         update = {
             "$set": {
+                "sandbox_platform": platform,
                 "sandbox_id": sandbox_id,
                 "sandbox_state": state,
                 "sandbox_last_used_at": now,
+                f"sandboxes.{platform}.sandbox_id": sandbox_id,
+                f"sandboxes.{platform}.sandbox_state": state,
+                f"sandboxes.{platform}.sandbox_last_used_at": now,
+                f"sandboxes.{platform}.sandbox_platform": platform,
             },
         }
         # 仅在首次创建时设置 sandbox_created_at
         if is_new:
             update["$set"]["sandbox_created_at"] = now
+            update["$set"][f"sandboxes.{platform}.sandbox_created_at"] = now
         else:
-            update["$setOnInsert"] = {"sandbox_created_at": now}
+            update["$setOnInsert"] = {
+                "sandbox_created_at": now,
+                f"sandboxes.{platform}.sandbox_created_at": now,
+            }
 
         await self._bindings.update_one(
             {"user_id": user_id},
             update,
             upsert=True,
         )
+
+    # ── Public API ──────────────────────────────────────────────────
 
     async def get_or_create(
         self,
@@ -380,6 +354,8 @@ class SessionSandboxManager:
 
         if self._e2b_adapter:
             return await self._get_or_create_e2b(session_id, user_id)
+        if self._cube_adapter:
+            return await self._get_or_create_cubesandbox(session_id, user_id)
 
         lock = self._get_user_lock(user_id)
 
@@ -392,10 +368,15 @@ class SessionSandboxManager:
                     f"[SessionSandboxManager] Cache hit: user={user_id}, sandbox={sandbox_id}"
                 )
                 try:
-                    work_dir = await self._get_work_dir(sandbox_id)
+                    base_work_dir = await self._get_work_dir(sandbox_id)
+                    work_dir = self._session_work_dir(base_work_dir, session_id)
+                    scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
+                    await self._ensure_work_dir(scoped_backend, work_dir)
                     await self._save_binding(user_id, sandbox_id, "running")
-                    await ensure_sandbox_mcp(backend, user_id)
-                    return backend, work_dir
+                    from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp
+
+                    await ensure_sandbox_mcp(scoped_backend, user_id)
+                    return scoped_backend, work_dir
                 except Exception as e:
                     logger.warning(
                         f"[SessionSandboxManager] Failed to get work_dir from cached sandbox {sandbox_id}: {e}. "
@@ -430,9 +411,14 @@ class SessionSandboxManager:
                         self._cache[user_id] = (sandbox_id, backend, None)
                         self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
-                        work_dir = await self._get_work_dir(sandbox_id)
-                        await ensure_sandbox_mcp(backend, user_id)
-                        return backend, work_dir
+                        base_work_dir = await self._get_work_dir(sandbox_id)
+                        work_dir = self._session_work_dir(base_work_dir, session_id)
+                        scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
+                        await self._ensure_work_dir(scoped_backend, work_dir)
+                        from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp
+
+                        await ensure_sandbox_mcp(scoped_backend, user_id)
+                        return scoped_backend, work_dir
                     except Exception as e:
                         logger.warning(
                             f"[SessionSandboxManager] Failed to resume sandbox {sandbox_id}: {e}. "
@@ -447,9 +433,14 @@ class SessionSandboxManager:
                         self._cache[user_id] = (sandbox_id, backend, None)
                         self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
-                        work_dir = await self._get_work_dir(sandbox_id)
-                        await ensure_sandbox_mcp(backend, user_id)
-                        return backend, work_dir
+                        base_work_dir = await self._get_work_dir(sandbox_id)
+                        work_dir = self._session_work_dir(base_work_dir, session_id)
+                        scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
+                        await self._ensure_work_dir(scoped_backend, work_dir)
+                        from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp
+
+                        await ensure_sandbox_mcp(scoped_backend, user_id)
+                        return scoped_backend, work_dir
                     except Exception as e:
                         logger.warning(
                             f"[SessionSandboxManager] Failed to get work_dir from sandbox {sandbox_id}: {e}. "
@@ -486,6 +477,8 @@ class SessionSandboxManager:
 
         if self._e2b_adapter:
             return await self._stop_e2b(user_id)
+        if self._cube_adapter:
+            return await self._stop_cubesandbox(user_id)
 
         lock = self._get_user_lock(user_id)
 
@@ -525,327 +518,7 @@ class SessionSandboxManager:
                 logger.error(f"[SessionSandboxManager] Failed to stop sandbox {sandbox_id}: {e}")
                 return False
 
-    async def _get_sandbox_state(self, sandbox_id: str) -> str:
-        """查询沙箱状态: running / stopped / archived / destroyed"""
-
-        def _sync_get_state():
-            client = self._get_daytona_client()
-            sandbox = client.get(sandbox_id)
-            state = sandbox.state
-            if state is not None and hasattr(state, "name"):
-                return state.name.lower()
-            elif state is not None and hasattr(state, "value"):
-                return str(state.value).lower()
-            return str(state).lower() if state else "unknown"
-
-        try:
-            return await run_blocking_io(
-                _sync_get_state,
-                timeout=DEFAULT_DAYTONA_TIMEOUT,
-            )
-        except asyncio.TimeoutError:
-            logger.error(f"[SessionSandboxManager] Timeout getting sandbox {sandbox_id} state")
-            return "unknown"
-        except Exception as e:
-            if "not found" in str(e).lower():
-                return "destroyed"
-            raise
-
-    async def _wait_for_final_state(self, sandbox_id: str, initial_state: str) -> str:
-        """等待沙箱从中间状态过渡到最终状态"""
-        state = initial_state
-        elapsed = 0.0
-
-        while state in TRANSITIONAL_STATES and elapsed < STATE_WAIT_TIMEOUT:
-            logger.debug(
-                f"[SessionSandboxManager] Waiting for sandbox {sandbox_id} "
-                f"state={state}, elapsed={elapsed:.1f}s"
-            )
-            await asyncio.sleep(STATE_POLL_INTERVAL)
-            elapsed += STATE_POLL_INTERVAL
-            state = await self._get_sandbox_state(sandbox_id)
-
-        if state in TRANSITIONAL_STATES:
-            logger.warning(
-                f"[SessionSandboxManager] Timeout waiting for sandbox {sandbox_id} "
-                f"to transition from {initial_state}, current state={state}"
-            )
-            return "unknown"
-
-        return state
-
-    async def _start_sandbox(self, sandbox_id: str) -> None:
-        """启动沙箱"""
-
-        def _sync_start():
-            client = self._get_daytona_client()
-            sandbox = client.get(sandbox_id)
-            sandbox.start(timeout=60)
-
-        await run_blocking_io(
-            _sync_start,
-            timeout=DEFAULT_DAYTONA_TIMEOUT,
-        )
-
-    async def _get_work_dir(self, sandbox_id: str) -> str:
-        """获取沙箱工作目录"""
-
-        def _sync_get_work_dir():
-            client = self._get_daytona_client()
-            sandbox = client.get(sandbox_id)
-            return sandbox.get_work_dir()
-
-        return await run_blocking_io(
-            _sync_get_work_dir,
-            timeout=DEFAULT_DAYTONA_TIMEOUT,
-        )
-
-    async def _create_backend(
-        self,
-        sandbox_id: str,
-        user_id: str,
-    ) -> CompositeBackend:
-        """为已存在的沙箱创建 CompositeBackend"""
-
-        def _sync_create_backend():
-            client = self._get_daytona_client()
-            sandbox = client.get(sandbox_id)
-            daytona_backend = DaytonaBackend(sandbox=sandbox)
-            skills_backend = create_skills_backend(user_id=user_id)
-            return CompositeBackend(
-                default=daytona_backend,
-                routes={
-                    "/skills/": skills_backend,
-                },
-            )
-
-        return await run_blocking_io(
-            _sync_create_backend,
-            timeout=DEFAULT_DAYTONA_TIMEOUT,
-        )
-
-    async def _create_and_bind(
-        self,
-        session_id: str,
-        user_id: str,
-    ) -> tuple[CompositeBackend, str]:
-        """创建新沙箱并绑定到用户（替换旧的绑定）
-
-        Args:
-            session_id: 当前会话 ID（仅用于日志追踪）
-            user_id: 用户 ID
-
-        Returns:
-            tuple[CompositeBackend, str]: (composite_backend, work_dir)
-        """
-        from daytona import CreateSandboxFromSnapshotParams
-
-        # 加载用户环境变量
-        user_envs = await self._get_user_env_vars(user_id)
-
-        def _sync_create():
-            client = self._get_daytona_client()
-            params = CreateSandboxFromSnapshotParams(
-                auto_delete_interval=settings.DAYTONA_AUTO_DELETE_INTERVAL,
-                auto_stop_interval=settings.DAYTONA_AUTO_STOP_INTERVAL,
-                auto_archive_interval=settings.DAYTONA_AUTO_ARCHIVE_INTERVAL,
-                language="python",
-                snapshot=settings.DAYTONA_IMAGE if settings.DAYTONA_IMAGE else None,
-                env_vars=user_envs if user_envs else None,
-            )
-            sandbox = client.create(params)
-            daytona_backend = DaytonaBackend(sandbox=sandbox)
-            skills_backend = create_skills_backend(user_id=user_id)
-            composite_backend = CompositeBackend(
-                default=daytona_backend,
-                routes={
-                    "/skills/": skills_backend,
-                },
-            )
-            return composite_backend, sandbox.get_work_dir(), daytona_backend.id
-
-        backend, work_dir, sandbox_id = await run_blocking_io(
-            _sync_create,
-            timeout=DEFAULT_DAYTONA_TIMEOUT,
-        )
-
-        try:
-            # 保存绑定到 MongoDB
-            await self._save_binding(user_id, sandbox_id, "running", is_new=True)
-        except Exception as e:
-            logger.error(
-                f"[SessionSandboxManager] Created sandbox {sandbox_id} but failed to save binding: {e}. "
-                "Attempting to clean up orphan sandbox."
-            )
-            # 尝试清理孤儿沙箱
-            try:
-                await run_blocking_io(self._delete_sandbox, sandbox_id)
-            except Exception as cleanup_err:
-                logger.error(
-                    f"[SessionSandboxManager] Failed to clean up orphan sandbox {sandbox_id}: {cleanup_err}"
-                )
-            raise
-
-        # 更新内存缓存
-        self._cache[user_id] = (sandbox_id, backend, None)
-        self._evict_if_needed()
-
-        logger.info(
-            f"[SessionSandboxManager] Created sandbox {sandbox_id} for user {user_id} (session={session_id})"
-        )
-
-        await ensure_sandbox_mcp(backend, user_id)
-        return backend, work_dir
-
-    async def _get_user_env_vars(self, user_id: str) -> dict[str, str]:
-        """加载用户的环境变量（解密后）"""
-        try:
-            from src.infra.envvar.storage import EnvVarStorage
-
-            storage = EnvVarStorage()
-            return await storage.get_decrypted_vars(user_id)
-        except Exception as e:
-            logger.warning(
-                f"[SessionSandboxManager] Failed to load env vars for user {user_id}: {e}"
-            )
-            return {}
-
-    def _delete_sandbox(self, sandbox_id: str) -> None:
-        """删除沙箱（同步，用于 run_blocking_io）"""
-
-        client = self._get_daytona_client()
-        sandbox = client.get(sandbox_id)
-        sandbox.delete()
-
-    # ── E2B platform methods ──────────────────────────────────────────
-
-    async def _get_or_create_e2b(
-        self, session_id: str, user_id: str
-    ) -> tuple[CompositeBackend, str]:
-        assert self._e2b_adapter is not None
-        lock = self._get_user_lock(user_id)
-        async with lock:
-            if user_id in self._cache:
-                self._cache.move_to_end(user_id)  # LRU: mark as recently used
-                sandbox_id, backend, provider_obj = self._cache[user_id]
-                try:
-                    is_running = await run_blocking_io(
-                        self._e2b_adapter.sandbox_is_running,
-                        provider_obj,
-                    )
-                    if is_running:
-                        await run_blocking_io(
-                            self._e2b_adapter.extend_timeout,
-                            provider_obj,
-                            settings.E2B_TIMEOUT,
-                        )
-                        await self._save_binding(user_id, sandbox_id, "running")
-                        await ensure_sandbox_mcp(backend, user_id)
-                        work_dir = await run_blocking_io(
-                            self._e2b_adapter.get_work_dir,
-                            provider_obj,
-                        )
-                        return backend, work_dir
-                except Exception as e:
-                    logger.warning(f"[E2B] Cache hit but sandbox {sandbox_id} unhealthy: {e}")
-                del self._cache[user_id]
-
-            binding = await self._get_binding(user_id)
-            metadata_sandbox_id = binding.get("sandbox_id") if binding else None
-            if metadata_sandbox_id:
-                # Sandbox.connect() 会自动恢复暂停的沙箱
-                provider_obj = await run_blocking_io(
-                    self._e2b_adapter.get_sandbox, metadata_sandbox_id
-                )
-                if provider_obj:
-                    try:
-                        await run_blocking_io(
-                            self._e2b_adapter.extend_timeout,
-                            provider_obj,
-                            settings.E2B_TIMEOUT,
-                        )
-                        backend = self._build_composite_backend(provider_obj, user_id)
-                        self._cache[user_id] = (metadata_sandbox_id, backend, provider_obj)
-                        self._evict_if_needed()
-                        info = await run_blocking_io(
-                            self._e2b_adapter.get_sandbox_info,
-                            provider_obj,
-                        )
-                        await self._save_binding(
-                            user_id, metadata_sandbox_id, info.get("state", "running")
-                        )
-                        await ensure_sandbox_mcp(backend, user_id)
-                        work_dir = await run_blocking_io(
-                            self._e2b_adapter.get_work_dir,
-                            provider_obj,
-                        )
-                        return backend, work_dir
-                    except Exception as e:
-                        logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
-
-            return await self._create_and_bind_e2b(session_id, user_id)
-
-    async def _create_and_bind_e2b(
-        self, session_id: str, user_id: str
-    ) -> tuple[CompositeBackend, str]:
-        assert self._e2b_adapter is not None
-        adapter = self._e2b_adapter
-        from src.infra.backend.e2b import E2BBackend
-
-        # 加载用户环境变量
-        user_envs = await self._get_user_env_vars(user_id)
-
-        def _sync_create():
-            sandbox, work_dir = adapter.create_sandbox(
-                user_id=user_id, envs=user_envs if user_envs else None
-            )
-            e2b_backend = E2BBackend(sandbox=cast("E2BSandbox", sandbox))
-            skills_backend = create_skills_backend(user_id=user_id)
-            composite = CompositeBackend(default=e2b_backend, routes={"/skills/": skills_backend})
-            return composite, work_dir, adapter.get_sandbox_id(sandbox), sandbox
-
-        backend, work_dir, sandbox_id, provider_obj = await run_blocking_io(_sync_create)
-        try:
-            await self._save_binding(user_id, sandbox_id, "running", is_new=True)
-        except Exception as e:
-            logger.error(f"[E2B] Created {sandbox_id} but failed to save binding: {e}")
-            try:
-                await run_blocking_io(self._e2b_adapter.stop_sandbox, provider_obj)
-            except Exception:
-                pass
-            raise
-        self._cache[user_id] = (sandbox_id, backend, provider_obj)
-        self._evict_if_needed()
-        logger.info(f"[E2B] Created sandbox {sandbox_id} for user {user_id} (session={session_id})")
-
-        await ensure_sandbox_mcp(backend, user_id)
-        return backend, work_dir
-
-    def _build_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:
-        from src.infra.backend.e2b import E2BBackend
-
-        return CompositeBackend(
-            default=E2BBackend(sandbox=cast("E2BSandbox", provider_obj)),
-            routes={"/skills/": create_skills_backend(user_id=user_id)},
-        )
-
-    async def _stop_e2b(self, user_id: str) -> bool:
-        assert self._e2b_adapter is not None
-        lock = self._get_user_lock(user_id)
-        async with lock:
-            if user_id in self._cache:
-                sandbox_id, _, provider_obj = self._cache[user_id]
-                try:
-                    # stop_sandbox 优先 pause（保留数据），失败则 kill
-                    await run_blocking_io(self._e2b_adapter.stop_sandbox, provider_obj)
-                    self._cache.pop(user_id, None)
-                    await self._save_binding(user_id, sandbox_id, "paused")
-                    logger.info(f"[E2B] Paused sandbox {sandbox_id} for user {user_id}")
-                    return True
-                except Exception as e:
-                    logger.error(f"[E2B] Failed to stop sandbox: {e}")
-                    return False
-            return False
+    # ── Cache management ────────────────────────────────────────────
 
     def clear_cache(self, user_id: str) -> None:
         """清除内存缓存（用于测试或强制刷新）"""

@@ -155,7 +155,6 @@ async def test_generate_recommend_questions_uses_session_title_model_id(monkeypa
     assert calls == [
         {
             "model_id": "title-model",
-            "max_tokens": 300,
             "max_retries": 3,
         }
     ]
@@ -489,7 +488,6 @@ async def test_generate_recommend_questions_uses_default_model_when_title_model_
     assert calls == [
         {
             "model_id": None,
-            "max_tokens": 300,
             "max_retries": 3,
         }
     ]

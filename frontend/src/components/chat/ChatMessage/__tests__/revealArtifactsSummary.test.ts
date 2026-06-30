@@ -15,7 +15,7 @@ test("reveal artifacts summary mirrors the file tree view row details", () => {
   );
   assert.match(
     summarySource,
-    /<img[\s\S]*src=\{imageSrc\}/,
+    /<ImageWithSkeleton[\s\S]*src=\{imageSrc\}/,
     "image file rows should render a thumbnail from the artifact preview URL",
   );
   assert.match(
@@ -60,5 +60,18 @@ test("all files image rows open an ImageViewer gallery with navigation", () => {
     summarySource,
     /<ImageViewer[\s\S]*?\bpositionLabel=/,
     "gallery should show the image position",
+  );
+});
+
+test("all files summary waits until the message stops streaming", () => {
+  const summarySource = readFileSync(
+    new URL("../RevealArtifactsSummary.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    summarySource,
+    /if\s*\(\s*isStreaming\s*\|\|\s*artifacts\.length\s*===\s*0\s*\)/,
+    "artifact delivery events should keep the all files entry hidden until the message is idle",
   );
 });

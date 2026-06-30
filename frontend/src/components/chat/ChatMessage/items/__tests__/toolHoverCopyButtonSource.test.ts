@@ -52,7 +52,7 @@ test("tool hover copy controls are reserved for result and content blocks", () =
   );
   assert.match(
     source,
-    /resultCompact:\s*"absolute top-0\.5 right-0\.5 sm:opacity-0 sm:group-hover\/result:opacity-100 transition-opacity"/,
+    /resultCompact:\s*"absolute top-0\.5 right-0\.5 transition-opacity"/,
   );
   assert.match(source, /<CopyButton/);
 

@@ -9,6 +9,7 @@ import {
   Share2,
   Copy,
   Trash2,
+  Pencil,
   Globe,
   Lock,
   Loader2,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { SkeletonList, SkeletonCard } from "../skeletons";
+import { Checkbox } from "../common/Checkbox";
 import { shareApi } from "../../services/api/share";
 import type {
   ShareType,
@@ -62,6 +64,7 @@ export function ShareDialog({
   const [hasLoadedShares, setHasLoadedShares] = useState(false);
   const [hasLoadedRuns, setHasLoadedRuns] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [editingShare, setEditingShare] = useState<SharedSession | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const swipeRef = useSwipeToClose({
     onClose,
@@ -140,6 +143,8 @@ export function ShareDialog({
       setHasLoadedRuns(false);
       setIsLoading(false);
       setIsLoadingRuns(false);
+      setIsCreating(false);
+      setEditingShare(null);
     }
   }, [isOpen]);
 
@@ -167,6 +172,44 @@ export function ShareDialog({
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleSaveShare = async () => {
+    if (!editingShare) return;
+
+    setIsCreating(true);
+    try {
+      await shareApi.update(editingShare.id, {
+        share_type: shareType,
+        run_ids: shareType === "partial" ? selectedRunIds : undefined,
+        visibility,
+      });
+
+      toast.success(t("share.updateSuccess"));
+      setEditingShare(null);
+      await loadExistingShares();
+    } catch (error) {
+      console.error("Failed to update share:", error);
+      toast.error(t("share.updateFailed"));
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleEditShare = (share: SharedSession) => {
+    setEditingShare(share);
+    setShareType(share.share_type);
+    setVisibility(share.visibility);
+    setSelectedRunIds(
+      share.share_type === "partial" ? share.run_ids || [] : [],
+    );
+  };
+
+  const handleCancelEditShare = () => {
+    setEditingShare(null);
+    setShareType("full");
+    setVisibility("public");
+    setSelectedRunIds([]);
   };
 
   const handleCopyLink = async (shareId: string) => {
@@ -343,17 +386,11 @@ export function ShareDialog({
                             : "hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300"
                         }`}
                       >
-                        <div
-                          className={`w-4 h-4 rounded border flex items-center justify-center ${
-                            selectedRunIds.includes(run.run_id)
-                              ? "border-stone-500 bg-stone-500 dark:border-stone-400 dark:bg-stone-400"
-                              : "border-stone-300 dark:border-stone-500"
-                          }`}
-                        >
-                          {selectedRunIds.includes(run.run_id) && (
-                            <Check size={12} className="text-white" />
-                          )}
-                        </div>
+                        <Checkbox
+                          checked={selectedRunIds.includes(run.run_id)}
+                          size="sm"
+                          onChange={() => handleRunClick(run.run_id)}
+                        />
                         <span className="flex items-center gap-0.5 whitespace-nowrap">
                           <span>{t("share.run")}</span>
                           <span className="w-5 text-center tabular-nums">
@@ -504,6 +541,20 @@ export function ShareDialog({
                           )}
                         </button>
                         <button
+                          onClick={() => handleEditShare(share)}
+                          className="p-1.5 rounded hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                          title={t("share.editShare")}
+                        >
+                          <Pencil
+                            size={14}
+                            className={
+                              editingShare?.id === share.id
+                                ? "text-stone-700 dark:text-stone-200"
+                                : "text-stone-400 dark:text-stone-500"
+                            }
+                          />
+                        </button>
+                        <button
                           onClick={() => handleDeleteShare(share.id)}
                           className="p-1.5 rounded hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
                           title={t("share.deleteShare")}
@@ -523,6 +574,14 @@ export function ShareDialog({
 
           {/* Footer */}
           <div className="safe-area-bottom flex items-center justify-end gap-2 px-5 pt-4 [--safe-area-bottom-extra:1rem] bg-stone-50 dark:bg-stone-900/50 border-t border-stone-100 dark:border-stone-700">
+            {editingShare && (
+              <button
+                onClick={handleCancelEditShare}
+                className="px-4 py-2 text-sm font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
+              >
+                {t("share.cancelEdit")}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
@@ -530,7 +589,7 @@ export function ShareDialog({
               {t("common.close")}
             </button>
             <button
-              onClick={handleCreateShare}
+              onClick={editingShare ? handleSaveShare : handleCreateShare}
               disabled={
                 isCreating ||
                 (shareType === "partial" && selectedRunIds.length === 0)
@@ -544,7 +603,9 @@ export function ShareDialog({
                   <Share2 size={16} />
                 )}
               </span>
-              <span>{t("share.createShare")}</span>
+              <span>
+                {editingShare ? t("share.saveShare") : t("share.createShare")}
+              </span>
             </button>
           </div>
         </div>

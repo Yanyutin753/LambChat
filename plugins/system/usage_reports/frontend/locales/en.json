@@ -1,0 +1,54 @@
+{
+  "nav": {
+    "usage": "Console"
+  },
+  "seo": {
+    "usage": {
+      "description": "Token consumption tracking and usage details",
+      "title": "Console"
+    }
+  },
+  "usage": {
+    "agent": "Agent",
+    "allPeriods": "All Time",
+    "cache": "Cache",
+    "cacheHitRate": "Cache Hit",
+    "cacheRead": "Cache Read",
+    "cacheTokens": "{{count}} tokens",
+    "cacheWrite": "Cache Write",
+    "completed": "Completed",
+    "dashboard": {
+      "subtitleAdmin": "Agent execution, consumption, automation & anomaly trends",
+      "subtitleUser": "Personal execution, consumption, automation & anomaly trends",
+      "titleAdmin": "Operations Overview",
+      "titleUser": "My Usage"
+    },
+    "duration": "Duration",
+    "error": "Error",
+    "inTokens": "In",
+    "inputTokens": "Input Tokens",
+    "loadFailed": "Failed to load usage data",
+    "model": "Model",
+    "noUsage": "No usage records",
+    "noUsageHint": "Usage data will appear here after conversations",
+    "outTokens": "Out",
+    "outputTokens": "Output Tokens",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing",
+    "roleOrTeam": "Persona/Team",
+    "scheduledBadge": "Scheduled",
+    "searchPlaceholder": "Search by username...",
+    "status": "Status",
+    "subtitle": "Token consumption tracking",
+    "thisMonth": "This Month",
+    "thisWeek": "This Week",
+    "time": "Time",
+    "title": "Usage Details",
+    "today": "Today",
+    "total": "Total",
+    "totalDuration": "Total Duration",
+    "totalRequests": "Total Requests",
+    "totalTokens": "Total Tokens",
+    "user": "User"
+  }
+}

@@ -292,7 +292,7 @@ export default function ProjectPreview({
       {/* 预览区域 */}
       <div
         className={clsx(
-          "flex-1 min-h-0 h-auto",
+          "flex-1 min-h-0 h-full",
           isFullscreen && "h-[calc(100dvh-120px)]",
         )}
       >

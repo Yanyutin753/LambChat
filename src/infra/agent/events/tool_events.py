@@ -138,6 +138,14 @@ class ToolEventMixin:
             parsed_result = await run_blocking_io(_parse_tool_result_json, raw)
             if parsed_result is not None:
                 result = parsed_result
+                parsed_is_error, parsed_error_message = await run_blocking_io(
+                    detect_tool_error,
+                    parsed_result,
+                    parsed_result,
+                )
+                if parsed_is_error:
+                    is_error = True
+                    error_message = parsed_error_message
 
         if isinstance(result, dict) and "blocks" in result:
             await upload_binary_blocks(result, self._base_url)

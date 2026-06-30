@@ -1,6 +1,7 @@
 import { authFetch } from "./fetch";
 import { API_BASE } from "./config";
 import { getAccessToken } from "./token";
+import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 import type {
   Team,
   TeamCreateRequest,
@@ -164,3 +165,7 @@ export const teamApi = {
     return team;
   },
 };
+
+subscribeTeamsChanged(() => {
+  clearTeamListCache();
+});

@@ -1,0 +1,28 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "List Operator Sort"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "sort",
+        "type": "list-operator",
+        "data": {
+          "title": "Sort by score",
+          "variable_selector": ["items"],
+          "operation": "sort",
+          "sort_by": "score",
+          "direction": "desc",
+          "output_key": "ranked_items"
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{ranked_items.0.name}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "sort" },
+      { "id": "e2", "source": "sort", "target": "answer" }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "documents": {
+    "binaryFilePreview": "Binary file preview",
+    "cadPreviewFailed": "CAD preview failed",
+    "centerView": "Center view",
+    "copy": "Copy",
+    "copyCode": "Copy code",
+    "csvDataFile": "CSV data file",
+    "documentContentPreview": "Document content preview",
+    "download": "Download",
+    "downloadFile": "Download file",
+    "exitFullscreen": "Exit fullscreen",
+    "fullscreen": "Fullscreen",
+    "htmlPreviewFailed": "HTML preview failed",
+    "loadingImage": "Loading image",
+    "loadingVideo": "Loading video",
+    "mermaidRenderFailed": "Failed to render diagram",
+    "sidebarView": "Sidebar view",
+    "videoNotSupported": "Your browser does not support video playback",
+    "wordPreviewUnavailable": "Word preview unavailable"
+  }
+}

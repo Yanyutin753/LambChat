@@ -257,21 +257,21 @@ export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
                           {instanceCount > 0 &&
                             (hasAnyConnected ? (
                               <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                                Connected
+                                {t("channel.connected", "Connected")}
                               </span>
                             ) : (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                                Disconnected
+                                {t("channel.disconnected", "Disconnected")}
                               </span>
                             ))}
                           {ct.capabilities.includes("websocket") && (
                             <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs font-medium text-[var(--theme-text-secondary)]">
-                              WS
+                              {t("channel.websocketShort", "WS")}
                             </span>
                           )}
                           {ct.capabilities.includes("webhook") && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                              Hook
+                              {t("channel.webhookShort", "Hook")}
                             </span>
                           )}
                         </div>
@@ -279,20 +279,25 @@ export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
                       tags={
                         instanceCount > 0 ? (
                           <span className="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium bg-[var(--glass-bg-subtle)] text-[var(--theme-text-secondary)] border border-[var(--theme-border)]">
-                            {instanceCount}{" "}
-                            {instanceCount === 1 ? "instance" : "instances"}
+                            {t(
+                              instanceCount === 1
+                                ? "channel.instanceCount_one"
+                                : "channel.instanceCount_other",
+                              "{{count}} instances",
+                              { count: instanceCount },
+                            )}
                           </span>
                         ) : undefined
                       }
                       bannerOverlay={
                         instanceCount > 0 &&
                         (hasAnyConnected ? (
-                          <span className="rounded-full bg-green-400/30 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-green-50 dark:bg-green-400/20 dark:text-green-100">
-                            Connected
+                          <span className="rounded-full bg-green-400/30 px-2 py-0.5 text-xs font-medium text-green-50 dark:bg-green-400/20 dark:text-green-100">
+                            {t("channel.connected", "Connected")}
                           </span>
                         ) : (
-                          <span className="rounded-full bg-amber-400/30 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-amber-50 dark:bg-amber-400/20 dark:text-amber-100">
-                            Disconnected
+                          <span className="rounded-full bg-amber-400/30 px-2 py-0.5 text-xs font-medium text-amber-50 dark:bg-amber-400/20 dark:text-amber-100">
+                            {t("channel.disconnected", "Disconnected")}
                           </span>
                         ))
                       }
@@ -381,16 +386,16 @@ export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
                           {status?.enabled &&
                             (status.connected ? (
                               <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                                Connected
+                                {t("channel.connected", "Connected")}
                               </span>
                             ) : (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                                Disconnected
+                                {t("channel.disconnected", "Disconnected")}
                               </span>
                             ))}
                           {!status?.enabled && (
                             <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs text-[var(--theme-text-secondary)]">
-                              Disabled
+                              {t("channel.disabled", "Disabled")}
                             </span>
                           )}
                         </div>

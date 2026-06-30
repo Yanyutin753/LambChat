@@ -200,6 +200,17 @@ class Settings(BaseSettings):
     E2B_AUTO_PAUSE: bool = True
     E2B_AUTO_RESUME: bool = True
 
+    # CubeSandbox Settings
+    CUBE_API_URL: str = "http://127.0.0.1:3000"
+    CUBE_TEMPLATE: str = ""
+    CUBE_PROXY_NODE_IP: str = ""
+    CUBE_PROXY_PORT_HTTP: int = 80
+    CUBE_SANDBOX_DOMAIN: str = "cube.app"
+    CUBE_TIMEOUT: int = 3600
+    CUBE_REQUEST_TIMEOUT: float = 120.0
+    CUBE_AUTO_PAUSE: bool = True
+    CUBE_AUTO_RESUME: bool = True
+
     # Skills Settings
     ENABLE_SKILLS: bool = True
 
@@ -339,6 +350,12 @@ class Settings(BaseSettings):
     AUDIO_TRANSCRIPTION_BASE_URL: str = ""
     AUDIO_TRANSCRIPTION_MODEL: str = "gpt-4o-mini-transcribe"
     AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES: int = 50 * 1024 * 1024
+
+    # Image analysis tool settings
+    ENABLE_IMAGE_ANALYSIS: bool = False
+    IMAGE_ANALYSIS_MODEL_ID: str = ""
+    IMAGE_ANALYSIS_MAX_ATTEMPTS: int = 3
+    IMAGE_ANALYSIS_RETRY_DELAY: float = 1.0
 
     # Image generation tool settings
     ENABLE_IMAGE_GENERATION: bool = False

@@ -1,7 +1,7 @@
 export const PERSONA_PRESETS_CHANGED_EVENT = "persona-presets-changed";
 
 export interface PersonaPresetsChangedDetail {
-  action?: "created" | "updated";
+  action?: "created" | "updated" | "deleted";
   presetId?: string;
   presetName?: string;
 }

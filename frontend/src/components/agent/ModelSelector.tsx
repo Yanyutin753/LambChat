@@ -7,6 +7,7 @@ import { ModelIconImg } from "./modelIcon.tsx";
 import { shouldCloseModelSelector } from "./modelSelectorGuards";
 import type { ModelOption } from "../../services/api/model";
 import { authApi } from "../../services/api";
+import { PanelSearchInput } from "../common/PanelSearchInput";
 import { Tooltip } from "../common/Tooltip";
 import { PROVIDER_LABELS } from "../panels/AgentPanel/shared/providerLabels";
 
@@ -463,7 +464,7 @@ const ModelSelector = memo(function ModelSelector({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[10000] w-[min(calc(100vw-0.75rem),24rem)] rounded-lg bg-white/95 dark:bg-stone-800/95 shadow-[0_14px_36px_-22px_rgba(0,0,0,0.45)] border border-stone-200/90 dark:border-stone-700/90 overflow-hidden backdrop-blur-sm animate-scale-in"
+            className="fixed z-[10000] w-[min(calc(100vw-0.75rem),24rem)] rounded-lg bg-white/95 dark:bg-stone-800/95 shadow-[0_14px_36px_-22px_rgba(0,0,0,0.45)] border border-stone-200/90 dark:border-stone-700/90 overflow-hidden animate-scale-in"
             style={dropdownStyle}
           >
             <div className="px-3 pt-2 pb-1.5">
@@ -504,9 +505,9 @@ const ModelSelector = memo(function ModelSelector({
             <div className="border-t border-stone-100 dark:border-stone-700/70 px-3 py-2">
               <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
                 <Search size={14} strokeWidth={2.2} className="shrink-0" />
-                <input
+                <PanelSearchInput
                   value={modelSearch}
-                  onChange={(e) => setModelSearch(e.target.value)}
+                  onValueChange={setModelSearch}
                   placeholder={t("profile.searchModels", "搜索模型")}
                   autoComplete="off"
                   className="min-w-0 flex-1 bg-transparent text-[13px] leading-5 text-stone-700 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"

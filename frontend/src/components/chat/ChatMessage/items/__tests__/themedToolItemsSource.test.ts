@@ -11,16 +11,16 @@ function readSource(relativePath: string): string {
 }
 
 const themedItems = [
-  { file: "../ImageGenerateItem.tsx", accent: "rose" },
+  { file: "../ImageGenerateItem.tsx", accent: "violet" },
   { file: "../AudioTranscribeItem.tsx", accent: "violet" },
-  { file: "../ScheduledTaskItem.tsx", accent: "amber" },
+  { file: "../ScheduledTaskItem.tsx", accent: "emerald" },
   { file: "../EnvVarItem.tsx", accent: "emerald" },
-  { file: "../PersonaItem.tsx", accent: "violet" },
-  { file: "../TeamItem.tsx", accent: "sky" },
+  { file: "../PersonaItem.tsx", accent: "amber" },
+  { file: "../TeamItem.tsx", accent: "emerald" },
   { file: "../SandboxMcpItem.tsx", accent: "teal" },
 ];
 
-test("internal tool items keep distinct accents while using theme surfaces", () => {
+test("internal tool items keep accents while using theme surfaces", () => {
   for (const { file, accent } of themedItems) {
     const source = readSource(file);
 

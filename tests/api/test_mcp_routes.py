@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -139,6 +141,248 @@ async def test_admin_internal_tool_discovery_uses_internal_registry(
 
 
 @pytest.mark.asyncio
+async def test_admin_internal_tool_invoke_runs_allowlisted_workflow_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    class _FakeTool:
+        name = "workflow_run"
+
+        async def _arun(self, *args, config=None, **kwargs):
+            calls.append({"args": args, "config": config, "kwargs": kwargs})
+            runtime = kwargs.pop("runtime")
+            user_id = runtime.config["configurable"]["context"].user_id
+            return json.dumps(
+                {
+                    "plugin_id": "workflow",
+                    "workflow_id": kwargs["workflow_id"],
+                    "run_id": "wfr-tool",
+                    "status": "succeeded",
+                    "user_id": user_id,
+                }
+            )
+
+    async def fake_get_internal_tools_for_user(*args, **kwargs):
+        assert kwargs == {"user_id": "admin-1", "user_roles": ["admin"], "is_admin": True}
+        return [_FakeTool()]
+
+    monkeypatch.setattr(
+        "src.infra.tool.internal_registry.get_internal_tools_for_user",
+        fake_get_internal_tools_for_user,
+    )
+
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: object()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/admin/mcp/lambchat_internal/tools/workflow_run/invoke",
+            json={"arguments": {"workflow_id": "wf-1", "input": {"message": "hi"}}},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "server_name": "lambchat_internal",
+        "tool_name": "workflow_run",
+        "result": {
+            "plugin_id": "workflow",
+            "workflow_id": "wf-1",
+            "run_id": "wfr-tool",
+            "status": "succeeded",
+            "user_id": "admin-1",
+        },
+    }
+    assert calls[0]["config"] == {}
+    assert calls[0]["kwargs"]["workflow_id"] == "wf-1"
+    assert calls[0]["kwargs"]["input"] == {"message": "hi"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "raw_result", "expected_result"),
+    [
+        (
+            "workflow_list",
+            {"scope": "published"},
+            {
+                "plugin_id": "workflow",
+                "scope": "published",
+                "workflows": [{"workflow_id": "wf-1", "status": "published"}],
+            },
+            {
+                "plugin_id": "workflow",
+                "scope": "published",
+                "workflows": [{"workflow_id": "wf-1", "status": "published"}],
+            },
+        ),
+        (
+            "workflow_get_schema",
+            {"workflow_id": "wf-1", "version_id": "wfv-1"},
+            json.dumps(
+                {
+                    "plugin_id": "workflow",
+                    "workflow_id": "wf-1",
+                    "version_id": "wfv-1",
+                    "input_schema": {"type": "object", "properties": {"items": {"type": "array"}}},
+                }
+            ),
+            {
+                "plugin_id": "workflow",
+                "workflow_id": "wf-1",
+                "version_id": "wfv-1",
+                "input_schema": {"type": "object", "properties": {"items": {"type": "array"}}},
+            },
+        ),
+        (
+            "workflow_get_run",
+            {"workflow_id": "wf-1", "run_id": "wfr-1"},
+            json.dumps(
+                {
+                    "plugin_id": "workflow",
+                    "workflow_id": "wf-1",
+                    "run_id": "wfr-1",
+                    "status": "running",
+                    "events": [{"event_type": "run_queued"}],
+                }
+            ),
+            {
+                "plugin_id": "workflow",
+                "workflow_id": "wf-1",
+                "run_id": "wfr-1",
+                "status": "running",
+                "events": [{"event_type": "run_queued"}],
+            },
+        ),
+    ],
+)
+async def test_admin_internal_tool_invoke_runs_allowlisted_workflow_read_tools(
+    monkeypatch: pytest.MonkeyPatch,
+    tool_name: str,
+    arguments: dict,
+    raw_result,
+    expected_result: dict,
+) -> None:
+    calls: list[dict] = []
+
+    class _FakeTool:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        async def _arun(self, *args, config=None, **kwargs):
+            calls.append({"args": args, "config": config, "kwargs": kwargs})
+            return raw_result
+
+    async def fake_get_internal_tools_for_user(*args, **kwargs):
+        assert kwargs == {"user_id": "admin-1", "user_roles": ["admin"], "is_admin": True}
+        return [_FakeTool(tool_name)]
+
+    monkeypatch.setattr(
+        "src.infra.tool.internal_registry.get_internal_tools_for_user",
+        fake_get_internal_tools_for_user,
+    )
+
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: object()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            f"/api/admin/mcp/lambchat_internal/tools/{tool_name}/invoke",
+            json={"arguments": arguments},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "server_name": "lambchat_internal",
+        "tool_name": tool_name,
+        "result": expected_result,
+    }
+    assert calls[0]["config"] == {}
+    called_kwargs = dict(calls[0]["kwargs"])
+    runtime = called_kwargs.pop("runtime")
+    assert called_kwargs == arguments
+    assert runtime.config["configurable"]["context"].user_id == "admin-1"
+
+
+@pytest.mark.asyncio
+async def test_admin_internal_tool_invoke_rejects_non_allowlisted_tool() -> None:
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: object()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/admin/mcp/lambchat_internal/tools/image_generate/invoke",
+            json={"arguments": {}},
+        )
+
+    assert response.status_code == 403
+    assert "cannot be invoked" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_internal_tool_invoke_rejects_external_server() -> None:
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: object()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/admin/mcp/external-server/tools/workflow_run/invoke",
+            json={"arguments": {"workflow_id": "wf-1"}},
+        )
+
+    assert response.status_code == 404
+    assert "external-server" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_internal_tool_invoke_respects_workflow_runtime_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import PluginRuntime, build_workflow_plugin_manifest
+
+    async def no_internal_tool_policies():
+        return {}
+
+    async def workflow_permissions(_user_roles):
+        return {"workflow:read", "workflow:run"}
+
+    runtime = PluginRuntime([build_workflow_plugin_manifest()])
+
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", no_internal_tool_policies)
+    monkeypatch.setattr(internal_registry, "_resolve_permissions_for_roles", workflow_permissions)
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: object()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/admin/mcp/lambchat_internal/tools/workflow_get_run/invoke",
+            json={"arguments": {"workflow_id": "wf-1", "run_id": "wfr-1"}},
+        )
+
+    assert response.status_code == 404
+    assert "workflow_get_run" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_import_mcp_servers_rejects_oversized_payload_before_storage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -191,3 +435,52 @@ async def test_admin_toggle_tool_returns_bad_request_for_disabled_tool_overflow(
 
     assert response.status_code == 400
     assert "maximum 100" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_update_tool_policy_accepts_inline_exposure() -> None:
+    class _FakeStorage:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def get_system_server(self, name: str):
+            assert name == "server-1"
+            return object()
+
+        async def set_tool_policy(self, **kwargs):
+            self.calls.append(kwargs)
+            from src.kernel.schemas.mcp import MCPToolPolicy
+
+            return MCPToolPolicy(
+                server_name=kwargs["server_name"],
+                tool_name=kwargs["tool_name"],
+                disabled=kwargs["disabled"],
+                inline_exposure=kwargs["inline_exposure"],
+            )
+
+    storage = _FakeStorage()
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: storage
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.put(
+            "/api/admin/mcp/server-1/tools/extract/policy",
+            json={"disabled": False, "inline_exposure": True},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["inline_exposure"] is True
+    assert storage.calls == [
+        {
+            "server_name": "server-1",
+            "tool_name": "extract",
+            "disabled": False,
+            "inline_exposure": True,
+            "allowed_roles": None,
+            "role_quotas": None,
+            "updated_by": "admin-1",
+        }
+    ]

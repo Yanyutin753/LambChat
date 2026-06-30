@@ -1,9 +1,12 @@
 import { SkeletonLine } from "./primitives";
 import { PanelHeaderSkeleton } from "./PanelHeaderSkeleton";
-import { PanelPaginationSkeleton } from "./PanelSkeletonHelpers";
+import {
+  PANEL_CARD_SKELETON_COUNT,
+  PanelPaginationSkeleton,
+} from "./PanelSkeletonHelpers";
 
 function SkillCardsSkeleton({
-  count = 12,
+  count = PANEL_CARD_SKELETON_COUNT,
   marketplace = false,
 }: {
   count?: number;

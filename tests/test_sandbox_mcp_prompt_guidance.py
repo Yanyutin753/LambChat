@@ -307,6 +307,32 @@ def test_deferred_manager_applies_disabled_mcp_tools() -> None:
     assert manager.get_tool("notion:query") is not None
 
 
+def test_split_mcp_tools_for_inline_exposure_keeps_inline_tools_out_of_deferred() -> None:
+    from src.agents.core.mcp_tool_exposure import split_mcp_tools_for_exposure
+    from src.kernel.schemas.mcp import MCPToolPolicy
+
+    tools = [
+        _FakeTool("alpha:extract", "inline", server="alpha"),
+        _FakeTool("alpha:search", "deferred", server="alpha"),
+    ]
+
+    inline_tools, deferred_tools = split_mcp_tools_for_exposure(
+        tools,
+        {
+            "alpha": {
+                "extract": MCPToolPolicy(
+                    server_name="alpha",
+                    tool_name="extract",
+                    inline_exposure=True,
+                )
+            }
+        },
+    )
+
+    assert [tool.name for tool in inline_tools] == ["alpha:extract"]
+    assert [tool.name for tool in deferred_tools] == ["alpha:search"]
+
+
 @pytest.mark.asyncio
 async def test_fetch_and_format_returns_empty_when_mcporter_is_unavailable() -> None:
     class _Result:

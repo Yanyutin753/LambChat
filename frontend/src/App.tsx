@@ -6,6 +6,7 @@ import {
   useNavigate,
   useLocation,
   Navigate,
+  matchPath,
 } from "react-router-dom";
 import { Toaster, ToastBar, toast } from "react-hot-toast";
 import { X } from "lucide-react";
@@ -40,6 +41,9 @@ const BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS = [
   "/agent-team",
   "/feedback",
   "/usage",
+  "/workflows",
+  "/workflows/:workflowId/editor",
+  "/workflows/:workflowId/runs/:runId",
 ] as const;
 
 const SharedPage = lazy(() =>
@@ -271,7 +275,9 @@ function App() {
     canReadExtensionContributions &&
     (areExtensionContributionsLoading ||
       (!extensionContributions && !extensionContributionsError)) &&
-    pluginAppRouteLoadingPaths.includes(location.pathname);
+    pluginAppRouteLoadingPaths.some((path) =>
+      path === location.pathname || Boolean(matchPath({ path, end: true }, location.pathname)),
+    );
 
   // Auto-update for desktop and mobile
   const {

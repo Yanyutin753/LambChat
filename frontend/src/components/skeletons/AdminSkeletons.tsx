@@ -1,6 +1,9 @@
 import { SkeletonLine } from "./primitives";
 import { PanelHeaderSkeleton } from "./PanelHeaderSkeleton";
-import { PanelPaginationSkeleton } from "./PanelSkeletonHelpers";
+import {
+  PANEL_CARD_SKELETON_COUNT,
+  PanelPaginationSkeleton,
+} from "./PanelSkeletonHelpers";
 
 /** Users panel: table rows (desktop) + cards (mobile) */
 export function UsersPanelSkeleton() {
@@ -105,7 +108,7 @@ export function RolesPanelSkeleton() {
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
         <div className="grid gap-3 auto-grid-cols">
-          {Array.from({ length: 12 }).map((_, i) => (
+          {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
             <div
               key={i}
               className="glass-card relative flex flex-col rounded-xl p-4 sm:p-5"

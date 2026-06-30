@@ -128,6 +128,44 @@ test("adds recommended questions from recommendation events", () => {
   );
 });
 
+test("adds artifact result events as artifact parts without tool chrome", () => {
+  const result = processMessageEvent(
+    "artifact:result",
+    {
+      artifact: {
+        kind: "file",
+        id: "file:revealed/report.pdf",
+        name: "report.pdf",
+        path: "/workspace/report.pdf",
+        fileSize: 2048,
+        preview: {
+          kind: "file",
+          previewKey: "revealed/report.pdf",
+          filePath: "/workspace/report.pdf",
+          signedUrl: "/api/upload/file/revealed/report.pdf",
+          fileSize: 2048,
+        },
+      },
+      success: true,
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  assert.equal(result.parts.length, 1);
+  const artifact = result.parts[0];
+  assert.equal(artifact.type, "artifact");
+  if (artifact.type !== "artifact") return;
+  assert.equal(artifact.success, true);
+  assert.equal(artifact.artifact.kind, "file");
+  assert.equal(artifact.artifact.name, "report.pdf");
+});
+
 test("complete event cancels unfinished todo items", () => {
   const result = processMessageEvent(
     "complete",

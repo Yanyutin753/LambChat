@@ -66,6 +66,13 @@ export enum Permission {
   SCHEDULED_TASK_READ = "scheduled_task:read",
   SCHEDULED_TASK_WRITE = "scheduled_task:write",
   SCHEDULED_TASK_DELETE = "scheduled_task:delete",
+  // Workflow
+  WORKFLOW_READ = "workflow:read",
+  WORKFLOW_WRITE = "workflow:write",
+  WORKFLOW_RUN = "workflow:run",
+  WORKFLOW_ADMIN = "workflow:admin",
+  WORKFLOW_PUBLISH = "workflow:publish",
+  WORKFLOW_CREDENTIAL_MANAGE = "workflow:credential:manage",
   // Environment Variables
   ENVVAR_READ = "envvar:read",
   ENVVAR_WRITE = "envvar:write",

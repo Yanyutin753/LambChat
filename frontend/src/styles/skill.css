@@ -892,11 +892,12 @@
 
 .skill-form .cm-selectionBackground,
 .skill-form .cm-editor ::selection {
-  background: color-mix(
-    in srgb,
-    var(--skill-accent) 18%,
-    transparent
-  ) !important;
+  background: rgba(37, 99, 235, 0.26) !important;
+}
+
+.dark .skill-form .cm-selectionBackground,
+.dark .skill-form .cm-editor ::selection {
+  background: rgba(96, 165, 250, 0.46) !important;
 }
 
 .dark .skill-tag-chip {

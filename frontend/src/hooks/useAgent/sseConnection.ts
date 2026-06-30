@@ -355,19 +355,29 @@ export interface SSEReconnectOptions {
 export function useSSEReconnect(
   opts: SSEReconnectOptions,
 ): () => Promise<void> {
+  const {
+    createSSEContext,
+    sessionIdRef,
+    currentRunIdRef,
+    isReconnectFromHistoryRef,
+    streamingMessageIdRef,
+    connectionStatus,
+    setConnectionStatus,
+  } = opts;
+
   const handleReconnectSSE = useCallback(async () => {
     const ctx = {
-      ...opts.createSSEContext(),
-      sessionIdRef: opts.sessionIdRef,
-      currentRunIdRef: opts.currentRunIdRef,
-      isReconnectFromHistoryRef: opts.isReconnectFromHistoryRef,
+      ...createSSEContext(),
+      sessionIdRef,
+      currentRunIdRef,
+      isReconnectFromHistoryRef,
     };
     await reconnectSSE(ctx);
   }, [
-    opts.createSSEContext,
-    opts.sessionIdRef,
-    opts.currentRunIdRef,
-    opts.isReconnectFromHistoryRef,
+    createSSEContext,
+    sessionIdRef,
+    currentRunIdRef,
+    isReconnectFromHistoryRef,
   ]);
 
   // Handle visibility change — reconnect when tab becomes visible
@@ -375,10 +385,10 @@ export function useSSEReconnect(
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
-        opts.connectionStatus === "disconnected" &&
-        opts.sessionIdRef.current &&
-        opts.currentRunIdRef.current &&
-        opts.streamingMessageIdRef.current
+        connectionStatus === "disconnected" &&
+        sessionIdRef.current &&
+        currentRunIdRef.current &&
+        streamingMessageIdRef.current
       ) {
         handleReconnectSSE();
       }
@@ -389,28 +399,28 @@ export function useSSEReconnect(
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [
-    opts.connectionStatus,
+    connectionStatus,
     handleReconnectSSE,
-    opts.sessionIdRef,
-    opts.currentRunIdRef,
-    opts.streamingMessageIdRef,
+    sessionIdRef,
+    currentRunIdRef,
+    streamingMessageIdRef,
   ]);
 
   // Handle network status changes — reconnect on online, mark disconnected on offline
   useEffect(() => {
     const handleOnline = () => {
       if (
-        opts.connectionStatus === "disconnected" &&
-        opts.sessionIdRef.current &&
-        opts.currentRunIdRef.current &&
-        opts.streamingMessageIdRef.current
+        connectionStatus === "disconnected" &&
+        sessionIdRef.current &&
+        currentRunIdRef.current &&
+        streamingMessageIdRef.current
       ) {
         handleReconnectSSE();
       }
     };
 
     const handleOffline = () => {
-      opts.setConnectionStatus("disconnected");
+      setConnectionStatus("disconnected");
     };
 
     window.addEventListener("online", handleOnline);
@@ -421,11 +431,12 @@ export function useSSEReconnect(
       window.removeEventListener("offline", handleOffline);
     };
   }, [
-    opts.connectionStatus,
+    connectionStatus,
     handleReconnectSSE,
-    opts.sessionIdRef,
-    opts.currentRunIdRef,
-    opts.streamingMessageIdRef,
+    sessionIdRef,
+    currentRunIdRef,
+    streamingMessageIdRef,
+    setConnectionStatus,
   ]);
 
   return handleReconnectSSE;

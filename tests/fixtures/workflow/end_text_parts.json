@@ -1,0 +1,34 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "End Text Parts"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "end",
+          "data": {
+            "type": "end",
+            "title": "End",
+            "outputs": {
+              "summary": {
+                "value": [
+                  { "type": "text", "text": "Hello {{name}}" },
+                  " from ",
+                  { "type": "markdown", "data": "{{team}}" },
+                  { "type": "image", "url": "https://example.invalid/ignored.png" }
+                ]
+              },
+              "items": { "value": ["alpha", "beta"] }
+            }
+          }
+        }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "end" }
+      ]
+    }
+  }
+}

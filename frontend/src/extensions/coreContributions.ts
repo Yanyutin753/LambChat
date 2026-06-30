@@ -12,6 +12,7 @@ import {
   Sparkles,
   Plug,
   UserRound,
+  Workflow,
   Users,
 } from "lucide-react";
 import { Permission } from "../types";
@@ -863,6 +864,7 @@ function iconByName(name: string): LucideIcon {
     Plug,
     Star,
     Users,
+    Workflow,
   };
   return icons[name] ?? Plug;
 }
@@ -983,7 +985,7 @@ export function buildAppRouteContributions(
         return structuredRoutes;
       })
     : [];
-  return CORE_APP_ROUTES.reduce<CoreAppRouteContribution[]>((routes, coreRoute) => {
+  const routes = CORE_APP_ROUTES.reduce<CoreAppRouteContribution[]>((routes, coreRoute) => {
     routes.push(coreRoute);
     routes.push(
       ...pluginRoutes.filter(
@@ -994,6 +996,26 @@ export function buildAppRouteContributions(
   }, [
     ...pluginRoutes.filter((pluginRoute) => !pluginRoute.insertAfterId),
   ]);
+  const insertedRouteIds = new Set(routes.map((route) => route.id));
+  const pendingRoutes = pluginRoutes.filter(
+    (pluginRoute) => pluginRoute.insertAfterId && !insertedRouteIds.has(pluginRoute.id),
+  );
+  while (pendingRoutes.length > 0) {
+    const pendingBefore = pendingRoutes.length;
+    for (let index = pendingRoutes.length - 1; index >= 0; index -= 1) {
+      const route = pendingRoutes[index];
+      const insertIndex = routes.findIndex(
+        (candidate) => candidate.id === route.insertAfterId,
+      );
+      if (insertIndex === -1) continue;
+      routes.splice(insertIndex + 1, 0, route);
+      insertedRouteIds.add(route.id);
+      pendingRoutes.splice(index, 1);
+    }
+    if (pendingRoutes.length === pendingBefore) break;
+  }
+  routes.push(...pendingRoutes);
+  return routes;
 }
 
 export function buildPanelContributions(

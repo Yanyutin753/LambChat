@@ -1,0 +1,34 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Question Classifier Selector Alias"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "classify",
+          "data": {
+            "type": "question-classifier",
+            "title": "Classify question",
+            "model": { "provider": "openai", "name": "gpt-4o-mini" },
+            "variable_selector": ["payload", "message"],
+            "classes": [
+              { "id": "billing", "name": "Billing" },
+              { "id": "general", "name": "General" }
+            ],
+            "output_key": "question_class"
+          }
+        },
+        { "id": "billing_answer", "data": { "type": "answer", "title": "Billing", "answer": "Billing" } },
+        { "id": "general_answer", "data": { "type": "answer", "title": "General", "answer": "General" } }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "classify" },
+        { "id": "e2", "source": "classify", "target": "billing_answer", "sourceHandle": "billing" },
+        { "id": "e3", "source": "classify", "target": "general_answer", "sourceHandle": "default" }
+      ]
+    }
+  }
+}

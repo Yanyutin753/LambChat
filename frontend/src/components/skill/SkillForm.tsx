@@ -3,7 +3,11 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { sanitizeSkillName } from "../../utils/skillFilters";
-import { normalizeTags, syncSkillMarkdownMetadata } from "./SkillForm.utils";
+import {
+  buildSkillFilesPayload,
+  normalizeTags,
+  syncSkillMarkdownMetadata,
+} from "./SkillForm.utils";
 import { DEFAULT_CONTENT } from "./SkillForm.types";
 import type { SkillFormProps, FileEntry } from "./SkillForm.types";
 import type { BinaryFileInfo } from "../../types/skill";
@@ -35,8 +39,8 @@ export function SkillForm({
   >({});
   const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null);
 
-  // Track which file indices have been loaded
-  const loadedIndices = useRef<Set<number>>(new Set());
+  // Track which file paths have been loaded
+  const loadedFilePaths = useRef<Set<string>>(new Set());
   // Track which file paths are currently being loaded (prevent concurrent loads of same file)
   const loadingPaths = useRef<Set<string>>(new Set());
 
@@ -57,7 +61,7 @@ export function SkillForm({
 
   // Initialize files from skill prop
   useEffect(() => {
-    loadedIndices.current = new Set();
+    loadedFilePaths.current = new Set();
     loadingPaths.current = new Set();
     setBinaryFiles({});
 
@@ -85,13 +89,13 @@ export function SkillForm({
       });
       setFiles(fileEntries);
       // Mark all as loaded
-      fileEntries.forEach((_, i) => loadedIndices.current.add(i));
+      fileEntries.forEach((file) => loadedFilePaths.current.add(file.path));
     } else if (skill?.content) {
       setFiles([{ path: "SKILL.md", content: skill.content }]);
-      loadedIndices.current.add(0);
+      loadedFilePaths.current.add("SKILL.md");
     } else {
       setFiles([{ path: "SKILL.md", content: DEFAULT_CONTENT }]);
-      loadedIndices.current.add(0);
+      loadedFilePaths.current.add("SKILL.md");
     }
 
     if (skill?.binaryFiles) {
@@ -112,7 +116,7 @@ export function SkillForm({
       setTagsInput("");
       setEnabled(true);
       setFiles([{ path: "SKILL.md", content: DEFAULT_CONTENT }]);
-      loadedIndices.current = new Set([0]);
+      loadedFilePaths.current = new Set(["SKILL.md"]);
     }
     setErrors({});
   }, [skill]);
@@ -130,7 +134,7 @@ export function SkillForm({
     (index: number) => {
       if (!skill?.name) return;
       const file = files[index];
-      if (!file || loadedIndices.current.has(index)) return;
+      if (!file || loadedFilePaths.current.has(file.path)) return;
 
       const filePath = file.path;
       // Prevent duplicate concurrent loads of the same file
@@ -170,7 +174,7 @@ export function SkillForm({
               ),
             );
           }
-          loadedIndices.current.add(index);
+          loadedFilePaths.current.add(filePath);
         })
         .catch(() => {
           // Failed to load file content
@@ -194,7 +198,7 @@ export function SkillForm({
   useEffect(() => {
     if (!skill?.name || !skill?.filePaths) return;
     const skillMdIndex = files.findIndex((f) => f.path === "SKILL.md");
-    if (skillMdIndex >= 0 && !loadedIndices.current.has(skillMdIndex)) {
+    if (skillMdIndex >= 0 && !loadedFilePaths.current.has("SKILL.md")) {
       loadFileContent(skillMdIndex);
     }
   }, [files, skill?.name, skill?.filePaths, loadFileContent]);
@@ -232,7 +236,6 @@ export function SkillForm({
     if (!validate()) return;
 
     const tags = normalizeTags(tagsInput);
-    const filesDict: Record<string, string> = {};
     const synced = syncSkillMarkdownMetadata(
       files[activeFileIndex]?.path === "SKILL.md"
         ? files[activeFileIndex]?.content || ""
@@ -242,12 +245,13 @@ export function SkillForm({
       tags,
     );
 
-    for (const file of files) {
-      if (!file.path.trim()) continue;
-      filesDict[file.path.trim()] =
-        file.path.trim() === "SKILL.md" ? synced : file.content;
-    }
-    if (!filesDict["SKILL.md"]) filesDict["SKILL.md"] = synced;
+    const filesDict = buildSkillFilesPayload({
+      files,
+      syncedSkillMarkdown: synced,
+      isEditing,
+      loadedFilePaths: loadedFilePaths.current,
+    });
+    const filePaths = files.map((file) => file.path.trim()).filter(Boolean);
 
     const data = {
       name: sanitizeSkillName(name.trim()),
@@ -256,6 +260,7 @@ export function SkillForm({
       content: filesDict["SKILL.md"] || "",
       enabled,
       files: filesDict,
+      filePaths,
     };
 
     const success = await onSave(data);
@@ -271,19 +276,29 @@ export function SkillForm({
   const addFile = () => {
     setFiles([...files, { path: "", content: "" }]);
     setActiveFileIndex(files.length);
+    loadedFilePaths.current.add("");
   };
 
   const removeFile = (index: number) => {
     if (files.length <= 1) return;
     const next = files.filter((_, i) => i !== index);
     setFiles(next);
+    loadedFilePaths.current.delete(files[index]?.path ?? "");
     if (activeFileIndex >= next.length) setActiveFileIndex(next.length - 1);
   };
 
   const updateFilePath = (index: number, path: string) => {
     const next = [...files];
+    const previousPath = next[index]?.path;
     next[index] = { ...next[index], path };
     setFiles(next);
+    if (
+      previousPath !== undefined &&
+      loadedFilePaths.current.has(previousPath)
+    ) {
+      loadedFilePaths.current.delete(previousPath);
+      loadedFilePaths.current.add(path);
+    }
   };
 
   const updateFileContent = (index: number, content: string) => {
@@ -304,11 +319,12 @@ export function SkillForm({
   const handleTabSelect = useCallback(
     (index: number) => {
       setActiveFileIndex(index);
-      if (!loadedIndices.current.has(index)) {
+      const file = files[index];
+      if (file && !loadedFilePaths.current.has(file.path)) {
         loadFileContent(index);
       }
     },
-    [loadFileContent],
+    [files, loadFileContent],
   );
 
   const formActions = {

@@ -180,6 +180,14 @@ export function SkillFormNormal(a: SkillFormActions) {
                     title={t("skills.form.addFile", "Add file")}
                   />
                   <IconButton
+                    aria-label={t("skills.form.editFullscreen", "Edit")}
+                    onClick={() => a.toggleFullscreen(true)}
+                    icon={<Pencil size={15} />}
+                    size="sm"
+                    className="h-9 w-9 rounded-xl text-stone-400 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
+                    title={t("skills.form.editFullscreen", "Edit")}
+                  />
+                  <IconButton
                     aria-label={t("skills.form.fullscreenEditor")}
                     onClick={() => a.toggleFullscreen(true)}
                     icon={<Maximize2 size={15} />}

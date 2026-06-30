@@ -71,6 +71,7 @@ export function NonChatAppContent({
           isCollapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
           onShowProfile={onShowProfile}
+          runtimePlugins={runtimePlugins}
         />
       }
     >

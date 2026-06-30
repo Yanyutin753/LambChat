@@ -84,9 +84,11 @@ class DaytonaBackend(BaseSandbox):
         sandbox: daytona.Sandbox,
         timeout: int | None = None,
         env_vars: dict[str, str] | None = None,
+        work_dir: str | None = None,
     ):
         self._sandbox = sandbox
         self.env_vars = env_vars or {}
+        self._work_dir_override = work_dir
         # 优先级：参数 > settings > 环境变量 > 默认值
         self._timeout = (
             timeout
@@ -101,9 +103,17 @@ class DaytonaBackend(BaseSandbox):
     @property
     def work_dir(self) -> str:
         """获取沙箱工作目录（同步，仅在初始化时调用一次）"""
+        if self._work_dir_override:
+            return self._work_dir_override
         if not hasattr(self, "_work_dir"):
             self._work_dir = self._sandbox.get_work_dir()
         return self._work_dir
+
+    def _with_work_dir(self, command: str) -> str:
+        if command.lstrip().startswith("cd "):
+            return command
+        quoted_work_dir = shlex.quote(self.work_dir)
+        return f"mkdir -p {quoted_work_dir} && cd {quoted_work_dir} && {command}"
 
     def _ensure_parent_dir(self, file_path: str) -> None:
         """Ensure the parent directory exists before uploading a file."""
@@ -119,7 +129,7 @@ class DaytonaBackend(BaseSandbox):
             kwargs: dict = {"timeout": effective_timeout}
             if self.env_vars:
                 kwargs["env"] = self.env_vars
-            result = self._sandbox.process.exec(command, **kwargs)
+            result = self._sandbox.process.exec(self._with_work_dir(command), **kwargs)
             return ExecuteResponse(
                 output=result.result,
                 exit_code=result.exit_code,

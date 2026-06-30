@@ -10,6 +10,7 @@ from langchain_core.tools import InjectedToolArg
 from src.infra.scheduler.service import ScheduledTaskService
 from src.infra.tool.backend_utils import get_user_id_from_runtime
 from src.infra.utils.datetime import ensure_utc, to_iso, utc_now
+from src.kernel.extensions import WORKFLOW_PLUGIN_ID
 from src.kernel.extensions.plugin_options import (
     AGENT_TEAM_PLUGIN_ID,
     AGENT_TEAM_SELECTED_TEAM_OPTION,
@@ -95,12 +96,24 @@ def _uses_agent_team_options(agent_id: str | None) -> bool:
     return agent_uses_agent_team_options(agent_id, runtime=_runtime())
 
 
-def _agent_team_plugin_unavailable() -> bool:
+def _plugin_unavailable(plugin_id: str) -> bool:
     runtime = _runtime()
     if runtime is None:
         return False
     is_enabled = getattr(runtime, "is_enabled", None)
-    return callable(is_enabled) and not is_enabled(AGENT_TEAM_PLUGIN_ID)
+    return callable(is_enabled) and not is_enabled(plugin_id)
+
+
+def _agent_team_plugin_unavailable() -> bool:
+    return _plugin_unavailable(AGENT_TEAM_PLUGIN_ID)
+
+
+def _workflow_plugin_unavailable() -> bool:
+    return _plugin_unavailable(WORKFLOW_PLUGIN_ID)
+
+
+def _has_workflow_options(plugin_options: dict[str, dict[str, Any]]) -> bool:
+    return bool(plugin_options.get(WORKFLOW_PLUGIN_ID))
 
 
 @tool
@@ -208,9 +221,9 @@ async def scheduled_task_create(
     ] = None,
     timeout_seconds: Annotated[
         int,
-        "Maximum execution time in seconds. Range: 10-3600. Default: 1800s (30 min). "
+        "Maximum execution time in seconds. Range: 10-7200. Default: 3600s (60 min). "
         "Do not set this too short; omit it unless the user explicitly asks for a shorter timeout.",
-    ] = 1800,
+    ] = 3600,
     run_on_start: Annotated[
         bool,
         "Whether to run the task immediately after creation",
@@ -243,6 +256,15 @@ async def scheduled_task_create(
         session_team_id,
     ) = await _get_current_session_defaults()
     effective_timezone = schedule_timezone or session_user_timezone or "UTC"
+    normalized_plugin_options = _normalized_plugin_options(plugin_options)
+    if _has_workflow_options(normalized_plugin_options) and _workflow_plugin_unavailable():
+        return _json(
+            {
+                "error": "Workflow plugin is disabled; scheduled workflow tasks cannot be created.",
+                "code": "plugin_unavailable",
+                "plugin_id": WORKFLOW_PLUGIN_ID,
+            }
+        )
 
     # Build trigger_config from structured params
     try:
@@ -422,7 +444,7 @@ async def scheduled_task_create(
         }
         input_payload = with_plugin_options(
             input_payload,
-            _normalized_plugin_options(plugin_options),
+            normalized_plugin_options,
         )
         if effective_team_id:
             input_payload = with_plugin_option(

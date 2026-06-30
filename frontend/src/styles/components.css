@@ -249,8 +249,6 @@
   height: 2.5rem;
   padding-inline: 0.625rem;
   background: color-mix(in srgb, var(--theme-bg-card) 60%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border-color: color-mix(in srgb, var(--theme-border) 60%, transparent);
 }
 
@@ -311,8 +309,6 @@
   overflow-y: auto;
   border-color: color-mix(in srgb, var(--theme-border) 70%, transparent);
   background: var(--theme-bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   box-shadow:
     0 1px 3px rgb(0 0 0 / 0.06),
     0 8px 24px rgb(0 0 0 / 0.1),
@@ -3025,14 +3021,42 @@
 }
 
 /* ═══════════════════════════════════════════
+   Collapsible Section Cards — tool/subagent
+   panel detail blocks
+   ═══════════════════════════════════════════ */
+
+.collapsible-section-card--default {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-border) 96%,
+    var(--theme-text) 4%
+  );
+  background: var(--theme-bg-card);
+  box-shadow:
+    0 8px 22px -18px color-mix(in srgb, var(--theme-text) 18%, transparent),
+    0 1px 3px color-mix(in srgb, var(--theme-shadow-sm) 90%, transparent);
+}
+
+.dark .collapsible-section-card--default {
+  border-color: color-mix(in srgb, var(--theme-border) 70%, transparent);
+  background: color-mix(in srgb, var(--theme-bg-card) 72%, var(--theme-bg));
+  box-shadow:
+    0 1px 5px -2px color-mix(in srgb, var(--theme-shadow-lg) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--theme-text) 3%, transparent);
+}
+
+/* ═══════════════════════════════════════════
    Tool Detail Section — Collapsible blocks
    inside tool result panels
    ═══════════════════════════════════════════ */
 
 .tool-detail-section {
   border-radius: 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 55%, transparent);
-  background: color-mix(in srgb, var(--theme-bg) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-border) 92%, transparent);
+  background: var(--theme-bg-card);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--theme-shadow-sm) 70%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--theme-bg-card) 90%, transparent);
   transition:
     border-color 0.25s ease,
     background-color 0.25s ease,
@@ -3051,13 +3075,14 @@
 .tool-detail-section.is-expanded {
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 12%,
+    var(--theme-primary) 18%,
     var(--theme-border)
   );
-  background: var(--theme-bg);
+  background: var(--theme-bg-card);
   box-shadow:
-    0 1px 4px -1px color-mix(in srgb, var(--theme-text) 3%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--theme-text) 2%, transparent);
+    0 8px 24px -18px color-mix(in srgb, var(--theme-text) 18%, transparent),
+    0 1px 3px color-mix(in srgb, var(--theme-shadow-sm) 80%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--theme-bg-card) 92%, transparent);
 }
 
 /* Header button */

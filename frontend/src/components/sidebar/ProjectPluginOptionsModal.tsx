@@ -264,12 +264,23 @@ export function ProjectPluginOptionsModal({
             <div className="space-y-4">
               {visibleOptions.map((option) => {
                 const value = getStoredValue(values, option);
+                const pluginValues =
+                  values[option.pluginId] &&
+                  typeof values[option.pluginId] === "object" &&
+                  !Array.isArray(values[option.pluginId])
+                    ? (values[option.pluginId] as Record<string, unknown>)
+                    : {};
                 const inactive = option.effective === false;
                 const fieldDisabled = saving || inactive;
                 const customField = renderProjectOptionField({
                   option,
                   value,
+                  pluginValues,
                   disabled: fieldDisabled,
+                  onPluginValueChange: (key, nextValue) =>
+                    setValues((current) =>
+                      setStoredValue(current, { ...option, key }, nextValue),
+                    ),
                   onChange: (nextValue) =>
                     setValues((current) => setStoredValue(current, option, nextValue)),
                 });

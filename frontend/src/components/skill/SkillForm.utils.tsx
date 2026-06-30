@@ -1,6 +1,13 @@
 import { FileText, FileCode, File, Image, Film, Music } from "lucide-react";
 import type { FileEntry, TreeNode } from "./SkillForm.types";
 
+export interface BuildSkillFilesPayloadOptions {
+  files: FileEntry[];
+  syncedSkillMarkdown: string;
+  isEditing: boolean;
+  loadedFilePaths: Set<string>;
+}
+
 export function getFileIcon(path: string) {
   const name = path.split("/").pop() || path;
   const ext = name.includes(".") ? name.split(".").pop() : "";
@@ -104,6 +111,30 @@ export function syncSkillMarkdownMetadata(
   const frontmatter = buildSkillFrontmatter(name, description, tags);
 
   return body ? `${frontmatter}\n\n${body}` : `${frontmatter}\n`;
+}
+
+export function buildSkillFilesPayload({
+  files,
+  syncedSkillMarkdown,
+  isEditing,
+  loadedFilePaths,
+}: BuildSkillFilesPayloadOptions): Record<string, string> {
+  const filesDict: Record<string, string> = {};
+
+  for (const file of files) {
+    const path = file.path.trim();
+    if (!path) continue;
+    if (path === "SKILL.md") {
+      filesDict[path] = syncedSkillMarkdown;
+      continue;
+    }
+    if (!isEditing || loadedFilePaths.has(path)) {
+      filesDict[path] = file.content;
+    }
+  }
+
+  if (!filesDict["SKILL.md"]) filesDict["SKILL.md"] = syncedSkillMarkdown;
+  return filesDict;
 }
 
 export function buildFileTree(files: FileEntry[]): TreeNode[] {

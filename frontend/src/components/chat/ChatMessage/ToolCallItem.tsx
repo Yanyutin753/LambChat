@@ -1,4 +1,4 @@
-import { Wrench, Globe } from "lucide-react";
+import { Globe, Wrench } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
@@ -54,6 +54,50 @@ function formatElapsed(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
+function compactPreviewText(
+  value: unknown,
+  maxLength = 72,
+): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const raw = typeof value === "string" ? value : JSON.stringify(value);
+  const compact = (raw || String(value)).replace(/\s+/g, " ").trim();
+  if (!compact) return undefined;
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength - 1)}…`;
+}
+
+function buildToolPillSummary(
+  args: Record<string, unknown>,
+): string | undefined {
+  const priorityKeys = [
+    "command",
+    "path",
+    "file_path",
+    "query",
+    "pattern",
+    "code",
+    "script",
+    "input",
+    "prompt",
+    "url",
+  ];
+
+  for (const key of priorityKeys) {
+    const preview = compactPreviewText(args[key]);
+    if (preview) return preview;
+  }
+
+  const entries = Object.entries(args)
+    .map(([key, value]) => {
+      const preview = compactPreviewText(value, 36);
+      return preview ? `${key}=${preview}` : undefined;
+    })
+    .filter((entry): entry is string => Boolean(entry))
+    .slice(0, 2);
+
+  return entries.length > 0 ? entries.join(" ") : undefined;
+}
+
 // Re-export all sub-components
 export { ReadFileItem } from "./items/ReadFileItem";
 export { EditFileItem } from "./items/EditFileItem";
@@ -65,8 +109,12 @@ export { ExecuteItem } from "./items/ExecuteItem";
 export { FileRevealItem } from "./items/FileRevealItem";
 export { ProjectRevealItem } from "./items/ProjectRevealItem";
 export { ImageGenerateItem } from "./items/ImageGenerateItem";
+export { ImageAnalyzeItem } from "./items/ImageAnalyzeItem";
 export { AudioTranscribeItem } from "./items/AudioTranscribeItem";
+export { UploadUrlToSandboxItem } from "./items/UploadUrlToSandboxItem";
+export { TransferItem } from "./items/TransferItem";
 export { ScheduledTaskItem } from "./items/ScheduledTaskItem";
+export { WorkflowItem } from "./items/WorkflowItem";
 export { EnvVarItem } from "./items/EnvVarItem";
 export { PersonaItem } from "./items/PersonaItem";
 export { TeamItem } from "./items/TeamItem";
@@ -75,6 +123,7 @@ export { MemoryRecallItem } from "./items/MemoryRecallItem";
 export { MemoryStoreItem } from "./items/MemoryStoreItem";
 export { AskHumanItem } from "./items/AskHumanItem";
 export { ToolSearchItem } from "./items/ToolSearchItem";
+export { EvalItem } from "./items/EvalItem";
 
 /** Derive status from tool props */
 function deriveStatus(props: {
@@ -248,6 +297,8 @@ export function ToolCallItem({
   const status = deriveStatus({ isPending, cancelled, success, hasResult });
 
   const canExpand = hasArgs || hasResult;
+  const pillSummary = buildToolPillSummary(displayArgs);
+  const pillLabel = pillSummary ? `${toolName} ${pillSummary}` : toolName;
 
   // Build a panelKey from the tool call ID (used for persistent panel identity)
   const panelKey = useMemo(() => (id ? `tool:${id}` : undefined), [id]);
@@ -369,7 +420,7 @@ export function ToolCallItem({
             <Wrench size={12} className="shrink-0 opacity-50" />
           )
         }
-        label={toolName}
+        label={pillLabel}
         suffix={
           serverName ? (
             <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-black/20 opacity-70 font-medium truncate max-w-[120px]">
@@ -378,6 +429,7 @@ export function ToolCallItem({
           ) : undefined
         }
         variant="tool"
+        formatLabel={false}
         expandable={canExpand}
         onPanelOpen={handlePanelOpen}
       >

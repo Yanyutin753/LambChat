@@ -353,7 +353,14 @@ async def inline_image_attachments_as_data_urls(
                 logger.warning("Failed to inline image URL %s: %s", existing_url, e)
                 inlined.append(attachment)
                 continue
-            inlined.append({**attachment, "data_url": data_url, "url": None})
+            inlined.append(
+                {
+                    **attachment,
+                    "data_url": data_url,
+                    "original_url": existing_url,
+                    "url": None,
+                }
+            )
             continue
 
         if not key:
@@ -412,7 +419,7 @@ def _format_attachment_summary(text: str, attachments: list[dict]) -> str:
     enhanced_text += "\n\n---\n**User Uploaded Attachments:**"
 
     for attachment in attachments:
-        url = attachment.get("url", "")
+        url = attachment.get("url") or attachment.get("original_url") or ""
         name = attachment.get("name", "未知文件")
         file_type = attachment.get("type", "document")
         mime_type = attachment.get("mime_type") or attachment.get("mimeType") or ""
@@ -436,6 +443,9 @@ def _format_attachment_summary(text: str, attachments: list[dict]) -> str:
             enhanced_text += f" ({mime_type})"
         if size_str:
             enhanced_text += f"\n- 大小: {size_str}"
+        image_index = attachment.get("image_index")
+        if image_index:
+            enhanced_text += f"\n- Corresponding image: #{image_index}"
         enhanced_text += f"\n- 链接: {url}"
 
     return enhanced_text
@@ -473,12 +483,15 @@ def build_human_message(
         data_url = attachment.get("data_url")
         image_url = url or data_url
         if supports_vision and _is_image_attachment(attachment) and image_url:
+            image_index = len(multimodal_images) + 1
             multimodal_images.append(
                 {
                     "type": "image_url",
                     "image_url": {"url": image_url},
                 }
             )
+            if attachment.get("original_url"):
+                text_summary_attachments.append({**attachment, "image_index": image_index})
         elif url:
             text_summary_attachments.append(attachment)
 

@@ -187,23 +187,23 @@ export function useWebSocketNotifications({
           : 10_000;
 
       toast.custom(
-        (visible) => (
+        (currentToast) => (
           <div
             className={`group relative pointer-events-auto cursor-pointer select-none max-w-[min(92vw,24rem)] w-full rounded-3xl border border-stone-100 bg-white px-4 py-3.5 text-black shadow-2xl transition-all dark:border-stone-800 dark:bg-stone-900 dark:text-white ${
-              visible
+              currentToast.visible
                 ? "translate-y-0 opacity-100"
                 : "translate-y-1.5 opacity-0"
             }`}
             onClick={(e) => {
               e.stopPropagation();
               navigateToSession();
-              toast.remove();
+              toast.dismiss(currentToast.id);
             }}
           >
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                toast.remove();
+                toast.dismiss(currentToast.id);
               }}
               className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/10 text-stone-400 opacity-0 transition-all hover:bg-black/20 hover:text-stone-600 group-hover:opacity-100 dark:bg-white/10 dark:text-stone-500 dark:hover:bg-white/20 dark:hover:text-stone-300"
               aria-label={t("common.dismiss", "关闭")}

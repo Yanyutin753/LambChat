@@ -42,6 +42,8 @@ from src.infra.revealed_file.storage import get_revealed_file_storage
 from src.infra.tool.backend_utils import (
     get_backend_from_runtime,
     get_base_url_from_runtime,
+    get_delivery_source_from_runtime,
+    get_session_id_from_runtime,
     get_trace_id_from_runtime,
     get_user_id_from_runtime,
 )
@@ -149,6 +151,79 @@ def _coerce_file_size(value: Any) -> int | None:
     except (TypeError, ValueError):
         return None
     return size if size >= 0 else None
+
+
+async def _lookup_session_project_id(session_id: str | None) -> str | None:
+    if not session_id:
+        return None
+    try:
+        from src.infra.storage.mongodb import get_mongo_client
+        from src.kernel.config import settings
+
+        mongo_client = get_mongo_client()
+        db = mongo_client[settings.MONGODB_DB]
+        session_doc = await db[settings.MONGODB_SESSIONS_COLLECTION].find_one(
+            {"session_id": session_id}, {"metadata.project_id": 1}
+        )
+        if session_doc:
+            return (session_doc.get("metadata") or {}).get("project_id")
+    except Exception:
+        pass
+    return None
+
+
+async def _index_revealed_file(
+    *,
+    runtime: ToolRuntime | None,
+    file_name: str,
+    file_category: FileCategory,
+    mime_type: str,
+    file_size: int,
+    url: str,
+    file_key: str,
+    description: str,
+    original_path: str,
+) -> None:
+    try:
+        req_ctx = TraceContext.get_request_context()
+        user_id = req_ctx.user_id or get_user_id_from_runtime(runtime)
+        if not user_id:
+            logger.info("[reveal_file] Skipping revealed file index: no user_id available")
+            return
+
+        session_id = req_ctx.session_id or get_session_id_from_runtime(runtime)
+        trace_id = (
+            req_ctx.trace_id
+            or TraceContext.get().trace_id
+            or get_trace_id_from_runtime(runtime)
+            or ""
+        )
+        session_project_id = await _lookup_session_project_id(session_id)
+        delivery_source = get_delivery_source_from_runtime(runtime)
+        data: dict[str, Any] = {
+            "file_type": file_category,
+            "mime_type": mime_type,
+            "file_size": file_size,
+            "url": url,
+            "session_id": session_id,
+            "project_id": session_project_id,
+            "description": description,
+            "original_path": original_path,
+        }
+        if delivery_source:
+            data["delivery_source"] = delivery_source
+
+        storage_index = get_revealed_file_storage()
+        await storage_index.upsert_by_name(
+            user_id=user_id,
+            file_name=file_name,
+            source="reveal_file",
+            file_key=file_key,
+            trace_id=trace_id,
+            data=data,
+        )
+    except Exception as idx_err:
+        logger.warning(f"[reveal_file] Failed to index revealed file: {idx_err}")
 
 
 async def _get_backend_file_size(backend: Any, file_path: str) -> int | None:
@@ -567,6 +642,17 @@ async def reveal_file(
                 "source": "remote_url",
             },
         }
+        await _index_revealed_file(
+            runtime=runtime,
+            file_name=filename,
+            file_category=file_category,
+            mime_type=mime_type,
+            file_size=0,
+            url=file_path,
+            file_key=file_path,
+            description=description or "",
+            original_path=file_path,
+        )
         return await _json_dumps_result(remote_result)
 
     storage = await _get_storage()
@@ -711,56 +797,17 @@ async def reveal_file(
         }
         logger.info(f"Successfully uploaded {file_path} to S3: {upload_result.url}")
 
-        # Index write: persist record to revealed_files collection (fire-and-forget)
-        try:
-            req_ctx = TraceContext.get_request_context()
-            user_id = req_ctx.user_id or get_user_id_from_runtime(runtime)
-            session_id = req_ctx.session_id
-            trace_id = (
-                req_ctx.trace_id
-                or TraceContext.get().trace_id
-                or get_trace_id_from_runtime(runtime)
-                or ""
-            )
-
-            # Look up session's project_id
-            session_project_id = None
-            if session_id:
-                try:
-                    from src.infra.storage.mongodb import get_mongo_client
-                    from src.kernel.config import settings
-
-                    mongo_client = get_mongo_client()
-                    db = mongo_client[settings.MONGODB_DB]
-                    session_doc = await db[settings.MONGODB_SESSIONS_COLLECTION].find_one(
-                        {"session_id": session_id}, {"metadata.project_id": 1}
-                    )
-                    if session_doc:
-                        session_project_id = (session_doc.get("metadata") or {}).get("project_id")
-                except Exception:
-                    pass
-
-            if user_id:
-                storage_index = get_revealed_file_storage()
-                await storage_index.upsert_by_name(
-                    user_id=user_id,
-                    file_name=filename,
-                    source="reveal_file",
-                    file_key=upload_result.key,
-                    trace_id=trace_id,
-                    data={
-                        "file_type": file_category,
-                        "mime_type": upload_result.content_type or mime_type,
-                        "file_size": upload_result.size,
-                        "url": proxy_url,
-                        "session_id": session_id,
-                        "project_id": session_project_id,
-                        "description": description or "",
-                        "original_path": file_path,
-                    },
-                )
-        except Exception as idx_err:
-            logger.warning(f"[reveal_file] Failed to index revealed file: {idx_err}")
+        await _index_revealed_file(
+            runtime=runtime,
+            file_name=filename,
+            file_category=file_category,
+            mime_type=upload_result.content_type or mime_type,
+            file_size=upload_result.size,
+            url=proxy_url,
+            file_key=upload_result.key,
+            description=description or "",
+            original_path=file_path,
+        )
 
         return await _json_dumps_result(reveal_result)
 

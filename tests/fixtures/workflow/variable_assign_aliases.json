@@ -1,0 +1,48 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Variable Assign Aliases"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "assign",
+          "data": {
+            "type": "variable-assigner",
+            "title": "Assign Values",
+            "variable_assignments": [
+              {
+                "assigned_variable_selector": ["first_title"],
+                "value_selector": ["items", 0, "title"]
+              },
+              {
+                "assignedVariable": "summary",
+                "value": "Hello {{name}}"
+              }
+            ],
+            "assignments": [
+              {
+                "variableSelector": ["second_title"],
+                "sourceSelector": ["items", 1, "title"]
+              }
+            ]
+          }
+        },
+        {
+          "id": "answer",
+          "data": {
+            "type": "answer",
+            "title": "Answer",
+            "answer": "{{summary}} / {{first_title}} / {{second_title}}"
+          }
+        }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "assign" },
+        { "id": "e2", "source": "assign", "target": "answer" }
+      ]
+    }
+  }
+}

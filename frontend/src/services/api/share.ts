@@ -4,6 +4,7 @@
 
 import type {
   ShareCreate,
+  ShareUpdate,
   ShareResponse,
   ShareListResponse,
   SharedSession,
@@ -20,6 +21,16 @@ export const shareApi = {
   async create(data: ShareCreate): Promise<ShareResponse> {
     return authFetch<ShareResponse>(`${API_BASE}/api/share`, {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * 更新已有分享
+   */
+  async update(shareId: string, data: ShareUpdate): Promise<ShareResponse> {
+    return authFetch<ShareResponse>(`${API_BASE}/api/share/${shareId}`, {
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   },

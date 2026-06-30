@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Search } from "lucide-react";
 import { Input, PickerTrigger } from "../../../common";
+import { PanelSearchInput } from "../../../common/PanelSearchInput";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import { modelApi } from "../../../../services/api/model";
 import { PROVIDER_LABELS } from "./providerLabels";
@@ -108,11 +109,12 @@ export const ProviderSelect = React.memo(function ProviderSelect({
         <div className="absolute left-0 top-full z-50 mt-1.5 w-full rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-[var(--glass-border)] overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {/* Search input */}
           <div className="px-3 pt-2.5 pb-2">
-            <Input
+            <PanelSearchInput
+              as={Input}
               ref={searchRef}
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onValueChange={setSearch}
               placeholder={t("common.search", "搜索...")}
               leadingIcon={<Search size={14} />}
               className="py-1.5 text-sm"

@@ -163,6 +163,7 @@ async def save_persona_preset(
         return await _json_dumps_result(
             {
                 "success": True,
+                "entity_type": "persona_preset",
                 "action": "created",
                 "preset": preset.model_dump(mode="json"),
                 "message": f"Persona preset '{preset.name}' created.",
@@ -250,6 +251,7 @@ async def save_persona_preset(
     return await _json_dumps_result(
         {
             "success": True,
+            "entity_type": "persona_preset",
             "action": "updated",
             "preset": preset.model_dump(mode="json"),
             "message": f"Persona preset '{preset.name}' updated.",
@@ -334,6 +336,7 @@ async def create_persona_preset(
     return await _json_dumps_result(
         {
             "success": True,
+            "entity_type": "persona_preset",
             "action": "created",
             "preset": preset.model_dump(mode="json"),
             "message": f"Persona preset '{preset.name}' created.",
@@ -470,6 +473,7 @@ async def update_persona_preset(
     return await _json_dumps_result(
         {
             "success": True,
+            "entity_type": "persona_preset",
             "action": "updated",
             "preset": preset.model_dump(mode="json"),
             "message": f"Persona preset '{preset.name}' updated.",

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from src.api.deps import require_permissions
+from src.api.plugin_lifecycle import run_plugin_lifecycle_hooks
 from src.api.routes.plugin_runtime_helpers import (
     _audit_response,
     _dry_run_package_data_policy,
@@ -489,6 +490,7 @@ def _state_response(
     return PluginRuntimePluginResponse(
         plugin_id=state.plugin_id,
         name=manifest.name if manifest else None,
+        description=manifest.description if manifest else None,
         version=manifest.version if manifest else None,
         api_version=manifest.api_version if manifest else None,
         status=state.status.value,
@@ -820,6 +822,36 @@ async def _apply_builtin_plugin_runtime_side_effect(
             action=effect,
             status="failed",
             message=message,
+        )
+
+
+async def _run_plugin_startup_hooks_after_enable(
+    request: Request,
+    *,
+    runtime: PluginRuntime,
+    plugin_id: str,
+    previous_status: PluginRuntimeStatus,
+) -> None:
+    if previous_status is PluginRuntimeStatus.ENABLED:
+        return
+    results = await run_plugin_lifecycle_hooks(
+        runtime,
+        phase="startup",
+        plugin_id=plugin_id,
+    )
+    if not results:
+        return
+    previous_results = getattr(request.app.state, "plugin_runtime_hook_results", [])
+    request.app.state.plugin_runtime_hook_results = [*previous_results, *results]
+    for result in results:
+        log_method = logger.info if result.status == "succeeded" else logger.warning
+        log_method(
+            "Plugin lifecycle hook %s/%s %s after enable in %.1fms%s",
+            result.plugin_id,
+            result.hook_name,
+            result.status,
+            result.elapsed_ms,
+            f": {result.error}" if result.error else "",
         )
 
 
@@ -1213,6 +1245,13 @@ async def enable_plugin_runtime(
             actor_user_id=getattr(user, "sub", None),
             actor_username=getattr(user, "username", None),
         )
+        await _run_plugin_startup_hooks_after_enable(
+            request,
+            runtime=runtime,
+            plugin_id=plugin_id,
+            previous_status=previous_status,
+        )
+        state = _require_state(runtime, plugin_id)
         runtime_side_effect = await _apply_builtin_plugin_runtime_side_effect(
             runtime=runtime,
             plugin_id=plugin_id,

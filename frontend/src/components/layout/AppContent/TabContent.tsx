@@ -48,6 +48,11 @@ const FeedbackPanel = lazy(() =>
     default: m.FeedbackPanel,
   })),
 );
+const WorkflowPanel = lazy(() =>
+  import("../../../plugins/workflow/WorkflowPanel").then((m) => ({
+    default: m.WorkflowPanel,
+  })),
+);
 const ChannelsPage = lazy(() =>
   import("../../pages/ChannelsPage").then((m) => ({ default: m.ChannelsPage })),
 );
@@ -118,6 +123,7 @@ const corePanelComponents: Partial<Record<Exclude<TabType, "chat">, PanelCompone
 
 const pluginPanelRenderers: Record<string, PanelComponent> = {
   "agent_team.TeamBuilderPanel": TeamBuilderPanel,
+  "workflow.WorkflowPanel": WorkflowPanel,
   "feedback.FeedbackPanel": FeedbackPanel,
   "usage_reports.UsagePanel": UsagePanel,
 };
@@ -159,6 +165,10 @@ function renderPanel(
   Panel: PanelComponent,
   runtimePlugins?: PluginRuntimeContributionStates,
 ) {
+  if (activeTab === "workflows" || activeTab === "workflows-editor" || activeTab === "workflows-run") {
+    const WorkflowAwarePanel = Panel as unknown as React.ComponentType<{ activeTab: Exclude<TabType, "chat"> }>;
+    return <WorkflowAwarePanel activeTab={activeTab} />;
+  }
   if (activeTab === "skills" || activeTab === "marketplace" || activeTab === "plugins") {
     const RuntimeAwareSkillsHubPanel = SkillsHubPanel as RuntimeAwarePanelComponent;
     return <RuntimeAwareSkillsHubPanel runtimePlugins={runtimePlugins} />;

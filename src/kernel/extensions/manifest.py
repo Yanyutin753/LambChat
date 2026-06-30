@@ -1081,6 +1081,7 @@ class PluginManifest(BaseModel):
 
     id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1)
+    description: str = ""
     version: str = Field(..., min_length=1)
     api_version: str = Field(..., min_length=1)
     depends_on: list[str] = Field(default_factory=list)
@@ -1365,6 +1366,7 @@ class PluginManifest(BaseModel):
             name=self.name,
             version=self.version,
             publisher=publisher,
+            description=self.description,
             capabilities=["plugin"],
             permissions=self.declared_permissions(),
             install_state=(

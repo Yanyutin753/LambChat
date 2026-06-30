@@ -1,49 +1,95 @@
-# cc-connect Integration
+# LambChat Development Guide
 
-This project is managed via cc-connect, a bridge to messaging platforms.
+Use this file as the development guide for the LambChat repository. Always prioritize the user's current request; when the request does not provide special instructions, follow the project conventions below.
 
-## Scheduled tasks (cron)
+## Project Overview
 
-When the user asks you to do something on a schedule (e.g. "every day at 6am",
-"every Monday morning"), use the Bash/shell tool to run:
+LambChat is a full-stack AI Agent platform:
 
-  cc-connect cron add --cron "<min> <hour> <day> <month> <weekday>" --prompt "<task description>" --desc "<short label>"
+- Backend: Python 3.12+, FastAPI, LangGraph/deepagents, MongoDB, Redis, arq.
+- Frontend: React 19, TypeScript, Vite, TailwindCSS, PWA.
+- Clients: Capacitor mobile apps and Tauri desktop app.
+- Documentation: VitePress, located in `docs/`.
 
-Environment variables CC_PROJECT and CC_SESSION_KEY are already set; do not
-specify --project or --session-key.
+Common directories:
 
-Examples:
-  cc-connect cron add --cron "0 6 * * *" --prompt "Collect GitHub trending repos and send a summary" --desc "Daily GitHub Trending"
-  cc-connect cron add --cron "0 9 * * 1" --prompt "Generate a weekly project status report" --desc "Weekly Report"
+- `src/`: Backend application code, including agent runtime, API, infra, kernel, skills, and related modules.
+- `frontend/`: Web frontend plus mobile and desktop client code.
+- `tests/`: Python tests.
+- `deploy/`: Docker, Kubernetes, and other deployment resources.
+- `docs/`: Project documentation site.
 
-To list, run, edit, or delete cron jobs:
-  cc-connect cron list
-  cc-connect cron exec <job-id>
-  cc-connect cron edit <job-id> <field> <value>
-  cc-connect cron del <job-id>
+## Common Commands
 
-Use `cron exec <job-id>` to run an existing scheduled task immediately; this is
-different from the `--exec <command>` flag used when creating a shell-command
-cron job. Use `cron edit` to modify a single field instead of
-delete-and-recreate. Common editable fields: cron_expr, prompt, exec,
-description, enabled (true/false), mute (true/false), timeout_mins (int).
-Run `cc-connect cron edit --help` for the full field list.
+Install dependencies:
 
-Examples:
-  cc-connect cron exec abc123
-  cc-connect cron edit abc123 cron_expr "0 9 * * *"
-  cc-connect cron edit abc123 enabled false
-  cc-connect cron edit abc123 prompt "Updated daily summary task"
+```bash
+make install-all
+```
 
-## Send message to current chat
+Start the local development environment:
 
-To proactively send a message back to the user's chat session, use --stdin
-heredoc for long or multi-line messages:
+```bash
+make dev-all
+```
 
-  cc-connect send --stdin <<'CCEOF'
-  your message here
-  CCEOF
+Start the backend or frontend separately:
 
-For short single-line messages:
+```bash
+make dev
+make frontend-dev
+```
 
-  cc-connect send -m "short message"
+Build:
+
+```bash
+make build-all
+make frontend-build
+```
+
+Quality checks:
+
+```bash
+make lint
+make typecheck
+make test
+make check-all
+```
+
+Frontend-specific commands:
+
+```bash
+cd frontend && pnpm run lint
+cd frontend && pnpm run build
+```
+
+## Development Conventions
+
+- Before editing, read the relevant existing modules and preserve the current architecture, naming, and code style.
+- Use `uv` for the Python backend environment; do not mix in `pip install` for project dependencies.
+- Use `pnpm` for the frontend; do not commit `node_modules/` or build artifacts.
+- Python code should follow the Ruff, Mypy, and Pytest configuration in `pyproject.toml`.
+- TypeScript/React code should follow `frontend/package.json` and the existing ESLint/Vite configuration.
+- For user-facing copy, respect the existing internationalization structure. Do not update only one locale when that would leave the UI with missing text.
+- For sensitive paths such as auth, RBAC, model keys, MCP secrets, file access, and sandbox execution, prefer conservative changes and add verification.
+- Do not refactor unrelated code casually; keep the change scope close to the current task.
+- Do not overwrite existing user changes. If the worktree has uncommitted changes, only touch files relevant to the current task.
+
+## Verification Guidance
+
+Choose the smallest effective verification based on the change scope:
+
+- Backend logic: run the relevant `pytest` tests, and run `make test` when needed.
+- Backend formatting/static checks: run `make lint` and `make typecheck`.
+- Frontend components or types: run `cd frontend && pnpm run lint`, and run `cd frontend && pnpm run build` when needed.
+- Cross-stack or shared behavior: prefer `make check-all` or the matching backend/frontend check combination.
+- Documentation changes: confirm Markdown links, commands, and paths remain accurate.
+
+If verification cannot be completed because services, dependencies, or environment variables are missing, state that clearly in the response.
+
+## Local Development URLs
+
+`make dev-all` starts:
+
+- Backend: `http://127.0.0.1:8000`
+- Frontend: `http://127.0.0.1:3001`

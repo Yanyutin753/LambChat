@@ -4,6 +4,7 @@ import asyncio
 import re
 from datetime import datetime
 from typing import Any, Dict, Optional
+from urllib.parse import unquote, urlparse
 
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import to_iso, utc_now
@@ -22,6 +23,36 @@ def _safe_search_pattern(text: str) -> str:
 
 def _bounded_page_limit(limit: int) -> int:
     return min(max(int(limit), 1), REVEALED_FILE_PAGE_LIMIT_MAX)
+
+
+def _normalize_dedupe_path(path: str) -> str:
+    normalized = path.strip().replace("\\", "/")
+    while "//" in normalized:
+        normalized = normalized.replace("//", "/")
+    return normalized.rstrip("/") or normalized
+
+
+def _normalize_dedupe_url(url: str) -> str:
+    parsed = urlparse(url.strip())
+    scheme = parsed.scheme.lower()
+    netloc = parsed.netloc.lower()
+    path = unquote(parsed.path).rstrip("/") or "/"
+    return f"{scheme}://{netloc}{path}"
+
+
+def _build_dedupe_key(file_key: str, source: str, data: Dict[str, Any]) -> str:
+    original_path = data.get("original_path")
+    if isinstance(original_path, str) and original_path.strip():
+        parsed = urlparse(original_path.strip())
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"url:{_normalize_dedupe_url(original_path)}"
+        return f"path:{_normalize_dedupe_path(original_path)}"
+
+    parsed_key = urlparse(file_key.strip())
+    if parsed_key.scheme in {"http", "https"} and parsed_key.netloc:
+        return f"url:{_normalize_dedupe_url(file_key)}"
+
+    return f"key:{source}:{file_key}"
 
 
 class RevealedFileStorage:
@@ -64,15 +95,28 @@ class RevealedFileStorage:
             if "user_name_source_unique_idx" in existing_indexes:
                 await c.drop_index("user_name_source_unique_idx")
 
+            if "user_key_source_unique_idx" in existing_indexes:
+                await c.drop_index("user_key_source_unique_idx")
+
+            await c.update_many(
+                {"dedupe_key": {"$exists": False}},
+                [{"$set": {"dedupe_key": {"$concat": ["key:", "$source", ":", "$file_key"]}}}],
+            )
+
             # Remove duplicates before creating the unique index.
-            # Keep the latest document per (user_id, file_key, source) and
+            # Keep the latest document per (user_id, dedupe_key, source) and
             # delete the rest so the unique index can be built.
             pipeline = [
+                {
+                    "$addFields": {
+                        "_effective_dedupe_key": {"$ifNull": ["$dedupe_key", "$file_key"]}
+                    }
+                },
                 {
                     "$group": {
                         "_id": {
                             "user_id": "$user_id",
-                            "file_key": "$file_key",
+                            "dedupe_key": "$_effective_dedupe_key",
                             "source": "$source",
                         },
                         "keep_id": {"$max": "$_id"},
@@ -86,7 +130,7 @@ class RevealedFileStorage:
                 result = await c.delete_many(
                     {
                         "user_id": duplicate_key["user_id"],
-                        "file_key": duplicate_key["file_key"],
+                        "dedupe_key": duplicate_key["dedupe_key"],
                         "source": duplicate_key["source"],
                         "_id": {"$ne": group["keep_id"]},
                     }
@@ -94,13 +138,13 @@ class RevealedFileStorage:
                 logger.info(
                     f"Removed {result.deleted_count} duplicate(s) for "
                     f"user_id={duplicate_key['user_id']}, "
-                    f"file_key={duplicate_key['file_key']}, "
+                    f"dedupe_key={duplicate_key['dedupe_key']}, "
                     f"source={duplicate_key['source']}"
                 )
 
             await c.create_index(
-                [("user_id", 1), ("file_key", 1), ("source", 1)],
-                name="user_key_source_unique_idx",
+                [("user_id", 1), ("dedupe_key", 1), ("source", 1)],
+                name="user_dedupe_source_unique_idx",
                 unique=True,
                 background=True,
             )
@@ -131,11 +175,12 @@ class RevealedFileStorage:
         trace_id: str,
         data: Dict[str, Any],
     ) -> None:
-        """Upsert a record, deduplicating by user_id + file_key + source.
+        """Upsert a record, deduplicating by user_id + dedupe_key + source.
 
-        If a record with the same file key and source already exists, update its
-        content fields and reset *created_at* so the entry bubbles to the top
-        of time-sorted lists.  Preserves ``is_favorite`` on the existing doc.
+        ``dedupe_key`` is derived from original_path for generated/local files,
+        from normalized URL for remote files, and falls back to file_key for
+        older records.  Updates reset *created_at* so the entry bubbles to the
+        top of time-sorted lists.  Preserves ``is_favorite`` on the existing doc.
         """
         if not user_id or not file_name or not source:
             logger.warning(
@@ -147,11 +192,13 @@ class RevealedFileStorage:
         await self.ensure_indexes_if_needed()
         try:
             now = utc_now()
+            dedupe_key = _build_dedupe_key(file_key, source, data)
             # Fields managed by this method — always authoritative
             set_fields: Dict[str, Any] = {
                 "file_name": file_name,
                 "source": source,
                 "file_key": file_key,
+                "dedupe_key": dedupe_key,
                 "trace_id": trace_id,
                 "created_at": now,
             }
@@ -164,7 +211,7 @@ class RevealedFileStorage:
             await self.collection.update_one(
                 {
                     "user_id": user_id,
-                    "file_key": file_key,
+                    "dedupe_key": dedupe_key,
                     "source": source,
                 },
                 {"$set": set_fields},

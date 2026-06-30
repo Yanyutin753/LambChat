@@ -8,6 +8,8 @@ import type { Team } from "../../types/team";
 import { TeamAvatar } from "./TeamAvatar";
 import { getTeamFallbackAvatar, getTeamFallbackTag } from "./teamAvatarUtils";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { PanelSearchInput } from "../common/PanelSearchInput";
+import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 
 interface TeamPickerModalProps {
   isOpen: boolean;
@@ -34,12 +36,30 @@ export function TeamPickerModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
     setLoading(true);
     teamApi
       .list(0, 50)
-      .then((res) => setTeams(res.teams))
+      .then((res) => {
+        if (!cancelled) setTeams(res.teams);
+      })
       .catch((err) => console.error("Failed to load teams:", err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return subscribeTeamsChanged(() => {
+      teamApi
+        .list(0, 50)
+        .then((res) => setTeams(res.teams))
+        .catch((err) => console.error("Failed to refresh teams:", err));
+    });
   }, [isOpen]);
 
   useEffect(() => {
@@ -139,13 +159,13 @@ export function TeamPickerModal({
             <button
               type="button"
               onClick={handleCreateNew}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+              className="inline-flex h-8 items-center justify-center rounded-lg px-3 text-xs font-medium transition-colors"
               style={{
                 background: "var(--theme-primary)",
                 color: "var(--theme-bg)",
               }}
             >
-              <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex h-full items-center justify-center gap-1.5">
                 <Plus size={13} />
                 {t("common.new", "新建")}
               </span>
@@ -171,13 +191,13 @@ export function TeamPickerModal({
                   onClose();
                   onManageTeams();
                 }}
-                className="ml-auto rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:border-[var(--theme-text-secondary)]"
+                className="ml-auto inline-flex h-8 items-center justify-center rounded-lg border px-3 text-xs font-medium transition-colors hover:border-[var(--theme-text-secondary)]"
                 style={{
                   borderColor: "var(--theme-border)",
                   color: "var(--theme-text-secondary)",
                 }}
               >
-                <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex h-full items-center justify-center gap-1.5">
                   <Settings2 size={13} />
                   {t("team.manage", "管理")}
                 </span>
@@ -189,9 +209,9 @@ export function TeamPickerModal({
               size={15}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
             />
-            <input
+            <PanelSearchInput
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onValueChange={setQuery}
               placeholder={t("team.search", "搜索团队")}
               className="w-full rounded-lg border bg-transparent py-2 pl-9 pr-3 text-sm outline-none"
               style={{

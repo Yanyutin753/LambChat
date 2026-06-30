@@ -1,0 +1,223 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "workflow",
+  "frontend": {
+    "app_tabs": [
+      {
+        "id": "workflow:workflows-tab",
+        "tab": "workflows",
+        "path": "/workflows",
+        "label": "workflowPlugin.nav.label",
+        "panel": "workflow:workflows-panel",
+        "insert_after": "agent-team",
+        "order": 700,
+        "permissions": [
+          "workflow:read"
+        ],
+        "seo_title": "seo.workflows.title",
+        "seo_description": "seo.workflows.description",
+        "redirect_to": "/chat",
+        "show_no_permission_toast": true
+      },
+      {
+        "id": "workflow:workflow-editor-tab",
+        "tab": "workflows-editor",
+        "path": "/workflows/:workflowId/editor",
+        "label": "workflowPlugin.nav.editorLabel",
+        "panel": "workflow:workflow-editor-panel",
+        "insert_after": "workflows",
+        "order": 701,
+        "permissions": [
+          "workflow:read"
+        ],
+        "seo_title": "seo.workflows.editorTitle",
+        "seo_description": "seo.workflows.editorDescription",
+        "redirect_to": "/chat",
+        "show_no_permission_toast": true
+      },
+      {
+        "id": "workflow:workflow-run-tab",
+        "tab": "workflows-run",
+        "path": "/workflows/:workflowId/runs/:runId",
+        "label": "workflowPlugin.nav.runLabel",
+        "panel": "workflow:workflow-run-panel",
+        "insert_after": "workflows-editor",
+        "order": 702,
+        "permissions": [
+          "workflow:read"
+        ],
+        "seo_title": "seo.workflows.runTitle",
+        "seo_description": "seo.workflows.runDescription",
+        "redirect_to": "/chat",
+        "show_no_permission_toast": true
+      }
+    ],
+    "app_panels": [
+      {
+        "id": "workflow:workflows-panel",
+        "tab": "workflows",
+        "renderer": "workflow.WorkflowPanel"
+      },
+      {
+        "id": "workflow:workflow-editor-panel",
+        "tab": "workflows-editor",
+        "renderer": "workflow.WorkflowPanel"
+      },
+      {
+        "id": "workflow:workflow-run-panel",
+        "tab": "workflows-run",
+        "renderer": "workflow.WorkflowPanel"
+      }
+    ],
+    "sidebar_items": [
+      {
+        "id": "workflow:workflows-nav",
+        "path": "/workflows",
+        "label": "workflowPlugin.nav.label",
+        "icon": "Workflow",
+        "order": 30,
+        "permissions": [
+          "workflow:read"
+        ]
+      }
+    ],
+    "project_options": [
+      {
+        "key": "DEFAULT_WORKFLOW_ID",
+        "type": "string",
+        "label": "workflowPlugin.project.defaultWorkflow",
+        "description": "workflowPlugin.project.defaultWorkflowDescription",
+        "group": "workflow",
+        "order": 10,
+        "renderer": "workflow.WorkflowSelectOption",
+        "applies_to_session_key": "SELECTED_WORKFLOW_ID"
+      },
+      {
+        "key": "DEFAULT_WORKFLOW_VERSION_ID",
+        "type": "string",
+        "label": "workflowPlugin.project.defaultWorkflowVersion",
+        "description": "workflowPlugin.project.defaultWorkflowVersionDescription",
+        "group": "workflow",
+        "order": 11,
+        "renderer": "workflow.WorkflowVersionSelectOption",
+        "applies_to_session_key": "SELECTED_WORKFLOW_VERSION_ID"
+      }
+    ],
+    "session_options": [
+      {
+        "key": "SELECTED_WORKFLOW_ID",
+        "type": "string",
+        "label": "workflowPlugin.session.selectedWorkflow",
+        "description": "workflowPlugin.session.selectedWorkflowDescription",
+        "group": "workflow",
+        "order": 10,
+        "renderer": "workflow.WorkflowSelectOption",
+        "legacy_payload_keys": [
+          "workflow_id"
+        ]
+      },
+      {
+        "key": "SELECTED_WORKFLOW_VERSION_ID",
+        "type": "string",
+        "label": "workflowPlugin.session.selectedWorkflowVersion",
+        "description": "workflowPlugin.session.selectedWorkflowVersionDescription",
+        "group": "workflow",
+        "order": 11,
+        "renderer": "workflow.WorkflowVersionSelectOption",
+        "legacy_payload_keys": [
+          "workflow_version_id",
+          "version_id"
+        ]
+      },
+      {
+        "key": "SELECTED_WORKFLOW_INPUT_JSON",
+        "type": "json",
+        "label": "workflowPlugin.session.selectedWorkflowInput",
+        "description": "workflowPlugin.session.selectedWorkflowInputDescription",
+        "group": "workflow",
+        "order": 12,
+        "renderer": "workflow.WorkflowInputOption",
+        "legacy_payload_keys": [
+          "workflow_input",
+          "input"
+        ]
+      }
+    ],
+    "scheduled_task_options": [
+      {
+        "key": "WORKFLOW_ID",
+        "type": "string",
+        "label": "workflowPlugin.scheduledTask.workflow",
+        "description": "workflowPlugin.scheduledTask.workflowDescription",
+        "group": "workflow",
+        "order": 10,
+        "renderer": "workflow.WorkflowSelectOption",
+        "legacy_payload_keys": [
+          "workflow_id"
+        ]
+      },
+      {
+        "key": "WORKFLOW_VERSION_ID",
+        "type": "string",
+        "label": "workflowPlugin.scheduledTask.workflowVersion",
+        "description": "workflowPlugin.scheduledTask.workflowVersionDescription",
+        "group": "workflow",
+        "order": 11,
+        "renderer": "workflow.WorkflowVersionSelectOption",
+        "legacy_payload_keys": [
+          "workflow_version_id",
+          "version_id"
+        ]
+      },
+      {
+        "key": "WORKFLOW_INPUT_JSON",
+        "type": "json",
+        "label": "workflowPlugin.scheduledTask.workflowInput",
+        "description": "workflowPlugin.scheduledTask.workflowInputDescription",
+        "group": "workflow",
+        "order": 12,
+        "renderer": "workflow.WorkflowInputOption",
+        "legacy_payload_keys": [
+          "workflow_input",
+          "input"
+        ]
+      }
+    ],
+    "chat_input_options": [
+      {
+        "id": "workflow:select-workflow",
+        "slot": "enhance",
+        "label": "workflowPlugin.chat.selectWorkflow",
+        "icon": "Workflow",
+        "panel": "workflow:workflow-picker",
+        "selected_renderer": "workflow.SelectedWorkflowChip",
+        "shortcut": "mod+w",
+        "order": 30,
+        "option_binding": {
+          "plugin_id": "workflow",
+          "key": "SELECTED_WORKFLOW_ID",
+          "scope": "session"
+        }
+      }
+    ],
+    "chat_input_panels": [
+      {
+        "id": "workflow:workflow-picker",
+        "renderer": "workflow.WorkflowPickerModal",
+        "create_path": "/workflows?create=blank",
+        "manage_path": "/workflows",
+        "option_binding": {
+          "plugin_id": "workflow",
+          "key": "SELECTED_WORKFLOW_ID",
+          "scope": "session"
+        }
+      }
+    ],
+    "i18n_namespaces": [
+      "workflow:workflows"
+    ],
+    "required_permissions": [
+      "workflow:read"
+    ]
+  }
+}

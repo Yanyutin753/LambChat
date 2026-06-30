@@ -236,6 +236,11 @@ test("conversation image entry points use the session gallery when available", (
 
   assert.match(markdownSource, /useSessionImageGallery/);
   assert.match(markdownSource, /sessionImageGallery\?\.openImage/);
+  assert.match(
+    markdownSource,
+    /<ImageWithSkeleton[\s\S]*?\bloading="eager"/,
+    "markdown images should be eager so browser captures do not keep skeleton placeholders",
+  );
   assert.match(userBubbleSource, /useSessionImageGallery/);
   assert.match(userBubbleSource, /sessionImageGallery\?\.openImage/);
   assert.match(fileRevealSource, /useSessionImageGallery/);

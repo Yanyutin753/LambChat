@@ -1,0 +1,52 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Nested Entry Contract"
+  },
+  "workflow": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "data": {
+          "title": "Start",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "profile": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" }
+                },
+                "required": ["name"]
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "score": { "type": "integer" }
+                  },
+                  "required": ["score"]
+                }
+              }
+            },
+            "required": ["profile", "items"],
+            "additionalProperties": true
+          }
+        }
+      },
+      {
+        "id": "answer",
+        "type": "answer",
+        "data": {
+          "title": "Answer",
+          "answer": "nested contract accepted"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "answer" }
+    ]
+  }
+}

@@ -22,6 +22,7 @@ import {
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
 import { PersonaPreviewSidebar } from "./PersonaPreviewSidebar";
 import { Pagination } from "../common/Pagination";
+import { PanelSearchInput } from "../common/PanelSearchInput";
 
 const PAGE_SIZE = 20;
 
@@ -222,9 +223,9 @@ export function PersonaPresetSelector({
               size={15}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
             />
-            <input
+            <PanelSearchInput
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onValueChange={setQuery}
               placeholder={t("personaPresets.search", "搜索角色")}
               className="w-full rounded-lg border bg-transparent py-2 pl-9 pr-3 text-sm outline-none"
               style={{

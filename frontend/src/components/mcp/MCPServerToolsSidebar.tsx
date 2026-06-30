@@ -156,6 +156,7 @@ export function MCPServerToolsSidebar({
         allowed_roles?: string[];
         role_quotas?: Record<string, MCPRoleQuota>;
         disabled?: boolean;
+        inline_exposure?: boolean;
       },
     ) => {
       const current = tools.find((tool) => tool.name === toolName);
@@ -165,11 +166,14 @@ export function MCPServerToolsSidebar({
         updates.allowed_roles ?? current.allowed_roles ?? [];
       const nextRoleQuotas = updates.role_quotas ?? current.role_quotas ?? {};
       const nextDisabled = updates.disabled ?? current.system_disabled ?? false;
+      const nextInlineExposure =
+        updates.inline_exposure ?? current.inline_exposure ?? false;
 
       setSavingToolPolicy(toolName);
       try {
         await mcpApi.updateToolPolicy(server.name, toolName, {
           disabled: nextDisabled,
+          inline_exposure: nextInlineExposure,
           allowed_roles: nextAllowedRoles,
           role_quotas: nextRoleQuotas,
         });
@@ -179,6 +183,7 @@ export function MCPServerToolsSidebar({
               ? {
                   ...tool,
                   system_disabled: nextDisabled,
+                  inline_exposure: nextInlineExposure,
                   allowed_roles: nextAllowedRoles,
                   role_quotas: nextRoleQuotas,
                   policy_configured: true,
@@ -256,7 +261,7 @@ export function MCPServerToolsSidebar({
               const isDisabled =
                 tool.system_disabled || tool.user_disabled || false;
               const isExpanded = expandedTools.has(tool.name);
-              const canExpand = server.can_edit;
+              const canConfigurePolicy = server.can_edit && server.is_system;
               return (
                 <div
                   key={tool.name}
@@ -267,9 +272,11 @@ export function MCPServerToolsSidebar({
                   <div className="list-item-card__body">
                     <div
                       className="list-item-card__top cursor-pointer"
-                      onClick={() => canExpand && toggleExpanded(tool.name)}
+                      onClick={() =>
+                        canConfigurePolicy && toggleExpanded(tool.name)
+                      }
                     >
-                      {canExpand && (
+                      {canConfigurePolicy && (
                         <ChevronDown
                           size={14}
                           className={`shrink-0 text-[var(--theme-text-quaternary)] transition-transform duration-200 ${
@@ -305,8 +312,37 @@ export function MCPServerToolsSidebar({
                       </div>
                     </div>
 
-                    {canExpand && isExpanded && (
+                    {canConfigurePolicy && isExpanded && (
                       <div className="list-item-card__instructions">
+                        <div className="mb-3 flex items-center justify-between gap-3 rounded-md bg-[var(--theme-bg-subtle)] px-2 py-2">
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-medium text-[var(--theme-text-tertiary)]">
+                              {t("mcp.form.inlineExposure")}
+                            </div>
+                            <p className="mt-0.5 text-[10px] leading-snug text-[var(--theme-text-quaternary)]">
+                              {t("mcp.form.inlineExposureDescription")}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUpdateToolPolicy(tool.name, {
+                                inline_exposure: !(
+                                  tool.inline_exposure ?? false
+                                ),
+                              });
+                            }}
+                            className={`team-toggle shrink-0 ${
+                              tool.inline_exposure ? "team-toggle--on" : ""
+                            }`}
+                            title={
+                              tool.inline_exposure
+                                ? t("mcp.form.disableInlineExposure")
+                                : t("mcp.form.enableInlineExposure")
+                            }
+                          />
+                        </div>
                         <div className="flex items-center gap-1.5 mb-2">
                           <span className="text-[10px] font-medium text-[var(--theme-text-tertiary)]">
                             {t("mcp.form.allowedRoles")}

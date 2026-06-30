@@ -259,6 +259,7 @@ class BackgroundTaskManager:
         session_metadata: Optional[Dict[str, Any]] = None,
         user_message_written: bool = False,
         write_user_message_immediately: bool = False,
+        plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -343,6 +344,7 @@ class BackgroundTaskManager:
                     team_id=team_id,
                     existing_trace_id=trace_id or None,
                     active_goal=active_goal,
+                    plugin_options=plugin_options,
                     user_message_written=user_message_written,
                 )
             )
@@ -381,6 +383,7 @@ class BackgroundTaskManager:
         active_goal: Optional[Dict[str, Any]] = None,
         session_metadata: Optional[Dict[str, Any]] = None,
         write_user_message_immediately: bool = False,
+        plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
         _ensure_agent_executable(agent_id)
@@ -438,6 +441,7 @@ class BackgroundTaskManager:
                     "team_id": team_id,
                     "active_goal": active_goal,
                     "recommendation_input": recommendation_input,
+                    "plugin_options": plugin_options,
                 },
             )
 

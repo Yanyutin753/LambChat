@@ -29,6 +29,7 @@ from src.kernel.schemas.share import (
     SharedSessionResponse,
     ShareListResponse,
     ShareType,
+    ShareUpdate,
     ShareVisibility,
 )
 from src.kernel.schemas.user import TokenPayload
@@ -54,7 +55,7 @@ def _require_share_permission(user: TokenPayload) -> None:
         )
 
 
-def _validate_share_run_ids(share_data: ShareCreate) -> None:
+def _validate_share_run_ids(share_data: ShareCreate | ShareUpdate) -> None:
     if share_data.share_type != ShareType.PARTIAL:
         return
     if not share_data.run_ids:
@@ -198,6 +199,75 @@ async def list_shares(
         )
 
     return ShareListResponse(shares=result_shares, total=total)
+
+
+@router.patch("/{share_id}", response_model=SharedSessionResponse)
+async def update_share(
+    share_id: str,
+    share_data: ShareUpdate,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """
+    更新已有会话分享
+
+    保持公开链接不变，只更新分享范围与访问权限。
+    """
+    _require_share_permission(user)
+
+    storage = ShareStorage()
+    share = await storage.get_by_id(share_id)
+    if not share:
+        raise HTTPException(status_code=404, detail="分享不存在")
+
+    if share.owner_id != user.sub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只能编辑自己创建的分享",
+        )
+
+    manager = SessionManager()
+    session = await manager.get_session(share.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    if session.user_id != user.sub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只能分享自己的会话",
+        )
+
+    next_share_type = share_data.share_type or share.share_type
+    next_visibility = share_data.visibility or share.visibility
+    next_run_ids = share_data.run_ids if share_data.run_ids is not None else share.run_ids
+    normalized_update = ShareUpdate(
+        share_type=next_share_type,
+        run_ids=next_run_ids,
+        visibility=next_visibility,
+    )
+    _validate_share_run_ids(normalized_update)
+    if next_share_type != ShareType.PARTIAL:
+        next_run_ids = None
+
+    updated_share = await storage.update(
+        share_id,
+        owner_id=user.sub,
+        share_type=next_share_type,
+        run_ids=next_run_ids,
+        visibility=next_visibility,
+    )
+    if not updated_share:
+        raise HTTPException(status_code=500, detail="更新失败")
+
+    return SharedSessionResponse(
+        id=updated_share.id,
+        share_id=updated_share.share_id,
+        url=f"/shared/{updated_share.share_id}",
+        session_id=updated_share.session_id,
+        share_type=updated_share.share_type,
+        visibility=updated_share.visibility,
+        run_ids=updated_share.run_ids,
+        created_at=updated_share.created_at,
+    )
 
 
 @router.get("/session/{session_id}", response_model=list[SharedSessionListItem])

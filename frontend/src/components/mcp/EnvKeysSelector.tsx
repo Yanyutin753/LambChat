@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { envvarApi } from "../../services/api/envvar";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types/auth";
+import { PanelSearchInput } from "../common/PanelSearchInput";
 import { McpSelectorEmptyState } from "./McpSelectorEmptyState";
 
 interface EnvKeysSelectorProps {
@@ -120,10 +121,10 @@ export function EnvKeysSelector({
                 size={12}
                 className="text-stone-400 dark:text-stone-500"
               />
-              <input
+              <PanelSearchInput
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onValueChange={setSearch}
                 placeholder={t("mcp.form.envKeysSearch")}
                 className="flex-1 bg-transparent text-xs text-stone-700 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
                 autoFocus

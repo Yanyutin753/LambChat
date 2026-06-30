@@ -78,6 +78,7 @@ class _FakeCollection:
         self.count_result = [dict(doc) for doc in (count_result or [])]
         self.indexes = dict(indexes or {})
         self.update_calls = []
+        self.update_many_calls = []
         self.created_indexes = []
         self.dropped_indexes = []
         self.delete_many_calls = []
@@ -114,6 +115,14 @@ class _FakeCollection:
 
         class _Result:
             matched_count = 1
+
+        return _Result()
+
+    async def update_many(self, query, update):
+        self.update_many_calls.append((query, update))
+
+        class _Result:
+            modified_count = 0
 
         return _Result()
 
@@ -222,11 +231,70 @@ async def test_upsert_by_name_deduplicates_by_file_key_not_name() -> None:
     query, update, upsert = storage.collection.update_calls[0]
     assert query == {
         "user_id": "user-1",
-        "file_key": "revealed_projects/demo-app_abcd1234",
+        "dedupe_key": "key:reveal_project:revealed_projects/demo-app_abcd1234",
         "source": "reveal_project",
     }
     assert update["$set"]["file_name"] == "demo-app"
+    assert update["$set"]["dedupe_key"] == "key:reveal_project:revealed_projects/demo-app_abcd1234"
     assert upsert is True
+
+
+@pytest.mark.asyncio
+async def test_upsert_by_name_deduplicates_auto_artifacts_by_original_path() -> None:
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection()
+    storage.ensure_indexes_if_needed = _no_op_async
+
+    await storage.upsert_by_name(
+        user_id="user-1",
+        file_name="report.pdf",
+        source="reveal_file",
+        file_key="revealed_files/report_v2.pdf",
+        trace_id="trace-2",
+        data={
+            "session_id": "session-1",
+            "delivery_source": "artifact_auto",
+            "original_path": "/workspace/report.pdf",
+        },
+    )
+
+    query, update, upsert = storage.collection.update_calls[0]
+    assert query == {
+        "user_id": "user-1",
+        "dedupe_key": "path:/workspace/report.pdf",
+        "source": "reveal_file",
+    }
+    assert update["$set"]["file_key"] == "revealed_files/report_v2.pdf"
+    assert update["$set"]["dedupe_key"] == "path:/workspace/report.pdf"
+    assert "is_favorite" not in update["$set"]
+    assert upsert is True
+
+
+@pytest.mark.asyncio
+async def test_upsert_by_name_deduplicates_remote_file_urls_ignoring_query() -> None:
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection()
+    storage.ensure_indexes_if_needed = _no_op_async
+
+    await storage.upsert_by_name(
+        user_id="user-1",
+        file_name="chart.png",
+        source="reveal_file",
+        file_key="https://cdn.example.com/assets/chart.png?download=1",
+        trace_id="trace-1",
+        data={
+            "session_id": "session-1",
+            "original_path": "https://cdn.example.com/assets/chart.png?download=1",
+        },
+    )
+
+    query, update, _upsert = storage.collection.update_calls[0]
+    assert query == {
+        "user_id": "user-1",
+        "dedupe_key": "url:https://cdn.example.com/assets/chart.png",
+        "source": "reveal_file",
+    }
+    assert update["$set"]["dedupe_key"] == "url:https://cdn.example.com/assets/chart.png"
 
 
 @pytest.mark.asyncio
@@ -274,6 +342,38 @@ async def test_list_files_keeps_project_meta_for_project_items(
 
     assert result["items"][0]["project_meta"]["template"] == "react"
     assert "project_meta" not in result["items"][1]
+
+
+@pytest.mark.asyncio
+async def test_list_files_preserves_delivery_source_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(timezone.utc)
+    storage = RevealedFileStorage()
+    storage._collection = _FakeCollection(
+        docs=[
+            {
+                "_id": "file-1",
+                "user_id": "user-1",
+                "session_id": "session-1",
+                "file_name": "puppy.svg",
+                "file_type": "image",
+                "source": "reveal_file",
+                "delivery_source": "artifact_auto",
+                "file_key": "revealed_files/puppy.svg",
+                "created_at": now,
+            },
+        ]
+    )
+    storage.ensure_indexes_if_needed = _no_op_async
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient([{"session_id": "session-1", "name": "Session One"}]),
+    )
+
+    result = await storage.list_files("user-1", limit=20)
+
+    assert result["items"][0]["delivery_source"] == "artifact_auto"
 
 
 @pytest.mark.asyncio
@@ -500,17 +600,19 @@ async def test_ensure_indexes_replaces_old_name_based_unique_index() -> None:
         indexes={
             "user_name_source_unique_idx": {
                 "key": [("user_id", 1), ("file_name", 1), ("source", 1)]
-            }
+            },
+            "user_key_source_unique_idx": {"key": [("user_id", 1), ("file_key", 1), ("source", 1)]},
         }
     )
 
     await storage._ensure_indexes()
 
     assert "user_name_source_unique_idx" in storage.collection.dropped_indexes
+    assert "user_key_source_unique_idx" in storage.collection.dropped_indexes
     assert any(
-        kwargs.get("name") == "user_key_source_unique_idx"
+        kwargs.get("name") == "user_dedupe_source_unique_idx"
         and kwargs.get("unique") is True
-        and keys == [("user_id", 1), ("file_key", 1), ("source", 1)]
+        and keys == [("user_id", 1), ("dedupe_key", 1), ("source", 1)]
         for keys, kwargs in storage.collection.created_indexes
     )
 
@@ -523,7 +625,7 @@ async def test_ensure_indexes_deduplicates_without_collecting_duplicate_ids() ->
             {
                 "_id": {
                     "user_id": "user-1",
-                    "file_key": "revealed_files/report.txt",
+                    "dedupe_key": "path:/workspace/report.txt",
                     "source": "reveal_file",
                 },
                 "keep_id": "newest-id",
@@ -541,7 +643,7 @@ async def test_ensure_indexes_deduplicates_without_collecting_duplicate_ids() ->
     assert storage.collection.delete_many_calls == [
         {
             "user_id": "user-1",
-            "file_key": "revealed_files/report.txt",
+            "dedupe_key": "path:/workspace/report.txt",
             "source": "reveal_file",
             "_id": {"$ne": "newest-id"},
         }

@@ -85,7 +85,7 @@ function PluginOwnershipOverview({ plugins }: { plugins: PluginRuntimePlugin[] }
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 text-sm font-semibold text-theme-text">
-                  {plugin.name || plugin.plugin_id}
+                  {plugin.name ? t(plugin.name, plugin.name) : plugin.plugin_id}
                 </div>
                 <span className={statusClassName(plugin.status)}>{plugin.status}</span>
               </div>
@@ -1004,6 +1004,10 @@ function PluginCard({
     plugin.resource_types.settings ??
     plugin.resource_types.plugin_settings ??
     0;
+  const pluginName = plugin.name ? t(plugin.name, plugin.name) : plugin.plugin_id;
+  const pluginDescription = plugin.description
+    ? t(plugin.description, plugin.description)
+    : "";
 
   return (
     <article className="overflow-hidden rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm transition-shadow hover:shadow-md">
@@ -1020,7 +1024,7 @@ function PluginCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="max-w-[14rem] truncate text-sm font-semibold text-theme-text sm:max-w-[18rem]">
-                {plugin.name || plugin.plugin_id}
+                {pluginName}
               </h2>
               <span className={statusClassName(plugin.status)}>{plugin.status}</span>
               <span className="hidden text-[0.72rem] text-theme-text-secondary sm:inline">{plugin.plugin_id}</span>
@@ -1032,6 +1036,11 @@ function PluginCard({
               <span>{t(`pluginRuntime.installTypes.${plugin.install_type}`, plugin.install_type)}</span>
               {plugin.state_updated_by && <span className="max-w-[7rem] truncate">{plugin.state_updated_by}</span>}
             </div>
+            {pluginDescription && (
+              <div className="mt-1 max-w-[24rem] truncate text-[0.72rem] text-theme-text-secondary">
+                {pluginDescription}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-theme-text-secondary sm:justify-end">

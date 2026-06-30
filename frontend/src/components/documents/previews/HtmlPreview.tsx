@@ -1,8 +1,9 @@
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { Code, Eye } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { DeferredCodeMirrorViewer } from "../../common/DeferredCodeMirrorViewer";
 import { useTranslation } from "react-i18next";
+import { prepareHtmlPreviewContent } from "./htmlPreviewContent";
 
 interface HtmlPreviewProps {
   content: string; // HTML content directly
@@ -12,6 +13,10 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [showSource, setShowSource] = useState(false);
+  const previewContent = useMemo(
+    () => prepareHtmlPreviewContent(content),
+    [content],
+  );
 
   useEffect(() => {
     if (content) {
@@ -84,7 +89,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
           />
         ) : (
           <iframe
-            srcDoc={content}
+            srcDoc={previewContent}
             title={t("documents.htmlDocument")}
             className="w-full h-full border-0"
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"

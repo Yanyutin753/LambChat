@@ -1,11 +1,15 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import {
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+} from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import type { Message } from "../../../types";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 import {
   forceVirtuosoToBottom,
-  getAutoScrollResumeThresholdPx,
-  getAwayFromBottomThresholdPx,
   getScrollToBottomTimingOptions,
   didLatestStreamingAssistantFinish,
   shouldAutoScrollAfterViewportChange,
@@ -14,21 +18,9 @@ import {
   startVirtuosoScrollToBottom,
   type ScrollToBottomTimingMode,
 } from "./messageScrollUtils";
-import { createMessageAnchorId } from "./messageOutline";
-import {
-  createExternalNavigationElementResolver,
-  ensureSubagentPanelsOpen,
-  findExternalNavigationMatchForRunId,
-  findMessageIndexForExternalNavigation,
-  findMessageIndexForRunId,
-  findRevealPartMatchInMessage,
-  focusElementForExternalNavigation,
-  highlightElementForExternalNavigation,
-  scrollElementIntoViewWithRetries,
-  shouldDeferExternalNavigationScroll,
-  shouldKeepExternalNavigationPending,
-  shouldScrollExternalNavigationFallbackToMessage,
-} from "./useMessageScroll.externalNavigation";
+import { useMessageScrollHistorySettling } from "./useMessageScroll.historySettling";
+import { getMessageScrollViewportState } from "./useMessageScroll.viewport";
+import { useMessageScrollExternalNavigationEffect } from "./useMessageScroll.externalNavigationEffect";
 import {
   createMessageScrollFollowState,
   getMessageScrollSessionResetState,
@@ -41,6 +33,8 @@ import {
   getNextMessageScrollFollowStateForUserScroll,
   shouldArmPendingHistoryScroll,
   shouldFinalizeHistoryLoadScroll,
+  shouldInferBatchedHistoryLoadReady,
+  shouldStartHistoryScrollSettling,
 } from "./useMessageScroll.followState";
 
 interface UseMessageScrollReturn {
@@ -50,6 +44,7 @@ interface UseMessageScrollReturn {
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   isNearBottom: boolean;
   isNearTop: boolean;
+  isHistoryScrollSettling: boolean;
   handleVirtuosoAtBottomChange: (atBottom: boolean) => void;
   scrollToBottom: () => void;
   scrollToTop: () => void;
@@ -66,21 +61,12 @@ export function useMessageScroll(
   isLoadingHistory = false,
   sessionBottomScrollToken?: string | null,
 ): UseMessageScrollReturn {
-  const MOBILE_BOTTOM_BREATHING_ROOM_PX = 96;
-  const DESKTOP_BOTTOM_BREATHING_ROOM_PX = 16;
-  const isMobileViewport =
-    typeof window !== "undefined" ? window.innerWidth < 640 : false;
-  const bottomBreathingRoomPx = isMobileViewport
-    ? MOBILE_BOTTOM_BREATHING_ROOM_PX
-    : DESKTOP_BOTTOM_BREATHING_ROOM_PX;
-  const awayFromBottomThresholdPx = getAwayFromBottomThresholdPx(
+  const {
     isMobileViewport,
     bottomBreathingRoomPx,
-  );
-  const autoScrollResumeThresholdPx = getAutoScrollResumeThresholdPx(
-    isMobileViewport,
-    bottomBreathingRoomPx,
-  );
+    awayFromBottomThresholdPx,
+    autoScrollResumeThresholdPx,
+  } = getMessageScrollViewportState();
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const virtuosoScrollerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +74,11 @@ export function useMessageScroll(
 
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [isNearTop, setIsNearTop] = useState(true);
+  const {
+    isHistoryScrollSettling,
+    clearHistoryScrollSettling,
+    startHistoryScrollSettling,
+  } = useMessageScrollHistorySettling();
   const rafRef = useRef<number>(0);
   const viewportResizeRafRef = useRef<number>(0);
   const scrollCleanupRef = useRef<(() => void) | null>(null);
@@ -101,6 +92,10 @@ export function useMessageScroll(
   } | null>(null);
   const previousSessionIdRef = useRef(sessionId);
   const previousMessagesRef = useRef(messages);
+  const previousHistoryLoadSignatureRef = useRef({
+    sessionId,
+    messageCount: messages.length,
+  });
   const isNearBottomRef = useRef(true);
 
   const userScrolledUpRef = useRef(false);
@@ -163,10 +158,11 @@ export function useMessageScroll(
     isNearBottomRef.current = resetState.isNearBottom;
     previousMessagesRef.current = messages;
     historyLoadActiveRef.current = isLoadingHistory;
+    clearHistoryScrollSettling();
 
     setIsNearBottom(resetState.isNearBottom);
     setIsNearTop(true);
-  }, [isLoadingHistory, messages, sessionId]);
+  }, [clearHistoryScrollSettling, isLoadingHistory, messages, sessionId]);
 
   const handleVirtuosoAtBottomChange = useCallback((atBottom: boolean) => {
     cancelAnimationFrame(rafRef.current);
@@ -192,7 +188,11 @@ export function useMessageScroll(
   const requestScrollToBottom = useCallback(
     (
       mode: ScrollToBottomTimingMode = "default",
-      options?: { clearManualDetachFromStream?: boolean },
+      options?: {
+        clearManualDetachFromStream?: boolean;
+        onInitialSettle?: () => void;
+        onComplete?: () => void;
+      },
     ) => {
       const timing = getScrollToBottomTimingOptions({
         isMobileViewport,
@@ -256,10 +256,14 @@ export function useMessageScroll(
           recoverUnexpectedTopJumpUntilRef.current =
             Date.now() + timing.observeAfterSettleMs;
         },
+        onInitialSettle: () => {
+          options?.onInitialSettle?.();
+        },
         onComplete: () => {
           autoScrollActiveRef.current = false;
           recoverUnexpectedTopJumpUntilRef.current =
             Date.now() + timing.observeAfterSettleMs;
+          options?.onComplete?.();
         },
       });
     },
@@ -535,7 +539,27 @@ export function useMessageScroll(
     }
   }, [sessionId, externalNavigationToken, isLoadingHistory]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const previousHistoryLoadSignature =
+      previousHistoryLoadSignatureRef.current;
+    previousHistoryLoadSignatureRef.current = {
+      sessionId,
+      messageCount: messages.length,
+    };
+
+    if (
+      shouldInferBatchedHistoryLoadReady({
+        previousSessionId: previousHistoryLoadSignature.sessionId,
+        sessionId,
+        previousMessageCount: previousHistoryLoadSignature.messageCount,
+        messageCount: messages.length,
+        isLoadingHistory,
+        externalNavigationToken,
+      })
+    ) {
+      pendingHistoryScrollRef.current = true;
+    }
+
     if (!isLoadingHistory && messages.length === 0) {
       pendingHistoryScrollRef.current = false;
     }
@@ -547,33 +571,48 @@ export function useMessageScroll(
         messageCount: messages.length,
       })
     ) {
-      let raf1 = 0;
-      let raf2 = 0;
+      if (
+        shouldStartHistoryScrollSettling({
+          pendingHistoryScroll: pendingHistoryScrollRef.current,
+          isLoadingHistory,
+          messageCount: messages.length,
+          externalNavigationToken,
+        })
+      ) {
+        startHistoryScrollSettling();
+      }
+
+      let raf = 0;
       let settled = false;
 
       const tryScroll = () => {
         if (settled) return;
         if (!virtuosoRef.current || !virtuosoScrollerRef.current) {
-          raf1 = requestAnimationFrame(() => {
-            raf2 = requestAnimationFrame(tryScroll);
-          });
+          raf = requestAnimationFrame(tryScroll);
           return;
         }
         settled = true;
         pendingHistoryScrollRef.current = false;
-        requestScrollToBottom("history-finalize");
+        requestScrollToBottom("history-finalize", {
+          onComplete: clearHistoryScrollSettling,
+        });
       };
 
-      raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(tryScroll);
-      });
+      tryScroll();
       return () => {
         settled = true;
-        cancelAnimationFrame(raf1);
-        cancelAnimationFrame(raf2);
+        cancelAnimationFrame(raf);
       };
     }
-  }, [isLoadingHistory, messages.length, requestScrollToBottom]);
+  }, [
+    clearHistoryScrollSettling,
+    externalNavigationToken,
+    isLoadingHistory,
+    messages.length,
+    requestScrollToBottom,
+    sessionId,
+    startHistoryScrollSettling,
+  ]);
 
   useEffect(() => {
     if (sessionBottomScrollToken && externalNavigationToken) {
@@ -687,242 +726,26 @@ export function useMessageScroll(
     isLoadingHistory,
   ]);
 
-  useEffect(() => {
-    if (externalNavigationToken) {
-      pendingExternalNavigationRef.current = {
-        token: externalNavigationToken,
-        targetFile: externalNavigationTargetFile ?? null,
-        scrollToBottom: externalScrollToBottom,
-        targetRunId: externalNavigationTargetRunId ?? null,
-      };
-    }
-  }, [
+  useMessageScrollExternalNavigationEffect({
+    messages,
+    isLoadingHistory,
     externalNavigationToken,
     externalNavigationTargetFile,
     externalNavigationTargetRunId,
-    externalScrollToBottom,
-  ]);
-
-  useEffect(() => {
-    const pendingExternalNavigation = pendingExternalNavigationRef.current;
-    if (!pendingExternalNavigation || messages.length === 0) {
-      return;
-    }
-
-    if (!virtuosoRef.current || !virtuosoScrollerRef.current) {
-      return;
-    }
-
-    if (pendingExternalNavigation.targetFile) {
-      if (
-        pendingExternalNavigation.targetFile.traceId &&
-        externalNavigationTargetRunPending &&
-        !externalNavigationTargetRunId
-      ) {
-        return;
-      }
-
-      const runMatch = findExternalNavigationMatchForRunId(
-        messages,
-        externalNavigationTargetRunId,
-        pendingExternalNavigation.targetFile,
-      );
-      const runMessageIndex = findMessageIndexForRunId(
-        messages,
-        externalNavigationTargetRunId,
-      );
-      const contentMatch =
-        !runMatch && runMessageIndex === -1 && !externalNavigationTargetRunId
-          ? findMessageIndexForExternalNavigation(
-              messages,
-              pendingExternalNavigation.targetFile,
-            )
-          : null;
-
-      if (runMessageIndex === -1 && !contentMatch) {
-        if (!isLoadingHistory) {
-          pendingExternalNavigationRef.current = null;
-        }
-        return;
-      }
-
-      userScrolledUpRef.current = true;
-      autoScrollActiveRef.current = false;
-      streamLockActiveRef.current = false;
-      pendingHistoryScrollRef.current = false;
-      ignoreProgrammaticScrollUntilRef.current = Date.now() + 120;
-      anchorScrollCleanupRef.current?.();
-
-      const resolvedMessageIndex =
-        runMatch?.messageIndex ??
-        (runMessageIndex !== -1
-          ? runMessageIndex
-          : contentMatch?.messageIndex ?? -1);
-      const resolvedMatch =
-        runMatch ??
-        (runMessageIndex !== -1
-          ? findRevealPartMatchInMessage(
-              messages[resolvedMessageIndex],
-              pendingExternalNavigation.targetFile,
-            )
-          : contentMatch);
-      const matchedPartIndex = resolvedMatch?.partIndex ?? -1;
-      const shouldKeepPending = shouldKeepExternalNavigationPending({
-        runMessageIndex,
-        matchedPartIndex,
-      });
-      const shouldDeferScroll = shouldDeferExternalNavigationScroll({
-        runMessageIndex,
-        matchedPartIndex,
-      });
-      const shouldFallbackToMessage =
-        shouldScrollExternalNavigationFallbackToMessage({
-          runMessageIndex,
-          matchedPartIndex,
-        });
-
-      if (!shouldKeepPending) {
-        pendingExternalNavigationRef.current = null;
-      }
-      const fallbackMessageAnchorId = createMessageAnchorId(
-        messages[resolvedMessageIndex]!.id,
-      );
-      const exactAnchorId = resolvedMatch?.anchorId;
-      const subagentChain = resolvedMatch?.subagentChain;
-      const shouldTargetExactElement =
-        matchedPartIndex !== -1 && typeof exactAnchorId === "string";
-      let hasAnimatedToMessage = false;
-      let lastHighlightedElement: HTMLElement | null = null;
-      const resolveTargetElement = createExternalNavigationElementResolver({
-        shouldTargetExactElement:
-          shouldTargetExactElement && !shouldFallbackToMessage,
-        scrollToMessageIndex: () => {
-          virtuosoRef.current?.scrollToIndex({
-            index: resolvedMessageIndex,
-            align: "center",
-            behavior: hasAnimatedToMessage ? "auto" : "smooth",
-          });
-          hasAnimatedToMessage = true;
-        },
-        getExactElement: () =>
-          exactAnchorId ? document.getElementById(exactAnchorId) : null,
-        getFallbackElement: () =>
-          document.getElementById(fallbackMessageAnchorId),
-      });
-
-      anchorScrollCleanupRef.current = scrollElementIntoViewWithRetries({
-        getElement: () => {
-          ensureSubagentPanelsOpen(subagentChain);
-          const element = resolveTargetElement();
-          if (element && element !== lastHighlightedElement) {
-            highlightCleanupRef.current?.();
-            highlightCleanupRef.current = highlightElementForExternalNavigation(
-              {
-                element,
-              },
-            );
-            focusElementForExternalNavigation({
-              element,
-            });
-            lastHighlightedElement = element;
-          }
-          return element;
-        },
-        getScroller:
-          shouldTargetExactElement && !subagentChain?.length
-            ? () => virtuosoScrollerRef.current
-            : undefined,
-        topOffsetPx: 20,
-        tolerancePx: 4,
-        settleAttempts: 3,
-        maxAttempts: subagentChain?.length ? 36 : 24,
-        behavior: "smooth",
-        align: "center",
-      });
-
-      if (shouldDeferScroll) {
-        return;
-      }
-      return;
-    }
-
-    if (pendingExternalNavigation.targetRunId) {
-      const runMessageIndex = findMessageIndexForRunId(
-        messages,
-        pendingExternalNavigation.targetRunId,
-      );
-
-      if (runMessageIndex === -1) {
-        if (!isLoadingHistory) {
-          pendingExternalNavigationRef.current = null;
-        }
-        return;
-      }
-
-      pendingExternalNavigationRef.current = null;
-      userScrolledUpRef.current = true;
-      autoScrollActiveRef.current = false;
-      streamLockActiveRef.current = false;
-      pendingHistoryScrollRef.current = false;
-      ignoreProgrammaticScrollUntilRef.current = Date.now() + 120;
-      anchorScrollCleanupRef.current?.();
-
-      const messageAnchorId = createMessageAnchorId(
-        messages[runMessageIndex]!.id,
-      );
-      let hasAnimatedToMessage = false;
-      let lastHighlightedElement: HTMLElement | null = null;
-
-      anchorScrollCleanupRef.current = scrollElementIntoViewWithRetries({
-        getElement: () => {
-          if (!hasAnimatedToMessage) {
-            virtuosoRef.current?.scrollToIndex({
-              index: runMessageIndex,
-              align: "center",
-              behavior: "smooth",
-            });
-            hasAnimatedToMessage = true;
-          }
-          const element = document.getElementById(messageAnchorId);
-          if (element && element !== lastHighlightedElement) {
-            highlightCleanupRef.current?.();
-            highlightCleanupRef.current = highlightElementForExternalNavigation(
-              {
-                element,
-              },
-            );
-            focusElementForExternalNavigation({
-              element,
-            });
-            lastHighlightedElement = element;
-          }
-          return element;
-        },
-        topOffsetPx: 20,
-        tolerancePx: 4,
-        settleAttempts: 3,
-        maxAttempts: 24,
-        behavior: "smooth",
-        align: "center",
-      });
-      return;
-    }
-
-    if (pendingExternalNavigation.scrollToBottom) {
-      if (isLoadingHistory) {
-        return;
-      }
-      pendingExternalNavigationRef.current = null;
-      requestScrollToBottom("default");
-    }
-  }, [
-    messages,
-    requestScrollToBottom,
-    isLoadingHistory,
-    externalNavigationTargetRunId,
     externalNavigationTargetRunPending,
-    externalNavigationTargetFile,
-  ]);
+    externalScrollToBottom,
+    virtuosoRef,
+    virtuosoScrollerRef,
+    pendingExternalNavigationRef,
+    userScrolledUpRef,
+    autoScrollActiveRef,
+    streamLockActiveRef,
+    pendingHistoryScrollRef,
+    ignoreProgrammaticScrollUntilRef,
+    anchorScrollCleanupRef,
+    highlightCleanupRef,
+    requestScrollToBottom,
+  });
 
   useEffect(() => {
     return () => {
@@ -941,6 +764,7 @@ export function useMessageScroll(
     messagesEndRef,
     isNearBottom,
     isNearTop,
+    isHistoryScrollSettling,
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,

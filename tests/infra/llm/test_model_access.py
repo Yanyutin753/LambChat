@@ -366,3 +366,45 @@ async def test_get_model_preserves_inferred_provider_for_known_unprefixed_model(
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()
+
+
+@pytest.mark.asyncio
+async def test_get_model_caches_streaming_and_non_streaming_instances_separately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_api_key_cache()
+    LLMClient.clear_cache_by_model()
+
+    created: list[dict] = []
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            self.kwargs = dict(kwargs)
+            created.append(self.kwargs)
+
+    monkeypatch.setattr("src.infra.llm.client.ChatOpenAI", FakeChatOpenAI)
+
+    streaming_model = await LLMClient.get_model(
+        model="openai/gpt-4.1",
+        api_key="sk-test",
+        use_model_config=False,
+    )
+    non_streaming_model = await LLMClient.get_model(
+        model="openai/gpt-4.1",
+        api_key="sk-test",
+        streaming=False,
+        use_model_config=False,
+    )
+    cached_non_streaming_model = await LLMClient.get_model(
+        model="openai/gpt-4.1",
+        api_key="sk-test",
+        streaming=False,
+        use_model_config=False,
+    )
+
+    assert streaming_model is not non_streaming_model
+    assert cached_non_streaming_model is non_streaming_model
+    assert [item["streaming"] for item in created] == [True, False]
+
+    clear_api_key_cache()
+    LLMClient.clear_cache_by_model()

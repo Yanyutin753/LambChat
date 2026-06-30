@@ -1,0 +1,23 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Unsupported Human Approval"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "approval",
+        "type": "human-approval",
+        "data": {
+          "title": "Manager approval",
+          "assignee": "manager",
+          "instructions": "Approve before continuing."
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "approval" }
+    ]
+  }
+}

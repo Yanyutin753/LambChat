@@ -386,6 +386,16 @@ def test_plugin_runtime_collects_only_enabled_lifecycle_hooks() -> None:
         "early",
         "late",
     ]
+    runtime.enable_plugin("disabled")
+    assert [hook.name for hook in runtime.lifecycle_hooks(phase="startup")] == [
+        "early",
+        "late",
+        "disabled",
+    ]
+    assert [
+        hook.name
+        for hook in runtime.lifecycle_hooks(phase="startup", plugin_id="disabled")
+    ] == ["disabled"]
     assert [hook.name for hook in runtime.lifecycle_hooks(phase="startup", enabled_only=False)] == [
         "early",
         "late",
@@ -437,6 +447,17 @@ def test_plugin_runtime_exposes_route_and_tool_declarations_for_executable_plugi
     ]
     assert [(tool.plugin_id, tool.name) for tool in runtime.tools()] == [
         ("feedback", "feedback_summary")
+    ]
+
+    runtime.enable_plugin("disabled")
+
+    assert [(route.plugin_id, route.name) for route in runtime.routes()] == [
+        ("feedback", "feedback-api"),
+        ("disabled", "disabled-api"),
+    ]
+    assert [(tool.plugin_id, tool.name) for tool in runtime.tools()] == [
+        ("feedback", "feedback_summary"),
+        ("disabled", "disabled_tool"),
     ]
 
 

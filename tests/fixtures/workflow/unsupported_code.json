@@ -1,0 +1,23 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Unsupported Code"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "code",
+        "type": "code",
+        "data": {
+          "title": "Code",
+          "language": "python3",
+          "code": "def main(inputs):\n    return inputs"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "code" }
+    ]
+  }
+}

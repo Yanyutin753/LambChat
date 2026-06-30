@@ -5,11 +5,9 @@ API 入口点。
 """
 
 import asyncio
-import inspect
 import warnings
 from collections import OrderedDict
 from contextlib import asynccontextmanager
-from importlib import import_module
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -21,6 +19,10 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from src.api.middleware.auth import AuthMiddleware
 from src.api.middleware.tracing import TracingMiddleware
 from src.api.middleware.user_context import UserContextMiddleware
+from src.api.plugin_lifecycle import (
+    PLUGIN_LIFECYCLE_HOOK_TIMEOUT_SECONDS,
+    run_plugin_lifecycle_hooks,
+)
 from src.api.routes import notification, share, upload
 from src.api.routes.registry import register_builtin_plugin_routes, register_core_routes
 from src.frontend_resolution import resolve_frontend_target
@@ -40,7 +42,7 @@ from src.infra.share.seo import (
 from src.infra.task.constants import HEARTBEAT_TIMEOUT
 from src.kernel.config import initialize_settings, settings
 from src.kernel.extensions import PluginRuntime
-from src.kernel.extensions.registry import LifecyclePhase, PluginLifecycleHookRegistration
+from src.kernel.extensions.registry import LifecyclePhase
 
 # Suppress SyntaxWarning from oss2 SDK (invalid escape sequence in their source)
 warnings.filterwarnings("ignore", message=".*invalid escape sequence.*", category=SyntaxWarning)
@@ -71,7 +73,6 @@ _LIFESPAN_BACKGROUND_TASK_NAMES = (
     "feishu_task",
 )
 _STALE_TASK_CLEANUP_RECHECK_DELAY_SECONDS = max(5.0, HEARTBEAT_TIMEOUT * 2 + 5)
-PLUGIN_LIFECYCLE_HOOK_TIMEOUT_SECONDS = 5.0
 
 
 def _is_body_limit_exempt(scope: Scope) -> bool:
@@ -520,49 +521,13 @@ def _attach_plugin_runtime_to_scheduler(app: FastAPI) -> None:
     _attach_plugin_runtime_to_runtime_guards(app)
 
 
-def _resolve_plugin_lifecycle_hook(registration: PluginLifecycleHookRegistration):
-    module_name, separator, callable_name = registration.module.partition(":")
-    if not separator or not callable_name:
-        raise ValueError(
-            f"plugin lifecycle hook must use module:callable syntax: {registration.module}"
-        )
-    module = import_module(module_name)
-    hook_callable = getattr(module, callable_name)
-    if not callable(hook_callable):
-        raise TypeError(f"plugin lifecycle hook is not callable: {registration.module}")
-    return hook_callable
-
-
-async def _invoke_plugin_lifecycle_hook(
-    registration: PluginLifecycleHookRegistration,
-) -> None:
-    hook_callable = _resolve_plugin_lifecycle_hook(registration)
-    signature = inspect.signature(hook_callable)
-    required_positionals = [
-        parameter
-        for parameter in signature.parameters.values()
-        if parameter.default is inspect.Parameter.empty
-        and parameter.kind
-        in {
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        }
-    ]
-    if required_positionals:
-        result = hook_callable(registration)
-    else:
-        result = hook_callable()
-    if inspect.isawaitable(result):
-        await result
-
-
 async def _run_plugin_lifecycle_hooks(app: FastAPI, phase: LifecyclePhase) -> None:
     runtime = getattr(app.state, "plugin_runtime", None)
     if not isinstance(runtime, PluginRuntime):
         return
-    results = await runtime.execute_lifecycle_hooks(
+    results = await run_plugin_lifecycle_hooks(
+        runtime,
         phase=phase,
-        executor=_invoke_plugin_lifecycle_hook,
         timeout_seconds=PLUGIN_LIFECYCLE_HOOK_TIMEOUT_SECONDS,
     )
     if not results:
@@ -579,6 +544,13 @@ async def _run_plugin_lifecycle_hooks(app: FastAPI, phase: LifecyclePhase) -> No
             result.elapsed_ms,
             f": {result.error}" if result.error else "",
         )
+
+
+async def _start_runtime_services_for_app(app: FastAPI) -> None:
+    await start_runtime_services(
+        plugin_runtime=getattr(app.state, "plugin_runtime", None),
+        plugin_runtime_state_storage=getattr(app.state, "plugin_runtime_state_storage", None),
+    )
 
 
 @asynccontextmanager
@@ -604,7 +576,7 @@ async def lifespan(app: FastAPI):
     import logging
 
     from src.infra.logging.filter import TraceFilter
-    from src.infra.logging.formatter import ColoredFormatter
+    from src.infra.logging.formatter import build_log_formatter
 
     access_logger = logging.getLogger("uvicorn.access")
     access_logger.setLevel(logging.INFO)
@@ -612,9 +584,9 @@ async def lifespan(app: FastAPI):
     access_handler = logging.StreamHandler()
     # 使用项目相同的格式和 ColoredFormatter
     access_handler.setFormatter(
-        ColoredFormatter(
-            fmt=settings.LOG_FORMAT,
-            datefmt=settings.LOG_DATE_FORMAT,
+        build_log_formatter(
+            settings.LOG_FORMAT,
+            settings.LOG_DATE_FORMAT,
         )
     )
     # 添加 TraceFilter 以支持 trace_info
@@ -649,7 +621,7 @@ async def lifespan(app: FastAPI):
     await _run_plugin_lifecycle_hooks(app, "startup")
 
     # 启动分布式运行时监听器（任务/设置/模型/记忆/WebSocket）
-    await start_runtime_services()
+    await _start_runtime_services_for_app(app)
     logger.info("Runtime distributed listeners started")
 
     # 后台恢复/清理残留任务；恢复逻辑自身有分布式锁与 heartbeat 判断。

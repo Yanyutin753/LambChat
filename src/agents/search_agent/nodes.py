@@ -39,6 +39,7 @@ from src.agents.search_agent.prompt import (
 )
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
+    ArtifactDeliveryMiddleware,
     EnvVarPromptMiddleware,
     ImageUrlToBase64Middleware,
     MCPQuotaMiddleware,
@@ -107,6 +108,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         model_id=model_id,
         model_config=resolved_model_config,
         thinking=thinking_config,
+        streaming=False,
     )
     llm_init_time = time.time() - llm_start
     logger.debug(f"[Agent] LLM init: {llm_init_time * 1000:.3f}ms")
@@ -168,7 +170,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 过滤工具（懒加载 MCP 工具）
     filtered_tools = None
-    if settings.ENABLE_MCP:
+    if hasattr(context, "get_tools") and hasattr(context, "filter_tools"):
         await context.get_tools()
         filtered_tools = context.filter_tools() or None
 
@@ -202,6 +204,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
         MCPQuotaMiddleware(user_id=context.user_id),
         ToolResultBinaryMiddleware(base_url=search_base_url),
+        ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
         SubagentActivityMiddleware(backend=backend),
     ]
     if image_url_to_base64:
@@ -240,6 +243,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     )
     user_middleware.append(MCPQuotaMiddleware(user_id=context.user_id))
     user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
+    user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     if image_url_to_base64:
         user_middleware.append(ImageUrlToBase64Middleware())
     # Prompt sections: one SectionPromptMiddleware instance, multiple ordered blocks.
@@ -318,6 +322,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             disabled_skills=configurable.get("disabled_skills"),
             enabled_skills=configurable.get("enabled_skills"),
             base_url=configurable.get("base_url", ""),  # 传递 base_url 给工具使用
+            session_id=state.get("session_id"),
             trace_id=getattr(presenter, "trace_id", None),
             presenter=presenter,  # 传递 presenter 给工具调用
         ),
@@ -427,7 +432,11 @@ async def _create_backend_and_prompt(
     if not settings.ENABLE_SANDBOX:
         # 非沙箱模式：使用持久化 backend（PostgreSQL 或 MongoDB，由 store 决定）
         logger.info(f"Sandbox disabled, using PersistentBackend for assistant: {assistant_id}")
-        backend_factory = create_persistent_backend_factory(assistant_id, user_id=user_id)
+        backend_factory = create_persistent_backend_factory(
+            assistant_id,
+            user_id=user_id,
+            session_id=state.get("session_id", str(uuid.uuid4())),
+        )
         prompt = DEFAULT_SYSTEM_PROMPT
         return backend_factory, prompt, store, None, None
 

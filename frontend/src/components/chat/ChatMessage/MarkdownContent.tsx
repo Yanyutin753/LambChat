@@ -515,7 +515,7 @@ export const MarkdownContent = memo(function MarkdownContent({
               <ImageWithSkeleton
                 src={resolvedSrc}
                 alt={alt}
-                loading="lazy"
+                loading="eager"
                 className="max-w-full h-auto rounded-lg shadow hover:opacity-90 transition-opacity"
                 onClick={() => {
                   if (!resolvedSrc) return;

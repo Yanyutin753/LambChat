@@ -1,0 +1,33 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Iteration Template Parts"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "loop",
+          "data": {
+            "type": "iteration",
+            "title": "Render Items",
+            "iterator_selector": ["items"],
+            "itemTemplate": [
+              { "type": "text", "text": "{{index}}" },
+              ":",
+              { "type": "markdown", "data": "{{item.name}}" },
+              { "type": "image", "url": "https://example.invalid/ignored.png" }
+            ],
+            "output_key": "rendered_items"
+          }
+        },
+        { "id": "answer", "data": { "type": "answer", "title": "Answer", "answer": "{{rendered_items_count}}" } }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "loop" },
+        { "id": "e2", "source": "loop", "target": "answer" }
+      ]
+    }
+  }
+}

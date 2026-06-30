@@ -6,7 +6,7 @@ import pytest
 from src.infra.mcp.storage_operations import StorageOperations
 
 
-def test_mcp_tool_policy_schema_preserves_allowed_roles_and_quotas() -> None:
+def test_mcp_tool_policy_schema_preserves_allowed_roles_quotas_and_inline_exposure() -> None:
     from src.kernel.schemas.mcp import MCPRoleQuota, MCPToolPolicy
 
     policy = MCPToolPolicy.model_validate(
@@ -15,11 +15,13 @@ def test_mcp_tool_policy_schema_preserves_allowed_roles_and_quotas() -> None:
             "role_quotas": {
                 "admin": {"daily_limit": 3, "weekly_limit": 10},
             },
+            "inline_exposure": True,
         }
     )
 
     assert policy.allowed_roles == ["admin", "user"]
     assert policy.role_quotas == {"admin": MCPRoleQuota(daily_limit=3, weekly_limit=10)}
+    assert policy.inline_exposure is True
 
 
 @pytest.mark.asyncio
@@ -48,6 +50,7 @@ async def test_mcp_storage_round_trips_tool_policy(monkeypatch: pytest.MonkeyPat
         tool_name="image_generate",
         allowed_roles=["admin"],
         role_quotas={"admin": MCPRoleQuota(daily_limit=2)},
+        inline_exposure=True,
         updated_by="admin-1",
     )
 
@@ -56,6 +59,7 @@ async def test_mcp_storage_round_trips_tool_policy(monkeypatch: pytest.MonkeyPat
     assert policy is not None
     assert policy.allowed_roles == ["admin"]
     assert policy.role_quotas["admin"].daily_limit == 2
+    assert policy.inline_exposure is True
 
 
 @pytest.mark.asyncio
@@ -655,6 +659,7 @@ class _BulkPolicyStorage(StorageOperations):
                     server_name="alpha",
                     tool_name="search",
                     disabled=True,
+                    inline_exposure=True,
                 )
             }
         }
@@ -668,6 +673,7 @@ async def test_effective_config_loads_system_tool_policies_in_bulk() -> None:
 
     assert storage.bulk_calls == [["alpha", "beta"]]
     assert config["mcpServers"]["alpha"]["tool_policies"]["search"]["disabled"] is True
+    assert config["mcpServers"]["alpha"]["tool_policies"]["search"]["inline_exposure"] is True
     assert "tool_policies" not in config["mcpServers"]["beta"]
 
 

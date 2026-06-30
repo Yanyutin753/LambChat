@@ -51,6 +51,8 @@ static/
 *.tsbuildinfo
 plugin-data/*/state/runtime.json
 plugin-data/*/state/*.jsonl
+plugin-data/*/state/
+plugin-data/workflow/
 
 # Redis
 dump.rdb
@@ -99,7 +101,10 @@ docs/.vitepress/cache/
 # YubbChat (external project, not part of this repo)
 YubbChat/
 .codex
-/scripts/
+/scripts/*
+!/scripts/create_daytona_snapshot.py
+!/scripts/create_e2b_template.py
+!/scripts/workflow_container_acceptance.py
 docs/docs/.vitepress/
 .gitignore
 k8s/lambchat-secret.yaml

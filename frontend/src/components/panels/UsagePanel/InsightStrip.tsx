@@ -95,11 +95,10 @@ export function InsightStrip({
             </span>
           </div>
           <p
-            className={`flex items-center gap-1.5 truncate text-[15px] font-extrabold tabular-nums leading-tight text-theme-text sm:text-base ${
+            className={`truncate text-[15px] font-extrabold tabular-nums leading-tight text-theme-text sm:text-base ${
               item.tone ?? ""
             }`}
           >
-            <span className="inline-block h-[6px] w-[6px] shrink-0 rounded-full bg-[var(--theme-primary)]" />
             {item.value}
           </p>
           <p className="mt-1 truncate text-[10px] leading-snug text-theme-text-tertiary">

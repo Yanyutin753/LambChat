@@ -310,7 +310,7 @@ export function SessionScheduledTasksButton({
       onClick={togglePanel}
       className={
         className ??
-        "absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-sm backdrop-blur transition-colors hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text"
+        "absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-sm transition-colors hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text"
       }
       title={t("scheduledTask.conversationTasks", "会话定时任务")}
     >

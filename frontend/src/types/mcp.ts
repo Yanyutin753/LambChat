@@ -113,6 +113,7 @@ export interface MCPToolInfo {
   allowed_roles?: string[];
   role_quotas?: Record<string, MCPRoleQuota>;
   policy_configured?: boolean;
+  inline_exposure?: boolean;
 }
 
 // MCP Tool Parameter Info
@@ -144,6 +145,7 @@ export interface MCPToolPolicy {
   server_name?: string;
   tool_name?: string;
   disabled?: boolean;
+  inline_exposure?: boolean;
   allowed_roles?: string[];
   role_quotas?: Record<string, MCPRoleQuota>;
   created_at?: string;
@@ -153,6 +155,7 @@ export interface MCPToolPolicy {
 
 export interface MCPToolPolicyUpdate {
   disabled?: boolean;
+  inline_exposure?: boolean;
   allowed_roles?: string[];
   role_quotas?: Record<string, MCPRoleQuota>;
 }

@@ -143,23 +143,20 @@ function SharedPageLanguageToggle() {
         <Languages size={18} className="text-stone-600 dark:text-stone-300" />
       </button>
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-40 rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 py-1 z-50">
+        <div className="absolute right-0 mt-2 w-40 rounded-lg bg-theme-bg-card shadow-lg border border-theme-border py-1 z-50">
           {LANGUAGES.map((lang) => (
             <button
               key={lang.code}
               onClick={() => selectLanguage(lang.code)}
               className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between transition-colors ${
                 i18n.language === lang.code
-                  ? "bg-stone-100 dark:bg-stone-700 text-stone-900 dark:text-stone-100"
-                  : "text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/50"
+                  ? "bg-theme-bg-subtle text-theme-text"
+                  : "text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text"
               }`}
             >
               <span>{lang.nativeName}</span>
               {i18n.language === lang.code && (
-                <Check
-                  size={16}
-                  className="text-stone-700 dark:text-stone-200"
-                />
+                <Check size={16} className="text-theme-text" />
               )}
             </button>
           ))}
@@ -514,9 +511,9 @@ export function SharedPage() {
   // Auth required error
   if (error === "auth_required") {
     return (
-      <div className="min-h-dvh bg-[#faf9f7] dark:bg-[#0f0e0d] flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-theme-bg text-theme-text flex items-center justify-center p-4">
         <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl shadow-stone-900/5 dark:shadow-black/30 border border-stone-200/60 dark:border-stone-800/60 overflow-hidden">
+          <div className="bg-theme-bg-card rounded-2xl shadow-xl shadow-stone-900/5 dark:shadow-black/30 border border-theme-border overflow-hidden">
             <div className="p-8 text-center">
               <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
                 <Lock
@@ -524,7 +521,7 @@ export function SharedPage() {
                   className="text-amber-500 dark:text-amber-400"
                 />
               </div>
-              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif mb-2 font-serif tracking-tight">
+              <h1 className="text-xl font-semibold text-theme-text font-serif mb-2 font-serif tracking-tight">
                 {t("share.loginRequired")}
               </h1>
               <p className="text-stone-500 dark:text-stone-400 mb-8 leading-relaxed">
@@ -547,9 +544,9 @@ export function SharedPage() {
   // Not found error
   if (error === "not_found" || !data) {
     return (
-      <div className="min-h-dvh bg-[#faf9f7] dark:bg-[#0f0e0d] flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-theme-bg text-theme-text flex items-center justify-center p-4">
         <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl shadow-stone-900/5 dark:shadow-black/30 border border-stone-200/60 dark:border-stone-800/60 overflow-hidden">
+          <div className="bg-theme-bg-card rounded-2xl shadow-xl shadow-stone-900/5 dark:shadow-black/30 border border-theme-border overflow-hidden">
             <div className="p-8 text-center">
               <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
                 <AlertCircle
@@ -557,7 +554,7 @@ export function SharedPage() {
                   className="text-red-500 dark:text-red-400"
                 />
               </div>
-              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif mb-2 font-serif tracking-tight">
+              <h1 className="text-xl font-semibold text-theme-text font-serif mb-2 font-serif tracking-tight">
                 {t("share.notFound")}
               </h1>
               <p className="text-stone-500 dark:text-stone-400 mb-8 leading-relaxed">
@@ -579,11 +576,11 @@ export function SharedPage() {
 
   // Main content — editorial blog layout
   return (
-    <div className="flex flex-col bg-[#faf9f7] dark:bg-[#0f0e0d] min-h-dvh font-sans">
+    <div className="flex flex-col bg-theme-bg text-theme-text min-h-dvh font-sans border-r border-theme-border">
       {/* Top bar — matching landing page Navbar style */}
       <header
         data-yields-sidebar
-        className="safe-area-top fixed top-0 inset-x-0 z-50 bg-white/80 dark:bg-stone-950/80 border-b border-stone-100/60 dark:border-stone-800/40"
+        className="safe-area-top fixed top-0 inset-x-0 z-50 border-b border-theme-border bg-[color-mix(in_srgb,var(--theme-bg-card)_82%,transparent)] border-r border-theme-border"
       >
         {/* Scroll progress bar */}
         <div
@@ -649,7 +646,7 @@ export function SharedPage() {
             </div>
 
             {/* Title */}
-            <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-light text-stone-900 dark:text-[#e8e6e1] text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
+            <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-light text-theme-text text-center leading-[1.2] tracking-[-0.01em] max-w-3xl mx-auto font-serif">
               {sessionTitle}
             </h1>
 
@@ -791,9 +788,21 @@ export function SharedPage() {
               )}
           </header>
 
+          {/* Conversation divider */}
+          <div
+            data-share-conversation-divider
+            className="flex items-center gap-3 px-4 py-8 sm:px-6 sm:py-12"
+          >
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
+            <span className="flex-shrink-0 text-[10px] font-semibold tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 font-mono tabular-nums select-none">
+              {t("share.conversationHistory")}
+            </span>
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
+          </div>
+
           {/* Messages */}
           {messages.length === 0 ? (
-            <div className="text-center py-24 sm:py-32">
+            <div className="text-center pb-24 pt-12 sm:pb-32 sm:pt-16">
               <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-stone-100 dark:bg-stone-800/60 flex items-center justify-center">
                 <MessageSquare
                   size={22}
@@ -805,16 +814,7 @@ export function SharedPage() {
               </p>
             </div>
           ) : (
-            <div className="py-8 sm:py-12">
-              {/* Opening divider */}
-              <div className="flex items-center gap-3 mb-8 sm:mb-12">
-                <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
-                <span className="flex-shrink-0 text-[10px] font-semibold tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 font-mono tabular-nums select-none">
-                  {t("share.conversationHistory")}
-                </span>
-                <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
-              </div>
-
+            <div className="pb-8 sm:pb-12">
               {messages.map((message, index) => (
                 <div
                   key={message.id}
@@ -844,19 +844,19 @@ export function SharedPage() {
 
       {/* Footer */}
       <footer className="safe-area-bottom relative mt-auto">
-        <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto px-5 sm:px-6">
+        <div className="max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 sm:px-6">
           {/* CTA card */}
-          <div className="relative mx-4 sm:mx-0 mb-10 sm:mb-14 rounded-2xl sm:rounded-3xl border border-stone-200/70 dark:border-stone-800/50 bg-gradient-to-br from-white/80 to-stone-50/60 dark:from-stone-900/60 dark:to-stone-950/40 overflow-hidden">
-            {/* Inner accent */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 sm:w-32 h-px bg-gradient-to-r from-transparent via-amber-400/30 dark:via-amber-500/15 to-transparent" />
-
-            <div className="py-8 sm:py-10 px-6 sm:px-8 flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
+          <div
+            data-share-footer-cta
+            className="mb-10 sm:mb-14 rounded-2xl border border-theme-border bg-[color-mix(in_srgb,var(--theme-bg-card)_82%,transparent)] shadow-sm"
+          >
+            <div className="flex flex-col items-center gap-5 px-5 py-7 sm:flex-row sm:gap-6 sm:px-7 sm:py-8">
               {/* Left text */}
-              <div className="flex-1 text-center sm:text-left">
-                <p className="text-[14px] sm:text-[15px] font-semibold text-stone-800 dark:text-stone-200 tracking-tight font-serif">
+              <div className="min-w-0 flex-1 text-center sm:text-left">
+                <p className="font-serif text-[15px] font-semibold tracking-tight text-theme-text">
                   {t("share.createYourOwn")}
                 </p>
-                <p className="mt-1 text-[12px] text-stone-400 dark:text-stone-500 font-serif">
+                <p className="mt-1.5 font-serif text-[12px] text-stone-500 dark:text-stone-500">
                   {APP_NAME} &middot; Open Source &middot; MIT
                 </p>
               </div>
@@ -864,10 +864,14 @@ export function SharedPage() {
               {/* Button */}
               <Link
                 to="/"
-                className="group flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-stone-900 dark:bg-stone-100 dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md font-serif"
+                aria-label={t("share.createYourOwn")}
+                className="group inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 font-serif text-[13px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-stone-800 active:scale-[0.98] dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white"
               >
                 <BrandLogo className="size-6" />
-                <BrandWordmark decorative className="h-5 w-auto" />
+                <BrandWordmark
+                  decorative
+                  className="h-5 w-auto max-w-[8.5rem]"
+                />
                 <svg
                   width="14"
                   height="14"
@@ -877,7 +881,7 @@ export function SharedPage() {
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="transition-transform duration-200 group-hover:translate-x-0.5"
+                  className="transition-transform duration-200 group-hover:translate-x-1"
                 >
                   <path d="M5 12h14" />
                   <path d="m12 5 7 7-7 7" />

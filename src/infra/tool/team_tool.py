@@ -335,6 +335,8 @@ async def create_agent_team(
     return await _json_dumps_result(
         {
             "success": True,
+            "entity_type": "team",
+            "action": action,
             "created": action == "created",
             "updated": action == "updated",
             "team_id": team.id,

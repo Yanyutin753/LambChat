@@ -1,0 +1,45 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Nested Condition Groups"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "branch",
+          "data": {
+            "type": "if-else",
+            "title": "Eligibility",
+            "conditions": [
+              { "variable": "tier", "operator": "equals", "value": "pro" },
+              {
+                "logicalOperator": "or",
+                "conditions": [
+                  { "variable": "region", "operator": "equals", "value": "us" },
+                  { "variable": "region", "operator": "equals", "value": "eu" }
+                ]
+              },
+              {
+                "combinator": "or",
+                "rules": [
+                  { "variable": "status", "operator": "equals", "value": "blocked" },
+                  { "variable": "status", "operator": "equals", "value": "deleted" }
+                ],
+                "negate": true
+              }
+            ]
+          }
+        },
+        { "id": "yes", "data": { "type": "answer", "title": "Yes", "answer": "Eligible" } },
+        { "id": "no", "data": { "type": "answer", "title": "No", "answer": "Fallback" } }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "branch" },
+        { "id": "e2", "source": "branch", "target": "yes", "sourceHandle": "true" },
+        { "id": "e3", "source": "branch", "target": "no", "sourceHandle": "false" }
+      ]
+    }
+  }
+}

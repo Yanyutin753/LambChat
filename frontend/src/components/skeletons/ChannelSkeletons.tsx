@@ -1,5 +1,6 @@
 import { SkeletonLine } from "./primitives";
 import { PanelHeaderSkeleton } from "./PanelHeaderSkeleton";
+import { PANEL_CARD_SKELETON_COUNT } from "./PanelSkeletonHelpers";
 
 /** Channels page: card grid matching SkillBaseCard (.scb) structure */
 export function ChannelsGridSkeleton() {
@@ -9,7 +10,7 @@ export function ChannelsGridSkeleton() {
       <div className="flex-1 overflow-y-auto py-4">
         <div className="mx-auto max-w-full">
           <div className="grid auto-grid-cols gap-4 p-3 sm:p-4">
-            {Array.from({ length: 12 }).map((_, i) => (
+            {Array.from({ length: PANEL_CARD_SKELETON_COUNT }).map((_, i) => (
               <div key={i} className="scb">
                 {/* Banner */}
                 <div

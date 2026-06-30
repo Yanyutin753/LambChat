@@ -122,10 +122,23 @@ class FastAgentContext:
                 f"(removed {len(db_disabled)} disabled names)"
             )
 
+            from src.agents.core.mcp_tool_exposure import split_mcp_tools_for_exposure
+
+            inline_mcp_tools, deferred_mcp_tools = split_mcp_tools_for_exposure(
+                mcp_tools,
+                getattr(self.mcp_manager, "_server_tool_policies", {}),
+            )
+            if inline_mcp_tools:
+                self.tools.extend(inline_mcp_tools)
+                logger.info(
+                    "[FastAgentContext] Inlined %d MCP tool(s) by policy",
+                    len(inline_mcp_tools),
+                )
+
             if (
                 settings.ENABLE_DEFERRED_TOOL_LOADING
-                and mcp_tools
-                and (len(self.tools) + len(mcp_tools)) > settings.DEFERRED_TOOL_THRESHOLD
+                and deferred_mcp_tools
+                and (len(self.tools) + len(deferred_mcp_tools)) > settings.DEFERRED_TOOL_THRESHOLD
             ):
                 from src.infra.tool.deferred_manager import (
                     DeferredToolManager,
@@ -135,7 +148,7 @@ class FastAgentContext:
                 pre_discovered = await restore_discovered_tools(self.session_id)
 
                 self.deferred_manager = DeferredToolManager(
-                    all_deferred_tools=mcp_tools,
+                    all_deferred_tools=deferred_mcp_tools,
                     session_id=self.session_id,
                     disabled_tools=self.disabled_tools,
                     disabled_mcp_tools=self.disabled_mcp_tools,
@@ -143,12 +156,12 @@ class FastAgentContext:
                     prompt_tool_limit=getattr(settings, "DEFERRED_TOOL_PROMPT_LIMIT", 40),
                 )
                 logger.info(
-                    f"[FastAgentContext] Deferred {len(mcp_tools)} MCP tools "
+                    f"[FastAgentContext] Deferred {len(deferred_mcp_tools)} MCP tools "
                     f"(builtin={len(self.tools)}, threshold={settings.DEFERRED_TOOL_THRESHOLD}, "
                     f"pre_restored={len(pre_discovered)})"
                 )
             else:
-                self.tools.extend(mcp_tools)
+                self.tools.extend(deferred_mcp_tools)
         except Exception as e:
             logger.error(f"[FastAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 

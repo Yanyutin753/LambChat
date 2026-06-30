@@ -57,6 +57,13 @@ def _normalize_zip_member_path(name: str, prefix: str) -> str | None:
     return normalized_name
 
 
+def _normalize_skill_file_path(path: str) -> str:
+    parts = path.replace("\\", "/").split("/")
+    if parts and parts[-1].lower() == "skill.md":
+        parts[-1] = "SKILL.md"
+    return "/".join(parts)
+
+
 def _get_skill_upload_max_size() -> tuple[int, int]:
     if get_s3_enabled():
         max_size_bytes = int(settings.S3_MAX_FILE_SIZE)
@@ -135,6 +142,7 @@ def _parse_zip_skill_preview(zip_content: bytes) -> list[dict]:
                     f"ZIP member too large: {name} "
                     f"({info.file_size} bytes, max {member_max_size} bytes)"
                 )
+            rel_path = _normalize_skill_file_path(rel_path)
             valid_paths.append(rel_path)
             if is_binary_file(rel_path):
                 binary_paths.add(rel_path)
@@ -225,7 +233,7 @@ def _parse_zip_skills(
             else:
                 try:
                     text = raw.decode("utf-8")
-                    text_files[name] = text
+                    text_files[_normalize_skill_file_path(name)] = text
                 except UnicodeDecodeError:
                     # 即使通过了扩展名检查，UTF-8 解码失败也当二进制
                     binary_files[name] = raw
@@ -233,7 +241,7 @@ def _parse_zip_skills(
         # 去掉顶层目录前缀
         if prefix:
             text_files = {
-                normalized: content
+                _normalize_skill_file_path(normalized): content
                 for key, content in text_files.items()
                 if (normalized := _normalize_zip_member_path(key, prefix))
             }

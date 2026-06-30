@@ -503,10 +503,13 @@
     "deleteSuccess": "Configuration deleted",
     "deleteTitle": "Delete Channel Instance",
     "description": "Connect your favorite chat platforms to LambChat",
+    "disabled": "Disabled",
     "disconnected": "Disconnected",
     "enabled": "Enable Channel",
     "enabledDesc": "Enable or disable this channel",
     "fieldRequired": "{{field.title}} is required",
+    "instanceCount_one": "{{count}} instance",
+    "instanceCount_other": "{{count}} instances",
     "instanceName": "Instance Name",
     "instanceNamePlaceholder": "Enter instance name",
     "leaveEmpty": "leave empty to keep current value",
@@ -532,7 +535,9 @@
     "testError": "Failed to test connection",
     "testFailed": "Connection failed",
     "testSuccess": "Connection successful",
-    "title": "Channels"
+    "title": "Channels",
+    "webhookShort": "Hook",
+    "websocketShort": "WS"
   },
   "chat": {
     "addMoreFiles": "Add more files",
@@ -540,11 +545,11 @@
     "attachFile": "Attach file",
     "cancelled": "Cancelled",
     "commands": {
-      "runSkillsCount": "{{count}} skills for next message",
-      "tools": "Tools",
-      "team": "Team",
+      "agent": "Agent",
       "persona": "Persona",
-      "agent": "Agent"
+      "runSkillsCount": "{{count}} skills for next message",
+      "team": "Team",
+      "tools": "Tools"
     },
     "dropFilesHere": "Drop files here to upload",
     "enterToSend": "to send",
@@ -561,13 +566,13 @@
       "clear": "Clear goal",
       "command": "Goal",
       "completed": "Completed",
+      "description": "Set conversation goal",
       "duration": "Duration",
       "placeholder": "Enter your goal…",
       "required": "Enter a goal",
       "running": "Running",
       "runningStatus": "Running",
-      "startedAt": "Started",
-      "description": "Set conversation goal"
+      "startedAt": "Started"
     },
     "goodAfternoon": "Good afternoon, {{name}}",
     "goodEvening": "Good evening, {{name}}",
@@ -591,6 +596,7 @@
       "askHumanYourAnswer": "Your answer",
       "assistant": "Assistant",
       "cancelled": "Generation cancelled",
+      "codePreview": "Code preview",
       "collapse": "Collapse",
       "complete": "complete",
       "copied": "Copied!",
@@ -649,6 +655,7 @@
       "toolEditRemoved": "Removed",
       "toolEnvVar": "Env Var",
       "toolEnvVarDelete": "Delete Variable",
+      "toolEnvVarDeleteAll": "Delete All Variables",
       "toolEnvVarList": "List Variables",
       "toolEnvVarSet": "Set Variable",
       "toolExecute": "Run",
@@ -659,6 +666,8 @@
       "toolFileCount_one": "{{count}} file",
       "toolFileCount_other": "{{count}} files",
       "toolGlob": "Glob",
+      "toolImageAnalyze": "Image Analyze",
+      "toolImageAnalyzeCount": "{{count}} images",
       "toolImageCount": "{{count}} images",
       "toolImageGenerate": "Generate",
       "toolImageGenerateDesc": "AI-powered image generation",
@@ -693,7 +702,11 @@
       "toolScheduledTask": "Task",
       "toolScheduledTaskCreate": "Create Task",
       "toolScheduledTaskDelete": "Delete Task",
+      "toolScheduledTaskGet": "Get Task",
       "toolScheduledTaskList": "List Tasks",
+      "toolScheduledTaskPause": "Pause Task",
+      "toolScheduledTaskResume": "Resume Task",
+      "toolScheduledTaskRun": "Run Task",
       "toolScheduledTaskUpdate": "Update Task",
       "toolSearch": "Search",
       "toolSearchAlreadyAvailable": "Available",
@@ -704,6 +717,9 @@
       "toolSearchTools": "Search Tools",
       "toolSuccess": "Command succeeded",
       "toolTaskName": "Name",
+      "toolTransferFile": "Transfer File",
+      "toolTransferPath": "Transfer Path",
+      "toolUploadUrlToSandbox": "Upload URL To Sandbox",
       "toolVarCount": "{{count}} variables",
       "toolWrite": "Write"
     },
@@ -733,6 +749,10 @@
     "shiftEnterNewLine": "for new line",
     "skillCreated": "Skill created",
     "skillUpdated": "Skill updated",
+    "slashCommands": {
+      "commands": "Commands",
+      "skills": "Skills"
+    },
     "status": {
       "cancelled": "Cancelled"
     },
@@ -754,11 +774,7 @@
     "waitingForUpload": "Please wait for file upload to complete",
     "welcomeRefresh": "Refresh",
     "welcomeSubtitle": "What can I do for you?",
-    "welcomeSuggestions": "Suggestions",
-    "slashCommands": {
-      "commands": "Commands",
-      "skills": "Skills"
-    }
+    "welcomeSuggestions": "Suggestions"
   },
   "common": {
     "about": "About",
@@ -1435,6 +1451,8 @@
       "createServer": "Create Server",
       "dailyLimit": "Daily limit",
       "enabled": "Enabled",
+      "disableInlineExposure": "Use on-demand search",
+      "enableInlineExposure": "Expose directly as function",
       "envKeys": "Environment Variables",
       "envKeysDescription": "Select environment variables to inject into this MCP server process. These must be pre-defined in your environment variable settings.",
       "envKeysPlaceholder": "Select environment variables...",
@@ -1442,6 +1460,8 @@
       "envVars": "Environment Variables",
       "headerNamePlaceholder": "Header-Name",
       "httpHeaders": "HTTP Headers",
+      "inlineExposure": "Expose directly as function",
+      "inlineExposureDescription": "Use this for high-frequency tools. When off, the tool is loaded on demand through search_tools.",
       "keyPlaceholder": "KEY",
       "noEnvVars": "No environment variables defined yet. Add them in Profile Settings.",
       "noHeaders": "No custom headers",
@@ -1562,6 +1582,35 @@
   "mermaidViewer": {
     "hideCode": "Hide code",
     "showCode": "Show code"
+  },
+  "workflowPlugin": {
+    "chat": {
+      "entry": "Entry",
+      "exit": "Exit",
+      "inputOverrideSet": "Input override set",
+      "inputs": "Inputs",
+      "none": "none",
+      "outputs": "Outputs",
+      "selectWorkflow": "Workflow"
+    },
+    "nav": {
+      "editorLabel": "Workflow editor",
+      "label": "Workflows",
+      "runLabel": "Workflow run"
+    },
+    "project": {
+      "defaultWorkflow": "Default workflow",
+      "defaultWorkflowVersion": "Default workflow version"
+    },
+    "scheduledTask": {
+      "workflow": "Workflow",
+      "workflowVersion": "Workflow version"
+    },
+    "session": {
+      "selectedWorkflow": "Selected workflow",
+      "selectedWorkflowVersion": "Selected workflow version",
+      "selectedWorkflowInput": "Selected workflow input"
+    }
   },
   "nav": {
     "adminMarketplace": "Admin Marketplace",
@@ -2056,6 +2105,14 @@
       "description": "Inspect Plugin Runtime state, static contributions, resource ownership, and uninstall dry-run plans for built-in plugins.",
       "title": "Plugin Runtime"
     },
+    "workflows": {
+      "description": "Create, compose, version, run, and debug workflows.",
+      "editorDescription": "Edit a workflow graph with explicit inputs, outputs, nodes, and run traces.",
+      "editorTitle": "Workflow Editor",
+      "runDescription": "Inspect a workflow run trace, node events, output, errors, and approval state.",
+      "runTitle": "Workflow Run",
+      "title": "Workflows"
+    },
     "mcp": {
       "description": "Manage Model Context Protocol server connections. Connect external tools, databases, and services to extend AI agent capabilities.",
       "title": "MCP Server Management"
@@ -2126,6 +2183,15 @@
     "CHECKPOINT_PG_POOL_MIN_SIZE": "Checkpoint PostgreSQL connection pool minimum size",
     "CHECKPOINT_PG_PORT": "PostgreSQL port for checkpoint storage",
     "CHECKPOINT_PG_USER": "PostgreSQL username for checkpoint storage. Leave empty to use POSTGRES_USER.",
+    "CUBE_API_URL": "CubeSandbox API URL, for example http://127.0.0.1:13000",
+    "CUBE_AUTO_PAUSE": "Automatically pause CubeSandbox sandboxes on timeout instead of destroying them",
+    "CUBE_AUTO_RESUME": "Automatically resume paused CubeSandbox sandboxes on next connect",
+    "CUBE_PROXY_NODE_IP": "CubeProxy node IP. For local development this is usually 127.0.0.1 and bypasses cube.app DNS",
+    "CUBE_PROXY_PORT_HTTP": "CubeProxy HTTP port. For local development this is usually 11080",
+    "CUBE_REQUEST_TIMEOUT": "CubeSandbox control-plane request timeout in seconds",
+    "CUBE_SANDBOX_DOMAIN": "CubeSandbox sandbox domain suffix, for example cube.app",
+    "CUBE_TEMPLATE": "CubeSandbox template ID",
+    "CUBE_TIMEOUT": "CubeSandbox sandbox timeout in seconds",
     "DAYTONA_API_KEY": "Daytona API Key",
     "DAYTONA_AUTO_ARCHIVE_INTERVAL": "Daytona sandbox auto-archive interval in minutes",
     "DAYTONA_AUTO_DELETE_INTERVAL": "Daytona sandbox auto-delete interval in minutes after being archived",
@@ -2149,6 +2215,7 @@
     "ENABLE_CODE_INTERPRETER": "Enable experimental QuickJS code interpreter for agent runs",
     "ENABLE_DEFERRED_TOOL_LOADING": "Enable deferred tool loading for MCP tools (reduces initial context size)",
     "ENABLE_EVENT_MERGER": "Enable event merger to reduce event count",
+    "ENABLE_IMAGE_ANALYSIS": "Enable image analysis tool for agents",
     "ENABLE_IMAGE_GENERATION": "Enable image generation tool for agents",
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "Allow reveal/download flows to fall back to the server's local filesystem when backend download fails",
     "ENABLE_MCP": "Enable MCP feature",
@@ -2171,6 +2238,9 @@
     "FILE_UPLOAD_MAX_SIZE_DOCUMENT": "Maximum document file size in MB",
     "FILE_UPLOAD_MAX_SIZE_IMAGE": "Maximum image file size in MB",
     "FILE_UPLOAD_MAX_SIZE_VIDEO": "Maximum video file size in MB",
+    "IMAGE_ANALYSIS_MAX_ATTEMPTS": "Maximum image analysis model call attempts",
+    "IMAGE_ANALYSIS_MODEL_ID": "VLM model config ID used by the image_analyze tool. Choose a model marked as vision-capable in model settings.",
+    "IMAGE_ANALYSIS_RETRY_DELAY": "Image analysis retry base wait time in seconds (exponential backoff starting value)",
     "IMAGE_GENERATION_API_KEY": "Image generation API key",
     "IMAGE_GENERATION_BASE_URL": "OpenAI-compatible image API base URL",
     "IMAGE_GENERATION_MODEL": "Image generation model name",
@@ -2345,6 +2415,7 @@
     "agent": "Agent",
     "authenticated": "Login Required",
     "authenticatedDesc": "Only logged-in users can view",
+    "cancelEdit": "Cancel edit",
     "conversationHistory": "Conversation History",
     "copyLink": "Copy Link",
     "createChat": "Create chat",
@@ -2356,6 +2427,7 @@
     "deleteShare": "Unshare",
     "deleteSuccess": "Share removed",
     "deselectAll": "Deselect all",
+    "editShare": "Edit share",
     "events": "messages",
     "existingShares": "Existing Shares",
     "fullSession": "Full Session",
@@ -2385,6 +2457,7 @@
     "round": "Round {{number}}",
     "run": "Run",
     "runNumber": "Run {{number}}",
+    "saveShare": "Save changes",
     "selectAll": "Select all",
     "selectRuns": "Select conversations to share",
     "session": "Session",
@@ -2396,6 +2469,8 @@
     "taskPending": "Pending",
     "taskRunning": "Running",
     "title": "Share Session",
+    "updateFailed": "Failed to update share",
+    "updateSuccess": "Share updated",
     "userMessage": "(User Message: {{message}})",
     "visibility": "Access Control"
   },
@@ -3005,6 +3080,7 @@
       "${cat}": "{{cat}}",
       "builtin": "Built-in",
       "human": "Human",
+      "internal": "Internal",
       "mcp": "MCP",
       "sandbox": "Sandbox",
       "skill": "Skills"
@@ -3013,8 +3089,10 @@
     "done": "Done",
     "loadFailed": "Failed to load tools",
     "noDescription": "No description",
+    "noMatchingTools": "No tools match your search",
     "noTools": "No tools available",
     "parameters": "Parameters",
+    "searchPlaceholder": "Search tools...",
     "selectAll": "Select all",
     "selected": "{{enabled}} of {{total}} selected",
     "systemDisabled": "System Disabled",

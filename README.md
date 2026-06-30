@@ -25,7 +25,7 @@
 ## ✨ Highlights
 
 - 🤖 **Agent Runtime** — Deep agent graphs, sub-agents, thinking mode, streaming output, and human approval
-- 🔧 **MCP & Tools** — System/user MCP, encrypted secrets, sandbox execution (Daytona/E2B)
+- 🔧 **MCP & Tools** — System/user MCP, encrypted secrets, sandbox execution (Daytona/E2B/CubeSandbox)
 - 🧠 **Memory & Skills** — Cross-session memory, skill marketplace, GitHub sync, persona presets
 - 📱 **Full-Stack Client** — React 19 web, Capacitor mobile, Tauri desktop, PWA support
 - 🚀 **Production Ready** — FastAPI, auth/RBAC, realtime sync, Docker/K8s deployment
@@ -142,7 +142,7 @@ LambChat keeps the product surface and runtime infrastructure in one deployable 
 - **Dynamic tool caching** with manual refresh.
 - **Multiple transports** including SSE and HTTP.
 - **Permission control** at the transport and role level.
-- **Sandbox integration** with Daytona and E2B.
+- **Sandbox integration** with Daytona, E2B, and CubeSandbox.
 - **Built-in tools** for file reveal, project reveal, upload URLs, env vars, audio transcription, persona presets, and more.
 
 </details>
@@ -261,7 +261,7 @@ TASK_BACKEND=arq  # local or arq
 | Database | MongoDB connection, optional PostgreSQL |
 | Storage | Persistent storage, S3/OSS/MinIO/COS |
 | Security | Encryption and security policies |
-| Sandbox | Code sandbox settings for Daytona and E2B |
+| Sandbox | Code sandbox settings for Daytona, E2B, and CubeSandbox |
 | Skills | Skill system configuration |
 | Tools | Tool system settings |
 | Tracing | LangSmith and tracing |

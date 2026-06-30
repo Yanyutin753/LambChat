@@ -435,7 +435,7 @@ export function ExcalidrawFullscreenViewer({
             <span className="hidden sm:inline">{t("documents.download")}</span>
           </ViewerTopBarButton>
           {showDownloadMenu && (
-            <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-white/10 bg-black/80 backdrop-blur-sm shadow-lg overflow-hidden">
+            <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-white/10 bg-black/80 shadow-lg overflow-hidden">
               <ViewerDropdownMenuItem
                 variant="dark"
                 onClick={(e) => {

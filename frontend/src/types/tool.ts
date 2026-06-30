@@ -3,7 +3,13 @@
 // ============================================
 
 // Tool Category
-export type ToolCategory = "builtin" | "skill" | "human" | "mcp" | "sandbox";
+export type ToolCategory =
+  | "builtin"
+  | "skill"
+  | "human"
+  | "mcp"
+  | "sandbox"
+  | "internal";
 
 // Tool Parameter Info
 export interface ToolParamInfo {
@@ -19,7 +25,7 @@ export interface ToolInfo {
   name: string;
   description: string;
   category: ToolCategory;
-  server?: string; // MCP server name for MCP tools
+  server?: string; // Server/source name for MCP or internal tools
   parameters: ToolParamInfo[];
   system_disabled?: boolean; // Whether this tool is disabled at system level (admin controlled)
   user_disabled?: boolean; // Whether this tool is disabled by the user

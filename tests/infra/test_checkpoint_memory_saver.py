@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
 import src.infra.storage.checkpoint as checkpoint_mod
 
@@ -68,6 +69,30 @@ async def test_checkpointer_diagnostics_reports_memory_saver_cache() -> None:
     assert diagnostics["memory_saver_cache_size"] == 1
     assert diagnostics["mongo_checkpointer_active"] is False
     assert diagnostics["postgres_checkpointer_active"] is False
+
+
+@pytest.mark.asyncio
+async def test_mongo_checkpointer_accepts_string_channel_versions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeMongoSaver(BaseCheckpointSaver):
+        pass
+
+    saver = _FakeMongoSaver()
+
+    monkeypatch.setattr(checkpoint_mod.settings, "CHECKPOINT_BACKEND", "mongodb")
+    monkeypatch.setattr(
+        checkpoint_mod,
+        "get_mongo_checkpointer",
+        lambda collection_name="checkpoints": saver,
+    )
+
+    checkpointer = await checkpoint_mod.get_async_checkpointer(thread_id="session-1")
+
+    assert checkpointer is saver
+    next_version = checkpointer.get_next_version("00000000000000000000000000000001.1234", None)
+    assert isinstance(next_version, str)
+    assert next_version > "00000000000000000000000000000001.1234"
 
 
 @pytest.mark.asyncio

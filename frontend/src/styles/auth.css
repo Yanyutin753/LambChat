@@ -789,7 +789,6 @@ html.dark .auth-social-provider {
       transparent 40%
     ),
     rgba(71, 85, 105, 0.12);
-  filter: blur(20px);
   pointer-events: none;
 }
 
@@ -912,7 +911,6 @@ html.dark .auth-illustration-links a:hover {
     rgba(15, 23, 42, 0.18),
     transparent 68%
   );
-  filter: blur(10px);
   opacity: 0.72;
 }
 
@@ -931,7 +929,6 @@ html.dark .auth-illustration-links a:hover {
       var(--auth-character-aura),
       transparent 48%
     );
-  filter: blur(18px);
   opacity: 0.9;
 }
 
@@ -1039,7 +1036,6 @@ html.dark .auth-mobile-orbit {
   height: 34%;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
-  filter: blur(2px);
 }
 
 .auth-mobile-character-tall {
@@ -1144,7 +1140,6 @@ html.dark .auth-mobile-orbit {
   font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  backdrop-filter: blur(10px);
   box-shadow:
     0 10px 24px rgba(15, 23, 42, 0.12),
     0 1px 0 rgba(255, 255, 255, 0.18) inset;
@@ -1237,7 +1232,6 @@ html.dark .auth-mobile-orbit {
   height: 22px;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.16);
-  filter: blur(12px);
   pointer-events: none;
   transform: skewX(6deg);
 }

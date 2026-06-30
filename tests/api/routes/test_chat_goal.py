@@ -9,6 +9,7 @@ from src.api.routes.chat import (
     CHAT_SSE_DATA_MAX_BYTES,
     _execute_agent_stream,
     _format_sse_event,
+    append_required_skills_prompt,
     apply_agent_team_plugin_session_option,
     apply_declared_plugin_session_options,
     apply_existing_session_plugin_options,
@@ -23,9 +24,13 @@ from src.api.routes.chat import (
 )
 from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
 from src.kernel.extensions import PluginManifest, PluginRuntime
-from src.kernel.extensions.builtin_plugins import build_agent_team_plugin_manifest
+from src.kernel.extensions.builtin_plugins import (
+    build_agent_team_plugin_manifest,
+    build_workflow_plugin_manifest,
+)
 from src.kernel.extensions.plugin_options import selected_agent_team_id_from_metadata
 from src.kernel.schemas.agent import AgentRequest, GoalSpec
+from src.plugins.workflow.chat_integration import workflow_result_interface
 
 
 def test_build_conversation_config_does_not_persist_run_scoped_goal() -> None:
@@ -646,6 +651,134 @@ async def test_apply_project_plugin_session_defaults_uses_manifest_projection(
 
 
 @pytest.mark.asyncio
+async def test_apply_project_plugin_session_defaults_supports_get_state_only_runtime_for_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = build_workflow_plugin_manifest()
+    state = SimpleNamespace(manifest=manifest, executable=True)
+    runtime = SimpleNamespace(get_state=lambda plugin_id: state if plugin_id == manifest.id else None)
+    request = AgentRequest(message="run workflow", project_id="project-1")
+    project = SimpleNamespace(
+        metadata={
+            "plugin_options": {
+                "workflow": {"DEFAULT_WORKFLOW_ID": "workflow-project"}
+            }
+        }
+    )
+
+    async def get_by_id(project_id, user_id):
+        assert (project_id, user_id) == ("project-1", "user-1")
+        return project
+
+    monkeypatch.setattr(
+        "src.infra.folder.storage.get_project_storage",
+        lambda: SimpleNamespace(get_by_id=get_by_id),
+    )
+
+    await apply_project_plugin_session_defaults(
+        request,
+        agent_id="search",
+        user=SimpleNamespace(sub="user-1"),
+        http_request=SimpleNamespace(
+            app=SimpleNamespace(state=SimpleNamespace(plugin_runtime=runtime))
+        ),
+    )
+
+    assert request.plugin_options == {
+        "workflow": {"SELECTED_WORKFLOW_ID": "workflow-project"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_apply_project_plugin_session_defaults_inherits_workflow_version_pair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = build_workflow_plugin_manifest()
+    runtime = PluginRuntime([manifest])
+    runtime.enable_plugin("workflow")
+    request = AgentRequest(message="run workflow", project_id="project-1")
+    project = SimpleNamespace(
+        metadata={
+            "plugin_options": {
+                "workflow": {
+                    "DEFAULT_WORKFLOW_ID": "workflow-project",
+                    "DEFAULT_WORKFLOW_VERSION_ID": "version-project",
+                }
+            }
+        }
+    )
+
+    async def get_by_id(_project_id, _user_id):
+        return project
+
+    monkeypatch.setattr(
+        "src.infra.folder.storage.get_project_storage",
+        lambda: SimpleNamespace(get_by_id=get_by_id),
+    )
+
+    await apply_project_plugin_session_defaults(
+        request,
+        agent_id="search",
+        user=SimpleNamespace(sub="user-1"),
+        http_request=SimpleNamespace(
+            app=SimpleNamespace(state=SimpleNamespace(plugin_runtime=runtime))
+        ),
+    )
+
+    assert request.plugin_options == {
+        "workflow": {
+            "SELECTED_WORKFLOW_ID": "workflow-project",
+            "SELECTED_WORKFLOW_VERSION_ID": "version-project",
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_apply_project_plugin_session_defaults_does_not_pair_manual_workflow_with_default_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = build_workflow_plugin_manifest()
+    runtime = PluginRuntime([manifest])
+    runtime.enable_plugin("workflow")
+    request = AgentRequest(
+        message="run workflow",
+        project_id="project-1",
+        plugin_options={"workflow": {"SELECTED_WORKFLOW_ID": "workflow-manual"}},
+    )
+    project = SimpleNamespace(
+        metadata={
+            "plugin_options": {
+                "workflow": {
+                    "DEFAULT_WORKFLOW_ID": "workflow-project",
+                    "DEFAULT_WORKFLOW_VERSION_ID": "version-project",
+                }
+            }
+        }
+    )
+
+    async def get_by_id(_project_id, _user_id):
+        return project
+
+    monkeypatch.setattr(
+        "src.infra.folder.storage.get_project_storage",
+        lambda: SimpleNamespace(get_by_id=get_by_id),
+    )
+
+    await apply_project_plugin_session_defaults(
+        request,
+        agent_id="search",
+        user=SimpleNamespace(sub="user-1"),
+        http_request=SimpleNamespace(
+            app=SimpleNamespace(state=SimpleNamespace(plugin_runtime=runtime))
+        ),
+    )
+
+    assert request.plugin_options == {
+        "workflow": {"SELECTED_WORKFLOW_ID": "workflow-manual"}
+    }
+
+
+@pytest.mark.asyncio
 async def test_apply_project_plugin_session_defaults_keeps_explicit_session_option(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -708,6 +841,34 @@ async def test_apply_project_plugin_session_defaults_keeps_explicit_session_opti
 
     assert request.plugin_options == {
         "workflow_runner": {"SELECTED_WORKFLOW_ID": "manual"}
+    }
+
+
+def test_apply_existing_session_plugin_options_does_not_restore_stale_workflow_version() -> None:
+    runtime = PluginRuntime([build_workflow_plugin_manifest()])
+    runtime.enable_plugin("workflow")
+    request = AgentRequest(
+        message="continue",
+        session_id="session-1",
+        plugin_options={"workflow": {"SELECTED_WORKFLOW_ID": "workflow-current"}},
+    )
+
+    apply_existing_session_plugin_options(
+        request,
+        agent_id="search",
+        existing_metadata={
+            "plugin_options": {
+                "workflow": {
+                    "SELECTED_WORKFLOW_ID": "workflow-saved",
+                    "SELECTED_WORKFLOW_VERSION_ID": "version-saved",
+                }
+            }
+        },
+        plugin_runtime=runtime,
+    )
+
+    assert request.plugin_options == {
+        "workflow": {"SELECTED_WORKFLOW_ID": "workflow-current"}
     }
 
 
@@ -852,6 +1013,24 @@ def test_resolve_goal_for_request_does_not_restore_session_goal_for_follow_up() 
     assert request.goal is None
 
 
+def test_append_required_skills_prompt_requires_explicit_enabled_skills() -> None:
+    message = append_required_skills_prompt(
+        "Write the release notes.",
+        ["writer", "reviewer"],
+    )
+
+    assert "Write the release notes." in message
+    assert "Required skills for this message" in message
+    assert "/skills/writer/SKILL.md" in message
+    assert "/skills/reviewer/SKILL.md" in message
+    assert "must read and follow" in message
+
+
+def test_append_required_skills_prompt_keeps_message_without_explicit_skills() -> None:
+    assert append_required_skills_prompt("hello", None) == "hello"
+    assert append_required_skills_prompt("hello", []) == "hello"
+
+
 def test_format_sse_event_adds_timestamp_without_mutating_event_data() -> None:
     event = {
         "event_type": "message:chunk",
@@ -974,3 +1153,354 @@ async def test_execute_agent_stream_runs_agent_when_active_goal_is_supplied(
     assert events[2]["data"]["goal"] == {"objective": "hi", "rubric": "- say hi"}
     assert events[2]["data"]["ended_at"]
     assert agent.stream_kwargs["active_goal"] == {"objective": "hi", "rubric": "- say hi"}
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_continues_after_workflow_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Agent:
+        def __init__(self) -> None:
+            self.messages: list[str] = []
+
+        async def stream(self, message, *args, **kwargs):
+            self.messages.append(message)
+            yield {"event": "message:chunk", "data": {"content": "agent ok"}}
+
+    agent = _Agent()
+
+    async def _get(_agent_id: str):
+        return agent
+
+    async def _workflow_run(**kwargs):
+        return {
+            "plugin_id": "workflow",
+            "workflow_id": "wf-missing",
+            "version_id": "wfv-missing",
+            "run_id": None,
+            "status": "failed",
+            "output": {},
+            "error": "workflow_not_found",
+        }
+
+    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
+    monkeypatch.setattr(
+        "src.plugins.workflow.chat_integration.run_selected_workflow_for_message",
+        _workflow_run,
+    )
+
+    events = [
+        event
+        async for event in _execute_agent_stream(
+            session_id="session-1",
+            agent_id="search",
+            message="hi",
+            user_id="user-1",
+            plugin_options={
+                "workflow": {
+                    "SELECTED_WORKFLOW_ID": "wf-missing",
+                    "SELECTED_WORKFLOW_VERSION_ID": "wfv-missing",
+                }
+            },
+        )
+    ]
+
+    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
+    assert events[0]["data"] == {
+        "plugin_id": "workflow",
+        "workflow_id": "wf-missing",
+        "version_id": "wfv-missing",
+        "run_id": None,
+        "status": "failed",
+        "output": {},
+        "error": "workflow_not_found",
+    }
+    assert "Workflow pre-run result:" in agent.messages[0]
+    assert "status: failed" in agent.messages[0]
+    assert "error: workflow_not_found" in agent.messages[0]
+    assert "User message:\nhi" in agent.messages[0]
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_continues_after_workflow_factory_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Agent:
+        def __init__(self) -> None:
+            self.messages: list[str] = []
+
+        async def stream(self, message, *args, **kwargs):
+            self.messages.append(message)
+            yield {"event": "message:chunk", "data": {"content": "agent ok"}}
+
+    agent = _Agent()
+
+    async def _get(_agent_id: str):
+        return agent
+
+    async def _create_service():
+        raise RuntimeError("database password=secret-token host=https://internal.example")
+
+    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
+    monkeypatch.setattr(
+        "src.plugins.workflow.chat_integration.create_workflow_service",
+        _create_service,
+    )
+
+    events = [
+        event
+        async for event in _execute_agent_stream(
+            session_id="session-1",
+            agent_id="search",
+            message="hi",
+            user_id="user-1",
+            plugin_options={
+                "workflow": {
+                    "SELECTED_WORKFLOW_ID": "wf-1",
+                    "SELECTED_WORKFLOW_VERSION_ID": "wfv-1",
+                }
+            },
+        )
+    ]
+
+    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
+    assert events[0]["data"] == {
+        "plugin_id": "workflow",
+        "workflow_id": "wf-1",
+        "version_id": "wfv-1",
+        "run_id": None,
+        "status": "failed",
+        "output": {},
+        "error": "workflow_pre_run_failed",
+        "interface": workflow_result_interface(
+            workflow_id="wf-1",
+            version_id="wfv-1",
+            run_id=None,
+        ),
+        "next_action": {
+            "type": "handle_terminal_error",
+            "field": "error",
+            "reason": "workflow_run_failed",
+        },
+    }
+    assert "Workflow pre-run result:" in agent.messages[0]
+    assert "workflow_id: wf-1" in agent.messages[0]
+    assert "status: failed" in agent.messages[0]
+    assert "error: workflow_pre_run_failed" in agent.messages[0]
+    assert "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema exit=output" in agent.messages[0]
+    assert "output_schema=workflow_get_schema.output_schema" in agent.messages[0]
+    assert "secret-token" not in agent.messages[0]
+    assert "User message:\nhi" in agent.messages[0]
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_runs_workflow_from_scheduled_task_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Agent:
+        def __init__(self) -> None:
+            self.messages: list[str] = []
+
+        async def stream(self, message, *args, **kwargs):
+            self.messages.append(message)
+            yield {"event": "message:chunk", "data": {"content": "agent ok"}}
+
+    agent = _Agent()
+    workflow_calls: list[dict] = []
+
+    async def _get(_agent_id: str):
+        return agent
+
+    async def _workflow_run(**kwargs):
+        workflow_calls.append(kwargs)
+        return {
+            "plugin_id": "workflow",
+            "workflow_id": "wf-task",
+            "version_id": "wfv-task",
+            "run_id": "run-workflow-1",
+            "status": "completed",
+            "output": {"answer": "workflow ok"},
+            "error": None,
+        }
+
+    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
+    monkeypatch.setattr(
+        "src.plugins.workflow.chat_integration.run_selected_workflow_for_message",
+        _workflow_run,
+    )
+
+    scheduled_task_options = {
+        "workflow": {
+            "WORKFLOW_ID": "wf-task",
+            "WORKFLOW_VERSION_ID": "wfv-task",
+        }
+    }
+    events = [
+        event
+        async for event in _execute_agent_stream(
+            session_id="session-1",
+            agent_id="search",
+            message="hi from schedule",
+            user_id="user-1",
+            plugin_options=scheduled_task_options,
+        )
+    ]
+
+    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
+    assert workflow_calls == [
+        {
+            "plugin_options": scheduled_task_options,
+            "message": "hi from schedule",
+            "user_id": "user-1",
+        }
+    ]
+    assert events[0]["data"] == {
+        "plugin_id": "workflow",
+        "workflow_id": "wf-task",
+        "version_id": "wfv-task",
+        "run_id": "run-workflow-1",
+        "status": "completed",
+        "output": {"answer": "workflow ok"},
+        "error": None,
+    }
+    assert "Workflow pre-run result:" in agent.messages[0]
+    assert "workflow_id: wf-task" in agent.messages[0]
+    assert "debug: use workflow_get_run with workflow_id and run_id to inspect events" in agent.messages[0]
+    assert "output: workflow ok" in agent.messages[0]
+    assert "User message:\nhi from schedule" in agent.messages[0]
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_keeps_agent_team_selection_with_workflow_prerun(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Agent:
+        def __init__(self) -> None:
+            self.messages: list[str] = []
+            self.stream_kwargs: dict | None = None
+
+        async def stream(self, message, *args, **kwargs):
+            self.messages.append(message)
+            self.stream_kwargs = kwargs
+            yield {"event": "message:chunk", "data": {"content": "team ok"}}
+
+    agent = _Agent()
+    workflow_calls: list[dict] = []
+
+    async def _get(agent_id: str):
+        assert agent_id == "team"
+        return agent
+
+    async def _workflow_run(**kwargs):
+        workflow_calls.append(kwargs)
+        interface = workflow_result_interface(
+            workflow_id="wf-team",
+            version_id="wfv-team",
+            run_id="run-workflow-team",
+        )
+        return {
+            "plugin_id": "workflow",
+            "workflow_id": "wf-team",
+            "version_id": "wfv-team",
+            "run_id": "run-workflow-team",
+            "status": "completed",
+            "output": {"answer": "workflow context for team"},
+            "error": None,
+            "io_contract": {
+                "input_schema": {
+                    "type": "object",
+                    "required": ["brief"],
+                    "properties": {"brief": {"type": "string"}},
+                },
+                "output_schema": {
+                    "type": "object",
+                    "required": ["answer"],
+                    "properties": {"answer": {"type": "string"}},
+                },
+            },
+            "output_contract": {
+                "valid": True,
+                "schema_field": "output_schema",
+                "declared_fields": ["answer"],
+                "declared_field_paths": ["answer"],
+                "required_fields": ["answer"],
+                "required_field_paths": ["answer"],
+                "missing_required": [],
+                "type_mismatches": [],
+                "extra_fields": [],
+            },
+            "interface": interface,
+            "next_action": {
+                "type": "use_output",
+                "field": "output",
+                "reason": "workflow_run_succeeded",
+            },
+        }
+
+    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
+    monkeypatch.setattr(
+        "src.plugins.workflow.chat_integration.run_selected_workflow_for_message",
+        _workflow_run,
+    )
+
+    plugin_options = {
+        "agent_team": {"SELECTED_TEAM_ID": "team-1"},
+        "workflow": {
+            "SELECTED_WORKFLOW_ID": "wf-team",
+            "SELECTED_WORKFLOW_VERSION_ID": "wfv-team",
+        },
+    }
+    events = [
+        event
+        async for event in _execute_agent_stream(
+            session_id="session-1",
+            agent_id="team",
+            message="coordinate launch",
+            user_id="user-1",
+            team_id="team-1",
+            agent_options={
+                "model": "gpt-test",
+                "_plugin_results": {"other_plugin": {"status": "ok"}},
+            },
+            plugin_options=plugin_options,
+        )
+    ]
+
+    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
+    assert workflow_calls == [
+        {
+            "plugin_options": plugin_options,
+            "message": "coordinate launch",
+            "user_id": "user-1",
+        }
+    ]
+    assert agent.stream_kwargs is not None
+    assert agent.stream_kwargs["team_id"] == "team-1"
+    assert agent.stream_kwargs["agent_options"]["model"] == "gpt-test"
+    assert agent.stream_kwargs["agent_options"]["_plugin_results"]["other_plugin"] == {
+        "status": "ok"
+    }
+    workflow_result = agent.stream_kwargs["agent_options"]["_plugin_results"]["workflow"]
+    assert workflow_result == events[0]["data"]
+    assert workflow_result["interface"] == workflow_result_interface(
+        workflow_id="wf-team",
+        version_id="wfv-team",
+        run_id="run-workflow-team",
+    )
+    assert workflow_result["io_contract"]["input_schema"]["required"] == ["brief"]
+    assert workflow_result["io_contract"]["output_schema"]["required"] == ["answer"]
+    assert workflow_result["output_contract"]["valid"] is True
+    assert workflow_result["next_action"] == {
+        "type": "use_output",
+        "field": "output",
+        "reason": "workflow_run_succeeded",
+    }
+    assert "Workflow pre-run result:" in agent.messages[0]
+    assert "workflow_id: wf-team" in agent.messages[0]
+    assert "outputs: answer:string" in agent.messages[0]
+    assert "output_contract: valid" in agent.messages[0]
+    assert "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema exit=output" in agent.messages[0]
+    assert "output_schema=workflow_get_schema.output_schema" in agent.messages[0]
+    assert "debug: use workflow_get_run with workflow_id and run_id to inspect events" in agent.messages[0]
+    assert "output: workflow context for team" in agent.messages[0]
+    assert "User message:\ncoordinate launch" in agent.messages[0]

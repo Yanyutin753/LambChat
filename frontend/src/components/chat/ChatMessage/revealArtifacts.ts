@@ -2,6 +2,7 @@ import type { MessagePart, ToolPart } from "../../../types";
 import { getFullUrl } from "../../../services/api/config";
 import {
   parseProjectRevealSummary,
+  type ParsedProjectRevealData,
   type RevealPreviewRequest,
 } from "./items/revealPreviewData";
 import { getFileRevealAutoOpenKey } from "./items/fileRevealAutoOpen";
@@ -53,6 +54,29 @@ interface ParsedFileReveal {
   s3Key?: string;
   s3Url?: string;
   fileSize?: number;
+}
+
+function collectArtifactPart(part: MessagePart): RevealArtifact | null {
+  if (part.type !== "artifact" || part.success !== true) {
+    return null;
+  }
+
+  if (part.artifact.kind === "file") {
+    return part.artifact;
+  }
+
+  const project = part.artifact.preview.project as ParsedProjectRevealData;
+  if (!project || typeof project !== "object") {
+    return null;
+  }
+
+  return {
+    ...part.artifact,
+    preview: {
+      ...part.artifact.preview,
+      project,
+    },
+  };
 }
 
 function parseJsonishResult(
@@ -128,6 +152,12 @@ function collectFromPart(part: MessagePart, artifacts: RevealArtifact[]): void {
     for (const child of part.parts || []) {
       collectFromPart(child, artifacts);
     }
+    return;
+  }
+
+  const artifactPart = collectArtifactPart(part);
+  if (artifactPart) {
+    artifacts.push(artifactPart);
     return;
   }
 

@@ -32,6 +32,33 @@ def get_user_id_from_runtime(runtime: Any) -> Optional[str]:
     return None
 
 
+def get_session_id_from_runtime(runtime: Any) -> Optional[str]:
+    """从 ToolRuntime 获取 session_id。
+
+    Agent context 本身带 session_id；工具索引用它兜底，避免只依赖 ContextVar。
+    """
+    if runtime is not None:
+        if hasattr(runtime, "config") and runtime.config:
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                if isinstance(configurable, dict):
+                    session_id = configurable.get("session_id")
+                    if session_id:
+                        return str(session_id)
+
+                    presenter = configurable.get("presenter")
+                    presenter_session_id = getattr(presenter, "session_id", None)
+                    if presenter_session_id:
+                        return str(presenter_session_id)
+
+                    ctx = configurable.get("context")
+                    context_session_id = getattr(ctx, "session_id", None)
+                    if context_session_id:
+                        return str(context_session_id)
+    return None
+
+
 def get_base_url_from_runtime(runtime: Any) -> str:
     """从 ToolRuntime 获取 base_url（与 get_backend_from_runtime 同风格）
 
@@ -84,6 +111,20 @@ def get_trace_id_from_runtime(runtime: Any) -> Optional[str]:
                     context_trace_id = getattr(ctx, "trace_id", None)
                     if context_trace_id:
                         return str(context_trace_id)
+    return None
+
+
+def get_delivery_source_from_runtime(runtime: Any) -> Optional[str]:
+    """Return the artifact delivery source marker carried by internal tool calls."""
+    if runtime is not None:
+        if hasattr(runtime, "config") and runtime.config:
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                if isinstance(configurable, dict):
+                    delivery_source = configurable.get("delivery_source")
+                    if delivery_source:
+                        return str(delivery_source)
     return None
 
 

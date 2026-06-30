@@ -11,6 +11,7 @@ import { useInView } from "react-intersection-observer";
 import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
 import { sessionApi, type BackendSession } from "../../services/api";
+import { PanelSearchInput } from "../common/PanelSearchInput";
 import { getSessionTitle } from "./sessionHelpers";
 import { SkeletonList } from "../skeletons";
 
@@ -256,11 +257,11 @@ export function SearchDialog({
             strokeWidth={2}
             className="flex-shrink-0 text-stone-400 dark:text-stone-500"
           />
-          <input
+          <PanelSearchInput
             ref={inputRef}
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onValueChange={setSearchQuery}
             placeholder={t("sidebar.searchSessions") + "..."}
             className="flex-1 min-w-0 text-[15px] bg-transparent text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
           />

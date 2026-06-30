@@ -198,6 +198,42 @@ class ShareStorage:
         except Exception:
             return False
 
+    async def update(
+        self,
+        share_db_id: str,
+        owner_id: str,
+        share_type: ShareType,
+        run_ids: Optional[list[str]],
+        visibility: ShareVisibility,
+    ) -> Optional[SharedSession]:
+        """更新分享设置（保持公开 share_id 不变）"""
+        from bson import ObjectId
+
+        try:
+            object_id = ObjectId(share_db_id)
+        except Exception:
+            return None
+
+        now = utc_now()
+        result = await self.collection.update_one(
+            {"_id": object_id, "owner_id": owner_id},
+            {
+                "$set": {
+                    "share_type": share_type.value,
+                    "run_ids": run_ids,
+                    "visibility": visibility.value,
+                    "updated_at": now,
+                }
+            },
+        )
+        if getattr(result, "matched_count", result.modified_count) <= 0:
+            return None
+
+        share_dict = await self.collection.find_one({"_id": object_id})
+        if not share_dict:
+            return None
+        return self._build_shared_session(share_dict)
+
     async def delete_by_session(self, session_id: str) -> int:
         """删除会话的所有分享（会话删除时调用）"""
         result = await self.collection.delete_many({"session_id": session_id})

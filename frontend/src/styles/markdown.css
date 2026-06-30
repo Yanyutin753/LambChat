@@ -56,10 +56,20 @@
   letter-spacing: 0.01em;
 }
 
+.markdown-content pre ::selection,
+.markdown-preview pre ::selection {
+  background: rgba(37, 99, 235, 0.26);
+}
+
 .dark .markdown-content pre code {
   color: #f4f4f5;
   /* zinc-100 - brighter for dark mode */
   font-weight: 400;
+}
+
+.dark .markdown-content pre ::selection,
+.dark .markdown-preview pre ::selection {
+  background: rgba(96, 165, 250, 0.46);
 }
 
 .markdown-content ul,
@@ -232,7 +242,7 @@
     -apple-system,
     sans-serif;
   line-height: 1.75;
-  color: #374151;
+  color: var(--theme-text-secondary);
   overflow-wrap: break-word;
   word-wrap: break-word;
   hyphens: auto;
@@ -242,16 +252,16 @@
 }
 
 .dark .markdown-preview {
-  color: #e5e7eb;
+  color: var(--theme-text-secondary);
 }
 
 /* Thinking content - muted stone tones */
 .markdown-preview.thinking-content {
-  color: #57534e;
+  color: var(--theme-text-secondary);
   font-size: 1em;
 }
 .dark .markdown-preview.thinking-content {
-  color: #d6d3d1;
+  color: var(--theme-text-secondary);
 }
 
 /* Mermaid diagram styles */

@@ -55,6 +55,13 @@ class MCPToolPolicy(BaseModel):
     server_name: Optional[str] = Field(None, description="Owning MCP server name")
     tool_name: Optional[str] = Field(None, description="Tool name without server prefix")
     disabled: bool = Field(False, description="Whether this tool is disabled globally")
+    inline_exposure: bool = Field(
+        False,
+        description=(
+            "Whether this tool should be exposed directly to the model instead of deferred "
+            "behind search_tools."
+        ),
+    )
     allowed_roles: list[str] = Field(
         default_factory=list,
         description="Roles allowed to use this tool. Empty list = all roles.",
@@ -72,6 +79,7 @@ class MCPToolPolicyUpdate(BaseModel):
     """Request to update one tool's access and quota policy."""
 
     disabled: Optional[bool] = None
+    inline_exposure: Optional[bool] = None
     allowed_roles: Optional[list[str]] = None
     role_quotas: Optional[dict[str, MCPRoleQuota]] = None
 
@@ -247,6 +255,10 @@ class MCPToolInfo(BaseModel):
         default=False,
         description="Whether this tool has an explicit tool-level policy.",
     )
+    inline_exposure: bool = Field(
+        default=False,
+        description="Whether this tool is exposed directly instead of through deferred search.",
+    )
 
 
 class MCPToolDiscoveryResponse(BaseModel):
@@ -256,6 +268,20 @@ class MCPToolDiscoveryResponse(BaseModel):
     tools: list[MCPToolInfo] = Field(default_factory=list, description="Discovered tools")
     count: int = Field(0, description="Number of discovered tools")
     error: Optional[str] = Field(None, description="Error message if discovery failed")
+
+
+class MCPInternalToolInvokeRequest(BaseModel):
+    """Request to invoke a constrained internal MCP tool."""
+
+    arguments: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
+
+
+class MCPInternalToolInvokeResponse(BaseModel):
+    """Response from an internal MCP tool invocation."""
+
+    server_name: str = Field(..., description="MCP server name")
+    tool_name: str = Field(..., description="Invoked tool name")
+    result: Any = Field(None, description="Tool result payload")
 
 
 class MCPToolToggleRequest(BaseModel):

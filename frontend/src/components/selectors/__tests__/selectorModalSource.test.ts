@@ -58,9 +58,11 @@ test("selector modals share the portal overlay and viewport wrapper", () => {
 test("selector modals share the content shell without changing its classes", () => {
   assert.match(shellSource, /export const SELECTOR_MODAL_SHELL_CLASS/);
   assert.match(sharedIndexSource, /export \{ SelectorModalShell \}/);
+  assert.match(shellSource, /sm:rounded-\[28px\] rounded-t-\[28px\]/);
+  assert.match(shellSource, /sm:w-\[min\(760px,calc\(100vw-2rem\)\)\]/);
   assert.match(
     shellSource,
-    /sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-\[40%\] sm:min-w-\[600px\] min-h-\[40vh\] sm:max-h-\[80vh\] max-h-\[85vh\] max-h-\[85dvh\] flex flex-col overflow-hidden/,
+    /border border-white\/70 dark:border-stone-700\/80/,
   );
   assert.match(shellSource, /background: "var\(--theme-bg-card\)"/);
   assert.match(
@@ -87,24 +89,35 @@ test("selector modals share the header and action bar styles", () => {
   assert.match(headerSource, /export function SelectorModalHeader/);
   assert.match(
     headerSource,
-    /flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b/,
+    /flex items-center justify-between gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b/,
   );
   assert.match(
     headerSource,
-    /absolute left-1\/2 -translate-x-1\/2 top-2 w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600 sm:hidden/,
+    /absolute left-1\/2 -translate-x-1\/2 top-2 w-10 h-1 rounded-full bg-stone-300\/80 dark:bg-stone-600 sm:hidden/,
   );
   assert.match(
     headerSource,
-    /p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 transition-colors/,
+    /p-2 rounded-full border border-stone-200\/80 bg-white\/80 text-stone-500 shadow-sm/,
   );
 
   assert.match(actionBarSource, /export function SelectorActionBar/);
   assert.match(
     actionBarSource,
-    /flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2\.5 border-b border-stone-200\/80 dark:border-stone-700\/80 bg-stone-50\/80 dark:bg-stone-800\/50/,
+    /sticky top-0 z-10 flex items-center gap-2 px-4 sm:px-6 py-2\.5 border-b/,
   );
   assert.match(
     actionBarSource,
-    /px-3 py-2 sm:py-1\.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 rounded-lg transition-colors/,
+    /rounded-full border border-transparent px-3 py-2 sm:py-1\.5 text-xs font-semibold/,
   );
+});
+
+test("selector modals do not render redundant done footers", () => {
+  for (const relativePath of consumers) {
+    const source = readSource(relativePath);
+    assert.doesNotMatch(
+      source,
+      /safe-area-bottom \[--safe-area-bottom-extra:0\.75rem\]/,
+      `${relativePath} should close through the header or backdrop instead of a footer Done button`,
+    );
+  }
 });

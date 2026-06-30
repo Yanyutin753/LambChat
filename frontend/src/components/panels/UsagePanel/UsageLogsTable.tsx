@@ -45,9 +45,13 @@ function SectionHeader({
 
   return (
     <div className="usage-section-header mb-4 flex items-center justify-between gap-4 sm:mb-5">
-      <div className="flex items-center gap-2">
-        <FileText size={14} className="text-theme-text-tertiary" />
-        <h2 className="text-sm font-bold text-theme-text">{title}</h2>
+      <div className="flex items-center gap-3 sm:gap-3.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--usage-icon-bg)] text-[var(--theme-primary)] sm:h-9 sm:w-9">
+          <FileText size={15} strokeWidth={2} />
+        </div>
+        <h2 className="truncate text-[13px] font-bold tracking-tight text-theme-text sm:text-sm">
+          {title}
+        </h2>
       </div>
       {total > 0 && (
         <span className="shrink-0 text-[11px] tabular-nums text-theme-text-tertiary">
@@ -89,7 +93,7 @@ function DesktopTable({
       <div className="usage-surface overflow-x-auto rounded-xl">
         <div className="min-w-[1080px]">
           <div
-            className="sticky top-0 z-10 grid border-b border-[var(--usage-border)] bg-[var(--usage-inset-bg)]/70 backdrop-blur-sm"
+            className="sticky top-0 z-10 grid border-b border-[var(--usage-border)] bg-[var(--usage-inset-bg)]/70"
             style={{ gridTemplateColumns: desktopGridTemplate }}
           >
             <div className={`${headerCellClass} text-left`}>

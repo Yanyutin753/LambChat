@@ -15,6 +15,7 @@ import { useDropdownPos } from "../hooks/useDropdownPos";
 import { DropdownShell } from "./DropdownShell";
 import { SortIcon } from "./SortIcon";
 import type { SortOrder, ViewMode } from "../types";
+import { PanelSearchInput } from "../../common/PanelSearchInput";
 
 interface ToolbarProps {
   search: string;
@@ -320,10 +321,10 @@ export function Toolbar({
                 size={16}
                 className="absolute left-2 @sm:left-3 top-1/2 -translate-y-1/2 text-theme-text-tertiary pointer-events-none"
               />
-              <input
+              <PanelSearchInput
                 type="text"
                 value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
+                onValueChange={onSearchChange}
                 placeholder={t("fileLibrary.searchPlaceholder")}
                 className="h-full min-w-0 flex-1 bg-transparent text-sm text-theme-text placeholder:text-theme-text-tertiary focus:outline-none"
               />

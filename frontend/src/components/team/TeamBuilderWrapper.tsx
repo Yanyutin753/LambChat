@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { teamApi } from "../../services/api/team";
+import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 import {
   TeamBuilder,
   type TeamBuilderHandle,
@@ -259,6 +260,12 @@ export function TeamBuilderWrapper() {
 
   useEffect(() => {
     loadTeams();
+  }, [loadTeams]);
+
+  useEffect(() => {
+    return subscribeTeamsChanged(() => {
+      loadTeams();
+    });
   }, [loadTeams]);
 
   useEffect(() => {

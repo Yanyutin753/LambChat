@@ -7,6 +7,9 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'frontend/**'
+      - 'plugins/**'
+      - 'plugin-data/**'
+      - 'Dockerfile'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'package.json'
@@ -21,6 +24,9 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'frontend/**'
+      - 'plugins/**'
+      - 'plugin-data/**'
+      - 'Dockerfile'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'package.json'
@@ -163,3 +169,31 @@ jobs:
       - name: Run ESLint
         run: pnpm run lint
         working-directory: frontend
+
+  # Full frontend production build, including PWA inject-manifest.
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Build frontend
+        run: pnpm run build
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096

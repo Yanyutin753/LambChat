@@ -16,10 +16,13 @@ class _Runtime:
         *,
         backend=object(),
         user_id: str | None = "user-1",
+        session_id: str | None = "session-1",
         base_url: str = "https://app.example.com",
         trace_id: str | None = None,
     ) -> None:
-        context = SimpleNamespace(user_id=user_id) if user_id is not None else None
+        context = (
+            SimpleNamespace(user_id=user_id, session_id=session_id) if user_id is not None else None
+        )
         self.config = {
             "configurable": {
                 "backend": backend,
@@ -60,6 +63,10 @@ class _BlockingOnlySpooledFile:
 
     def read(self) -> bytes:
         return bytes(self.data)
+
+
+def test_reveal_file_runtime_is_injected_not_model_argument() -> None:
+    assert "runtime" not in reveal_file_tool.reveal_file.args
 
 
 @pytest.mark.asyncio
@@ -109,6 +116,58 @@ async def test_reveal_file_returns_remote_url_directly(
         },
     }
     assert json.dumps in blocking_calls
+
+
+@pytest.mark.asyncio
+async def test_reveal_file_indexes_remote_url_without_storage_or_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    indexed_calls: list[dict[str, object]] = []
+
+    async def _get_storage():
+        raise AssertionError("remote URL reveal should not initialize upload storage")
+
+    def _get_backend_from_runtime(runtime):
+        raise AssertionError("remote URL reveal should not inspect backend")
+
+    class _FakeIndex:
+        async def upsert_by_name(self, **kwargs):
+            indexed_calls.append(kwargs)
+
+    url = "https://cdn.example.com/generated-images/user-1/portrait.png"
+
+    monkeypatch.setattr(reveal_file_tool, "_get_storage", _get_storage)
+    monkeypatch.setattr(reveal_file_tool, "get_backend_from_runtime", _get_backend_from_runtime)
+    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _FakeIndex())
+
+    result = json.loads(
+        await reveal_file_tool.reveal_file.coroutine(
+            url,
+            description="AI generated portrait",
+            runtime=_Runtime(trace_id="trace-remote"),
+        )
+    )
+
+    assert result["url"] == url
+    assert indexed_calls == [
+        {
+            "user_id": "user-1",
+            "file_name": "portrait.png",
+            "source": "reveal_file",
+            "file_key": url,
+            "trace_id": "trace-remote",
+            "data": {
+                "file_type": "image",
+                "mime_type": "image/png",
+                "file_size": 0,
+                "url": url,
+                "session_id": "session-1",
+                "project_id": None,
+                "description": "AI generated portrait",
+                "original_path": url,
+            },
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -583,7 +642,7 @@ async def test_reveal_file_indexes_upload_when_runtime_has_user_without_trace_co
                 "mime_type": "application/pdf",
                 "file_size": 9,
                 "url": result["url"],
-                "session_id": None,
+                "session_id": "session-1",
                 "project_id": None,
                 "description": "monthly report",
                 "original_path": "/workspace/report.pdf",

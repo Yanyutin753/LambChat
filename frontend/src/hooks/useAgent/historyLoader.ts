@@ -386,19 +386,57 @@ export interface RunningAssistantPreparationResult {
   streamingMessageId: string;
 }
 
+function getPendingOptimisticUserForRun(
+  currentMessages: Message[],
+  runId: string,
+): Message | null {
+  const streamingAssistantIndex = currentMessages.findIndex(
+    (message) =>
+      message.role === "assistant" &&
+      message.isStreaming &&
+      (message.runId === runId || message.id === runId),
+  );
+  if (streamingAssistantIndex <= 0) {
+    return null;
+  }
+
+  const candidate = currentMessages[streamingAssistantIndex - 1];
+  if (candidate?.role !== "user") {
+    return null;
+  }
+
+  return {
+    ...candidate,
+    runId: candidate.runId ?? runId,
+  };
+}
+
 export function prepareMessagesForRunningRun(
   messages: Message[],
   runId: string,
   createId: () => string = () => uuid(),
+  currentMessages: Message[] = [],
 ): RunningAssistantPreparationResult {
-  const existingAssistant = [...messages]
+  const pendingOptimisticUser = getPendingOptimisticUserForRun(
+    currentMessages,
+    runId,
+  );
+  const messagesWithPendingUser =
+    pendingOptimisticUser &&
+    !messages.some(
+      (message) => message.role === "user" && message.runId === runId,
+    )
+      ? [...messages, pendingOptimisticUser]
+      : messages;
+
+  const existingAssistant = [...messagesWithPendingUser]
     .reverse()
     .find((message) => message.role === "assistant" && message.runId === runId);
 
   if (existingAssistant) {
     return {
       streamingMessageId: existingAssistant.id,
-      messages: messages.map((message) =>
+      messages: messagesWithPendingUser.map((message) =>
         message.id === existingAssistant.id
           ? { ...message, isStreaming: true }
           : message,
@@ -410,7 +448,7 @@ export function prepareMessagesForRunningRun(
   return {
     streamingMessageId,
     messages: [
-      ...messages,
+      ...messagesWithPendingUser,
       {
         id: streamingMessageId,
         role: "assistant",

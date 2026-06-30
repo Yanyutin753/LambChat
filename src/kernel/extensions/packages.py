@@ -59,6 +59,7 @@ class PluginPackageManifest(BaseModel):
 
     id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1)
+    description: str = ""
     version: str = Field(..., min_length=1)
     api_version: str = Field(..., min_length=1)
     entrypoint: str = "backend"
@@ -748,6 +749,7 @@ class PluginPackageScanner:
         return PluginManifest(
             id=package.id,
             name=package.name,
+            description=package.description,
             version=package.version,
             api_version=package.api_version,
             depends_on=package.depends_on,

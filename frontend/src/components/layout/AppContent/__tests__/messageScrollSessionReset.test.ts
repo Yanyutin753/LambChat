@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   getNextMessageListSessionKey,
+  shouldStartHistoryScrollSettling,
   shouldResetMessageScrollStateForSessionChange,
 } from "../useMessageScroll.followState";
 
@@ -48,5 +49,59 @@ test("switches the message list key when navigating to another stored session", 
       previousKey: "session-1",
     }),
     "session-2",
+  );
+});
+
+test("starts visual settling when history bottom scroll finalizes", () => {
+  assert.equal(
+    shouldStartHistoryScrollSettling({
+      pendingHistoryScroll: true,
+      isLoadingHistory: false,
+      messageCount: 8,
+      externalNavigationToken: null,
+    }),
+    true,
+  );
+});
+
+test("does not start visual settling for external navigation, active loads, or empty history", () => {
+  assert.equal(
+    shouldStartHistoryScrollSettling({
+      pendingHistoryScroll: true,
+      isLoadingHistory: false,
+      messageCount: 8,
+      externalNavigationToken: "reveal:file",
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldStartHistoryScrollSettling({
+      pendingHistoryScroll: true,
+      isLoadingHistory: true,
+      messageCount: 8,
+      externalNavigationToken: null,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldStartHistoryScrollSettling({
+      pendingHistoryScroll: true,
+      isLoadingHistory: false,
+      messageCount: 0,
+      externalNavigationToken: null,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldStartHistoryScrollSettling({
+      pendingHistoryScroll: false,
+      isLoadingHistory: false,
+      messageCount: 8,
+      externalNavigationToken: null,
+    }),
+    false,
   );
 });

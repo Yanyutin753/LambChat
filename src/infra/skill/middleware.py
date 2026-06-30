@@ -101,6 +101,11 @@ class SkillsMiddleware:
             "The following skills are available. Read skill files from `/skills/{skill_name}/` "
             "to get detailed instructions."
         )
+        lines.append(
+            "When creating or updating a skill's main instruction file, always use the canonical "
+            "filename `SKILL.md` exactly; treat `skill.md`, `Skill.md`, and other case variants "
+            "as `SKILL.md`."
+        )
         lines.append("")
 
         for skill in skills:
@@ -117,7 +122,8 @@ class SkillsMiddleware:
         lines.append("2. Match intent with skill descriptions above")
         lines.append("3. Read the skill's SKILL.md for detailed instructions")
         lines.append("4. Follow the skill's instructions step by step")
-        lines.append("5. If multiple skills might apply, ask the user to clarify")
+        lines.append("5. Save main skill instructions as `SKILL.md` exactly when editing skills")
+        lines.append("6. If multiple skills might apply, ask the user to clarify")
         lines.append("")
 
         return "\n".join(lines)

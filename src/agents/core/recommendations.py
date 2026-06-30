@@ -499,7 +499,6 @@ async def generate_recommend_questions(
         model_id, model_value = await resolve_model_reference(settings.SESSION_TITLE_MODEL)
         model_kwargs: dict[str, Any] = {
             "model_id": model_id,
-            "max_tokens": 300,
             "max_retries": settings.LLM_MAX_RETRIES,
         }
         if model_value:

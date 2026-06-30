@@ -129,7 +129,7 @@ async def build_skills_prompt(skills: list[dict]) -> str:
 
 {skills_list_str}
 
-**Usage:** When a task matches a skill's description, read its `SKILL.md` for step-by-step workflows. If a skill includes executable scripts, first transfer them out of `/skills/` into the sandbox workspace, then run the workspace copy with an absolute path.
+**Usage:** When a task matches a skill's description, read its `SKILL.md` for step-by-step workflows. When creating or updating a skill's main instruction file, always use the canonical filename `SKILL.md` exactly; treat `skill.md`, `Skill.md`, and other case variants as `SKILL.md`. If a skill includes executable scripts, first transfer them out of `/skills/` into the sandbox workspace, then run the workspace copy with an absolute path.
 **Commands:** Use `ls("/skills/")`, `read_file`, `write_file`, `edit_file(path, old, new)` to access skills. Do NOT create directories manually.
 
 **IMPORTANT:** `/skills/` is a virtual path backed by a database, NOT a real filesystem directory. NEVER use shell commands (e.g., `ls -la /skills/`, `cat /skills/x.md`, `python /skills/x.py`, `cp /skills/* .`) to access skills — they will fail. Use `transfer_file` or `transfer_path` to move skill files into the workspace before executing them. Always use the `ls`, `read_file`, `write_file`, `edit_file` tools instead.

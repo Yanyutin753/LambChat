@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useSkills } from "../../hooks/useSkills";
+import { PanelSearchInput } from "../common/PanelSearchInput";
 import { PERSONA_SKILL_PAGE_SIZE } from "./PersonaEditorTypes";
 
 interface SkillSelectorProps {
@@ -255,11 +256,11 @@ export function SkillSelector({
           <div className="ppe-skill-dropdown__header">
             <div className="ppe-skill-dropdown__search-wrap">
               <Search size={14} className="ppe-skill-dropdown__search-icon" />
-              <input
+              <PanelSearchInput
                 ref={skillSearchInputRef}
                 type="text"
                 value={skillSearch}
-                onChange={(e) => handleSkillSearchChange(e.target.value)}
+                onValueChange={handleSkillSearchChange}
                 placeholder={t("skills.searchPlaceholder", "搜索技能...")}
                 className="ppe-skill-search"
                 autoFocus

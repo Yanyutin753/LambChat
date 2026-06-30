@@ -275,6 +275,30 @@ test("direct panel-search fields opt into the same refresh-safe behavior", () =>
   }
 });
 
+test("selector search fields share editing-safe input behavior", () => {
+  for (const path of [
+    "../../mcp/RoleSelector.tsx",
+    "../../mcp/EnvKeysSelector.tsx",
+    "../../agent/ModelSelector.tsx",
+    "../../team/TeamBuilder.tsx",
+    "../../team/TeamPickerModal.tsx",
+    "../../persona/PersonaEditorSkillSelector.tsx",
+    "../../persona/PersonaPresetSelector.tsx",
+    "../../panels/SearchDialog.tsx",
+    "../../panels/channel/ChannelPersonaSelect.tsx",
+    "../../fileLibrary/components/Toolbar.tsx",
+    "../../panels/ModelPanel/tabs/ModelIconSelect.tsx",
+    "../../panels/AgentPanel/shared/ProviderSelect.tsx",
+  ]) {
+    const file = source(path);
+    assert.match(file, /PanelSearchInput/);
+    assert.doesNotMatch(
+      file,
+      /onChange=\{\((?:e|event)\) => (?:set[A-Za-z0-9_]*Search|setSearchQuery|setQuery|onSearchChange)\((?:e|event)\.target\.value\)\}/,
+    );
+  }
+});
+
 test("search panels keep their header mounted while a search refresh is loading", () => {
   for (const path of [
     "../../persona/PersonaPlazaPanel.tsx",

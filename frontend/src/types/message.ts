@@ -34,6 +34,8 @@ export interface Message {
 export type MessagePart =
   | TextPart
   | ToolPart
+  | ArtifactPart
+  | WorkflowPart
   | SubagentPart
   | ThinkingPart
   | SandboxPart
@@ -138,6 +140,89 @@ export interface ToolPart {
   agent_id?: string;
   startedAt?: string;
   completedAt?: string;
+}
+
+export type ArtifactPartArtifact =
+  | {
+      kind: "file";
+      id: string;
+      name: string;
+      path: string;
+      description?: string;
+      fileSize?: number;
+      preview: {
+        kind: "file";
+        previewKey: string;
+        filePath: string;
+        s3Key?: string;
+        signedUrl?: string;
+        fileSize?: number;
+      };
+    }
+  | {
+      kind: "project";
+      id: string;
+      name: string;
+      mode: "project" | "folder";
+      fileCount: number;
+      template: string;
+      preview: {
+        kind: "project";
+        previewKey: string;
+        project: Record<string, unknown>;
+      };
+    };
+
+export interface ArtifactPart {
+  type: "artifact";
+  artifact: ArtifactPartArtifact;
+  success?: boolean;
+  error?: string;
+  depth?: number;
+  agent_id?: string;
+  completedAt?: string;
+}
+
+export interface WorkflowInterfaceContract {
+  entry?: {
+    type?: string;
+    tool?: string;
+    argument?: string;
+    workflow_id?: string | null;
+    version_id?: string | null;
+    schema_tool?: string;
+    schema_field?: string;
+  };
+  exit?: {
+    type?: string;
+    field?: string;
+    schema_tool?: string;
+    schema_field?: string;
+  };
+  debug?: {
+    tool?: string;
+    workflow_id?: string | null;
+    run_id?: string | null;
+    events_field?: string;
+  };
+}
+
+export interface WorkflowPart {
+  type: "workflow";
+  plugin_id?: string;
+  workflow_id?: string | null;
+  run_id?: string | null;
+  version_id?: string | null;
+  status?: string;
+  output?: Record<string, unknown>;
+  error?: string | null;
+  interface?: WorkflowInterfaceContract | null;
+  next_action?: Record<string, unknown> | null;
+  io_contract?: Record<string, unknown> | null;
+  output_contract?: Record<string, unknown> | null;
+  depth?: number;
+  agent_id?: string;
+  timestamp?: string;
 }
 
 export interface SubagentPart {

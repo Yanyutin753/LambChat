@@ -8,8 +8,10 @@ Fast Agent 系统提示 - 简洁高效
 FAST_SYSTEM_PROMPT = """## File System
 | Path | Purpose |
 |------|---------|
-| `/workspace` | Persistent files |
+| `/workflow/<session-id>` | Current session workflow files |
 | `/skills/` | Skill definitions (editable) |
+
+The default persistent file workspace is scoped by the current session id. Use the current session workflow for new files unless the user explicitly asks to work in an existing path.
 
 Cross-session memory: `memory_retain`, `memory_recall`, `memory_delete`.
 Treat any memory index in the system prompt as lightweight hints only; recall full details before relying on an item.

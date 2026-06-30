@@ -350,6 +350,11 @@ export function TaskFormModal({
     const inactive = option.effective === false;
     const disabled = inactive;
     const fieldId = `${option.plugin_id}.${option.key}`;
+    const pluginValues = scheduledTaskPluginOptionValues[option.plugin_id];
+    const scopedPluginValues =
+      pluginValues && typeof pluginValues === "object" && !Array.isArray(pluginValues)
+        ? (pluginValues as Record<string, unknown>)
+        : {};
     const inactiveNotice = inactive || disabled ? (
       <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         {t(
@@ -363,9 +368,12 @@ export function TaskFormModal({
     const rendered = renderScheduledTaskOptionField({
       option,
       value: currentValue,
+      pluginValues: scopedPluginValues,
       disabled,
       inactive,
       triggerClassName: inputClass,
+      onPluginValueChange: (key, nextValue) =>
+        setScheduledTaskPluginOptionValue(option.plugin_id, key, nextValue),
       onChange,
     });
 

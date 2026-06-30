@@ -25,7 +25,7 @@ REGISTRY_SOURCES = {
 }
 
 PLUGIN_REFERENCE_RE = re.compile(
-    r"[\"']((?:agent_team|feedback|usage_reports|feishu_connector)\.[A-Za-z0-9_]+)[\"']"
+    r"[\"']((?:agent_team|workflow|feedback|usage_reports|feishu_connector)\.[A-Za-z0-9_]+)[\"']"
 )
 
 

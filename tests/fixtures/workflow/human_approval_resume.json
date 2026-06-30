@@ -1,0 +1,33 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Human Approval Resume"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "approval",
+        "type": "human-approval",
+        "data": {
+          "title": "Manager approval",
+          "assignee": "manager",
+          "instructions": "Approve {{name}} before continuing.",
+          "output_key": "approval"
+        }
+      },
+      {
+        "id": "answer",
+        "type": "answer",
+        "data": {
+          "title": "Answer",
+          "answer": "Approved={{approval.approved}} comment={{approval.comment}}"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "approval" },
+      { "id": "e2", "source": "approval", "target": "answer" }
+    ]
+  }
+}

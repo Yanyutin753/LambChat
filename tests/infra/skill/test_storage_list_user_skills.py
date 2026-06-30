@@ -149,6 +149,17 @@ class _GeneralFindCollection:
         return cursor
 
 
+class _FindOneSkillMdCollection:
+    def __init__(self) -> None:
+        self.find_one_calls: list[dict[str, Any]] = []
+
+    async def find_one(self, query: dict[str, Any]) -> dict[str, Any] | None:
+        self.find_one_calls.append(query)
+        if query.get("file_path") == {"$regex": r"^skill\.md$", "$options": "i"}:
+            return {"content": "legacy lowercase content"}
+        return None
+
+
 class _SyncShouldNotReadCollection:
     def find(self, *_args, **_kwargs):
         raise AssertionError("oversized sync should be rejected before reading existing files")
@@ -561,6 +572,48 @@ async def test_list_skill_file_paths_limits_files_loaded_per_skill(
 
     assert collection.cursors[0].limit_value == 3
     assert paths == ["file-0.txt", "file-1.txt", "file-2.txt"]
+
+
+@pytest.mark.asyncio
+async def test_get_skill_files_canonicalizes_lowercase_skill_md(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _GeneralFindCollection(
+        [
+            {"file_path": "skill.md", "content": "lowercase content"},
+            {"file_path": "notes.md", "content": "notes"},
+        ]
+    )
+    storage = SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+
+    files = await storage.get_skill_files("planner", "user-1")
+
+    assert files == {
+        "SKILL.md": "lowercase content",
+        "notes.md": "notes",
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_skill_file_falls_back_to_legacy_lowercase_skill_md(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _FindOneSkillMdCollection()
+    storage = SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+
+    content = await storage.get_skill_file("planner", "SKILL.md", "user-1")
+
+    assert content == "legacy lowercase content"
+    assert collection.find_one_calls == [
+        {"skill_name": "planner", "user_id": "user-1", "file_path": "SKILL.md"},
+        {
+            "skill_name": "planner",
+            "user_id": "user-1",
+            "file_path": {"$regex": r"^skill\.md$", "$options": "i"},
+        },
+    ]
 
 
 @pytest.mark.asyncio

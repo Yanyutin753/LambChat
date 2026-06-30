@@ -19,12 +19,9 @@ test("file and project reveal status cards share title and subtitle text", () =>
   assert.match(source, /export function RevealStatusLabel/);
   assert.match(
     source,
-    /text-sm font-medium text-stone-700 dark:text-stone-300 truncate/,
+    /text-sm font-medium text-theme-text-secondary truncate/,
   );
-  assert.match(
-    source,
-    /text-xs text-stone-500 dark:text-stone-400 truncate mt-0\.5/,
-  );
+  assert.match(source, /text-xs text-theme-text-tertiary truncate mt-0\.5/);
   assert.match(source, /text-xs text-amber-600 dark:text-amber-400/);
 
   for (const consumer of [fileReveal, projectReveal]) {
@@ -36,11 +33,11 @@ test("file and project reveal status cards share title and subtitle text", () =>
     assert.match(consumer, /<RevealStatusLabel>/);
     assert.doesNotMatch(
       consumer,
-      /text-sm font-medium text-stone-700 dark:text-stone-300 truncate/,
+      /text-sm font-medium text-theme-text-secondary truncate/,
     );
     assert.doesNotMatch(
       consumer,
-      /text-xs text-stone-500 dark:text-stone-400 truncate mt-0\.5/,
+      /text-xs text-theme-text-tertiary truncate mt-0\.5/,
     );
     assert.doesNotMatch(consumer, /text-xs text-amber-600 dark:text-amber-400/);
   }

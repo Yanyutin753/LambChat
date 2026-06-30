@@ -30,8 +30,12 @@ function getActionLabel(
   const map: Record<string, string> = {
     scheduled_task_create: "chat.message.toolScheduledTaskCreate",
     scheduled_task_list: "chat.message.toolScheduledTaskList",
+    scheduled_task_get: "chat.message.toolScheduledTaskGet",
     scheduled_task_update: "chat.message.toolScheduledTaskUpdate",
+    scheduled_task_pause: "chat.message.toolScheduledTaskPause",
+    scheduled_task_resume: "chat.message.toolScheduledTaskResume",
     scheduled_task_delete: "chat.message.toolScheduledTaskDelete",
+    scheduled_task_run: "chat.message.toolScheduledTaskRun",
   };
   return t(map[toolName] || "chat.message.toolScheduledTask");
 }

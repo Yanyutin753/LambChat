@@ -460,6 +460,50 @@ def test_parse_zip_preview_skips_large_non_skill_members_before_reading(
     ]
 
 
+def test_parse_zip_skills_canonicalizes_lowercase_skill_md() -> None:
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "planner/skill.md",
+            "---\nname: planner\ndescription: Plan work\n---\n",
+        )
+        archive.writestr("planner/notes.md", "notes")
+
+    skills = skill_route._parse_zip_skills(zip_buffer.getvalue())
+
+    assert skills == [
+        (
+            "planner",
+            {
+                "SKILL.md": "---\nname: planner\ndescription: Plan work\n---\n",
+                "notes.md": "notes",
+            },
+            {},
+        )
+    ]
+
+
+def test_parse_zip_preview_canonicalizes_lowercase_skill_md() -> None:
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "planner/skill.md",
+            "---\nname: planner\ndescription: Plan work\n---\n",
+        )
+
+    preview = skill_route._parse_zip_skill_preview(zip_buffer.getvalue())
+
+    assert preview == [
+        {
+            "name": "planner",
+            "description": "Plan work",
+            "file_count": 1,
+            "files": ["SKILL.md"],
+            "binary_files": [],
+        }
+    ]
+
+
 @pytest.mark.asyncio
 async def test_update_skill_preference_returns_updated_skill(
     monkeypatch: pytest.MonkeyPatch,

@@ -1,0 +1,33 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Parameter Extractor"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "extract",
+        "type": "parameter-extractor",
+        "data": {
+          "title": "Extract",
+          "model": { "provider": "openai", "name": "gpt-4o-mini" },
+          "query": "{{message}}",
+          "parameters": [
+            { "name": "topic", "type": "string", "description": "Requested topic" }
+          ],
+          "output_key": "extracted"
+        }
+      },
+      {
+        "id": "answer",
+        "type": "answer",
+        "data": { "title": "Answer", "answer": "{{extracted.topic}}" }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "extract" },
+      { "id": "e2", "source": "extract", "target": "answer" }
+    ]
+  }
+}

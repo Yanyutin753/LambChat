@@ -447,6 +447,7 @@ class MCPStorage(StorageOperations):
                     "allowed_roles": list(policy.allowed_roles) if policy else [],
                     "role_quotas": policy.role_quotas if policy else {},
                     "policy_configured": policy is not None,
+                    "inline_exposure": bool(policy.inline_exposure) if policy else False,
                 }
                 # Extract parameters if possible
                 try:
@@ -556,6 +557,7 @@ class MCPStorage(StorageOperations):
         allowed_roles: list[str] | None = None,
         role_quotas: Mapping[str, MCPRoleQuota | dict[str, Any]] | None = None,
         disabled: bool | None = None,
+        inline_exposure: bool | None = None,
         updated_by: str | None = None,
     ) -> MCPToolPolicy:
         """Create or update an admin-managed policy for one MCP tool."""
@@ -579,6 +581,8 @@ class MCPStorage(StorageOperations):
             }
         if disabled is not None:
             update_data["disabled"] = disabled
+        if inline_exposure is not None:
+            update_data["inline_exposure"] = inline_exposure
 
         await collection.update_one(
             {"server_name": server_name, "tool_name": tool_name},
@@ -841,6 +845,7 @@ class MCPStorage(StorageOperations):
             server_name=doc.get("server_name"),
             tool_name=doc.get("tool_name"),
             disabled=doc.get("disabled", False),
+            inline_exposure=doc.get("inline_exposure", False),
             allowed_roles=doc.get("allowed_roles", []),
             role_quotas=doc.get("role_quotas", {}),
             created_at=created_at,

@@ -25,11 +25,11 @@ test("tool argument blocks share detail and compact wrappers", () => {
   assert.match(source, /type ToolArgsBlockSize = "detail" \| "compact"/);
   assert.match(
     source,
-    /detail:\s*"group\/args relative flex items-center gap-2 px-3 py-2 rounded-lg bg-theme-bg-subtle text-sm text-theme-text-tertiary font-mono"/,
+    /detail:\s*"tool-args-block group\/args relative flex items-center gap-2 px-3 py-2 rounded-lg bg-theme-bg-subtle text-sm text-theme-text-tertiary font-mono"/,
   );
   assert.match(
     source,
-    /compact:\s*"group\/args relative flex items-center gap-2 mb-2 px-2 py-1\.5 rounded-md bg-theme-bg-subtle text-xs text-theme-text-tertiary font-mono"/,
+    /compact:\s*"tool-args-block group\/args relative flex items-center gap-2 mb-2 px-2 py-1\.5 rounded-md bg-theme-bg-subtle text-xs text-theme-text-tertiary font-mono"/,
   );
   assert.match(source, /wrap \? "flex-wrap" : ""/);
 

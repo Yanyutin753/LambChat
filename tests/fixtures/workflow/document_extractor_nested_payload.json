@@ -1,0 +1,41 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Nested Document Extractor"
+  },
+  "workflow": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "data": {
+          "title": "Start",
+          "variables": [
+            { "name": "attachments", "type": "file-list" }
+          ]
+        }
+      },
+      {
+        "id": "extract",
+        "type": "document-extractor",
+        "data": {
+          "title": "Extract nested document payloads",
+          "variable_selector": ["attachments"],
+          "output_key": "document_text"
+        }
+      },
+      {
+        "id": "answer",
+        "type": "answer",
+        "data": {
+          "title": "Answer",
+          "answer": "{{document_text_count}}:{{document_text}}"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "extract" },
+      { "id": "e2", "source": "extract", "target": "answer" }
+    ]
+  }
+}

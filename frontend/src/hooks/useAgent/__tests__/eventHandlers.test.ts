@@ -5,6 +5,8 @@ import { handleStreamEvent } from "../eventHandlers.ts";
 import type { EventHandlerContext } from "../eventHandlers.ts";
 import type { ActiveGoalSpec, StreamEvent } from "../types.ts";
 import { prepareMessagesForRunningRun } from "../historyLoader.ts";
+import { subscribePersonaPresetsChanged } from "../../personaPresetEvents.ts";
+import { subscribeTeamsChanged } from "../../teamEvents.ts";
 
 function createContext(
   messages: Message[],
@@ -292,6 +294,91 @@ test("updates active goal runtime from lifecycle SSE events", () => {
     started_at: "2026-05-30T08:00:00.000Z",
     ended_at: "2026-05-30T08:02:03.000Z",
   });
+});
+
+test("dispatches refresh events for persona and team tool mutation results", () => {
+  const previousWindow = globalThis.window;
+  const target = new EventTarget();
+  globalThis.window = target as Window & typeof globalThis;
+
+  const ctx = createContext(
+    [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-19T01:02:03.456Z"),
+        parts: [],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+  const personaEvents: unknown[] = [];
+  const teamEvents: unknown[] = [];
+  const unsubscribePersonas = subscribePersonaPresetsChanged(
+    (detail) => personaEvents.push(detail),
+    target,
+  );
+  const unsubscribeTeams = subscribeTeamsChanged(
+    (detail) => teamEvents.push(detail),
+    target,
+  );
+
+  try {
+    handleStreamEvent(
+      {
+        event: "tool:result",
+        data: JSON.stringify({
+          tool: "save_persona_preset",
+          tool_call_id: "tool-1",
+          success: true,
+          result: {
+            success: true,
+            entity_type: "persona_preset",
+            action: "created",
+            preset: { id: "preset-1", name: "Planner" },
+          },
+        }),
+      },
+      "assistant-1",
+      "redis-event-persona",
+      "2026-04-19T01:02:04.000Z",
+      ctx,
+    );
+    handleStreamEvent(
+      {
+        event: "tool:result",
+        data: JSON.stringify({
+          tool: "create_agent_team",
+          tool_call_id: "tool-2",
+          success: true,
+          result: {
+            success: true,
+            entity_type: "team",
+            action: "updated",
+            team_id: "team-1",
+            team: { id: "team-1", name: "Research Team" },
+          },
+        }),
+      },
+      "assistant-1",
+      "redis-event-team",
+      "2026-04-19T01:02:05.000Z",
+      ctx,
+    );
+  } finally {
+    unsubscribePersonas();
+    unsubscribeTeams();
+    globalThis.window = previousWindow;
+  }
+
+  assert.deepEqual(personaEvents, [
+    { action: "created", presetId: "preset-1", presetName: "Planner" },
+  ]);
+  assert.deepEqual(teamEvents, [
+    { action: "updated", teamId: "team-1", teamName: "Research Team" },
+  ]);
 });
 
 test("goal:end auto-clears the active goal after a short delay", () => {

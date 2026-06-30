@@ -1,5 +1,7 @@
 import {
+  type ComponentType,
   forwardRef,
+  type ReactNode,
   useEffect,
   useRef,
   useState,
@@ -9,10 +11,17 @@ import {
   type InputHTMLAttributes,
 } from "react";
 
+type PanelSearchInputComponentProps = InputHTMLAttributes<HTMLInputElement> & {
+  leadingIcon?: ReactNode;
+  trailingSlot?: ReactNode;
+  error?: boolean;
+};
+
 type PanelSearchInputProps = Omit<
-  InputHTMLAttributes<HTMLInputElement>,
+  PanelSearchInputComponentProps,
   "onChange" | "value"
 > & {
+  as?: "input" | ComponentType<PanelSearchInputComponentProps>;
   value?: string;
   onValueChange: (value: string) => void;
 };
@@ -24,6 +33,7 @@ export const PanelSearchInput = forwardRef<
   {
     value = "",
     onValueChange,
+    as: InputComponent = "input",
     onFocus,
     onBlur,
     onCompositionStart,
@@ -75,7 +85,7 @@ export const PanelSearchInput = forwardRef<
   };
 
   return (
-    <input
+    <InputComponent
       {...props}
       ref={ref}
       value={draftValue}

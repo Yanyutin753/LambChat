@@ -365,20 +365,45 @@ CONTROLLED_FRONTEND_REFERENCES: dict[str, frozenset[str]] = {
     "app_panels.renderer": frozenset(
         {
             "agent_team.TeamBuilderPanel",
+            "workflow.WorkflowPanel",
             "feedback.FeedbackPanel",
             "usage_reports.UsagePanel",
         }
     ),
     "message_actions.renderer": frozenset({"feedback.FeedbackButtons"}),
-    "chat_input_options.selected_renderer": frozenset({"agent_team.SelectedTeamChip"}),
-    "chat_input_panels.renderer": frozenset({"agent_team.TeamPickerModal"}),
+    "chat_input_options.selected_renderer": frozenset(
+        {"agent_team.SelectedTeamChip", "workflow.SelectedWorkflowChip"}
+    ),
+    "chat_input_panels.renderer": frozenset(
+        {"agent_team.TeamPickerModal", "workflow.WorkflowPickerModal"}
+    ),
     "mention_providers.provider": frozenset({"agent_team.searchTeams"}),
     "welcome_surfaces.renderer": frozenset({"agent_team.TeamWelcomeSurface"}),
     "assistant_identity_resolvers.resolver": frozenset({"agent_team.TeamAssistantIdentity"}),
-    "project_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
-    "session_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
+    "project_options.renderer": frozenset(
+        {
+            "agent_team.TeamSelectOption",
+            "workflow.WorkflowSelectOption",
+            "workflow.WorkflowVersionSelectOption",
+        }
+    ),
+    "session_options.renderer": frozenset(
+        {
+            "agent_team.TeamSelectOption",
+            "workflow.WorkflowInputOption",
+            "workflow.WorkflowSelectOption",
+            "workflow.WorkflowVersionSelectOption",
+        }
+    ),
     "channel_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
-    "scheduled_task_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
+    "scheduled_task_options.renderer": frozenset(
+        {
+            "agent_team.TeamSelectOption",
+            "workflow.WorkflowInputOption",
+            "workflow.WorkflowSelectOption",
+            "workflow.WorkflowVersionSelectOption",
+        }
+    ),
     "channel_connectors.panel_renderer": frozenset({"feishu_connector.FeishuPanel"}),
 }
 

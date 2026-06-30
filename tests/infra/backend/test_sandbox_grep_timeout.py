@@ -200,6 +200,20 @@ def test_daytona_backend_grep_uses_configured_timeout(monkeypatch: pytest.Monkey
     assert sandbox.process.calls[0][1]["timeout"] == 30
 
 
+def test_daytona_backend_relative_commands_run_inside_configured_work_dir() -> None:
+    sandbox = _FakeDaytonaSandbox(SimpleNamespace(result="ok", exit_code=0))
+    backend = DaytonaBackend(sandbox=sandbox, timeout=180, work_dir="/workspace/sessions/session-1")
+
+    response = backend.execute("touch report.md")
+
+    assert response.exit_code == 0
+    command = sandbox.process.calls[0][0]
+    assert (
+        command
+        == "mkdir -p /workspace/sessions/session-1 && cd /workspace/sessions/session-1 && touch report.md"
+    )
+
+
 def test_daytona_download_files_skips_large_file_before_sdk_download(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -283,6 +297,29 @@ def test_e2b_backend_grep_uses_configured_timeout(monkeypatch: pytest.MonkeyPatc
 
     assert matches == [{"path": "/tmp/app.py", "line": 3, "text": "needle"}]
     assert sandbox.commands.calls[0]["timeout"] == 30
+
+
+def test_e2b_backend_relative_commands_run_inside_configured_work_dir() -> None:
+    sandbox = _FakeE2BSandbox(SimpleNamespace(stdout="ok", stderr="", exit_code=0))
+    backend = E2BBackend(sandbox=sandbox, timeout=180, work_dir="/home/user/sessions/session-1")
+
+    response = backend.execute("touch report.md")
+
+    assert response.exit_code == 0
+    assert (
+        sandbox.commands.calls[0]["cmd"]
+        == "mkdir -p /home/user/sessions/session-1 && cd /home/user/sessions/session-1 && touch report.md"
+    )
+
+
+def test_e2b_backend_relative_file_tools_use_configured_work_dir() -> None:
+    sandbox = _FakeE2BSandboxWithFiles()
+    backend = E2BBackend(sandbox=sandbox, timeout=180, work_dir="/home/user/sessions/session-1")
+
+    result = backend.write("report.md", "hello")
+
+    assert result.path == "/home/user/sessions/session-1/report.md"
+    assert sandbox.files.write_calls == [("/home/user/sessions/session-1/report.md", "hello")]
 
 
 def test_e2b_download_files_rejects_too_many_paths_before_preflight() -> None:

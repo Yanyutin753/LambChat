@@ -18,6 +18,14 @@ const sidebarRailSource = readFileSync(
   new URL("../SidebarRail.tsx", import.meta.url),
   "utf8",
 );
+const chatAppContentSource = readFileSync(
+  new URL("../../../layout/AppContent/ChatAppContent.tsx", import.meta.url),
+  "utf8",
+);
+const nonChatAppContentSource = readFileSync(
+  new URL("../../../layout/AppContent/NonChatAppContent.tsx", import.meta.url),
+  "utf8",
+);
 
 test("persona lives in the core more menu while team is plugin-owned", () => {
   const coreMoreMenuMatch = coreContributionsSource.match(
@@ -39,4 +47,10 @@ test("persona and team are not rendered as primary sidebar actions", () => {
   assert.doesNotMatch(sessionListContentSource, /navigate\("\/team"\)/);
   assert.doesNotMatch(sidebarRailSource, /onOpenPersonaPlaza/);
   assert.doesNotMatch(sidebarRailSource, /onOpenTeamBuilder/);
+});
+
+test("sidebar more menu receives plugin contributions on chat and non-chat tabs", () => {
+  assert.match(chatAppContentSource, /<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
+  assert.match(nonChatAppContentSource, /<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
+  assert.match(useMoreMenuSource, /buildSidebarMoreNavContributions\(runtimePlugins\)/);
 });

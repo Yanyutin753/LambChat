@@ -1,0 +1,32 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Template Transform Parts"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "template",
+          "data": {
+            "type": "template-transform",
+            "title": "Render Parts",
+            "content": [
+              { "type": "text", "text": "Hello {{name}}" },
+              " from ",
+              { "type": "markdown", "data": "{{team}}" },
+              { "type": "image", "url": "https://example.invalid/ignored.png" }
+            ],
+            "output_key": "rendered"
+          }
+        },
+        { "id": "answer", "data": { "type": "answer", "title": "Answer", "answer": "{{rendered}}" } }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "template" },
+        { "id": "e2", "source": "template", "target": "answer" }
+      ]
+    }
+  }
+}

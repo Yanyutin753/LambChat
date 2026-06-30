@@ -63,7 +63,7 @@ export function AgentModeSelector({
 
   if (agents.length <= 1 || !onSelectAgent) return null;
 
-  const ModalContent = () => (
+  const renderModalContent = () => (
     <SelectorModalShell ref={sheetRef as React.Ref<HTMLDivElement>}>
       <SelectorModalHeader
         className="relative"
@@ -151,16 +151,6 @@ export function AgentModeSelector({
           );
         })}
       </div>
-
-      {/* Footer */}
-      <div className="safe-area-bottom [--safe-area-bottom-extra:0.75rem] px-4 sm:px-5 py-3 sm:py-3.5 border-t border-stone-200 dark:border-stone-700 bg-stone-50/80 dark:bg-stone-800/50">
-        <button
-          onClick={handleClose}
-          className="w-full py-2.5 px-4 bg-stone-900 dark:bg-stone-600 text-white dark:text-stone-100 rounded-xl font-medium text-sm hover:bg-stone-800 dark:hover:bg-stone-500 active:bg-stone-700 dark:active:bg-stone-600 transition-colors"
-        >
-          {t("common.done", "完成")}
-        </button>
-      </div>
     </SelectorModalShell>
   );
 
@@ -168,7 +158,7 @@ export function AgentModeSelector({
   if (externalOnOpenChange) {
     return (
       <SelectorModalPortal open={open} onClose={handleClose}>
-        <ModalContent />
+        {renderModalContent()}
       </SelectorModalPortal>
     );
   }
@@ -186,7 +176,7 @@ export function AgentModeSelector({
 
       {open && (
         <SelectorModalPortal open={open} onClose={handleClose}>
-          <ModalContent />
+          {renderModalContent()}
         </SelectorModalPortal>
       )}
     </div>

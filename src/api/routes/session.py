@@ -885,7 +885,6 @@ async def generate_session_title(
     try:
         model_kwargs: dict[str, Any] = {
             "model_id": title_model_id,
-            "max_tokens": 100,
             "max_retries": settings.LLM_MAX_RETRIES,
         }
         if title_model:

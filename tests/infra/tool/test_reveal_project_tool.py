@@ -35,6 +35,10 @@ def test_reveal_project_default_upload_concurrency_bounds_download_buffers() -> 
     assert reveal_project_tool.UPLOAD_CONCURRENCY <= 4
 
 
+def test_reveal_project_runtime_is_injected_not_model_argument() -> None:
+    assert "runtime" not in reveal_project_tool.reveal_project.args
+
+
 class _Runtime:
     def __init__(
         self,

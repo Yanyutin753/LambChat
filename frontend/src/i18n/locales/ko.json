@@ -12,6 +12,19 @@
     "title": "LambChat 정보",
     "upToDate": "최신 버전입니다!",
     "updateAvailable": "새 버전이 사용 가능합니다!",
+    "updateChecking": "업데이트 확인 중...",
+    "updateDownload": "지금 업데이트",
+    "updateDownloadProgress": "{{percent}}% 다운로드됨",
+    "updateDownloading": "다운로드 중...",
+    "updateError": "업데이트 실패",
+    "updateGoToDownload": "다운로드 페이지로 이동",
+    "updateInstall": "지금 설치",
+    "updateNewVersion": "새 버전 {{version}} 사용 가능",
+    "updatePublishedAt": "게시일 {{date}}",
+    "updateReleaseNotes": "릴리스 노트",
+    "updateRetry": "재시도",
+    "updateSkip": "나중에",
+    "updateSuccess": "업데이트 준비 완료! 재시작 중...",
     "viewOnGitHub": "GitHub에서 보기",
     "viewUpdate": "업데이트"
   },
@@ -490,10 +503,13 @@
     "deleteSuccess": "설정이 삭제되었습니다",
     "deleteTitle": "채널 인스턴스 삭제",
     "description": "선호하는 채팅 플랫폼을 LambChat에 연결하세요",
+    "disabled": "비활성화됨",
     "disconnected": "연결 끊김",
     "enabled": "채널 활성화",
     "enabledDesc": "이 채널 활성화 또는 비활성화",
     "fieldRequired": "{{field.title}}은(는) 필수입니다",
+    "instanceCount_one": "{{count}}개 인스턴스",
+    "instanceCount_other": "{{count}}개 인스턴스",
     "instanceName": "인스턴스 이름",
     "instanceNamePlaceholder": "인스턴스 이름 입력",
     "leaveEmpty": "현재 값을 유지하려면 비워두세요",
@@ -519,7 +535,9 @@
     "testError": "연결 테스트 실패",
     "testFailed": "연결 실패",
     "testSuccess": "연결 성공",
-    "title": "채널"
+    "title": "채널",
+    "webhookShort": "Hook",
+    "websocketShort": "WS"
   },
   "chat": {
     "addMoreFiles": "[TODO]chat.addMoreFiles",
@@ -527,11 +545,11 @@
     "attachFile": "파일 첨부",
     "cancelled": "취소됨",
     "commands": {
-      "runSkillsCount": "[TODO]chat.commands.runSkillsCount",
-      "tools": "도구",
-      "team": "팀",
+      "agent": "에이전트",
       "persona": "페르소나",
-      "agent": "에이전트"
+      "runSkillsCount": "[TODO]chat.commands.runSkillsCount",
+      "team": "팀",
+      "tools": "도구"
     },
     "dropFilesHere": "파일을 여기에 드래그하여 업로드",
     "enterToSend": "로 전송",
@@ -548,13 +566,13 @@
       "clear": "목표 지우기",
       "command": "목표",
       "completed": "완료",
+      "description": "대화 목표 설정",
       "duration": "실행",
       "placeholder": "목표를 입력…",
       "required": "목표를 입력하세요",
       "running": "실행",
       "runningStatus": "실행 중",
-      "startedAt": "시작 시간",
-      "description": "대화 목표 설정"
+      "startedAt": "시작 시간"
     },
     "goodAfternoon": "좋은 오후에요, {{name}}",
     "goodEvening": "좋은 저녁이에요, {{name}}",
@@ -578,6 +596,7 @@
       "askHumanYourAnswer": "사용자 답변",
       "assistant": "어시스턴트",
       "cancelled": "생성이 취소되었습니다",
+      "codePreview": "코드 미리보기",
       "collapse": "접기",
       "complete": "완료",
       "copied": "복사됨!",
@@ -636,6 +655,7 @@
       "toolEditRemoved": "삭제",
       "toolEnvVar": "환경변수",
       "toolEnvVarDelete": "변수 삭제",
+      "toolEnvVarDeleteAll": "모든 변수 삭제",
       "toolEnvVarList": "변수 목록",
       "toolEnvVarSet": "변수 설정",
       "toolExecute": "실행",
@@ -646,6 +666,8 @@
       "toolFileCount_one": "{{count}}개 파일",
       "toolFileCount_other": "{{count}}개 파일",
       "toolGlob": "Glob",
+      "toolImageAnalyze": "이미지 분석",
+      "toolImageAnalyzeCount": "{{count}}개 이미지",
       "toolImageCount": "{{count}}개 이미지",
       "toolImageGenerate": "생성",
       "toolImageGenerateDesc": "AI 기반 이미지 생성",
@@ -680,7 +702,11 @@
       "toolScheduledTask": "작업",
       "toolScheduledTaskCreate": "작업 생성",
       "toolScheduledTaskDelete": "작업 삭제",
+      "toolScheduledTaskGet": "작업 가져오기",
       "toolScheduledTaskList": "작업 목록",
+      "toolScheduledTaskPause": "작업 일시 중지",
+      "toolScheduledTaskResume": "작업 재개",
+      "toolScheduledTaskRun": "작업 실행",
       "toolScheduledTaskUpdate": "작업 업데이트",
       "toolSearch": "검색",
       "toolSearchAlreadyAvailable": "사용 가능",
@@ -691,6 +717,9 @@
       "toolSearchTools": "도구 검색",
       "toolSuccess": "명령어 성공",
       "toolTaskName": "이름",
+      "toolTransferFile": "파일 전송",
+      "toolTransferPath": "경로 전송",
+      "toolUploadUrlToSandbox": "URL을 샌드박스로 업로드",
       "toolVarCount": "{{count}}개 변수",
       "toolWrite": "쓰기"
     },
@@ -720,6 +749,10 @@
     "shiftEnterNewLine": "로 줄바꿈",
     "skillCreated": "스킬이 생성되었습니다",
     "skillUpdated": "스킬이 업데이트되었습니다",
+    "slashCommands": {
+      "commands": "명령어",
+      "skills": "스킬"
+    },
     "status": {
       "cancelled": "취소됨"
     },
@@ -741,11 +774,7 @@
     "waitingForUpload": "파일 업로드가 완료될 때까지 기다려 주세요",
     "welcomeRefresh": "새로고침",
     "welcomeSubtitle": "무엇을 도와드릴까요?",
-    "welcomeSuggestions": "추천",
-    "slashCommands": {
-      "commands": "명령어",
-      "skills": "스킬"
-    }
+    "welcomeSuggestions": "추천"
   },
   "common": {
     "about": "정보",
@@ -1422,6 +1451,8 @@
       "createServer": "서버 생성",
       "dailyLimit": "일일 제한",
       "enabled": "활성화",
+      "disableInlineExposure": "필요 시 검색으로 전환",
+      "enableInlineExposure": "함수로 직접 노출",
       "envKeys": "환경 변수",
       "envKeysDescription": "이 MCP 서버 프로세스에 주입할 환경 변수를 선택하세요. 환경 변수 설정에서 미리 정의되어 있어야 합니다.",
       "envKeysPlaceholder": "환경 변수 선택...",
@@ -1429,6 +1460,8 @@
       "envVars": "환경 변수",
       "headerNamePlaceholder": "헤더 이름",
       "httpHeaders": "HTTP 헤더",
+      "inlineExposure": "함수로 직접 노출",
+      "inlineExposureDescription": "자주 쓰는 도구를 모델 도구 목록에 바로 표시합니다. 끄면 search_tools로 필요할 때 불러옵니다.",
       "keyPlaceholder": "키",
       "noEnvVars": "환경 변수 없음",
       "noHeaders": "사용자 정의 헤더 없음",
@@ -1549,6 +1582,35 @@
   "mermaidViewer": {
     "hideCode": "코드 숨기기",
     "showCode": "코드 보기"
+  },
+  "workflowPlugin": {
+    "chat": {
+      "entry": "진입",
+      "exit": "출구",
+      "inputOverrideSet": "입력 재정의 설정됨",
+      "inputs": "입력",
+      "none": "없음",
+      "outputs": "출력",
+      "selectWorkflow": "워크플로"
+    },
+    "nav": {
+      "editorLabel": "워크플로 편집기",
+      "label": "워크플로",
+      "runLabel": "워크플로 실행"
+    },
+    "project": {
+      "defaultWorkflow": "기본 워크플로",
+      "defaultWorkflowVersion": "기본 워크플로 버전"
+    },
+    "scheduledTask": {
+      "workflow": "워크플로",
+      "workflowVersion": "워크플로 버전"
+    },
+    "session": {
+      "selectedWorkflow": "선택된 워크플로",
+      "selectedWorkflowVersion": "선택된 워크플로 버전",
+      "selectedWorkflowInput": "선택된 워크플로 입력"
+    }
   },
   "nav": {
     "adminMarketplace": "관리자 마켓플레이스",
@@ -2041,6 +2103,14 @@
       "description": "Model Context Protocol 서버 연결을 관리하세요. 외부 도구, 데이터베이스 및 서비스를 연결하여 AI 에이전트 기능을 확장합니다.",
       "title": "MCP 서버 관리"
     },
+    "workflows": {
+      "description": "워크플로를 생성, 구성, 버전 관리, 실행 및 디버그합니다.",
+      "editorDescription": "명시적인 입력, 출력, 노드 및 실행 트레이스를 가진 워크플로 그래프를 편집합니다.",
+      "editorTitle": "워크플로 편집기",
+      "runDescription": "워크플로 실행 트레이스, 노드 이벤트, 출력, 오류 및 승인 상태를 확인합니다.",
+      "runTitle": "워크플로 실행",
+      "title": "워크플로"
+    },
     "memory": {
       "description": "AI 메모리 콘텐츠를 보고 관리하세요. 영구적인 컨텍스트와 지식 저장으로 대화 간 장기적인 AI 에이전트 이해를 실현합니다.",
       "title": "AI 메모리 공간"
@@ -2107,6 +2177,15 @@
     "CHECKPOINT_PG_POOL_MIN_SIZE": "체크포인트 PostgreSQL 연결 풀 최소 크기",
     "CHECKPOINT_PG_PORT": "체크포인트 저장용 PostgreSQL 포트",
     "CHECKPOINT_PG_USER": "체크포인트 저장용 PostgreSQL 사용자 이름. 비워두면 POSTGRES_USER 사용.",
+    "CUBE_API_URL": "CubeSandbox API URL, 예: http://127.0.0.1:13000",
+    "CUBE_AUTO_PAUSE": "타임아웃 시 CubeSandbox 샌드박스를 삭제 대신 일시 정지합니다",
+    "CUBE_AUTO_RESUME": "다음 연결 시 일시 정지된 CubeSandbox 샌드박스를 자동으로 재개합니다",
+    "CUBE_PROXY_NODE_IP": "CubeProxy 노드 IP. 로컬 개발 시 일반적으로 127.0.0.1이며 cube.app DNS를 바우패스합니다",
+    "CUBE_PROXY_PORT_HTTP": "CubeProxy HTTP 포트. 로컬 개발 시 일반적으로 11080",
+    "CUBE_REQUEST_TIMEOUT": "CubeSandbox 제어 플레인 요청 타임아웃 (초)",
+    "CUBE_SANDBOX_DOMAIN": "CubeSandbox 샌드박스 도메인 접미사, 예: cube.app",
+    "CUBE_TEMPLATE": "CubeSandbox 템플릿 ID",
+    "CUBE_TIMEOUT": "CubeSandbox 샌드박스 타임아웃 (초)",
     "DAYTONA_API_KEY": "Daytona API 키",
     "DAYTONA_AUTO_ARCHIVE_INTERVAL": "Daytona 샌드박스 자동 아카이브 간격(분)",
     "DAYTONA_AUTO_DELETE_INTERVAL": "아카이브 후 Daytona 샌드박스 자동 삭제 간격(분)",
@@ -2130,6 +2209,7 @@
     "ENABLE_CODE_INTERPRETER": "에이전트 실행을 위한 실험적 QuickJS 코드 인터프리터 활성화",
     "ENABLE_DEFERRED_TOOL_LOADING": "MCP 도구 지연 로딩 활성화(초기 컨텍스트 크기 감소)",
     "ENABLE_EVENT_MERGER": "이벤트 병합을 활성화하여 이벤트 수 감소",
+    "ENABLE_IMAGE_ANALYSIS": "Agent용 이미지 분석 도구 활성화",
     "ENABLE_IMAGE_GENERATION": "에이전트용 이미지 생성 및 편집 도구 활성화",
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "백엔드 다운로드 실패 시 reveal/download 흐름이 서버 로컬 파일 시스템으로 폴백하는 것을 허용",
     "ENABLE_MCP": "MCP 기능 활성화",
@@ -2152,6 +2232,9 @@
     "FILE_UPLOAD_MAX_SIZE_DOCUMENT": "최대 문서 파일 크기(MB)",
     "FILE_UPLOAD_MAX_SIZE_IMAGE": "최대 이미지 파일 크기(MB)",
     "FILE_UPLOAD_MAX_SIZE_VIDEO": "최대 동영상 파일 크기(MB)",
+    "IMAGE_ANALYSIS_MAX_ATTEMPTS": "이미지 분석 모델 호출 최대 시도 횟수",
+    "IMAGE_ANALYSIS_MODEL_ID": "image_analyze 도구에서 사용할 VLM 모델 구성 ID입니다. 모델 설정에서 비전 지원으로 표시된 모델을 선택하세요.",
+    "IMAGE_ANALYSIS_RETRY_DELAY": "이미지 분석 재시도 기본 대기 시간(초, 지수 백오프 시작값)",
     "IMAGE_GENERATION_API_KEY": "이미지 생성/편집 API 키",
     "IMAGE_GENERATION_BASE_URL": "OpenAI 호환 이미지 API 기본 URL",
     "IMAGE_GENERATION_MODEL": "이미지 생성 모델 이름",
@@ -2326,6 +2409,7 @@
     "agent": "에이전트",
     "authenticated": "로그인 필요",
     "authenticatedDesc": "로그인한 사용자만 볼 수 있음",
+    "cancelEdit": "편집 취소",
     "conversationHistory": "대화 기록",
     "copyLink": "링크 복사",
     "createChat": "채팅 만들기",
@@ -2337,6 +2421,7 @@
     "deleteShare": "공유 해제",
     "deleteSuccess": "공유가 삭제되었습니다",
     "deselectAll": "모두 해제",
+    "editShare": "공유 편집",
     "events": "개 메시지",
     "existingShares": "기존 공유",
     "fullSession": "전체 세션",
@@ -2366,6 +2451,7 @@
     "round": "라운드 {{number}}",
     "run": "실행",
     "runNumber": "실행 {{number}}",
+    "saveShare": "변경 사항 저장",
     "selectAll": "모두 선택",
     "selectRuns": "공유할 대화 선택",
     "session": "세션",
@@ -2377,6 +2463,8 @@
     "taskPending": "대기 중",
     "taskRunning": "실행 중",
     "title": "세션 공유",
+    "updateFailed": "공유 업데이트 실패",
+    "updateSuccess": "공유가 업데이트되었습니다",
     "userMessage": "(사용자 메시지: {{message}})",
     "visibility": "접근 제어"
   },
@@ -2400,7 +2488,11 @@
   "sidebar": {
     "addToFavorites": "즐겨찾기에 추가",
     "batchDeleteConfirm": "선택한 {{count}}개의 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+    "batchDeletePartialFailed": "{{count}}개 세션 삭제 실패",
+    "batchDeleted": "{{count}}개 세션 삭제됨",
     "batchMoveConfirm": "선택한 {{count}}개의 세션을 \"{{project}}\"(으)로 이동하시겠습니까?",
+    "batchMovePartialFailed": "{{count}}개 세션 이동 실패",
+    "batchMoved": "{{count}}개 세션 이동됨",
     "chats": "채팅",
     "clearVisibleSelection": "모두 해제",
     "clickToEditIcon": "클릭하여 아이콘 편집",
@@ -2809,6 +2901,7 @@
       "${cat}": "{{cat}}",
       "builtin": "기본 제공",
       "human": "수동",
+      "internal": "내부",
       "mcp": "MCP",
       "sandbox": "샌드박스",
       "skill": "스킬"
@@ -2817,8 +2910,10 @@
     "done": "완료",
     "loadFailed": "도구 로드 실패",
     "noDescription": "설명 없음",
+    "noMatchingTools": "일치하는 도구가 없습니다",
     "noTools": "사용 가능한 도구 없음",
     "parameters": "매개변수",
+    "searchPlaceholder": "도구 검색...",
     "selectAll": "모두 선택",
     "selected": "{{total}}개 중 {{enabled}}개 선택됨",
     "systemDisabled": "시스템 비활성화",

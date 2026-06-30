@@ -380,6 +380,30 @@ class EventPresenterMixin:
             agent_id=agent_id,
         )
 
+    def present_artifact_result(
+        self,
+        artifact: Dict[str, Any],
+        *,
+        success: bool = True,
+        error: Optional[str] = None,
+        depth: int = 0,
+        agent_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出用户可见产物结果，不渲染成工具调用。"""
+        data: Dict[str, Any] = {
+            "artifact": artifact,
+            "success": success,
+            "timestamp": utc_now_iso(),
+        }
+        if error:
+            data["error"] = error
+        return self._build_event(
+            "artifact:result",
+            data,
+            depth=depth,
+            agent_id=agent_id,
+        )
+
     def present_ask_human(
         self,
         approval_id: str,

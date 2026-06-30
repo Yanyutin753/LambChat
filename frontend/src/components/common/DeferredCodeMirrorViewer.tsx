@@ -1,6 +1,7 @@
 import { Suspense, lazy } from "react";
 
 import type { CodeMirrorViewerProps } from "./CodeMirrorViewer";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 const LazyCodeMirrorViewer = lazy(() =>
   import("./CodeMirrorViewer").then((module) => ({
@@ -9,25 +10,25 @@ const LazyCodeMirrorViewer = lazy(() =>
 );
 
 function CodeMirrorFallback({
-  value,
   className,
   maxHeight,
   fontSize,
-}: Pick<
-  CodeMirrorViewerProps,
-  "value" | "className" | "maxHeight" | "fontSize"
->) {
+}: Pick<CodeMirrorViewerProps, "className" | "maxHeight" | "fontSize">) {
+  const loadingLabel = "Loading code preview";
+
   return (
     <div className={className}>
-      <pre
-        className="overflow-auto whitespace-pre-wrap break-words bg-white p-3 font-mono text-stone-700 dark:bg-[#282c34] dark:text-stone-200"
+      <div
+        aria-label={loadingLabel}
+        role="status"
+        className="flex min-h-24 items-center justify-center bg-white p-3 text-stone-500 dark:bg-[#282c34] dark:text-stone-400"
         style={{
           ...(maxHeight ? { maxHeight } : {}),
           ...(fontSize ? { fontSize } : {}),
         }}
       >
-        {value}
-      </pre>
+        <LoadingSpinner size="sm" color="text-current" />
+      </div>
     </div>
   );
 }
@@ -37,7 +38,6 @@ export function DeferredCodeMirrorViewer(props: CodeMirrorViewerProps) {
     <Suspense
       fallback={
         <CodeMirrorFallback
-          value={props.value}
           className={props.className}
           maxHeight={props.maxHeight}
           fontSize={props.fontSize}

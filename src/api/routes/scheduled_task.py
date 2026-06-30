@@ -169,7 +169,11 @@ async def run_scheduled_task_now(
     user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_WRITE.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
-    """Manually trigger a scheduled task execution."""
+    """Manually trigger a scheduled task execution.
+
+    Returns immediately with ``{"run_id": ..., "status": "submitted"}``.
+    Poll ``GET /{task_id}/runs`` to monitor progress.
+    """
     await _require_owned_task(task_id, user, service)
     return await service.run_task_now(task_id)
 

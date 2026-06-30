@@ -813,7 +813,13 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                 try:
                     responses = await backend.adownload_files([file_path])
                     if responses and responses[0].content:
-                        file_bytes = responses[0].content
+                        response = responses[0]
+                        file_bytes = response.content
+                        try:
+                            response.content = None
+                        except Exception:
+                            pass
+                        del response
                     del responses
                 except Exception:
                     pass
@@ -822,7 +828,13 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                 try:
                     responses = await run_blocking_io(backend.download_files, [file_path])
                     if responses and responses[0].content:
-                        file_bytes = responses[0].content
+                        response = responses[0]
+                        file_bytes = response.content
+                        try:
+                            response.content = None
+                        except Exception:
+                            pass
+                        del response
                     del responses
                 except Exception:
                     pass

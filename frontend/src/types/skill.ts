@@ -126,6 +126,7 @@ export interface SkillCreate {
   content: string;
   enabled?: boolean;
   files?: Record<string, string>; // For multi-file support
+  filePaths?: string[]; // All file paths currently present in the editor
   source?: SkillSource; // Used by form, not sent to API
 }
 

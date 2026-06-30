@@ -16,7 +16,7 @@ def test_includes_shared_workflow():
         role_name="Writer",
         role_system_prompt="You are a technical writer.",
     )
-    assert "File Reveal" in prompt
+    assert "Artifact Delivery" in prompt
 
 
 def test_includes_team_context():

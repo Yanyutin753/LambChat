@@ -11,6 +11,12 @@ test("service worker activates fresh deployments without serving a stale app she
   assert.match(swSource, /addEventListener\("activate"/);
   assert.match(swSource, /clients\.claim\(\)/);
   assert.match(swSource, /client\.navigate\(client\.url\)/);
+  assert.match(swSource, /const STATIC_CACHE = "lambchat-static-v7"/);
+  assert.match(swSource, /"lambchat-static-v2"/);
+  assert.match(swSource, /"lambchat-static-v3"/);
+  assert.match(swSource, /"lambchat-static-v4"/);
+  assert.match(swSource, /"lambchat-static-v5"/);
+  assert.match(swSource, /"lambchat-static-v6"/);
   assert.doesNotMatch(swSource, /new NetworkFirst/);
   assert.doesNotMatch(swSource, /lambchat-app-shell-v2";/);
 });

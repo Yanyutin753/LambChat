@@ -90,6 +90,19 @@ test("generated image result previews open the shared ImageViewer", () => {
   );
 });
 
+test("generated image result previews load eagerly for browser captures", () => {
+  const source = readFileSync(
+    new URL("../McpBlockPreview.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /<ImageWithSkeleton[\s\S]*?\bloading="eager"/,
+    "generated image previews should not rely on native lazy loading",
+  );
+});
+
 test("image generation prompt can be copied from the detail panel", () => {
   const source = readFileSync(
     new URL("../ImageGenerateItem.tsx", import.meta.url),

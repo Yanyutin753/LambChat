@@ -47,6 +47,7 @@ interface StartVirtuosoScrollToBottomOptions {
   keepAliveWhile?: () => boolean;
   shouldAbort?: () => boolean;
   onAutoScroll?: () => void;
+  onInitialSettle?: () => void;
   onComplete?: (reason: "settled" | "aborted" | "max-attempts") => void;
   resetBudgetOnLayoutChange?: boolean;
 }
@@ -398,6 +399,7 @@ export function startVirtuosoScrollToBottom({
   keepAliveWhile,
   shouldAbort,
   onAutoScroll,
+  onInitialSettle,
   onComplete,
   resetBudgetOnLayoutChange = observeLayoutChanges,
 }: StartVirtuosoScrollToBottomOptions): () => void {
@@ -415,6 +417,12 @@ export function startVirtuosoScrollToBottom({
   let resizeObserver: ResizeObserverLike | null = null;
   let keepAliveActive = false;
   let postSettleObserveUntil = 0;
+  let initialSettleNotified = false;
+  const notifyInitialSettle = () => {
+    if (initialSettleNotified) return;
+    initialSettleNotified = true;
+    onInitialSettle?.();
+  };
   const finish = (reason: "settled" | "aborted" | "max-attempts") => {
     if (finished) return;
     finished = true;
@@ -608,10 +616,18 @@ export function startVirtuosoScrollToBottom({
         observeLayoutChanges &&
         observeAfterSettleMs > 0
       ) {
+        notifyInitialSettle();
         postSettleObserveUntil = Date.now() + observeAfterSettleMs;
         return;
       }
 
+      if (
+        isAtBottom &&
+        hasStableHeight &&
+        attempts >= minAttemptsBeforeSettling
+      ) {
+        notifyInitialSettle();
+      }
       finish(
         hasExceededScrollBudget || hasReachedAttemptLimit
           ? "max-attempts"

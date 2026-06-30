@@ -15,6 +15,10 @@ export interface AutoPreviewTarget {
 }
 
 function isAutoPreviewToolPart(part: MessagePart): boolean {
+  if (part.type === "artifact") {
+    return part.success === true;
+  }
+
   return (
     part.type === "tool" &&
     part.success === true &&
