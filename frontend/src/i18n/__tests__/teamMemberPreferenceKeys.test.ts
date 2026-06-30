@@ -11,18 +11,20 @@ const localeFiles = ["en", "zh", "ja", "ko", "ru"].map((locale) =>
 
 const teamMemberPreferenceKeys = [
   "followSessionModel",
-  "followTeamMode",
-  "memberMode",
-  "memberModes",
   "memberModel",
   "memberModels",
+  "runInSandbox",
+  "runInSandboxTitle",
+  "runInSandboxDesc",
+  "enableSandbox",
+  "disableSandbox",
 ];
 
 function readJson(path: string) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-test("team member mode and model strings are available in every locale", () => {
+test("team member model and team sandbox strings are available in every locale", () => {
   for (const localeFile of localeFiles) {
     const locale = readJson(localeFile);
 

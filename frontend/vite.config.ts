@@ -78,91 +78,99 @@ const cacheStableIconsPlugin = {
   },
 };
 
-export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
-      strategies: "injectManifest",
-      srcDir: "src",
-      filename: "sw.ts",
-      injectRegister: false,
-      manifest: false,
-      injectManifest: {
-        globPatterns: [
-          "**/*.{js,css,html,ico,png,svg,webp,avif,woff,woff2,json}",
-        ],
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
-      },
-      includeManifestIcons: false,
-      devOptions: {
-        enabled: false,
-      },
-    }),
-    cacheStableIconsPlugin,
-  ],
-  resolve: {
-    alias: [
-      {
-        find: /^opentype\.js$/,
-        replacement: path.resolve(
-          __dirname,
-          "node_modules/opentype.js/dist/opentype.js",
-        ),
-      },
-      {
-        find: /^stream$/,
-        replacement: path.resolve(__dirname, "node_modules/stream-browserify"),
-      },
-      {
-        find: /^events$/,
-        replacement: path.resolve(__dirname, "node_modules/events"),
-      },
-      {
-        find: /^util$/,
-        replacement: path.resolve(__dirname, "node_modules/util"),
-      },
-      {
-        find: /^process$/,
-        replacement: path.resolve(__dirname, "node_modules/process/browser"),
-      },
-    ],
-  },
-  esbuild: {
-    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-codemirror": [
-            "@uiw/react-codemirror",
-            "@codemirror/lang-css",
-            "@codemirror/lang-html",
-            "@codemirror/lang-javascript",
-            "@codemirror/lang-json",
-            "@codemirror/lang-markdown",
-            "@codemirror/lang-python",
-            "@codemirror/lang-sql",
-            "@codemirror/lang-yaml",
-          ],
-          "vendor-markdown": [
-            "react-markdown",
-            "remark-gfm",
-            "remark-breaks",
-            "remark-math",
-            "rehype-katex",
-            "rehype-highlight",
-          ],
-          "vendor-sandpack": ["@codesandbox/sandpack-react"],
-          "vendor-mermaid": ["mermaid"],
-          "vendor-katex": ["katex"],
-          "vendor-i18n": ["i18next", "react-i18next"],
+export default defineConfig(({ mode }) => {
+  const skipPwaBuild =
+    mode === "smoke" || process.env.LAMBCHAT_SKIP_PWA === "true";
+
+  return {
+    plugins: [
+      react(),
+      !skipPwaBuild &&
+        VitePWA({
+          strategies: "injectManifest",
+          srcDir: "src",
+          filename: "sw.ts",
+          injectRegister: false,
+          manifest: false,
+          injectManifest: {
+            globPatterns: [
+              "**/*.{js,css,html,ico,png,svg,webp,avif,woff,woff2,json}",
+            ],
+            maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+          },
+          includeManifestIcons: false,
+          devOptions: {
+            enabled: false,
+          },
+        }),
+      cacheStableIconsPlugin,
+    ].filter(Boolean),
+    resolve: {
+      alias: [
+        {
+          find: /^opentype\.js$/,
+          replacement: path.resolve(
+            __dirname,
+            "node_modules/opentype.js/dist/opentype.js",
+          ),
+        },
+        {
+          find: /^stream$/,
+          replacement: path.resolve(__dirname, "node_modules/stream-browserify"),
+        },
+        {
+          find: /^events$/,
+          replacement: path.resolve(__dirname, "node_modules/events"),
+        },
+        {
+          find: /^util$/,
+          replacement: path.resolve(__dirname, "node_modules/util"),
+        },
+        {
+          find: /^process$/,
+          replacement: path.resolve(__dirname, "node_modules/process/browser"),
+        },
+      ],
+    },
+    esbuild: {
+      drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            "vendor-react": ["react", "react-dom", "react-router-dom"],
+            "vendor-codemirror": [
+              "@uiw/react-codemirror",
+              "@codemirror/lang-css",
+              "@codemirror/lang-html",
+              "@codemirror/lang-javascript",
+              "@codemirror/lang-json",
+              "@codemirror/lang-markdown",
+              "@codemirror/lang-python",
+              "@codemirror/lang-sql",
+              "@codemirror/lang-yaml",
+            ],
+            "vendor-markdown": [
+              "react-markdown",
+              "remark-gfm",
+              "remark-breaks",
+              "remark-math",
+              "rehype-katex",
+              "rehype-highlight",
+            ],
+            "vendor-sandpack": ["@codesandbox/sandpack-react"],
+            "vendor-mermaid": ["mermaid"],
+            "vendor-katex": ["katex"],
+            "vendor-i18n": ["i18next", "react-i18next"],
+          },
         },
       },
     },
-  },
-  server: {
+    server: {
+      fs: {
+        allow: [path.resolve(__dirname, "..")],
+      },
     host: true, // 监听所有地址 (0.0.0.0)，允许 127.0.0.1 和 localhost 访问
     port: 3001,
     proxy: {
@@ -234,5 +242,6 @@ export default defineConfig({
         secure: false,
       },
     },
-  },
+    },
+  };
 });

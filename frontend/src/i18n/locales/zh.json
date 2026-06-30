@@ -1595,13 +1595,34 @@
     "hideCode": "隐藏代码",
     "showCode": "查看代码"
   },
-  "mode": {
-    "auto": "自动",
-    "autoDesc": "自动执行，跳过确认",
-    "goal": "目标",
-    "goalDesc": "将消息作为目标进行引导执行",
-    "hint": "两种模式可以同时激活",
-    "title": "运行模式"
+  "workflowPlugin": {
+    "chat": {
+      "entry": "入口",
+      "exit": "出口",
+      "inputOverrideSet": "已设置输入覆盖",
+      "inputs": "输入",
+      "none": "无",
+      "outputs": "输出",
+      "selectWorkflow": "工作流"
+    },
+    "nav": {
+      "editorLabel": "工作流编辑器",
+      "label": "工作流",
+      "runLabel": "工作流运行"
+    },
+    "project": {
+      "defaultWorkflow": "默认工作流",
+      "defaultWorkflowVersion": "默认工作流版本"
+    },
+    "scheduledTask": {
+      "workflow": "工作流",
+      "workflowVersion": "工作流版本"
+    },
+    "session": {
+      "selectedWorkflow": "已选择工作流",
+      "selectedWorkflowVersion": "已选择工作流版本",
+      "selectedWorkflowInput": "已选择工作流输入"
+    }
   },
   "nav": {
     "adminMarketplace": "管理员技能商店",
@@ -1628,7 +1649,8 @@
     "team": "团队构建",
     "usage": "控制台",
     "userSettings": "用户管理",
-    "users": "用户"
+    "users": "用户",
+    "plugins": "插件"
   },
   "navDesc": {
     "agents": "配置和管理 AI 助手",
@@ -1644,7 +1666,8 @@
     "scheduledTasks": "管理自动化定时任务",
     "settings": "应用和系统设置",
     "skills": "管理和配置技能",
-    "users": "管理用户账户和访问权限"
+    "users": "管理用户账户和访问权限",
+    "plugins": "查看运行时管理的插件"
   },
   "notification": {
     "active": "已激活",
@@ -2094,6 +2117,14 @@
       "description": "管理模型上下文协议服务器连接。连接外部工具、数据库和服务，扩展 AI 智能体能力。",
       "title": "MCP 服务器管理"
     },
+    "workflows": {
+      "description": "创建、编排、版本化、运行和调试工作流。",
+      "editorDescription": "编辑工作流图，包括显式输入、输出、节点和运行 trace。",
+      "editorTitle": "工作流编辑器",
+      "runDescription": "查看工作流运行 trace、节点事件、输出、错误和审批状态。",
+      "runTitle": "工作流运行",
+      "title": "工作流"
+    },
     "memory": {
       "description": "查看和管理 AI 记忆内容。持久化上下文和知识存储，实现跨对话的 AI 智能体长期理解。",
       "title": "AI 记忆空间"
@@ -2137,6 +2168,10 @@
     "users": {
       "description": "管理用户账户、角色和访问权限。管理多租户用户生命周期和安全设置。",
       "title": "用户管理"
+    },
+    "plugins": {
+      "description": "查看内置插件的运行时状态、静态贡献、资源归属和卸载 dry-run 计划。",
+      "title": "插件运行时"
     }
   },
   "settingDesc": {
@@ -2834,6 +2869,11 @@
     "memberModel": "成员模型",
     "memberModels": "成员模型",
     "memberModes": "成员模式",
+    "runInSandbox": "沙箱运行",
+    "runInSandboxTitle": "在沙箱内运行此团队",
+    "runInSandboxDesc": "启用后，团队模式会为该团队使用隔离沙箱后端；关闭后使用持久工作区后端。",
+    "enableSandbox": "开启沙箱运行",
+    "disableSandbox": "关闭沙箱运行",
     "members": "成员",
     "newTeam": "新建团队",
     "noMatchingTeams": "没有匹配的团队",
@@ -2884,6 +2924,7 @@
       "${cat}": "{{cat}}",
       "builtin": "内置",
       "human": "人工",
+      "internal": "内部",
       "mcp": "MCP",
       "sandbox": "沙箱",
       "skill": "技能"
@@ -3071,6 +3112,179 @@
       "enterPassword": "请输入密码",
       "enterUsername": "请输入用户名",
       "passwordMinLength": "密码至少需要6个字符"
+    }
+  },
+  "pluginRuntime": {
+    "actions": {
+      "disable": "禁用",
+      "enable": "启用",
+      "export": "导出",
+      "import": "导入",
+      "uninstall": "卸载"
+    },
+    "audit": {
+      "title": "状态审计"
+    },
+    "acceptance": {
+      "missing": "存在缺口",
+      "missingCount": "缺口",
+      "passed": "已通过",
+      "passedCount": "通过",
+      "title": "验收矩阵",
+      "total": "总项"
+    },
+    "contributions": "贡献入口",
+    "contributionPreview": {
+      "active": "当前生效入口",
+      "disablePolicy": "禁用只会阻断可执行入口，不会移除插件拥有的数据。",
+      "removedWhenDisabled": "禁用会阻断",
+      "resources": "资源 dry-run 动作",
+      "title": "运行时影响预览",
+      "uninstallPolicy": "卸载必须基于 dry-run 快照，系统预设插件禁止卸载。"
+    },
+    "dryRun": "卸载 dry-run",
+    "dryRunExpires": "过期时间",
+    "dryRunSnapshot": "快照",
+    "dryRunValidation": "准入校验",
+    "diagnostics": {
+      "title": "诊断概览"
+    },
+    "emptyDescription": "注册后的运行时插件会显示在这里。",
+    "emptyTitle": "暂无已注册插件",
+    "fetchDetailsFailed": "加载插件详情失败",
+    "fetchFailed": "加载插件失败",
+    "exportFailed": "导出插件失败",
+    "guardMatrix": {
+      "failureMode": "失败模式",
+      "surfaces": {
+        "hot_install_guard": "热安装与远程包",
+        "lifecycle_hook_guard": "生命周期 hook",
+        "listener_guard": "Pub/Sub 监听器",
+        "route_guard": "插件路由注册",
+        "scheduler_guard": "定时任务",
+        "tool_guard": "内部 MCP 工具",
+        "uninstall_guard": "卸载 dry-run 校验"
+      },
+      "title": "运行时守卫覆盖"
+    },
+    "import": {
+      "dryRun": "Dry Run",
+      "note": "导入接受服务器本地插件文件夹或 zip/tar 包路径；系统会校验并复制到 plugins/installed，创建 plugin-data，不会热加载代码。",
+      "placeholder": "C:\\path\\to\\plugin_folder 或 C:\\path\\to\\plugin.zip",
+      "title": "导入本地插件包"
+    },
+    "importFailed": "导入插件失败",
+    "installTypes": {
+      "preinstalled": "预装插件",
+      "system_builtin": "系统预设",
+      "user_installed": "用户安装"
+    },
+    "feedbackMigration": {
+      "blocked": "仍有阻塞",
+      "failed": "未通过",
+      "missing": "缺失门禁",
+      "passed": "已通过",
+      "plugin": "插件",
+      "ready": "可进入首步迁出",
+      "satisfied": "已满足门禁",
+      "title": "Feedback 迁出准入门禁"
+    },
+    "updateStateFailed": "更新插件状态失败",
+    "issues": "问题",
+    "metrics": {
+      "contributions": "贡献",
+      "dryRun": "Dry-run",
+      "frontend": "前端",
+      "resources": "资源",
+      "routes": "路由",
+      "settings": "配置",
+      "uninstall": "卸载"
+    },
+    "ownership": {
+      "active": "当前由插件运行时接管",
+      "blocked": "当前未生效；启用后才接管入口",
+      "title": "插件接管概览"
+    },
+    "resourceEntries": "条资源记录",
+    "resources": "资源台账",
+    "uninstall": {
+      "confirm": "确认卸载这个插件？运行态入口会被关闭，并且只处理当前 dry-run 快照允许的插件资源。",
+      "protected": "这是系统预设插件，只能禁用，不能卸载。"
+    },
+    "uninstallFailed": "卸载插件失败",
+    "settings": {
+      "disabledHint": "该插件已禁用。以下配置会被保留，但启用插件前不会影响运行时。",
+      "empty": "无插件配置",
+      "title": "插件配置",
+      "updateFailed": "更新插件配置失败"
+    },
+    "runtimeSideEffect": {
+      "action": "动作",
+      "status": "状态",
+      "title": "运行时副作用"
+    },
+    "progress": {
+      "evidence": {
+        "phase_1_runtime_foundation": "manifest 校验、插件状态、守卫、权限、静态注册和受控 hook 执行已经有证据覆盖。",
+        "phase_2_core_plugin_matrix": "核心路由保持稳定，插件拥有的路由、工具、hook 和前端入口可被运行时状态隐藏。",
+        "phase_2_resource_dry_run": "插件资源归属和卸载 dry-run 校验已经落地，不执行物理删除。",
+        "phase_3_feedback_first_step": "Feedback 迁出门禁已变成可执行证据，满足首个低耦合插件首步迁出的准入条件。"
+      },
+      "missing": "缺证据",
+      "passed": "已通过",
+      "phases": {
+        "phase_1_runtime_foundation": "Phase 1：运行时地基",
+        "phase_2_core_plugin_matrix": "Phase 2：核心/插件矩阵",
+        "phase_2_resource_dry_run": "Phase 2：资源与 dry-run",
+        "phase_3_feedback_first_step": "Phase 3：Feedback 首步"
+      },
+      "title": "插件化进度"
+    },
+    "subtitle": "查看静态内置插件的运行状态、资源归属和 dry-run 计划",
+    "summary": {
+      "hotInstall": "热安装",
+      "mode": "模式",
+      "plugins": "插件",
+      "uninstall": "卸载"
+    },
+    "title": "插件运行时"
+  },
+  "pluginSettings": {
+    "audio_transcription": {
+      "API_KEY": {
+        "description": "音频转写使用的 OpenAI 兼容 API Key。",
+        "label": "API Key"
+      },
+      "BASE_URL": {
+        "description": "可选的 OpenAI 兼容 API Base URL。",
+        "label": "Base URL"
+      },
+      "MAX_DOWNLOAD_BYTES": {
+        "description": "转写前允许下载的远程音频最大字节数。",
+        "label": "最大下载字节数"
+      },
+      "MODEL": {
+        "description": "默认音频转写模型。",
+        "label": "模型"
+      }
+    },
+    "image_generation": {
+      "API_KEY": {
+        "description": "画图插件使用的 OpenAI 兼容 API Key。",
+        "label": "API Key"
+      },
+      "BASE_URL": {
+        "description": "OpenAI 兼容画图 API Base URL。",
+        "label": "Base URL"
+      },
+      "MODEL": {
+        "description": "默认画图模型。",
+        "label": "模型"
+      },
+      "TIMEOUT": {
+        "description": "画图 API 请求超时时间，单位秒。",
+        "label": "超时时间"
+      }
     }
   }
 }

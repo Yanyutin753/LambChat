@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "feedback": "Feedback"
+  },
+  "seo": {
+    "feedback": {
+      "description": "View and manage user feedback. Track feature requests, bug reports, and user satisfaction to drive product improvements.",
+      "title": "User Feedback"
+    }
+  },
+  "feedback": {
+    "addComment": "Add comment",
+    "allRatings": "All Ratings",
+    "alreadySubmitted": "You've already submitted feedback for this conversation",
+    "buttonLabel": "Feedback",
+    "comment": "Comment",
+    "commentLabel": "Comment (optional)",
+    "commentPlaceholder": "What could be improved?",
+    "commentSubmitted": "Comment submitted",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this feedback? This action cannot be undone.",
+    "deleteConfirmTitle": "Delete Feedback",
+    "deleteFailed": "Failed to delete feedback",
+    "deleteSuccess": "Feedback deleted successfully",
+    "detailTitle": "Feedback Details",
+    "filterByRating": "Filter by Rating",
+    "negative": "Negative",
+    "noFeedback": "No feedback yet",
+    "noFeedbackHint": "User feedback will appear here",
+    "paginationInfo": "Showing {{start}}-{{end}} of {{total}}",
+    "positive": "Positive",
+    "positiveRate": "Positive Rate",
+    "pressEnter": "Press Enter to submit",
+    "skipAndSubmit": "Skip & Submit",
+    "submit": "Submit",
+    "submitFailed": "Failed to submit feedback",
+    "submitSuccess": "Feedback submitted successfully",
+    "subtitle": "Manage user feedback and ratings",
+    "title": "Feedback",
+    "totalCount": "Total Count"
+  }
+}

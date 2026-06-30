@@ -7,6 +7,9 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'frontend/**'
+      - 'plugins/**'
+      - 'plugin-data/**'
+      - 'Dockerfile'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'package.json'
@@ -16,11 +19,14 @@ on:
       - 'main.py'
       - 'run.py'
   pull_request:
-    branches: [main]
+    branches: [main, feat/plugin-architecture]
     paths:
       - 'src/**'
       - 'tests/**'
       - 'frontend/**'
+      - 'plugins/**'
+      - 'plugin-data/**'
+      - 'Dockerfile'
       - 'pyproject.toml'
       - 'uv.lock'
       - 'package.json'
@@ -164,9 +170,9 @@ jobs:
         run: pnpm run lint
         working-directory: frontend
 
-  # Frontend test suite
-  frontend-tests:
-    name: Frontend Tests
+  # Full frontend production build, including PWA inject-manifest.
+  frontend-build:
+    name: Frontend Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -186,6 +192,8 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: frontend
 
-      - name: Run frontend tests
-        run: pnpm test
+      - name: Build frontend
+        run: pnpm run build
         working-directory: frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096

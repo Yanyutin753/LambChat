@@ -1,0 +1,45 @@
+{
+  "nav": {
+    "team": "Agent Team"
+  },
+  "seo": {
+    "team": {
+      "description": "Create and manage multi-agent teams with role coordination and shared execution context.",
+      "title": "Agent Team"
+    }
+  },
+  "featureMenu": {
+    "team": "Team"
+  },
+  "agentTeam": {
+    "category": {
+      "teamBuilder": "Team Builder"
+    },
+    "channel": {
+      "selectedTeam": "Selected team"
+    },
+    "scheduledTask": {
+      "selectedTeam": "Selected team"
+    },
+    "session": {
+      "selectedTeam": "Selected team"
+    },
+    "settings": {
+      "defaultTeam": "Default team"
+    }
+  },
+  "team": {
+    "active": "Active",
+    "addToTeam": "Add to team",
+    "clearCurrent": "Clear current team",
+    "createFirst": "Create your first team",
+    "defaultDescription": "Coordinate several agents as a reusable team.",
+    "description": "Description",
+    "edit": "Edit team",
+    "name": "Team name",
+    "noTeamSelected": "No team selected",
+    "save": "Save team",
+    "selectTeam": "Select team",
+    "title": "Agent Team"
+  }
+}

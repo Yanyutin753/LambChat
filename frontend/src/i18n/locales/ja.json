@@ -1595,13 +1595,34 @@
     "hideCode": "コードを隠す",
     "showCode": "コードを表示"
   },
-  "mode": {
-    "auto": "自動",
-    "autoDesc": "自動実行、確認をスキップ",
-    "goal": "ゴール",
-    "goalDesc": "メッセージをゴールとしてガイド実行",
-    "hint": "両モードを同時に有効にできます",
-    "title": "実行モード"
+  "workflowPlugin": {
+    "chat": {
+      "entry": "入口",
+      "exit": "出口",
+      "inputOverrideSet": "入力上書き設定済み",
+      "inputs": "入力",
+      "none": "なし",
+      "outputs": "出力",
+      "selectWorkflow": "ワークフロー"
+    },
+    "nav": {
+      "editorLabel": "ワークフローエディター",
+      "label": "ワークフロー",
+      "runLabel": "ワークフロー実行"
+    },
+    "project": {
+      "defaultWorkflow": "既定のワークフロー",
+      "defaultWorkflowVersion": "既定のワークフローバージョン"
+    },
+    "scheduledTask": {
+      "workflow": "ワークフロー",
+      "workflowVersion": "ワークフローバージョン"
+    },
+    "session": {
+      "selectedWorkflow": "選択中のワークフロー",
+      "selectedWorkflowVersion": "選択中のワークフローバージョン",
+      "selectedWorkflowInput": "選択中のワークフロー入力"
+    }
   },
   "nav": {
     "adminMarketplace": "管理マーケット",
@@ -2093,6 +2114,14 @@
     "mcp": {
       "description": "Model Context Protocolサーバー接続の管理。外部ツール、データベース、サービスを接続してAIエージェントの能力を拡張。",
       "title": "MCPサーバー管理"
+    },
+    "workflows": {
+      "description": "ワークフローを作成、編成、バージョン管理、実行、デバッグします。",
+      "editorDescription": "明示的な入力、出力、ノード、実行トレースを持つワークフローグラフを編集します。",
+      "editorTitle": "ワークフローエディター",
+      "runDescription": "ワークフロー実行トレース、ノードイベント、出力、エラー、承認状態を確認します。",
+      "runTitle": "ワークフロー実行",
+      "title": "ワークフロー"
     },
     "memory": {
       "description": "AIメモリコンテンツの表示と管理。永続的なコンテキストと知識保存で対話間の長期的なAIエージェント理解を実現。",
@@ -2834,6 +2863,11 @@
     "memberModel": "メンバーモデル",
     "memberModels": "メンバーモデル",
     "memberModes": "メンバーモード",
+    "runInSandbox": "サンドボックス実行",
+    "runInSandboxTitle": "このチームをサンドボックスで実行",
+    "runInSandboxDesc": "有効にすると、このチームは隔離されたサンドボックスバックエンドを使用します。無効にすると永続ワークスペースバックエンドを使用します。",
+    "enableSandbox": "サンドボックス実行を有効化",
+    "disableSandbox": "サンドボックス実行を無効化",
     "members": "メンバー",
     "newTeam": "新規チーム",
     "noMatchingTeams": "一致するチームがありません",
@@ -2884,6 +2918,7 @@
       "${cat}": "{{cat}}",
       "builtin": "組み込み",
       "human": "手動",
+      "internal": "内部",
       "mcp": "MCP",
       "sandbox": "サンドボックス",
       "skill": "スキル"

@@ -29,7 +29,11 @@ node_modules
 *.swo
 
 # Tests
-tests/
+tests/*
+!tests/fixtures/
+tests/fixtures/*
+!tests/fixtures/workflow/
+!tests/fixtures/workflow/**
 .pytest_cache/
 .coverage
 htmlcov/
@@ -52,7 +56,8 @@ docker-compose*.yml
 deploy/
 nginx/
 k8s/
-scripts/
+scripts/*
+!scripts/workflow_container_acceptance.py
 
 # Uploads & runtime
 uploads/
