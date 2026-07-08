@@ -19,7 +19,7 @@ import type {
   SummaryPart,
   RecommendQuestion,
   ArtifactPartArtifact,
-  WorkflowPart,
+  PluginMessagePart,
 } from "../../types";
 import i18n from "../../i18n";
 import { translateBackendError } from "../../utils/backendErrors";
@@ -131,42 +131,6 @@ export function processMessageEvent(
         data.error,
         data.timestamp,
       );
-      break;
-    }
-
-    // ---- Workflow events ----
-
-    case "workflow:run": {
-      const workflowPart: WorkflowPart = {
-        type: "workflow",
-        plugin_id: data.plugin_id,
-        workflow_id: data.workflow_id,
-        run_id: data.run_id,
-        version_id: data.version_id,
-        status: data.status,
-        output: data.output,
-        error: data.error,
-        interface: data.interface,
-        next_action: data.next_action,
-        io_contract: data.io_contract,
-        output_contract: data.output_contract,
-        depth,
-        agent_id: agentId,
-        timestamp: data.timestamp,
-      };
-
-      if (depth > 0) {
-        result.parts = addPartToDepth(
-          parts,
-          workflowPart,
-          depth,
-          subagentStack,
-          agentId,
-          messageId,
-        );
-      } else {
-        result.parts = [...parts, workflowPart];
-      }
       break;
     }
 
@@ -386,6 +350,42 @@ export function processMessageEvent(
         );
       } else {
         result.parts = [...parts, artifactPart];
+      }
+      break;
+    }
+
+    // ---- Plugin message events ----
+
+    case "plugin:message": {
+      const pluginId = typeof data.plugin_id === "string" ? data.plugin_id.trim() : "";
+      const renderer = typeof data.renderer === "string" ? data.renderer.trim() : "";
+      if (!pluginId || !renderer) break;
+
+      const pluginMessagePart: PluginMessagePart = {
+        type: "plugin_message",
+        plugin_id: pluginId,
+        renderer,
+        id: typeof data.id === "string" ? data.id : undefined,
+        title: typeof data.title === "string" ? data.title : undefined,
+        status: typeof data.status === "string" ? data.status : undefined,
+        payload: data.payload,
+        error: typeof data.error === "string" ? data.error : null,
+        depth,
+        agent_id: agentId,
+        timestamp: data.timestamp,
+      };
+
+      if (depth > 0) {
+        result.parts = addPartToDepth(
+          parts,
+          pluginMessagePart,
+          depth,
+          subagentStack,
+          agentId,
+          messageId,
+        );
+      } else {
+        result.parts = [...parts, pluginMessagePart];
       }
       break;
     }

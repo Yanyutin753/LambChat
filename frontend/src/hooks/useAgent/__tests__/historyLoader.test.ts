@@ -576,3 +576,112 @@ test("reconstructMessagesFromEvents treats assistant-only run after cancel as re
   assert.equal(messages[1]?.content, "fresh answer");
   assert.equal(messages[1]?.cancelled, undefined);
 });
+
+test("reconstructMessagesFromEvents preserves plugin tool result outlet from persisted events", () => {
+  const runId = "run_plugin_tool_history";
+  const pluginOutlet = {
+    plugin_id: "review_center",
+    review_id: "review-chat",
+    run_id: "run-debug-1",
+    version_id: "review-v1",
+    status: "failed",
+    error: "review_run_not_found",
+    interface: {
+      entry: {
+        type: "tool",
+        tool: "review_run",
+        argument: "input",
+        schema_tool: "review_get_schema",
+        schema_field: "input_schema",
+      },
+      exit: {
+        type: "object",
+        field: "output",
+        schema_tool: "review_get_schema",
+        schema_field: "output_schema",
+      },
+      debug: {
+        tool: "review_get_run",
+        review_id: "review-chat",
+        run_id: "run-debug-1",
+        events_field: "events",
+      },
+    },
+    next_action: {
+      type: "handle_terminal_error",
+      field: "error",
+      reason: "review_run_failed",
+      tool: "review_get_run",
+    },
+  };
+
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        id: "event-user",
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:00.000Z",
+        data: {
+          content: "inspect failed plugin run",
+          message_id: `${runId}:user`,
+          attachments: [],
+        },
+      },
+      {
+        id: "event-tool-start",
+        event_type: "tool:start",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:01.000Z",
+        data: {
+          tool: "review_get_run",
+          tool_call_id: "tool-call-review-debug",
+          args: { review_id: "review-chat", run_id: "run-debug-1" },
+        },
+      },
+      {
+        id: "event-tool-result",
+        event_type: "tool:result",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:02.000Z",
+        data: {
+          tool: "review_get_run",
+          tool_call_id: "tool-call-review-debug",
+          result: pluginOutlet,
+          success: false,
+          error: "review_run_not_found",
+        },
+      },
+      {
+        id: "event-message",
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:03.000Z",
+        data: { content: "Plugin debug lookup failed." },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  assert.equal(messages.length, 2);
+  const assistant = messages[1];
+  assert.equal(assistant?.role, "assistant");
+  assert.equal(assistant?.content, "Plugin debug lookup failed.");
+  const toolPart = assistant?.parts?.find((part) => part.type === "tool");
+  assert.ok(toolPart);
+  assert.equal(toolPart.type, "tool");
+  assert.equal(toolPart.name, "review_get_run");
+  assert.equal(toolPart.success, false);
+  assert.equal(toolPart.error, "review_run_not_found");
+  assert.deepEqual(toolPart.result, pluginOutlet);
+  assert.deepEqual(assistant?.toolResults?.[0]?.result, pluginOutlet);
+  assert.equal(
+    (
+      assistant?.toolResults?.[0]?.result as {
+        interface?: { debug?: { tool?: string } };
+      }
+    ).interface?.debug?.tool,
+    "review_get_run",
+  );
+});

@@ -32,7 +32,7 @@ def test_docker_compose_enables_redis_backed_embedded_arq_worker() -> None:
     assert env["ARQ_QUEUE_NAME"] == "lambchat:arq"
 
 
-def test_docker_compose_persists_plugin_data_for_workflow_runtime() -> None:
+def test_docker_compose_persists_plugin_data_for_plugin_runtime() -> None:
     compose = _load_compose()
     lambchat = compose["services"]["lambchat"]
 
@@ -64,29 +64,3 @@ def test_python_wheel_bundles_plugin_backend_namespace() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"src/plugins"' in pyproject
-
-
-def test_dockerfile_bundles_workflow_container_acceptance_assets() -> None:
-    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-
-    assert (
-        "COPY scripts/workflow_container_acceptance.py "
-        "./scripts/workflow_container_acceptance.py"
-    ) in dockerfile
-    assert "COPY tests/fixtures/workflow/ ./tests/fixtures/workflow/" in dockerfile
-
-
-def test_dockerignore_keeps_only_workflow_acceptance_assets() -> None:
-    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
-
-    assert "tests/*" in dockerignore
-    assert "!tests/fixtures/workflow/**" in dockerignore
-    assert "scripts/*" in dockerignore
-    assert "!scripts/workflow_container_acceptance.py" in dockerignore
-
-
-def test_makefile_exposes_workflow_container_acceptance_target() -> None:
-    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-
-    assert "docker-workflow-acceptance" in makefile
-    assert "python scripts/workflow_container_acceptance.py" in makefile

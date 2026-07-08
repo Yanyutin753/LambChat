@@ -364,6 +364,9 @@ def _frontend_response(manifest) -> PluginRuntimeFrontendResponse:
             item.model_dump(mode="json") for item in manifest.frontend.user_menu_items
         ],
         tool_renderers=[item.model_dump(mode="json") for item in manifest.frontend.tool_renderers],
+        message_renderers=[
+            item.model_dump(mode="json") for item in manifest.frontend.message_renderers
+        ],
         file_viewers=[item.model_dump(mode="json") for item in manifest.frontend.file_viewers],
         upload_handlers=[
             item.model_dump(mode="json") for item in manifest.frontend.upload_handlers
@@ -423,6 +426,7 @@ def _empty_frontend_response() -> PluginRuntimeFrontendResponse:
         sidebar_items=[],
         user_menu_items=[],
         tool_renderers=[],
+        message_renderers=[],
         file_viewers=[],
         upload_handlers=[],
         skill_importers=[],

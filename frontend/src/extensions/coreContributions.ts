@@ -25,6 +25,7 @@ export type CoreContributionArea =
   | "user_menu"
   | "settings_section"
   | "tool_renderer"
+  | "plugin_message_renderer"
   | "file_viewer"
   | "upload_handler"
   | "skill_importer"
@@ -41,6 +42,7 @@ export type CoreContributionArea =
   | "session_option"
   | "channel_option"
   | "scheduled_task_option"
+  | "scheduled_task_section"
   | "plugin_asset_slot"
   | "i18n_namespace";
 
@@ -65,6 +67,14 @@ export interface CorePanelContribution {
   tab: Exclude<TabType, "chat">;
   renderer?: string;
   area: "panel";
+}
+
+export interface CoreScheduledTaskSectionContribution {
+  id: string;
+  pluginId: string;
+  renderer: string;
+  order: number;
+  area: "scheduled_task_section";
 }
 
 export interface CoreSidebarNavContribution {
@@ -100,6 +110,14 @@ export interface CoreToolRendererContribution {
   id: string;
   toolNames: readonly string[];
   area: "tool_renderer";
+}
+
+export interface CorePluginMessageRendererContribution {
+  id: string;
+  pluginId: string;
+  renderer: string;
+  messageTypes: readonly string[];
+  area: "plugin_message_renderer";
 }
 
 export interface CoreFileViewerContribution {
@@ -189,6 +207,13 @@ interface PluginRuntimeAppPanel {
   visible_when?: PluginContributionVisibleWhen | null;
 }
 
+interface PluginRuntimeScheduledTaskSection {
+  id: string;
+  renderer: string;
+  order?: number;
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
 interface PluginRuntimeSidebarItem {
   id: string;
   path: string;
@@ -215,6 +240,12 @@ interface PluginRuntimeMessageAction {
 interface PluginRuntimeToolRenderer {
   id: string;
   tool_names?: string[];
+}
+
+interface PluginRuntimeMessageRenderer {
+  id: string;
+  renderer: string;
+  message_types?: string[];
 }
 
 interface PluginRuntimeFileViewer {
@@ -447,6 +478,7 @@ export interface PluginRuntimeContributionState {
     sidebar_items?: PluginRuntimeSidebarItem[];
     user_menu_items?: PluginRuntimeUserMenuItem[];
     tool_renderers?: Array<string | PluginRuntimeToolRenderer>;
+    message_renderers?: PluginRuntimeMessageRenderer[];
     file_viewers?: Array<string | PluginRuntimeFileViewer>;
     upload_handlers?: Array<string | PluginRuntimeUploadHandler>;
     skill_importers?: Array<string | PluginRuntimeSkillImporter>;
@@ -495,6 +527,7 @@ export interface PluginRuntimeContributionState {
     session_options?: PluginRuntimeScopedOption[];
     channel_options?: PluginRuntimeScopedOption[];
     scheduled_task_options?: PluginRuntimeScopedOption[];
+    scheduled_task_sections?: PluginRuntimeScheduledTaskSection[];
     i18n_namespaces?: string[];
   } | null;
   package?: {
@@ -518,6 +551,7 @@ export interface PluginContributionSnapshot {
   sidebarMoreItems: readonly string[];
   userMenuItems: readonly string[];
   toolRenderers: readonly string[];
+  pluginMessageRenderers: readonly string[];
   fileViewers: readonly string[];
   skillImporters: readonly string[];
   channelConnectors: readonly string[];
@@ -533,6 +567,7 @@ export interface PluginContributionSnapshot {
   sessionOptions: readonly string[];
   channelOptions: readonly string[];
   scheduledTaskOptions: readonly string[];
+  scheduledTaskSections: readonly string[];
   pluginAssetSlots: readonly string[];
   i18nNamespaces: readonly string[];
 }
@@ -1092,6 +1127,9 @@ function snapshotContributions(
     toolRenderers: buildToolRendererContributions(runtimePlugins).map(
       (renderer) => renderer.id,
     ),
+    pluginMessageRenderers: buildPluginMessageRendererContributions(runtimePlugins).map(
+      (renderer) => renderer.renderer,
+    ),
     fileViewers: buildFileViewerContributions(runtimePlugins).map(
       (viewer) => viewer.id,
     ),
@@ -1137,6 +1175,9 @@ function snapshotContributions(
     ),
     scheduledTaskOptions: buildScheduledTaskOptionContributions(runtimePlugins, context).map(
       (option) => option.id,
+    ),
+    scheduledTaskSections: buildScheduledTaskSectionContributions(runtimePlugins, context).map(
+      (section) => section.id,
     ),
     pluginAssetSlots: buildPluginAssetSlotContributions(runtimePlugins).map(
       (slot) => slot.id,
@@ -1195,6 +1236,10 @@ export function buildPluginContributionPreview(
         current.toolRenderers,
         simulatedDisabled.toolRenderers,
       ),
+      pluginMessageRenderers: removedValues(
+        current.pluginMessageRenderers,
+        simulatedDisabled.pluginMessageRenderers,
+      ),
       fileViewers: removedValues(current.fileViewers, simulatedDisabled.fileViewers),
       skillImporters: removedValues(
         current.skillImporters,
@@ -1251,6 +1296,10 @@ export function buildPluginContributionPreview(
       scheduledTaskOptions: removedValues(
         current.scheduledTaskOptions,
         simulatedDisabled.scheduledTaskOptions,
+      ),
+      scheduledTaskSections: removedValues(
+        current.scheduledTaskSections,
+        simulatedDisabled.scheduledTaskSections,
       ),
       pluginAssetSlots: removedValues(
         current.pluginAssetSlots,
@@ -1377,6 +1426,22 @@ export function buildToolRendererContributions(
     ];
   }
   return CORE_TOOL_RENDERERS;
+}
+
+export function buildPluginMessageRendererContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+): readonly CorePluginMessageRendererContribution[] {
+  if (!runtimePlugins) return [];
+  return runtimePlugins.flatMap((plugin) => {
+    if (!plugin.enabled || !plugin.executable) return [];
+    return (plugin.frontend?.message_renderers ?? []).map((renderer) => ({
+      id: unqualifiedContributionId(renderer.id, plugin.plugin_id),
+      pluginId: plugin.plugin_id,
+      renderer: renderer.renderer,
+      messageTypes: renderer.message_types ?? [],
+      area: "plugin_message_renderer" as const,
+    }));
+  });
 }
 
 export function buildFileViewerContributions(
@@ -1793,6 +1858,30 @@ export function buildScheduledTaskOptionContributions(
   );
 }
 
+export function buildScheduledTaskSectionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreScheduledTaskSectionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.scheduled_task_sections ?? []).flatMap((section) => {
+        if (!matchesVisibleWhen(section.visible_when, context)) return [];
+        return [
+          {
+            id: section.id,
+            pluginId: plugin.plugin_id,
+            renderer: section.renderer,
+            order: section.order ?? 100,
+            area: "scheduled_task_section" as const,
+          },
+        ];
+      });
+    }),
+  );
+}
+
 export function buildI18nNamespaceContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): readonly CoreI18nNamespaceContribution[] {
@@ -1975,4 +2064,23 @@ export function hasToolRenderer(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): boolean {
   return getToolRenderer(toolName, runtimePlugins) !== undefined;
+}
+
+export function getPluginMessageRenderer(
+  pluginId: string,
+  renderer: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): CorePluginMessageRendererContribution | undefined {
+  return buildPluginMessageRendererContributions(runtimePlugins).find(
+    (contribution) =>
+      contribution.pluginId === pluginId && contribution.renderer === renderer,
+  );
+}
+
+export function hasPluginMessageRenderer(
+  pluginId: string,
+  renderer: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): boolean {
+  return getPluginMessageRenderer(pluginId, renderer, runtimePlugins) !== undefined;
 }

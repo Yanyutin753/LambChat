@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState } from "react";
-import { ArrowUp, Square, Lock } from "lucide-react";
+import { ArrowUp, Square, Lock, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import {
@@ -14,6 +14,7 @@ import { AgentIcon } from "../agent/AgentIcon";
 import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
 import { CHAT_INPUT_SELECTED_RENDERERS } from "./chatInputSelectedRenderers";
 import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
+import { RunModePopover } from "./RunModePopover";
 
 export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
@@ -114,6 +115,9 @@ export function ChatInputToolbar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFileCategory, setSelectedFileCategory] =
     useState<FileCategory | null>(null);
+  const [modePopoverOpen, setModePopoverOpen] = useState(false);
+
+  const hasActiveMode = autoModeEnabled || goalModeEnabled;
 
   const booleanAgentOptions = agentOptions
     ? Object.fromEntries(

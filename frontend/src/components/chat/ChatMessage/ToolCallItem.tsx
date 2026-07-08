@@ -115,7 +115,6 @@ export { AudioTranscribeItem } from "./items/AudioTranscribeItem";
 export { UploadUrlToSandboxItem } from "./items/UploadUrlToSandboxItem";
 export { TransferItem } from "./items/TransferItem";
 export { ScheduledTaskItem } from "./items/ScheduledTaskItem";
-export { WorkflowItem } from "./items/WorkflowItem";
 export { EnvVarItem } from "./items/EnvVarItem";
 export { PersonaItem } from "./items/PersonaItem";
 export { TeamItem } from "./items/TeamItem";

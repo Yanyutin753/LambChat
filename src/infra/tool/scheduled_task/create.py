@@ -95,12 +95,16 @@ def _uses_agent_team_options(agent_id: str | None) -> bool:
     return agent_uses_agent_team_options(agent_id, runtime=_runtime())
 
 
-def _agent_team_plugin_unavailable() -> bool:
+def _plugin_unavailable(plugin_id: str) -> bool:
     runtime = _runtime()
     if runtime is None:
         return False
     is_enabled = getattr(runtime, "is_enabled", None)
-    return callable(is_enabled) and not is_enabled(AGENT_TEAM_PLUGIN_ID)
+    return callable(is_enabled) and not is_enabled(plugin_id)
+
+
+def _agent_team_plugin_unavailable() -> bool:
+    return _plugin_unavailable(AGENT_TEAM_PLUGIN_ID)
 
 
 @tool
@@ -250,15 +254,6 @@ async def scheduled_task_create(
         session_team_id,
     ) = await _get_current_session_defaults()
     effective_timezone = schedule_timezone or session_user_timezone or "UTC"
-    normalized_plugin_options = _normalized_plugin_options(plugin_options)
-    if _has_workflow_options(normalized_plugin_options) and _workflow_plugin_unavailable():
-        return _json(
-            {
-                "error": "Workflow plugin is disabled; scheduled workflow tasks cannot be created.",
-                "code": "plugin_unavailable",
-                "plugin_id": WORKFLOW_PLUGIN_ID,
-            }
-        )
 
     # Build trigger_config from structured params
     try:
@@ -318,6 +313,9 @@ async def scheduled_task_create(
             trigger_config["minute"] = "0"
 
     user = await _resolve_user(user_id)
+    effective_attachments = _normalize_attachments(
+        attachments if attachments is not None else get_attachments_from_runtime(runtime)
+    )
     agent_team_agent_id = _agent_team_agent_id()
     requested_agent_uses_team = _uses_agent_team_options(agent_id)
     session_agent_uses_team = _uses_agent_team_options(session_agent_id)

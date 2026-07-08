@@ -1595,35 +1595,6 @@
     "hideCode": "隐藏代码",
     "showCode": "查看代码"
   },
-  "workflowPlugin": {
-    "chat": {
-      "entry": "入口",
-      "exit": "出口",
-      "inputOverrideSet": "已设置输入覆盖",
-      "inputs": "输入",
-      "none": "无",
-      "outputs": "输出",
-      "selectWorkflow": "工作流"
-    },
-    "nav": {
-      "editorLabel": "工作流编辑器",
-      "label": "工作流",
-      "runLabel": "工作流运行"
-    },
-    "project": {
-      "defaultWorkflow": "默认工作流",
-      "defaultWorkflowVersion": "默认工作流版本"
-    },
-    "scheduledTask": {
-      "workflow": "工作流",
-      "workflowVersion": "工作流版本"
-    },
-    "session": {
-      "selectedWorkflow": "已选择工作流",
-      "selectedWorkflowVersion": "已选择工作流版本",
-      "selectedWorkflowInput": "已选择工作流输入"
-    }
-  },
   "nav": {
     "adminMarketplace": "管理员技能商店",
     "agents": "配置",
@@ -2116,14 +2087,6 @@
     "mcp": {
       "description": "管理模型上下文协议服务器连接。连接外部工具、数据库和服务，扩展 AI 智能体能力。",
       "title": "MCP 服务器管理"
-    },
-    "workflows": {
-      "description": "创建、编排、版本化、运行和调试工作流。",
-      "editorDescription": "编辑工作流图，包括显式输入、输出、节点和运行 trace。",
-      "editorTitle": "工作流编辑器",
-      "runDescription": "查看工作流运行 trace、节点事件、输出、错误和审批状态。",
-      "runTitle": "工作流运行",
-      "title": "工作流"
     },
     "memory": {
       "description": "查看和管理 AI 记忆内容。持久化上下文和知识存储，实现跨对话的 AI 智能体长期理解。",

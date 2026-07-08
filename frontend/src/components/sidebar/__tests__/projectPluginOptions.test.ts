@@ -55,3 +55,8 @@ test("agent team project default team uses a controlled renderer", () => {
   assert.match(rendererSource, /teamApi[\s\S]*\.list/);
   assert.match(rendererSource, /if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
 });
+
+test("project option renderers do not keep workflow-specific controls", () => {
+  assert.doesNotMatch(rendererSource, /WorkflowPlugin/);
+  assert.doesNotMatch(rendererSource, /workflow\.Workflow/);
+});

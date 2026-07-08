@@ -35,6 +35,14 @@ const chatMessageSource = readFileSync(
   new URL("../ChatMessage/index.tsx", import.meta.url),
   "utf8",
 );
+const messagePartRendererSource = readFileSync(
+  new URL("../ChatMessage/MessagePartRenderer.tsx", import.meta.url),
+  "utf8",
+);
+const pluginMessageRenderersSource = readFileSync(
+  new URL("../ChatMessage/pluginMessageRenderers.tsx", import.meta.url),
+  "utf8",
+);
 const messageActionRenderersSource = readFileSync(
   new URL("../ChatMessage/messageActionRenderers.tsx", import.meta.url),
   "utf8",
@@ -45,10 +53,6 @@ const featureMenuSource = readFileSync(
 );
 const teamPickerSource = readFileSync(
   new URL("../../team/TeamPickerModal.tsx", import.meta.url),
-  "utf8",
-);
-const workflowPickerSource = readFileSync(
-  new URL("../../../plugins/workflow/WorkflowPickerModal.tsx", import.meta.url),
   "utf8",
 );
 
@@ -154,79 +158,6 @@ test("team selector uses the persona selector interaction surfaces", () => {
   expect(teamPickerSource).not.toMatch(/sm:w-\[420px\]/);
 });
 
-test("workflow workflow selector uses plugin chat input renderer registries", () => {
-  assert.match(chatInputPanelRenderersSource, /WorkflowPickerModal/);
-  assert.match(chatInputPanelRenderersSource, /"workflow\.WorkflowPickerModal"/);
-  assert.match(chatInputPanelRenderersSource, /selectedWorkflowId=\{effectiveSelectedWorkflowId\}/);
-  assert.match(chatInputPanelRenderersSource, /selectedVersionId=\{effectiveSelectedVersionId\}/);
-  assert.match(chatInputPanelRenderersSource, /WORKFLOW_PLUGIN_SESSION_INPUT_KEY/);
-  assert.match(chatInputPanelRenderersSource, /selectedInput=\{selectedWorkflowInput\}/);
-  assert.match(chatInputPanelRenderersSource, /WORKFLOW_PLUGIN_SESSION_VERSION_KEY/);
-  assert.match(chatInputPanelRenderersSource, /onSelectVersion=\{handleSelectVersion\}/);
-  assert.match(chatInputPanelRenderersSource, /onInputChange=\{handleWorkflowInputChange\}/);
-  assert.match(chatInputPanelRenderersSource, /const navigateToCreate = contribution\.createPath/);
-  assert.match(chatInputPanelRenderersSource, /onCreateWorkflow=\{navigateToCreate\}/);
-  assert.match(chatInputPanelRenderersSource, /onManageWorkflows=\{navigateToManage\}/);
-  assert.match(chatInputPanelRenderersSource, /const navigateToWorkflowEditor = \(workflowId: string\) => \{/);
-  assert.match(chatInputPanelRenderersSource, /\/workflows\/\$\{encodeURIComponent\(workflowId\)\}\/editor/);
-  assert.match(chatInputPanelRenderersSource, /onEditWorkflow=\{navigateToWorkflowEditor\}/);
-  assert.match(chatInputSelectedRenderersSource, /WorkflowPluginSelectedChip/);
-  assert.match(chatInputSelectedRenderersSource, /"workflow\.SelectedWorkflowChip"/);
-  assert.match(chatInputSelectedRenderersSource, /workflowApi/);
-  assert.match(chatInputSelectedRenderersSource, /workflowApi[\s\S]*\.versions\(effectiveSelectedWorkflowId\)/);
-  assert.match(chatInputSelectedRenderersSource, /type WorkflowIoContractResponse/);
-  assert.match(chatInputSelectedRenderersSource, /function schemaFieldLabels/);
-  assert.match(chatInputSelectedRenderersSource, /function workflowContractSummary/);
-  assert.match(chatInputSelectedRenderersSource, /workflowCallableInterfaceLabels\(contract\.interface\)/);
-  assert.match(chatInputSelectedRenderersSource, /workflowApi[\s\S]*\.ioContract\(effectiveSelectedWorkflowId, effectiveSelectedVersionId\)/);
-  assert.match(chatInputSelectedRenderersSource, /workflowPlugin\.chat\.entry/);
-  assert.match(chatInputSelectedRenderersSource, /workflowPlugin\.chat\.exit/);
-  assert.match(chatInputSelectedRenderersSource, /workflowPlugin\.chat\.inputs/);
-  assert.match(chatInputSelectedRenderersSource, /workflowPlugin\.chat\.outputs/);
-  assert.match(chatInputSelectedRenderersSource, /const chipLabel = summaryParts/);
-  assert.match(chatInputSelectedRenderersSource, /title=\{chipTitle\}/);
-  assert.match(chatInputSelectedRenderersSource, /WORKFLOW_PLUGIN_SESSION_VERSION_KEY/);
-  assert.match(chatInputSelectedRenderersSource, /WORKFLOW_PLUGIN_SESSION_INPUT_KEY/);
-  assert.match(chatInputSelectedRenderersSource, /workflowPlugin\.chat\.inputOverrideSet/);
-  assert.match(chatInputSelectedRenderersSource, /const versionLabel = effectiveSelectedVersionId/);
-  assert.match(chatInputSelectedRenderersSource, /optionPath\.pluginId, optionPath\.key/);
-  assert.match(featureMenuSource, /Workflow/);
-  assert.match(featureMenuSource, /PLUGIN_OPTION_ICONS[\s\S]*Workflow/);
-  assert.match(workflowPickerSource, /workflowApi[\s\S]*\.list\(0, 100\)/);
-  assert.match(workflowPickerSource, /workflowApi[\s\S]*\.versions\(selectedWorkflowId\)/);
-  assert.match(workflowPickerSource, /workflowApi[\s\S]*\.ioContract\(selectedWorkflowId, selectedVersionId \?\? null\)/);
-  assert.match(workflowPickerSource, /workflowCallableInterfaceLabels\(ioContract\?\.interface\)/);
-  assert.match(workflowPickerSource, /workflowSchemaFieldLabels\(ioContract\?\.input_schema, \{ nested: true, limit: 6 \}\)/);
-  assert.match(workflowPickerSource, /workflowSchemaFieldLabels\(ioContract\?\.output_schema, \{ nested: true, limit: 6 \}\)/);
-  assert.match(workflowPickerSource, /selectedVersionId\?: string \| null/);
-  assert.match(workflowPickerSource, /selectedInput\?: unknown/);
-  assert.match(workflowPickerSource, /onSelectVersion\?: \(versionId: string \| null\) => void/);
-  assert.match(workflowPickerSource, /onInputChange\?: \(value: Record<string, unknown> \| null\) => void/);
-  assert.match(workflowPickerSource, /workflowInputDraftStatus\(inputDraft, ioContract\?\.input_schema\)/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.sampleChatMessage/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.entryInputJson/);
-  assert.match(workflowPickerSource, /workflowPlugin\.selector\.interface/);
-  assert.match(workflowPickerSource, /t\("workflowPlugin\.selector\.entry"\)/);
-  assert.match(workflowPickerSource, /t\("workflowPlugin\.selector\.exit"\)/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.inputMergeHint/);
-  assert.match(workflowPickerSource, /workflowPlugin\.selector\.inputs/);
-  assert.match(workflowPickerSource, /workflowPlugin\.selector\.outputs/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.usePublishedOrLatest/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.search/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.clearCurrent/);
-  assert.match(workflowPickerSource, /onCreateWorkflow/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.create/);
-  assert.match(workflowPickerSource, /onManageWorkflows/);
-  assert.match(workflowPickerSource, /onEditWorkflow\?: \(workflowId: string\) => void/);
-  assert.match(workflowPickerSource, /selectedWorkflowId && onEditWorkflow/);
-  assert.match(workflowPickerSource, /onEditWorkflow\(selectedWorkflowId\)/);
-  assert.match(workflowPickerSource, /PencilLine/);
-  assert.match(workflowPickerSource, /workflowPlugin\.picker\.edit/);
-  assert.match(workflowPickerSource, /workflowMatches/);
-  assert.doesNotMatch(toolbarSource, /WorkflowPickerModal/);
-  assert.doesNotMatch(selectorsSource, /WorkflowPickerModal/);
-});
-
 test("assistant message header shows the selected team in team mode", () => {
   assert.match(chatViewSource, /runtimePlugins/);
   assert.match(chatViewSource, /useChatAssistantIdentity\(\{/);
@@ -269,4 +200,15 @@ test("message plugin actions render through the static renderer registry", () =>
   assert.match(messageActionRenderersSource, /FeedbackButtons/);
   assert.doesNotMatch(chatMessageSource, /hasMessageActionContribution/);
   assert.doesNotMatch(chatMessageSource, /canUseFeedbackAction/);
+});
+
+test("plugin message parts render through the generic static renderer registry", () => {
+  assert.match(messagePartRendererSource, /part\.type === "plugin_message"/);
+  assert.match(messagePartRendererSource, /getPluginMessageRenderer/);
+  assert.match(messagePartRendererSource, /PLUGIN_MESSAGE_RENDERERS/);
+  assert.match(messagePartRendererSource, /PluginMessageUnavailable/);
+  assert.match(pluginMessageRenderersSource, /PLUGIN_MESSAGE_RENDERERS/);
+  const legacyDedicatedMessageCardPattern = new RegExp("Workflow" + "Item");
+  assert.doesNotMatch(messagePartRendererSource, legacyDedicatedMessageCardPattern);
+  assert.doesNotMatch(pluginMessageRenderersSource, legacyDedicatedMessageCardPattern);
 });

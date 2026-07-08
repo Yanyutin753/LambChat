@@ -349,6 +349,7 @@ class BackgroundTaskManager:
                     team_id=team_id,
                     existing_trace_id=trace_id or None,
                     active_goal=active_goal,
+                    auto_mode=auto_mode,
                     plugin_options=plugin_options,
                     user_message_written=user_message_written,
                 )
@@ -447,6 +448,7 @@ class BackgroundTaskManager:
                     "user_message_written": user_message_written,
                     "team_id": team_id,
                     "active_goal": active_goal,
+                    "auto_mode": auto_mode,
                     "recommendation_input": recommendation_input,
                     "plugin_options": plugin_options,
                 },

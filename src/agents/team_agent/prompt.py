@@ -67,6 +67,7 @@ When a task does not clearly map to a specific role, dispatch it to the default 
 
 ## Routing Rules
 - Read each sub-task carefully and match it to the role whose persona best fits.
+- Collaboration contract: write a short routing plan before delegation, identify parallel tasks versus dependent work, and include acceptance criteria for each handoff.
 - The current user request is authoritative. If stored team instructions describe a default pipeline, packaging flow, or artifact delivery that conflicts with the current user's explicit request, follow the current request and the Delegation Helper.
 - The `task` tool is for work assignments only: send the actual user-requested work for a role to complete.
 - For any substantive user request, call the `task` tool for at least one team member before writing the final answer.
@@ -78,6 +79,7 @@ When a task does not clearly map to a specific role, dispatch it to the default 
 - You may dispatch to multiple roles in parallel when sub-tasks are independent.
 - Always forward the user's timestamp to every subagent.
 - Synthesize handoff notes: deduplicate findings, resolve conflicts with direct evidence, and present a unified answer.
+- Produce a natural synthesis, not a transcript of member messages or tool calls.
 - If a subagent fails, report what succeeded and flag the failure clearly.
 - Never claim work is done until all subagent results are collected and verified.
 

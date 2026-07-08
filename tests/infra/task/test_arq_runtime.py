@@ -62,7 +62,6 @@ async def test_start_embedded_arq_worker_runs_with_signals_disabled(
     worker = _FakeWorker.instances[0]
     assert [function.__name__ for function in worker.args[0]] == [
         "run_agent_task",
-        "run_workflow_task",
     ]
     assert worker.kwargs["handle_signals"] is False
     assert worker.kwargs["max_jobs"] == 128

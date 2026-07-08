@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { useSearchParams } from "react-router-dom";
 import { ModelSectionSkeleton } from "../../skeletons";
 import { agentConfigApi, roleApi, modelApi } from "../../../services/api";
 import type { ModelConfig } from "../../../services/api/model";
@@ -19,9 +20,9 @@ type ModelTabType = "roles" | "model-config";
 
 export function ModelSection() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission } = useAuth();
   const canManageModels = hasPermission(Permission.MODEL_ADMIN);
-  const [activeTab, setActiveTab] = useState<ModelTabType>("roles");
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,9 @@ export function ModelSection() {
 
   const tRef = useRef(t);
   tRef.current = t;
+  const activeTab: ModelTabType = searchParams.get("tab") === "model-config"
+    ? "model-config"
+    : "roles";
 
   const loadData = useCallback(async () => {
     if (!canManageModels) {
@@ -131,6 +135,17 @@ export function ModelSection() {
     [canManageModels, t],
   );
 
+  const handleTabChange = useCallback((nextTab: ModelTabType) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("section", "models");
+    if (nextTab === "model-config") {
+      nextParams.set("tab", nextTab);
+    } else {
+      nextParams.delete("tab");
+    }
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   if (isLoading && !hasLoaded) {
     return <ModelSectionSkeleton />;
   }
@@ -151,7 +166,7 @@ export function ModelSection() {
 
       <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 my-3">
         <button
-          onClick={() => setActiveTab("roles")}
+          onClick={() => handleTabChange("roles")}
           className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150 ${
             activeTab === "roles"
               ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"
@@ -161,7 +176,7 @@ export function ModelSection() {
           {t("agentConfig.modelsTab")}
         </button>
         <button
-          onClick={() => setActiveTab("model-config")}
+          onClick={() => handleTabChange("model-config")}
           className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150 ${
             activeTab === "model-config"
               ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"

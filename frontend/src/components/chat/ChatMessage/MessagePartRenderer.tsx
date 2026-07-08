@@ -16,12 +16,8 @@ import {
   ExecuteItem,
   EvalItem,
   ImageGenerateItem,
-  ImageAnalyzeItem,
   AudioTranscribeItem,
-  UploadUrlToSandboxItem,
-  TransferItem,
   ScheduledTaskItem,
-  WorkflowItem,
   EnvVarItem,
   PersonaItem,
   TeamItem,
@@ -39,8 +35,13 @@ import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 import { createToolPartAnchorId } from "./messagePartAnchors";
 import {
   getToolRendererId,
+  getPluginMessageRenderer,
   type PluginRuntimeContributionStates,
 } from "../../../extensions/coreContributions";
+import {
+  PLUGIN_MESSAGE_RENDERERS,
+  PluginMessageUnavailable,
+} from "./pluginMessageRenderers";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
@@ -430,8 +431,20 @@ export function MessagePartRenderer({
     );
   }
 
-  if (part.type === "workflow") {
-    return <WorkflowItem part={part} />;
+  if (part.type === "plugin_message") {
+    const contribution = getPluginMessageRenderer(
+      part.plugin_id,
+      part.renderer,
+      runtimePlugins,
+    );
+    if (!contribution) {
+      return <PluginMessageUnavailable part={part} reason="not_declared" />;
+    }
+    const Renderer = PLUGIN_MESSAGE_RENDERERS[contribution.renderer];
+    if (!Renderer) {
+      return <PluginMessageUnavailable part={part} reason="not_registered" />;
+    }
+    return <Renderer part={part} contribution={contribution} />;
   }
 
   if (part.type === "thinking") {

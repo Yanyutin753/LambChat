@@ -1595,35 +1595,6 @@
     "hideCode": "Hide code",
     "showCode": "Show code"
   },
-  "workflowPlugin": {
-    "chat": {
-      "entry": "Entry",
-      "exit": "Exit",
-      "inputOverrideSet": "Input override set",
-      "inputs": "Inputs",
-      "none": "none",
-      "outputs": "Outputs",
-      "selectWorkflow": "Workflow"
-    },
-    "nav": {
-      "editorLabel": "Workflow editor",
-      "label": "Workflows",
-      "runLabel": "Workflow run"
-    },
-    "project": {
-      "defaultWorkflow": "Default workflow",
-      "defaultWorkflowVersion": "Default workflow version"
-    },
-    "scheduledTask": {
-      "workflow": "Workflow",
-      "workflowVersion": "Workflow version"
-    },
-    "session": {
-      "selectedWorkflow": "Selected workflow",
-      "selectedWorkflowVersion": "Selected workflow version",
-      "selectedWorkflowInput": "Selected workflow input"
-    }
-  },
   "nav": {
     "adminMarketplace": "Admin Marketplace",
     "agents": "Configuration",

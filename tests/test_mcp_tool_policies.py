@@ -1,9 +1,65 @@
 from types import SimpleNamespace
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 
 from src.infra.mcp.storage_operations import StorageOperations
+
+
+@pytest.mark.asyncio
+async def test_plugin_runtime_tool_guard_preserves_injected_runtime_config() -> None:
+    from langchain.tools import ToolRuntime, tool
+    from langchain_core.tools import InjectedToolArg
+
+    from src.infra.tool.backend_utils import get_user_id_from_runtime
+    from src.infra.tool.internal_registry import PluginRuntimeToolGuard
+
+    @tool("runtime_echo")
+    async def runtime_echo(
+        runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
+    ) -> str:
+        """Return the user id injected through ToolRuntime."""
+        return get_user_id_from_runtime(runtime) or "missing"
+
+    guarded = PluginRuntimeToolGuard(runtime_echo)
+
+    result = await guarded.ainvoke(
+        {},
+        config={"configurable": {"context": SimpleNamespace(user_id="user-context-1")}},
+    )
+
+    assert result == "user-context-1"
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_with_retry_restores_user_context_when_ainvoke_drops_config() -> None:
+    from langchain.tools import ToolRuntime, tool
+    from langchain_core.tools import InjectedToolArg
+
+    from src.infra.tool.backend_utils import get_user_id_from_runtime
+    from src.infra.tool.internal_registry import PluginRuntimeToolGuard
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    @tool("runtime_echo")
+    async def runtime_echo(
+        runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
+    ) -> str:
+        """Return the user id injected through ToolRuntime."""
+        return get_user_id_from_runtime(runtime) or "missing"
+
+    wrapped = MCPToolWithRetry(PluginRuntimeToolGuard(runtime_echo), user_id="user-wrapper-1")
+
+    result = await wrapped.ainvoke({})
+
+    assert result == "user-wrapper-1"
+
+
+def test_get_user_id_from_runtime_accepts_configurable_user_id_fallback() -> None:
+    from src.infra.tool.backend_utils import get_user_id_from_runtime
+
+    runtime = SimpleNamespace(config={"configurable": {"user_id": "user-direct-1"}})
+
+    assert get_user_id_from_runtime(runtime) == "user-direct-1"
 
 
 def test_mcp_tool_policy_schema_preserves_allowed_roles_quotas_and_inline_exposure() -> None:

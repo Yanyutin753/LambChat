@@ -68,8 +68,12 @@ import {
   shouldAutoOpenSubagentPanel,
   shouldExpandSubagentProcessByDefault,
 } from "./subagentPanelControl";
-import { formatDateTime, formatDuration } from "../../../utils/datetime";
+import { formatDateTime } from "../../../utils/datetime";
 import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
+export { SandboxItem } from "./SandboxItem";
+
+const SIDEBAR_MARKDOWN_PREVIEW_LIMIT = 12_000;
+const SUBAGENT_PARTS_PREVIEW_LIMIT = 20_000;
 
 function useSubagentPanelData(agentId: string): SubagentPanelData | undefined {
   const [, forceRender] = useState(0);
@@ -608,8 +612,6 @@ function SubagentPanelContent({ agentId }: { agentId: string }) {
                 <SidebarMarkdownContent
                   content={partsText}
                   isStreaming={data.isPending}
-                  isLast={index === data.parts!.length - 1}
-                  runtimePlugins={data.runtimePlugins}
                 />
                 <button
                   type="button"
@@ -630,6 +632,7 @@ function SubagentPanelContent({ agentId }: { agentId: string }) {
                     partIndex={index}
                     isStreaming={data.isPending}
                     isLast={index === data.parts!.length - 1}
+                    runtimePlugins={data.runtimePlugins}
                   />
                 ))}
               </div>

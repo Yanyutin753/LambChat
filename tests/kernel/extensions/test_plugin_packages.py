@@ -50,6 +50,11 @@ settings:
 frontend:
   nav_items:
     - demo_plugin:nav
+  message_renderers:
+    - id: demo_plugin:run-card
+      renderer: demo_plugin.RunCard
+      message_types:
+        - run_result
 backend:
   tools:
     - name: demo_plugin_tool
@@ -66,6 +71,9 @@ backend:
     manifest = scan.manifests[0]
     assert manifest.id == "demo_plugin"
     assert manifest.install_type.value == "user_installed"
+    assert manifest.frontend.message_renderers[0].id == "demo_plugin:run-card"
+    assert manifest.frontend.message_renderers[0].renderer == "demo_plugin.RunCard"
+    assert manifest.frontend.message_renderers[0].message_types == ["run_result"]
     assert manifest.package_source_type == "installed"
     assert manifest.package_manifest_authority == "folder_package"
     assert manifest.package_static_fallback_used is False
@@ -772,6 +780,9 @@ def test_controlled_frontend_references_include_builtin_plugin_renderers() -> No
     assert CONTROLLED_FRONTEND_REFERENCES["message_actions.renderer"] == frozenset(
         {"feedback.FeedbackButtons"}
     )
+    assert CONTROLLED_FRONTEND_REFERENCES[
+        "chat_input_options.selected_renderer"
+    ] == frozenset({"agent_team.SelectedTeamChip"})
     assert CONTROLLED_FRONTEND_REFERENCES["chat_input_panels.renderer"] == frozenset(
         {"agent_team.TeamPickerModal"}
     )
@@ -781,6 +792,13 @@ def test_controlled_frontend_references_include_builtin_plugin_renderers() -> No
     assert CONTROLLED_FRONTEND_REFERENCES["project_options.renderer"] == frozenset(
         {"agent_team.TeamSelectOption"}
     )
+    assert CONTROLLED_FRONTEND_REFERENCES["session_options.renderer"] == frozenset(
+        {"agent_team.TeamSelectOption"}
+    )
+    assert CONTROLLED_FRONTEND_REFERENCES["scheduled_task_options.renderer"] == frozenset(
+        {"agent_team.TeamSelectOption"}
+    )
+    assert CONTROLLED_FRONTEND_REFERENCES["scheduled_task_sections.renderer"] == frozenset()
     assert CONTROLLED_FRONTEND_REFERENCES["channel_connectors.panel_renderer"] == frozenset(
         {"feishu_connector.FeishuPanel"}
     )

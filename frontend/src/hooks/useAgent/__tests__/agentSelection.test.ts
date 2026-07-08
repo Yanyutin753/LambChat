@@ -46,10 +46,10 @@ test("persona mode switches an excluded plugin agent to the first non-plugin age
 
 test("persona mode can exclude any plugin-owned agent id", () => {
   assert.equal(
-    resolvePersonaAgentId("workflow", "workflow", [
-      { id: "workflow", name: "Workflow", description: "", version: "1.0.0" },
+    resolvePersonaAgentId("plugin_agent", "plugin_agent", [
+      { id: "plugin_agent", name: "Plugin Agent", description: "", version: "1.0.0" },
       ...agents,
-    ], ["workflow"]),
+    ], ["plugin_agent"]),
     "search",
   );
 });

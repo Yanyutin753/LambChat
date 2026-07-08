@@ -26,9 +26,12 @@ def get_user_id_from_runtime(runtime: Any) -> Optional[str]:
             if isinstance(config, dict):
                 configurable = config.get("configurable", {})
                 if isinstance(configurable, dict):
+                    user_id = configurable.get("user_id")
+                    if user_id:
+                        return str(user_id)
                     ctx = configurable.get("context")
                     if ctx and hasattr(ctx, "user_id"):
-                        return ctx.user_id
+                        return str(ctx.user_id)
     return None
 
 

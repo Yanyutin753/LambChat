@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 // Available agents (sync with backend)
-const AGENT_IDS = ["default", "api", "data_pipeline", "simple_workflow"];
+const AGENT_IDS = ["default", "api", "data_pipeline"];
 const ICONS_DIR = path.resolve(__dirname, "public/icons");
 
 function getStaticIconContentType(filePath: string): string {

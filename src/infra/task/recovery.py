@@ -237,7 +237,11 @@ class TaskRecoveryService:
         user_roles = await self.get_user_roles(session.user_id)
         limiter = get_concurrency_limiter()
         enabled_skills = _get_enabled_skills_from_metadata(session_metadata)
+        auto_mode = bool(session_metadata.get("auto_mode", False))
         session_team_id = selected_agent_team_id_from_metadata(session_metadata)
+        session_plugin_options = session_metadata.get("plugin_options")
+        if not isinstance(session_plugin_options, dict):
+            session_plugin_options = None
         task_context = {
             "executor_key": executor_key,
             "agent_id": agent_id,
@@ -249,6 +253,7 @@ class TaskRecoveryService:
             "user_message_written": True,
             "disabled_skills": session_metadata.get("disabled_skills") or None,
             "enabled_skills": enabled_skills,
+            "auto_mode": auto_mode,
             "persona_system_prompt": (
                 (session_metadata.get("persona_snapshot") or {}).get("system_prompt")
                 if isinstance(session_metadata.get("persona_snapshot"), dict)
@@ -294,6 +299,7 @@ class TaskRecoveryService:
                     project_id=session_metadata.get("project_id"),
                     disabled_skills=session_metadata.get("disabled_skills") or None,
                     enabled_skills=enabled_skills,
+                    auto_mode=auto_mode,
                     persona_system_prompt=(
                         (session_metadata.get("persona_snapshot") or {}).get("system_prompt")
                         if isinstance(session_metadata.get("persona_snapshot"), dict)
@@ -350,6 +356,7 @@ class TaskRecoveryService:
                 "disabled_tools": session_metadata.get("disabled_tools") or [],
                 "disabled_skills": session_metadata.get("disabled_skills") or [],
                 "enabled_skills": enabled_skills,
+                "auto_mode": auto_mode,
                 "persona_preset_id": session_metadata.get("persona_preset_id"),
                 "persona_preset_name": session_metadata.get("persona_preset_name"),
                 "persona_snapshot": session_metadata.get("persona_snapshot"),

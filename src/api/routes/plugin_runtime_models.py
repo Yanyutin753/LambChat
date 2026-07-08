@@ -64,6 +64,7 @@ class PluginRuntimeFrontendResponse(BaseModel):
     sidebar_items: list[dict[str, Any]]
     user_menu_items: list[dict[str, Any]]
     tool_renderers: list[dict[str, Any]]
+    message_renderers: list[dict[str, Any]]
     file_viewers: list[dict[str, Any]]
     upload_handlers: list[dict[str, Any]]
     skill_importers: list[dict[str, Any]]

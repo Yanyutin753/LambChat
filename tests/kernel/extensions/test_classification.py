@@ -121,5 +121,5 @@ def test_required_plugin_migration_gates_have_executable_checks() -> None:
         "plugin_failure_isolated",
         "plugin_resource_ledger_present",
         "plugin_uninstall_dry_run_present",
-        "legacy_workflows_compatible",
+        "legacy_surface_compatible",
     }

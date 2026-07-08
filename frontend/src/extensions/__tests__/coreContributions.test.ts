@@ -23,6 +23,7 @@ import {
   buildMentionProviderContributions,
   buildMessageActionContributions,
   buildPanelContributions,
+  buildPluginMessageRendererContributions,
   buildPluginAssetSlotContributions,
   buildPluginContributionPreview,
   buildProjectOptionContributions,
@@ -42,6 +43,7 @@ import {
   findCorePanelContribution,
   findPanelContribution,
   getCoreToolRendererId,
+  getPluginMessageRenderer,
   getToolRendererId,
   hasCoreToolRenderer,
   hasAgentCatalogEntryContribution,
@@ -49,6 +51,7 @@ import {
   hasFileViewerContribution,
   hasI18nNamespaceContribution,
   hasMessageActionContribution,
+  hasPluginMessageRenderer,
   hasPluginAssetSlotContribution,
   hasRuntimeManagedChannelConnector,
   hasSkillImporterContribution,
@@ -777,6 +780,160 @@ test("runtime app tab declarations can add new plugin-owned pages", () => {
   );
 });
 
+test("runtime app tab declarations can insert after another plugin route", () => {
+  const runtimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+    {
+      plugin_id: "review_center",
+      enabled: true,
+      executable: true,
+      status: "enabled",
+      frontend: {
+        app_tabs: [
+          {
+            id: "review_center:reviews-tab",
+            tab: "reviews",
+            path: "/reviews",
+            label: "nav.reviews",
+            panel: "review_center:reviews-panel",
+            insert_after: "agent-team",
+            order: 430,
+          },
+          {
+            id: "review_center:review-detail-tab",
+            tab: "review-detail",
+            path: "/reviews/:reviewId",
+            label: "nav.reviewDetail",
+            panel: "review_center:review-detail-panel",
+            insert_after: "reviews",
+            order: 431,
+          },
+        ],
+        app_panels: [
+          {
+            id: "review_center:reviews-panel",
+            tab: "reviews",
+            renderer: "review_center.ReviewsPanel",
+          },
+          {
+            id: "review_center:review-detail-panel",
+            tab: "review-detail",
+            renderer: "review_center.ReviewDetailPanel",
+          },
+        ],
+        sidebar_items: [
+          {
+            id: "review_center:reviews-nav",
+            path: "/reviews",
+            label: "nav.reviews",
+            icon: "Star",
+            order: 30,
+          },
+        ],
+      },
+    },
+  ];
+
+  const routes = buildAppRouteContributions(runtimePlugins);
+  const routeIds = routes.map((route) => route.id);
+
+  assert.equal(routes.find((route) => route.id === "reviews")?.path, "/reviews");
+  assert.equal(
+    routes.find((route) => route.id === "review-detail")?.path,
+    "/reviews/:reviewId",
+  );
+  assert.equal(
+    routeIds.indexOf("reviews"),
+    routeIds.indexOf("agent-team") + 1,
+  );
+  assert.equal(
+    routeIds.indexOf("review-detail"),
+    routeIds.indexOf("reviews") + 1,
+  );
+  assert.equal(
+    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "reviews")?.renderer,
+    "review_center.ReviewsPanel",
+  );
+  assert.equal(
+    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "review-detail")?.renderer,
+    "review_center.ReviewDetailPanel",
+  );
+  const reviewsNav = buildSidebarMoreNavContributions(runtimePlugins).find(
+    (item) => item.id === "reviews",
+  );
+  assert.equal(reviewsNav?.path, "/reviews");
+  assert.equal(reviewsNav?.labelKey, "nav.reviews");
+});
+
+test("plugin route panel and nav follow plugin runtime state", () => {
+  const enabledRuntimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+    enabledUsageReportsPlugin(),
+  ];
+  const disabledRuntimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+    disabledPlugin(enabledUsageReportsPlugin()),
+  ];
+
+  assert.deepEqual(
+    buildAppRouteContributions(enabledRuntimePlugins)
+      .filter((route) => route.pluginId === "usage_reports")
+      .map((route) => `${route.id}:${route.path}`),
+    ["usage:/usage"],
+  );
+  assert.deepEqual(
+    buildPanelContributions(enabledRuntimePlugins)
+      .filter((panel) => panel.pluginId === "usage_reports")
+      .map((panel) => `${panel.id}:${panel.renderer}`),
+    ["usage:usage_reports.UsagePanel"],
+  );
+  assert.deepEqual(
+    buildSidebarMoreNavContributions(enabledRuntimePlugins)
+      .filter((item) => item.pluginId === "usage_reports")
+      .map((item) => `${item.id}:${item.path}:${item.labelKey}`),
+    ["usage:/usage:nav.usage"],
+  );
+  assert.equal(
+    buildAppRouteContributions(disabledRuntimePlugins).some(
+      (route) => route.pluginId === "usage_reports",
+    ),
+    false,
+  );
+  assert.equal(
+    buildPanelContributions(disabledRuntimePlugins).some(
+      (panel) => panel.pluginId === "usage_reports",
+    ),
+    false,
+  );
+  assert.equal(
+    buildSidebarMoreNavContributions(disabledRuntimePlugins).some(
+      (item) => item.pluginId === "usage_reports",
+    ),
+    false,
+  );
+});
+
+test("plugin chat input picker contributes a session option binding", () => {
+  const runtimePlugins: PluginRuntimeContributionState[] = [
+    enabledAgentTeamPlugin(),
+  ];
+
+  assert.deepEqual(
+    buildChatInputOptionContributions(runtimePlugins, { agentId: "team" }).map(
+      (option) => `${option.id}:${option.optionBinding?.pluginId}.${option.optionBinding?.key}:${option.selectedRenderer}:${option.suppressesCorePersonaSelector}:${option.shortcut}`,
+    ),
+    ["agent_team:select-team:agent_team.SELECTED_TEAM_ID:agent_team.SelectedTeamChip:true:mod+t"],
+  );
+  assert.deepEqual(
+    buildChatInputPanelContributions(runtimePlugins, { agentId: "team" }).map(
+      (panel) => `${panel.id}:${panel.optionBinding?.pluginId}.${panel.optionBinding?.key}:${panel.renderer}:${panel.createPath}:${panel.managePath}`,
+    ),
+    ["agent_team:team-picker:agent_team.SELECTED_TEAM_ID:agent_team.TeamPickerModal:/agent-team:/agent-team"],
+  );
+  assert.deepEqual(buildChatInputOptionContributions([disabledPlugin(runtimePlugins[0])]), []);
+  assert.deepEqual(buildChatInputPanelContributions([disabledPlugin(runtimePlugins[0])]), []);
+});
+
 test("runtime app tab declarations cannot replace the core chat tab", () => {
   const runtimePlugins: PluginRuntimeContributionState[] = [
     {
@@ -1394,22 +1551,22 @@ test("Feedback message action follows plugin runtime state", () => {
 test("message action target context isolates plugin-declared message slots", () => {
   const runtimePlugins: PluginRuntimeContributionState[] = [
     {
-      plugin_id: "workflow_runner",
+      plugin_id: "automation_runner",
       enabled: true,
       executable: true,
       status: "enabled",
       frontend: {
         message_actions: [
           {
-            id: "workflow_runner:retry-user-message",
+            id: "automation_runner:retry-user-message",
             target: "user_message",
-            renderer: "workflow_runner.RetryUserMessage",
+            renderer: "automation_runner.RetryUserMessage",
             order: 30,
           },
           {
-            id: "workflow_runner:inspect-tool-result",
+            id: "automation_runner:inspect-tool-result",
             target: "tool_result",
-            renderer: "workflow_runner.InspectToolResult",
+            renderer: "automation_runner.InspectToolResult",
             order: 20,
           },
         ],
@@ -1427,13 +1584,13 @@ test("message action target context isolates plugin-declared message slots", () 
     buildMessageActionContributions(runtimePlugins, { target: "user_message" }).map(
       (action) => action.id,
     ),
-    ["workflow_runner:retry-user-message"],
+    ["automation_runner:retry-user-message"],
   );
   assert.deepEqual(
     buildMessageActionContributions(runtimePlugins, { target: "tool_result" }).map(
       (action) => action.id,
     ),
-    ["workflow_runner:inspect-tool-result"],
+    ["automation_runner:inspect-tool-result"],
   );
 });
 
@@ -1473,6 +1630,50 @@ test("runtime message action contributions require explicit frontend declaration
     false,
   );
   assert.deepEqual(buildMessageActionContributions(runtimePluginsWithLegacyString), []);
+});
+
+test("plugin message renderer contributions are runtime gated", () => {
+  const plugin: PluginRuntimeContributionState = {
+    plugin_id: "automation_runner",
+    enabled: true,
+    executable: true,
+    status: "enabled",
+    frontend: {
+      message_renderers: [
+        {
+          id: "automation_runner:run-card",
+          renderer: "automation_runner.RunCard",
+          message_types: ["run_result"],
+        },
+      ],
+    },
+  };
+
+  assert.deepEqual(buildPluginMessageRendererContributions([plugin]), [
+    {
+      id: "run-card",
+      pluginId: "automation_runner",
+      renderer: "automation_runner.RunCard",
+      messageTypes: ["run_result"],
+      area: "plugin_message_renderer",
+    },
+  ]);
+  assert.equal(
+    hasPluginMessageRenderer(
+      "automation_runner",
+      "automation_runner.RunCard",
+      [plugin],
+    ),
+    true,
+  );
+  assert.equal(
+    getPluginMessageRenderer(
+      "automation_runner",
+      "automation_runner.RunCard",
+      [disabledPlugin(plugin)],
+    ),
+    undefined,
+  );
 });
 
 test("runtime contribution preview reports Usage Reports entries removed by disable simulation", () => {

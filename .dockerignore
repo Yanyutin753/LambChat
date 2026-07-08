@@ -30,10 +30,6 @@ node_modules
 
 # Tests
 tests/*
-!tests/fixtures/
-tests/fixtures/*
-!tests/fixtures/workflow/
-!tests/fixtures/workflow/**
 .pytest_cache/
 .coverage
 htmlcov/
@@ -57,7 +53,6 @@ deploy/
 nginx/
 k8s/
 scripts/*
-!scripts/workflow_container_acceptance.py
 
 # Uploads & runtime
 uploads/

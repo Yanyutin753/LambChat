@@ -27,6 +27,11 @@ import type { AgentInfo } from "../../../types/agent";
 import type { AvailableModel } from "../../../contexts/SettingsContext";
 import type { PersonaPreset } from "../../../types/personaPreset";
 import { personaPresetApi } from "../../../services/api/personaPreset";
+import { getFullUrl, uploadApi } from "../../../services/api";
+import { useFileUpload } from "../../../hooks/useFileUpload";
+import { AttachmentCard } from "../../common/AttachmentCard";
+import { FileUploadButton } from "../../chat/FileUploadButton";
+import { openAttachmentPreview } from "../../chat/attachmentPreviewStore";
 import { useScheduledTaskPluginOptions } from "../../../hooks/useScheduledTaskPluginOptions";
 import {
   hasEffectiveCorePersonaSuppressingOption,
@@ -37,11 +42,13 @@ import {
   withPluginOption,
 } from "../../../extensions/pluginOptions";
 import type { PluginOptionsMetadata } from "../../../extensions/pluginOptions";
+import type { MessageAttachment } from "../../../types";
 import {
   buildScheduledTaskInputPayload,
   getAgentOptionsFromScheduledTaskPayload,
   getScheduledTaskAttachments,
   getScheduledTaskPersonaPresetId,
+  withScheduledTaskAttachments,
 } from "../scheduledTaskPayload";
 import { getBrowserTimezone, toDateTimeLocalValue } from "./utils";
 import {
@@ -180,6 +187,10 @@ export function TaskFormModal({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const { cancelUpload } = useFileUpload({
+    attachments,
+    onAttachmentsChange: setAttachments,
+  });
   const {
     options: scheduledTaskPluginOptions,
     isLoading: scheduledTaskPluginOptionsLoading,
@@ -319,6 +330,12 @@ export function TaskFormModal({
   };
 
   const inputClass = "scheduled-task-input";
+  const handleRemoveAttachment = (attachment: MessageAttachment) => {
+    setAttachments((prev) => prev.filter((item) => item.id !== attachment.id));
+    if (attachment.key && !attachment.isUploading) {
+      uploadApi.deleteFile(attachment.key).catch(() => {});
+    }
+  };
   const agentOptions = [
     { value: "", label: t("scheduledTask.agentPlaceholder") },
     ...agents.map((agent) => ({

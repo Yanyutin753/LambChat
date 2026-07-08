@@ -18,7 +18,8 @@ import {
   Plug,
   Settings2,
   ToggleLeft,
-  Workflow,
+  Bot,
+  Brain,
 } from "lucide-react";
 
 import type { AgentOption, FileCategory } from "../../types";
@@ -111,12 +112,14 @@ function MenuItem({
   icon,
   label,
   badge,
+  badgeColor,
   active,
   onClick,
 }: {
   icon: ReactNode;
   label: string;
   badge?: string;
+  badgeColor?: string;
   active?: boolean;
   onClick: () => void;
 }) {
@@ -129,7 +132,11 @@ function MenuItem({
     >
       <span className="feature-menu-item-icon">{icon}</span>
       <span className="flex-1 text-left truncate">{label}</span>
-      {badge && <span className="feature-menu-item-badge">{badge}</span>}
+      {badge && (
+        <span className="feature-menu-item-badge" data-badge-color={badgeColor}>
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

@@ -11,10 +11,7 @@ from src.api import main as api_main
 from src.api.routes.registry import register_builtin_plugin_routes
 from src.infra.extensions import (
     InMemoryPluginRuntimeStateStorage,
-    InMemoryPluginSettingsStorage,
-    PluginSettingsService,
 )
-from src.kernel.extensions import WORKFLOW_PLUGIN_ID, PluginRuntimeStatus
 
 
 @pytest.mark.asyncio
@@ -160,66 +157,6 @@ async def test_run_startup_indexes_waits_for_index_initialization(
     await task
     assert calls == ["started", "finished"]
     assert app.state.startup_indexes_task.done() is True
-
-
-@pytest.mark.asyncio
-async def test_startup_helpers_apply_workflow_override_before_lifecycle_hook(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from src.plugins.workflow import lifecycle as workflow_lifecycle
-
-    app = FastAPI()
-    register_builtin_plugin_routes(app)
-    state_storage = InMemoryPluginRuntimeStateStorage()
-    await state_storage.set_override(
-        plugin_id=WORKFLOW_PLUGIN_ID,
-        status=PluginRuntimeStatus.ENABLED,
-        updated_by="admin-1",
-    )
-    app.state.plugin_runtime_state_storage = state_storage
-    app.state.plugin_settings_service = PluginSettingsService(
-        storage=InMemoryPluginSettingsStorage()
-    )
-    calls: list[str] = []
-
-    class _FakeWorkflowStorage:
-        def __init__(self, **_kwargs) -> None:
-            return None
-
-        async def ensure_indexes(self) -> None:
-            calls.append("workflow.ensure_indexes")
-
-        async def fail_stale_running_runs(self) -> int:
-            calls.append("workflow.fail_stale_running_runs")
-            return 0
-
-        async def delete_terminal_run_logs_before(self, cutoff) -> int:
-            calls.append("workflow.delete_terminal_run_logs_before")
-            return 0
-
-    monkeypatch.setattr(workflow_lifecycle, "WorkflowPluginStorage", _FakeWorkflowStorage)
-    monkeypatch.setattr(
-        workflow_lifecycle,
-        "resolve_max_event_payload_bytes",
-        lambda: _async_value(65536),
-    )
-
-    await api_main._load_plugin_runtime_state_overrides(app)
-    await api_main._initialize_plugin_settings(app)
-    api_main._attach_plugin_runtime_to_runtime_guards(app)
-    await api_main._run_plugin_lifecycle_hooks(app, "startup")
-
-    state = app.state.plugin_runtime.get_state(WORKFLOW_PLUGIN_ID)
-    assert state.status is PluginRuntimeStatus.ENABLED
-    assert calls == [
-        "workflow.ensure_indexes",
-        "workflow.fail_stale_running_runs",
-        "workflow.delete_terminal_run_logs_before",
-    ]
-    assert [result.hook_name for result in app.state.plugin_runtime_hook_results] == [
-        "workflow:startup"
-    ]
-    assert app.state.plugin_runtime_hook_results[0].status == "succeeded"
 
 
 @pytest.mark.asyncio
