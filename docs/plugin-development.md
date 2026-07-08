@@ -2,7 +2,7 @@
 
 本文档说明 LambChat 当前的文件夹式插件开发规范。插件不是一个简单的 JSON 文件，而是一个可扩展目录：它可以声明后端能力、前端入口、插件设置、资源归属、默认数据、卸载 dry-run 策略，以及未来可继续扩展的能力。
 
-可复制模板和制作流程见 [插件制作指南](plugin-examples/README.md) 和 [Demo Notes 插件模板](plugin-examples/demo_notes)。
+可复制模板和制作流程见 [插件制作指南](plugin-examples/README.md) 和 [Demo Notes 插件模板](plugin-examples/demo_notes/README.md)。
 
 ## 设计目标
 
