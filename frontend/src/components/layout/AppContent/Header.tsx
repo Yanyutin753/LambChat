@@ -27,6 +27,7 @@ import { notificationApi } from "../../../services/api/notification";
 import { useSessionTitle } from "../../../hooks/useSessionTitle";
 import { NotificationDialog } from "../../notification/NotificationDialog";
 import { Permission } from "../../../types";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 import type { TabType } from "./types";
 import type { Project } from "../../../types";
 
@@ -51,6 +52,7 @@ interface HeaderProps {
   sessionId?: string | null;
   onToggleOutline?: () => void;
   showOutlineButton?: boolean;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 export function Header({
@@ -66,6 +68,7 @@ export function Header({
   sessionId,
   onToggleOutline,
   showOutlineButton,
+  runtimePlugins,
 }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -392,7 +395,7 @@ export function Header({
               document.body,
             )}
 
-          <UserMenu onShowProfile={onShowProfile} />
+          <UserMenu onShowProfile={onShowProfile} runtimePlugins={runtimePlugins} />
         </div>
       </header>
 

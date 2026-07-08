@@ -3,7 +3,7 @@
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from bson import ObjectId
@@ -28,6 +28,13 @@ from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 
 SESSION_BATCH_LOOKUP_LIMIT = 100
 SESSION_LIST_LOOKUP_LIMIT = 100
+
+
+def _next_search_index_timestamp(previous: datetime | None) -> datetime:
+    current = utc_now()
+    if previous is not None and current <= previous:
+        return previous + timedelta(microseconds=1)
+    return current
 
 
 class SessionStorage:
@@ -650,7 +657,9 @@ class SessionStorage:
                 "search_text": payload.search_text,
                 "latest_user_message": payload.latest_user_message,
                 "search_index_version": payload.search_index_version,
-                "search_index_updated_at": utc_now(),
+                "search_index_updated_at": _next_search_index_timestamp(
+                    existing_doc.get("search_index_updated_at")
+                ),
             }
             cas_field, cas_value = self._get_search_index_cas(existing_doc)
             result = await self._update_doc(
@@ -728,7 +737,9 @@ class SessionStorage:
                 "search_text": merged.search_text,
                 "latest_user_message": merged.latest_user_message,
                 "search_index_version": merged.search_index_version,
-                "search_index_updated_at": utc_now(),
+                "search_index_updated_at": _next_search_index_timestamp(
+                    current_doc.get("search_index_updated_at")
+                ),
             }
             cas_field, cas_value = self._get_search_index_cas(current_doc)
             result = await self._update_doc(

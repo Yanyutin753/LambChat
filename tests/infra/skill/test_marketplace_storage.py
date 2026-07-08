@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from src.infra.skill.marketplace import MarketplaceStorage
+from src.infra.skill.types import MarketplaceSkillResponse
 
 
 class _AsyncCursor:
@@ -70,6 +71,14 @@ async def test_list_marketplace_skills_counts_files_without_loading_file_content
     result = await storage.list_marketplace_skills(skip=20, limit=10, viewer_id="user-1")
 
     assert result[0].file_count == 3
+    assert result[0].skill_name == "planner"
+    assert result[0].extension_type == "skill"
+    assert result[0].extension_id == "skill:planner"
+    assert result[0].extension is not None
+    assert result[0].extension.id == "skill:planner"
+    assert result[0].extension.type == "skill"
+    assert result[0].extension.legacy["skill_name"] == "planner"
+    assert result[0].extension.legacy["file_count"] == 3
     assert collection.pipeline is not None
     stages = collection.pipeline
     lookup_index = next(i for i, stage in enumerate(stages) if "$lookup" in stage)
@@ -82,6 +91,38 @@ async def test_list_marketplace_skills_counts_files_without_loading_file_content
     assert lookup["pipeline"][-1] == {"$count": "count"}
     assert "as" in lookup
     assert lookup["as"] != "_files"
+
+
+def test_marketplace_skill_response_keeps_legacy_fields_and_adds_extension_entry() -> None:
+    response = MarketplaceSkillResponse(
+        skill_name="planner",
+        description="Plan work",
+        tags=["planning"],
+        version="2.0.0",
+        created_by="user-1",
+        created_by_username="tester",
+        is_active=True,
+        is_owner=True,
+        file_count=4,
+    )
+
+    assert response.skill_name == "planner"
+    assert response.description == "Plan work"
+    assert response.tags == ["planning"]
+    assert response.version == "2.0.0"
+    assert response.is_owner is True
+    assert response.file_count == 4
+    assert response.extension_type == "skill"
+    assert response.extension_id == "skill:planner"
+    assert response.extension is not None
+    assert response.extension.name == "planner"
+    assert response.extension.publisher == "tester"
+    assert response.extension.capabilities == ["skill"]
+    assert response.extension.legacy == {
+        "kind": "marketplace_skill",
+        "skill_name": "planner",
+        "file_count": 4,
+    }
 
 
 @pytest.mark.asyncio

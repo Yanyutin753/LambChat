@@ -187,6 +187,7 @@ class ModelFallbackMiddleware(AgentMiddleware):
             self._fallback_llm = await LLMClient.get_model(
                 model=self._fallback_model,
                 thinking=self._thinking,
+                streaming=False,
             )
             logger.info("[ModelFallback] Created fallback LLM: %s", self._fallback_model)
         return self._fallback_llm

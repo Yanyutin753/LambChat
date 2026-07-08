@@ -1,0 +1,15 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "feishu_connector",
+  "frontend": {
+    "channel_connectors": [
+      {
+        "id": "feishu_connector:feishu",
+        "channel_type": "feishu",
+        "panel_renderer": "feishu_connector.FeishuPanel"
+      }
+    ],
+    "i18n_namespaces": ["feishu_connector:channels"],
+    "required_permissions": ["channel:read"]
+  }
+}

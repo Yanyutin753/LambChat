@@ -44,6 +44,7 @@ class ProjectStorage:
             "type": project_data.type,
             "icon": project_data.icon or "💬",
             "sort_order": project_data.sort_order,
+            "metadata": project_data.metadata,
             "user_id": user_id,
             "created_at": now,
             "updated_at": now,
@@ -109,6 +110,10 @@ class ProjectStorage:
         if project_data.sort_order is not None:
             update_dict["sort_order"] = project_data.sort_order
 
+        if project_data.metadata is not None:
+            for key, value in project_data.metadata.items():
+                update_dict[f"metadata.{key}"] = value
+
         try:
             result = await self.collection.find_one_and_update(
                 {"_id": ObjectId(project_id), "user_id": user_id},
@@ -155,6 +160,7 @@ class ProjectStorage:
             "type": "favorites",
             "icon": "Star",
             "sort_order": 0,  # Favorites always first
+            "metadata": {},
             "user_id": user_id,
             "created_at": now,
             "updated_at": now,
@@ -185,6 +191,7 @@ class ProjectStorage:
             "type": project_type,
             "icon": icon,
             "sort_order": 100,
+            "metadata": {},
             "user_id": user_id,
             "created_at": now,
             "updated_at": now,

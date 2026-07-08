@@ -46,6 +46,12 @@ def _generate_run_id() -> str:
     return generate_run_id()
 
 
+def _ensure_agent_executable(agent_id: str) -> None:
+    from src.agents import ensure_agent_executable
+
+    ensure_agent_executable(agent_id)
+
+
 class BackgroundTaskManager:
     """
     后台任务管理器
@@ -257,6 +263,7 @@ class BackgroundTaskManager:
         session_metadata: Optional[Dict[str, Any]] = None,
         user_message_written: bool = False,
         write_user_message_immediately: bool = False,
+        plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -276,6 +283,7 @@ class BackgroundTaskManager:
             (run_id, trace_id) 元组
         """
         # 确保 executor 已初始化
+        _ensure_agent_executable(agent_id)
         task_executor = self._ensure_executor()
 
         # 生成 run_id
@@ -342,6 +350,7 @@ class BackgroundTaskManager:
                     existing_trace_id=trace_id or None,
                     active_goal=active_goal,
                     auto_mode=auto_mode,
+                    plugin_options=plugin_options,
                     user_message_written=user_message_written,
                 )
             )
@@ -381,8 +390,10 @@ class BackgroundTaskManager:
         auto_mode: bool = False,
         session_metadata: Optional[Dict[str, Any]] = None,
         write_user_message_immediately: bool = False,
+        plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
+        _ensure_agent_executable(agent_id)
         task_executor = self._ensure_executor()
         run_id = run_id or generate_run_id()
         trace_id = trace_id or ""
@@ -437,8 +448,9 @@ class BackgroundTaskManager:
                     "user_message_written": user_message_written,
                     "team_id": team_id,
                     "active_goal": active_goal,
-                    "recommendation_input": recommendation_input,
                     "auto_mode": auto_mode,
+                    "recommendation_input": recommendation_input,
+                    "plugin_options": plugin_options,
                 },
             )
 

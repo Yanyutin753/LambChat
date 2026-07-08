@@ -1,8 +1,9 @@
-export type TabType =
+export type CoreTabType =
   | "chat"
   | "persona"
   | "skills"
   | "marketplace"
+  | "plugins"
   | "users"
   | "roles"
   | "settings"
@@ -13,6 +14,9 @@ export type TabType =
   | "files"
   | "notifications"
   | "memory"
-  | "team"
   | "scheduled-tasks"
   | "usage";
+
+export type PluginTabType = string & {};
+
+export type TabType = CoreTabType | PluginTabType;

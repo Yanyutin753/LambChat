@@ -13,6 +13,8 @@ RUN pnpm install --frozen-lockfile
 
 # Copy frontend source
 COPY frontend/ ./
+COPY plugins/ ../plugins/
+COPY plugin-data/ ../plugin-data/
 
 # Build frontend
 RUN pnpm run build
@@ -41,6 +43,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy source code
 COPY src/ ./src/
+COPY plugins/ ./plugins/
 COPY main.py ./
 
 # Copy frontend static files

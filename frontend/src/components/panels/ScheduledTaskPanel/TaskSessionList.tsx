@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { ArrowLeft, Bot, ChevronRight, MessageSquare } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  ChevronRight,
+  MessageSquare,
+} from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
 import { Pagination } from "../../common/Pagination";
 import { TaskSessionListSkeleton } from "../../skeletons";
@@ -11,8 +16,6 @@ import { agentApi } from "../../../services/api/agent";
 import type { TaskSession } from "../../../types/scheduledTask";
 import type { AgentInfo } from "../../../types/agent";
 import { formatDateTimeShort } from "../../../utils/datetime";
-
-// ── Task Session List (drill-down) ─────────────────
 
 export function TaskSessionList({
   taskId,
@@ -32,7 +35,6 @@ export function TaskSessionList({
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const limit = 20;
 
-  // Fetch agents once for name resolution
   useEffect(() => {
     agentApi
       .list()
@@ -43,9 +45,13 @@ export function TaskSessionList({
   const fetchSessions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await scheduledTaskApi.getSessions(taskId, skip, limit);
-      setSessions(response.items);
-      setTotal(response.total);
+      const sessionResponse = await scheduledTaskApi.getSessions(
+        taskId,
+        skip,
+        limit,
+      );
+      setSessions(sessionResponse.items);
+      setTotal(sessionResponse.total);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("common.loadFailed");
@@ -63,14 +69,12 @@ export function TaskSessionList({
     navigate(`/chat/${sessionId}`);
   };
 
-  // Show skeleton during initial data loading — consistent with other panels
   if (isLoading && sessions.length === 0) {
     return <TaskSessionListSkeleton />;
   }
 
   return (
     <div className="flex h-full flex-col min-h-0">
-      {/* Header with back button */}
       <PanelHeader
         title={taskName}
         subtitle={t("scheduledTask.sessionsSubtitle")}
@@ -91,7 +95,6 @@ export function TaskSessionList({
         }
       />
 
-      {/* Session List */}
       <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">
         {sessions.length === 0 ? (
           <div className="scheduled-task-empty-state">
@@ -109,7 +112,7 @@ export function TaskSessionList({
           <div className="scheduled-task-list">
             {sessions.map((session) => {
               const agentName =
-                agents.find((a) => a.id === session.agent_id)?.name ??
+                agents.find((agent) => agent.id === session.agent_id)?.name ??
                 session.agent_id;
 
               return (
@@ -118,7 +121,6 @@ export function TaskSessionList({
                   onClick={() => handleSessionClick(session.id)}
                   className="glass-card scheduled-task-session-card w-full text-left"
                 >
-                  {/* Left indicator icon */}
                   <div
                     className={`scheduled-task-session-card__indicator ${
                       session.is_active
@@ -129,7 +131,6 @@ export function TaskSessionList({
                     <MessageSquare size={16} />
                   </div>
 
-                  {/* Body */}
                   <div className="scheduled-task-session-card__body">
                     <p className="scheduled-task-session-card__title">
                       {session.name || t("scheduledTask.untitledSession")}
@@ -144,7 +145,7 @@ export function TaskSessionList({
                           {session.created_at && (
                             <>
                               <span className="scheduled-task-session-card__meta-separator">
-                                ·
+                                /
                               </span>
                               <span>
                                 {formatDateTimeShort(session.created_at)}
@@ -159,7 +160,6 @@ export function TaskSessionList({
                     </div>
                   </div>
 
-                  {/* Trail: unread badge + chevron */}
                   <div className="scheduled-task-session-card__trail">
                     {session.unread_count > 0 && (
                       <span className="scheduled-task-session-card__unread">
@@ -180,7 +180,6 @@ export function TaskSessionList({
         )}
       </div>
 
-      {/* Pagination */}
       {total > limit && (
         <div className="glass-divider bg-transparent px-4 py-4 sm:px-6">
           <Pagination

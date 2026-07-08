@@ -37,6 +37,7 @@ import { ConfirmDialog } from "../common/ConfirmDialog";
 import { DeleteProjectDialog } from "../common/DeleteProjectDialog";
 import { RecentChatsDialog } from "../sidebar/RecentChatsDialog";
 import type { ProjectItemHandle } from "../sidebar/ProjectItem";
+import { ProjectPluginOptionsModal } from "../sidebar/ProjectPluginOptionsModal";
 import type { ScheduledTaskItemHandle } from "../sidebar/ScheduledTaskSidebarItem";
 import { type UnreadBySession } from "../sidebar/unreadCounts";
 import { SearchDialog } from "./SearchDialog";
@@ -53,6 +54,8 @@ import type {
   ProjectActions,
   ScheduledTaskActions,
 } from "./SidebarParts";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
+import type { Project } from "../../types";
 
 // ─── Public interfaces ─────────────────────────────────────────────
 
@@ -71,6 +74,7 @@ interface SessionSidebarProps {
   /** Project ID to auto-expand after a new session is created in it */
   autoExpandProjectId?: string | null;
   onConsumeAutoExpandProjectId?: (projectId: string) => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 export interface SessionSidebarHandle {
@@ -103,6 +107,7 @@ export const SessionSidebar = forwardRef<
     onSetPendingProjectId,
     autoExpandProjectId,
     onConsumeAutoExpandProjectId,
+    runtimePlugins,
   },
   ref,
 ) {
@@ -142,6 +147,7 @@ export const SessionSidebar = forwardRef<
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [projectOptionsProject, setProjectOptionsProject] = useState<Project | null>(null);
 
   // Sync scheduledTasksCollapsed from other tabs / metadata sync on login
   useEffect(() => {
@@ -240,7 +246,7 @@ export const SessionSidebar = forwardRef<
     getProjectRef,
   });
 
-  const moreMenu = useMoreMenu({ isCollapsed, isMobile });
+  const moreMenu = useMoreMenu({ isCollapsed, isMobile, runtimePlugins });
 
   useSessionSidebarEffects({
     currentSessionId,
@@ -369,6 +375,7 @@ export const SessionSidebar = forwardRef<
         });
       },
       onUpdateIcon: projectManager.handleUpdateIcon,
+      onOpenProjectPluginOptions: setProjectOptionsProject,
       onOpenNewProjectModal: () => projectManager.setShowNewProjectModal(true),
       onNewSessionInProject: handleNewSessionInProject,
       onSetProjectRef: setProjectRef,
@@ -754,6 +761,11 @@ export const SessionSidebar = forwardRef<
           }}
         />
       )}
+
+      <ProjectPluginOptionsModal
+        project={projectOptionsProject}
+        onClose={() => setProjectOptionsProject(null)}
+      />
 
       {/* Share dialog */}
       <ShareDialog

@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Bot, ChevronDown, Cpu, Star, Trash2 } from "lucide-react";
+import { ChevronDown, Cpu, Star, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TeamMember } from "../../types/team";
 import type { ModelOption } from "../../services/api/model";
-import type { AgentInfo } from "../../types/agent";
 import {
   PersonaAvatarIcon,
   PersonaAvatarImage,
@@ -26,8 +25,6 @@ interface TeamMemberCardProps {
   onInstructionsChange: (text: string) => void;
   availableModels?: ModelOption[];
   onModelChange?: (modelId: string | null) => void;
-  availableAgents?: AgentInfo[];
-  onAgentChange?: (agentId: string | null) => void;
 }
 
 export function TeamMemberCard({
@@ -39,8 +36,6 @@ export function TeamMemberCard({
   onInstructionsChange,
   availableModels = [],
   onModelChange,
-  availableAgents = [],
-  onAgentChange,
 }: TeamMemberCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(!!member.role_instructions);
@@ -51,21 +46,6 @@ export function TeamMemberCard({
   const modelLabel = member.model_id
     ? selectedModel?.label || selectedModel?.value || member.model_id
     : t("team.followSessionModel", "跟随会话模型");
-  const selectedAgent = member.agent_id
-    ? availableAgents.find((agent) => agent.id === member.agent_id)
-    : null;
-  const agentLabel = member.agent_id
-    ? t(selectedAgent?.name || member.agent_id)
-    : t("team.followTeamMode", "跟随团队模式");
-
-  const agentOptions: SelectOption[] = [
-    { value: "", label: t("team.followTeamMode", "跟随团队模式") },
-    ...availableAgents.map((agent) => ({
-      value: agent.id,
-      label: t(agent.name || agent.id),
-    })),
-  ];
-
   const modelOptions: SelectOption[] = [
     { value: "", label: t("team.followSessionModel", "跟随会话模型") },
     ...availableModels.map((model) => ({
@@ -125,11 +105,6 @@ export function TeamMemberCard({
               )}
             </div>
             <span className="team-member-card__meta-row">
-              <span className="team-member-card__model" title={agentLabel}>
-                <Bot size={11} />
-                <span>{agentLabel}</span>
-              </span>
-              <span className="team-member-card__model-sep" />
               <span className="team-member-card__model" title={modelLabel}>
                 <Cpu size={11} />
                 <span>{modelLabel}</span>
@@ -202,20 +177,6 @@ export function TeamMemberCard({
         >
           <div className="list-item-card__instructions">
             <div className="team-member-card__instructions-divider" />
-            <div className="team-member-card__field">
-              <label className="ppe-label">
-                <Bot size={13} className="ppe-label-icon" />
-                {t("team.memberMode", "成员模式")}
-              </label>
-              <Select
-                value={member.agent_id ?? ""}
-                onChange={(v) => onAgentChange?.(v || null)}
-                options={agentOptions}
-                disabled={!onAgentChange}
-                placeholder={t("team.followTeamMode", "跟随团队模式")}
-                triggerClassName="team-member-card__select-trigger"
-              />
-            </div>
             <div className="team-member-card__field">
               <label className="ppe-label">
                 <Cpu size={13} className="ppe-label-icon" />

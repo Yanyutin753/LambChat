@@ -14,6 +14,7 @@ from src.infra.channel.channel_storage import ChannelStorage
 from src.infra.channel.feishu.channel import FEISHU_AVAILABLE, FeishuChannel
 from src.infra.logging import get_logger
 from src.infra.storage.redis import create_redis_client
+from src.kernel.extensions import PluginRuntime
 from src.kernel.schemas.channel import ChannelType
 from src.kernel.schemas.feishu import (
     DEFAULT_AUDIO_TRANSCRIBE_PROMPT,
@@ -64,6 +65,7 @@ class FeishuChannelManager(UserChannelManager):
         self._lease_tasks: dict[str, asyncio.Task] = {}
         self._lease_redis: Redis | None = None
         self._rebalance_task: asyncio.Task | None = None
+        self._plugin_runtime: PluginRuntime | None = None
 
     @classmethod
     def get_instance(cls) -> "FeishuChannelManager":
@@ -94,6 +96,14 @@ class FeishuChannelManager(UserChannelManager):
             or DEFAULT_AUDIO_TRANSCRIBE_PROMPT,
             enabled=config_dict.get("enabled", True),
         )
+
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        """Attach Plugin Runtime used by Feishu execution guards and options."""
+        self._plugin_runtime = runtime
+
+    @property
+    def plugin_runtime(self) -> PluginRuntime | None:
+        return self._plugin_runtime
 
     async def start(self) -> None:
         """Start all enabled Feishu channels."""

@@ -17,6 +17,10 @@ from src.infra.share.storage import ShareStorage
 from src.infra.team.storage import TeamStorage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import to_iso
+from src.kernel.extensions.plugin_options import (
+    agent_uses_agent_team_options,
+    selected_agent_team_id_from_metadata,
+)
 from src.kernel.schemas.share import (
     ShareCreate,
     SharedContentOwner,
@@ -95,7 +99,11 @@ async def _attach_shared_team_metadata(
 ) -> None:
     """Attach safe team display metadata for shared team sessions."""
     metadata = session.metadata or {}
-    team_id = metadata.get("team_id") if session.agent_id == "team" else None
+    team_id = (
+        selected_agent_team_id_from_metadata(metadata)
+        if agent_uses_agent_team_options(session.agent_id)
+        else None
+    )
     if not team_id:
         return
 

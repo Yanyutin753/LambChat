@@ -29,7 +29,7 @@ node_modules
 *.swo
 
 # Tests
-tests/
+tests/*
 .pytest_cache/
 .coverage
 htmlcov/
@@ -52,7 +52,7 @@ docker-compose*.yml
 deploy/
 nginx/
 k8s/
-scripts/
+scripts/*
 
 # Uploads & runtime
 uploads/

@@ -6,6 +6,7 @@ from typing import Any
 from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
 from src.infra.user.storage import UserStorage
+from src.kernel.extensions.plugin_options import selected_agent_team_id_from_metadata
 from src.kernel.schemas.scheduled_task import ChannelDeliveryConfig
 from src.kernel.schemas.user import TokenPayload
 
@@ -86,7 +87,7 @@ async def _get_current_session_defaults() -> tuple[
     user_timezone = metadata.get("user_timezone")
     channel_delivery = _coerce_channel_delivery(metadata.get("channel_delivery"))
     persona_preset_id = metadata.get("persona_preset_id")
-    team_id = metadata.get("team_id")
+    team_id = selected_agent_team_id_from_metadata(metadata)
     return (
         agent_id if isinstance(agent_id, str) and agent_id else None,
         agent_options,

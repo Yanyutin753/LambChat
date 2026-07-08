@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useCallback, useState } from "react";
 import { ArrowUp, Square, Lock, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
@@ -7,17 +7,13 @@ import {
   PersonaAvatarImage,
 } from "../persona/PersonaAvatarIcon";
 import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
-import { teamApi } from "../../services/api/team";
 import type { AgentOption, FileCategory } from "../../types";
-import type { Team } from "../../types/team";
-import { TeamAvatar } from "../team/TeamAvatar";
-import {
-  getTeamFallbackAvatar,
-  getTeamFallbackTag,
-} from "../team/teamAvatarUtils";
+import type { UploadLimits } from "../../hooks/useFileUpload";
 import { ToolbarChip } from "./ToolbarChip";
 import { AgentIcon } from "../agent/AgentIcon";
-import { subscribeTeamsChanged } from "../../hooks/teamEvents";
+import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
+import { CHAT_INPUT_SELECTED_RENDERERS } from "./chatInputSelectedRenderers";
+import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
 import { RunModePopover } from "./RunModePopover";
 
 export interface ChatInputToolbarProps {
@@ -40,13 +36,19 @@ export interface ChatInputToolbarProps {
   thinkingLabel?: string;
   thinkingLevel?: string;
   uploadCategories: FileCategory[];
+  uploadLimits: UploadLimits | null;
   uploadFiles: (files: FileList | File[], category?: FileCategory) => void;
   selectedPersonaName?: string | null;
   personaAvatar: { avatar?: string; primaryTag: string } | null;
   onClearPersonaPreset?: () => void;
   currentAgent?: string;
-  selectedTeamId?: string | null;
-  onSelectTeam?: (teamId: string | null) => void;
+  pluginOptionValues?: PluginOptionsMetadata;
+  onPluginOptionChange?: (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => void;
+  chatInputOptions?: readonly CoreChatInputOptionContribution[];
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
@@ -70,13 +72,6 @@ const FILE_CATEGORY_ACCEPT: Record<FileCategory, string> = {
     ".pdf,.doc,.docx,.dot,.dotx,.docm,.xls,.xlsx,.xlsm,.csv,.xlt,.ods,.ppt,.pptx,.potx,.ppsx,.pptm,.odp,.txt,.md,.csv,.rtf,.odt,.epub,.dxf,.dwg,.log,.json,.xml,.html,.htm,.yaml,.yml,.toml,.ini,.cfg,.tex,.diff,.patch,.py,.js,.ts,.jsx,.tsx,.vue,.svelte,.go,.rs,.rb,.php,.java,.c,.cpp,.h,.cs,.swift,.kt,.scala,.dart,.lua,.r,.pl,.sql,.sh,.bash,.zsh,.fish,.ps1,.bat,.cmd,.properties,.gradle,.cmake,.env,.graphql,.proto,.zip,.rar,.7z,.tar,.gz,.bz2,.xz,.tgz",
 };
 
-const FILE_ACCEPT_ALL = Object.values(FILE_CATEGORY_ACCEPT).join(",");
-
-function getFileAccept(categories: FileCategory[]): string {
-  if (categories.length === 0) return FILE_ACCEPT_ALL;
-  return categories.map((category) => FILE_CATEGORY_ACCEPT[category]).join(",");
-}
-
 export function ChatInputToolbar({
   activePanel,
   onActivePanelChange,
@@ -97,13 +92,15 @@ export function ChatInputToolbar({
   thinkingLabel,
   thinkingLevel,
   uploadCategories,
+  uploadLimits,
   uploadFiles,
   selectedPersonaName,
   personaAvatar,
   onClearPersonaPreset,
   currentAgent,
-  selectedTeamId,
-  onSelectTeam,
+  pluginOptionValues,
+  onPluginOptionChange,
+  chatInputOptions = [],
   agentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
@@ -116,42 +113,11 @@ export function ChatInputToolbar({
 }: ChatInputToolbarProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-  const [totalTeamCount, setTotalTeamCount] = useState(0);
+  const [selectedFileCategory, setSelectedFileCategory] =
+    useState<FileCategory | null>(null);
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
 
   const hasActiveMode = autoModeEnabled || goalModeEnabled;
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadTeams = () => {
-      teamApi
-        .list(0, 50)
-        .then((res) => {
-          if (cancelled) return;
-          setTotalTeamCount(res.total);
-          if (selectedTeamId) {
-            const team = res.teams.find((t) => t.id === selectedTeamId);
-            setSelectedTeam(team ?? null);
-          }
-        })
-        .catch(() => {});
-    };
-    loadTeams();
-    const unsubscribe = subscribeTeamsChanged(() => {
-      loadTeams();
-    });
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [selectedTeamId]);
-
-  useEffect(() => {
-    if (!selectedTeamId) {
-      setSelectedTeam(null);
-    }
-  }, [selectedTeamId]);
 
   const booleanAgentOptions = agentOptions
     ? Object.fromEntries(
@@ -161,23 +127,44 @@ export function ChatInputToolbar({
       )
     : undefined;
 
-  const handleUploadFiles = useCallback(() => {
+  const handleFileCategorySelect = useCallback((category: FileCategory) => {
+    setSelectedFileCategory(category);
     if (fileInputRef.current) {
-      fileInputRef.current.accept = getFileAccept(uploadCategories);
+      fileInputRef.current.accept = FILE_CATEGORY_ACCEPT[category];
       fileInputRef.current.click();
     }
-  }, [uploadCategories]);
+  }, []);
 
   const handleFileInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
-      uploadFiles(files);
+      uploadFiles(files, selectedFileCategory || undefined);
       e.target.value = "";
     },
-    [uploadFiles],
+    [uploadFiles, selectedFileCategory],
   );
-  const selectedTeamName = selectedTeam?.name ?? null;
+  const selectedPluginOptions = chatInputOptions.filter(
+    (option) => option.selectedRenderer,
+  );
+  const selectedPluginRendererProps = (option: CoreChatInputOptionContribution) => ({
+    option,
+    activePanel,
+    onActivePanelChange,
+    pluginOptionValues,
+    onPluginOptionChange,
+    fallbackLabel: t("chat.teamSelected"),
+  });
+  const hasSelectedPluginOption = selectedPluginOptions.some((option) => {
+    const rendererId = option.selectedRenderer;
+    const entry = rendererId ? CHAT_INPUT_SELECTED_RENDERERS[rendererId] : null;
+    return Boolean(entry?.hasSelection(selectedPluginRendererProps(option)));
+  });
+  const corePersonaSelectorSuppressed = chatInputOptions.some(
+    (option) => option.suppressesCorePersonaSelector,
+  );
+  const corePersonaSelectorVisible =
+    hasPersonaSelector && !corePersonaSelectorSuppressed;
 
   return (
     <div className="flex max-w-full flex-nowrap justify-between gap-2 px-2 pb-3 pt-3 mx-0.5">
@@ -196,23 +183,31 @@ export function ChatInputToolbar({
           totalToolsCount={totalToolsCount}
           enabledSkillsCount={enabledSkillsCount}
           totalSkillsCount={totalSkillsCount}
-          hasPersonaSelector={hasPersonaSelector && currentAgent !== "team"}
+          hasPersonaSelector={corePersonaSelectorVisible}
           personaName={personaName}
-          hasTeamSelector={currentAgent === "team" && !!onSelectTeam}
-          totalTeamCount={totalTeamCount}
+          pluginOptions={chatInputOptions}
+          hasAgentSelector={hasAgentSelector}
+          agentName={agentName}
+          hasThinkingOption={hasThinkingOption}
           uploadCategories={uploadCategories}
-          onUploadFiles={handleUploadFiles}
+          uploadLimits={uploadLimits}
+          onFileCategorySelect={handleFileCategorySelect}
+          thinkingLabel={thinkingLabel}
+          thinkingLevel={thinkingLevel}
+          booleanAgentOptions={booleanAgentOptions}
+          agentOptionValues={agentOptionValues}
+          onToggleAgentOption={onToggleAgentOption}
         />
         {hasAgentSelector &&
           !selectedPersonaName &&
-          !(currentAgent === "team" && onSelectTeam && selectedTeamId) && (
+          !hasSelectedPluginOption && (
             <ToolbarChip
               icon={<AgentIcon icon={agentIcon || "Bot"} size={18} />}
               label={t(`agents.${currentAgent}.name`) || agentName || ""}
               onClick={() => onActivePanelChange("agent")}
             />
           )}
-        {selectedPersonaName && currentAgent !== "team" && (
+        {selectedPersonaName && corePersonaSelectorVisible && (
           <ToolbarChip
             icon={
               personaAvatar?.avatar &&
@@ -245,27 +240,19 @@ export function ChatInputToolbar({
             onClear={onClearPersonaPreset}
           />
         )}
-        {currentAgent === "team" && onSelectTeam && selectedTeamId && (
-          <ToolbarChip
-            icon={
-              <TeamAvatar
-                avatar={selectedTeam?.avatar}
-                fallbackAvatar={
-                  selectedTeam ? getTeamFallbackAvatar(selectedTeam) : null
-                }
-                fallbackTag={
-                  selectedTeam ? getTeamFallbackTag(selectedTeam) : ""
-                }
-                label={selectedTeamName ?? t("chat.teamSelected")}
-                className="team-toolbar-avatar transition-opacity group-hover:opacity-0"
-                iconSize={18}
-              />
-            }
-            label={selectedTeamName ?? t("chat.teamSelected")}
-            onClick={() => onActivePanelChange("team")}
-            onClear={() => onSelectTeam?.(null)}
-          />
-        )}
+        {selectedPluginOptions.map((option) => {
+          const rendererId = option.selectedRenderer;
+          const entry = rendererId ? CHAT_INPUT_SELECTED_RENDERERS[rendererId] : null;
+          if (!entry) return null;
+          const SelectedRenderer = entry.Component;
+          return (
+            <SelectedRenderer
+              key={option.id}
+              {...selectedPluginRendererProps(option)}
+              option={option}
+            />
+          );
+        })}
       </div>
 
       <div className="flex shrink-0 items-center gap-3 self-end">

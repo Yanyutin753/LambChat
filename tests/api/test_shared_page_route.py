@@ -305,7 +305,11 @@ async def test_service_worker_is_served_without_auth(
     static_dir = tmp_path / "dist"
     static_dir.mkdir()
     (static_dir / "index.html").write_text("<!doctype html><div id='root'></div>", encoding="utf-8")
-    (static_dir / "sw.js").write_text("self.__lambchat = true;\n", encoding="utf-8")
+    (static_dir / "sw.js").write_text(
+        "self.__lambchat = true;\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
     monkeypatch.setattr(
         api_main,
@@ -368,6 +372,7 @@ async def test_offline_page_is_served_without_auth(
     (static_dir / "offline.html").write_text(
         "<!doctype html><title>Offline</title>\n",
         encoding="utf-8",
+        newline="\n",
     )
 
     monkeypatch.setattr(

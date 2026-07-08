@@ -6,8 +6,10 @@ Colored Formatter - 彩色日志格式化器
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
+from typing import Any
 
 from colorama import Fore, Style, init
 
@@ -57,3 +59,52 @@ class ColoredFormatter(logging.Formatter):
         record.levelname = original_levelname
 
         return result
+
+
+class JsonFormatter(logging.Formatter):
+    """Structured JSON log formatter with optional trace context fields."""
+
+    _TRACE_FIELDS = (
+        "request_id",
+        "trace_id",
+        "span_id",
+        "parent_span_id",
+        "user_id",
+        "session_id",
+        "run_id",
+    )
+
+    def __init__(self, datefmt: str | None = None):
+        super().__init__(datefmt=datefmt)
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+
+        for field in self._TRACE_FIELDS:
+            value = getattr(record, field, None)
+            if value and value != "-":
+                payload[field] = value
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+        if record.stack_info:
+            payload["stack"] = self.formatStack(record.stack_info)
+
+        return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+def build_log_formatter(fmt: str | None, datefmt: str | None = None) -> logging.Formatter:
+    """Return the configured log formatter.
+
+    ``LOG_FORMAT=json`` is a common container setting for structured logs; treat
+    it as a mode selector while preserving %-style formats for existing setups.
+    """
+
+    if isinstance(fmt, str) and fmt.strip().lower() == "json":
+        return JsonFormatter(datefmt=datefmt)
+    return ColoredFormatter(fmt=fmt, datefmt=datefmt)

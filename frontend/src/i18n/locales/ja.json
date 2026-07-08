@@ -1595,14 +1595,6 @@
     "hideCode": "コードを隠す",
     "showCode": "コードを表示"
   },
-  "mode": {
-    "auto": "自動",
-    "autoDesc": "自動実行、確認をスキップ",
-    "goal": "ゴール",
-    "goalDesc": "メッセージをゴールとしてガイド実行",
-    "hint": "両モードを同時に有効にできます",
-    "title": "実行モード"
-  },
   "nav": {
     "adminMarketplace": "管理マーケット",
     "agents": "設定",
@@ -2834,6 +2826,11 @@
     "memberModel": "メンバーモデル",
     "memberModels": "メンバーモデル",
     "memberModes": "メンバーモード",
+    "runInSandbox": "サンドボックス実行",
+    "runInSandboxTitle": "このチームをサンドボックスで実行",
+    "runInSandboxDesc": "有効にすると、このチームは隔離されたサンドボックスバックエンドを使用します。無効にすると永続ワークスペースバックエンドを使用します。",
+    "enableSandbox": "サンドボックス実行を有効化",
+    "disableSandbox": "サンドボックス実行を無効化",
     "members": "メンバー",
     "newTeam": "新規チーム",
     "noMatchingTeams": "一致するチームがありません",
@@ -2884,6 +2881,7 @@
       "${cat}": "{{cat}}",
       "builtin": "組み込み",
       "human": "手動",
+      "internal": "内部",
       "mcp": "MCP",
       "sandbox": "サンドボックス",
       "skill": "スキル"

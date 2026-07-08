@@ -258,9 +258,37 @@ async def test_create_team(storage):
     assert len(team.members) == 1
     assert team.members[0].persona_preset_id == "preset-1"
     assert team.members[0].member_id.startswith("m-")
-    assert team.members[0].agent_id is None
     assert team.members[0].model_id is None
+    assert team.run_in_sandbox is False
     assert team.visibility.value == "private"
+
+
+@pytest.mark.asyncio
+async def test_create_and_get_team_preserves_run_in_sandbox(storage):
+    s, store, users = storage
+    team = await s.create_team(
+        owner_user_id="user-1",
+        name="Sandbox Team",
+        run_in_sandbox=True,
+    )
+
+    fetched = await s.get_team(team.id, owner_user_id="user-1")
+
+    assert fetched is not None
+    assert fetched.run_in_sandbox is True
+    assert store[0]["run_in_sandbox"] is True
+
+
+@pytest.mark.asyncio
+async def test_old_team_without_run_in_sandbox_defaults_false(storage):
+    s, store, users = storage
+    team = await s.create_team(owner_user_id="user-1", name="Legacy Team")
+    del store[0]["run_in_sandbox"]
+
+    fetched = await s.get_team(team.id, owner_user_id="user-1")
+
+    assert fetched is not None
+    assert fetched.run_in_sandbox is False
 
 
 @pytest.mark.asyncio
@@ -286,7 +314,7 @@ async def test_create_and_get_team_preserves_member_model_id(storage):
 
 
 @pytest.mark.asyncio
-async def test_create_and_get_team_preserves_member_agent_id(storage):
+async def test_create_and_get_team_ignores_member_agent_id(storage):
     s, store, users = storage
     team = await s.create_team(
         owner_user_id="user-1",
@@ -303,8 +331,8 @@ async def test_create_and_get_team_preserves_member_agent_id(storage):
     fetched = await s.get_team(team.id, owner_user_id="user-1")
 
     assert fetched is not None
-    assert fetched.members[0].agent_id == "search"
-    assert store[0]["members"][0]["agent_id"] == "search"
+    assert not hasattr(fetched.members[0], "agent_id")
+    assert "agent_id" not in store[0]["members"][0]
 
 
 @pytest.mark.asyncio
@@ -324,19 +352,20 @@ async def test_old_team_member_without_model_id_returns_none(storage):
 
 
 @pytest.mark.asyncio
-async def test_old_team_member_without_agent_id_returns_none(storage):
+async def test_legacy_team_member_agent_id_returns_warning_without_field(storage):
     s, store, users = storage
     team = await s.create_team(
         owner_user_id="user-1",
         name="Legacy Team",
         members=[{"member_id": "m-legacy", "persona_preset_id": "preset-1"}],
     )
-    del store[0]["members"][0]["agent_id"]
+    store[0]["members"][0]["agent_id"] = "search"
 
     fetched = await s.get_team(team.id, owner_user_id="user-1")
 
     assert fetched is not None
-    assert fetched.members[0].agent_id is None
+    assert not hasattr(fetched.members[0], "agent_id")
+    assert fetched.compatibility_warnings == ["legacy_member_agent_id_ignored"]
 
 
 @pytest.mark.asyncio
@@ -766,7 +795,7 @@ async def test_clone_team_preserves_member_model_id(storage):
 
 
 @pytest.mark.asyncio
-async def test_clone_team_preserves_member_agent_id(storage):
+async def test_clone_team_drops_legacy_member_agent_id(storage):
     s, store, users = storage
     original = await s.create_team(
         owner_user_id="user-1",
@@ -774,15 +803,16 @@ async def test_clone_team_preserves_member_agent_id(storage):
         members=[
             {
                 "persona_preset_id": "preset-1",
-                "agent_id": "search",
             },
         ],
     )
+    store[0]["members"][0]["agent_id"] = "search"
 
     cloned = await s.clone_team(original.id, owner_user_id="user-1")
 
     assert cloned is not None
-    assert cloned.members[0].agent_id == "search"
+    assert not hasattr(cloned.members[0], "agent_id")
+    assert "agent_id" not in store[-1]["members"][0]
 
 
 @pytest.mark.asyncio
@@ -845,7 +875,7 @@ async def test_update_team_preserves_member_model_id(storage):
 
 
 @pytest.mark.asyncio
-async def test_update_team_preserves_member_agent_id(storage):
+async def test_update_team_ignores_member_agent_id(storage):
     s, store, users = storage
     original = await s.create_team(
         owner_user_id="user-1",
@@ -868,7 +898,8 @@ async def test_update_team_preserves_member_agent_id(storage):
     )
 
     assert updated is not None
-    assert updated.members[0].agent_id == "search"
+    assert not hasattr(updated.members[0], "agent_id")
+    assert "agent_id" not in store[0]["members"][0]
 
 
 @pytest.mark.asyncio
@@ -969,6 +1000,21 @@ async def test_clone_team_preserves_tags(storage):
 
     assert cloned is not None
     assert cloned.tags == ["research", "review"]
+
+
+@pytest.mark.asyncio
+async def test_clone_team_preserves_run_in_sandbox(storage):
+    s, store, users = storage
+    original = await s.create_team(
+        owner_user_id="user-1",
+        name="Original",
+        run_in_sandbox=True,
+    )
+
+    cloned = await s.clone_team(original.id, owner_user_id="user-1")
+
+    assert cloned is not None
+    assert cloned.run_in_sandbox is True
 
 
 @pytest.mark.asyncio

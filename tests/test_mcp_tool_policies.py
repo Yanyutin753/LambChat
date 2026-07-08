@@ -1,9 +1,65 @@
 from types import SimpleNamespace
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 
 from src.infra.mcp.storage_operations import StorageOperations
+
+
+@pytest.mark.asyncio
+async def test_plugin_runtime_tool_guard_preserves_injected_runtime_config() -> None:
+    from langchain.tools import ToolRuntime, tool
+    from langchain_core.tools import InjectedToolArg
+
+    from src.infra.tool.backend_utils import get_user_id_from_runtime
+    from src.infra.tool.internal_registry import PluginRuntimeToolGuard
+
+    @tool("runtime_echo")
+    async def runtime_echo(
+        runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
+    ) -> str:
+        """Return the user id injected through ToolRuntime."""
+        return get_user_id_from_runtime(runtime) or "missing"
+
+    guarded = PluginRuntimeToolGuard(runtime_echo)
+
+    result = await guarded.ainvoke(
+        {},
+        config={"configurable": {"context": SimpleNamespace(user_id="user-context-1")}},
+    )
+
+    assert result == "user-context-1"
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_with_retry_restores_user_context_when_ainvoke_drops_config() -> None:
+    from langchain.tools import ToolRuntime, tool
+    from langchain_core.tools import InjectedToolArg
+
+    from src.infra.tool.backend_utils import get_user_id_from_runtime
+    from src.infra.tool.internal_registry import PluginRuntimeToolGuard
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    @tool("runtime_echo")
+    async def runtime_echo(
+        runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
+    ) -> str:
+        """Return the user id injected through ToolRuntime."""
+        return get_user_id_from_runtime(runtime) or "missing"
+
+    wrapped = MCPToolWithRetry(PluginRuntimeToolGuard(runtime_echo), user_id="user-wrapper-1")
+
+    result = await wrapped.ainvoke({})
+
+    assert result == "user-wrapper-1"
+
+
+def test_get_user_id_from_runtime_accepts_configurable_user_id_fallback() -> None:
+    from src.infra.tool.backend_utils import get_user_id_from_runtime
+
+    runtime = SimpleNamespace(config={"configurable": {"user_id": "user-direct-1"}})
+
+    assert get_user_id_from_runtime(runtime) == "user-direct-1"
 
 
 def test_mcp_tool_policy_schema_preserves_allowed_roles_quotas_and_inline_exposure() -> None:
@@ -105,6 +161,299 @@ async def test_internal_tool_policies_filter_blocked_tools(
         is_admin=False,
     )
 
+    assert [tool.name for tool in tools] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
+async def test_internal_plugin_tool_visibility_follows_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import PluginManifest, PluginRuntime
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="feedback",
+                name="Feedback",
+                version="1.0.0",
+                api_version="v1",
+                permissions=["feedback:read"],
+                tools=[
+                    {
+                        "name": "feedback_summary",
+                        "module": "tests.feedback_tool",
+                        "legacy_ids": ["feedback.summary"],
+                    }
+                ],
+            )
+        ]
+    )
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakeTool(name="feedback_summary"), _FakeTool(name="env_var_list")],
+    )
+
+    enabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in enabled_infos] == ["feedback_summary", "env_var_list"]
+
+    runtime.disable_plugin("feedback")
+    disabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    disabled_tools = await internal_registry.get_internal_tools_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in disabled_infos] == ["env_var_list"]
+    assert [tool.name for tool in disabled_tools] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
+async def test_internal_image_generation_tool_visibility_follows_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import IMAGE_GENERATION_PLUGIN_ID, PluginRuntime
+    from src.kernel.extensions.builtin_plugins import build_image_generation_plugin_manifest
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    monkeypatch.setattr(
+        "src.kernel.extensions.builtin_plugins.settings.ENABLE_IMAGE_GENERATION",
+        True,
+    )
+    runtime = PluginRuntime([build_image_generation_plugin_manifest()])
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakeTool(name="image_generate"), _FakeTool(name="env_var_list")],
+    )
+
+    enabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    runtime.disable_plugin(IMAGE_GENERATION_PLUGIN_ID)
+    disabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in enabled_infos] == ["image_generate", "env_var_list"]
+    assert [info.name for info in disabled_infos] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
+async def test_internal_audio_transcription_tool_visibility_follows_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import AUDIO_TRANSCRIPTION_PLUGIN_ID, PluginRuntime
+    from src.kernel.extensions.builtin_plugins import build_audio_transcription_plugin_manifest
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    monkeypatch.setattr(
+        "src.kernel.extensions.builtin_plugins.settings.ENABLE_AUDIO_TRANSCRIPTION",
+        True,
+    )
+    runtime = PluginRuntime([build_audio_transcription_plugin_manifest()])
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakeTool(name="audio_transcribe"), _FakeTool(name="env_var_list")],
+    )
+
+    enabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    runtime.disable_plugin(AUDIO_TRANSCRIPTION_PLUGIN_ID)
+    disabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in enabled_infos] == ["audio_transcribe", "env_var_list"]
+    assert [info.name for info in disabled_infos] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
+async def test_internal_plugin_tool_execution_rechecks_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import PluginManifest, PluginRuntime
+
+    calls = {"count": 0}
+
+    class _FakePluginTool(BaseTool):
+        name: str = "feedback_summary"
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            calls["count"] += 1
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            calls["count"] += 1
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="feedback",
+                name="Feedback",
+                version="1.0.0",
+                api_version="v1",
+                permissions=["feedback:read"],
+                tools=[
+                    {
+                        "name": "feedback_summary",
+                        "module": "tests.feedback_tool",
+                        "legacy_ids": ["feedback.summary"],
+                    }
+                ],
+            )
+        ]
+    )
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakePluginTool()],
+    )
+
+    tools = await internal_registry.get_internal_tools_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    runtime.disable_plugin("feedback")
+
+    result = await tools[0]._arun()
+
+    assert calls["count"] == 0
+    assert "[Plugin Tool Error] feedback_summary unavailable" in result
+
+
+@pytest.mark.asyncio
+async def test_internal_builtin_plugin_tools_fail_closed_without_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", None)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [
+            _FakeTool(name="feedback.summary"),
+            _FakeTool(name="image_generate"),
+            _FakeTool(name="env_var_list"),
+        ],
+    )
+
+    infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    tools = await internal_registry.get_internal_tools_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in infos] == ["env_var_list"]
     assert [tool.name for tool in tools] == ["env_var_list"]
 
 
@@ -256,10 +605,21 @@ async def test_internal_image_generate_tool_infos_include_supported_parameters(
         get_image_generation_tool,
         get_reference_image_generation_tool,
     )
+    from src.kernel.extensions import PluginRuntime
+    from src.kernel.extensions.builtin_plugins import build_image_generation_plugin_manifest
 
     async def _empty_policies():
         return {}
 
+    monkeypatch.setattr(
+        "src.kernel.extensions.builtin_plugins.settings.ENABLE_IMAGE_GENERATION",
+        True,
+    )
+    monkeypatch.setattr(
+        internal_registry,
+        "_plugin_runtime",
+        PluginRuntime([build_image_generation_plugin_manifest()]),
+    )
     monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
     monkeypatch.setattr(
         internal_registry,

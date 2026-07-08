@@ -13,6 +13,12 @@ import pytest
 
 from src.infra.scheduler.runner import ScheduledTaskRunner
 from src.infra.task.status import TaskStatus
+from src.kernel.extensions import (
+    PluginManifest,
+    PluginRuntime,
+    PluginUnavailableError,
+    build_agent_team_plugin_manifest,
+)
 from src.kernel.schemas.channel import ChannelType
 from src.kernel.schemas.scheduled_task import (
     ChannelDeliveryConfig,
@@ -662,7 +668,6 @@ async def test_execute_agent_resolves_persona_id_for_non_team_agent(
     assert submitted["enabled_skills"] == ["writing"]
     assert submitted["team_id"] is None
     assert submitted["session_metadata"]["persona_preset_id"] == "persona-1"
-    assert submitted["session_metadata"]["scheduled_task_trigger_type"] == "interval"
     assert submitted["updated_metadata"]["persona_preset_id"] == "persona-1"
     assert task.input_payload == {
         "message": "Write the brief",
@@ -674,6 +679,9 @@ async def test_execute_agent_resolves_persona_id_for_non_team_agent(
 async def test_execute_agent_passes_team_id_for_team_agent_without_persona(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from src.agents import set_plugin_runtime
+
+    set_plugin_runtime(PluginRuntime([build_agent_team_plugin_manifest()]))
     task = _make_task(
         agent_id="team",
         input_payload={
@@ -729,10 +737,194 @@ async def test_execute_agent_passes_team_id_for_team_agent_without_persona(
     assert submitted["team_id"] == "team-1"
     assert submitted["persona_system_prompt"] is None
     assert submitted["enabled_skills"] is None
-    assert submitted["session_metadata"]["team_id"] == "team-1"
-    assert submitted["session_metadata"]["scheduled_task_trigger_type"] == "interval"
+    assert "team_id" not in submitted["session_metadata"]
+    assert submitted["session_metadata"]["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
+    }
     assert "persona_preset_id" not in submitted["session_metadata"]
-    assert submitted["updated_metadata"]["team_id"] == "team-1"
+    assert "team_id" not in submitted["updated_metadata"]
+    assert submitted["updated_metadata"]["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_prefers_plugin_option_team_id_for_team_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    set_plugin_runtime(PluginRuntime([build_agent_team_plugin_manifest()]))
+    task = _make_task(
+        agent_id="team",
+        input_payload={
+            "message": "Plan the launch",
+            "team_id": "legacy-team",
+            "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "plugin-team"}},
+        },
+    )
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            return TaskStatus.COMPLETED
+
+    class _FakeSessionManager:
+        async def update_session_metadata(
+            self,
+            session_id: str,
+            metadata: dict[str, Any],
+        ) -> None:
+            submitted["updated_metadata"] = metadata
+
+    fake_manager_module = types.ModuleType("src.infra.task.manager")
+    fake_manager_module.get_task_manager = lambda: _FakeTaskManager()
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setitem(sys.modules, "src.infra.task.manager", fake_manager_module)
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+    monkeypatch.setattr(
+        "src.infra.session.manager.SessionManager",
+        lambda: _FakeSessionManager(),
+    )
+
+    try:
+        await ScheduledTaskRunner()._execute_agent(
+            task,
+            run_id="run_1",
+            session_id="session_1",
+        )
+    finally:
+        set_plugin_runtime(None)
+
+    assert submitted["team_id"] == "plugin-team"
+    assert "team_id" not in submitted["session_metadata"]
+    assert submitted["session_metadata"]["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "plugin-team"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_carries_generic_scheduled_task_plugin_options_to_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = PluginManifest(
+        id="automation_runner",
+        name="Workflow Runner",
+        version="1.0.0",
+        api_version="v1",
+        permissions=["automation_runner:read"],
+        settings=[
+            {
+                "key": "SELECTED_AUTOMATION_ID",
+                "type": "string",
+                "scope": "scheduled_task",
+            }
+        ],
+        frontend={
+            "scheduled_task_options": [
+                {
+                    "key": "SELECTED_AUTOMATION_ID",
+                    "type": "string",
+                    "label": "workflow.selected",
+                    "legacy_payload_keys": ["workflow_id"],
+                }
+            ]
+        },
+    )
+    task = _make_task(
+        agent_id="fast",
+        input_payload={"message": "Run workflow", "workflow_id": "automation-1"},
+    )
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            return TaskStatus.COMPLETED
+
+    class _FakeSessionManager:
+        async def update_session_metadata(
+            self,
+            session_id: str,
+            metadata: dict[str, Any],
+        ) -> None:
+            submitted["updated_metadata"] = metadata
+
+    fake_manager_module = types.ModuleType("src.infra.task.manager")
+    fake_manager_module.get_task_manager = lambda: _FakeTaskManager()
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setitem(sys.modules, "src.infra.task.manager", fake_manager_module)
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+    monkeypatch.setattr(
+        "src.infra.session.manager.SessionManager",
+        lambda: _FakeSessionManager(),
+    )
+    runner = ScheduledTaskRunner()
+    runner.set_plugin_runtime(PluginRuntime([manifest]))
+
+    await runner._execute_agent(task, run_id="run_1", session_id="session_1")
+
+    assert submitted["team_id"] is None
+    assert submitted["session_metadata"]["plugin_options"] == {
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}
+    }
+    assert submitted["updated_metadata"]["plugin_options"] == {
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_rejects_disabled_plugin_owned_team_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    set_plugin_runtime(runtime)
+    task = _make_task(
+        agent_id="team",
+        input_payload={"message": "Plan the launch", "team_id": "team-1"},
+    )
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            raise AssertionError("disabled plugin-owned agent should not be submitted")
+
+    class _FakeSessionManager:
+        async def update_session_metadata(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("disabled plugin-owned agent should not write metadata")
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeTaskManager())
+    monkeypatch.setattr(
+        "src.infra.session.manager.SessionManager",
+        lambda: _FakeSessionManager(),
+    )
+
+    try:
+        with pytest.raises(PluginUnavailableError) as exc_info:
+            await ScheduledTaskRunner()._execute_agent(
+                task,
+                run_id="run_1",
+                session_id="session_1",
+            )
+        assert "agent_team" in str(exc_info.value)
+    finally:
+        set_plugin_runtime(None)
 
 
 @pytest.mark.asyncio

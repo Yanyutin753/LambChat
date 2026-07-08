@@ -4,9 +4,13 @@ import asyncio
 from importlib import import_module
 from typing import Any
 
+from src.agents import ensure_agent_executable
 from src.infra.distributed_validation import validate_distributed_runtime_settings
 from src.infra.logging import get_logger
 from src.kernel.config import settings
+from src.kernel.extensions import (
+    PluginUnavailableError,
+)
 
 from .arq_payloads import TaskArqPayloadStore
 from .concurrency import get_concurrency_limiter, get_registered_executor
@@ -94,6 +98,26 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
         return
 
+    try:
+        ensure_agent_executable(str(payload["agent_id"]))
+    except PluginUnavailableError as exc:
+        error_message = str(exc) or "Plugin-owned agent is unavailable"
+        logger.warning(
+            "Rejecting arq task for unavailable plugin-owned agent: run_id=%s, agent_id=%s, plugin_id=%s",
+            run_id,
+            payload.get("agent_id"),
+            exc.plugin_id,
+        )
+        await task_executor._update_session_status(
+            payload["session_id"],
+            TaskStatus.FAILED,
+            error_message,
+            run_id=run_id,
+        )
+        await payload_store.delete(run_id)
+        await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
+        return
+
     task_manager._run_info[run_id] = {
         "session_id": payload["session_id"],
         "trace_id": payload.get("trace_id"),
@@ -124,6 +148,7 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
             team_id=payload.get("team_id"),
             active_goal=payload.get("active_goal"),
             auto_mode=bool(payload.get("auto_mode", False)),
+            plugin_options=payload.get("plugin_options"),
         )
     except TaskInterruptedError:
         await payload_store.delete(run_id)

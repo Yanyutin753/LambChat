@@ -163,6 +163,57 @@ test("adds artifact result events as artifact parts without tool chrome", () => 
   expect(artifact.artifact.name).toBe("report.pdf");
 });
 
+test("adds generic plugin message events as plugin message parts", () => {
+  const result = processMessageEvent(
+    "plugin:message",
+    {
+      plugin_id: "automation_runner",
+      renderer: "automation_runner.RunCard",
+      id: "run-1",
+      title: "Run completed",
+      status: "completed",
+      payload: { run_id: "run-1", output: { answer: "done" } },
+      timestamp: "2026-07-08T12:00:00Z",
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  assert.equal(result.parts.length, 1);
+  const pluginMessage = result.parts[0];
+  assert.equal(pluginMessage.type, "plugin_message");
+  if (pluginMessage.type !== "plugin_message") return;
+  assert.equal(pluginMessage.plugin_id, "automation_runner");
+  assert.equal(pluginMessage.renderer, "automation_runner.RunCard");
+  assert.equal(pluginMessage.id, "run-1");
+  assert.equal(pluginMessage.status, "completed");
+  assert.deepEqual(pluginMessage.payload, {
+    run_id: "run-1",
+    output: { answer: "done" },
+  });
+});
+
+test("ignores plugin message events without a plugin id or renderer", () => {
+  const result = processMessageEvent(
+    "plugin:message",
+    { plugin_id: "automation_runner", payload: { run_id: "run-1" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  assert.equal(result.parts.length, 0);
+});
+
 test("complete event cancels unfinished todo items", () => {
   const result = processMessageEvent(
     "complete",

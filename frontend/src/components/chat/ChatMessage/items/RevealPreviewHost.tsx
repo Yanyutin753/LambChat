@@ -15,6 +15,7 @@ import type {
   ParsedProjectRevealData,
   RevealPreviewRequest,
 } from "./revealPreviewData";
+import type { PluginRuntimeContributionStates } from "../../../../extensions/coreContributions";
 import {
   getCachedProjectRevealFiles,
   loadProjectRevealFilesCached,
@@ -383,10 +384,12 @@ export function RevealPreviewHost({
   preview,
   onClose,
   onUserInteraction,
+  runtimePlugins,
 }: {
   preview: RevealPreviewRequest | null;
   onClose: () => void;
   onUserInteraction?: () => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }) {
   if (!preview) {
     return null;
@@ -407,6 +410,7 @@ export function RevealPreviewHost({
         registryKey={`reveal-preview:${preview.previewKey}`}
         mobileFillViewport
         footer={preview.footer}
+        runtimePlugins={runtimePlugins}
       />
     );
   }

@@ -6,8 +6,21 @@ import zh from "./locales/zh.json";
 import ja from "./locales/ja.json";
 import ko from "./locales/ko.json";
 import ru from "./locales/ru.json";
+import {
+  loadPluginLocaleResources,
+  mergeLocaleResource,
+  type PluginLocaleResource,
+} from "./pluginLocales";
 
 const SUPPORTED_LANGUAGES = ["en", "zh", "ja", "ko", "ru"];
+const pluginLocaleResources = loadPluginLocaleResources();
+
+function translationWithPluginLocales(
+  language: string,
+  base: PluginLocaleResource,
+): PluginLocaleResource {
+  return mergeLocaleResource(base, pluginLocaleResources[language] ?? {});
+}
 
 const detectLanguage = (): string => {
   // Check if running in browser environment
@@ -31,20 +44,30 @@ const detectLanguage = (): string => {
   return "en";
 };
 
+function syncDocumentLanguage(language: string) {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang = language.split("-")[0] || "en";
+}
+
+const initialLanguage = detectLanguage();
+
 i18n.use(initReactI18next).init({
   resources: {
-    en: { translation: en },
-    zh: { translation: zh },
-    ja: { translation: ja },
-    ko: { translation: ko },
-    ru: { translation: ru },
+    en: { translation: translationWithPluginLocales("en", en) },
+    zh: { translation: translationWithPluginLocales("zh", zh) },
+    ja: { translation: translationWithPluginLocales("ja", ja) },
+    ko: { translation: translationWithPluginLocales("ko", ko) },
+    ru: { translation: translationWithPluginLocales("ru", ru) },
   },
-  lng: detectLanguage(),
+  lng: initialLanguage,
   fallbackLng: "en",
   showSupportNotice: false,
   interpolation: {
     escapeValue: false,
   },
 });
+
+syncDocumentLanguage(initialLanguage);
+i18n.on("languageChanged", syncDocumentLanguage);
 
 export default i18n;

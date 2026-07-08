@@ -1,0 +1,44 @@
+resources:
+  - id: usage_logs
+    type: db_collection
+    scope: global
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: mongodb
+      writer: core_usage_collection
+      manager: src.infra.usage.storage.UsageStorage
+      schema: src.kernel.schemas.usage.UsageLog
+  - id: usage_logs.trace_id_unique_idx
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: usage_logs
+      fields: trace_id
+      unique: "true"
+  - id: usage_logs.user_started_at_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: usage_logs
+      fields: user_id,started_at:-1
+  - id: usage_logs.started_at_sort
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: usage_logs
+      fields: started_at:-1
+  - id: usage_logs.model_started_at_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: usage_logs
+      fields: model,started_at:-1

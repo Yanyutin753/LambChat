@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
-from typing import Any, get_args, get_origin
+from types import SimpleNamespace, UnionType
+from typing import Any, Literal, Optional, Union, cast, get_args, get_origin
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
+from pydantic import PrivateAttr
 
 from src.infra.mcp.storage import MCPStorage
 from src.infra.role.storage import RoleStorage
@@ -21,6 +25,7 @@ from src.infra.tool.persona_preset_tool import get_persona_preset_tools
 from src.infra.tool.scheduled_task import get_scheduled_task_tools
 from src.infra.tool.team_tool import get_team_tools
 from src.kernel.config import settings
+from src.kernel.extensions import PluginRuntime, PluginUnavailableError
 from src.kernel.schemas.mcp import (
     MCPServerResponse,
     MCPToolInfo,
@@ -28,6 +33,7 @@ from src.kernel.schemas.mcp import (
     MCPTransport,
 )
 from src.kernel.types import Permission
+from src.plugins.feedback.tools import get_feedback_tools
 
 INTERNAL_MCP_SERVER_NAME = "lambchat_internal"
 
@@ -38,6 +44,134 @@ _SCHEDULED_TASK_TOOL_PERMISSIONS = {
     "scheduled_task_delete": Permission.SCHEDULED_TASK_DELETE.value,
 }
 
+_plugin_runtime: PluginRuntime | None = None
+
+
+def _declared_builtin_plugin_tool_names() -> set[str]:
+    """Return built-in plugin tool names without requiring an active runtime."""
+    from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
+
+    names: set[str] = set()
+    for manifest in BUILTIN_PLUGIN_MANIFESTS:
+        for tool in manifest.tools:
+            names.add(tool.name)
+            names.update(tool.legacy_ids)
+    return names
+
+
+def set_plugin_runtime(runtime: PluginRuntime | None) -> None:
+    """Attach the active Plugin Runtime used to guard plugin-owned tools."""
+    global _plugin_runtime
+    _plugin_runtime = runtime
+
+
+def _plugin_tool_error(tool_name: str) -> str | None:
+    runtime = _plugin_runtime
+    if runtime is None:
+        if tool_name in _declared_builtin_plugin_tool_names():
+            return f"[Plugin Tool Error] {tool_name} unavailable: Plugin Runtime is unavailable"
+        return None
+    registrations = runtime.tools(enabled_only=False)
+    if not any(
+        registration.name == tool_name or tool_name in registration.legacy_ids
+        for registration in registrations
+    ):
+        return None
+    try:
+        runtime.ensure_tool_available(tool_name)
+    except PluginUnavailableError as exc:
+        return f"[Plugin Tool Error] {tool_name} unavailable: {exc}"
+    return None
+
+
+def _is_plugin_tool_exposed(tool_name: str) -> bool:
+    return _plugin_tool_error(tool_name) is None
+
+
+class PluginRuntimeToolGuard(BaseTool):
+    """Guard a plugin-owned internal tool immediately before execution."""
+
+    _original_tool: BaseTool = PrivateAttr()
+
+    def __init__(self, original_tool: BaseTool) -> None:
+        super().__init__(
+            name=original_tool.name,
+            description=original_tool.description,
+            args_schema=original_tool.args_schema,
+        )
+        self._original_tool = original_tool
+
+    def _run(self, *args, **kwargs) -> Any:
+        error = _plugin_tool_error(self.name)
+        if error is not None:
+            return error
+        return self._original_tool._run(*args, **kwargs)
+
+    async def _arun(self, *args, config: RunnableConfig, **kwargs) -> Any:
+        error = _plugin_tool_error(self.name)
+        if error is not None:
+            return error
+        if _tool_accepts_runtime(self._original_tool) and kwargs.get("runtime") is None:
+            runtime = _tool_runtime_from_config(config)
+            if runtime is not None:
+                kwargs["runtime"] = runtime
+        return await self._original_tool._arun(*args, config=config, **kwargs)
+
+
+def _tool_accepts_runtime(tool: BaseTool) -> bool:
+    args_schema = getattr(tool, "args_schema", None)
+    model_fields = getattr(args_schema, "model_fields", None)
+    if isinstance(model_fields, dict):
+        return "runtime" in model_fields
+    fields = getattr(args_schema, "__fields__", None)
+    if isinstance(fields, dict) and "runtime" in fields:
+        return True
+    for callable_attr in ("coroutine", "func"):
+        candidate = getattr(tool, callable_attr, None)
+        if not callable(candidate):
+            continue
+        try:
+            if "runtime" in inspect.signature(candidate).parameters:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def _tool_runtime_from_config(config: Optional[RunnableConfig]) -> Any:
+    try:
+        from langchain.tools import ToolRuntime
+    except Exception:
+        return None
+
+    runtime_config = cast(RunnableConfig, dict(config or {}))
+    configurable = runtime_config.get("configurable")
+    if not isinstance(configurable, dict):
+        configurable = {}
+        runtime_config["configurable"] = configurable
+    context = configurable.get("context")
+    if context is None and configurable.get("user_id"):
+        context = SimpleNamespace(user_id=str(configurable.get("user_id")))
+        configurable["context"] = context
+    if context is None:
+        context = SimpleNamespace()
+
+    def _stream_writer(_: Any) -> None:
+        return None
+
+    try:
+        return ToolRuntime(
+            state={},
+            context=context,
+            config=runtime_config,
+            stream_writer=_stream_writer,
+            tool_call_id=None,
+            store=None,
+            tools=[],
+        )
+    except TypeError:
+        return SimpleNamespace(config=runtime_config, context=context)
+
 
 def build_internal_tools() -> list[BaseTool]:
     """Build the internal tool set that LambChat exposes to agents."""
@@ -46,15 +180,11 @@ def build_internal_tools() -> list[BaseTool]:
     logger = get_logger(__name__)
     tools: list[BaseTool] = []
 
+    tools.append(get_image_generation_tool())
+    tools.append(get_reference_image_generation_tool())
     if settings.ENABLE_IMAGE_ANALYSIS:
         tools.append(get_image_analysis_tool())
-
-    if settings.ENABLE_IMAGE_GENERATION:
-        tools.append(get_image_generation_tool())
-        tools.append(get_reference_image_generation_tool())
-
-    if settings.ENABLE_AUDIO_TRANSCRIPTION:
-        tools.append(get_audio_transcribe_tool())
+    tools.append(get_audio_transcribe_tool())
 
     if settings.ENABLE_SCHEDULED_TASK:
         try:
@@ -73,6 +203,7 @@ def build_internal_tools() -> list[BaseTool]:
         logger.info("[InternalRegistry] ENABLE_SCHEDULED_TASK=False, skipping scheduled task tools")
 
     tools.extend(get_env_var_tools())
+    tools.extend(get_feedback_tools())
     tools.extend(get_persona_preset_tools())
     tools.extend(get_team_tools())
 
@@ -161,12 +292,22 @@ def _is_tool_allowed_by_business_permission(
 def _schema_type_from_annotation(annotation: Any) -> str:
     origin = get_origin(annotation)
     args = [arg for arg in get_args(annotation) if arg is not type(None)]
+    if origin is Literal:
+        return _schema_type_from_annotation(args[0]) if args else "string"
+    if str(origin) == "typing.Annotated" and args:
+        return _schema_type_from_annotation(args[0])
+    if origin in (Union, UnionType) and args:
+        return _schema_type_from_annotation(args[0])
     if origin is not None and args:
         if origin in (list, tuple, set):
             return "array"
+        if origin in (dict, Mapping):
+            return "object"
         return _schema_type_from_annotation(args[0])
     if annotation in (list, tuple, set):
         return "array"
+    if annotation in (dict, Mapping):
+        return "object"
     if annotation is int:
         return "integer"
     if annotation is float:
@@ -175,6 +316,47 @@ def _schema_type_from_annotation(annotation: Any) -> str:
         return "boolean"
     if annotation is dict:
         return "object"
+    return "string"
+
+
+def _schema_from_annotation(annotation: Any) -> dict[str, Any]:
+    origin = get_origin(annotation)
+    raw_args = [arg for arg in get_args(annotation) if arg is not type(None)]
+    if origin is Literal:
+        values = list(raw_args)
+        return {"type": _schema_type_from_annotation(values[0] if values else str), "enum": values}
+    if str(origin) == "typing.Annotated" and raw_args:
+        return _schema_from_annotation(raw_args[0])
+    if origin in (Union, UnionType) and raw_args:
+        return _schema_from_annotation(raw_args[0])
+    schema_type = _schema_type_from_annotation(annotation)
+    if schema_type == "array":
+        item_annotation = raw_args[0] if raw_args else Any
+        return {"type": "array", "items": _schema_from_annotation(item_annotation)}
+    if schema_type == "object":
+        return {"type": "object"}
+    return {"type": schema_type}
+
+
+def _schema_type_from_json_schema(schema: dict[str, Any]) -> str:
+    raw_type = schema.get("type")
+    if isinstance(raw_type, str) and raw_type:
+        return raw_type
+    if isinstance(raw_type, list):
+        for item in raw_type:
+            if isinstance(item, str) and item != "null":
+                return item
+    for union_key in ("anyOf", "oneOf", "allOf"):
+        for candidate in schema.get(union_key) or []:
+            if not isinstance(candidate, dict):
+                continue
+            candidate_type = _schema_type_from_json_schema(candidate)
+            if candidate_type and candidate_type != "null":
+                return candidate_type
+    if "properties" in schema:
+        return "object"
+    if "items" in schema:
+        return "array"
     return "string"
 
 
@@ -194,10 +376,11 @@ def _extract_tool_parameters(tool: BaseTool) -> list[dict[str, Any]]:
             parameters.append(
                 {
                     "name": param_name,
-                    "type": param_info.get("type", "string"),
+                    "type": _schema_type_from_json_schema(param_info),
                     "description": param_info.get("description", ""),
                     "required": param_name in required,
                     "default": param_info.get("default"),
+                    "schema": param_info,
                 }
             )
         return parameters
@@ -210,13 +393,17 @@ def _extract_tool_parameters(tool: BaseTool) -> list[dict[str, Any]]:
         if param_name == "runtime":
             continue
         default = None if field.is_required() else field.default
+        field_schema = getattr(field, "json_schema_extra", None) or _schema_from_annotation(
+            field.annotation
+        )
         parameters.append(
             {
                 "name": param_name,
-                "type": _schema_type_from_annotation(field.annotation),
+                "type": _schema_type_from_json_schema(field_schema),
                 "description": field.description or "",
                 "required": field.is_required(),
                 "default": default,
+                "schema": field_schema,
             }
         )
     return parameters
@@ -245,6 +432,8 @@ async def get_internal_tools_for_user(
     user_permissions = await _resolve_permissions_for_roles(user_roles)
     wrapped: list[BaseTool] = []
     for tool in tools:
+        if not _is_plugin_tool_exposed(tool.name):
+            continue
         policy = _policy_for_tool(policies, tool.name)
         if not _is_tool_allowed(policy=policy, user_roles=user_roles, is_admin=is_admin):
             continue
@@ -254,9 +443,10 @@ async def get_internal_tools_for_user(
         ):
             continue
 
+        guarded_tool: BaseTool = PluginRuntimeToolGuard(tool)
         wrapped.append(
             MCPToolWithRetry(
-                tool,
+                guarded_tool,
                 user_id=user_id,
                 server_name=INTERNAL_MCP_SERVER_NAME,
                 user_roles=user_roles,
@@ -280,6 +470,8 @@ async def get_internal_tool_infos(
     user_permissions = await _resolve_permissions_for_roles(user_roles)
     infos: list[MCPToolInfo] = []
     for tool in build_internal_tools():
+        if not _is_plugin_tool_exposed(tool.name):
+            continue
         policy = _policy_for_tool(policies, tool.name)
         if not _is_tool_allowed(policy=policy, user_roles=user_roles, is_admin=is_admin):
             continue

@@ -27,8 +27,15 @@ import {
   buildExternalNavigationStateForFile,
   type ExternalNavigationState,
 } from "../layout/AppContent/externalNavigationState";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
+import { hasFileViewerContribution } from "../../extensions/coreContributions";
+import { hasPluginAssetSlot } from "../../extensions/pluginAssetSlots";
 
-export function RevealedFilesPanel() {
+export function RevealedFilesPanel({
+  runtimePlugins,
+}: {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -101,6 +108,9 @@ export function RevealedFilesPanel() {
     imagePreviewNavigation.index >= 0 && imagePreviewNavigation.total > 1
       ? `${imagePreviewNavigation.index + 1} / ${imagePreviewNavigation.total}`
       : undefined;
+  const advancedFileViewersEnabled =
+    hasFileViewerContribution("code", runtimePlugins) &&
+    hasPluginAssetSlot("file_viewer", runtimePlugins);
 
   /* ── Handlers ── */
   const handlePreview = useCallback(
@@ -120,13 +130,13 @@ export function RevealedFilesPanel() {
         setVideoViewerSrc(getFullUrl(file.url) ?? file.url);
         return;
       }
-      if (file.url && isExcalidrawFile(ext)) {
+      if (advancedFileViewersEnabled && file.url && isExcalidrawFile(ext)) {
         setExcalidrawViewerFile(file);
         return;
       }
       setPreviewFile(file);
     },
-    [buildFileNavigationState, navigate],
+    [advancedFileViewersEnabled, buildFileNavigationState, navigate],
   );
   const handleGoToSession = useCallback(
     (sessionId: string, file?: RevealedFileItem) =>
@@ -238,6 +248,7 @@ export function RevealedFilesPanel() {
             mimeType={previewFile.mime_type ?? undefined}
             onClose={handlePreviewClose}
             mobileFillViewport
+            runtimePlugins={runtimePlugins}
           />
         )}
       </DelayedUnmount>

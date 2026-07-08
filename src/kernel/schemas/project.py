@@ -1,7 +1,7 @@
 """Project-related schemas for session organization."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,7 @@ class ProjectBase(BaseModel):
     type: str = "custom"  # "favorites" or "custom"
     icon: str = "💬"  # emoji or lucide-react icon name, e.g. "💬", "⭐", "🤖"
     sort_order: int = 0
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProjectCreate(ProjectBase):
@@ -29,6 +30,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     icon: Optional[str] = None
     sort_order: Optional[int] = None
+    metadata: Optional[dict[str, Any]] = None
 
 
 class Project(ProjectBase):

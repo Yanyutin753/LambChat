@@ -25,6 +25,7 @@ class _FakeSessionManager:
         self._sessions = sessions or {}
         self._list_response = list_response or ([], 0)
         self.last_list_kwargs = None
+        self.update_calls = []
 
     async def get_session(self, session_id: str):
         return self._sessions.get(session_id)
@@ -32,6 +33,24 @@ class _FakeSessionManager:
     async def list_sessions(self, **kwargs):
         self.last_list_kwargs = kwargs
         return self._list_response
+
+    async def update_session(self, session_id: str, session_update):
+        self.update_calls.append((session_id, session_update))
+        session = self._sessions.get(session_id)
+        if not session:
+            return None
+        metadata = dict(getattr(session, "metadata", {}) or {})
+        metadata.update(getattr(session_update, "metadata", {}) or {})
+        updated = SimpleNamespace(
+            user_id=session.user_id,
+            metadata=metadata,
+            model_copy=lambda update: SimpleNamespace(
+                user_id=session.user_id,
+                metadata=update["metadata"],
+            ),
+        )
+        self._sessions[session_id] = updated
+        return updated
 
 
 class _FakeSessionStorage:
@@ -46,6 +65,34 @@ class _FakeSessionStorage:
 
 async def _fake_favorites_project_id(_user_id: str) -> str:
     return "favorites-project"
+
+
+def _agent_team_session_manifest():
+    from src.kernel.extensions.manifest import PluginManifest
+
+    return PluginManifest(
+        id="agent_team",
+        name="Agent Team",
+        version="1.0.0",
+        api_version="v1",
+        settings=[
+            {
+                "key": "SELECTED_TEAM_ID",
+                "type": "string",
+                "scope": "session",
+                "default": "",
+            }
+        ],
+        frontend={
+            "session_options": [
+                {
+                    "key": "SELECTED_TEAM_ID",
+                    "type": "string",
+                    "label": "agentTeam.session.selectedTeam",
+                }
+            ]
+        },
+    )
 
 
 def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
@@ -85,6 +132,21 @@ def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
         SimpleNamespace(
             settings=SimpleNamespace(LLM_MAX_RETRIES=3, LLM_RETRY_DELAY=1),
         ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "src.kernel.extensions",
+        SimpleNamespace(BUILTIN_PLUGIN_MANIFESTS=[]),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "src.kernel.extensions.plugin_options",
+        __import__("src.kernel.extensions.plugin_options", fromlist=["dummy"]),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "src.kernel.extensions.runtime",
+        SimpleNamespace(PluginRuntime=lambda *args, **kwargs: SimpleNamespace(get_state=lambda _plugin_id: None)),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -174,3 +236,135 @@ async def test_toggle_session_favorite_returns_normalized_state(monkeypatch: pyt
     assert fake_storage.toggle_calls == [("session-1", "user-1", "favorites-project")]
     assert response["is_favorite"] is True
     assert response["session"].metadata["is_favorite"] is True
+
+
+@pytest.mark.asyncio
+async def test_session_plugin_options_are_returned_from_metadata(monkeypatch: pytest.MonkeyPatch):
+    session_routes = _load_session_routes_module(monkeypatch)
+    session = SimpleNamespace(
+        user_id="user-1",
+        metadata={"plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}},
+    )
+    fake_manager = _FakeSessionManager(sessions={"session-1": session})
+    monkeypatch.setattr(session_routes, "SessionManager", lambda: fake_manager)
+    monkeypatch.setattr(
+        session_routes,
+        "_get_plugin_runtime",
+        lambda _request: SimpleNamespace(states=lambda: []),
+    )
+
+    response = await session_routes.get_session_plugin_options(
+        "session-1",
+        request=SimpleNamespace(
+            app=SimpleNamespace(
+                state=SimpleNamespace(
+                    plugin_runtime=SimpleNamespace(states=lambda: []),
+                )
+            )
+        ),
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    assert response == {
+        "session_id": "session-1",
+        "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
+        "storage": "session_metadata",
+        "source": "session_metadata.plugin_options+plugin_settings",
+    }
+
+
+@pytest.mark.asyncio
+async def test_session_plugin_options_include_session_scoped_plugin_settings(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session_routes = _load_session_routes_module(monkeypatch)
+    from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
+
+    manifest = _agent_team_session_manifest()
+    session = SimpleNamespace(user_id="user-1", metadata={})
+    fake_manager = _FakeSessionManager(sessions={"session-1": session})
+    settings_service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
+    await settings_service.set_setting(
+        manifest,
+        key="SELECTED_TEAM_ID",
+        value="team-from-settings",
+        scope="session",
+        subject_id="session-1",
+        updated_by="user-1",
+    )
+    fake_runtime = SimpleNamespace(
+        states=lambda: [SimpleNamespace(manifest=manifest)],
+    )
+    monkeypatch.setattr(session_routes, "SessionManager", lambda: fake_manager)
+    monkeypatch.setattr(session_routes, "_get_plugin_runtime", lambda _request: fake_runtime)
+
+    response = await session_routes.get_session_plugin_options(
+        "session-1",
+        request=SimpleNamespace(
+            app=SimpleNamespace(
+                state=SimpleNamespace(
+                    plugin_runtime=fake_runtime,
+                    plugin_settings_service=settings_service,
+                )
+            )
+        ),
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    assert response["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-from-settings"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_session_plugin_option_update_keeps_disabled_plugin_value(monkeypatch: pytest.MonkeyPatch):
+    session_routes = _load_session_routes_module(monkeypatch)
+    from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
+
+    session = SimpleNamespace(user_id="user-1", metadata={})
+    fake_manager = _FakeSessionManager(sessions={"session-1": session})
+    manifest = _agent_team_session_manifest()
+    settings_service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
+    fake_runtime = SimpleNamespace(
+        get_state=lambda plugin_id: SimpleNamespace(executable=False, manifest=manifest),
+    )
+    monkeypatch.setattr(session_routes, "SessionManager", lambda: fake_manager)
+    monkeypatch.setattr(session_routes, "_get_plugin_runtime", lambda _request: fake_runtime)
+    monkeypatch.setattr(
+        session_routes,
+        "_session_option_definition",
+        lambda _runtime, plugin_id, key: SimpleNamespace(type="string", options=None),
+    )
+    monkeypatch.setattr(
+        session_routes,
+        "_get_plugin_settings_service",
+        lambda _request: settings_service,
+    )
+
+    response = await session_routes.update_session_plugin_option(
+        "session-1",
+        "agent_team",
+        "SELECTED_TEAM_ID",
+        session_routes.SessionPluginOptionUpdatePayload(value="team-1"),
+        request=SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace())),
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    assert response["qualified_key"] == "agent_team.SELECTED_TEAM_ID"
+    assert response["value"] == "team-1"
+    assert response["plugin_enabled"] is False
+    assert response["effective"] is False
+    assert response["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}
+    assert response["storage"] == "session_metadata"
+    assert response["source"] == "session_metadata.plugin_options+plugin_settings"
+    assert fake_manager.update_calls[0][1].metadata == {
+        "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
+    }
+    stored = await settings_service.storage.get(
+        plugin_id="agent_team",
+        key="SELECTED_TEAM_ID",
+        scope="session",
+        subject_id="session-1",
+    )
+    assert stored is not None
+    assert stored.value == "team-1"

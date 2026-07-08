@@ -37,6 +37,7 @@ export type MessagePart =
   | TextPart
   | ToolPart
   | ArtifactPart
+  | PluginMessagePart
   | SubagentPart
   | ThinkingPart
   | SandboxPart
@@ -182,6 +183,20 @@ export interface ArtifactPart {
   depth?: number;
   agent_id?: string;
   completedAt?: string;
+}
+
+export interface PluginMessagePart {
+  type: "plugin_message";
+  plugin_id: string;
+  renderer: string;
+  id?: string;
+  title?: string;
+  status?: string;
+  payload?: Record<string, unknown>;
+  error?: string | null;
+  depth?: number;
+  agent_id?: string;
+  timestamp?: string;
 }
 
 export interface SubagentPart {

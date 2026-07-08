@@ -42,6 +42,34 @@ class _BlockingOnlySpooledFile:
         return position
 
 
+def _set_audio_plugin_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    module,
+    *,
+    api_key: str = "sk-test",
+    base_url: str = "https://api.example.com/v1",
+    model: str = "gpt-4o-mini-transcribe",
+    max_download_bytes: int = 50 * 1024 * 1024,
+) -> None:
+    class _Resolver:
+        async def get_secret(self, key: str) -> str:
+            assert key == "API_KEY"
+            return api_key
+
+        async def get_str(self, key: str, default: str = "") -> str:
+            if key == "BASE_URL":
+                return base_url
+            if key == "MODEL":
+                return model
+            return default
+
+        async def get_int(self, key: str, default: int = 0) -> int:
+            assert key == "MAX_DOWNLOAD_BYTES"
+            return max_download_bytes or default
+
+    monkeypatch.setattr(module, "_settings_resolver", lambda: _Resolver())
+
+
 def _load_module_from_path(module_name: str, relative_path: str):
     path = Path(__file__).parents[3] / relative_path
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -102,7 +130,7 @@ async def test_audio_transcribe_offloads_config_error_result_json(
         return func(*args, **kwargs)
 
     monkeypatch.setattr(audio_transcribe_tool, "run_blocking_io", fake_run_blocking_io)
-    monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "")
+    _set_audio_plugin_settings(monkeypatch, audio_transcribe_tool, api_key="")
 
     result = json.loads(
         await audio_transcribe_tool.audio_transcribe.coroutine(
@@ -170,17 +198,7 @@ async def test_audio_transcribe_transcribes_audio_url(monkeypatch: pytest.Monkey
     monkeypatch.setattr(
         audio_transcribe_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
-    monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        audio_transcribe_tool.settings,
-        "AUDIO_TRANSCRIPTION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(
-        audio_transcribe_tool.settings,
-        "AUDIO_TRANSCRIPTION_MODEL",
-        "gpt-4o-mini-transcribe",
-    )
+    _set_audio_plugin_settings(monkeypatch, audio_transcribe_tool)
 
     result = json.loads(
         await audio_transcribe_tool.audio_transcribe.coroutine(
@@ -227,7 +245,7 @@ async def test_audio_transcribe_returns_error_when_download_fails(
     monkeypatch.setattr(
         audio_transcribe_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
-    monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "sk-test")
+    _set_audio_plugin_settings(monkeypatch, audio_transcribe_tool)
 
     result = json.loads(
         await audio_transcribe_tool.audio_transcribe.coroutine(
@@ -285,10 +303,7 @@ async def test_audio_transcribe_rejects_audio_downloads_over_limit(
     monkeypatch.setattr(
         audio_transcribe_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
-    monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES", 10
-    )
+    _set_audio_plugin_settings(monkeypatch, audio_transcribe_tool, max_download_bytes=10)
 
     result = json.loads(
         await audio_transcribe_tool.audio_transcribe.coroutine(
@@ -348,10 +363,7 @@ async def test_audio_transcribe_rejects_known_oversize_download_before_streaming
     monkeypatch.setattr(
         audio_transcribe_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
-    monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES", 10
-    )
+    _set_audio_plugin_settings(monkeypatch, audio_transcribe_tool, max_download_bytes=10)
 
     result = json.loads(
         await audio_transcribe_tool.audio_transcribe.coroutine(
@@ -432,7 +444,7 @@ async def test_audio_transcribe_offloads_spooled_file_io(
         audio_transcribe_tool, "run_blocking_io", fake_run_blocking_io, raising=False
     )
     monkeypatch.setattr(audio_transcribe_tool, "_inside_fake_blocking_io", False, raising=False)
-    monkeypatch.setattr(audio_transcribe_tool.settings, "AUDIO_TRANSCRIPTION_API_KEY", "sk-test")
+    _set_audio_plugin_settings(monkeypatch, audio_transcribe_tool)
 
     result = json.loads(
         await audio_transcribe_tool.audio_transcribe.coroutine(
@@ -464,11 +476,14 @@ async def test_search_agent_context_includes_audio_transcribe_tool(
         "search_context_with_audio_tool_under_test",
         "src/agents/search_agent/context.py",
     )
+    from src.kernel.extensions import PluginRuntime, build_audio_transcription_plugin_manifest
 
     monkeypatch.setattr(search_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", True)
     monkeypatch.setattr(search_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SKILLS", False)
+    runtime = PluginRuntime([build_audio_transcription_plugin_manifest()])
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
 
     ctx = search_context.SearchAgentContext(user_id="user-1")
     await ctx.setup()
@@ -496,11 +511,14 @@ async def test_fast_agent_context_includes_audio_transcribe_tool(
         "fast_context_with_audio_tool_under_test",
         "src/agents/fast_agent/context.py",
     )
+    from src.kernel.extensions import PluginRuntime, build_audio_transcription_plugin_manifest
 
     monkeypatch.setattr(fast_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", True)
     monkeypatch.setattr(fast_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", False)
+    runtime = PluginRuntime([build_audio_transcription_plugin_manifest()])
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
 
     ctx = fast_context.FastAgentContext(user_id="user-1")
     await ctx.setup()

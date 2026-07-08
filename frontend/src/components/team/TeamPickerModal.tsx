@@ -16,7 +16,7 @@ interface TeamPickerModalProps {
   selectedTeamId: string | null;
   onSelect: (teamId: string | null) => void;
   onClose: () => void;
-  onCreateNew: () => void;
+  onCreateNew?: () => void;
   onManageTeams?: () => void;
 }
 
@@ -101,6 +101,7 @@ export function TeamPickerModal({
   }, [onSelect, onClose]);
 
   const handleCreateNew = useCallback(() => {
+    if (!onCreateNew) return;
     onCreateNew();
     onClose();
   }, [onCreateNew, onClose]);
@@ -154,6 +155,7 @@ export function TeamPickerModal({
 
         <div className="space-y-3 border-b px-5 py-3 border-stone-200/70 dark:border-stone-700/70">
           <div className="flex items-center gap-2">
+            {onCreateNew && (
             <button
               type="button"
               onClick={handleCreateNew}
@@ -168,6 +170,7 @@ export function TeamPickerModal({
                 {t("common.new", "新建")}
               </span>
             </button>
+            )}
             {selectedTeamId && (
               <button
                 type="button"

@@ -5,6 +5,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 
 from src.infra import pubsub_hub as pubsub_hub_module
 from src.infra.pubsub_hub import RedisPubSubHub
+from src.kernel.extensions import PluginManifest, PluginRuntime
 
 
 class FakePubSub:
@@ -125,6 +126,103 @@ async def test_hub_dispatches_message_only_to_matching_channel_handlers(
     await asyncio.wait_for(handled.wait(), timeout=1)
 
     assert received == [("task", '{"run_id":"run-123"}')]
+
+    await hub.stop()
+
+
+@pytest.mark.asyncio
+async def test_plugin_owned_listener_dispatch_follows_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = FakeRedisClient()
+    monkeypatch.setattr(
+        "src.infra.pubsub_hub.create_redis_client",
+        lambda **kwargs: fake_redis,
+    )
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="feedback",
+                name="Feedback",
+                version="1.0.0",
+                api_version="v1",
+                permissions=["feedback:read"],
+                resources=[
+                    {
+                        "id": "feedback.listener",
+                        "type": "listener",
+                        "retention_policy": "core_owned_do_not_delete",
+                        "cleanup_strategy": "forbid_delete",
+                    }
+                ],
+            )
+        ]
+    )
+    hub = RedisPubSubHub()
+    hub.set_plugin_runtime(runtime)
+    handled = asyncio.Event()
+    received: list[str] = []
+
+    async def listener(message: dict) -> None:
+        received.append(message["data"])
+        handled.set()
+
+    hub.subscribe(
+        "feedback:events",
+        listener,
+        plugin_listener_id="feedback.listener",
+    )
+
+    await hub.start()
+    pubsub = fake_redis.pubsubs[0]
+    await pubsub.subscribed_event.wait()
+
+    await pubsub.push({"type": "message", "channel": "feedback:events", "data": "enabled"})
+    await asyncio.wait_for(handled.wait(), timeout=1)
+
+    runtime.disable_plugin("feedback")
+    handled.clear()
+    await pubsub.push({"type": "message", "channel": "feedback:events", "data": "disabled"})
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert received == ["enabled"]
+
+    await hub.stop()
+
+
+@pytest.mark.asyncio
+async def test_plugin_owned_listener_fails_closed_without_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = FakeRedisClient()
+    monkeypatch.setattr(
+        "src.infra.pubsub_hub.create_redis_client",
+        lambda **kwargs: fake_redis,
+    )
+
+    hub = RedisPubSubHub()
+    received: list[str] = []
+
+    async def listener(message: dict) -> None:
+        received.append(message["data"])
+
+    hub.subscribe(
+        "feedback:events",
+        listener,
+        plugin_listener_id="feedback.listener",
+    )
+
+    await hub.start()
+    pubsub = fake_redis.pubsubs[0]
+    await pubsub.subscribed_event.wait()
+
+    await pubsub.push({"type": "message", "channel": "feedback:events", "data": "blocked"})
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert received == []
 
     await hub.stop()
 

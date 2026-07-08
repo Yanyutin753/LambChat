@@ -1,0 +1,6 @@
+{
+  "API_KEY": "",
+  "BASE_URL": "",
+  "MODEL": "gpt-4o-mini-transcribe",
+  "MAX_DOWNLOAD_BYTES": 52428800
+}

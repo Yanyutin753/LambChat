@@ -1,0 +1,59 @@
+resources:
+  - id: feishu_connector:feishu
+    type: channel_connector
+    scope: global
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      channel_type: feishu
+      route_prefix: /api/channels/feishu
+      manager: src.infra.channel.feishu.manager.FeishuChannelManager
+      data_policy: Connector disable hides/blocks Feishu execution but keeps user channel configs.
+  - id: user_channel_configs.feishu
+    type: db_document
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      collection: user_channel_configs
+      channel_type: feishu
+      reason: User Feishu app credentials and routing choices must survive connector disable/uninstall dry-run.
+  - id: feishu_connector:channel-config-change-listener
+    type: listener
+    scope: system
+    retention_policy: manual_review_required
+    cleanup_strategy: manual_review
+    metadata:
+      channel: channel:config:changed
+      purpose: Reload Feishu clients after distributed channel config changes.
+  - id: user_channel_configs.user_channel_instance_idx
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: user_channel_configs
+      fields: user_id,channel_type,instance_id
+  - id: feishu:registration:*
+    type: cache_key
+    scope: system
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      purpose: One-click Feishu app registration sessions.
+      ttl: ephemeral
+  - id: feishu:lease:*
+    type: cache_key
+    scope: system
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      purpose: Distributed Feishu long-connection ownership leases.
+  - id: revealed-files/feishu-delivery
+    type: file
+    scope: user
+    retention_policy: core_owned_do_not_delete
+    cleanup_strategy: forbid_delete
+    metadata:
+      owned_by: core_file_library
+      reason: Feishu may deliver revealed files but file storage remains core-owned user data.

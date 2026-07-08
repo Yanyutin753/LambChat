@@ -57,6 +57,7 @@ export interface ChannelConfigResponse {
   model_id?: string | null;
   project_id?: string | null;
   team_id?: string | null;
+  plugin_options?: Record<string, Record<string, unknown>> | null;
   persona_preset_id?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -78,6 +79,7 @@ export interface ChannelConfigCreate {
   model_id?: string | null;
   project_id?: string | null;
   team_id?: string | null;
+  plugin_options?: Record<string, Record<string, unknown>> | null;
   persona_preset_id?: string | null;
 }
 
@@ -88,6 +90,7 @@ export interface ChannelConfigUpdate {
   model_id?: string | null;
   project_id?: string | null;
   team_id?: string | null;
+  plugin_options?: Record<string, Record<string, unknown>> | null;
   persona_preset_id?: string | null;
 }
 

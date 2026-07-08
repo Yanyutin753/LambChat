@@ -37,9 +37,11 @@ import { MemoryFilter } from "./MemoryFilter";
 import { MemoryEditor } from "./MemoryEditor";
 import { DetailModal } from "./DetailModal";
 import { DeleteModal } from "./DeleteModal";
+import { useSettingsContext } from "../../../contexts/SettingsContext";
 
 export function MemoryPanel() {
   const { t } = useTranslation();
+  const { enableMemory } = useSettingsContext();
   const relativeTime = useRelativeTime();
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -92,6 +94,12 @@ export function MemoryPanel() {
   }, [filterType, filterSource, debouncedSearch, page]);
 
   const fetchMemories = useCallback(async () => {
+    if (!enableMemory) {
+      setMemories([]);
+      setTotal(0);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await memoryApi.list({
@@ -108,7 +116,7 @@ export function MemoryPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterType, filterSource, debouncedSearch, page, t]);
+  }, [enableMemory, filterType, filterSource, debouncedSearch, page, t]);
 
   useEffect(() => {
     fetchMemories();
@@ -242,62 +250,68 @@ export function MemoryPanel() {
           />
         }
         actions={
-          <>
-            <Button
-              variant="primary"
-              onClick={() => setEditingMemory(null)}
-              leftIcon={<Plus size={16} />}
-              title={t("memory.createTitle")}
-            >
-              <span className="hidden sm:inline">{t("memory.createBtn")}</span>
-            </Button>
-            <Button
-              onClick={handleImportClick}
-              disabled={importLoading}
-              leftIcon={
-                <Upload
-                  size={16}
-                  className={importLoading ? "animate-pulse" : ""}
-                />
-              }
-              title={t("memory.import")}
-            >
-              <span className="hidden sm:inline">{t("memory.import")}</span>
-            </Button>
-            <Button
-              onClick={handleExport}
-              disabled={exportLoading}
-              leftIcon={
-                <Download
-                  size={16}
-                  className={exportLoading ? "animate-pulse" : ""}
-                />
-              }
-              title={t("memory.export")}
-            >
-              <span className="hidden sm:inline">{t("memory.export")}</span>
-            </Button>
-            <Button onClick={toggleAll} leftIcon={<Check size={16} />}>
-              <span className="hidden sm:inline">
-                {allChecked ? t("common.deselectAll") : t("common.selectAll")}
-              </span>
-            </Button>
-            <Button
-              variant="primary"
-              onClick={fetchMemories}
-              disabled={isLoading}
-              leftIcon={
-                <RefreshCw
-                  size={14}
-                  className={isLoading ? "animate-spin" : ""}
-                />
-              }
-            >
-              <span className="hidden sm:inline">
-                {t("common.refresh", "Refresh")}
-              </span>
-            </Button>
-          </>
+          enableMemory ? (
+            <>
+              <Button
+                variant="primary"
+                onClick={() => setEditingMemory(null)}
+                leftIcon={<Plus size={16} />}
+                title={t("memory.createTitle")}
+              >
+                <span className="hidden sm:inline">
+                  {t("memory.createBtn")}
+                </span>
+              </Button>
+              <Button
+                onClick={handleImportClick}
+                disabled={importLoading}
+                leftIcon={
+                  <Upload
+                    size={16}
+                    className={importLoading ? "animate-pulse" : ""}
+                  />
+                }
+                title={t("memory.import")}
+              >
+                <span className="hidden sm:inline">{t("memory.import")}</span>
+              </Button>
+              <Button
+                onClick={handleExport}
+                disabled={exportLoading}
+                leftIcon={
+                  <Download
+                    size={16}
+                    className={exportLoading ? "animate-pulse" : ""}
+                  />
+                }
+                title={t("memory.export")}
+              >
+                <span className="hidden sm:inline">{t("memory.export")}</span>
+              </Button>
+              <Button onClick={toggleAll} leftIcon={<Check size={16} />}>
+                <span className="hidden sm:inline">
+                  {allChecked
+                    ? t("common.deselectAll")
+                    : t("common.selectAll")}
+                </span>
+              </Button>
+              <Button
+                variant="primary"
+                onClick={fetchMemories}
+                disabled={isLoading}
+                leftIcon={
+                  <RefreshCw
+                    size={14}
+                    className={isLoading ? "animate-spin" : ""}
+                  />
+                }
+              >
+                <span className="hidden sm:inline">
+                  {t("common.refresh", "Refresh")}
+                </span>
+              </Button>
+            </>
+          ) : null
         }
       />
 
@@ -311,7 +325,24 @@ export function MemoryPanel() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6">
-        {!isLoading && memories.length === 0 ? (
+        {!enableMemory ? (
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg)]">
+              <Brain size={32} className="text-[var(--theme-text-secondary)]" />
+            </div>
+            <p className="text-lg font-medium text-[var(--theme-text)]">
+              {t("memory.title")}
+            </p>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--theme-text-secondary)]">
+              {t(
+                "memory.disabledHint",
+                "Memory is disabled in System Settings. Stored memories are preserved, but memory actions are unavailable until ENABLE_MEMORY is turned on.",
+              )}
+            </p>
+          </div>
+        ) : isLoading && memories.length === 0 ? (
+          <MemoryPanelSkeleton />
+        ) : !isLoading && memories.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg)]">
               <Brain size={32} className="text-[var(--theme-text-secondary)]" />

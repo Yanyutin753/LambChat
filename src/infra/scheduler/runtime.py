@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -14,6 +14,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
+
+if TYPE_CHECKING:
+    from src.kernel.extensions import PluginRuntime
 
 logger = get_logger(__name__)
 
@@ -35,6 +38,7 @@ class ScheduledJob:
     max_instances: int = 1
     coalesce: bool = True
     run_on_start: bool = False
+    plugin_id: str | None = None
 
     # ── Factory helpers ────────────────────────────
 
@@ -68,6 +72,7 @@ class RuntimeScheduler:
         self._scheduler: AsyncIOScheduler | None = None
         self._jobs: dict[str, ScheduledJob] = {}
         self._scheduled_intervals: dict[str, int] = {}
+        self._plugin_runtime: PluginRuntime | None = None
 
     # ── Public API ─────────────────────────────────
 
@@ -88,6 +93,10 @@ class RuntimeScheduler:
         )
         if self._scheduler is not None:
             self._add_or_replace_job(job)
+
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        """Attach the current Plugin Runtime for plugin-owned job guards."""
+        self._plugin_runtime = runtime
 
     def unregister_job(self, job_id: str) -> None:
         """Remove a job from the scheduler."""
@@ -174,6 +183,9 @@ class RuntimeScheduler:
         try:
             if not self._resolve_enabled(job):
                 return {"skipped": True, "reason": "disabled"}
+            plugin_skip = self._plugin_skip_reason(job)
+            if plugin_skip is not None:
+                return plugin_skip
             result = await job.handler()
             return result
         except Exception as exc:
@@ -218,6 +230,26 @@ class RuntimeScheduler:
     def _resolve_enabled(job: ScheduledJob) -> bool:
         value = job.enabled() if callable(job.enabled) else job.enabled
         return bool(value)
+
+    def _plugin_skip_reason(self, job: ScheduledJob) -> dict[str, object] | None:
+        if not job.plugin_id:
+            return None
+        if self._plugin_runtime is None:
+            return {
+                "skipped": True,
+                "reason": "plugin_runtime_unavailable",
+                "plugin_id": job.plugin_id,
+            }
+        try:
+            self._plugin_runtime.ensure_scheduler_job_available(job.id)
+        except Exception as exc:  # noqa: BLE001 - scheduler guard must not run plugin jobs open
+            return {
+                "skipped": True,
+                "reason": "plugin_unavailable",
+                "plugin_id": job.plugin_id,
+                "message": str(exc),
+            }
+        return None
 
 
 _runtime_scheduler: RuntimeScheduler | None = None

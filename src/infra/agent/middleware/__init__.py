@@ -21,6 +21,10 @@ from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddlew
 from src.infra.agent.middleware.subagent_result_handoff import SubagentResultHandoffMiddleware
 from src.infra.agent.middleware.tool_interception import (
     MCPQuotaMiddleware,
+    SubagentExecutionPolicyMiddleware,
+    TaskDelegationEnvelopeMiddleware,
+    TeamRouterDelegationGuardMiddleware,
+    TextOnlyTaskGuardMiddleware,
     ToolResultBinaryMiddleware,
     ToolSearchMiddleware,
 )
@@ -40,7 +44,11 @@ __all__ = [
     "SandboxMCPMiddleware",
     "SectionPromptMiddleware",
     "SubagentActivityMiddleware",
+    "SubagentExecutionPolicyMiddleware",
     "SubagentResultHandoffMiddleware",
+    "TaskDelegationEnvelopeMiddleware",
+    "TeamRouterDelegationGuardMiddleware",
+    "TextOnlyTaskGuardMiddleware",
     "ToolResultBinaryMiddleware",
     "ToolSearchMiddleware",
     "_is_empty_content",

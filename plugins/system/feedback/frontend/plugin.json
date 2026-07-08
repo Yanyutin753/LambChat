@@ -1,0 +1,51 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "feedback",
+  "frontend": {
+    "app_tabs": [
+      {
+        "id": "feedback:feedback-tab",
+        "tab": "feedback",
+        "path": "/feedback",
+        "label": "nav.feedback",
+        "panel": "feedback:feedback-panel",
+        "insert_after": "settings",
+        "order": 610,
+        "permissions": ["feedback:read"],
+        "seo_title": "seo.feedback.title",
+        "seo_description": "seo.feedback.description",
+        "redirect_to": "/chat",
+        "show_no_permission_toast": true
+      }
+    ],
+    "app_panels": [
+      {
+        "id": "feedback:feedback-panel",
+        "tab": "feedback",
+        "renderer": "feedback.FeedbackPanel"
+      }
+    ],
+    "user_menu_items": [
+      {
+        "id": "feedback:feedback-nav",
+        "path": "/feedback",
+        "label": "nav.feedback",
+        "icon": "Star",
+        "group": "system",
+        "order": 50,
+        "permissions": ["feedback:read"]
+      }
+    ],
+    "message_actions": [
+      {
+        "id": "feedback:message-feedback",
+        "target": "assistant_message",
+        "renderer": "feedback.FeedbackButtons",
+        "order": 20,
+        "permissions": ["feedback:write"]
+      }
+    ],
+    "i18n_namespaces": ["feedback"],
+    "required_permissions": ["feedback:read"]
+  }
+}

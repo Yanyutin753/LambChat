@@ -56,6 +56,10 @@ class SettingsService:
             Setting value (sensitive values will be masked)
         """
         # Check if key is valid
+        plugin_owner = self._plugin_owner_for_key(key)
+        if plugin_owner:
+            return None
+
         if key not in SETTING_DEFINITIONS:
             # Try environment variable directly
             return os.environ.get(key)
@@ -84,6 +88,10 @@ class SettingsService:
             Raw setting value (sensitive values NOT masked)
         """
         # Check if key is valid
+        plugin_owner = self._plugin_owner_for_key(key)
+        if plugin_owner:
+            return None
+
         if key not in SETTING_DEFINITIONS:
             # Try environment variable directly
             return os.environ.get(key)
@@ -100,6 +108,21 @@ class SettingsService:
 
         # Return default
         return SETTING_DEFINITIONS[key]["default"]
+
+    async def get_plugin_owned_legacy_raw(self, key: str) -> Any:
+        """Read a plugin-owned legacy setting for explicit migration only."""
+        plugin_owner = self._plugin_owner_for_key(key)
+        if not plugin_owner:
+            return None
+        setting = await self._storage.get_plugin_owned_legacy_raw(key)
+        if setting is not None:
+            return setting.value
+        env_value = os.environ.get(key)
+        if env_value is not None:
+            return await self._parse_env_value_async(key, env_value)
+        if key in SETTING_DEFINITIONS:
+            return SETTING_DEFINITIONS[key]["default"]
+        return None
 
     async def get_all(
         self, admin_mode: bool = False, mask_sensitive: bool = True
@@ -126,6 +149,10 @@ class SettingsService:
         Returns:
             Updated setting item
         """
+        plugin_owner = self._plugin_owner_for_key(key)
+        if plugin_owner:
+            raise ValueError(f"This setting is now owned by plugin {plugin_owner}")
+
         result = await self._storage.set(key, value, user_id)
 
         # Refresh the global settings object to reflect the change
@@ -151,6 +178,9 @@ class SettingsService:
         imported = 0
 
         for key, definition in SETTING_DEFINITIONS.items():
+            if self._plugin_owner_for_key(key):
+                continue
+
             # Check if already in database
             existing = await self._storage.get(key)
             if existing is not None and existing.updated_at is not None:
@@ -179,6 +209,9 @@ class SettingsService:
         Returns:
             Number of settings reset
         """
+        if key and self._plugin_owner_for_key(key):
+            return 0
+
         count = await self._storage.reset(key)
 
         # Refresh the global settings object to reflect the change
@@ -190,6 +223,16 @@ class SettingsService:
         await self._publish_change(key, None)
 
         return count
+
+    @staticmethod
+    def _plugin_owner_for_key(key: str) -> str | None:
+        try:
+            from src.infra.extensions import plugin_owned_system_setting_keys
+            from src.kernel.extensions.builtin_plugins import BUILTIN_PLUGIN_MANIFESTS
+
+            return plugin_owned_system_setting_keys(BUILTIN_PLUGIN_MANIFESTS).get(key)
+        except Exception:
+            return None
 
     def get_sync(self, key: str) -> Any:
         """

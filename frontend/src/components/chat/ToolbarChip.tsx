@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 interface ToolbarChipProps {
   icon?: ReactNode;
   label: string;
+  title?: string;
   onClick: () => void;
   onClear?: () => void;
 }
@@ -11,6 +12,7 @@ interface ToolbarChipProps {
 export function ToolbarChip({
   icon,
   label,
+  title,
   onClick,
   onClear,
 }: ToolbarChipProps) {
@@ -19,7 +21,7 @@ export function ToolbarChip({
       type="button"
       className="chat-tool-btn group shrink min-w-0"
       onClick={onClick}
-      title={label}
+      title={title ?? label}
     >
       <div className="flex flex-row items-center gap-2 min-w-0">
         {icon && (

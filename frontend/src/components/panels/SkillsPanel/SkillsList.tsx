@@ -63,6 +63,7 @@ interface SkillsListProps {
   onSelectAll: () => void;
   onCreate: () => void;
   onGithubClick: () => void;
+  showGithubImport: boolean;
   onZipClick: () => void;
 }
 
@@ -98,6 +99,7 @@ export function SkillsList({
   onSelectAll,
   onCreate,
   onGithubClick,
+  showGithubImport,
   onZipClick,
 }: SkillsListProps) {
   const { t } = useTranslation();
@@ -149,10 +151,12 @@ export function SkillsList({
           </span>
         </Button>
       )}
-      <Button variant="secondary" onClick={onGithubClick} className="h-10">
-        <Github size={16} />
-        <span className="hidden sm:inline">{t("skills.github")}</span>
-      </Button>
+      {showGithubImport && (
+        <Button variant="secondary" onClick={onGithubClick} className="h-10">
+          <Github size={16} />
+          <span className="hidden sm:inline">{t("skills.github")}</span>
+        </Button>
+      )}
       <Button variant="secondary" onClick={onZipClick} className="h-10">
         <Archive size={16} />
         <span className="hidden sm:inline">{t("skills.uploadZip")}</span>

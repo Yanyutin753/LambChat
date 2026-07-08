@@ -15,6 +15,7 @@ interface MentionDropdownState {
   mode: "team" | "persona";
   highlightedIndex: number;
   moveHighlight: (direction: "up" | "down") => void;
+  selectHighlighted?: () => void;
   teamItems: Team[];
   personaItems: PersonaPreset[];
   onTeamSelect: (team: Team) => void;
@@ -83,6 +84,10 @@ export function useChatInputKeyboard(
       }
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
+        if (mention.selectHighlighted) {
+          mention.selectHighlighted();
+          return;
+        }
         if (mention.mode === "team") {
           const highlighted = mention.teamItems[mention.highlightedIndex];
           if (highlighted) mention.onTeamSelect(highlighted);

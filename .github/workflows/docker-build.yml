@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/plugin-architecture
 
 env:
   REGISTRY: ghcr.io

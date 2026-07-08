@@ -9,7 +9,6 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Bot,
   Camera,
   ChevronDown,
   Cpu,
@@ -28,10 +27,8 @@ import type { Team, TeamCreateRequest, TeamMember } from "../../types/team";
 import { PanelSearchInput } from "../common/PanelSearchInput";
 import { TeamMemberCard } from "./TeamMemberCard";
 import { teamApi } from "../../services/api/team";
-import { agentApi } from "../../services/api/agent";
 import { modelApi } from "../../services/api/model";
 import type { ModelOption } from "../../services/api/model";
-import type { AgentInfo } from "../../types/agent";
 import { personaPresetApi } from "../../services/api/personaPreset";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { uploadApi } from "../../services/api";
@@ -123,7 +120,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     const [fallbackModels, setFallbackModels] = useState<ModelOption[] | null>(
       null,
     );
-    const [availableAgents, setAvailableAgents] = useState<AgentInfo[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
 
     const [teamName, setTeamName] = useState("");
@@ -131,6 +127,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     const [teamAvatar, setTeamAvatar] = useState<string | null>(null);
     const [teamTagsInput, setTeamTagsInput] = useState("");
     const [teamInstructions, setTeamInstructions] = useState("");
+    const [runInSandbox, setRunInSandbox] = useState(false);
     const [starterPromptRows, setStarterPromptRows] = useState<
       StarterPromptDraftRow[]
     >([]);
@@ -197,25 +194,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     }, [settingsContext?.availableModels]);
 
     useEffect(() => {
-      let cancelled = false;
-      agentApi
-        .list()
-        .then((res) => {
-          if (!cancelled) {
-            setAvailableAgents(
-              (res.agents ?? []).filter((agent) => agent.id !== "team"),
-            );
-          }
-        })
-        .catch(() => {
-          if (!cancelled) setAvailableAgents([]);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, []);
-
-    useEffect(() => {
       if (!rolePickerOpen) return;
       const handleClick = (e: MouseEvent) => {
         if (
@@ -238,9 +216,18 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
           setTeamAvatar(team.avatar ?? null);
           setTeamTagsInput(tagsToInput(team.tags));
           setTeamInstructions(team.team_instructions);
+          setRunInSandbox(Boolean(team.run_in_sandbox));
           setStarterPromptRows(starterPromptsToDraftRows(team.starter_prompts));
           setMembers(team.members);
           setDefaultMemberId(team.default_member_id ?? null);
+          if (team.compatibility_warnings?.includes("legacy_member_agent_id_ignored")) {
+            toast(
+              t(
+                "team.legacyMemberAgentIgnored",
+                "This team contains legacy member agent mode data. Re-save the team to clean it up.",
+              ),
+            );
+          }
         });
       } else {
         setExistingTeamId(null);
@@ -249,6 +236,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         setTeamAvatar(null);
         setTeamTagsInput("");
         setTeamInstructions("");
+        setRunInSandbox(false);
         setStarterPromptRows([]);
         setMembers([]);
         setDefaultMemberId(null);
@@ -260,7 +248,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         const newMember: TeamMember = {
           member_id: generateMemberId(),
           persona_preset_id: preset.id,
-          agent_id: null,
           model_id: null,
           role_name: preset.name,
           role_avatar: preset.avatar,
@@ -316,17 +303,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
       [],
     );
 
-    const handleAgentChange = useCallback(
-      (memberId: string, agentId: string | null) => {
-        setMembers((prev) =>
-          prev.map((m) =>
-            m.member_id === memberId ? { ...m, agent_id: agentId || null } : m,
-          ),
-        );
-      },
-      [],
-    );
-
     const handleSave = async () => {
       if (!teamName.trim()) return;
       setSaving(true);
@@ -337,12 +313,12 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
           avatar: teamAvatar,
           tags: inputToTags(teamTagsInput),
           team_instructions: teamInstructions,
+          run_in_sandbox: runInSandbox,
           starter_prompts: draftRowsToStarterPrompts(starterPromptRows),
           default_member_id: defaultMemberId,
           members: members.map((m, idx) => ({
             member_id: m.member_id,
             persona_preset_id: m.persona_preset_id,
-            agent_id: m.agent_id ?? null,
             model_id: m.model_id ?? null,
             role_name: m.role_name,
             role_avatar: m.role_avatar ?? null,
@@ -380,6 +356,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         setTeamAvatar(cloned.avatar ?? null);
         setTeamTagsInput(tagsToInput(cloned.tags));
         setTeamInstructions(cloned.team_instructions);
+        setRunInSandbox(Boolean(cloned.run_in_sandbox));
         setStarterPromptRows(starterPromptsToDraftRows(cloned.starter_prompts));
         setMembers(cloned.members);
         setDefaultMemberId(cloned.default_member_id ?? null);
@@ -650,6 +627,38 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
             </span>
           </div>
 
+          <div className="ppe-field">
+            <label className="ppe-label">
+              <Cpu size={13} className="ppe-label-icon" />
+              {t("team.runInSandbox", "沙箱运行")}
+            </label>
+            <div className="team-sandbox-option">
+              <div className="team-sandbox-option__copy">
+                <span className="team-sandbox-option__title">
+                  {t("team.runInSandboxTitle", "在沙箱内运行此团队")}
+                </span>
+                <span className="team-sandbox-option__desc">
+                  {t(
+                    "team.runInSandboxDesc",
+                    "启用后，团队模式会为该团队使用隔离沙箱后端；关闭后使用持久工作区后端。",
+                  )}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRunInSandbox((value) => !value)}
+                className={`team-toggle ${runInSandbox ? "team-toggle--on" : ""}`}
+                role="switch"
+                aria-checked={runInSandbox}
+                title={
+                  runInSandbox
+                    ? t("team.disableSandbox", "关闭沙箱运行")
+                    : t("team.enableSandbox", "开启沙箱运行")
+                }
+              />
+            </div>
+          </div>
+
           {/* Starter prompts */}
           <div className="ppe-field">
             <label className="ppe-label">
@@ -745,10 +754,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                 <span className="tmb-stat tmb-stat--configured">
                   <span className="tmb-stat__dot" />
                   {t("team.configured", { count: configuredMemberCount })}
-                </span>
-                <span className="tmb-stat">
-                  <Bot size={11} />
-                  {t("team.memberModes", "成员模式")}
                 </span>
                 <span className="tmb-stat">
                   <Cpu size={11} />
@@ -850,10 +855,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
                     availableModels={availableModels ?? []}
                     onModelChange={(modelId) =>
                       handleModelChange(member.member_id, modelId)
-                    }
-                    availableAgents={availableAgents}
-                    onAgentChange={(agentId) =>
-                      handleAgentChange(member.member_id, agentId)
                     }
                   />
                 ))}

@@ -82,4 +82,4 @@ async def test_fallback_model_is_created_with_same_thinking_config(monkeypatch) 
     result = await middleware._get_fallback_llm()
 
     assert result is fallback_model
-    assert calls == [{"model": "openai/fallback-model", "thinking": thinking}]
+    assert calls == [{"model": "openai/fallback-model", "thinking": thinking, "streaming": False}]

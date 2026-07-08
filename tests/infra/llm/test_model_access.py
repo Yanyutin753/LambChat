@@ -313,6 +313,8 @@ def test_create_model_does_not_forward_app_only_profile_keys() -> None:
             profile={
                 "max_input_tokens": 128000,
                 "supports_vision": True,
+                "supports_reasoning": True,
+                "supports_structured_output": False,
                 "image_url_to_base64": True,
             },
         )
@@ -363,6 +365,48 @@ async def test_get_model_preserves_inferred_provider_for_known_unprefixed_model(
 
     assert captured["model"] == "deepseek-v4-flash"
     assert "model_kwargs" not in captured
+
+    clear_api_key_cache()
+    LLMClient.clear_cache_by_model()
+
+
+@pytest.mark.asyncio
+async def test_get_model_caches_streaming_and_non_streaming_instances_separately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_api_key_cache()
+    LLMClient.clear_cache_by_model()
+
+    created: list[dict] = []
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            self.kwargs = dict(kwargs)
+            created.append(self.kwargs)
+
+    monkeypatch.setattr("src.infra.llm.client.ChatOpenAI", FakeChatOpenAI)
+
+    streaming_model = await LLMClient.get_model(
+        model="openai/gpt-4.1",
+        api_key="sk-test",
+        use_model_config=False,
+    )
+    non_streaming_model = await LLMClient.get_model(
+        model="openai/gpt-4.1",
+        api_key="sk-test",
+        streaming=False,
+        use_model_config=False,
+    )
+    cached_non_streaming_model = await LLMClient.get_model(
+        model="openai/gpt-4.1",
+        api_key="sk-test",
+        streaming=False,
+        use_model_config=False,
+    )
+
+    assert streaming_model is not non_streaming_model
+    assert cached_non_streaming_model is non_streaming_model
+    assert [item["streaming"] for item in created] == [True, False]
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()

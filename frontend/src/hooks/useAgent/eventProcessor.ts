@@ -19,6 +19,7 @@ import type {
   SummaryPart,
   RecommendQuestion,
   ArtifactPartArtifact,
+  PluginMessagePart,
 } from "../../types";
 import i18n from "../../i18n";
 import { translateBackendError } from "../../utils/backendErrors";
@@ -282,6 +283,14 @@ export function processMessageEvent(
           agentId,
           completedAt,
         );
+        if (depth === 0) {
+          result.toolResult = {
+            id: toolCallId,
+            name: toolName,
+            result: resultContent,
+            success: isSuccess,
+          };
+        }
       } else {
         let updated = false;
         const newParts = parts.map((p) => {
@@ -341,6 +350,42 @@ export function processMessageEvent(
         );
       } else {
         result.parts = [...parts, artifactPart];
+      }
+      break;
+    }
+
+    // ---- Plugin message events ----
+
+    case "plugin:message": {
+      const pluginId = typeof data.plugin_id === "string" ? data.plugin_id.trim() : "";
+      const renderer = typeof data.renderer === "string" ? data.renderer.trim() : "";
+      if (!pluginId || !renderer) break;
+
+      const pluginMessagePart: PluginMessagePart = {
+        type: "plugin_message",
+        plugin_id: pluginId,
+        renderer,
+        id: typeof data.id === "string" ? data.id : undefined,
+        title: typeof data.title === "string" ? data.title : undefined,
+        status: typeof data.status === "string" ? data.status : undefined,
+        payload: data.payload,
+        error: typeof data.error === "string" ? data.error : null,
+        depth,
+        agent_id: agentId,
+        timestamp: data.timestamp,
+      };
+
+      if (depth > 0) {
+        result.parts = addPartToDepth(
+          parts,
+          pluginMessagePart,
+          depth,
+          subagentStack,
+          agentId,
+          messageId,
+        );
+      } else {
+        result.parts = [...parts, pluginMessagePart];
       }
       break;
     }

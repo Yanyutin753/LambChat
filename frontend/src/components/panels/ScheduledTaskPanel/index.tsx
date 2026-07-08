@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -34,22 +34,50 @@ import type {
 import type { AgentInfo } from "../../../types/agent";
 import type { AvailableModel } from "../../../contexts/SettingsContext";
 import type { PersonaPreset } from "../../../types/personaPreset";
-import type { Team } from "../../../types/team";
 import { personaPresetApi } from "../../../services/api/personaPreset";
-import { teamApi } from "../../../services/api/team";
+import { useScheduledTaskPluginOptions } from "../../../hooks/useScheduledTaskPluginOptions";
 import { formatDateTimeShort } from "../../../utils/datetime";
 import {
   getAgentOptionsFromScheduledTaskPayload,
   getScheduledTaskPersonaPresetId,
-  getScheduledTaskTeamId,
 } from "../scheduledTaskPayload";
 import { notifyScheduledTaskMutation } from "../../../stores/scheduledTaskMutationStore";
+import {
+  buildScheduledTaskSectionContributions,
+  type PluginRuntimeContributionStates,
+} from "../../../extensions/coreContributions";
+import {
+  filterPluginOptionsByVisibleWhen,
+  legacyPayloadKeysForPluginOption,
+  pluginOptionFromMetadata,
+} from "../../../extensions/pluginOptions";
 import { RunStatusBadge, StatusBadgeForTask as StatusBadge } from "./Badges";
 import { ConfirmDialog } from "../../common/ConfirmDialog";
 import { StatusFilter } from "./StatusFilter";
 import { TaskFormModal } from "./TaskFormModal";
 import { TaskSessionList } from "./TaskSessionList";
 import { readScheduledTaskDefaults } from "./utils";
+import {
+  findScheduledTaskOptionRenderer,
+  useScheduledTaskOptionValueLabels,
+} from "./scheduledTaskOptionRenderers";
+import { renderScheduledTaskSectionContribution } from "./scheduledTaskSectionRenderers";
+
+function scheduledTaskPluginOptionStringValue(
+  payload: Record<string, unknown> | undefined,
+  option: { plugin_id: string; key: string; legacy_payload_keys?: readonly string[] | null },
+): string {
+  const value = pluginOptionFromMetadata(payload, option.plugin_id, option.key);
+  if (typeof value === "string" && value.trim()) return value;
+
+  for (const legacyKey of legacyPayloadKeysForPluginOption(option)) {
+    const legacyValue = payload?.[legacyKey];
+    if (typeof legacyValue === "string" && legacyValue.trim()) {
+      return legacyValue;
+    }
+  }
+  return "";
+}
 
 // ── Main Panel ──────────────────────────────────────
 
@@ -59,15 +87,17 @@ export function ScheduledTaskPanel({
   availableModels: providedAvailableModels,
   currentModelId,
   currentModelValue,
+  runtimePlugins,
 }: {
   agents?: AgentInfo[];
   currentAgent?: string;
   availableModels?: AvailableModel[] | null;
   currentModelId?: string;
   currentModelValue?: string;
+  runtimePlugins?: PluginRuntimeContributionStates;
 } = {}) {
   const { t } = useTranslation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, permissions } = useAuth();
   const { availableModels: settingsAvailableModels } = useSettingsContext();
   const canWrite = hasPermission(Permission.SCHEDULED_TASK_WRITE);
   const canDelete = hasPermission(Permission.SCHEDULED_TASK_DELETE);
@@ -85,9 +115,23 @@ export function ScheduledTaskPanel({
   const [isCreating, setIsCreating] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>(providedAgents || []);
   const [personaPresets, setPersonaPresets] = useState<PersonaPreset[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
   const [apiDefaultAgentId, setApiDefaultAgentId] = useState("");
   const defaults = readScheduledTaskDefaults();
+  const scheduledTaskSections = useMemo(
+    () =>
+      buildScheduledTaskSectionContributions(runtimePlugins, {
+        scope: "scheduled_task",
+        permissions,
+      }),
+    [permissions, runtimePlugins],
+  );
+  const { options: scheduledTaskPluginOptions } = useScheduledTaskPluginOptions(
+    null,
+    { includeInactive: true },
+  );
+  const scheduledTaskOptionWithRenderer = findScheduledTaskOptionRenderer(
+    scheduledTaskPluginOptions,
+  );
   const effectiveAvailableModels =
     providedAvailableModels ?? settingsAvailableModels ?? null;
   const fallbackDefaultModel = effectiveAvailableModels?.[0] || null;
@@ -104,6 +148,28 @@ export function ScheduledTaskPanel({
   const [selectedTaskName, setSelectedTaskName] = useState<string>("");
   const taskIdFromQuery = searchParams.get("taskId");
   const taskNameFromQuery = searchParams.get("taskName");
+  const scheduledTaskOptionValues = useMemo(
+    () =>
+      tasks
+        .flatMap((task) =>
+          filterPluginOptionsByVisibleWhen(scheduledTaskPluginOptions, {
+            agentId: task.agent_id,
+            scope: "scheduled_task",
+          }).flatMap((option) => {
+            const stringValue = scheduledTaskPluginOptionStringValue(
+              task.input_payload,
+              option,
+            );
+            return stringValue && option.renderer ? [stringValue] : [];
+          }),
+        )
+        .filter(Boolean),
+    [scheduledTaskPluginOptions, tasks],
+  );
+  const scheduledTaskOptionLabels = useScheduledTaskOptionValueLabels(
+    scheduledTaskOptionWithRenderer,
+    scheduledTaskOptionValues,
+  );
 
   // Fetch agents once for the form selector
   useEffect(() => {
@@ -129,14 +195,6 @@ export function ScheduledTaskPanel({
       })
       .catch(() => {
         if (!cancelled) setPersonaPresets([]);
-      });
-    teamApi
-      .list({ limit: 100 })
-      .then((response) => {
-        if (!cancelled) setTeams(response.teams);
-      })
-      .catch(() => {
-        if (!cancelled) setTeams([]);
       });
     return () => {
       cancelled = true;
@@ -359,10 +417,22 @@ export function ScheduledTaskPanel({
   };
 
   const formatTaskContext = (task: ScheduledTask): string | null => {
-    if (task.agent_id === "team") {
-      const teamId = getScheduledTaskTeamId(task.input_payload);
-      if (!teamId) return null;
-      return teams.find((team) => team.id === teamId)?.name || teamId;
+    const option = findScheduledTaskOptionRenderer(
+      filterPluginOptionsByVisibleWhen(scheduledTaskPluginOptions, {
+        agentId: task.agent_id,
+        scope: "scheduled_task",
+      }),
+    );
+    if (option) {
+      const stringValue = scheduledTaskPluginOptionStringValue(
+        task.input_payload,
+        option,
+      );
+      if (!stringValue) return null;
+      const label = scheduledTaskOptionLabels[stringValue] || stringValue;
+      return option.effective !== false
+        ? label
+        : `${label} (${t("scheduledTask.pluginOptionInactive", "saved, not effective")})`;
     }
     const personaPresetId = getScheduledTaskPersonaPresetId(task.input_payload);
     if (!personaPresetId) return null;
@@ -413,6 +483,12 @@ export function ScheduledTaskPanel({
               </PanelHeaderActions>
             }
           />
+
+          {scheduledTaskSections.map((section) => (
+            <Fragment key={section.id}>
+              {renderScheduledTaskSectionContribution(section)}
+            </Fragment>
+          ))}
 
           {/* Task List */}
           <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">

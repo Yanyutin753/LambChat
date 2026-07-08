@@ -47,6 +47,15 @@ async def _download_storage_object_to_file(
     )
 
 
+async def _safe_unlink(path: str) -> None:
+    try:
+        await run_blocking_io(os.unlink, path)
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        logger.debug("[Feishu] Failed to remove temporary file %s: %s", path, exc)
+
+
 class FeishuResponseCollector:
     """
     飞书响应收集器
@@ -347,21 +356,29 @@ class FeishuResponseCollector:
             storage = await get_or_init_storage()
             backend = storage._get_backend()
             image_name = os.path.basename(s3_key) or "image"
-            with NamedTemporaryFile(
-                prefix="lambchat-feishu-image-", suffix=f"-{image_name}"
-            ) as tmp:
-                size = await _download_storage_object_to_file(
-                    backend,
-                    s3_key,
-                    tmp,
-                    chunk_size=FEISHU_REVEAL_DOWNLOAD_CHUNK_SIZE,
-                )
+            tmp_path: str | None = None
+            try:
+                with NamedTemporaryFile(
+                    prefix="lambchat-feishu-image-",
+                    suffix=f"-{image_name}",
+                    delete=False,
+                ) as tmp:
+                    tmp_path = tmp.name
+                    size = await _download_storage_object_to_file(
+                        backend,
+                        s3_key,
+                        tmp,
+                        chunk_size=FEISHU_REVEAL_DOWNLOAD_CHUNK_SIZE,
+                    )
                 if size <= 0:
                     return None
                 if not hasattr(client, "upload_image_file"):
                     logger.warning("[Feishu] Client does not support streaming image upload")
                     return None
-                return await client.upload_image_file(tmp.name)
+                return await client.upload_image_file(tmp_path)
+            finally:
+                if tmp_path is not None:
+                    await _safe_unlink(tmp_path)
         except Exception as e:
             logger.debug(f"[Feishu] Failed to upload image from URI {uri}: {e}")
             return None
@@ -581,13 +598,20 @@ class FeishuResponseCollector:
 
                 backend = storage._get_backend()
                 safe_suffix = os.path.basename(file_name) or "file"
-                with NamedTemporaryFile(prefix="lambchat-feishu-", suffix=f"-{safe_suffix}") as tmp:
-                    size = await _download_storage_object_to_file(
-                        backend,
-                        file_key,
-                        tmp,
-                        chunk_size=FEISHU_REVEAL_DOWNLOAD_CHUNK_SIZE,
-                    )
+                tmp_path: str | None = None
+                try:
+                    with NamedTemporaryFile(
+                        prefix="lambchat-feishu-",
+                        suffix=f"-{safe_suffix}",
+                        delete=False,
+                    ) as tmp:
+                        tmp_path = tmp.name
+                        size = await _download_storage_object_to_file(
+                            backend,
+                            file_key,
+                            tmp,
+                            chunk_size=FEISHU_REVEAL_DOWNLOAD_CHUNK_SIZE,
+                        )
                     if size <= 0:
                         logger.warning(f"[Feishu] File not found or empty: {file_key}")
                         continue
@@ -602,7 +626,7 @@ class FeishuResponseCollector:
                                 "[Feishu] Client does not support streaming image upload"
                             )
                             continue
-                        feishu_image_key = await client.upload_image_file(tmp.name)
+                        feishu_image_key = await client.upload_image_file(tmp_path)
                         if feishu_image_key:
                             sent = await client.send_image_by_key(
                                 chat_id=self.chat_id,
@@ -620,7 +644,7 @@ class FeishuResponseCollector:
                             logger.warning(f"[Feishu] Failed to upload image {file_name} to Feishu")
                         continue
 
-                    feishu_file_key = await client.upload_file(tmp.name, file_name)
+                    feishu_file_key = await client.upload_file(tmp_path, file_name)
                     if feishu_file_key:
                         sent = await client.send_file_by_key(
                             chat_id=self.chat_id,
@@ -635,5 +659,8 @@ class FeishuResponseCollector:
                             logger.warning(f"[Feishu] Failed to send file {file_name} to Feishu")
                     else:
                         logger.warning(f"[Feishu] Failed to upload file {file_name} to Feishu")
+                finally:
+                    if tmp_path is not None:
+                        await _safe_unlink(tmp_path)
             except Exception as e:
                 logger.error(f"[Feishu] Failed to upload file {file_info.get('name')}: {e}")

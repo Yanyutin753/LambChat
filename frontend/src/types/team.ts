@@ -4,7 +4,6 @@ import type { PersonaStarterPrompt } from "./personaPreset";
 export interface TeamMember {
   member_id: string;
   persona_preset_id: string;
-  agent_id?: string | null;
   model_id?: string | null;
   role_name: string;
   role_avatar?: string | null;
@@ -24,10 +23,12 @@ export interface Team {
   members: TeamMember[];
   default_member_id?: string | null;
   team_instructions: string;
+  run_in_sandbox: boolean;
   starter_prompts?: PersonaStarterPrompt[];
   visibility: "private";
   is_favorite?: boolean;
   is_pinned?: boolean;
+  compatibility_warnings?: string[];
   last_used_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -41,13 +42,13 @@ export interface TeamCreateRequest {
   members?: TeamMemberCreateRequest[];
   default_member_id?: string | null;
   team_instructions?: string;
+  run_in_sandbox?: boolean;
   starter_prompts?: PersonaStarterPrompt[];
 }
 
 export interface TeamMemberCreateRequest {
   member_id?: string;
   persona_preset_id: string;
-  agent_id?: string | null;
   model_id?: string | null;
   role_name?: string;
   role_avatar?: string | null;
@@ -65,6 +66,7 @@ export interface TeamUpdateRequest {
   members?: TeamMemberCreateRequest[];
   default_member_id?: string | null;
   team_instructions?: string;
+  run_in_sandbox?: boolean;
   starter_prompts?: PersonaStarterPrompt[];
 }
 

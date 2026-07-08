@@ -16,6 +16,7 @@ function team(id: string): Team {
     members: [],
     default_member_id: null,
     team_instructions: "",
+    run_in_sandbox: false,
     starter_prompts: [],
     visibility: "private",
     created_at: "2026-01-01T00:00:00Z",
@@ -91,6 +92,7 @@ test("toTeamExportData keeps fields needed for importing teams later", () => {
       ],
       default_member_id: null,
       team_instructions: "Coordinate analysis.",
+      run_in_sandbox: false,
       starter_prompts: [],
     },
   ]);

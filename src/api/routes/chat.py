@@ -18,9 +18,11 @@ from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_validation import validate_team_agent_request
+from src.api.routes.plugin_guard import plugin_unavailable_http_error
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
+from src.infra.extensions import get_plugin_settings_service
 from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
@@ -31,6 +33,19 @@ from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
 from src.kernel.config import settings
 from src.kernel.exceptions import AuthorizationError, NotFoundError
+from src.kernel.extensions import PluginUnavailableError
+from src.kernel.extensions.plugin_options import (
+    AGENT_TEAM_PLUGIN_ID,
+    AGENT_TEAM_SELECTED_TEAM_OPTION,
+    agent_uses_agent_team_options,
+    declared_plugin_options_from_metadata,
+    declared_session_options_from_project_defaults,
+    filter_declared_plugin_options,
+    plugin_id_for_agent,
+    plugin_option_from_metadata,
+    plugin_session_option_visible_for_agent,
+    with_plugin_option,
+)
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.model import ModelConfig
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
@@ -213,6 +228,7 @@ async def _update_session_config(
     request: AgentRequest,
     language: str,
     trace_id: str | None = None,
+    plugin_runtime=None,
 ) -> None:
     """Update session metadata with conversation configuration."""
     session_manager = SessionManager()
@@ -223,8 +239,346 @@ async def _update_session_config(
         request=request,
         language=language,
         trace_id=trace_id,
+        plugin_runtime=plugin_runtime,
     )
     await session_manager.update_session_metadata(session_id, conversation_config)
+
+
+def _request_state(http_request: Request):
+    app = getattr(http_request, "app", None)
+    return getattr(app, "state", None)
+
+
+def _plugin_runtime_from_request(http_request: Request):
+    state = _request_state(http_request)
+    return getattr(state, "plugin_runtime", None)
+
+
+def _plugin_runtime_executable(http_request: Request, plugin_id: str) -> bool:
+    runtime = _plugin_runtime_from_request(http_request)
+    if runtime is None:
+        return True
+    is_enabled = getattr(runtime, "is_enabled", None)
+    if callable(is_enabled):
+        return bool(is_enabled(plugin_id))
+    state = getattr(runtime, "get_state", lambda _plugin_id: None)(plugin_id)
+    return bool(state and getattr(state, "executable", False))
+
+
+def ensure_plugin_agent_executable(agent_id: str, http_request: Request) -> None:
+    """Reject plugin-owned agent execution before queuing background work."""
+    runtime = _plugin_runtime_from_request(http_request)
+    if runtime is None:
+        return
+    ensure_agent_available = getattr(runtime, "ensure_agent_available", None)
+    if not callable(ensure_agent_available):
+        return
+    try:
+        ensure_agent_available(agent_id)
+    except Exception as exc:  # noqa: BLE001 - runtime boundary normalizes the error
+        raise plugin_unavailable_http_error(getattr(exc, "plugin_id", None), exc) from exc
+
+
+def ensure_declared_plugin_agent_executable(agent_id: str, http_request: Request) -> None:
+    """Reject any manifest-declared plugin agent when its owning plugin is unavailable."""
+    runtime = _plugin_runtime_from_request(http_request)
+    plugin_id = plugin_id_for_agent(agent_id, runtime=runtime)
+    if not plugin_id or _plugin_runtime_executable(http_request, plugin_id):
+        return
+    message = (
+        "Agent Team plugin is not executable"
+        if plugin_id == AGENT_TEAM_PLUGIN_ID
+        else f"Plugin-owned agent is not executable: {agent_id}"
+    )
+    raise plugin_unavailable_http_error(
+        plugin_id,
+        PluginUnavailableError(
+            message,
+            plugin_id=plugin_id,
+        ),
+    )
+
+
+def ensure_agent_team_executable(agent_id: str, http_request: Request) -> None:
+    """Reject Agent Team execution before queuing when the plugin is unavailable."""
+    ensure_plugin_agent_executable(agent_id, http_request)
+    ensure_declared_plugin_agent_executable(agent_id, http_request)
+    runtime = _plugin_runtime_from_request(http_request)
+    if not agent_uses_agent_team_options(agent_id, runtime=runtime):
+        return
+
+
+def ensure_chat_agent_executable(agent_id: str, http_request: Request) -> None:
+    """Guard plugin-owned chat agents while preserving Agent Team compatibility."""
+    ensure_agent_team_executable(agent_id, http_request)
+
+
+async def _project_session_defaults_from_plugin_settings(
+    http_request: Request,
+    *,
+    project_id: str,
+    agent_id: str | None = None,
+) -> dict[str, dict[str, object]]:
+    runtime = _plugin_runtime_from_request(http_request)
+    runtime_states = _runtime_states_for_project_defaults(runtime)
+    if not runtime_states:
+        return {}
+    service = (
+        getattr(_request_state(http_request), "plugin_settings_service", None)
+        or get_plugin_settings_service()
+    )
+    result: dict[str, dict[str, object]] = {}
+    for state in runtime_states:
+        manifest = getattr(state, "manifest", None)
+        if manifest is None:
+            continue
+        executable = getattr(state, "executable", None)
+        if executable is None:
+            executable = _plugin_runtime_executable(http_request, manifest.id)
+        if not executable:
+            continue
+        project_to_session = {
+            option.key: option.applies_to_session_key
+            for option in manifest.frontend.project_options
+            if option.applies_to_session_key
+        }
+        if not project_to_session:
+            continue
+        try:
+            settings_payload = await service.list_settings(
+                manifest,
+                mask_sensitive=True,
+                scope="project",
+                subject_id=project_id,
+            )
+        except Exception:
+            continue
+        session_keys = {option.key for option in manifest.frontend.session_options}
+        for item in settings_payload:
+            session_key = project_to_session.get(str(item.get("key") or ""))
+            value = item.get("value")
+            if not session_key or session_key not in session_keys or value in (None, ""):
+                continue
+            if not plugin_session_option_visible_for_agent(
+                manifest,
+                session_key,
+                agent_id,
+            ):
+                continue
+            result.setdefault(manifest.id, {})[session_key] = value
+    return result
+
+
+def _runtime_states_for_project_defaults(runtime) -> list[object]:
+    states = getattr(runtime, "states", None)
+    if callable(states):
+        return list(states())
+    manifests = getattr(runtime, "manifests", None)
+    if callable(manifests):
+        try:
+            return [
+                type("RuntimeState", (), {"manifest": manifest, "executable": True})()
+                for manifest in manifests(enabled_only=False)
+            ]
+        except TypeError:
+            return [
+                type("RuntimeState", (), {"manifest": manifest, "executable": True})()
+                for manifest in manifests()
+            ]
+    get_state = getattr(runtime, "get_state", None)
+    if callable(get_state):
+        state = get_state(AGENT_TEAM_PLUGIN_ID)
+        return [state] if state is not None else []
+    return []
+
+
+def _merge_missing_plugin_options(
+    current: dict[str, dict[str, object]] | None,
+    defaults: dict[str, dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    merged = {"plugin_options": current or {}}
+    for plugin_id, values in defaults.items():
+        for key, value in values.items():
+            if plugin_option_from_metadata(merged, plugin_id=plugin_id, key=key) not in (None, ""):
+                continue
+            merged = with_plugin_option(
+                merged,
+                plugin_id=plugin_id,
+                key=key,
+                value=value,
+            )
+    return merged["plugin_options"]
+
+
+def _can_merge_plugin_option_default(
+    current: dict[str, dict[str, object]],
+    defaults: dict[str, dict[str, object]],
+    plugin_id: str,
+    key: str,
+) -> bool:
+    del current, defaults, plugin_id, key
+    return True
+
+
+def _non_empty_plugin_option(
+    plugin_options: dict[str, dict[str, object]],
+    *,
+    plugin_id: str,
+    key: str,
+) -> str | None:
+    value = plugin_options.get(plugin_id, {}).get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def apply_existing_session_plugin_options(
+    request: AgentRequest,
+    *,
+    agent_id: str,
+    existing_metadata: dict | None,
+    plugin_runtime=None,
+) -> None:
+    """Inherit saved session plugin options when a follow-up omits them."""
+    if not existing_metadata:
+        return
+    saved_options = declared_plugin_options_from_metadata(
+        plugin_runtime,
+        existing_metadata,
+        scope="session",
+        agent_id=agent_id,
+        executable_only=True,
+    )
+    if saved_options:
+        request.plugin_options = _merge_missing_plugin_options(
+            request.plugin_options,
+            saved_options,
+        )
+    if agent_uses_agent_team_options(agent_id, runtime=plugin_runtime):
+        team_id = plugin_option_from_metadata(
+            {"plugin_options": request.plugin_options or {}},
+            plugin_id=AGENT_TEAM_PLUGIN_ID,
+            key=AGENT_TEAM_SELECTED_TEAM_OPTION,
+        )
+        if isinstance(team_id, str) and team_id.strip():
+            request.team_id = team_id.strip()
+
+
+async def apply_project_plugin_session_defaults(
+    request: AgentRequest,
+    *,
+    agent_id: str,
+    user: TokenPayload,
+    http_request: Request,
+) -> None:
+    """Apply plugin-declared project defaults when no session value is selected."""
+    runtime = _plugin_runtime_from_request(http_request)
+    if not request.project_id:
+        return
+    if request.team_id and runtime is None:
+        return
+    if request.team_id and agent_uses_agent_team_options(agent_id, runtime=runtime):
+        request.plugin_options = _merge_missing_plugin_options(
+            request.plugin_options,
+            {AGENT_TEAM_PLUGIN_ID: {AGENT_TEAM_SELECTED_TEAM_OPTION: request.team_id}},
+        )
+    owning_plugin_id = plugin_id_for_agent(agent_id, runtime=runtime)
+    if owning_plugin_id and not _plugin_runtime_executable(http_request, owning_plugin_id):
+        return
+    from src.infra.folder.storage import get_project_storage
+
+    project = await get_project_storage().get_by_id(request.project_id, user.sub)
+    if not project:
+        return
+    default_options = await _project_session_defaults_from_plugin_settings(
+        http_request,
+        project_id=request.project_id,
+        agent_id=agent_id,
+    )
+    if default_options:
+        request.plugin_options = _merge_missing_plugin_options(
+            request.plugin_options,
+            default_options,
+        )
+    metadata_defaults = declared_session_options_from_project_defaults(
+        runtime,
+        project.metadata,
+        agent_id=agent_id,
+        executable_only=True,
+    )
+    if metadata_defaults:
+        request.plugin_options = _merge_missing_plugin_options(
+            request.plugin_options,
+            metadata_defaults,
+        )
+    if agent_uses_agent_team_options(agent_id, runtime=runtime):
+        team_id = plugin_option_from_metadata(
+            {"plugin_options": request.plugin_options or {}},
+            plugin_id=AGENT_TEAM_PLUGIN_ID,
+            key=AGENT_TEAM_SELECTED_TEAM_OPTION,
+        )
+        if isinstance(team_id, str) and team_id.strip():
+            request.team_id = team_id.strip()
+
+
+async def apply_project_agent_team_default(
+    request: AgentRequest,
+    *,
+    agent_id: str,
+    user: TokenPayload,
+    http_request: Request,
+) -> None:
+    """Compatibility wrapper for the former Agent Team-specific project default hook."""
+    await apply_project_plugin_session_defaults(
+        request,
+        agent_id=agent_id,
+        user=user,
+        http_request=http_request,
+    )
+
+
+def apply_agent_team_plugin_session_option(
+    request: AgentRequest,
+    *,
+    agent_id: str,
+    plugin_runtime=None,
+) -> None:
+    """Use plugin-scoped session options as the primary Agent Team selection."""
+    apply_declared_plugin_session_options(
+        request,
+        agent_id=agent_id,
+        plugin_runtime=plugin_runtime,
+    )
+    if not agent_uses_agent_team_options(agent_id, runtime=plugin_runtime):
+        return
+    team_id = plugin_option_from_metadata(
+        {"plugin_options": request.plugin_options or {}},
+        plugin_id=AGENT_TEAM_PLUGIN_ID,
+        key=AGENT_TEAM_SELECTED_TEAM_OPTION,
+    )
+    if isinstance(team_id, str) and team_id.strip():
+        request.team_id = team_id.strip()
+
+
+def apply_declared_plugin_session_options(
+    request: AgentRequest,
+    *,
+    agent_id: str,
+    plugin_runtime=None,
+) -> None:
+    """Normalize manifest-declared session options into request.plugin_options."""
+    metadata: dict[str, object] = dict(request.context or {})
+    metadata["plugin_options"] = request.plugin_options or {}
+    if request.team_id is not None:
+        metadata["team_id"] = request.team_id
+    declared_options = declared_plugin_options_from_metadata(
+        plugin_runtime,
+        metadata,
+        scope="session",
+        agent_id=agent_id,
+        executable_only=True,
+    )
+    request.plugin_options = declared_options or None
 
 
 def resolve_goal_for_request(
@@ -254,6 +608,7 @@ def build_conversation_config(
     language: str,
     session_id: str | None = None,
     trace_id: str | None = None,
+    plugin_runtime=None,
 ) -> dict:
     """Build session metadata for conversation configuration."""
     conversation_config = {
@@ -281,8 +636,20 @@ def build_conversation_config(
         conversation_config["project_id"] = request.project_id
     if request.user_timezone:
         conversation_config["user_timezone"] = request.user_timezone
-    if agent_id == "team" and request.team_id:
-        conversation_config["team_id"] = request.team_id
+    plugin_options = filter_declared_plugin_options(
+        plugin_runtime,
+        {"plugin_options": request.plugin_options or {}},
+        scope="session",
+    )
+    if agent_uses_agent_team_options(agent_id, runtime=plugin_runtime) and request.team_id:
+        plugin_options = with_plugin_option(
+            {"plugin_options": plugin_options},
+            plugin_id=AGENT_TEAM_PLUGIN_ID,
+            key=AGENT_TEAM_SELECTED_TEAM_OPTION,
+            value=request.team_id,
+        )["plugin_options"]
+    if plugin_options:
+        conversation_config["plugin_options"] = plugin_options
     return conversation_config
 
 
@@ -324,8 +691,9 @@ async def _execute_agent_stream(
     disabled_mcp_tools: list[str] | None = None,
     team_id: str | None = None,
     active_goal: dict | None = None,
-    recommendation_input: str | None = None,
     auto_mode: bool = False,
+    recommendation_input: str | None = None,
+    plugin_options: dict[str, dict[str, object]] | None = None,
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
     from src.infra.task.manager import TaskInterruptedError
@@ -339,6 +707,7 @@ async def _execute_agent_stream(
         yield {"event": "goal:start", "data": {"goal": active_goal, "started_at": started_at}}
 
     try:
+        agent_stream_options = agent_options
         agent = await AgentFactory.get(agent_id)
         async for event in agent.stream(
             message,
@@ -346,7 +715,7 @@ async def _execute_agent_stream(
             user_id=user_id,
             presenter=presenter,
             disabled_tools=disabled_tools,
-            agent_options=agent_options,
+            agent_options=agent_stream_options,
             attachments=attachments,
             disabled_skills=disabled_skills,
             enabled_skills=enabled_skills,
@@ -414,19 +783,51 @@ async def chat_stream(
     from src.infra.task.manager import _generate_run_id
 
     session_id = request.session_id or str(uuid.uuid4())
-    validate_team_agent_request(agent_id, request)
+    plugin_runtime = _plugin_runtime_from_request(http_request)
+    ensure_chat_agent_executable(agent_id, http_request)
+    apply_declared_plugin_session_options(
+        request,
+        agent_id=agent_id,
+        plugin_runtime=plugin_runtime,
+    )
+    await apply_project_plugin_session_defaults(
+        request,
+        agent_id=agent_id,
+        user=user,
+        http_request=http_request,
+    )
+    validate_team_agent_request(agent_id, request, plugin_runtime=plugin_runtime)
 
     # 如果用户传入了 session_id，验证所有权
     existing_metadata: dict = {}
+    existing_session = None
     if request.session_id:
         session_manager = SessionManager()
         existing_session = await session_manager.get_session(session_id)
         if existing_session:
             verify_session_ownership(existing_session, user)
             existing_metadata = existing_session.metadata or {}
+            apply_existing_session_plugin_options(
+                request,
+                agent_id=agent_id,
+                existing_metadata=existing_metadata,
+                plugin_runtime=plugin_runtime,
+            )
+            validate_team_agent_request(agent_id, request, plugin_runtime=plugin_runtime)
+    if request.retry_user_message and not request.session_id:
+        raise HTTPException(status_code=400, detail="retry_user_message requires session_id")
+    if request.retry_user_message and not existing_session:
+        raise HTTPException(status_code=404, detail="session not found")
 
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     active_goal_data = active_goal.model_dump() if active_goal else None
+    formatted_message = format_user_message_with_timestamp(
+        agent_message,
+        request.user_timezone,
+    )
+    write_user_message = not request.retry_user_message
+    user_message_written = request.retry_user_message
+
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
 
@@ -490,7 +891,7 @@ async def chat_stream(
         "team_id": request.team_id,
         "active_goal": active_goal_data,
         "recommendation_input": request.message,
-        "auto_mode": request.auto_mode,
+        "plugin_options": request.plugin_options,
     }
 
     # 检查并发限制
@@ -545,13 +946,13 @@ async def chat_stream(
             )
         )
         await presenter._ensure_trace()
-        await presenter.emit_user_message(
-            request.message,
-            attachments=[a.model_dump() for a in request.attachments]
-            if request.attachments
-            else None,
-            enabled_skills=request.enabled_skills,
-        )
+        if write_user_message:
+            await presenter.emit_user_message(
+                request.message,
+                attachments=[a.model_dump() for a in request.attachments]
+                if request.attachments
+                else None,
+            )
 
         # Mark user message as already written so executor skips re-emitting
         task_manager._run_info[run_id] = {
@@ -570,6 +971,7 @@ async def chat_stream(
             request,
             preferred_language,
             trace_id=trace_id,
+            plugin_runtime=_plugin_runtime_from_request(http_request),
         )
 
         return {
@@ -601,8 +1003,8 @@ async def chat_stream(
             trace_id=trace_id,
             team_id=request.team_id,
             active_goal=active_goal_data,
-            auto_mode=request.auto_mode,
-            write_user_message_immediately=True,
+            user_message_written=user_message_written,
+            write_user_message_immediately=write_user_message,
         )
     else:
         # STARTED — 正常提交后台任务
@@ -626,8 +1028,8 @@ async def chat_stream(
             team_id=request.team_id,
             trace_id=trace_id,
             active_goal=active_goal_data,
-            auto_mode=request.auto_mode,
-            write_user_message_immediately=True,
+            user_message_written=user_message_written,
+            write_user_message_immediately=write_user_message,
         )
 
     # 更新 session metadata，存储完整的对话配置
@@ -638,6 +1040,7 @@ async def chat_stream(
         request,
         preferred_language,
         trace_id=trace_id,
+        plugin_runtime=_plugin_runtime_from_request(http_request),
     )
 
     return {

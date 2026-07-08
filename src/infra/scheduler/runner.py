@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import collections.abc
+import json
 import time
 import uuid
 from dataclasses import dataclass
@@ -29,6 +30,14 @@ from src.infra.session.trace_storage import get_trace_storage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
+from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS, PluginRuntime
+from src.kernel.extensions.plugin_options import (
+    agent_uses_agent_team_options,
+    declared_plugin_options_from_metadata,
+    plugin_option_from_metadata,
+    selected_agent_team_id_from_metadata,
+    with_plugin_options,
+)
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
     ScheduledTask,
@@ -117,6 +126,19 @@ async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
 
 class ScheduledTaskRunner:
     """Execute a scheduled task: acquire lock → create record → run agent → record result."""
+
+    def __init__(self) -> None:
+        self.plugin_runtime: PluginRuntime | None = None
+
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        """Attach Plugin Runtime used to resolve manifest-declared task options."""
+        self.plugin_runtime = runtime
+
+    def _runtime(self) -> PluginRuntime:
+        return self.plugin_runtime or PluginRuntime(
+            BUILTIN_PLUGIN_MANIFESTS,
+            core_dependencies=("skill_core",),
+        )
 
     async def run(self, task_id: str, trigger_type: str = "cron") -> dict:
         """Entry point for scheduled / manual task execution.
@@ -357,9 +379,12 @@ class ScheduledTaskRunner:
         trigger_type: str | None = None,
     ) -> dict:
         """Execute the agent via BackgroundTaskManager in a dedicated session."""
+        from src.agents import ensure_agent_executable
         from src.infra.session.manager import SessionManager
         from src.infra.task.concurrency import get_registered_executor
         from src.infra.task.manager import get_task_manager
+
+        ensure_agent_executable(task.agent_id)
 
         task_manager = get_task_manager()
         use_arq_backend = settings.TASK_BACKEND == "arq"
@@ -394,9 +419,22 @@ class ScheduledTaskRunner:
         persona_preset_id = (
             persona_preset_id if isinstance(persona_preset_id, str) and persona_preset_id else None
         )
-        team_id = task.input_payload.get("team_id")
-        team_id = team_id if isinstance(team_id, str) and team_id else None
-        if task.agent_id != "team":
+        runtime = self._runtime()
+        scheduled_task_plugin_options = declared_plugin_options_from_metadata(
+            runtime,
+            task.input_payload,
+            scope="scheduled_task",
+            agent_id=task.agent_id,
+            executable_only=True,
+        )
+        team_id = plugin_option_from_metadata(
+            {"plugin_options": scheduled_task_plugin_options},
+            plugin_id="agent_team",
+            key="SELECTED_TEAM_ID",
+        )
+        if not isinstance(team_id, str) or not team_id:
+            team_id = selected_agent_team_id_from_metadata(task.input_payload)
+        if not agent_uses_agent_team_options(task.agent_id, runtime=runtime):
             team_id = None
         else:
             persona_preset_id = None
@@ -435,8 +473,11 @@ class ScheduledTaskRunner:
             session_metadata["persona_snapshot"] = persona_snapshot
             if persona_snapshot.get("avatar"):
                 session_metadata["persona_avatar"] = persona_snapshot["avatar"]
-        if team_id:
-            session_metadata["team_id"] = team_id
+        if scheduled_task_plugin_options:
+            session_metadata = with_plugin_options(
+                session_metadata,
+                scheduled_task_plugin_options,
+            )
 
         if use_arq_backend:
             _, trace_id = await task_manager.submit_arq(
@@ -457,6 +498,7 @@ class ScheduledTaskRunner:
                 display_message=display_message,
                 recommendation_input=display_message,
                 session_metadata=session_metadata,
+                plugin_options=scheduled_task_plugin_options,
                 auto_mode=True,
                 write_user_message_immediately=True,
             )
@@ -485,6 +527,7 @@ class ScheduledTaskRunner:
                 display_message=display_message,
                 recommendation_input=display_message,
                 session_metadata=session_metadata,
+                plugin_options=scheduled_task_plugin_options,
                 auto_mode=True,
                 write_user_message_immediately=True,
             )
@@ -649,6 +692,11 @@ class ScheduledTaskRunner:
         for event in events:
             event_type = str(event.get("event_type") or "")
             data = event.get("data")
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    data = None
             if not isinstance(data, dict):
                 continue
             role = str(data.get("role") or "").lower()

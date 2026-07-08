@@ -76,7 +76,6 @@ export function SettingsPanel() {
       s3: t("categories.s3"),
       file_upload: t("categories.file_upload"),
       tools: t("categories.tools"),
-      audio_transcription: t("categories.audio_transcription"),
       tracing: t("categories.tracing"),
       user: t("categories.user"),
       oauth: t("categories.oauth"),

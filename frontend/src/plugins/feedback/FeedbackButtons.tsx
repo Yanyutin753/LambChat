@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { clsx } from "clsx";
 import toast from "react-hot-toast";
-import { feedbackApi } from "../../../services/api/feedback";
-import type { RatingValue } from "../../../types/feedback";
-import type { MessageAttachment } from "../../../types/upload";
+import { feedbackApi } from "./api";
+import type { RatingValue } from "./types";
 import { useTranslation } from "react-i18next";
 import { FeedbackDialog } from "./FeedbackDialog";
 
@@ -32,7 +31,6 @@ export function FeedbackButtons({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [comment, setComment] = useState("");
-  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   const [submittedFeedback, setSubmittedFeedback] =
     useState<RatingValue | null>(externalFeedback || null);
 
@@ -46,7 +44,6 @@ export function FeedbackButtons({
     if (isSubmitting || submittedFeedback) return;
     setSelectedRating(rating);
     setComment("");
-    setAttachments([]);
     setShowDialog(true);
   }
 
@@ -60,18 +57,6 @@ export function FeedbackButtons({
         comment: comment.trim() || undefined,
         session_id: sessionId,
         run_id: runId || "",
-        attachments:
-          attachments.length > 0
-            ? attachments.map((a) => ({
-                id: a.id,
-                key: a.key,
-                name: a.name,
-                type: a.type,
-                mimeType: a.mimeType,
-                size: a.size,
-                url: a.url,
-              }))
-            : undefined,
       });
       setSubmittedFeedback(selectedRating);
       onFeedbackChange?.(selectedRating);
@@ -91,7 +76,6 @@ export function FeedbackButtons({
     setShowDialog(false);
     setSelectedRating(null);
     setComment("");
-    setAttachments([]);
   }
 
   function handleSkip() {
@@ -100,14 +84,14 @@ export function FeedbackButtons({
 
   if (submittedFeedback) {
     return (
-      <div className={clsx("flex items-center", className)}>
+      <div className={clsx("flex items-center gap-1", className)}>
         <span
           className={clsx(
-            "flex items-center justify-center rounded-md p-1.5 transition-all",
+            "flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all",
             !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
             submittedFeedback === "up"
-              ? "text-stone-600 dark:text-stone-300"
-              : "text-stone-600 dark:text-stone-300",
+              ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+              : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700",
           )}
           title={t("feedback.alreadySubmitted") || "Feedback submitted"}
         >
@@ -176,8 +160,6 @@ export function FeedbackButtons({
           onSubmit={handleSubmitFeedback}
           onSkip={handleSkip}
           isSubmitting={isSubmitting}
-          attachments={attachments}
-          onAttachmentsChange={setAttachments}
         />
       )}
     </>

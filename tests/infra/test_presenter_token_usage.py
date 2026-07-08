@@ -1,3 +1,6 @@
+import json
+
+from src.infra.agent import AgentEventProcessor
 from src.infra.writer.present import create_presenter
 from src.infra.writer.presenter_config import _extract_attachment_keys
 
@@ -170,8 +173,6 @@ async def test_done_event_is_persisted_once(monkeypatch) -> None:
 
 
 async def test_save_event_offloads_legacy_string_data_parse(monkeypatch) -> None:
-    import json
-
     from src.infra.writer import presenter_storage
 
     writer = _FakeDualWriter()
@@ -195,3 +196,94 @@ async def test_save_event_offloads_legacy_string_data_parse(monkeypatch) -> None
 
     assert calls == [json.loads]
     assert writer.events[0]["data"] == {"text": "hello"}
+
+
+async def test_agent_workflow_tool_result_is_persisted_as_structured_failed_outlet(
+    monkeypatch,
+) -> None:
+    writer = _FakeDualWriter()
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="chat-run-1",
+        trace_id="trace-1",
+    )
+    processor = AgentEventProcessor(presenter)
+    workflow_result = {
+        "plugin_id": "workflow",
+        "workflow_id": "wf-chat",
+        "run_id": "workflow-run-1",
+        "version_id": "wfv-1",
+        "status": "failed",
+        "error": "workflow_run_not_found",
+        "interface": {
+            "entry": {
+                "type": "tool",
+                "tool": "workflow_run",
+                "argument": "input",
+                "schema_tool": "workflow_get_schema",
+                "schema_field": "input_schema",
+            },
+            "exit": {
+                "type": "object",
+                "field": "output",
+                "schema_tool": "workflow_get_schema",
+                "schema_field": "output_schema",
+            },
+            "debug": {
+                "tool": "workflow_get_run",
+                "workflow_id": "wf-chat",
+                "run_id": "workflow-run-1",
+                "events_field": "events",
+            },
+        },
+        "next_action": {
+            "type": "handle_terminal_error",
+            "field": "error",
+            "reason": "workflow_run_failed",
+            "tool": "workflow_get_run",
+        },
+    }
+
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "workflow_get_run",
+            "run_id": "tool-call-workflow",
+            "data": {
+                "input": {
+                    "workflow_id": "wf-chat",
+                    "run_id": "workflow-run-1",
+                }
+            },
+            "metadata": {},
+        }
+    )
+    await processor.process_event(
+        {
+            "event": "on_tool_end",
+            "name": "workflow_get_run",
+            "run_id": "tool-call-workflow",
+            "data": {"output": json.dumps(workflow_result)},
+            "metadata": {},
+        }
+    )
+
+    assert [event["event_type"] for event in writer.events] == ["tool:start", "tool:result"]
+    persisted_result = writer.events[1]
+    assert persisted_result["session_id"] == "session-1"
+    assert persisted_result["trace_id"] == "trace-1"
+    assert persisted_result["run_id"] == "chat-run-1"
+    assert persisted_result["data"]["tool"] == "workflow_get_run"
+    assert persisted_result["data"]["tool_call_id"] == "tool-call-workflow"
+    assert persisted_result["data"]["success"] is False
+    assert persisted_result["data"]["error"] == "workflow_run_not_found"
+    assert persisted_result["data"]["result"]["plugin_id"] == "workflow"
+    assert persisted_result["data"]["result"]["status"] == "failed"
+    assert persisted_result["data"]["result"]["interface"]["entry"]["tool"] == "workflow_run"
+    assert (
+        persisted_result["data"]["result"]["interface"]["debug"]["tool"] == "workflow_get_run"
+    )
+    assert persisted_result["data"]["result"]["next_action"]["tool"] == "workflow_get_run"

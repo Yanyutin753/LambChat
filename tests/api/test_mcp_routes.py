@@ -139,6 +139,42 @@ async def test_admin_internal_tool_discovery_uses_internal_registry(
 
 
 @pytest.mark.asyncio
+async def test_admin_internal_tool_invoke_rejects_non_allowlisted_tool() -> None:
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: object()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/admin/mcp/lambchat_internal/tools/image_generate/invoke",
+            json={"arguments": {}},
+        )
+
+    assert response.status_code == 403
+    assert "cannot be invoked" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_internal_tool_invoke_rejects_external_server() -> None:
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: object()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/admin/mcp/external-server/tools/image_generate/invoke",
+            json={"arguments": {"prompt": "hi"}},
+        )
+
+    assert response.status_code == 404
+    assert "external-server" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_import_mcp_servers_rejects_oversized_payload_before_storage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

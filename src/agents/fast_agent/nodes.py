@@ -104,6 +104,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         model_id=model_id,
         model_config=resolved_model_config,
         thinking=thinking_config,
+        streaming=False,
     )
     llm_init_time = time.time() - llm_start
     logger.debug(f"[FastAgent] LLM init: {llm_init_time * 1000:.3f}ms")
@@ -168,7 +169,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 过滤工具（懒加载 MCP 工具）
     filtered_tools = None
-    if settings.ENABLE_MCP:
+    if hasattr(context, "get_tools") and hasattr(context, "filter_tools"):
         await context.get_tools()
         filtered_tools = context.filter_tools() or None
 

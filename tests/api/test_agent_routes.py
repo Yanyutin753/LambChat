@@ -6,6 +6,7 @@ import pytest
 
 from src.api.routes import agent as agent_routes
 from src.kernel.schemas.agent import AgentRequest
+from src.kernel.schemas.mcp import MCPToolInfo
 
 
 @pytest.mark.asyncio
@@ -85,6 +86,84 @@ async def test_list_tools_offloads_agent_discovery_for_unknown_agent_id(
 
     assert response.count == len(response.tools)
     assert calls == ["fake_discover_agents"]
+
+
+@pytest.mark.asyncio
+async def test_list_tools_includes_internal_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    async def fake_resolve_user_mcp_access(user_id: str):
+        assert user_id == "user-1"
+        return ["user"], False
+
+    async def fake_get_internal_tool_infos(**kwargs):
+        calls.append(kwargs)
+        return [
+            MCPToolInfo(
+                name="demo_internal_tool",
+                description="Run an internal operation",
+                parameters=[
+                    {
+                        "name": "target_id",
+                        "type": "string",
+                        "description": "Target id",
+                        "required": True,
+                    }
+                ],
+            ),
+            MCPToolInfo(
+                name="demo_internal_debug",
+                description="Inspect async operation debug events",
+                parameters=[
+                    {
+                        "name": "target_id",
+                        "type": "string",
+                        "description": "Target id",
+                        "required": True,
+                    },
+                    {
+                        "name": "run_id",
+                        "type": "string",
+                        "description": "Run id",
+                        "required": True,
+                    },
+                ],
+            )
+        ]
+
+    monkeypatch.setattr(agent_routes.settings, "ENABLE_MCP", False, raising=False)
+    monkeypatch.setattr(
+        "src.infra.mcp.quota.resolve_user_mcp_access",
+        fake_resolve_user_mcp_access,
+    )
+    monkeypatch.setattr(
+        "src.infra.tool.internal_registry.get_internal_tool_infos",
+        fake_get_internal_tool_infos,
+    )
+
+    response = await agent_routes.list_tools(
+        user=type(
+            "User",
+            (),
+            {"sub": "user-1", "roles": ["user"], "permissions": ["demo:read", "demo:run"]},
+        )(),
+    )
+
+    assert calls == [{"user_id": "user-1", "user_roles": ["user"], "is_admin": False}]
+    assert response.count == len(response.tools)
+    run_tool = next(tool for tool in response.tools if tool.name == "demo_internal_tool")
+    assert run_tool.category == "internal"
+    assert run_tool.server == "lambchat_internal"
+    assert run_tool.description == "Run an internal operation"
+    assert run_tool.parameters[0].name == "target_id"
+    assert run_tool.parameters[0].required is True
+    debug_tool = next(tool for tool in response.tools if tool.name == "demo_internal_debug")
+    assert debug_tool.category == "internal"
+    assert debug_tool.server == "lambchat_internal"
+    assert "async operation" in debug_tool.description
+    assert {param.name for param in debug_tool.parameters} == {"target_id", "run_id"}
 
 
 @pytest.mark.asyncio

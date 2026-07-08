@@ -20,6 +20,7 @@ export interface AgentInfo {
   version: string;
   sort_order?: number;
   icon?: string;
+  category?: string | null;
   labels?: AgentCatalogLabels;
   supports_sandbox?: boolean;
   options?: Record<string, AgentOption>;
@@ -30,15 +31,6 @@ export interface AgentListResponse {
   count: number;
   default_agent?: string;
   allowed_model_ids?: string[] | null;
-}
-
-// Workflow event types
-export interface WorkflowStepData {
-  step_id: string;
-  step_name: string;
-  agent_id?: string;
-  status?: "running" | "completed" | "failed";
-  result?: string;
 }
 
 // ============================================
@@ -53,6 +45,7 @@ export interface AgentConfig {
   enabled: boolean;
   icon?: string;
   sort_order?: number;
+  category?: string | null;
   labels?: AgentCatalogLabels;
 }
 
@@ -70,6 +63,7 @@ export interface AgentCatalogConfig {
   enabled: boolean;
   icon: string;
   sort_order: number;
+  category?: string | null;
   labels: AgentCatalogLabels;
 }
 

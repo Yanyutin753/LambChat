@@ -1,7 +1,12 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from src.kernel.extensions.marketplace import (
+    ExtensionMarketplaceEntry,
+    build_skill_marketplace_entry,
+)
 
 
 class InstalledFrom(str, Enum):
@@ -121,6 +126,26 @@ class MarketplaceSkillResponse(BaseModel):
     is_active: bool = True
     is_owner: bool = False
     file_count: int = 0
+    extension_type: str = "skill"
+    extension_id: Optional[str] = None
+    extension: Optional[ExtensionMarketplaceEntry] = None
+
+    @model_validator(mode="after")
+    def attach_extension_marketplace_entry(self) -> "MarketplaceSkillResponse":
+        """Expose legacy Skill marketplace data through Extension Marketplace shape."""
+        if self.extension_id is None:
+            self.extension_id = f"skill:{self.skill_name}"
+        if self.extension is None:
+            self.extension = build_skill_marketplace_entry(
+                skill_name=self.skill_name,
+                description=self.description,
+                tags=self.tags,
+                version=self.version,
+                publisher=self.created_by_username or self.created_by,
+                enabled=self.is_active,
+                file_count=self.file_count,
+            )
+        return self
 
 
 class PublishToMarketplaceRequest(BaseModel):

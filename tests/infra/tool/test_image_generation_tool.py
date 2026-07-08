@@ -52,6 +52,34 @@ class _BlockingOnlySpooledFile:
         self.closed = True
 
 
+def _set_image_plugin_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    module,
+    *,
+    api_key: str = "sk-test",
+    base_url: str = "https://api.example.com/v1",
+    model: str = "gpt-image-2",
+    timeout: int = 123,
+) -> None:
+    class _Resolver:
+        async def get_secret(self, key: str) -> str:
+            assert key == "API_KEY"
+            return api_key
+
+        async def get_str(self, key: str, default: str = "") -> str:
+            if key == "BASE_URL":
+                return base_url
+            if key == "MODEL":
+                return model
+            return default
+
+        async def get_int(self, key: str, default: int = 0) -> int:
+            assert key == "TIMEOUT"
+            return timeout or default
+
+    monkeypatch.setattr(module, "_settings_resolver", lambda: _Resolver())
+
+
 def _load_module_from_path(module_name: str, relative_path: str):
     path = Path(__file__).parents[3] / relative_path
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -63,6 +91,10 @@ def _load_module_from_path(module_name: str, relative_path: str):
 
 
 def _stub_context_tool_imports(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.infra.tool import internal_registry
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", None)
+
     def tool(name: str):
         return SimpleNamespace(name=name)
 
@@ -156,19 +188,12 @@ async def test_image_generate_calls_images_api_and_uploads_base64_result(
         image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
     monkeypatch.setattr(
         image_generation_tool,
         "utc_now",
         lambda: datetime(2026, 5, 23, 12, 34, 56, tzinfo=timezone.utc),
     )
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_TIMEOUT", 123)
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -388,7 +413,7 @@ async def test_image_generate_returns_error_when_api_key_missing(
         return func(*args, **kwargs)
 
     monkeypatch.setattr(image_generation_tool, "run_blocking_io", fake_run_blocking_io)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool, api_key="")
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -478,13 +503,7 @@ async def test_image_generate_normalizes_unsupported_portrait_size_for_generatio
         image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
 
     await image_generation_tool.image_generate.coroutine(
         prompt="draw a cat",
@@ -558,13 +577,7 @@ async def test_image_generate_normalizes_unsupported_portrait_size_for_edits(
         image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
 
     await image_generation_tool.image_generate.coroutine(
         prompt="make it brighter",
@@ -647,18 +660,12 @@ async def test_image_generate_with_input_images_uses_edits_endpoint(
         image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
     monkeypatch.setattr(
         image_generation_tool,
         "utc_now",
         lambda: datetime(2026, 5, 23, 12, 34, 56, tzinfo=timezone.utc),
     )
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -750,13 +757,7 @@ async def test_image_generate_streams_input_image_downloads_for_edits(
         image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -820,13 +821,7 @@ async def test_image_generate_decodes_base64_result_in_chunks_before_upload(
         image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -897,13 +892,7 @@ async def test_image_generate_offloads_base64_result_spooled_file_io(
     monkeypatch.setattr(image_generation_tool, "SpooledTemporaryFile", _BlockingOnlySpooledFile)
     monkeypatch.setattr(image_generation_tool, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(image_generation_tool, "_inside_fake_blocking_io", False, raising=False)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -984,13 +973,7 @@ async def test_image_generate_retries_retryable_api_status(
     )
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -1045,12 +1028,7 @@ async def test_image_generate_does_not_retry_non_retryable_api_status(
     monkeypatch.setattr(
         image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
     )
-    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        image_generation_tool.settings,
-        "IMAGE_GENERATION_BASE_URL",
-        "https://api.example.com/v1",
-    )
+    _set_image_plugin_settings(monkeypatch, image_generation_tool)
 
     result = json.loads(
         await image_generation_tool.image_generate.coroutine(
@@ -1068,16 +1046,34 @@ async def test_search_agent_context_includes_image_generation_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_context_tool_imports(monkeypatch)
+    from src.infra.tool import internal_registry
+
+    async def no_internal_tool_policies():
+        return {}
+
+    monkeypatch.setattr(
+        internal_registry,
+        "get_internal_tool_policies",
+        no_internal_tool_policies,
+    )
     search_context = _load_module_from_path(
         "search_context_with_image_tool_under_test",
         "src/agents/search_agent/context.py",
     )
+    from src.kernel.extensions import (
+        IMAGE_GENERATION_PLUGIN_ID,
+        PluginRuntime,
+        build_image_generation_plugin_manifest,
+    )
 
-    monkeypatch.setattr(search_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(search_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
+    monkeypatch.setattr(search_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(search_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SKILLS", False)
+    runtime = PluginRuntime([build_image_generation_plugin_manifest()])
+    runtime.enable_plugin(IMAGE_GENERATION_PLUGIN_ID)
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
 
     ctx = search_context.SearchAgentContext(user_id="user-1")
     await ctx.setup()
@@ -1091,16 +1087,34 @@ async def test_fast_agent_context_includes_image_generation_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_context_tool_imports(monkeypatch)
+    from src.infra.tool import internal_registry
+
+    async def no_internal_tool_policies():
+        return {}
+
+    monkeypatch.setattr(
+        internal_registry,
+        "get_internal_tool_policies",
+        no_internal_tool_policies,
+    )
     fast_context = _load_module_from_path(
         "fast_context_with_image_tool_under_test",
         "src/agents/fast_agent/context.py",
     )
+    from src.kernel.extensions import (
+        IMAGE_GENERATION_PLUGIN_ID,
+        PluginRuntime,
+        build_image_generation_plugin_manifest,
+    )
 
-    monkeypatch.setattr(fast_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(fast_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
+    monkeypatch.setattr(fast_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(fast_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", False)
+    runtime = PluginRuntime([build_image_generation_plugin_manifest()])
+    runtime.enable_plugin(IMAGE_GENERATION_PLUGIN_ID)
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
 
     ctx = fast_context.FastAgentContext(user_id="user-1")
     await ctx.setup()

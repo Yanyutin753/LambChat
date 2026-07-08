@@ -26,6 +26,11 @@ from src.infra.channel.feishu.manager import FeishuChannelManager
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings  # noqa: F401 - compatibility for handler tests/patching
+from src.kernel.extensions import PluginRuntime
+from src.kernel.extensions.plugin_options import (
+    agent_uses_agent_team_options,
+    selected_agent_team_id_from_metadata,
+)
 
 logger = get_logger(__name__)
 
@@ -142,6 +147,7 @@ def create_feishu_message_handler(
     manager: "FeishuChannelManager",
     default_agent: str,
     show_tools: bool = True,
+    plugin_runtime: PluginRuntime | None = None,
 ) -> Callable:
     """
     创建飞书消息处理器
@@ -152,6 +158,8 @@ def create_feishu_message_handler(
         show_tools: 是否显示工具调用
     """
     from src.infra.task.manager import get_task_manager
+
+    effective_plugin_runtime = plugin_runtime or getattr(manager, "plugin_runtime", None)
 
     async def feishu_message_handler(
         user_id: str,
@@ -226,9 +234,13 @@ def create_feishu_message_handler(
                         )
                     model_id = ch_config.get("model_id")
                     project_id = ch_config.get("project_id")
-                    team_id = ch_config.get("team_id")
+                    uses_agent_team_options = agent_uses_agent_team_options(
+                        agent_to_use,
+                        runtime=effective_plugin_runtime,
+                    )
+                    team_id = selected_agent_team_id_from_metadata(ch_config)
                     persona_preset_id = (
-                        None if agent_to_use == "team" else ch_config.get("persona_preset_id")
+                        None if uses_agent_team_options else ch_config.get("persona_preset_id")
                     )
                     channel_name = ch_config.get("name")
                     stream_reply = bool(ch_config.get("stream_reply", True))
@@ -349,6 +361,9 @@ def create_feishu_message_handler(
             # Use time-based session title for Feishu
             session_title = utc_now().strftime("%Y-%m-%d %H:%M")
 
+            if isinstance(effective_plugin_runtime, PluginRuntime):
+                effective_plugin_runtime.ensure_agent_available(agent_to_use)
+
             run_id, _ = await task_manager.submit(
                 session_id=session_id,
                 agent_id=agent_to_use,
@@ -440,6 +455,7 @@ def create_feishu_message_handler(
 async def setup_feishu_handler(
     default_agent: str,
     show_tools: bool = True,
+    plugin_runtime: PluginRuntime | None = None,
 ) -> None:
     """
     设置飞书消息处理器
@@ -451,10 +467,12 @@ async def setup_feishu_handler(
     from src.infra.channel.feishu import get_feishu_channel_manager, start_feishu_channels
 
     manager = get_feishu_channel_manager()
+    manager.set_plugin_runtime(plugin_runtime)
     handler = create_feishu_message_handler(
         manager=manager,
         default_agent=default_agent,
         show_tools=show_tools,
+        plugin_runtime=plugin_runtime,
     )
 
     await start_feishu_channels(handler)

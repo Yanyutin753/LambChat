@@ -7,7 +7,6 @@ export const PWA_BACKEND_PREFIXES = [
   "/services",
   "/default",
   "/data_pipeline",
-  "/simple_workflow",
 ] as const;
 
 const STATIC_ASSET_PATTERN =

@@ -12,6 +12,7 @@ from src.infra.settings import pubsub as settings_pubsub
 from src.infra.settings.service import SettingsService
 from src.infra.task.constants import MODEL_CONFIG_CHANNEL, SETTINGS_CHANNEL
 from src.infra.tool import cache_pubsub, mcp_global
+from src.kernel.extensions import PluginManifest, PluginRuntime
 
 
 class _FakeRedisClient:
@@ -177,3 +178,62 @@ async def test_settings_service_publish_change_offloads_json_serialization(
 
     assert calls == [json.dumps]
     assert fake_redis.published[0][0] == SETTINGS_CHANNEL
+
+
+@pytest.mark.asyncio
+async def test_channel_pubsub_uses_manifest_declared_connector_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str | None]] = []
+
+    class _FakeManager:
+        @classmethod
+        def get_instance(cls):
+            return cls()
+
+        async def reload_user(self, user_id: str, instance_id: str | None = None) -> None:
+            calls.append((user_id, instance_id))
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="alternate_feishu_connector",
+                name="Alternate Feishu Connector",
+                version="1.0.0",
+                api_version="v1",
+                frontend={
+                    "channel_connectors": [
+                        {
+                            "id": "alternate_feishu_connector:feishu",
+                            "channel_type": "feishu",
+                        }
+                    ]
+                },
+            )
+        ]
+    )
+    runtime.disable_plugin("alternate_feishu_connector")
+
+    monkeypatch.setattr(
+        channel_pubsub.get_registry(),
+        "get_manager_class",
+        lambda channel_type: _FakeManager,
+    )
+    pubsub = channel_pubsub.ChannelConfigPubSub()
+    pubsub._instance_id = "instance-a"
+    pubsub.set_plugin_runtime(runtime)
+
+    await pubsub._handle_message(
+        {
+            "data": json.dumps(
+                {
+                    "instance_id": "instance-b",
+                    "user_id": "user-1",
+                    "channel_type": "feishu",
+                    "channel_instance_id": "bot-1",
+                }
+            )
+        }
+    )
+
+    assert calls == []

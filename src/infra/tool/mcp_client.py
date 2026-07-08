@@ -9,7 +9,8 @@ import asyncio
 import json
 import os
 from collections.abc import Mapping
-from typing import Any, Optional
+from types import SimpleNamespace
+from typing import Any, Optional, cast
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
@@ -166,6 +167,8 @@ class MCPToolWithRetry(BaseTool):
             config: LangChain RunnableConfig（可选）
             **kwargs: 关键字参数
         """
+        config = _config_with_user_context(config, user_id=self._user_id)
+
         if self._role_quotas:
             from src.infra.mcp.quota import (
                 check_and_consume_mcp_quota,
@@ -232,6 +235,23 @@ class MCPToolWithRetry(BaseTool):
                     return error_msg
         # 不应该到达这里，但以防万一
         return f"[MCP Tool Error] {self.name} failed: {last_error}"
+
+
+def _config_with_user_context(
+    config: Optional[RunnableConfig],
+    *,
+    user_id: str | None,
+) -> RunnableConfig | None:
+    if not user_id:
+        return config
+    resolved: dict[str, Any] = dict(config or {})
+    configurable = resolved.get("configurable")
+    if not isinstance(configurable, dict):
+        configurable = {}
+        resolved["configurable"] = configurable
+    configurable.setdefault("user_id", user_id)
+    configurable.setdefault("context", SimpleNamespace(user_id=user_id))
+    return cast(RunnableConfig, resolved)
 
 
 class MCPClientManager:

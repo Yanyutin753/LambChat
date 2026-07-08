@@ -178,8 +178,6 @@ async def create_agent_team(
         "Members chosen by the LLM after calling search_persona_presets. Each item is an "
         "object with: persona_preset_id (required, must be an id returned by "
         "search_persona_presets or the preset.id returned by save_persona_preset), "
-        "agent_id (optional agent mode id for this member, such as 'fast' or 'search'; "
-        "omit or null to follow the team's default member mode; do not use 'team'), "
         "model_id (optional model configuration id for this member; omit or null to "
         "follow the conversation model), "
         "role_name (required, concise display name for this team such as 'Market Research "
@@ -227,6 +225,12 @@ async def create_agent_team(
         "'Researcher gathers evidence first; Writer drafts; Reviewer checks gaps and "
         "risks; final answer must synthesize, not concatenate.'",
     ] = "",
+    run_in_sandbox: Annotated[
+        bool,
+        "Whether this Team should run inside the isolated sandbox backend. Use true for "
+        "tasks that need filesystem/code/tool execution isolation; use false for normal "
+        "coordination and writing teams.",
+    ] = False,
     starter_prompts: Annotated[
         list[dict[str, Any]] | None,
         "Optional prompt suggestions shown after selecting this team. Use the same shape "
@@ -279,7 +283,7 @@ async def create_agent_team(
             TeamMemberCreate(
                 member_id=item.get("member_id") or f"m-{index}",
                 persona_preset_id=item["persona_preset_id"],
-                agent_id=item.get("agent_id"),
+                agent_id=None,
                 model_id=item.get("model_id"),
                 role_name=item.get("role_name") or "",
                 role_avatar=item.get("role_avatar"),
@@ -304,6 +308,7 @@ async def create_agent_team(
             "members": team_members,
             "default_member_id": default_member_id,
             "team_instructions": team_instructions,
+            "run_in_sandbox": run_in_sandbox,
             "starter_prompts": starter_prompts or [],
         }
         if team_id:

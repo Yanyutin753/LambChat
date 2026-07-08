@@ -1,4 +1,4 @@
-.PHONY: help install install-pnpm dev build clean docker-up docker-down docker-logs docker-build test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-install frontend-test
+.PHONY: help install install-pnpm dev build clean docker-up docker-down docker-logs docker-build test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-build-smoke frontend-install
 
 # 默认目标
 help:
@@ -18,6 +18,7 @@ help:
 	@echo "构建:"
 	@echo "  make build            - 构建后端"
 	@echo "  make frontend-build   - 构建前端"
+	@echo "  make frontend-build-smoke - Build frontend without PWA injection"
 	@echo "  make build-all        - 构建前后端"
 	@echo ""
 	@echo "Docker:"
@@ -81,6 +82,10 @@ build:
 frontend-build:
 	@echo "🔨 构建前端..."
 	cd frontend && pnpm run build
+
+frontend-build-smoke:
+	@echo "Build frontend smoke bundle without PWA injection..."
+	cd frontend && pnpm run build:smoke
 
 build-all: build frontend-build
 	@echo "✅ 构建完成"

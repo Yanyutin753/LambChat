@@ -16,10 +16,7 @@ import {
   ExecuteItem,
   EvalItem,
   ImageGenerateItem,
-  ImageAnalyzeItem,
   AudioTranscribeItem,
-  UploadUrlToSandboxItem,
-  TransferItem,
   ScheduledTaskItem,
   EnvVarItem,
   PersonaItem,
@@ -36,6 +33,15 @@ import { SummaryItem } from "./SummaryItem";
 import type { RevealPreviewRequest } from "./items/revealPreviewData";
 import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 import { createToolPartAnchorId } from "./messagePartAnchors";
+import {
+  getToolRendererId,
+  getPluginMessageRenderer,
+  type PluginRuntimeContributionStates,
+} from "../../../extensions/coreContributions";
+import {
+  PLUGIN_MESSAGE_RENDERERS,
+  PluginMessageUnavailable,
+} from "./pluginMessageRenderers";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
@@ -49,6 +55,7 @@ export function MessagePartRenderer({
   onOpenPreview,
   onRecommendQuestionClick,
   onRetryCancelled,
+  runtimePlugins,
 }: {
   part: MessagePart;
   messageId?: string;
@@ -63,6 +70,7 @@ export function MessagePartRenderer({
   ) => boolean;
   onRecommendQuestionClick?: (question: string) => void;
   onRetryCancelled?: () => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }) {
   const { t } = useTranslation();
   const toolPartAnchorId =
@@ -98,8 +106,10 @@ export function MessagePartRenderer({
   }
 
   if (part.type === "tool") {
+    const coreToolRendererId = getToolRendererId(part.name, runtimePlugins);
+
     // Detect Read tool, use dedicated component (strips line numbers, shows file path)
-    if (part.name === "read_file") {
+    if (coreToolRendererId === "read-file") {
       return (
         <ReadFileItem
           args={part.args}
@@ -113,7 +123,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect reveal_file tool, use dedicated component
-    if (part.name === "reveal_file") {
+    if (coreToolRendererId === "reveal-file") {
       return (
         <div
           id={toolPartAnchorId}
@@ -135,7 +145,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect reveal_project tool, use dedicated component
-    if (part.name === "reveal_project") {
+    if (coreToolRendererId === "reveal-project") {
       return (
         <div
           id={toolPartAnchorId}
@@ -157,7 +167,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect edit_file tool, use dedicated component
-    if (part.name === "edit_file") {
+    if (coreToolRendererId === "edit-file") {
       return (
         <EditFileItem
           args={part.args}
@@ -171,7 +181,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect write_file tool, use dedicated component
-    if (part.name === "write_file") {
+    if (coreToolRendererId === "write-file") {
       return (
         <WriteFileItem
           args={part.args}
@@ -185,7 +195,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect grep tool, use dedicated component
-    if (part.name === "grep") {
+    if (coreToolRendererId === "grep") {
       return (
         <GrepItem
           args={part.args}
@@ -199,7 +209,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect ls tool, use dedicated component
-    if (part.name === "ls") {
+    if (coreToolRendererId === "ls") {
       return (
         <LsItem
           args={part.args}
@@ -213,7 +223,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect glob tool, use dedicated component
-    if (part.name === "glob") {
+    if (coreToolRendererId === "glob") {
       return (
         <GlobItem
           args={part.args}
@@ -227,7 +237,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect execute tool, use dedicated component
-    if (part.name === "execute") {
+    if (coreToolRendererId === "execute") {
       return (
         <ExecuteItem
           args={part.args}
@@ -256,10 +266,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect internal MCP tools, use dedicated themed components
-    if (
-      part.name === "image_generate" ||
-      part.name === "image_edit_with_references"
-    ) {
+    if (coreToolRendererId === "image-generate") {
       return (
         <ImageGenerateItem
           args={part.args}
@@ -272,47 +279,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (part.name === "image_analyze") {
-      return (
-        <ImageAnalyzeItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (part.name === "upload_url_to_sandbox") {
-      return (
-        <UploadUrlToSandboxItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (part.name === "transfer_file" || part.name === "transfer_path") {
-      return (
-        <TransferItem
-          toolName={part.name}
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (part.name === "audio_transcribe") {
+    if (coreToolRendererId === "audio-transcribe") {
       return (
         <AudioTranscribeItem
           args={part.args}
@@ -325,16 +292,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      part.name === "scheduled_task_create" ||
-      part.name === "scheduled_task_list" ||
-      part.name === "scheduled_task_get" ||
-      part.name === "scheduled_task_update" ||
-      part.name === "scheduled_task_pause" ||
-      part.name === "scheduled_task_resume" ||
-      part.name === "scheduled_task_delete" ||
-      part.name === "scheduled_task_run"
-    ) {
+    if (coreToolRendererId === "scheduled-task") {
       return (
         <ScheduledTaskItem
           toolName={part.name}
@@ -348,12 +306,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      part.name === "env_var_list" ||
-      part.name === "env_var_set" ||
-      part.name === "env_var_delete" ||
-      part.name === "env_var_delete_all"
-    ) {
+    if (coreToolRendererId === "env-var") {
       return (
         <EnvVarItem
           toolName={part.name}
@@ -367,11 +320,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      part.name === "save_persona_preset" ||
-      part.name === "create_persona_preset" ||
-      part.name === "update_persona_preset"
-    ) {
+    if (coreToolRendererId === "persona") {
       return (
         <PersonaItem
           args={part.args}
@@ -384,10 +333,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      part.name === "search_persona_presets" ||
-      part.name === "create_agent_team"
-    ) {
+    if (coreToolRendererId === "agent-team") {
       return (
         <TeamItem
           toolName={part.name}
@@ -401,11 +347,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      part.name === "sandbox_mcp_add" ||
-      part.name === "sandbox_mcp_update" ||
-      part.name === "sandbox_mcp_remove"
-    ) {
+    if (coreToolRendererId === "sandbox-mcp") {
       return (
         <SandboxMcpItem
           toolName={part.name}
@@ -419,7 +361,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (part.name === "memory_recall") {
+    if (coreToolRendererId === "memory-recall") {
       return (
         <MemoryRecallItem
           args={part.args}
@@ -432,7 +374,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (part.name === "memory_retain" || part.name === "memory_delete") {
+    if (coreToolRendererId === "memory-store") {
       return (
         <MemoryStoreItem
           toolName={part.name}
@@ -447,7 +389,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect ask_human tool, use dedicated component
-    if (part.name === "ask_human") {
+    if (coreToolRendererId === "ask-human") {
       return (
         <AskHumanItem
           args={part.args}
@@ -461,7 +403,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect search_tools, use dedicated component (shows tool discovery results as cards)
-    if (part.name === "search_tools") {
+    if (coreToolRendererId === "search-tools") {
       return (
         <ToolSearchItem
           args={part.args}
@@ -489,6 +431,22 @@ export function MessagePartRenderer({
     );
   }
 
+  if (part.type === "plugin_message") {
+    const contribution = getPluginMessageRenderer(
+      part.plugin_id,
+      part.renderer,
+      runtimePlugins,
+    );
+    if (!contribution) {
+      return <PluginMessageUnavailable part={part} reason="not_declared" />;
+    }
+    const Renderer = PLUGIN_MESSAGE_RENDERERS[contribution.renderer];
+    if (!Renderer) {
+      return <PluginMessageUnavailable part={part} reason="not_registered" />;
+    }
+    return <Renderer part={part} contribution={contribution} />;
+  }
+
   if (part.type === "thinking") {
     return (
       <ThinkingBlock
@@ -514,6 +472,7 @@ export function MessagePartRenderer({
         completedAt={part.completedAt}
         status={part.status}
         error={part.error}
+        runtimePlugins={runtimePlugins}
       />
     );
   }

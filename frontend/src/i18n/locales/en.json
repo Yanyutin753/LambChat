@@ -1595,14 +1595,6 @@
     "hideCode": "Hide code",
     "showCode": "Show code"
   },
-  "mode": {
-    "auto": "Auto",
-    "autoDesc": "Auto-execute, skip confirmations",
-    "goal": "Goal",
-    "goalDesc": "Messages as goals for guided execution",
-    "hint": "Both modes can be active simultaneously",
-    "title": "Run Mode"
-  },
   "nav": {
     "adminMarketplace": "Admin Marketplace",
     "agents": "Configuration",
@@ -1620,6 +1612,7 @@
     "more": "More",
     "notifications": "Notifications",
     "persona": "Persona",
+    "plugins": "Plugins",
     "roles": "Roles",
     "scheduled-tasks": "Scheduled Tasks",
     "settings": "Settings",
@@ -1640,6 +1633,7 @@
     "memory": "View and manage AI memory content",
     "models": "Manage LLM model configurations",
     "notifications": "Manage system announcements",
+    "plugins": "Inspect runtime-managed plugins",
     "roles": "Configure roles and permissions",
     "scheduledTasks": "Manage automated scheduled tasks",
     "settings": "Application and system settings",
@@ -2089,6 +2083,10 @@
     "marketplace": {
       "description": "Discover and install community-built AI skills. Browse, rate, and deploy pre-built capabilities to extend your AI agent functionality.",
       "title": "Skill Marketplace"
+    },
+    "plugins": {
+      "description": "Inspect Plugin Runtime state, static contributions, resource ownership, and uninstall dry-run plans for built-in plugins.",
+      "title": "Plugin Runtime"
     },
     "mcp": {
       "description": "Manage Model Context Protocol server connections. Connect external tools, databases, and services to extend AI agent capabilities.",
@@ -2723,6 +2721,179 @@
     "subtitle": "Manage local skills and explore the marketplace",
     "title": "Skills"
   },
+  "pluginRuntime": {
+    "actions": {
+      "disable": "Disable",
+      "enable": "Enable",
+      "export": "Export",
+      "import": "Import",
+      "uninstall": "Uninstall"
+    },
+    "audit": {
+      "title": "State audit"
+    },
+    "acceptance": {
+      "missing": "Missing",
+      "missingCount": "Missing",
+      "passed": "Passed",
+      "passedCount": "Passed",
+      "title": "Acceptance Matrix",
+      "total": "Total"
+    },
+    "contributions": "Contributions",
+    "contributionPreview": {
+      "active": "Currently active entries",
+      "disablePolicy": "Disabling blocks executable entries; it does not remove owned data.",
+      "removedWhenDisabled": "Blocked when disabled",
+      "resources": "Resource dry-run actions",
+      "title": "Runtime impact preview",
+      "uninstallPolicy": "Uninstall requires a dry-run snapshot and is blocked for protected system preset plugins."
+    },
+    "dryRun": "Uninstall dry-run",
+    "dryRunExpires": "Expires",
+    "dryRunSnapshot": "Snapshot",
+    "dryRunValidation": "Validation",
+    "diagnostics": {
+      "title": "Diagnostics"
+    },
+    "emptyDescription": "Runtime-managed plugins will appear here after registration.",
+    "emptyTitle": "No plugins registered",
+    "fetchDetailsFailed": "Failed to load plugin details",
+    "fetchFailed": "Failed to load plugins",
+    "exportFailed": "Failed to export plugin",
+    "guardMatrix": {
+      "failureMode": "Failure mode",
+      "surfaces": {
+        "hot_install_guard": "Hot install and remote packages",
+        "lifecycle_hook_guard": "Lifecycle hooks",
+        "listener_guard": "Pub/Sub listeners",
+        "route_guard": "Plugin route registration",
+        "scheduler_guard": "Scheduler jobs",
+        "tool_guard": "Internal MCP tools",
+        "uninstall_guard": "Uninstall dry-run validation"
+      },
+      "title": "Runtime Guard Coverage"
+    },
+    "import": {
+      "dryRun": "Dry run",
+      "note": "Import accepts a server-local plugin folder or zip/tar package path. It validates and copies into plugins/installed, creates plugin-data, and does not hot-load code.",
+      "placeholder": "C:\\path\\to\\plugin_folder or C:\\path\\to\\plugin.zip",
+      "title": "Import local plugin package"
+    },
+    "importFailed": "Failed to import plugin",
+    "installTypes": {
+      "preinstalled": "Preinstalled",
+      "system_builtin": "System preset",
+      "user_installed": "User installed"
+    },
+    "feedbackMigration": {
+      "blocked": "Blocked",
+      "failed": "Failed",
+      "missing": "Missing gates",
+      "passed": "Passed",
+      "plugin": "Plugin",
+      "ready": "Ready for first step",
+      "satisfied": "Satisfied gates",
+      "title": "Feedback Migration Gates"
+    },
+    "updateStateFailed": "Failed to update plugin state",
+    "issues": "Issues",
+    "metrics": {
+      "contributions": "Contrib",
+      "dryRun": "Dry-run",
+      "frontend": "Frontend",
+      "resources": "Resources",
+      "routes": "Routes",
+      "settings": "Settings",
+      "uninstall": "Uninstall"
+    },
+    "ownership": {
+      "active": "Currently owned by Plugin Runtime",
+      "blocked": "Not active; enable the plugin before it owns entries",
+      "title": "Plugin Ownership Overview"
+    },
+    "resourceEntries": "resource entries",
+    "resources": "Resource ledger",
+    "uninstall": {
+      "confirm": "Uninstall this plugin? Runtime entries will be disabled and only resources allowed by the current dry-run snapshot can be processed.",
+      "protected": "This is a system preset plugin. It can be disabled, but it cannot be uninstalled."
+    },
+    "uninstallFailed": "Failed to uninstall plugin",
+    "settings": {
+      "disabledHint": "This plugin is disabled. Settings are saved here but do not affect runtime until the plugin is enabled.",
+      "empty": "No plugin settings",
+      "title": "Plugin settings",
+      "updateFailed": "Failed to update plugin setting"
+    },
+    "runtimeSideEffect": {
+      "action": "Action",
+      "status": "Status",
+      "title": "Runtime side effect"
+    },
+    "progress": {
+      "evidence": {
+        "phase_1_runtime_foundation": "Manifest validation, plugin state, guards, permissions, static registration, and controlled hook execution are covered.",
+        "phase_2_core_plugin_matrix": "Core routes remain stable while plugin-owned routes, tools, hooks, and frontend entries can be hidden by runtime state.",
+        "phase_2_resource_dry_run": "Plugin-owned resources and uninstall dry-run validation are represented without physical deletion.",
+        "phase_3_feedback_first_step": "Feedback migration gates are executable and ready for the first low-coupling plugin migration step."
+      },
+      "missing": "Missing",
+      "passed": "Passed",
+      "phases": {
+        "phase_1_runtime_foundation": "Phase 1: Runtime foundation",
+        "phase_2_core_plugin_matrix": "Phase 2: Core/plugin matrix",
+        "phase_2_resource_dry_run": "Phase 2: Resources and dry-run",
+        "phase_3_feedback_first_step": "Phase 3: Feedback first step"
+      },
+      "title": "Pluginization Progress"
+    },
+    "subtitle": "Runtime state, owned resources, and dry-run planning for static built-in plugins",
+    "summary": {
+      "hotInstall": "Hot install",
+      "mode": "Mode",
+      "plugins": "Plugins",
+      "uninstall": "Uninstall"
+    },
+    "title": "Plugin Runtime"
+  },
+  "pluginSettings": {
+    "audio_transcription": {
+      "API_KEY": {
+        "description": "OpenAI-compatible API key for audio transcription.",
+        "label": "API key"
+      },
+      "BASE_URL": {
+        "description": "Optional OpenAI-compatible API base URL.",
+        "label": "Base URL"
+      },
+      "MAX_DOWNLOAD_BYTES": {
+        "description": "Maximum remote audio download size before forwarding to transcription.",
+        "label": "Max download bytes"
+      },
+      "MODEL": {
+        "description": "Default transcription model.",
+        "label": "Model"
+      }
+    },
+    "image_generation": {
+      "API_KEY": {
+        "description": "OpenAI-compatible API key for image generation.",
+        "label": "API key"
+      },
+      "BASE_URL": {
+        "description": "OpenAI-compatible image API base URL.",
+        "label": "Base URL"
+      },
+      "MODEL": {
+        "description": "Default image generation model.",
+        "label": "Model"
+      },
+      "TIMEOUT": {
+        "description": "Image API request timeout in seconds.",
+        "label": "Timeout"
+      }
+    }
+  },
   "subcategories": {
     "api": "API",
     "apple": "Apple",
@@ -2834,6 +3005,11 @@
     "memberModel": "Member model",
     "memberModels": "Member models",
     "memberModes": "Member modes",
+    "runInSandbox": "Sandbox run",
+    "runInSandboxTitle": "Run this team in the sandbox",
+    "runInSandboxDesc": "When enabled, Team mode uses an isolated sandbox backend for this team. When disabled, it uses the persistent workspace backend.",
+    "enableSandbox": "Enable sandbox run",
+    "disableSandbox": "Disable sandbox run",
     "members": "members",
     "newTeam": "New team",
     "noMatchingTeams": "No matching teams",
@@ -2884,6 +3060,7 @@
       "${cat}": "{{cat}}",
       "builtin": "Built-in",
       "human": "Human",
+      "internal": "Internal",
       "mcp": "MCP",
       "sandbox": "Sandbox",
       "skill": "Skills"

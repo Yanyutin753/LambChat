@@ -13,6 +13,15 @@ import { ChannelConfigSkeleton } from "../../../skeletons";
 import { EditorSidebar } from "../../../common/EditorSidebar";
 import { channelApi } from "../../../../services/api/channel";
 import {
+  importLegacyPayloadPluginOptions,
+  filterPluginOptionsByVisibleWhen,
+  hasEffectiveCorePersonaSuppressingOption,
+  pluginOptionsFromMetadata,
+  retainPluginOptionsForDeclarations,
+  withPluginOption,
+} from "../../../../extensions/pluginOptions";
+import { useChannelPluginOptions } from "../../../../hooks/useChannelPluginOptions";
+import {
   DEFAULT_AUDIO_TRANSCRIBE_PROMPT,
   PREDEFINED_EMOJIS,
 } from "./constants";
@@ -22,6 +31,43 @@ import type {
   FeishuConfigStatus,
   FeishuPanelProps,
 } from "./types";
+import type { ChannelPluginOptionValues } from "../ChannelPluginOptions";
+import type { ExtensionScopedOption } from "../../../../types";
+
+function pluginOptionsForChannelConfig(
+  config: Record<string, unknown>,
+  declarations: readonly ExtensionScopedOption[],
+): ChannelPluginOptionValues {
+  const imported = importLegacyPayloadPluginOptions(
+    config,
+    declarations,
+    pluginOptionsFromMetadata(config),
+  );
+  return retainPluginOptionsForDeclarations(imported, declarations);
+}
+
+function channelOptionsForAgent(
+  declarations: readonly ExtensionScopedOption[],
+  agentId: string | null,
+): readonly ExtensionScopedOption[] {
+  return filterPluginOptionsByVisibleWhen(declarations, {
+    agentId,
+    route: "/channels/feishu",
+    scope: "channel",
+  });
+}
+
+function corePersonaPresetForChannelConfig(
+  config: { persona_preset_id?: string | null },
+  declarations: readonly ExtensionScopedOption[],
+  agentId: string | null,
+): string | null {
+  return hasEffectiveCorePersonaSuppressingOption(
+    channelOptionsForAgent(declarations, agentId),
+  )
+    ? null
+    : config.persona_preset_id || null;
+}
 
 export function FeishuPanel({
   instanceId,
@@ -62,8 +108,12 @@ export function FeishuPanel({
   );
   const [agentId, setAgentId] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string | null>(null);
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const [channelPluginOptionValues, setChannelPluginOptionValues] =
+    useState<ChannelPluginOptionValues>({});
   const [personaPresetId, setPersonaPresetId] = useState<string | null>(null);
+  const { options: channelPluginOptions } = useChannelPluginOptions("feishu", {
+    includeInactive: true,
+  });
   const [registrationSessionId, setRegistrationSessionId] = useState<
     string | null
   >(null);
@@ -81,6 +131,14 @@ export function FeishuPanel({
 
   // Track if config exists
   const [hasExistingConfig, setHasExistingConfig] = useState(false);
+  const activeChannelPluginOptions = filterPluginOptionsByVisibleWhen(
+    channelPluginOptions,
+    {
+      agentId,
+      route: "/channels/feishu",
+      scope: "channel",
+    },
+  );
 
   // Load config - use external data if provided, otherwise fetch from API
   useEffect(() => {
@@ -122,13 +180,15 @@ export function FeishuPanel({
       const initialAgentId = initialConfig.agent_id || null;
       setAgentId(initialAgentId);
       setModelId(initialConfig.model_id || null);
-      setTeamId(
-        initialAgentId === "team" ? initialConfig.team_id || null : null,
+      setChannelPluginOptionValues(
+        pluginOptionsForChannelConfig({ ...initialConfig }, channelPluginOptions),
       );
       setPersonaPresetId(
-        initialAgentId === "team"
-          ? null
-          : initialConfig.persona_preset_id || null,
+        corePersonaPresetForChannelConfig(
+          { ...initialConfig },
+          channelPluginOptions,
+          initialAgentId,
+        ),
       );
 
       const emojiValue = (feishuConfig?.react_emoji as string) || "THUMBSUP";
@@ -161,7 +221,7 @@ export function FeishuPanel({
       setCredentialMode("scan");
       setAgentId(null);
       setModelId(null);
-      setTeamId(null);
+      setChannelPluginOptionValues({});
       setPersonaPresetId(null);
     }
 
@@ -194,7 +254,7 @@ export function FeishuPanel({
         setStatus(null);
         setAgentId(null);
         setModelId(null);
-        setTeamId(null);
+        setChannelPluginOptionValues({});
         setPersonaPresetId(null);
         setIsLoading(false);
         return;
@@ -225,13 +285,15 @@ export function FeishuPanel({
         const loadedAgentId = configResponse.agent_id || null;
         setAgentId(loadedAgentId);
         setModelId(configResponse.model_id || null);
-        setTeamId(
-          loadedAgentId === "team" ? configResponse.team_id || null : null,
+        setChannelPluginOptionValues(
+          pluginOptionsForChannelConfig({ ...configResponse }, channelPluginOptions),
         );
         setPersonaPresetId(
-          loadedAgentId === "team"
-            ? null
-            : configResponse.persona_preset_id || null,
+          corePersonaPresetForChannelConfig(
+            { ...configResponse },
+            channelPluginOptions,
+            loadedAgentId,
+          ),
         );
 
         // Check if the emoji is a predefined one or custom
@@ -265,7 +327,7 @@ export function FeishuPanel({
         setCredentialMode("scan");
         setAgentId(null);
         setModelId(null);
-        setTeamId(null);
+        setChannelPluginOptionValues({});
         setPersonaPresetId(null);
       }
 
@@ -284,18 +346,34 @@ export function FeishuPanel({
 
   const handleAgentIdChange = (value: string | null) => {
     setAgentId(value);
-    if (value === "team") {
+    const nextOptions = filterPluginOptionsByVisibleWhen(channelPluginOptions, {
+      agentId: value,
+      route: "/channels/feishu",
+      scope: "channel",
+    });
+    setChannelPluginOptionValues((current) =>
+      retainPluginOptionsForDeclarations(current, nextOptions),
+    );
+    if (
+      nextOptions.some(
+        (option) =>
+          option.effective !== false && option.suppresses_core_persona_selector,
+      )
+    ) {
       setPersonaPresetId(null);
-    } else {
-      setTeamId(null);
     }
   };
 
-  const handlePersonaPresetIdChange = (value: string | null) => {
-    setPersonaPresetId(value);
-    if (value) {
-      setTeamId(null);
-    }
+  const handleChannelPluginOptionChange = (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => {
+    setChannelPluginOptionValues(
+      (current) =>
+        withPluginOption({ plugin_options: current }, pluginId, key, value)
+          .plugin_options ?? {},
+    );
   };
 
   useEffect(() => {
@@ -432,9 +510,19 @@ export function FeishuPanel({
     setIsSaving(true);
     try {
       const emojiValue = getEmojiValue();
-      const channelTeamId = agentId === "team" ? teamId : null;
-      const channelPersonaPresetId =
-        agentId === "team" ? null : personaPresetId;
+      const effectiveChannelPluginOptions = activeChannelPluginOptions.filter(
+        (option) => option.effective !== false,
+      );
+      const nextChannelPluginOptions = retainPluginOptionsForDeclarations(
+        channelPluginOptionValues,
+        activeChannelPluginOptions,
+      );
+      const suppressesCorePersonaSelector = effectiveChannelPluginOptions.some(
+        (option) => option.suppresses_core_persona_selector,
+      );
+      const channelPersonaPresetId = suppressesCorePersonaSelector
+        ? null
+        : personaPresetId;
 
       if (hasExistingConfig) {
         const updateData: Record<string, unknown> = {
@@ -462,7 +550,7 @@ export function FeishuPanel({
           enabled,
           agent_id: agentId,
           model_id: modelId,
-          team_id: channelTeamId,
+          plugin_options: nextChannelPluginOptions,
           persona_preset_id: channelPersonaPresetId,
         });
         const feishuConfig = updated.config as FeishuConfigResponse;
@@ -486,7 +574,7 @@ export function FeishuPanel({
           },
           agent_id: agentId,
           model_id: modelId,
-          team_id: channelTeamId,
+          plugin_options: nextChannelPluginOptions,
           persona_preset_id: channelPersonaPresetId,
         });
         const feishuConfig = created.config as FeishuConfigResponse;
@@ -547,7 +635,7 @@ export function FeishuPanel({
       setCredentialMode("scan");
       setAgentId(null);
       setModelId(null);
-      setTeamId(null);
+      setChannelPluginOptionValues({});
       setPersonaPresetId(null);
       setStatus(null);
       toast.success(t("feishu.deleteSuccess", "Feishu configuration deleted"));
@@ -607,7 +695,8 @@ export function FeishuPanel({
       audioTranscribePrompt={audioTranscribePrompt}
       agentId={agentId}
       modelId={modelId}
-      teamId={teamId}
+      channelPluginOptions={channelPluginOptions}
+      channelPluginOptionValues={channelPluginOptionValues}
       personaPresetId={personaPresetId}
       credentialMode={credentialMode}
       registrationStatus={registrationStatus}
@@ -629,8 +718,8 @@ export function FeishuPanel({
       setAudioTranscribePrompt={setAudioTranscribePrompt}
       onAgentIdChange={handleAgentIdChange}
       setModelId={setModelId}
-      setTeamId={setTeamId}
-      setPersonaPresetId={handlePersonaPresetIdChange}
+      setChannelPluginOption={handleChannelPluginOptionChange}
+      setPersonaPresetId={setPersonaPresetId}
       setCredentialMode={setCredentialMode}
       handleStartRegistration={handleStartRegistration}
       handleTest={handleTest}

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import posixpath
 import shlex
 import uuid
 from typing import Literal
@@ -229,7 +230,7 @@ class DaytonaBackend(BaseSandbox):
         glob_regex = re.compile("^" + "".join(segments) + "$")
 
         def _matches_find_result(full_path: str) -> bool:
-            relative_path = os.path.relpath(full_path, search_path)
+            relative_path = posixpath.relpath(full_path, search_path)
             return glob_regex.match(relative_path) is not None
 
         matches: list[FileInfo] = []

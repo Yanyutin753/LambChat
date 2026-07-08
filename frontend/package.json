@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:smoke": "tsc -b && vite build --mode smoke",
     "lint": "eslint .",
     "preview": "vite preview",
     "brand:assets": "node scripts/generate-branded-assets.mjs",

@@ -1,50 +1,41 @@
 import { useMemo } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceDot,
-} from "recharts";
 import { LineChart, TrendingUp, Zap, Calendar, Flame } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { UsageDailyPoint } from "../../../types/usage";
 import { fmt, fmtDur, normalizeTrendPoints, shortDate } from "./formatters";
 
-// ── Custom tooltip ──
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-[var(--usage-border)] bg-[var(--theme-bg-card)] px-4 py-2.5 shadow-lg">
-      <div className="h-0.5 mb-2 rounded-full bg-[var(--theme-primary)]" />
-      <p className="mb-1 text-[11px] font-medium text-theme-text-tertiary">
-        {label}
-      </p>
-      {payload.map((entry) => (
-        <div key={entry.name} className="flex items-center gap-2 text-xs">
-          <span
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-theme-text-secondary">{entry.name}</span>
-          <span className="ml-auto font-semibold tabular-nums text-theme-text">
-            {fmt(entry.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
+type MiniTrendChartPoint = {
+  date: string;
+  label: string;
+  tokens: number;
+  requests: number;
+  x: number;
+  tokenY: number;
+  requestY: number;
+};
+
+function chartPath(
+  points: MiniTrendChartPoint[],
+  key: "tokenY" | "requestY",
+) {
+  return points
+    .map((point, index) =>
+      `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point[
+        key
+      ].toFixed(1)}`,
+    )
+    .join(" ");
+}
+
+function chartAreaPath(
+  points: MiniTrendChartPoint[],
+  key: "tokenY" | "requestY",
+) {
+  if (points.length === 0) return "";
+  const line = chartPath(points, key);
+  const first = points[0];
+  const last = points[points.length - 1];
+  return `${line} L ${last.x.toFixed(1)} 160 L ${first.x.toFixed(1)} 160 Z`;
 }
 
 export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
@@ -63,25 +54,42 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
     (p) => p.tokens > 0 || p.requests > 0,
   ).length;
   const hasData = visible.some((p) => p.tokens > 0 || p.requests > 0);
-  const peakIdx = visible.reduce(
-    (best, p, i) => (p.tokens > visible[best].tokens ? i : best),
-    0,
-  );
+  const peakIdx = visible.length
+    ? visible.reduce(
+        (best, p, i) => (p.tokens > visible[best].tokens ? i : best),
+        0,
+      )
+    : 0;
   const peakPoint = visible[peakIdx];
 
-  const chartData = useMemo(
-    () =>
-      visible.map((p) => ({
-        date: shortDate(p.date),
-        Tokens: p.tokens,
-        requests: p.requests,
-      })),
-    [visible],
-  );
+  const chartPoints = useMemo<MiniTrendChartPoint[]>(() => {
+    const width = 320;
+    const height = 160;
+    const maxValue = Math.max(
+      1,
+      ...visible.map((point) => Math.max(point.tokens, point.requests)),
+    );
+    const step = visible.length > 1 ? width / (visible.length - 1) : 0;
+    return visible.map((point, index) => {
+      const x = visible.length > 1 ? index * step : width / 2;
+      return {
+        date: point.date,
+        label: shortDate(point.date),
+        tokens: point.tokens,
+        requests: point.requests,
+        x,
+        tokenY: height - (point.tokens / maxValue) * height,
+        requestY: height - (point.requests / maxValue) * height,
+      };
+    });
+  }, [visible]);
+  const tokenPath = chartPath(chartPoints, "tokenY");
+  const requestPath = chartPath(chartPoints, "requestY");
+  const tokenAreaPath = chartAreaPath(chartPoints, "tokenY");
+  const requestAreaPath = chartAreaPath(chartPoints, "requestY");
 
   return (
     <div className="usage-surface usage-chart-card overflow-hidden rounded-xl">
-      {/* Header */}
       <div className="flex items-start justify-between gap-3 border-b border-[var(--usage-border)] px-4 pt-4 pb-3.5 sm:px-5">
         <div className="flex items-center gap-2.5">
           <div className="usage-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--usage-icon-bg)] text-[var(--theme-primary)] sm:h-9 sm:w-9">
@@ -109,7 +117,6 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
         </div>
       </div>
 
-      {/* Chart area */}
       <div className="bg-[var(--usage-inset-bg)] px-1 py-2 sm:px-2 sm:py-3">
         {!hasData ? (
           <div className="usage-empty-state flex h-[180px] flex-col items-center justify-center gap-2 text-theme-text-tertiary sm:h-[220px]">
@@ -117,133 +124,130 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
             <span className="text-xs">{t("usage.trend.empty")}</span>
           </div>
         ) : (
-          <ResponsiveContainer
-            width="100%"
-            height={180}
-            className="sm:!h-[220px]"
-          >
-            <AreaChart
-              data={chartData}
-              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+          <div className="h-[180px] px-3 py-2 sm:h-[220px]">
+            <svg
+              viewBox="0 0 360 190"
+              role="img"
+              aria-label={t("usage.trend.title")}
+              className="h-full w-full overflow-visible"
+              preserveAspectRatio="none"
             >
               <defs>
-                <linearGradient id="gradTokens" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id="usage-mini-trend-tokens"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop
                     offset="0%"
                     stopColor="var(--theme-primary)"
-                    stopOpacity={0.3}
+                    stopOpacity="0.3"
                   />
                   <stop
                     offset="95%"
                     stopColor="var(--theme-primary)"
-                    stopOpacity={0}
+                    stopOpacity="0"
                   />
                 </linearGradient>
-                <linearGradient id="gradRequests" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id="usage-mini-trend-requests"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop
                     offset="0%"
                     stopColor="var(--usage-chart-secondary)"
-                    stopOpacity={0.2}
+                    stopOpacity="0.2"
                   />
                   <stop
                     offset="95%"
                     stopColor="var(--usage-chart-secondary)"
-                    stopOpacity={0}
+                    stopOpacity="0"
                   />
                 </linearGradient>
               </defs>
-
-              <CartesianGrid
-                strokeDasharray="3 4"
-                stroke="var(--usage-border)"
-                vertical={false}
-                opacity={0.5}
-              />
-
-              <XAxis
-                dataKey="date"
-                tick={{
-                  fill: "var(--theme-text-tertiary)",
-                  fontSize: 10,
-                }}
-                tickLine={false}
-                axisLine={false}
-                dy={8}
-              />
-
-              <YAxis
-                tick={{
-                  fill: "var(--theme-text-tertiary)",
-                  fontSize: 10,
-                }}
-                tickLine={false}
-                axisLine={false}
-                dx={-4}
-                width={36}
-                tickFormatter={(v: number) => fmt(v)}
-              />
-
-              <Tooltip
-                content={<ChartTooltip />}
-                cursor={{
-                  stroke: "var(--theme-primary)",
-                  strokeWidth: 0,
-                  fill: "var(--theme-primary)",
-                  fillOpacity: 0.04,
-                }}
-              />
-
-              <Area
-                type="monotone"
-                dataKey="requests"
-                name={t("usage.trend.seriesRequests")}
-                stroke="var(--usage-chart-secondary)"
-                strokeWidth={1.5}
-                fill="url(#gradRequests)"
-                dot={false}
-                isAnimationActive={true}
-                activeDot={{
-                  r: 3,
-                  fill: "var(--usage-chart-secondary)",
-                  stroke: "var(--theme-bg-card)",
-                  strokeWidth: 2,
-                }}
-              />
-
-              <Area
-                type="monotone"
-                dataKey="Tokens"
-                stroke="var(--theme-primary)"
-                strokeWidth={2}
-                fill="url(#gradTokens)"
-                dot={false}
-                isAnimationActive={true}
-                activeDot={{
-                  r: 4,
-                  fill: "var(--theme-primary)",
-                  stroke: "var(--theme-bg-card)",
-                  strokeWidth: 2,
-                }}
-              />
-
-              {/* Peak indicator dot — always visible when data exists */}
-              {hasData && peakPoint.tokens > 0 && (
-                <ReferenceDot
-                  x={shortDate(peakPoint.date)}
-                  y={peakPoint.tokens}
-                  r={4}
-                  fill="var(--theme-primary)"
-                  stroke="var(--theme-bg-card)"
-                  strokeWidth={2}
-                  fillOpacity={0.8}
+              {[0, 40, 80, 120, 160].map((y) => (
+                <line
+                  key={y}
+                  x1="24"
+                  x2="344"
+                  y1={8 + y}
+                  y2={8 + y}
+                  stroke="var(--usage-border)"
+                  strokeDasharray="3 4"
+                  opacity="0.5"
                 />
-              )}
-            </AreaChart>
-          </ResponsiveContainer>
+              ))}
+              <g transform="translate(24 8)">
+                <path d={requestAreaPath} fill="url(#usage-mini-trend-requests)" />
+                <path d={tokenAreaPath} fill="url(#usage-mini-trend-tokens)" />
+                <path
+                  d={requestPath}
+                  fill="none"
+                  stroke="var(--usage-chart-secondary)"
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <path
+                  d={tokenPath}
+                  fill="none"
+                  stroke="var(--theme-primary)"
+                  strokeWidth="2.5"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {chartPoints.map((point) => (
+                  <circle
+                    key={point.date}
+                    cx={point.x}
+                    cy={point.tokenY}
+                    r="3"
+                    fill="var(--theme-primary)"
+                    opacity="0.7"
+                  >
+                    <title>{`${point.label}: ${fmt(point.tokens)} ${t(
+                      "usage.trend.tokens",
+                    )}, ${fmt(point.requests)} ${t(
+                      "usage.trend.seriesRequests",
+                    )}`}</title>
+                  </circle>
+                ))}
+                {peakPoint && peakPoint.tokens > 0 && (
+                  <circle
+                    cx={chartPoints[peakIdx]?.x ?? 0}
+                    cy={chartPoints[peakIdx]?.tokenY ?? 0}
+                    r="5"
+                    fill="var(--theme-primary)"
+                    stroke="var(--theme-bg-card)"
+                    strokeWidth="2"
+                  />
+                )}
+              </g>
+              <text
+                x="24"
+                y="186"
+                fill="var(--theme-text-tertiary)"
+                fontSize="10"
+              >
+                {chartPoints[0]?.label ?? ""}
+              </text>
+              <text
+                x="344"
+                y="186"
+                textAnchor="end"
+                fill="var(--theme-text-tertiary)"
+                fontSize="10"
+              >
+                {chartPoints[chartPoints.length - 1]?.label ?? ""}
+              </text>
+            </svg>
+          </div>
         )}
       </div>
 
-      {/* Summary — Mobile (3 cols) */}
       <div className="grid grid-cols-3 gap-1.5 border-t border-[var(--usage-border)] px-3 py-2.5 sm:hidden">
         <div className="flex flex-col">
           <span className="text-[9px] font-medium uppercase tracking-wide text-theme-text-tertiary">
@@ -266,12 +270,11 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
             {t("usage.trend.peak")}
           </span>
           <span className="text-[13px] font-bold tabular-nums text-theme-text">
-            {hasData ? shortDate(peakPoint.date) : "-"}
+            {peakPoint ? shortDate(peakPoint.date) : "-"}
           </span>
         </div>
       </div>
 
-      {/* Summary — Desktop (4 cols with icons) */}
       <div className="hidden grid-cols-4 gap-2 border-t border-[var(--usage-border)] px-4 py-3 sm:grid">
         {[
           {
@@ -292,8 +295,8 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
           {
             icon: Flame,
             label: t("usage.trend.peak"),
-            value: hasData
-              ? `${shortDate(peakPoint.date)} · ${fmt(peakPoint.tokens)}`
+            value: peakPoint
+              ? `${shortDate(peakPoint.date)} / ${fmt(peakPoint.tokens)}`
               : "-",
           },
         ].map((item) => (

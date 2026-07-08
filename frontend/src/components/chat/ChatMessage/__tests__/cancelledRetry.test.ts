@@ -42,7 +42,9 @@ test("finds the closest user message before a cancelled assistant message", () =
     },
   ] satisfies Message[];
 
-  expect(findCancelledRetryTarget(messages, "assistant-cancelled")).toEqual({
+  assert.deepEqual(findCancelledRetryTarget(messages, "assistant-cancelled"), {
+    userMessageId: "user-2",
+    assistantMessageId: "assistant-cancelled",
     content: "retry this prompt",
     attachments: messages[2]?.attachments,
   });

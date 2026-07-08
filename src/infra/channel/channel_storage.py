@@ -127,7 +127,7 @@ class ChannelStorage:
         agent_id: str | None = None,
         model_id: str | None = None,
         project_id: str | None = None,
-        team_id: str | None = None,
+        plugin_options: dict[str, dict[str, Any]] | None = None,
         persona_preset_id: str | None = None,
     ) -> dict[str, Any]:
         """Create channel configuration for a user"""
@@ -148,7 +148,7 @@ class ChannelStorage:
             "agent_id": agent_id,
             "model_id": model_id,
             "project_id": project_id,
-            "team_id": team_id,
+            "plugin_options": plugin_options or {},
             "persona_preset_id": persona_preset_id,
             "created_at": now,
             "updated_at": now,
@@ -172,7 +172,7 @@ class ChannelStorage:
         agent_id: Optional[str] | types.EllipsisType = ...,
         model_id: Optional[str] | types.EllipsisType = ...,
         project_id: Optional[str] | types.EllipsisType = ...,
-        team_id: Optional[str] | types.EllipsisType = ...,
+        plugin_options: Optional[dict[str, dict[str, Any]]] | types.EllipsisType = ...,
         persona_preset_id: Optional[str] | types.EllipsisType = ...,
     ) -> Optional[dict[str, Any]]:
         """Update channel configuration for a user"""
@@ -200,8 +200,8 @@ class ChannelStorage:
             update_data["model_id"] = model_id
         if project_id is not ...:
             update_data["project_id"] = project_id
-        if team_id is not ...:
-            update_data["team_id"] = team_id
+        if plugin_options is not ...:
+            update_data["plugin_options"] = plugin_options or {}
         if persona_preset_id is not ...:
             update_data["persona_preset_id"] = persona_preset_id
 
@@ -313,6 +313,7 @@ class ChannelStorage:
             model_id=config.get("model_id"),
             project_id=config.get("project_id"),
             team_id=config.get("team_id"),
+            plugin_options=config.get("plugin_options") or {},
             persona_preset_id=config.get("persona_preset_id"),
             created_at=config.get("created_at"),
             updated_at=config.get("updated_at"),
@@ -466,6 +467,7 @@ class ChannelStorage:
             "model_id": doc.get("model_id"),
             "project_id": doc.get("project_id"),
             "team_id": doc.get("team_id"),
+            "plugin_options": doc.get("plugin_options") or {},
             "persona_preset_id": doc.get("persona_preset_id"),
             "created_at": doc.get("created_at"),
             "updated_at": doc.get("updated_at"),

@@ -1,4 +1,4 @@
-export type SkillsHubTab = "skills" | "marketplace";
+export type SkillsHubTab = "skills" | "marketplace" | "plugins";
 
 export function resolveSkillsHubTab(
   requestedTab: SkillsHubTab | undefined,
@@ -14,7 +14,7 @@ export function resolveSkillsHubTab(
   }
 
   if (canReadMarketplace) {
-    return "marketplace";
+    return requestedTab === "plugins" ? "plugins" : "marketplace";
   }
 
   return null;

@@ -50,6 +50,11 @@ const TEAM_PAGE_SIZE = 20;
 type TeamScopeFilter = Extract<ScopeFilter, "all" | "pinned" | "favorite">;
 type ImportedTeamMember = NonNullable<TeamCreateRequest["members"]>[number];
 
+interface NormalizedTeamImport {
+  team: TeamCreateRequest;
+  legacyMemberAgentIdCount: number;
+}
+
 const SCOPE_ICON_MAP = {
   Users,
   Pin,
@@ -84,12 +89,13 @@ function normalizeImportedStarterPrompts(
   return prompts;
 }
 
-function normalizeImportedTeam(value: unknown): TeamCreateRequest | null {
+function normalizeImportedTeam(value: unknown): NormalizedTeamImport | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   const name = String(item.name ?? "").trim();
   if (!name) return null;
-  return {
+  let legacyMemberAgentIdCount = 0;
+  const team: TeamCreateRequest = {
     name,
     description:
       typeof item.description === "string" ? item.description : undefined,
@@ -99,6 +105,7 @@ function normalizeImportedTeam(value: unknown): TeamCreateRequest | null {
       typeof item.team_instructions === "string"
         ? item.team_instructions
         : undefined,
+    run_in_sandbox: item.run_in_sandbox === true,
     starter_prompts: normalizeImportedStarterPrompts(item.starter_prompts),
     default_member_id:
       typeof item.default_member_id === "string"
@@ -111,16 +118,13 @@ function normalizeImportedTeam(value: unknown): TeamCreateRequest | null {
             const record = member as Record<string, unknown>;
             const personaPresetId = String(record.persona_preset_id ?? "");
             if (!personaPresetId) return null;
+            if ("agent_id" in record) legacyMemberAgentIdCount += 1;
             return {
               member_id:
                 typeof record.member_id === "string"
                   ? record.member_id
                   : undefined,
               persona_preset_id: personaPresetId,
-              agent_id:
-                typeof record.agent_id === "string" && record.agent_id
-                  ? record.agent_id
-                  : null,
               model_id:
                 typeof record.model_id === "string" && record.model_id
                   ? record.model_id
@@ -149,6 +153,7 @@ function normalizeImportedTeam(value: unknown): TeamCreateRequest | null {
           .filter((member): member is ImportedTeamMember => Boolean(member))
       : [],
   };
+  return { team, legacyMemberAgentIdCount };
 }
 
 function timeValue(value: string | null | undefined): number {
@@ -437,14 +442,20 @@ export function TeamBuilderWrapper() {
       event.target.value = "";
 
       let items: TeamCreateRequest[];
+      let legacyMemberAgentIdCount = 0;
       try {
         const text = await file.text();
         const parsed = JSON.parse(text);
         if (!Array.isArray(parsed)) throw new Error("not_array");
-        items = parsed
+        const normalized = parsed
           .map(normalizeImportedTeam)
-          .filter((item): item is TeamCreateRequest => Boolean(item));
-        if (items.length !== parsed.length) throw new Error("invalid_items");
+          .filter((item): item is NormalizedTeamImport => Boolean(item));
+        if (normalized.length !== parsed.length) throw new Error("invalid_items");
+        legacyMemberAgentIdCount = normalized.reduce(
+          (total, item) => total + item.legacyMemberAgentIdCount,
+          0,
+        );
+        items = normalized.map((item) => item.team);
       } catch {
         toast.error(t("team.importInvalidFile", "导入失败：文件格式不正确"));
         return;
@@ -458,6 +469,15 @@ export function TeamBuilderWrapper() {
             count: items.length,
           }),
         );
+        if (legacyMemberAgentIdCount > 0) {
+          toast(
+            t(
+              "team.importLegacyMemberAgentIgnored",
+              "Ignored {{count}} legacy member agent mode field(s). Re-save imported teams to finish cleanup.",
+              { count: legacyMemberAgentIdCount },
+            ),
+          );
+        }
         loadTeams();
       } catch {
         toast.error(t("team.importFailed", "导入失败"));

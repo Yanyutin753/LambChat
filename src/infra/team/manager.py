@@ -42,7 +42,6 @@ class TeamManager:
                     member = TeamMemberResponse(
                         member_id=member.member_id,
                         persona_preset_id=member.persona_preset_id,
-                        agent_id=member.agent_id,
                         model_id=member.model_id,
                         role_name=preset.get("name", member.role_name),
                         role_avatar=preset.get("avatar", member.role_avatar),
@@ -103,59 +102,6 @@ class TeamManager:
             if model_id not in allowed and model.value not in allowed:
                 raise ValueError("team_member_model_not_allowed")
 
-    async def _validate_member_agent_access(
-        self,
-        members: list,
-        *,
-        user: TokenPayload | None = None,
-    ) -> None:
-        """Validate optional per-member agent mode overrides before persistence."""
-        agent_ids: list[str] = []
-        seen: set[str] = set()
-        for member in members:
-            agent_id = getattr(member, "agent_id", None)
-            if not agent_id or agent_id in seen:
-                continue
-            seen.add(agent_id)
-            agent_ids.append(agent_id)
-
-        if not agent_ids:
-            return
-
-        if "team" in agent_ids:
-            raise ValueError("team_member_agent_unavailable")
-
-        from src.agents.core.base import AgentFactory
-
-        registered_agent_ids = {agent["id"] for agent in AgentFactory.list_agents()}
-        for agent_id in agent_ids:
-            if agent_id not in registered_agent_ids:
-                raise ValueError("team_member_agent_unavailable")
-
-        role_ids: list[str] = []
-        role_agent_map: dict[str, list[str] | None] = {}
-        if user is not None:
-            from src.infra.agent.config_storage import get_agent_config_storage
-            from src.infra.role.manager import get_role_manager
-
-            storage = get_agent_config_storage()
-            role_manager = get_role_manager()
-            for role_name in user.roles or []:
-                role = await role_manager.get_role_by_name(role_name)
-                if not role:
-                    continue
-                role_ids.append(role.id)
-                role_agent_map[role.id] = await storage.get_role_agents(role.id)
-
-        allowed_agents = await AgentFactory.get_filtered_agents(
-            user_roles=role_ids,
-            role_agent_map=role_agent_map,
-        )
-        allowed_ids = {agent["id"] for agent in allowed_agents}
-        for agent_id in agent_ids:
-            if agent_id not in allowed_ids or agent_id == "team":
-                raise ValueError("team_member_agent_not_allowed")
-
     # ── CRUD ──
 
     async def create_team(
@@ -167,7 +113,6 @@ class TeamManager:
     ) -> TeamResponse:
         """Create a new team."""
         await self._validate_member_model_access(team_data.members, user=user)
-        await self._validate_member_agent_access(team_data.members, user=user)
         members_data = [m.model_dump(mode="json") for m in team_data.members]
         team = await self.storage.create_team(
             owner_user_id=owner_user_id,
@@ -178,6 +123,7 @@ class TeamManager:
             members=members_data,
             default_member_id=team_data.default_member_id,
             team_instructions=team_data.team_instructions,
+            run_in_sandbox=team_data.run_in_sandbox,
             starter_prompts=[
                 prompt.model_dump(mode="json") for prompt in team_data.starter_prompts
             ],
@@ -250,7 +196,6 @@ class TeamManager:
         """Update a team."""
         if team_data.members is not None:
             await self._validate_member_model_access(team_data.members, user=user)
-            await self._validate_member_agent_access(team_data.members, user=user)
         update = team_data.model_dump(mode="json", exclude_unset=True)
         # Convert member models to dicts for storage
         if "members" in update and update["members"] is not None:

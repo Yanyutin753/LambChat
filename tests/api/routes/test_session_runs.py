@@ -25,8 +25,13 @@ class _FakeDualWriter:
 
 
 class _FakeSessionEventsDualWriter:
-    def __init__(self):
+    def __init__(self, events=None):
         self.calls = []
+        self.events = events or [
+            {"event_type": "user:message", "data": {"content": "one"}},
+            {"event_type": "message:chunk", "data": {"content": "two"}},
+            {"event_type": "done", "data": {}},
+        ]
 
     async def read_session_events(self, session_id: str, event_types=None, **kwargs):
         self.calls.append(
@@ -36,11 +41,7 @@ class _FakeSessionEventsDualWriter:
                 **kwargs,
             }
         )
-        return [
-            {"event_type": "user:message", "data": {"content": "one"}},
-            {"event_type": "message:chunk", "data": {"content": "two"}},
-            {"event_type": "done", "data": {}},
-        ]
+        return self.events
 
 
 class _FakeTraceStorage:
@@ -212,7 +213,13 @@ def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
         sys.modules,
         "src.kernel.config",
         SimpleNamespace(
-            settings=SimpleNamespace(LLM_MAX_RETRIES=3, LLM_RETRY_DELAY=1),
+            SETTING_DEFINITIONS={},
+            settings=SimpleNamespace(
+                LLM_MAX_RETRIES=3,
+                LLM_RETRY_DELAY=1,
+                ENABLE_IMAGE_GENERATION=False,
+                ENABLE_AUDIO_TRANSCRIPTION=False,
+            ),
         ),
     )
     monkeypatch.setitem(
@@ -437,6 +444,93 @@ async def test_get_session_events_bounds_event_type_query_list(
     )
 
     assert dual_writer.calls[0]["event_types"] == ["user:message", "done"]
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_preserves_workflow_tool_outlet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_routes = _load_session_routes_module(monkeypatch)
+    dual_writer_module = sys.modules["src.infra.session.dual_writer"]
+    workflow_outlet = {
+        "plugin_id": "workflow",
+        "workflow_id": "wf-chat",
+        "run_id": "workflow-run-1",
+        "version_id": "wfv-1",
+        "status": "failed",
+        "error": "workflow_run_not_found",
+        "interface": {
+            "entry": {
+                "type": "tool",
+                "tool": "workflow_run",
+                "argument": "input",
+                "schema_tool": "workflow_get_schema",
+                "schema_field": "input_schema",
+            },
+            "exit": {
+                "type": "object",
+                "field": "output",
+                "schema_tool": "workflow_get_schema",
+                "schema_field": "output_schema",
+            },
+            "debug": {
+                "tool": "workflow_get_run",
+                "workflow_id": "wf-chat",
+                "run_id": "workflow-run-1",
+                "events_field": "events",
+            },
+        },
+        "next_action": {
+            "type": "handle_terminal_error",
+            "field": "error",
+            "reason": "workflow_run_failed",
+            "tool": "workflow_get_run",
+        },
+    }
+    dual_writer = _FakeSessionEventsDualWriter(
+        [
+            {
+                "event_type": "tool:result",
+                "run_id": "chat-run-1",
+                "data": {
+                    "tool": "workflow_get_run",
+                    "tool_call_id": "tool-call-workflow",
+                    "result": workflow_outlet,
+                    "success": False,
+                    "error": "workflow_run_not_found",
+                },
+            }
+        ]
+    )
+
+    monkeypatch.setattr(session_routes, "SessionManager", lambda: _FakeSessionManager())
+    monkeypatch.setattr(dual_writer_module, "get_dual_writer", lambda: dual_writer)
+
+    response = await session_routes.get_session_events(
+        "session-1",
+        event_types="tool:result",
+        run_id="chat-run-1",
+        exclude_run_id=None,
+        limit=None,
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    assert response["events"][0]["data"]["result"] == workflow_outlet
+    assert (
+        response["events"][0]["data"]["result"]["interface"]["debug"]["tool"]
+        == "workflow_get_run"
+    )
+    assert response["events"][0]["data"]["result"]["next_action"]["tool"] == "workflow_get_run"
+    assert dual_writer.calls == [
+        {
+            "session_id": "session-1",
+            "event_types": ["tool:result"],
+            "run_id": "chat-run-1",
+            "exclude_run_id": None,
+            "completed_only": True,
+            "max_events": None,
+        }
+    ]
 
 
 @pytest.mark.asyncio
