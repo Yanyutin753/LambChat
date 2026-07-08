@@ -1,0 +1,44 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "demo_notes",
+  "frontend": {
+    "app_tabs": [
+      {
+        "id": "demo_notes:notes-tab",
+        "tab": "demo-notes",
+        "path": "/demo-notes",
+        "label": "demoNotes.nav.label",
+        "panel": "demo_notes:notes-panel",
+        "insert_after": "settings",
+        "order": 650,
+        "permissions": ["demo_notes:read"],
+        "seo_title": "demoNotes.seo.title",
+        "seo_description": "demoNotes.seo.description"
+      }
+    ],
+    "app_panels": [
+      {
+        "id": "demo_notes:notes-panel",
+        "tab": "demo-notes",
+        "renderer": "demo_notes.NotesPanel"
+      }
+    ],
+    "message_actions": [
+      {
+        "id": "demo_notes:save-message-note",
+        "target": "assistant_message",
+        "renderer": "demo_notes.SaveMessageNoteButton",
+        "order": 40,
+        "permissions": ["demo_notes:write"]
+      }
+    ],
+    "tool_renderers": [
+      {
+        "id": "demo_notes:create-note-renderer",
+        "tool_names": ["demo_notes.demo_notes_create_note", "demo_notes_create_note"]
+      }
+    ],
+    "i18n_namespaces": ["demo_notes"],
+    "required_permissions": ["demo_notes:read"]
+  }
+}

@@ -41,6 +41,7 @@ import {
   type PluginRuntimeContributionStates,
 } from "../../../extensions/coreContributions";
 import { MESSAGE_ACTION_RENDERERS } from "./messageActionRenderers";
+import { areChatMessagePropsEqual } from "./messageMemo";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {

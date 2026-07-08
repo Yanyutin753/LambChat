@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
-from typing import Any, Optional, get_args, get_origin
+from types import SimpleNamespace, UnionType
+from typing import Any, Literal, Optional, Union, cast, get_args, get_origin
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
@@ -40,11 +42,6 @@ _SCHEDULED_TASK_TOOL_PERMISSIONS = {
     "scheduled_task_list": Permission.SCHEDULED_TASK_READ.value,
     "scheduled_task_update": Permission.SCHEDULED_TASK_WRITE.value,
     "scheduled_task_delete": Permission.SCHEDULED_TASK_DELETE.value,
-    "workflow_run": Permission.WORKFLOW_RUN.value,
-    "workflow_list": Permission.WORKFLOW_READ.value,
-    "workflow_get_schema": Permission.WORKFLOW_READ.value,
-    "workflow_get_run": Permission.WORKFLOW_READ.value,
-    "workflow_resume": Permission.WORKFLOW_RUN.value,
 }
 
 _plugin_runtime: PluginRuntime | None = None
@@ -110,11 +107,70 @@ class PluginRuntimeToolGuard(BaseTool):
             return error
         return self._original_tool._run(*args, **kwargs)
 
-    async def _arun(self, *args, config: Optional[RunnableConfig] = None, **kwargs) -> Any:
+    async def _arun(self, *args, config: RunnableConfig, **kwargs) -> Any:
         error = _plugin_tool_error(self.name)
         if error is not None:
             return error
+        if _tool_accepts_runtime(self._original_tool) and kwargs.get("runtime") is None:
+            runtime = _tool_runtime_from_config(config)
+            if runtime is not None:
+                kwargs["runtime"] = runtime
         return await self._original_tool._arun(*args, config=config, **kwargs)
+
+
+def _tool_accepts_runtime(tool: BaseTool) -> bool:
+    args_schema = getattr(tool, "args_schema", None)
+    model_fields = getattr(args_schema, "model_fields", None)
+    if isinstance(model_fields, dict):
+        return "runtime" in model_fields
+    fields = getattr(args_schema, "__fields__", None)
+    if isinstance(fields, dict) and "runtime" in fields:
+        return True
+    for callable_attr in ("coroutine", "func"):
+        candidate = getattr(tool, callable_attr, None)
+        if not callable(candidate):
+            continue
+        try:
+            if "runtime" in inspect.signature(candidate).parameters:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def _tool_runtime_from_config(config: Optional[RunnableConfig]) -> Any:
+    try:
+        from langchain.tools import ToolRuntime
+    except Exception:
+        return None
+
+    runtime_config = cast(RunnableConfig, dict(config or {}))
+    configurable = runtime_config.get("configurable")
+    if not isinstance(configurable, dict):
+        configurable = {}
+        runtime_config["configurable"] = configurable
+    context = configurable.get("context")
+    if context is None and configurable.get("user_id"):
+        context = SimpleNamespace(user_id=str(configurable.get("user_id")))
+        configurable["context"] = context
+    if context is None:
+        context = SimpleNamespace()
+
+    def _stream_writer(_: Any) -> None:
+        return None
+
+    try:
+        return ToolRuntime(
+            state={},
+            context=context,
+            config=runtime_config,
+            stream_writer=_stream_writer,
+            tool_call_id=None,
+            store=None,
+            tools=[],
+        )
+    except TypeError:
+        return SimpleNamespace(config=runtime_config, context=context)
 
 
 def build_internal_tools() -> list[BaseTool]:
@@ -126,6 +182,8 @@ def build_internal_tools() -> list[BaseTool]:
 
     tools.append(get_image_generation_tool())
     tools.append(get_reference_image_generation_tool())
+    if settings.ENABLE_IMAGE_ANALYSIS:
+        tools.append(get_image_analysis_tool())
     tools.append(get_audio_transcribe_tool())
 
     if settings.ENABLE_SCHEDULED_TASK:
@@ -234,12 +292,22 @@ def _is_tool_allowed_by_business_permission(
 def _schema_type_from_annotation(annotation: Any) -> str:
     origin = get_origin(annotation)
     args = [arg for arg in get_args(annotation) if arg is not type(None)]
+    if origin is Literal:
+        return _schema_type_from_annotation(args[0]) if args else "string"
+    if str(origin) == "typing.Annotated" and args:
+        return _schema_type_from_annotation(args[0])
+    if origin in (Union, UnionType) and args:
+        return _schema_type_from_annotation(args[0])
     if origin is not None and args:
         if origin in (list, tuple, set):
             return "array"
+        if origin in (dict, Mapping):
+            return "object"
         return _schema_type_from_annotation(args[0])
     if annotation in (list, tuple, set):
         return "array"
+    if annotation in (dict, Mapping):
+        return "object"
     if annotation is int:
         return "integer"
     if annotation is float:
@@ -248,6 +316,47 @@ def _schema_type_from_annotation(annotation: Any) -> str:
         return "boolean"
     if annotation is dict:
         return "object"
+    return "string"
+
+
+def _schema_from_annotation(annotation: Any) -> dict[str, Any]:
+    origin = get_origin(annotation)
+    raw_args = [arg for arg in get_args(annotation) if arg is not type(None)]
+    if origin is Literal:
+        values = list(raw_args)
+        return {"type": _schema_type_from_annotation(values[0] if values else str), "enum": values}
+    if str(origin) == "typing.Annotated" and raw_args:
+        return _schema_from_annotation(raw_args[0])
+    if origin in (Union, UnionType) and raw_args:
+        return _schema_from_annotation(raw_args[0])
+    schema_type = _schema_type_from_annotation(annotation)
+    if schema_type == "array":
+        item_annotation = raw_args[0] if raw_args else Any
+        return {"type": "array", "items": _schema_from_annotation(item_annotation)}
+    if schema_type == "object":
+        return {"type": "object"}
+    return {"type": schema_type}
+
+
+def _schema_type_from_json_schema(schema: dict[str, Any]) -> str:
+    raw_type = schema.get("type")
+    if isinstance(raw_type, str) and raw_type:
+        return raw_type
+    if isinstance(raw_type, list):
+        for item in raw_type:
+            if isinstance(item, str) and item != "null":
+                return item
+    for union_key in ("anyOf", "oneOf", "allOf"):
+        for candidate in schema.get(union_key) or []:
+            if not isinstance(candidate, dict):
+                continue
+            candidate_type = _schema_type_from_json_schema(candidate)
+            if candidate_type and candidate_type != "null":
+                return candidate_type
+    if "properties" in schema:
+        return "object"
+    if "items" in schema:
+        return "array"
     return "string"
 
 
@@ -267,10 +376,11 @@ def _extract_tool_parameters(tool: BaseTool) -> list[dict[str, Any]]:
             parameters.append(
                 {
                     "name": param_name,
-                    "type": param_info.get("type", "string"),
+                    "type": _schema_type_from_json_schema(param_info),
                     "description": param_info.get("description", ""),
                     "required": param_name in required,
                     "default": param_info.get("default"),
+                    "schema": param_info,
                 }
             )
         return parameters
@@ -283,13 +393,17 @@ def _extract_tool_parameters(tool: BaseTool) -> list[dict[str, Any]]:
         if param_name == "runtime":
             continue
         default = None if field.is_required() else field.default
+        field_schema = getattr(field, "json_schema_extra", None) or _schema_from_annotation(
+            field.annotation
+        )
         parameters.append(
             {
                 "name": param_name,
-                "type": _schema_type_from_annotation(field.annotation),
+                "type": _schema_type_from_json_schema(field_schema),
                 "description": field.description or "",
                 "required": field.is_required(),
                 "default": default,
+                "schema": field_schema,
             }
         )
     return parameters

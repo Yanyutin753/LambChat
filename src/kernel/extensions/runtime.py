@@ -496,6 +496,7 @@ class PluginRuntime:
         *,
         phase: LifecyclePhase,
         executor: HookExecutor,
+        plugin_id: str | None = None,
         timeout_seconds: float = 5.0,
     ) -> list[PluginHookExecutionResult]:
         """Execute lifecycle hooks with timeout/error isolation.
@@ -505,6 +506,8 @@ class PluginRuntime:
         """
         results: list[PluginHookExecutionResult] = []
         for registration in self.lifecycle_hooks(phase=phase):
+            if plugin_id is not None and registration.plugin_id != plugin_id:
+                continue
             started = perf_counter()
             try:
                 await asyncio.wait_for(
@@ -617,6 +620,7 @@ class PluginRuntime:
             scheduled_task_options=[
                 f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options
             ],
+            scheduled_task_sections=[item.id for item in manifest.frontend.scheduled_task_sections],
             permissions=manifest.declared_permissions(),
             settings=[
                 (
@@ -773,6 +777,7 @@ def _invalid_contribution_ids(manifest: PluginManifest) -> list[str]:
     values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.session_options)
     values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.channel_options)
     values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options)
+    values.extend(item.id for item in manifest.frontend.scheduled_task_sections)
     values.extend(item.id for item in manifest.frontend.tool_renderers)
     values.extend(item.id for item in manifest.frontend.file_viewers)
     values.extend(item.id for item in manifest.frontend.upload_handlers)

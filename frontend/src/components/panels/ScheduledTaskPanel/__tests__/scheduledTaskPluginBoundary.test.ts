@@ -13,6 +13,7 @@ test("scheduled task team surfaces depend on Agent Team scheduled task option de
     resolve(__dirname, "../scheduledTaskOptionRenderers.tsx"),
     "utf8",
   );
+  const taskSessionListSource = readFileSync(resolve(__dirname, "../TaskSessionList.tsx"), "utf8");
 
   assert.match(panelSource, /useScheduledTaskPluginOptions\(/);
   assert.match(panelSource, /findScheduledTaskOptionRenderer/);
@@ -44,6 +45,10 @@ test("scheduled task team surfaces depend on Agent Team scheduled task option de
   assert.match(rendererSource, /"agent_team\.TeamSelectOption"/);
   assert.match(rendererSource, /SCHEDULED_TASK_OPTION_RENDERERS/);
   assert.match(rendererSource, /SCHEDULED_TASK_OPTION_LABEL_RESOLVERS/);
+  assert.doesNotMatch(rendererSource, /WorkflowPlugin/);
+  assert.doesNotMatch(rendererSource, /workflow\.Workflow/);
+  assert.doesNotMatch(taskSessionListSource, /workflowResult|workflowOutput|workflowNextAction/);
+  assert.doesNotMatch(taskSessionListSource, /\/workflows\//);
   assert.doesNotMatch(panelSource, /if \(teamAgentAvailable\) \{[\s\S]*teamApi[\s\S]*\.list/);
   assert.doesNotMatch(panelSource, /teamApi/);
   assert.doesNotMatch(panelSource, /hasAgentTeamScheduledTaskOption\(/);

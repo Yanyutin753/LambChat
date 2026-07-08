@@ -82,6 +82,7 @@ class TaskExecutor:
         recommendation_input: Optional[str] = None,
         team_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
+        auto_mode: bool = False,
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         """执行任务"""
@@ -190,6 +191,7 @@ class TaskExecutor:
                 recommendation_input=recommendation_input,
                 team_id=team_id,
                 active_goal=active_goal,
+                auto_mode=auto_mode,
                 plugin_options=plugin_options,
             ):
                 await presenter.save_event(event)

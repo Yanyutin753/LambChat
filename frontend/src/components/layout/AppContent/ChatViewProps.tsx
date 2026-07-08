@@ -158,6 +158,10 @@ export interface ChatViewProps {
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   onClearActiveGoal: () => void;
+  autoModeEnabled: boolean;
+  goalModeEnabled: boolean;
+  onToggleAutoMode: (enabled: boolean) => void;
+  onToggleGoalMode: (enabled: boolean) => void;
   attachments: MessageAttachment[];
   onAttachmentsChange: React.Dispatch<
     React.SetStateAction<MessageAttachment[]>

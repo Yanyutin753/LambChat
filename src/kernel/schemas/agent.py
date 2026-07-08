@@ -66,6 +66,7 @@ class AgentRequest(BaseModel):
         description="Plugin-scoped session options keyed by plugin id and local option key",
     )
     goal: Optional[GoalSpec] = Field(None, description="Active goal for rubric-guided execution")
+    auto_mode: bool = Field(False, description="Auto mode: skip ask_human, autonomous execution")
     retry_user_message: bool = Field(
         False,
         description="Regenerate using an existing user message without writing a duplicate user event",

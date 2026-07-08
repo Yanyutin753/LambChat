@@ -40,9 +40,7 @@ router = APIRouter()
 admin_router = APIRouter()
 
 MCP_IMPORT_MAX_SERVERS = 100
-INTERNAL_TOOL_INVOKE_ALLOWLIST = frozenset(
-    {"workflow_run", "workflow_list", "workflow_get_schema", "workflow_get_run"}
-)
+INTERNAL_TOOL_INVOKE_ALLOWLIST: frozenset[str] = frozenset()
 
 
 # Dependency to get MCPStorage

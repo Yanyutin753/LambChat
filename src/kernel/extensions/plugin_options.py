@@ -80,14 +80,23 @@ def declared_session_options_from_project_defaults(
     """
     if runtime is None:
         return {}
+    project_options = plugin_options_from_metadata(project_metadata)
+    if not project_options:
+        return {}
     manifests = _runtime_manifests(runtime)
+    if not manifests:
+        get_state = getattr(runtime, "get_state", None)
+        if callable(get_state):
+            manifests = [
+                state.manifest
+                for plugin_id in project_options
+                if (state := get_state(plugin_id)) is not None
+                and getattr(state, "manifest", None) is not None
+            ]
     if not manifests:
         from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
 
         manifests = list(BUILTIN_PLUGIN_MANIFESTS)
-    project_options = plugin_options_from_metadata(project_metadata)
-    if not project_options:
-        return {}
 
     result: dict[str, dict[str, Any]] = {}
     for manifest in manifests:

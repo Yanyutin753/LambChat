@@ -56,10 +56,6 @@ logger = get_logger(__name__)
 
 CHAT_SSE_DATA_MAX_BYTES = 256 * 1024
 
-_WORKFLOW_PLUGIN_ID = "workflow"
-_WORKFLOW_PLUGIN_ID_KEY = "SELECTED_WORKFLOW_ID"
-_WORKFLOW_PLUGIN_VERSION_KEY = "SELECTED_WORKFLOW_VERSION_ID"
-
 
 def append_required_skills_prompt(message: str, enabled_skills: list[str] | None) -> str:
     """Append a run-scoped instruction for explicitly selected skills."""
@@ -414,6 +410,28 @@ def _merge_missing_plugin_options(
     return merged["plugin_options"]
 
 
+def _can_merge_plugin_option_default(
+    current: dict[str, dict[str, object]],
+    defaults: dict[str, dict[str, object]],
+    plugin_id: str,
+    key: str,
+) -> bool:
+    del current, defaults, plugin_id, key
+    return True
+
+
+def _non_empty_plugin_option(
+    plugin_options: dict[str, dict[str, object]],
+    *,
+    plugin_id: str,
+    key: str,
+) -> str | None:
+    value = plugin_options.get(plugin_id, {}).get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
 def apply_existing_session_plugin_options(
     request: AgentRequest,
     *,
@@ -673,6 +691,7 @@ async def _execute_agent_stream(
     disabled_mcp_tools: list[str] | None = None,
     team_id: str | None = None,
     active_goal: dict | None = None,
+    auto_mode: bool = False,
     recommendation_input: str | None = None,
     plugin_options: dict[str, dict[str, object]] | None = None,
 ):
@@ -688,28 +707,7 @@ async def _execute_agent_stream(
         yield {"event": "goal:start", "data": {"goal": active_goal, "started_at": started_at}}
 
     try:
-        workflow_result = None
         agent_stream_options = agent_options
-        if plugin_options:
-            from src.plugins.workflow.chat_integration import (
-                run_selected_workflow_for_message,
-                workflow_result_context,
-            )
-
-            workflow_result = await run_selected_workflow_for_message(
-                plugin_options=plugin_options,
-                message=message,
-                user_id=user_id,
-            )
-            if workflow_result is not None:
-                yield {"event": "workflow:run", "data": workflow_result}
-                agent_stream_options = _agent_options_with_plugin_result(
-                    agent_options,
-                    plugin_id=_WORKFLOW_PLUGIN_ID,
-                    result=workflow_result,
-                )
-                message = f"{workflow_result_context(workflow_result)}\n\nUser message:\n{message}"
-
         agent = await AgentFactory.get(agent_id)
         async for event in agent.stream(
             message,

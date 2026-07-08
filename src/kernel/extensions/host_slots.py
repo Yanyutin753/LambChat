@@ -66,6 +66,14 @@ EXTENSION_HOST_SLOTS: tuple[ExtensionHostSlot, ...] = (
         renderer_registry="MESSAGE_ACTION_RENDERERS",
     ),
     ExtensionHostSlot(
+        id="message.renderer",
+        manifest_key="message_renderers",
+        area="plugin_message_renderer",
+        description="Plugin-owned chat message part renderer for generic plugin:message events.",
+        disabled_behavior="Plugin message parts fall back to an unavailable renderer notice.",
+        renderer_registry="PLUGIN_MESSAGE_RENDERERS",
+    ),
+    ExtensionHostSlot(
         id="chat.input_option",
         manifest_key="chat_input_options",
         area="chat_input_option",
@@ -220,6 +228,14 @@ EXTENSION_HOST_SLOTS: tuple[ExtensionHostSlot, ...] = (
         data_scope="scheduled_task",
     ),
     ExtensionHostSlot(
+        id="frontend.scheduled_task_section",
+        manifest_key="scheduled_task_sections",
+        area="scheduled_task_section",
+        description="Plugin-owned section rendered inside the scheduled task panel.",
+        disabled_behavior="Section is omitted while the plugin is disabled.",
+        supports_visible_when=True,
+    ),
+    ExtensionHostSlot(
         id="frontend.legacy_route",
         manifest_key="routes",
         area="frontend_route",
@@ -328,6 +344,7 @@ STRUCTURED_FRONTEND_MANIFEST_KEYS: frozenset[str] = frozenset(
         "app_panels",
         "sidebar_items",
         "user_menu_items",
+        "message_renderers",
         "chat_input_options",
         "chat_input_panels",
         "mention_providers",
@@ -338,6 +355,7 @@ STRUCTURED_FRONTEND_MANIFEST_KEYS: frozenset[str] = frozenset(
         "session_options",
         "channel_options",
         "scheduled_task_options",
+        "scheduled_task_sections",
     }
 )
 
@@ -370,15 +388,29 @@ CONTROLLED_FRONTEND_REFERENCES: dict[str, frozenset[str]] = {
         }
     ),
     "message_actions.renderer": frozenset({"feedback.FeedbackButtons"}),
+    "message_renderers.renderer": frozenset(),
     "chat_input_options.selected_renderer": frozenset({"agent_team.SelectedTeamChip"}),
     "chat_input_panels.renderer": frozenset({"agent_team.TeamPickerModal"}),
     "mention_providers.provider": frozenset({"agent_team.searchTeams"}),
     "welcome_surfaces.renderer": frozenset({"agent_team.TeamWelcomeSurface"}),
     "assistant_identity_resolvers.resolver": frozenset({"agent_team.TeamAssistantIdentity"}),
-    "project_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
-    "session_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
+    "project_options.renderer": frozenset(
+        {
+            "agent_team.TeamSelectOption",
+        }
+    ),
+    "session_options.renderer": frozenset(
+        {
+            "agent_team.TeamSelectOption",
+        }
+    ),
     "channel_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
-    "scheduled_task_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
+    "scheduled_task_options.renderer": frozenset(
+        {
+            "agent_team.TeamSelectOption",
+        }
+    ),
+    "scheduled_task_sections.renderer": frozenset(),
     "channel_connectors.panel_renderer": frozenset({"feishu_connector.FeishuPanel"}),
 }
 
@@ -386,6 +418,7 @@ CONTROLLED_FRONTEND_REFERENCES: dict[str, frozenset[str]] = {
 CONTROLLED_FRONTEND_REFERENCE_FIELDS: dict[str, tuple[str, ...]] = {
     "app_panels": ("renderer",),
     "message_actions": ("renderer",),
+    "message_renderers": ("renderer",),
     "chat_input_options": ("selected_renderer",),
     "chat_input_panels": ("renderer",),
     "mention_providers": ("provider",),
@@ -395,5 +428,6 @@ CONTROLLED_FRONTEND_REFERENCE_FIELDS: dict[str, tuple[str, ...]] = {
     "session_options": ("renderer",),
     "channel_options": ("renderer",),
     "scheduled_task_options": ("renderer",),
+    "scheduled_task_sections": ("renderer",),
     "channel_connectors": ("panel_renderer",),
 }

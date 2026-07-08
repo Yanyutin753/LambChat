@@ -581,6 +581,17 @@ async def _run_plugin_lifecycle_hooks(app: FastAPI, phase: LifecyclePhase) -> No
         )
 
 
+async def _start_runtime_services_for_app(app: FastAPI) -> None:
+    await start_runtime_services(
+        plugin_runtime=getattr(app.state, "plugin_runtime", None),
+        plugin_runtime_state_storage=getattr(
+            app.state,
+            "plugin_runtime_state_storage",
+            None,
+        ),
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""

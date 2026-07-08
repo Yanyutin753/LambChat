@@ -7,7 +7,6 @@ import pytest
 from src.api.routes import agent as agent_routes
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.mcp import MCPToolInfo
-from src.kernel.schemas.user import TokenPayload
 
 
 @pytest.mark.asyncio
@@ -90,7 +89,7 @@ async def test_list_tools_offloads_agent_discovery_for_unknown_agent_id(
 
 
 @pytest.mark.asyncio
-async def test_list_tools_includes_internal_workflow_tools(
+async def test_list_tools_includes_internal_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict] = []
@@ -103,25 +102,25 @@ async def test_list_tools_includes_internal_workflow_tools(
         calls.append(kwargs)
         return [
             MCPToolInfo(
-                name="workflow_run",
-                description="Run a workflow",
+                name="demo_internal_tool",
+                description="Run an internal operation",
                 parameters=[
                     {
-                        "name": "workflow_id",
+                        "name": "target_id",
                         "type": "string",
-                        "description": "Workflow id",
+                        "description": "Target id",
                         "required": True,
                     }
                 ],
             ),
             MCPToolInfo(
-                name="workflow_get_run",
-                description="Inspect async/stream workflow run debug events",
+                name="demo_internal_debug",
+                description="Inspect async operation debug events",
                 parameters=[
                     {
-                        "name": "workflow_id",
+                        "name": "target_id",
                         "type": "string",
-                        "description": "Workflow id",
+                        "description": "Target id",
                         "required": True,
                     },
                     {
@@ -148,83 +147,23 @@ async def test_list_tools_includes_internal_workflow_tools(
         user=type(
             "User",
             (),
-            {"sub": "user-1", "roles": ["user"], "permissions": ["workflow:read", "workflow:run"]},
+            {"sub": "user-1", "roles": ["user"], "permissions": ["demo:read", "demo:run"]},
         )(),
     )
 
     assert calls == [{"user_id": "user-1", "user_roles": ["user"], "is_admin": False}]
     assert response.count == len(response.tools)
-    workflow_tool = next(tool for tool in response.tools if tool.name == "workflow_run")
-    assert workflow_tool.category == "internal"
-    assert workflow_tool.server == "lambchat_internal"
-    assert workflow_tool.description == "Run a workflow"
-    assert workflow_tool.parameters[0].name == "workflow_id"
-    assert workflow_tool.parameters[0].required is True
-    get_run_tool = next(tool for tool in response.tools if tool.name == "workflow_get_run")
-    assert get_run_tool.category == "internal"
-    assert get_run_tool.server == "lambchat_internal"
-    assert "async/stream" in get_run_tool.description
-    assert {param.name for param in get_run_tool.parameters} == {"workflow_id", "run_id"}
-
-
-@pytest.mark.asyncio
-async def test_list_tools_respects_workflow_plugin_runtime_gate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from src.infra.tool import internal_registry
-    from src.kernel.extensions import (
-        WORKFLOW_PLUGIN_ID,
-        PluginRuntime,
-        build_workflow_plugin_manifest,
-    )
-
-    async def no_internal_tool_policies():
-        return {}
-
-    async def workflow_permissions(_user_roles):
-        return {"workflow:read", "workflow:run"}
-
-    async def fake_resolve_user_mcp_access(user_id: str):
-        assert user_id == "user-1"
-        return ["user"], False
-
-    runtime = PluginRuntime([build_workflow_plugin_manifest()])
-    user = TokenPayload(
-        sub="user-1",
-        username="user-1",
-        roles=["user"],
-        permissions=["workflow:read", "workflow:run"],
-    )
-
-    monkeypatch.setattr(agent_routes.settings, "ENABLE_MCP", False, raising=False)
-    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", no_internal_tool_policies)
-    monkeypatch.setattr(internal_registry, "_resolve_permissions_for_roles", workflow_permissions)
-    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
-    monkeypatch.setattr(
-        "src.infra.mcp.quota.resolve_user_mcp_access",
-        fake_resolve_user_mcp_access,
-    )
-
-    disabled_response = await agent_routes.list_tools(user=user)
-    disabled_names = {tool.name for tool in disabled_response.tools}
-
-    runtime.enable_plugin(WORKFLOW_PLUGIN_ID)
-    enabled_response = await agent_routes.list_tools(user=user)
-    enabled_tools = {tool.name: tool for tool in enabled_response.tools}
-
-    assert "workflow_get_run" not in disabled_names
-    assert {
-        "workflow_run",
-        "workflow_list",
-        "workflow_get_schema",
-        "workflow_get_run",
-        "workflow_resume",
-    } <= set(enabled_tools)
-    assert enabled_tools["workflow_get_run"].category == "internal"
-    assert enabled_tools["workflow_get_run"].server == "lambchat_internal"
-    assert "debug events" in enabled_tools["workflow_get_run"].description
-    assert enabled_tools["workflow_resume"].category == "internal"
-    assert enabled_tools["workflow_resume"].server == "lambchat_internal"
+    run_tool = next(tool for tool in response.tools if tool.name == "demo_internal_tool")
+    assert run_tool.category == "internal"
+    assert run_tool.server == "lambchat_internal"
+    assert run_tool.description == "Run an internal operation"
+    assert run_tool.parameters[0].name == "target_id"
+    assert run_tool.parameters[0].required is True
+    debug_tool = next(tool for tool in response.tools if tool.name == "demo_internal_debug")
+    assert debug_tool.category == "internal"
+    assert debug_tool.server == "lambchat_internal"
+    assert "async operation" in debug_tool.description
+    assert {param.name for param in debug_tool.parameters} == {"target_id", "run_id"}
 
 
 @pytest.mark.asyncio

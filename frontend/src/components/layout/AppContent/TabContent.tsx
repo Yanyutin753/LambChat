@@ -48,11 +48,6 @@ const FeedbackPanel = lazy(() =>
     default: m.FeedbackPanel,
   })),
 );
-const WorkflowPanel = lazy(() =>
-  import("../../../plugins/workflow/WorkflowPanel").then((m) => ({
-    default: m.WorkflowPanel,
-  })),
-);
 const ChannelsPage = lazy(() =>
   import("../../pages/ChannelsPage").then((m) => ({ default: m.ChannelsPage })),
 );
@@ -93,16 +88,13 @@ const UsagePanel = lazy(() =>
 );
 
 type RuntimeAwarePanelProps = {
+  activeTab?: Exclude<TabType, "chat">;
   runtimePlugins?: PluginRuntimeContributionStates;
 };
 
 type PanelComponent = React.LazyExoticComponent<
-  React.ComponentType<Record<string, never>>
-> | React.ComponentType<Record<string, never>>;
-
-type RuntimeAwarePanelComponent = React.LazyExoticComponent<
   React.ComponentType<RuntimeAwarePanelProps>
->;
+> | React.ComponentType<RuntimeAwarePanelProps>;
 
 const corePanelComponents: Partial<Record<Exclude<TabType, "chat">, PanelComponent>> = {
   skills: SkillsHubPanel,
@@ -164,23 +156,7 @@ function renderPanel(
   Panel: PanelComponent,
   runtimePlugins?: PluginRuntimeContributionStates,
 ) {
-  if (activeTab === "skills" || activeTab === "marketplace" || activeTab === "plugins") {
-    const RuntimeAwareSkillsHubPanel = SkillsHubPanel as RuntimeAwarePanelComponent;
-    return <RuntimeAwareSkillsHubPanel runtimePlugins={runtimePlugins} />;
-  }
-  if (activeTab === "files") {
-    const RuntimeAwareRevealedFilesPanel = RevealedFilesPanel as RuntimeAwarePanelComponent;
-    return <RuntimeAwareRevealedFilesPanel runtimePlugins={runtimePlugins} />;
-  }
-  if (activeTab === "channels") {
-    const RuntimeAwareChannelsPage = ChannelsPage as RuntimeAwarePanelComponent;
-    return <RuntimeAwareChannelsPage runtimePlugins={runtimePlugins} />;
-  }
-  if (activeTab === "agents") {
-    const RuntimeAwareAgentModelPanel = AgentModelPanel as RuntimeAwarePanelComponent;
-    return <RuntimeAwareAgentModelPanel runtimePlugins={runtimePlugins} />;
-  }
-  return <Panel />;
+  return <Panel activeTab={activeTab} runtimePlugins={runtimePlugins} />;
 }
 
 function buildPanelMap(runtimePlugins?: PluginRuntimeContributionStates) {

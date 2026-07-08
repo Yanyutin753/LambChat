@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import marketplace as marketplace_routes
-from src.infra.skill.types import MarketplaceSkillResponse
+from src.infra.skill.types import InstalledFrom, MarketplaceSkillResponse, SkillMeta
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -136,40 +136,6 @@ async def test_list_marketplace_skills_keeps_skill_payload_and_adds_extension_en
     assert result[0].extension.id == "skill:planner"
     assert result[0].extension.type == "skill"
     assert result[0].extension.capabilities == ["skill"]
-
-
-@pytest.mark.asyncio
-async def test_list_marketplace_skills_keeps_skill_payload_and_adds_extension_entry() -> None:
-    marketplace = _MarketplaceListStorage()
-
-    result = await marketplace_routes.list_marketplace_skills(
-        tags="planning,productivity",
-        search="plan",
-        skip=5,
-        limit=10,
-        user=_reader(),
-        marketplace=marketplace,
-    )
-
-    assert marketplace.calls == [
-        {
-            "tags": ["planning", "productivity"],
-            "search": "plan",
-            "include_inactive": False,
-            "viewer_id": "user-2",
-            "skip": 5,
-            "limit": 10,
-        }
-    ]
-    assert result[0].skill_name == "planner"
-    assert result[0].version == "2.0.0"
-    assert result[0].extension_type == "skill"
-    assert result[0].extension_id == "skill:planner"
-    assert result[0].extension is not None
-    assert result[0].extension.id == "skill:planner"
-    assert result[0].extension.type == "skill"
-    assert result[0].extension.capabilities == ["skill"]
-
 
 @pytest.mark.asyncio
 async def test_create_marketplace_skill_rejects_too_many_files_before_sync(

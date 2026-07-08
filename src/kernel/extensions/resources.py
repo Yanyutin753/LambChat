@@ -52,6 +52,7 @@ class PluginResourceType(str, Enum):
     SESSION_OPTION = "session_option"
     CHANNEL_OPTION = "channel_option"
     SCHEDULED_TASK_OPTION = "scheduled_task_option"
+    SCHEDULED_TASK_SECTION = "scheduled_task_section"
     PLUGIN_PACKAGE_FOLDER = "plugin_package_folder"
     PLUGIN_DATA_FOLDER = "plugin_data_folder"
     PLUGIN_DATA_CONFIG = "plugin_data_config"
@@ -204,6 +205,7 @@ class PluginResourceLedger:
         session_options: Iterable[str] = (),
         channel_options: Iterable[str] = (),
         scheduled_task_options: Iterable[str] = (),
+        scheduled_task_sections: Iterable[str] = (),
         permissions: Iterable[str] = (),
         settings: Iterable[str | tuple[str, str]] = (),
         env_keys: Iterable[str] = (),
@@ -303,6 +305,11 @@ class PluginResourceLedger:
             (
                 PluginResourceType.SCHEDULED_TASK_OPTION,
                 scheduled_task_options,
+                PluginResourceCleanupStrategy.KEEP,
+            ),
+            (
+                PluginResourceType.SCHEDULED_TASK_SECTION,
+                scheduled_task_sections,
                 PluginResourceCleanupStrategy.KEEP,
             ),
             (PluginResourceType.PERMISSION, permissions, PluginResourceCleanupStrategy.ARCHIVE),

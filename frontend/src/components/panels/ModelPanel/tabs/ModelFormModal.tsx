@@ -22,6 +22,20 @@ import type {
 } from "../../../../services/api/model";
 import { ModelIconSelect } from "./ModelIconSelect";
 
+type CapabilityDeclarationValue = "undeclared" | "supported" | "unsupported";
+
+function capabilityDeclarationSelection(value: boolean | null | undefined): CapabilityDeclarationValue {
+  if (value === true) return "supported";
+  if (value === false) return "unsupported";
+  return "undeclared";
+}
+
+function capabilityDeclarationBoolean(value: CapabilityDeclarationValue): boolean | undefined {
+  if (value === "supported") return true;
+  if (value === "unsupported") return false;
+  return undefined;
+}
+
 interface ModelFormModalProps {
   model: ModelConfig | null; // null = creating, non-null = editing
   models: ModelConfig[];
@@ -57,6 +71,12 @@ export const ModelFormModal = ({
   const [formSupportsVision, setFormSupportsVision] = useState(
     Boolean(model?.profile?.supports_vision),
   );
+  const [formSupportsReasoning, setFormSupportsReasoning] = useState<CapabilityDeclarationValue>(
+    capabilityDeclarationSelection(model?.profile?.supports_reasoning),
+  );
+  const [formSupportsStructuredOutput, setFormSupportsStructuredOutput] = useState<CapabilityDeclarationValue>(
+    capabilityDeclarationSelection(model?.profile?.supports_structured_output),
+  );
   const [formImageUrlToBase64, setFormImageUrlToBase64] = useState(
     Boolean(model?.profile?.image_url_to_base64),
   );
@@ -83,9 +103,19 @@ export const ModelFormModal = ({
     const maxInputTokens = formMaxInputTokens
       ? parseInt(formMaxInputTokens, 10)
       : undefined;
+    const supportsReasoning = capabilityDeclarationBoolean(formSupportsReasoning);
+    const supportsStructuredOutput = capabilityDeclarationBoolean(
+      formSupportsStructuredOutput,
+    );
     const profile: ModelProfile = {
       ...(maxInputTokens ? { max_input_tokens: maxInputTokens } : {}),
       supports_vision: formSupportsVision,
+      ...(supportsReasoning !== undefined
+        ? { supports_reasoning: supportsReasoning }
+        : {}),
+      ...(supportsStructuredOutput !== undefined
+        ? { supports_structured_output: supportsStructuredOutput }
+        : {}),
       image_url_to_base64: formImageUrlToBase64,
     };
 
@@ -158,6 +188,8 @@ export const ModelFormModal = ({
     formMaxTokens,
     formMaxInputTokens,
     formSupportsVision,
+    formSupportsReasoning,
+    formSupportsStructuredOutput,
     formImageUrlToBase64,
     formProvider,
     formIcon,
@@ -384,6 +416,91 @@ export const ModelFormModal = ({
                   </span>
                 </span>
               </label>
+            </div>
+            <div className="es-field">
+              <label className="es-label">
+                {t("agentConfig.supportsReasoning", "Reasoning capability")}
+              </label>
+              <Select
+                value={formSupportsReasoning}
+                onChange={(value) =>
+                  setFormSupportsReasoning(value as CapabilityDeclarationValue)
+                }
+                options={[
+                  {
+                    value: "undeclared",
+                    label: t(
+                      "agentConfig.capabilityUndeclared",
+                      "Undeclared",
+                    ),
+                  },
+                  {
+                    value: "supported",
+                    label: t(
+                      "agentConfig.capabilitySupported",
+                      "Declared supported",
+                    ),
+                  },
+                  {
+                    value: "unsupported",
+                    label: t(
+                      "agentConfig.capabilityUnsupported",
+                      "Declared unsupported",
+                    ),
+                  },
+                ]}
+              />
+              <p className="es-hint">
+                {t(
+                  "agentConfig.supportsReasoningHint",
+                  "Use this declaration for agent-owned reasoning callouts. Leave it undeclared until you have verified that this provider/model returns separate reasoning content.",
+                )}
+              </p>
+            </div>
+            <div className="es-field">
+              <label className="es-label">
+                {t(
+                  "agentConfig.supportsStructuredOutput",
+                  "Structured output capability",
+                )}
+              </label>
+              <Select
+                value={formSupportsStructuredOutput}
+                onChange={(value) =>
+                  setFormSupportsStructuredOutput(
+                    value as CapabilityDeclarationValue,
+                  )
+                }
+                options={[
+                  {
+                    value: "undeclared",
+                    label: t(
+                      "agentConfig.capabilityUndeclared",
+                      "Undeclared",
+                    ),
+                  },
+                  {
+                    value: "supported",
+                    label: t(
+                      "agentConfig.capabilitySupported",
+                      "Declared supported",
+                    ),
+                  },
+                  {
+                    value: "unsupported",
+                    label: t(
+                      "agentConfig.capabilityUnsupported",
+                      "Declared unsupported",
+                    ),
+                  },
+                ]}
+              />
+              <p className="es-hint">
+                {t(
+                  "agentConfig.supportsStructuredOutputHint",
+                  "Use this declaration for agent-owned structured-output callouts. Leave it undeclared until you have verified that this provider/model honors JSON schema responses.",
+                )}
+              </p>
             </div>
             <div className="es-field">
               <label className="flex items-start gap-2 text-sm text-theme-text cursor-pointer">
