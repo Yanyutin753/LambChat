@@ -91,9 +91,7 @@ def service() -> ScheduledTaskService:
     set_plugin_runtime(runtime)
     service = ScheduledTaskService()
     service.plugin_runtime = runtime
-    service.plugin_settings_service = PluginSettingsService(
-        storage=InMemoryPluginSettingsStorage()
-    )
+    service.plugin_settings_service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
     try:
         yield service
     finally:
@@ -204,12 +202,15 @@ async def test_create_task_filters_plugin_options_by_scheduled_task_manifest_sco
         "message": "team task",
         "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
     }
-    assert await service.plugin_settings_service.storage.get(
-        plugin_id="missing_plugin",
-        key="ANY",
-        scope="scheduled_task",
-        subject_id=task.id,
-    ) is None
+    assert (
+        await service.plugin_settings_service.storage.get(
+            plugin_id="missing_plugin",
+            key="ANY",
+            scope="scheduled_task",
+            subject_id=task.id,
+        )
+        is None
+    )
     mock_storage.create_task.assert_called_once()
     mock_scheduler.register_job.assert_called_once()
 
@@ -631,12 +632,15 @@ async def test_update_task_filters_plugin_options_by_scheduled_task_manifest_sco
 
     assert mock_storage.update_task.call_args.args[1]["input_payload"] == sanitized_payload
     assert result == updated
-    assert await service.plugin_settings_service.storage.get(
-        plugin_id="missing_plugin",
-        key="ANY",
-        scope="scheduled_task",
-        subject_id="task_1",
-    ) is None
+    assert (
+        await service.plugin_settings_service.storage.get(
+            plugin_id="missing_plugin",
+            key="ANY",
+            scope="scheduled_task",
+            subject_id="task_1",
+        )
+        is None
+    )
     mock_scheduler.register_job.assert_called_once()
 
 

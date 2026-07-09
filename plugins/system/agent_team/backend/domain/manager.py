@@ -3,10 +3,7 @@
 import logging
 from typing import Optional
 
-from src.infra.persona_preset.manager import PersonaPresetManager
-from src.infra.team.storage import TeamStorage
-from src.kernel.exceptions import NotFoundError
-from src.kernel.schemas.team import (
+from plugins.system.agent_team.backend.domain.schemas import (
     TeamCreate,
     TeamListResponse,
     TeamMemberResponse,
@@ -14,6 +11,9 @@ from src.kernel.schemas.team import (
     TeamResponse,
     TeamUpdate,
 )
+from plugins.system.agent_team.backend.domain.storage import TeamStorage
+from src.infra.persona_preset.manager import PersonaPresetManager
+from src.kernel.exceptions import NotFoundError
 from src.kernel.schemas.user import TokenPayload
 
 logger = logging.getLogger(__name__)

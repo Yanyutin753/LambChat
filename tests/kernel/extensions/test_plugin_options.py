@@ -27,9 +27,7 @@ def test_plugin_options_from_metadata_returns_normalized_copy() -> None:
     options = plugin_options_from_metadata(metadata)
     options["agent_team"]["SELECTED_TEAM_ID"] = "changed"
 
-    assert plugin_options_from_metadata(metadata) == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
-    }
+    assert plugin_options_from_metadata(metadata) == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}
 
 
 def test_with_plugin_option_writes_and_clears_plugin_namespace() -> None:
@@ -40,11 +38,14 @@ def test_with_plugin_option_writes_and_clears_plugin_namespace() -> None:
         value="team-1",
     )
 
-    assert plugin_option_from_metadata(
-        metadata,
-        plugin_id="agent_team",
-        key="SELECTED_TEAM_ID",
-    ) == "team-1"
+    assert (
+        plugin_option_from_metadata(
+            metadata,
+            plugin_id="agent_team",
+            key="SELECTED_TEAM_ID",
+        )
+        == "team-1"
+    )
 
     cleared = with_plugin_option(
         metadata,
@@ -57,12 +58,15 @@ def test_with_plugin_option_writes_and_clears_plugin_namespace() -> None:
 
 
 def test_selected_agent_team_id_prefers_plugin_option_and_keeps_legacy_fallback() -> None:
-    assert selected_agent_team_id_from_metadata(
-        {
-            "team_id": "legacy-team",
-            "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "plugin-team"}},
-        }
-    ) == "plugin-team"
+    assert (
+        selected_agent_team_id_from_metadata(
+            {
+                "team_id": "legacy-team",
+                "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "plugin-team"}},
+            }
+        )
+        == "plugin-team"
+    )
     assert selected_agent_team_id_from_metadata({"team_id": "legacy-team"}) == "legacy-team"
 
 
@@ -237,12 +241,15 @@ def test_declared_plugin_options_explicit_legacy_none_clears_existing_value() ->
         "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-old"}},
     }
 
-    assert declared_plugin_options_from_metadata(
-        runtime,
-        metadata,
-        scope="channel",
-        legacy_payload_keys_provided={"team_id"},
-    ) == {}
+    assert (
+        declared_plugin_options_from_metadata(
+            runtime,
+            metadata,
+            scope="channel",
+            legacy_payload_keys_provided={"team_id"},
+        )
+        == {}
+    )
 
 
 def test_declared_plugin_options_saved_plugin_value_wins_over_legacy_payload_by_default() -> None:
@@ -269,13 +276,16 @@ def test_declared_plugin_options_can_filter_non_executable_plugins() -> None:
         scope="scheduled_task",
         agent_id="team",
     ) == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}
-    assert declared_plugin_options_from_metadata(
-        runtime,
-        {"team_id": "team-1"},
-        scope="scheduled_task",
-        agent_id="team",
-        executable_only=True,
-    ) == {}
+    assert (
+        declared_plugin_options_from_metadata(
+            runtime,
+            {"team_id": "team-1"},
+            scope="scheduled_task",
+            agent_id="team",
+            executable_only=True,
+        )
+        == {}
+    )
 
 
 def test_plugin_id_for_agent_uses_runtime_declarations() -> None:
@@ -294,21 +304,30 @@ def test_agent_team_option_agent_check_falls_back_to_builtin_manifests() -> None
 def test_plugin_session_option_visible_for_agent_uses_manifest_visible_when() -> None:
     manifest = build_agent_team_plugin_manifest()
 
-    assert plugin_session_option_visible_for_agent(
-        manifest,
-        "SELECTED_TEAM_ID",
-        "team",
-    ) is True
-    assert plugin_session_option_visible_for_agent(
-        manifest,
-        "SELECTED_TEAM_ID",
-        "search",
-    ) is False
-    assert plugin_session_option_visible_for_agent(
-        manifest,
-        "MISSING",
-        "team",
-    ) is False
+    assert (
+        plugin_session_option_visible_for_agent(
+            manifest,
+            "SELECTED_TEAM_ID",
+            "team",
+        )
+        is True
+    )
+    assert (
+        plugin_session_option_visible_for_agent(
+            manifest,
+            "SELECTED_TEAM_ID",
+            "search",
+        )
+        is False
+    )
+    assert (
+        plugin_session_option_visible_for_agent(
+            manifest,
+            "MISSING",
+            "team",
+        )
+        is False
+    )
 
 
 def test_plugin_session_options_suppress_core_persona_from_manifest_contract() -> None:
@@ -340,21 +359,30 @@ def test_plugin_session_options_suppress_core_persona_from_manifest_contract() -
     )
     runtime = PluginRuntime([manifest])
 
-    assert plugin_session_options_suppress_core_persona(
-        "workflow",
-        {"plugin_options": {"automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}}},
-        runtime=runtime,
-    ) is True
-    assert plugin_session_options_suppress_core_persona(
-        "workflow",
-        {"workflow_id": "flow-legacy"},
-        runtime=runtime,
-    ) is True
-    assert plugin_session_options_suppress_core_persona(
-        "search",
-        {"plugin_options": {"automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}}},
-        runtime=runtime,
-    ) is False
+    assert (
+        plugin_session_options_suppress_core_persona(
+            "workflow",
+            {"plugin_options": {"automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}}},
+            runtime=runtime,
+        )
+        is True
+    )
+    assert (
+        plugin_session_options_suppress_core_persona(
+            "workflow",
+            {"workflow_id": "flow-legacy"},
+            runtime=runtime,
+        )
+        is True
+    )
+    assert (
+        plugin_session_options_suppress_core_persona(
+            "search",
+            {"plugin_options": {"automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}}},
+            runtime=runtime,
+        )
+        is False
+    )
 
 
 def test_plugin_session_options_can_target_core_agent_with_visible_when() -> None:
@@ -379,8 +407,11 @@ def test_plugin_session_options_can_target_core_agent_with_visible_when() -> Non
         },
     )
 
-    assert plugin_session_options_suppress_core_persona(
-        "search",
-        {"plugin_options": {"automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}}},
-        runtime=PluginRuntime([manifest]),
-    ) is True
+    assert (
+        plugin_session_options_suppress_core_persona(
+            "search",
+            {"plugin_options": {"automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}}},
+            runtime=PluginRuntime([manifest]),
+        )
+        is True
+    )

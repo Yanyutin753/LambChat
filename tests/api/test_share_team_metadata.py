@@ -3,18 +3,18 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.kernel.schemas.team import TeamMemberResponse, TeamResponse
+from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
 
 
 def test_shared_content_response_includes_team_display_metadata() -> None:
     source = Path("src/api/routes/share.py").read_text(encoding="utf-8")
 
-    assert "from src.infra.team.storage import TeamStorage" in source
+    assert "from plugins.system.agent_team.backend.domain.storage import TeamStorage" in source
     assert "agent_uses_agent_team_options" in source
     assert "selected_agent_team_id_from_metadata" in source
     assert "agent_uses_agent_team_options(session.agent_id)" in source
     assert "async def _attach_shared_team_metadata" in source
-    assert "session.agent_id == \"team\"" not in source
+    assert 'session.agent_id == "team"' not in source
     assert 'session_info["team_id"] = team_id' in source
     assert "await TeamStorage().get_team" in source
     assert 'session_info["team_name"] = team.name' in source

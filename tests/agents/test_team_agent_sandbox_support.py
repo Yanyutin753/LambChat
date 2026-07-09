@@ -106,9 +106,9 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.agents.team_agent.context import TeamAgentContext
-    from src.kernel.schemas.team import TeamResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -206,9 +206,9 @@ async def test_team_agent_node_uses_persistent_backend_when_team_sandbox_disable
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.agents.team_agent.context import TeamAgentContext
-    from src.kernel.schemas.team import TeamResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -267,8 +267,8 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.agents.team_agent.context import TeamAgentContext
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -316,9 +316,9 @@ async def test_team_agent_node_rejects_invalid_team_id(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.agents.team_agent.context import TeamAgentContext
-    from src.infra.team import manager as team_manager_module
+    from plugins.system.agent_team.backend.domain import manager as team_manager_module
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -363,8 +363,8 @@ async def _run_team_node_with_members(
     *,
     user_input: str = "hello",
 ) -> None:
-    from src.agents.team_agent.context import TeamAgentContext
-    from src.kernel.schemas.team import TeamResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamResponse
+    from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
 
     team = TeamResponse(
         id="team-1",
@@ -411,8 +411,8 @@ async def test_team_router_blocks_full_asset_package_completion_without_delegati
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -440,8 +440,8 @@ async def test_team_router_allows_full_asset_package_after_task_delegation(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     fake_graph.events = [{"event": "on_tool_start", "name": "task", "data": {"input": {}}}]
@@ -469,8 +469,8 @@ async def test_team_router_allows_unrelated_team_completion_without_delegation(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -497,8 +497,8 @@ async def test_team_member_without_model_override_uses_main_model(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -542,9 +542,9 @@ async def test_team_member_model_override_sets_subagent_model_and_profile_middle
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
     from src.kernel.schemas.model import ModelConfig, ModelProfile
-    from src.kernel.schemas.team import TeamMemberResponse
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -597,9 +597,9 @@ async def test_multiple_team_members_use_their_own_model_overrides(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
     from src.kernel.schemas.model import ModelConfig
-    from src.kernel.schemas.team import TeamMemberResponse
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -650,8 +650,8 @@ async def test_team_member_model_unavailable_is_not_silently_fallbacked(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -684,8 +684,8 @@ async def test_legacy_team_member_agent_id_does_not_break_runtime(
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -708,7 +708,7 @@ async def test_legacy_team_member_agent_id_does_not_break_runtime(
 
 
 def test_team_agent_runtime_no_longer_resolves_member_agent_modes() -> None:
-    source = Path("src/agents/team_agent/nodes.py").read_text(encoding="utf-8")
+    source = Path("plugins/system/agent_team/backend/runtime/nodes.py").read_text(encoding="utf-8")
 
     assert "resolve_team_member_agent_id" not in source
     assert "_build_member_agent_mode_sections" not in source
@@ -718,7 +718,7 @@ def test_team_agent_runtime_no_longer_resolves_member_agent_modes() -> None:
 async def test_team_member_model_access_rejects_missing_runtime_user(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from src.agents.team_agent import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
     from src.kernel.schemas.model import ModelConfig
 
     class _ModelStorage:
@@ -755,8 +755,8 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
 ) -> None:
     _install_deepagents_shims(monkeypatch)
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.agents.team_agent.context import TeamAgentContext
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
 
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
@@ -793,6 +793,6 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
 
 
 def test_team_agent_declares_sandbox_support() -> None:
-    from src.agents.team_agent.graph import TeamAgent
+    from plugins.system.agent_team.backend.runtime.graph import TeamAgent
 
     assert TeamAgent._supports_sandbox is True

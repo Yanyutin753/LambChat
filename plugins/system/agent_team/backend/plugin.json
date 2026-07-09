@@ -6,7 +6,7 @@
       {
         "name": "agent_team-api",
         "prefix": "/api/teams",
-        "module": "src.api.routes.team",
+        "module": "./backend/routes.py",
         "required_permissions": ["team:read", "team:write", "team:delete"],
         "tags": ["Teams"]
       }
@@ -14,7 +14,7 @@
     "agents": [
       {
         "id": "team",
-        "module": "src.agents.team_agent.graph.TeamAgent",
+        "module": "./backend/runtime/graph.py:TeamAgent",
         "name": "agents.team.name",
         "description": "agents.team.description",
         "icon": "Users",
@@ -26,13 +26,13 @@
     "tools": [
       {
         "name": "search_persona_presets",
-        "module": "src.infra.tool.team_tool",
+        "module": "./backend/tools.py:get_team_tools",
         "required_permissions": ["team:read", "persona_preset:read", "chat:write"],
         "legacy_ids": ["search_persona_presets", "agent_team.search_persona_presets"]
       },
       {
         "name": "create_agent_team",
-        "module": "src.infra.tool.team_tool",
+        "module": "./backend/tools.py:get_team_tools",
         "required_permissions": ["team:write", "chat:write"],
         "legacy_ids": ["create_agent_team", "agent_team.create_agent_team"]
       }

@@ -226,7 +226,9 @@ class _FakePersonaManager:
 
 def _memory_plugin_settings(monkeypatch: pytest.MonkeyPatch) -> PluginSettingsService:
     service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
-    monkeypatch.setattr(channels_route, "_get_plugin_settings_service", lambda _request=None: service)
+    monkeypatch.setattr(
+        channels_route, "_get_plugin_settings_service", lambda _request=None: service
+    )
     return service
 
 
@@ -269,9 +271,7 @@ async def test_channel_types_hide_feishu_when_connector_is_disabled(
 ) -> None:
     monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
 
-    response = await channels_route.get_channel_types(
-        plugin_runtime=_disabled_feishu_runtime()
-    )
+    response = await channels_route.get_channel_types(plugin_runtime=_disabled_feishu_runtime())
 
     assert [channel.channel_type.value for channel in response.types] == []
 
@@ -332,9 +332,7 @@ async def test_channel_operations_report_declaring_connector_plugin_when_disable
 @pytest.mark.asyncio
 async def test_feishu_registration_fails_closed_when_connector_is_disabled() -> None:
     with pytest.raises(HTTPException) as exc_info:
-        await channels_route.start_feishu_registration(
-            plugin_runtime=_disabled_feishu_runtime()
-        )
+        await channels_route.start_feishu_registration(plugin_runtime=_disabled_feishu_runtime())
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail["error"] == "plugin_unavailable"
@@ -558,12 +556,15 @@ async def test_create_channel_filters_plugin_options_by_channel_manifest_scope(
     assert storage.last_create_kwargs["plugin_options"] == {
         "agent_team": {"SELECTED_TEAM_ID": "team-1"}
     }
-    assert await settings_service.storage.get(
-        plugin_id="missing_plugin",
-        key="ANY",
-        scope="channel",
-        subject_id="instance-1",
-    ) is None
+    assert (
+        await settings_service.storage.get(
+            plugin_id="missing_plugin",
+            key="ANY",
+            scope="channel",
+            subject_id="instance-1",
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio

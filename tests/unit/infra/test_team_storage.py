@@ -10,8 +10,12 @@ from unittest.mock import MagicMock
 import pytest
 from bson import ObjectId
 
-from src.infra.team.storage import TeamStorage
-from src.kernel.schemas.team import TEAM_MEMBERS_MAX, TEAM_STARTER_PROMPTS_MAX, TEAM_TAGS_MAX
+from plugins.system.agent_team.backend.domain.schemas import (
+    TEAM_MEMBERS_MAX,
+    TEAM_STARTER_PROMPTS_MAX,
+    TEAM_TAGS_MAX,
+)
+from plugins.system.agent_team.backend.domain.storage import TeamStorage
 
 
 def _make_fake_collection():

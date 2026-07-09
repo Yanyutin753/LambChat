@@ -22,6 +22,7 @@ from src.infra.utils.datetime import utc_now
 from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
 from src.kernel.extensions import PluginRuntime, PluginUnavailableError
+from src.kernel.extensions.module_loader import load_plugin_attr
 
 logger = get_logger(__name__)
 
@@ -46,6 +47,32 @@ def set_plugin_runtime(runtime: PluginRuntime | None) -> None:
     """Attach Plugin Runtime state used to guard plugin-owned agents."""
     global _plugin_runtime
     _plugin_runtime = runtime
+    discover_plugin_agents(runtime)
+
+
+def discover_plugin_agents(runtime: PluginRuntime | None = None) -> None:
+    """Import enabled plugin-owned agent runtimes declared by trusted system plugins."""
+    active_runtime = runtime or _plugin_runtime
+    if active_runtime is None:
+        return
+    for registration in active_runtime.agents(enabled_only=True):
+        if registration.id in _AGENT_REGISTRY:
+            continue
+        state = active_runtime.get_state(registration.plugin_id)
+        manifest = state.manifest if state else None
+        if manifest is None:
+            continue
+        try:
+            load_plugin_attr(manifest, registration.module)
+            if registration.id not in _AGENT_REGISTRY:
+                raise RuntimeError(f"plugin agent module did not register agent: {registration.id}")
+        except Exception as exc:
+            active_runtime.mark_error(
+                registration.plugin_id,
+                code="agent_registration_failed",
+                message=str(exc) or exc.__class__.__name__,
+                phase="agent_registration",
+            )
 
 
 def _is_agent_exposed(agent_id: str) -> bool:

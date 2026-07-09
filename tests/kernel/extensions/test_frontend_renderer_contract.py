@@ -91,11 +91,11 @@ def test_builtin_frontend_manifest_references_are_declared_in_kernel_contract() 
         references = {
             "app_panels.renderer": [item.renderer for item in frontend.app_panels],
             "message_actions.renderer": [item.renderer for item in frontend.message_actions],
-            "message_renderers.renderer": [
-                item.renderer for item in frontend.message_renderers
-            ],
+            "message_renderers.renderer": [item.renderer for item in frontend.message_renderers],
             "chat_input_options.selected_renderer": [
-                item.selected_renderer for item in frontend.chat_input_options if item.selected_renderer
+                item.selected_renderer
+                for item in frontend.chat_input_options
+                if item.selected_renderer
             ],
             "chat_input_panels.renderer": [item.renderer for item in frontend.chat_input_panels],
             "mention_providers.provider": [item.provider for item in frontend.mention_providers],
@@ -113,9 +113,7 @@ def test_builtin_frontend_manifest_references_are_declared_in_kernel_contract() 
                 item.renderer for item in frontend.channel_options if item.renderer
             ],
             "channel_connectors.panel_renderer": [
-                item.panel_renderer
-                for item in frontend.channel_connectors
-                if item.panel_renderer
+                item.panel_renderer for item in frontend.channel_connectors if item.panel_renderer
             ],
             "scheduled_task_options.renderer": [
                 item.renderer for item in frontend.scheduled_task_options if item.renderer

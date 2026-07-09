@@ -46,10 +46,9 @@ def test_github_installer_runtime_requires_skill_core_dependency() -> None:
     assert state is not None
     assert state.status is PluginRuntimeStatus.ENABLED
     assert state.executable is True
-    assert [
-        (route.plugin_id, route.name, route.prefix)
-        for route in runtime.routes()
-    ] == [(GITHUB_INSTALLER_PLUGIN_ID, "github_installer-api", "/api/github")]
+    assert [(route.plugin_id, route.name, route.prefix) for route in runtime.routes()] == [
+        (GITHUB_INSTALLER_PLUGIN_ID, "github_installer-api", "/api/github")
+    ]
 
 
 def test_github_installer_resources_and_dry_run_protect_skill_core_data() -> None:
@@ -58,10 +57,7 @@ def test_github_installer_resources_and_dry_run_protect_skill_core_data() -> Non
         core_dependencies=("skill_core",),
     )
     resources = runtime.resource_ledger.list(plugin_id=GITHUB_INSTALLER_PLUGIN_ID)
-    resource_keys = {
-        (resource.resource_type, resource.resource_id)
-        for resource in resources
-    }
+    resource_keys = {(resource.resource_type, resource.resource_id) for resource in resources}
     dry_run = build_uninstall_dry_run(
         plugin_id=GITHUB_INSTALLER_PLUGIN_ID,
         ledger=runtime.resource_ledger,

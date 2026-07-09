@@ -24,7 +24,9 @@ def _core_route_prefix(route_id: str) -> str:
 
 
 def _agent_team_plugin_route_prefix() -> str:
-    manifest = next(plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID)
+    manifest = next(
+        plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID
+    )
     return next(route.prefix for route in manifest.routers if route.name == "agent_team-api")
 
 
@@ -76,7 +78,9 @@ def test_agent_team_manifest_uses_agent_team_name_without_renaming_legacy_api() 
 
 
 def test_agent_team_page_uses_agent_team_route_identity() -> None:
-    manifest = next(plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID)
+    manifest = next(
+        plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID
+    )
 
     assert manifest.frontend.app_tabs[0].id == "agent_team:agent-team-tab"
     assert manifest.frontend.app_tabs[0].tab == "agent-team"
@@ -88,29 +92,33 @@ def test_agent_team_page_uses_agent_team_route_identity() -> None:
     assert manifest.frontend.sidebar_items[0].path == "/agent-team"
 
 
-def test_agent_team_manifest_declares_legacy_team_agent_entry() -> None:
-    manifest = next(plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID)
+def test_agent_team_manifest_declares_plugin_owned_team_agent_entry() -> None:
+    manifest = next(
+        plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID
+    )
 
     assert [agent.id for agent in manifest.agents] == ["team"]
-    assert manifest.agents[0].module == "src.agents.team_agent.graph.TeamAgent"
+    assert manifest.agents[0].module == "./backend/runtime/graph.py:TeamAgent"
     assert manifest.agents[0].required_permissions == [Permission.TEAM_READ.value]
 
 
 def test_agent_team_declares_chat_input_and_mention_contributions() -> None:
-    manifest = next(plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID)
+    manifest = next(
+        plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID
+    )
 
     assert [option.id for option in manifest.frontend.chat_input_options] == [
         "agent_team:select-team"
     ]
     assert manifest.frontend.chat_input_options[0].panel == "agent_team:team-picker"
-    assert manifest.frontend.chat_input_options[0].selected_renderer == "agent_team.SelectedTeamChip"
+    assert (
+        manifest.frontend.chat_input_options[0].selected_renderer == "agent_team.SelectedTeamChip"
+    )
     assert manifest.frontend.chat_input_options[0].suppresses_core_persona_selector is True
     assert manifest.frontend.chat_input_options[0].shortcut == "mod+t"
     assert manifest.frontend.chat_input_options[0].visible_when is not None
     assert manifest.frontend.chat_input_options[0].visible_when.agent_id == "team"
-    assert [panel.id for panel in manifest.frontend.chat_input_panels] == [
-        "agent_team:team-picker"
-    ]
+    assert [panel.id for panel in manifest.frontend.chat_input_panels] == ["agent_team:team-picker"]
     assert manifest.frontend.chat_input_panels[0].renderer == "agent_team.TeamPickerModal"
     assert manifest.frontend.chat_input_panels[0].create_path == "/agent-team"
     assert manifest.frontend.chat_input_panels[0].manage_path == "/agent-team"
@@ -136,24 +144,26 @@ def test_agent_team_declares_chat_input_and_mention_contributions() -> None:
     assert [resolver.id for resolver in manifest.frontend.assistant_identity_resolvers] == [
         "agent_team:team-assistant-identity"
     ]
-    assert manifest.frontend.assistant_identity_resolvers[0].resolver == "agent_team.TeamAssistantIdentity"
+    assert (
+        manifest.frontend.assistant_identity_resolvers[0].resolver
+        == "agent_team.TeamAssistantIdentity"
+    )
     assert manifest.frontend.assistant_identity_resolvers[0].option_binding is not None
-    assert manifest.frontend.assistant_identity_resolvers[0].option_binding.plugin_id == AGENT_TEAM_PLUGIN_ID
-    assert manifest.frontend.assistant_identity_resolvers[0].option_binding.key == "SELECTED_TEAM_ID"
+    assert (
+        manifest.frontend.assistant_identity_resolvers[0].option_binding.plugin_id
+        == AGENT_TEAM_PLUGIN_ID
+    )
+    assert (
+        manifest.frontend.assistant_identity_resolvers[0].option_binding.key == "SELECTED_TEAM_ID"
+    )
     assert manifest.frontend.assistant_identity_resolvers[0].option_binding.scope == "session"
-    assert [option.key for option in manifest.frontend.project_options] == [
-        "DEFAULT_TEAM_ID"
-    ]
+    assert [option.key for option in manifest.frontend.project_options] == ["DEFAULT_TEAM_ID"]
     assert manifest.frontend.project_options[0].label == "agentTeam.settings.defaultTeam"
     assert manifest.frontend.project_options[0].renderer == "agent_team.TeamSelectOption"
-    assert [option.key for option in manifest.frontend.session_options] == [
-        "SELECTED_TEAM_ID"
-    ]
+    assert [option.key for option in manifest.frontend.session_options] == ["SELECTED_TEAM_ID"]
     assert manifest.frontend.session_options[0].visible_when is not None
     assert manifest.frontend.session_options[0].visible_when.agent_id == "team"
-    assert [option.key for option in manifest.frontend.channel_options] == [
-        "SELECTED_TEAM_ID"
-    ]
+    assert [option.key for option in manifest.frontend.channel_options] == ["SELECTED_TEAM_ID"]
     assert manifest.frontend.channel_options[0].label == "agentTeam.channel.selectedTeam"
     assert manifest.frontend.channel_options[0].renderer == "agent_team.TeamSelectOption"
     assert manifest.frontend.channel_options[0].suppresses_core_persona_selector is True

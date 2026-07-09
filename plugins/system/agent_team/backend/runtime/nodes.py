@@ -12,6 +12,14 @@ from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
 from langchain_core.runnables import RunnableConfig
 
+from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
+from plugins.system.agent_team.backend.runtime.prompt import (
+    build_team_member_subagent_type,
+    build_team_router_system_prompt,
+    build_team_subagent_avatars,
+    build_team_subagent_display_names,
+    summarize_role_system_prompt,
+)
 from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
     build_human_message,
@@ -43,14 +51,6 @@ from src.agents.search_agent.prompt import (
 )
 from src.agents.search_agent.prompt import (
     SANDBOX_SYSTEM_PROMPT as SEARCH_SANDBOX_SYSTEM_PROMPT,
-)
-from src.agents.team_agent.context import TeamAgentContext
-from src.agents.team_agent.prompt import (
-    build_team_member_subagent_type,
-    build_team_router_system_prompt,
-    build_team_subagent_avatars,
-    build_team_subagent_display_names,
-    summarize_role_system_prompt,
 )
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.events.types import TOOL_TASK
@@ -208,7 +208,7 @@ async def resolve_runtime_team(
 
     if team_id:
         try:
-            from src.infra.team.manager import get_team_manager
+            from plugins.system.agent_team.backend.domain.manager import get_team_manager
 
             tm = get_team_manager()
             team = await tm.resolve_team_for_runtime(team_id, owner_user_id=context.user_id)

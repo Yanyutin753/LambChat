@@ -7,10 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from bson import ObjectId
 
-from src.infra.utils.datetime import utc_now
-from src.kernel.config import settings
-from src.kernel.schemas.persona_preset import PersonaStarterPrompt
-from src.kernel.schemas.team import (
+from plugins.system.agent_team.backend.domain.schemas import (
     TEAM_MEMBERS_MAX,
     TEAM_STARTER_PROMPTS_MAX,
     TEAM_TAGS_MAX,
@@ -18,6 +15,9 @@ from src.kernel.schemas.team import (
     TeamResponse,
     TeamVisibility,
 )
+from src.infra.utils.datetime import utc_now
+from src.kernel.config import settings
+from src.kernel.schemas.persona_preset import PersonaStarterPrompt
 
 if TYPE_CHECKING:
     from motor.motor_asyncio import AsyncIOMotorCollection

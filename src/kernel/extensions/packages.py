@@ -24,6 +24,7 @@ from src.kernel.extensions.manifest import (
     PluginInstallType,
     PluginManifest,
 )
+from src.kernel.extensions.module_loader import is_plugin_relative_module_ref, split_module_ref
 
 PluginPackageSourceType = Literal["system", "preinstalled", "installed", "staged"]
 
@@ -184,7 +185,11 @@ class PluginPackageScanner:
             source_dir = self._safe_child(self.plugin_root, relative_dir)
             if not source_dir.exists():
                 continue
-            for folder in sorted(path for path in source_dir.iterdir() if path.is_dir()):
+            for folder in sorted(
+                path
+                for path in source_dir.iterdir()
+                if path.is_dir() and path.name != "__pycache__"
+            ):
                 descriptor = self._scan_folder(source_type, folder)
                 if descriptor.plugin_id in seen:
                     descriptor = PluginFolderDescriptor(
@@ -301,6 +306,8 @@ class PluginPackageScanner:
             return ()
         values: list[str] = []
         for path in sorted(folder.iterdir()):
+            if path.name == "__pycache__":
+                continue
             if path.is_symlink():
                 continue
             if path.is_file():
@@ -745,6 +752,11 @@ class PluginPackageScanner:
         frontend_assets: PluginFrontendAssetBundle | None,
     ) -> PluginManifest:
         install_type = package.install_type or _install_type_for_source(source_type)
+        self._validate_trusted_backend_modules(
+            package,
+            install_type=install_type,
+            folder=folder,
+        )
         return PluginManifest(
             id=package.id,
             name=package.name,
@@ -782,6 +794,43 @@ class PluginPackageScanner:
             package_static_fallback_used=False,
             package_static_fallback_fields=[],
         )
+
+    def _validate_trusted_backend_modules(
+        self,
+        package: PluginPackageManifest,
+        *,
+        install_type: PluginInstallType,
+        folder: Path,
+    ) -> None:
+        for agent in package.backend.agents:
+            module = str(agent.get("module") or "")
+            if not module:
+                continue
+            if install_type is not PluginInstallType.SYSTEM_BUILTIN:
+                raise ValueError(
+                    "backend/plugin.json agents may be declared only by system_builtin plugins"
+                )
+            if not is_plugin_relative_module_ref(module):
+                raise ValueError(
+                    "backend/plugin.json agents must use plugin-relative Python modules"
+                )
+            self._validate_plugin_relative_module_file(folder, module)
+        for contribution in (*package.backend.routers, *package.backend.tools):
+            module = str(contribution.get("module") or "")
+            if is_plugin_relative_module_ref(module):
+                self._validate_plugin_relative_module_file(folder, module)
+
+    def _validate_plugin_relative_module_file(self, folder: Path, module_ref: str) -> None:
+        module_name, _ = split_module_ref(module_ref)
+        normalized = module_name.replace("\\", "/")
+        if not normalized.startswith("./"):
+            raise ValueError(f"plugin module must be relative to the plugin root: {module_name}")
+        if not normalized.endswith(".py"):
+            raise ValueError(f"plugin module must reference a Python file: {module_name}")
+        module_file = (folder / normalized[2:]).resolve()
+        self._ensure_inside(module_file, folder)
+        if not module_file.is_file():
+            raise ValueError(f"plugin module file not found: {module_name}")
 
     def _safe_child(self, root: Path, child: str) -> Path:
         self._validate_relative_path(child, label="path")

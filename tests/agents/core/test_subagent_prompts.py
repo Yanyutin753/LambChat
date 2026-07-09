@@ -32,7 +32,10 @@ _fast_prompt = _load_prompt_module("fast_agent_prompt_for_tests", "src/agents/fa
 _search_prompt = _load_prompt_module(
     "search_agent_prompt_for_tests", "src/agents/search_agent/prompt.py"
 )
-_team_prompt = _load_prompt_module("team_agent_prompt_for_tests", "src/agents/team_agent/prompt.py")
+_team_prompt = _load_prompt_module(
+    "team_agent_prompt_for_tests",
+    "plugins/system/agent_team/backend/runtime/prompt.py",
+)
 
 FAST_SYSTEM_PROMPT = _fast_prompt.FAST_SYSTEM_PROMPT
 DEFAULT_SYSTEM_PROMPT = _search_prompt.DEFAULT_SYSTEM_PROMPT
@@ -513,9 +516,9 @@ def test_team_router_prompt_describes_natural_collaboration_contract() -> None:
 
 
 def test_team_fallback_registers_specialized_subagents() -> None:
-    nodes_source = (Path(__file__).parents[3] / "src/agents/team_agent/nodes.py").read_text(
-        encoding="utf-8"
-    )
+    nodes_source = (
+        Path(__file__).parents[3] / "plugins/system/agent_team/backend/runtime/nodes.py"
+    ).read_text(encoding="utf-8")
 
     for name in SPECIALIZED_SUBAGENT_NAMES:
         assert f'"name": "{name}"' in nodes_source

@@ -82,6 +82,62 @@ backend:
     assert manifest.settings[0].key == "MODEL"
 
 
+def test_plugin_package_scanner_rejects_user_plugin_agent_runtime(
+    tmp_path: Path,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    data_root = tmp_path / "plugin-data"
+    folder = _write_plugin(
+        plugin_root,
+        "installed",
+        "demo_agent",
+        """
+id: demo_agent
+name: Demo Agent
+version: 1.0.0
+api_version: v1
+backend:
+  agents:
+    - id: demo
+      module: ./backend/runtime/graph.py:DemoAgent
+""",
+    )
+    runtime_dir = folder / "backend" / "runtime"
+    runtime_dir.mkdir(parents=True)
+    (runtime_dir / "graph.py").write_text("class DemoAgent: ...\n", encoding="utf-8")
+
+    scan = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan()
+
+    assert "agents may be declared only by system_builtin plugins" in scan.errors[0]
+
+
+def test_plugin_package_scanner_rejects_agent_runtime_path_escape(
+    tmp_path: Path,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    data_root = tmp_path / "plugin-data"
+    _write_plugin(
+        plugin_root,
+        "system",
+        "bad_agent",
+        """
+id: bad_agent
+name: Bad Agent
+version: 1.0.0
+api_version: v1
+backend:
+  agents:
+    - id: bad_agent
+      module: ../outside.py:BadAgent
+""",
+    )
+    (plugin_root / "system" / "outside.py").write_text("class BadAgent: ...\n", encoding="utf-8")
+
+    scan = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan()
+
+    assert "must be relative to the plugin root" in scan.errors[0]
+
+
 def test_plugin_package_scanner_reports_folder_layout(tmp_path: Path) -> None:
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
@@ -165,14 +221,6 @@ api_version: v1
                             "tags": ["Backend Plugin"],
                         }
                     ],
-                    "agents": [
-                        {
-                            "id": "demo_agent",
-                            "module": "plugins.backend_plugin.agent.DemoAgent",
-                            "name": "Demo Agent",
-                            "required_permissions": ["backend_plugin:read"],
-                        }
-                    ],
                     "tools": [
                         {
                             "name": "backend_plugin_tool",
@@ -213,8 +261,7 @@ api_version: v1
     assert manifest is not None
     assert manifest.routers[0].name == "backend_plugin-api"
     assert manifest.routers[0].prefix == "/api/backend-plugin"
-    assert manifest.agents[0].id == "demo_agent"
-    assert manifest.agents[0].module == "plugins.backend_plugin.agent.DemoAgent"
+    assert manifest.agents == []
     assert manifest.tools[0].name == "backend_plugin_tool"
     assert manifest.tools[0].legacy_ids == ["backend_tool", "backend_plugin.tool"]
     assert manifest.lifespan_hooks[0].name == "backend_plugin:shutdown"
@@ -780,9 +827,9 @@ def test_controlled_frontend_references_include_builtin_plugin_renderers() -> No
     assert CONTROLLED_FRONTEND_REFERENCES["message_actions.renderer"] == frozenset(
         {"feedback.FeedbackButtons"}
     )
-    assert CONTROLLED_FRONTEND_REFERENCES[
-        "chat_input_options.selected_renderer"
-    ] == frozenset({"agent_team.SelectedTeamChip"})
+    assert CONTROLLED_FRONTEND_REFERENCES["chat_input_options.selected_renderer"] == frozenset(
+        {"agent_team.SelectedTeamChip"}
+    )
     assert CONTROLLED_FRONTEND_REFERENCES["chat_input_panels.renderer"] == frozenset(
         {"agent_team.TeamPickerModal"}
     )

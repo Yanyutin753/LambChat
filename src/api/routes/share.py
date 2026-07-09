@@ -8,13 +8,13 @@ from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from plugins.system.agent_team.backend.domain.storage import TeamStorage
 from src.agents.core.base import get_agent_class
 from src.api.deps import get_current_user_optional, get_current_user_required
 from src.infra.logging import get_logger
 from src.infra.session.dual_writer import get_dual_writer
 from src.infra.session.manager import SessionManager
 from src.infra.share.storage import ShareStorage
-from src.infra.team.storage import TeamStorage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import to_iso
 from src.kernel.extensions.plugin_options import (

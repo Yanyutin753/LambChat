@@ -2,9 +2,9 @@
 
 from typing import Any
 
+from plugins.system.agent_team.backend.domain.manager import TeamManager
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
-from src.infra.team.manager import TeamManager
 
 logger = get_logger(__name__)
 

@@ -211,9 +211,7 @@ async def test_recovery_service_resume_session_submits_localized_recovery_messag
     assert storage.updates[-1][0] == "session-1"
     recovered_metadata = storage.updates[-1][1].metadata
     assert "team_id" not in recovered_metadata
-    assert recovered_metadata["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
-    }
+    assert recovered_metadata["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}
 
 
 @pytest.mark.asyncio

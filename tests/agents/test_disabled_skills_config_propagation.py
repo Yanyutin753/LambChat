@@ -745,8 +745,8 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -845,7 +845,7 @@ async def test_team_agent_node_passes_internal_tools_when_mcp_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -882,7 +882,7 @@ async def test_team_agent_node_adds_code_interpreter_middleware_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -936,8 +936,8 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)

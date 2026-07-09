@@ -11,7 +11,11 @@ from enum import Enum
 from time import perf_counter
 from typing import Any, Literal
 
-from src.kernel.extensions.manifest import PluginManifest
+from src.kernel.extensions.manifest import PluginInstallType, PluginManifest
+from src.kernel.extensions.module_loader import (
+    is_plugin_relative_module_ref,
+    validate_plugin_relative_module_ref,
+)
 from src.kernel.extensions.registry import (
     LifecyclePhase,
     PluginAgentRegistration,
@@ -735,6 +739,37 @@ class PluginRuntime:
                     ),
                 )
             )
+        if manifest.agents and manifest.install_type is not PluginInstallType.SYSTEM_BUILTIN:
+            issues.append(
+                PluginRuntimeIssue(
+                    plugin_id=manifest.id,
+                    code="untrusted_agent_runtime",
+                    message="plugin agent runtimes may be declared only by system_builtin plugins",
+                )
+            )
+        for agent in manifest.agents:
+            if not agent.module:
+                continue
+            if not is_plugin_relative_module_ref(agent.module):
+                issues.append(
+                    PluginRuntimeIssue(
+                        plugin_id=manifest.id,
+                        code="invalid_agent_runtime_module",
+                        message="plugin agent runtime modules must be plugin-relative Python files",
+                    )
+                )
+                continue
+            if manifest.package_source_path:
+                try:
+                    validate_plugin_relative_module_ref(manifest, agent.module)
+                except Exception as exc:
+                    issues.append(
+                        PluginRuntimeIssue(
+                            plugin_id=manifest.id,
+                            code="invalid_agent_runtime_module",
+                            message=str(exc) or exc.__class__.__name__,
+                        )
+                    )
         return issues
 
 

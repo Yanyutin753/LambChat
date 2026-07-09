@@ -37,9 +37,7 @@ def test_advanced_file_viewers_manifest_declares_frontend_viewers() -> None:
         "advanced_file_viewers:markdown": ["md", "markdown"],
         "advanced_file_viewers:code": ["*"],
     }
-    assert manifest.frontend.i18n_namespaces == [
-        "advanced_file_viewers:documents"
-    ]
+    assert manifest.frontend.i18n_namespaces == ["advanced_file_viewers:documents"]
 
 
 def test_advanced_file_viewers_runtime_is_enabled_and_has_no_backend_routes() -> None:
@@ -62,9 +60,7 @@ def test_advanced_file_viewers_resources_and_dry_run_are_non_destructive() -> No
     )
     resource_keys = {
         (resource.resource_type, resource.resource_id)
-        for resource in runtime.resource_ledger.list(
-            plugin_id=ADVANCED_FILE_VIEWERS_PLUGIN_ID
-        )
+        for resource in runtime.resource_ledger.list(plugin_id=ADVANCED_FILE_VIEWERS_PLUGIN_ID)
     }
     actions_by_id = {resource.resource_id: resource.action for resource in dry_run.resources}
 

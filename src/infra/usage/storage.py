@@ -136,7 +136,7 @@ class UsageStorage:
         try:
             from bson import ObjectId
 
-            from src.infra.team.storage import TeamStorage
+            from plugins.system.agent_team.backend.domain.storage import TeamStorage
 
             query_id: ObjectId | str
             try:

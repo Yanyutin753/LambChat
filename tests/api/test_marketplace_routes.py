@@ -137,6 +137,7 @@ async def test_list_marketplace_skills_keeps_skill_payload_and_adds_extension_en
     assert result[0].extension.type == "skill"
     assert result[0].extension.capabilities == ["skill"]
 
+
 @pytest.mark.asyncio
 async def test_create_marketplace_skill_rejects_too_many_files_before_sync(
     monkeypatch: pytest.MonkeyPatch,

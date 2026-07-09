@@ -36,9 +36,7 @@ def test_feishu_connector_runtime_guards_connector_state() -> None:
 
     assert state is not None
     assert state.status is PluginRuntimeStatus.ENABLED
-    assert [record.resource_id for record in runtime.channel_connectors()] == [
-        FEISHU_CONNECTOR_ID
-    ]
+    assert [record.resource_id for record in runtime.channel_connectors()] == [FEISHU_CONNECTOR_ID]
     assert runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID).plugin_id == (
         FEISHU_CONNECTOR_PLUGIN_ID
     )
@@ -58,7 +56,10 @@ def test_feishu_connector_resources_and_dry_run_are_non_destructive() -> None:
         PluginResourceType.DB_DOCUMENT,
         "user_channel_configs.feishu",
     ) in resource_keys
-    assert (PluginResourceType.LISTENER, "feishu_connector:channel-config-change-listener") in resource_keys
+    assert (
+        PluginResourceType.LISTENER,
+        "feishu_connector:channel-config-change-listener",
+    ) in resource_keys
 
     dry_run = build_uninstall_dry_run(
         plugin_id=FEISHU_CONNECTOR_PLUGIN_ID,
@@ -71,6 +72,4 @@ def test_feishu_connector_resources_and_dry_run_are_non_destructive() -> None:
     assert actions_by_id["feishu_connector:channel-config-change-listener"] is (
         PluginDryRunAction.MANUAL_REVIEW
     )
-    assert actions_by_id["revealed-files/feishu-delivery"] is (
-        PluginDryRunAction.FORBID_DELETE
-    )
+    assert actions_by_id["revealed-files/feishu-delivery"] is (PluginDryRunAction.FORBID_DELETE)

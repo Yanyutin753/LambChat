@@ -23,7 +23,7 @@ from src.api.routes.chat import (
     session_stream,
 )
 from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
-from src.kernel.extensions import PluginManifest, PluginRuntime
+from src.kernel.extensions import PluginInstallType, PluginManifest, PluginRuntime
 from src.kernel.extensions.builtin_plugins import build_agent_team_plugin_manifest
 from src.kernel.extensions.plugin_options import selected_agent_team_id_from_metadata
 from src.kernel.schemas.agent import AgentRequest, GoalSpec
@@ -74,9 +74,7 @@ def test_build_conversation_config_writes_agent_team_session_plugin_option() -> 
     )
 
     assert "team_id" not in config
-    assert config["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
-    }
+    assert config["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}
 
 
 def test_build_conversation_config_preserves_generic_plugin_session_options() -> None:
@@ -102,7 +100,9 @@ def test_build_conversation_config_preserves_generic_plugin_session_options() ->
     }
 
 
-def test_build_conversation_config_filters_plugin_options_by_manifest_when_runtime_is_available() -> None:
+def test_build_conversation_config_filters_plugin_options_by_manifest_when_runtime_is_available() -> (
+    None
+):
     manifest = PluginManifest(
         id="automation_runner",
         name="Workflow Runner",
@@ -167,9 +167,7 @@ def test_build_conversation_config_overlays_agent_team_legacy_selection() -> Non
         session_id="session-1",
     )
 
-    assert config["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-current"}
-    }
+    assert config["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-current"}}
 
 
 def test_apply_agent_team_plugin_session_option_prefers_plugin_namespace() -> None:
@@ -190,18 +188,12 @@ def test_apply_existing_session_plugin_options_restores_agent_team_selection() -
     apply_existing_session_plugin_options(
         request,
         agent_id="team",
-        existing_metadata={
-            "plugin_options": {
-                "agent_team": {"SELECTED_TEAM_ID": "saved-team"}
-            }
-        },
+        existing_metadata={"plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "saved-team"}}},
         plugin_runtime=PluginRuntime([build_agent_team_plugin_manifest()]),
     )
 
     assert request.team_id == "saved-team"
-    assert request.plugin_options == {
-        "agent_team": {"SELECTED_TEAM_ID": "saved-team"}
-    }
+    assert request.plugin_options == {"agent_team": {"SELECTED_TEAM_ID": "saved-team"}}
 
 
 def test_apply_existing_session_plugin_options_keeps_explicit_agent_team_selection() -> None:
@@ -214,18 +206,12 @@ def test_apply_existing_session_plugin_options_keeps_explicit_agent_team_selecti
     apply_existing_session_plugin_options(
         request,
         agent_id="team",
-        existing_metadata={
-            "plugin_options": {
-                "agent_team": {"SELECTED_TEAM_ID": "saved-team"}
-            }
-        },
+        existing_metadata={"plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "saved-team"}}},
         plugin_runtime=PluginRuntime([build_agent_team_plugin_manifest()]),
     )
 
     assert request.team_id == "current-team"
-    assert request.plugin_options == {
-        "agent_team": {"SELECTED_TEAM_ID": "current-team"}
-    }
+    assert request.plugin_options == {"agent_team": {"SELECTED_TEAM_ID": "current-team"}}
 
 
 def test_apply_declared_plugin_session_options_imports_manifest_legacy_payload() -> None:
@@ -305,9 +291,7 @@ def test_selected_agent_team_id_from_metadata_prefers_plugin_option_with_legacy_
         selected_agent_team_id_from_metadata(
             {
                 "team_id": "legacy-team",
-                "plugin_options": {
-                    "agent_team": {"SELECTED_TEAM_ID": "plugin-team"}
-                },
+                "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "plugin-team"}},
             }
         )
         == "plugin-team"
@@ -328,7 +312,9 @@ def test_ensure_agent_team_executable_allows_other_agents_when_disabled() -> Non
         "search",
         SimpleNamespace(
             app=SimpleNamespace(
-                state=SimpleNamespace(plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False))
+                state=SimpleNamespace(
+                    plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False)
+                )
             )
         ),
     )
@@ -340,7 +326,9 @@ def test_ensure_agent_team_executable_rejects_disabled_agent_team() -> None:
             "team",
             SimpleNamespace(
                 app=SimpleNamespace(
-                    state=SimpleNamespace(plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False))
+                    state=SimpleNamespace(
+                        plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False)
+                    )
                 )
             ),
         )
@@ -363,10 +351,11 @@ def test_ensure_plugin_agent_executable_rejects_any_disabled_plugin_agent() -> N
                 version="1.0.0",
                 api_version="v1",
                 permissions=["automation_runner:read"],
+                install_type=PluginInstallType.SYSTEM_BUILTIN,
                 agents=[
                     {
                         "id": "workflow",
-                        "module": "plugins.workflow.agent.WorkflowAgent",
+                        "module": "./backend/runtime/graph.py:WorkflowAgent",
                         "required_permissions": ["automation_runner:read"],
                     }
                 ],
@@ -440,7 +429,9 @@ async def test_apply_project_agent_team_default_uses_plugin_project_option(
         http_request=SimpleNamespace(
             app=SimpleNamespace(
                 state=SimpleNamespace(
-                    plugin_runtime=SimpleNamespace(is_enabled=lambda plugin_id: plugin_id == "agent_team")
+                    plugin_runtime=SimpleNamespace(
+                        is_enabled=lambda plugin_id: plugin_id == "agent_team"
+                    )
                 )
             )
         ),
@@ -560,7 +551,9 @@ async def test_apply_project_agent_team_default_ignores_disabled_plugin(
         user=SimpleNamespace(sub="user-1"),
         http_request=SimpleNamespace(
             app=SimpleNamespace(
-                state=SimpleNamespace(plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False))
+                state=SimpleNamespace(
+                    plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False)
+                )
             )
         ),
     )
@@ -618,9 +611,7 @@ async def test_apply_project_plugin_session_defaults_uses_manifest_projection(
     request = AgentRequest(message="run workflow", project_id="project-1")
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -679,13 +670,13 @@ async def test_apply_project_plugin_session_defaults_supports_get_state_only_run
         },
     )
     state = SimpleNamespace(manifest=manifest, executable=True)
-    runtime = SimpleNamespace(get_state=lambda plugin_id: state if plugin_id == manifest.id else None)
+    runtime = SimpleNamespace(
+        get_state=lambda plugin_id: state if plugin_id == manifest.id else None
+    )
     request = AgentRequest(message="run workflow", project_id="project-1")
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -833,9 +824,7 @@ async def test_apply_project_plugin_session_defaults_keeps_explicit_session_opti
     )
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -856,9 +845,7 @@ async def test_apply_project_plugin_session_defaults_keeps_explicit_session_opti
         ),
     )
 
-    assert request.plugin_options == {
-        "automation_runner": {"SELECTED_AUTOMATION_ID": "manual"}
-    }
+    assert request.plugin_options == {"automation_runner": {"SELECTED_AUTOMATION_ID": "manual"}}
 
 
 @pytest.mark.asyncio
@@ -894,9 +881,7 @@ async def test_apply_project_plugin_session_defaults_uses_generic_defaults_when_
     )
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -963,9 +948,7 @@ async def test_apply_project_agent_team_default_does_not_override_explicit_team_
     )
 
     assert request.team_id == "manual-team"
-    assert request.plugin_options == {
-        "agent_team": {"SELECTED_TEAM_ID": "manual-team"}
-    }
+    assert request.plugin_options == {"agent_team": {"SELECTED_TEAM_ID": "manual-team"}}
 
 
 def test_resolve_goal_for_request_uses_request_goal_without_rewriting_message() -> None:

@@ -517,8 +517,7 @@ async def test_get_session_events_preserves_workflow_tool_outlet(
 
     assert response["events"][0]["data"]["result"] == workflow_outlet
     assert (
-        response["events"][0]["data"]["result"]["interface"]["debug"]["tool"]
-        == "workflow_get_run"
+        response["events"][0]["data"]["result"]["interface"]["debug"]["tool"] == "workflow_get_run"
     )
     assert response["events"][0]["data"]["result"]["next_action"]["tool"] == "workflow_get_run"
     assert dual_writer.calls == [

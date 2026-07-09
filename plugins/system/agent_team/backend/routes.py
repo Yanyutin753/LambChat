@@ -2,18 +2,18 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.deps import get_current_user_required
-from src.api.routes.plugin_guard import plugin_route_guard
-from src.infra.team.manager import TeamManager
-from src.kernel.exceptions import NotFoundError
-from src.kernel.extensions.plugin_options import AGENT_TEAM_PLUGIN_ID
-from src.kernel.schemas.team import (
+from plugins.system.agent_team.backend.domain.manager import TeamManager
+from plugins.system.agent_team.backend.domain.schemas import (
     TeamCreate,
     TeamListResponse,
     TeamPreferenceUpdate,
     TeamResponse,
     TeamUpdate,
 )
+from src.api.deps import get_current_user_required
+from src.api.routes.plugin_guard import plugin_route_guard
+from src.kernel.exceptions import NotFoundError
+from src.kernel.extensions.plugin_options import AGENT_TEAM_PLUGIN_ID
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter(

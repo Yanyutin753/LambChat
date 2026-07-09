@@ -45,7 +45,9 @@ async def test_plugin_settings_service_masks_sensitive_values_and_preserves_mask
 
     assert raw is not None
     assert raw.value == "sk-test"
-    assert next(item for item in settings if item["key"] == "API_KEY")["value"] == MASKED_SECRET_VALUE
+    assert (
+        next(item for item in settings if item["key"] == "API_KEY")["value"] == MASKED_SECRET_VALUE
+    )
 
 
 @pytest.mark.asyncio
@@ -243,12 +245,12 @@ async def test_plugin_settings_export_includes_scoped_subject_values_and_masks_s
     )
 
     exported = await service.export_settings(manifest)
-    by_scope_subject = {
-        (item["scope"], item["subject_id"], item["key"]): item for item in exported
-    }
+    by_scope_subject = {(item["scope"], item["subject_id"], item["key"]): item for item in exported}
 
     assert by_scope_subject[("system", None, "API_TOKEN")]["value"] == MASKED_SECRET_VALUE
     assert by_scope_subject[("channel", "channel-1", "SELECTED_TEAM_ID")]["value"] == "team-channel"
-    assert by_scope_subject[("scheduled_task", "task-1", "SELECTED_TEAM_ID")]["value"] == "team-task"
+    assert (
+        by_scope_subject[("scheduled_task", "task-1", "SELECTED_TEAM_ID")]["value"] == "team-task"
+    )
     assert by_scope_subject[("channel", None, "SELECTED_TEAM_ID")]["source"] == "default"
     assert by_scope_subject[("scheduled_task", None, "SELECTED_TEAM_ID")]["source"] == "default"

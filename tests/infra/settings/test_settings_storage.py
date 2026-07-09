@@ -120,9 +120,7 @@ async def test_get_all_hides_plugin_owned_legacy_settings_and_raw_requires_migra
 async def test_settings_storage_rejects_generic_plugin_owned_setting_mutations() -> None:
     from src.infra.settings.storage import SettingsStorage
 
-    collection = _FakeCollection(
-        [{"_id": "IMAGE_GENERATION_API_KEY", "value": "sk-legacy"}]
-    )
+    collection = _FakeCollection([{"_id": "IMAGE_GENERATION_API_KEY", "value": "sk-legacy"}])
     storage = SettingsStorage()
     storage._collection = collection
 

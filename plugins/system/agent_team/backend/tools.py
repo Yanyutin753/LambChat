@@ -8,13 +8,17 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from langchain_core.tools import BaseTool, InjectedToolArg
 
+from plugins.system.agent_team.backend.domain.manager import TeamManager
+from plugins.system.agent_team.backend.domain.schemas import (
+    TeamCreate,
+    TeamMemberCreate,
+    TeamUpdate,
+)
 from src.infra.async_utils import run_blocking_io
 from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.role.storage import RoleStorage
-from src.infra.team.manager import TeamManager
 from src.infra.tool.backend_utils import get_user_id_from_runtime
 from src.infra.user.storage import UserStorage
-from src.kernel.schemas.team import TeamCreate, TeamMemberCreate, TeamUpdate
 from src.kernel.schemas.user import TokenPayload
 
 if TYPE_CHECKING:

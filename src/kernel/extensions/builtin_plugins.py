@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from src.kernel.config import settings
 from src.kernel.extensions.manifest import PluginInstallType, PluginManifest
 from src.kernel.extensions.plugin_options import AGENT_TEAM_SELECTED_TEAM_OPTION
@@ -16,6 +18,7 @@ GITHUB_INSTALLER_PLUGIN_ID = "github_installer"
 FEISHU_CONNECTOR_PLUGIN_ID = "feishu_connector"
 FEISHU_CONNECTOR_ID = "feishu_connector:feishu"
 AGENT_TEAM_PLUGIN_ID = "agent_team"
+AGENT_TEAM_PACKAGE_PATH = Path(__file__).resolve().parents[3] / "plugins" / "system" / "agent_team"
 
 
 def build_agent_team_plugin_manifest() -> PluginManifest:
@@ -76,7 +79,7 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
             {
                 "name": "agent_team-api",
                 "prefix": "/api/teams",
-                "module": "src.api.routes.team",
+                "module": "./backend/routes.py",
                 "required_permissions": [
                     Permission.TEAM_READ.value,
                     Permission.TEAM_WRITE.value,
@@ -88,7 +91,7 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
         agents=[
             {
                 "id": "team",
-                "module": "src.agents.team_agent.graph.TeamAgent",
+                "module": "./backend/runtime/graph.py:TeamAgent",
                 "name": "agents.team.name",
                 "description": "agents.team.description",
                 "icon": "Users",
@@ -100,7 +103,7 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
         tools=[
             {
                 "name": "search_persona_presets",
-                "module": "src.infra.tool.team_tool",
+                "module": "./backend/tools.py:get_team_tools",
                 "required_permissions": [
                     Permission.TEAM_READ.value,
                     Permission.PERSONA_PRESET_READ.value,
@@ -110,7 +113,7 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
             },
             {
                 "name": "create_agent_team",
-                "module": "src.infra.tool.team_tool",
+                "module": "./backend/tools.py:get_team_tools",
                 "required_permissions": [
                     Permission.TEAM_WRITE.value,
                     Permission.CHAT_WRITE.value,
@@ -300,8 +303,8 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
                 "cleanup_strategy": "keep",
                 "metadata": {
                     "storage": "mongodb",
-                    "manager": "src.infra.team.manager.TeamManager",
-                    "schema": "src.kernel.schemas.team.TeamResponse",
+                    "manager": "plugins.system.agent_team.backend.domain.manager.TeamManager",
+                    "schema": "plugins.system.agent_team.backend.domain.schemas.TeamResponse",
                     "data_policy": "Disable/uninstall dry-run keeps user team definitions.",
                 },
             },
@@ -352,6 +355,7 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
         enabled_by_default=True,
         core=False,
         install_type=PluginInstallType.SYSTEM_BUILTIN,
+        package_source_path=str(AGENT_TEAM_PACKAGE_PATH),
     )
 
 

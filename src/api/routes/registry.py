@@ -22,6 +22,7 @@ from src.kernel.extensions import (
     PluginRuntime,
     PluginRuntimeStatus,
 )
+from src.kernel.extensions.module_loader import load_plugin_module
 from src.kernel.extensions.packages import (
     PluginFolderDescriptor,
     PluginPackageScanner,
@@ -163,8 +164,11 @@ def register_core_routes(
         )
 
 
-def _resolve_plugin_router(registration: PluginRouteRegistration) -> APIRouter:
-    module = import_module(registration.module)
+def _resolve_plugin_router(
+    registration: PluginRouteRegistration,
+    manifest: PluginManifest,
+) -> APIRouter:
+    module = load_plugin_module(manifest, registration.module)
     router = getattr(module, "router")
     if not isinstance(router, APIRouter):
         raise TypeError(f"{registration.module}.router is not an APIRouter")
@@ -190,7 +194,7 @@ def register_plugin_routes(
             continue
         try:
             app.include_router(
-                _resolve_plugin_router(registration),
+                _resolve_plugin_router(registration, state.manifest),
                 prefix=registration.prefix,
                 tags=cast(
                     list[str | Enum], registration.tags or [f"Plugin:{registration.plugin_id}"]

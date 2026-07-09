@@ -146,7 +146,9 @@ def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setitem(
         sys.modules,
         "src.kernel.extensions.runtime",
-        SimpleNamespace(PluginRuntime=lambda *args, **kwargs: SimpleNamespace(get_state=lambda _plugin_id: None)),
+        SimpleNamespace(
+            PluginRuntime=lambda *args, **kwargs: SimpleNamespace(get_state=lambda _plugin_id: None)
+        ),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -311,13 +313,13 @@ async def test_session_plugin_options_include_session_scoped_plugin_settings(
         user=SimpleNamespace(sub="user-1"),
     )
 
-    assert response["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-from-settings"}
-    }
+    assert response["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-from-settings"}}
 
 
 @pytest.mark.asyncio
-async def test_session_plugin_option_update_keeps_disabled_plugin_value(monkeypatch: pytest.MonkeyPatch):
+async def test_session_plugin_option_update_keeps_disabled_plugin_value(
+    monkeypatch: pytest.MonkeyPatch,
+):
     session_routes = _load_session_routes_module(monkeypatch)
     from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
 

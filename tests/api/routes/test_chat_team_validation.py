@@ -102,9 +102,7 @@ def test_conversation_metadata_writes_agent_team_selection_as_plugin_option() ->
     metadata = build_conversation_config("run-1", "team", request, "en")
 
     assert "team_id" not in metadata
-    assert metadata["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
-    }
+    assert metadata["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}
 
 
 def test_conversation_metadata_uses_runtime_agent_declaration() -> None:
@@ -123,6 +121,4 @@ def test_conversation_metadata_uses_runtime_agent_declaration() -> None:
         plugin_runtime=runtime,
     )
 
-    assert metadata["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
-    }
+    assert metadata["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}

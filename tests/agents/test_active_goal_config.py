@@ -5,9 +5,9 @@ from typing import Any
 
 import pytest
 
+from plugins.system.agent_team.backend.runtime import graph as team_graph
 from src.agents.fast_agent import graph as fast_graph
 from src.agents.search_agent import graph as search_graph
-from src.agents.team_agent import graph as team_graph
 
 
 class _DummyContext:

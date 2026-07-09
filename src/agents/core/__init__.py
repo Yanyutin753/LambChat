@@ -12,6 +12,7 @@ from src.agents.core.base import (
     # 基类
     BaseGraphAgent,
     GraphBuilder,
+    discover_plugin_agents,
     ensure_agent_executable,
     get_agent_class,
     # 辅助
@@ -28,6 +29,7 @@ __all__ = [
     "GraphBuilder",
     # 注册
     "_AGENT_REGISTRY",
+    "discover_plugin_agents",
     "ensure_agent_executable",
     "register_agent",
     "set_plugin_runtime",

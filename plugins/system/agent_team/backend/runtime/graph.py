@@ -16,15 +16,15 @@ from typing import Any, AsyncGenerator, Dict
 
 from langchain_core.runnables import RunnableConfig
 
+from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
+from plugins.system.agent_team.backend.runtime.nodes import team_router_node
+from plugins.system.agent_team.backend.runtime.state import TeamAgentState
 from src.agents.core.base import (
     BaseGraphAgent,
     GraphBuilder,
     build_presenter_langsmith_metadata,
     register_agent,
 )
-from src.agents.team_agent.context import TeamAgentContext
-from src.agents.team_agent.nodes import team_router_node
-from src.agents.team_agent.state import TeamAgentState
 from src.infra.backend.context import set_user_context
 from src.infra.logging import get_logger
 from src.infra.task.exceptions import TaskInterruptedError

@@ -73,9 +73,7 @@ def test_frontend_loads_plugin_data_locale_overrides_after_bundled_defaults() ->
     source = (REPO_ROOT / "frontend" / "src" / "i18n" / "pluginLocales.ts").read_text(
         encoding="utf-8"
     )
-    i18n_source = (REPO_ROOT / "frontend" / "src" / "i18n" / "index.ts").read_text(
-        encoding="utf-8"
-    )
+    i18n_source = (REPO_ROOT / "frontend" / "src" / "i18n" / "index.ts").read_text(encoding="utf-8")
 
     assert "../../../plugins/system/*/frontend/locales/*.json" in source
     assert "../../../plugins/preinstalled/*/frontend/locales/*.json" in source

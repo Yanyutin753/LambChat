@@ -23,9 +23,9 @@ from src.infra.tool.image_generation_tool import (
 from src.infra.tool.mcp_client import MCPToolWithRetry
 from src.infra.tool.persona_preset_tool import get_persona_preset_tools
 from src.infra.tool.scheduled_task import get_scheduled_task_tools
-from src.infra.tool.team_tool import get_team_tools
 from src.kernel.config import settings
 from src.kernel.extensions import PluginRuntime, PluginUnavailableError
+from src.kernel.extensions.module_loader import load_plugin_attr
 from src.kernel.schemas.mcp import (
     MCPServerResponse,
     MCPToolInfo,
@@ -173,6 +173,51 @@ def _tool_runtime_from_config(config: Optional[RunnableConfig]) -> Any:
         return SimpleNamespace(config=runtime_config, context=context)
 
 
+def _coerce_plugin_tools(value: Any) -> list[BaseTool]:
+    if isinstance(value, BaseTool):
+        return [value]
+    if callable(value):
+        return _coerce_plugin_tools(value())
+    if isinstance(value, (list, tuple)):
+        return [tool for tool in value if isinstance(tool, BaseTool)]
+    return []
+
+
+def _build_plugin_internal_tools() -> list[BaseTool]:
+    runtime = _plugin_runtime
+    if runtime is None:
+        return []
+
+    tools: list[BaseTool] = []
+    seen_modules: set[tuple[str, str]] = set()
+    seen_tools: set[str] = set()
+    for registration in runtime.tools(enabled_only=True):
+        state = runtime.get_state(registration.plugin_id)
+        manifest = state.manifest if state else None
+        if manifest is None:
+            continue
+        module_key = (registration.plugin_id, registration.module)
+        if module_key in seen_modules:
+            continue
+        seen_modules.add(module_key)
+        try:
+            plugin_tools = _coerce_plugin_tools(load_plugin_attr(manifest, registration.module))
+        except Exception as exc:
+            runtime.mark_error(
+                registration.plugin_id,
+                code="tool_registration_failed",
+                message=str(exc) or exc.__class__.__name__,
+                phase="tool_registration",
+            )
+            continue
+        for tool in plugin_tools:
+            if tool.name in seen_tools:
+                continue
+            seen_tools.add(tool.name)
+            tools.append(tool)
+    return tools
+
+
 def build_internal_tools() -> list[BaseTool]:
     """Build the internal tool set that LambChat exposes to agents."""
     from src.infra.logging import get_logger
@@ -205,7 +250,7 @@ def build_internal_tools() -> list[BaseTool]:
     tools.extend(get_env_var_tools())
     tools.extend(get_feedback_tools())
     tools.extend(get_persona_preset_tools())
-    tools.extend(get_team_tools())
+    tools.extend(_build_plugin_internal_tools())
 
     logger.info(
         "[InternalRegistry] Total %d internal tools built: %s",

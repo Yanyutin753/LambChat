@@ -6,13 +6,17 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from plugins.system.agent_team.backend.domain.schemas import (
+    TeamMemberResponse,
+    TeamResponse,
+    TeamVisibility,
+)
 from src.kernel.schemas.persona_preset import (
     PersonaPreset,
     PersonaPresetScope,
     PersonaPresetStatus,
     PersonaPresetVisibility,
 )
-from src.kernel.schemas.team import TeamMemberResponse, TeamResponse, TeamVisibility
 
 
 class _Runtime:
@@ -43,7 +47,7 @@ def _preset(preset_id: str, name: str) -> PersonaPreset:
 
 
 def test_team_tool_descriptions_guide_llm_team_creation() -> None:
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     search_description = team_tool.search_persona_presets.description
     create_description = team_tool.create_agent_team.description
@@ -80,7 +84,7 @@ def test_team_tool_descriptions_guide_llm_team_creation() -> None:
 async def test_search_persona_presets_returns_visible_personas(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     manager = MagicMock()
     manager.list_presets = AsyncMock(return_value=[_preset("preset-research", "Researcher")])
@@ -109,7 +113,7 @@ async def test_search_persona_presets_returns_visible_personas(
 async def test_search_persona_presets_offloads_result_json(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     calls: list[object] = []
     manager = MagicMock()
@@ -145,7 +149,7 @@ async def test_search_persona_presets_offloads_result_json(
 async def test_search_persona_presets_offloads_error_result_json(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     calls: list[object] = []
 
@@ -168,7 +172,7 @@ async def test_search_persona_presets_offloads_error_result_json(
 
 @pytest.mark.asyncio
 async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.MonkeyPatch):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     created = TeamResponse(
         id="team-1",
@@ -234,7 +238,7 @@ async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.Mon
 async def test_create_agent_team_updates_existing_team_when_team_id_is_supplied(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     updated = TeamResponse(
         id="team-1",
@@ -285,7 +289,7 @@ async def test_create_agent_team_updates_existing_team_when_team_id_is_supplied(
 async def test_create_agent_team_passes_member_model_id_to_manager(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     created = TeamResponse(
         id="team-1",
@@ -339,7 +343,7 @@ async def test_create_agent_team_passes_member_model_id_to_manager(
 async def test_create_agent_team_ignores_member_agent_id_and_sets_team_sandbox(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     created = TeamResponse(
         id="team-1",
@@ -392,7 +396,7 @@ async def test_create_agent_team_ignores_member_agent_id_and_sets_team_sandbox(
 
 @pytest.mark.asyncio
 async def test_create_agent_team_requires_members(monkeypatch: pytest.MonkeyPatch):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     monkeypatch.setattr(
         team_tool,
@@ -415,7 +419,7 @@ async def test_create_agent_team_requires_members(monkeypatch: pytest.MonkeyPatc
 async def test_create_agent_team_rejects_placeholder_persona_ids(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     manager = MagicMock()
     manager.create_team = AsyncMock()
@@ -451,7 +455,7 @@ async def test_create_agent_team_rejects_placeholder_persona_ids(
 
 @pytest.mark.asyncio
 async def test_create_agent_team_requires_write_permission(monkeypatch: pytest.MonkeyPatch):
-    from src.infra.tool import team_tool
+    from plugins.system.agent_team.backend import tools as team_tool
 
     monkeypatch.setattr(
         team_tool,

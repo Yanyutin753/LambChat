@@ -270,7 +270,7 @@ function enabledAgentTeamPlugin(): PluginRuntimeContributionState {
     agents: [
       {
         id: "team",
-        module: "src.agents.team_agent.graph.TeamAgent",
+        module: "./backend/runtime/graph.py:TeamAgent",
         name: "agents.team.name",
         description: "agents.team.description",
         icon: "Users",

@@ -607,7 +607,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert agent_team["agents"] == [
         {
             "id": "team",
-            "module": "src.agents.team_agent.graph.TeamAgent",
+            "module": "./backend/runtime/graph.py:TeamAgent",
             "name": "agents.team.name",
             "description": "agents.team.description",
             "icon": "Users",

@@ -130,7 +130,7 @@ async def test_list_tools_includes_internal_tools(
                         "required": True,
                     },
                 ],
-            )
+            ),
         ]
 
     monkeypatch.setattr(agent_routes.settings, "ENABLE_MCP", False, raising=False)

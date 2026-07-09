@@ -1,12 +1,12 @@
 import pytest
 
-from src.agents.team_agent.prompt import (
+from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
+from plugins.system.agent_team.backend.runtime.prompt import (
     build_team_member_subagent_type,
     build_team_members_description,
     build_team_router_system_prompt,
     build_team_subagent_display_names,
 )
-from src.kernel.schemas.team import TeamMemberResponse, TeamResponse
 
 
 def test_build_team_members_description():
@@ -206,7 +206,7 @@ def test_build_team_subagent_display_names_maps_internal_types_to_roles():
 def test_team_agent_does_not_silently_fallback_when_role_subagents_fail():
     from pathlib import Path
 
-    source = Path("src/agents/team_agent/nodes.py").read_text(encoding="utf-8")
+    source = Path("plugins/system/agent_team/backend/runtime/nodes.py").read_text(encoding="utf-8")
 
     assert "team_subagents_unavailable" in source
     assert "falling back to single" not in source
@@ -216,7 +216,7 @@ def test_team_agent_does_not_silently_fallback_when_role_subagents_fail():
 async def test_resolve_runtime_team_returns_none_when_team_id_is_missing():
     from types import SimpleNamespace
 
-    from src.agents.team_agent import nodes
+    from plugins.system.agent_team.backend.runtime import nodes
 
     resolved = await nodes.resolve_runtime_team(
         team_id=None,
@@ -228,8 +228,8 @@ async def test_resolve_runtime_team_returns_none_when_team_id_is_missing():
 
 
 def test_no_team_fallback_uses_search_prompt_when_sandbox_is_active():
+    from plugins.system.agent_team.backend.runtime import nodes
     from src.agents.search_agent.prompt import SANDBOX_SYSTEM_PROMPT
-    from src.agents.team_agent import nodes
 
     prompt = nodes.build_no_team_fallback_system_prompt(sandbox_active=True)
 
@@ -237,8 +237,8 @@ def test_no_team_fallback_uses_search_prompt_when_sandbox_is_active():
 
 
 def test_no_team_fallback_uses_fast_prompt_without_sandbox():
+    from plugins.system.agent_team.backend.runtime import nodes
     from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
-    from src.agents.team_agent import nodes
 
     prompt = nodes.build_no_team_fallback_system_prompt(sandbox_active=False)
 
