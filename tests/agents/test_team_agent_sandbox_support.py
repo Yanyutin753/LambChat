@@ -468,7 +468,13 @@ async def test_team_router_retries_full_asset_package_once_before_success(
     fake_graph = _FakeDeepAgent()
     fake_graph.events_by_call = [
         [],
-        [{"event": "on_tool_start", "name": "task", "data": {"input": {}}}],
+        [
+            {
+                "event": "on_tool_start",
+                "name": "task",
+                "data": {"input": {"subagent_type": "team-m-storyboard-agent"}},
+            }
+        ],
     ]
     _patch_common(monkeypatch, team_nodes, fake_graph)
 
@@ -502,7 +508,13 @@ async def test_team_router_allows_full_asset_package_after_task_delegation(
     from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
-    fake_graph.events = [{"event": "on_tool_start", "name": "task", "data": {"input": {}}}]
+    fake_graph.events = [
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "data": {"input": {"subagent_type": "team-m-storyboard-agent"}},
+        }
+    ]
     _patch_common(monkeypatch, team_nodes, fake_graph)
 
     await _run_team_node_with_members(
@@ -520,6 +532,61 @@ async def test_team_router_allows_full_asset_package_after_task_delegation(
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
     )
     assert fake_graph.astream_events_calls == 1
+    assert fake_graph.ainvoke_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_team_router_forces_missing_members_after_partial_full_asset_delegation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+
+    fake_graph = _FakeDeepAgent()
+    fake_graph.events_by_call = [
+        [
+            {
+                "event": "on_tool_start",
+                "name": "task",
+                "data": {"input": {"subagent_type": "team-m-manager-agent"}},
+            }
+        ]
+    ]
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-manager",
+                persona_preset_id="preset-1",
+                role_name="管理 Agent",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="m-copywriter",
+                persona_preset_id="preset-1",
+                role_name="分镜文案 Agent",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="m-prompt",
+                persona_preset_id="preset-1",
+                role_name="提示词 Agent",
+                enabled=True,
+            ),
+        ],
+        user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
+    )
+
+    assert fake_graph.astream_events_calls == 1
+    assert fake_graph.ainvoke_calls == 2
+    assert "分镜文案 Agent" in str(fake_graph.ainvoke_inputs[0])
+    assert "提示词 Agent" in str(fake_graph.ainvoke_inputs[1])
 
 
 @pytest.mark.asyncio

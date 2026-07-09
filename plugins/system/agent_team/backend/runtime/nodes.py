@@ -193,12 +193,22 @@ def _build_team_router_delegation_retry_input(*, user_input: Any, reason: str) -
     )
 
 
-def _select_forced_delegation_members(*, team: Any, reason: str | None) -> list[Any]:
+def _select_forced_delegation_members(
+    *,
+    team: Any,
+    reason: str | None,
+    delegated_subagent_names: set[str] | None = None,
+) -> list[Any]:
     members = list(getattr(team, "active_members", []) or [])
     if not members:
         return []
+    delegated = delegated_subagent_names or set()
     if reason == "full_asset_package":
-        return members
+        return [
+            member for member in members if build_team_member_subagent_type(member) not in delegated
+        ]
+    if delegated:
+        return []
     default_member_id = getattr(team, "default_member_id", None)
     if default_member_id:
         default_member = next((m for m in members if m.member_id == default_member_id), None)
@@ -349,6 +359,12 @@ def _is_team_delegation_event(event: Any, subagent_names: set[str]) -> bool:
     return TOOL_TASK in tool_names or bool(tool_names & subagent_names)
 
 
+def _collect_team_delegation_subagents(event: Any, subagent_names: set[str]) -> set[str]:
+    if not _is_team_delegation_event(event, subagent_names):
+        return set()
+    return _collect_event_tool_names(event) & subagent_names
+
+
 def _raise_if_team_router_completed_without_required_delegation(
     *,
     team: Any,
@@ -390,8 +406,13 @@ async def _run_forced_team_delegation(
     configurable: dict[str, Any],
     attachments: list[Any],
     config: RunnableConfig,
+    delegated_subagent_names: set[str] | None = None,
 ) -> int:
-    members = _select_forced_delegation_members(team=team, reason=reason)
+    members = _select_forced_delegation_members(
+        team=team,
+        reason=reason,
+        delegated_subagent_names=delegated_subagent_names,
+    )
     if not members:
         return 0
 
@@ -1168,6 +1189,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         if isinstance(subagent, dict) and subagent.get("name")
     }
     team_delegation_event_count = 0
+    delegated_team_subagent_names: set[str] = set()
 
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
@@ -1245,6 +1267,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 ):
                     if _is_team_delegation_event(event, team_subagent_names):
                         team_delegation_event_count += 1
+                        delegated_team_subagent_names.update(
+                            _collect_team_delegation_subagents(event, team_subagent_names)
+                        )
                     await event_processor.process_event(event)
 
                 if (
@@ -1263,8 +1288,18 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     getattr(team, "name", None),
                 )
 
-            if required_delegation_reason is not None and team_delegation_event_count <= 0:
-                team_delegation_event_count += await _run_forced_team_delegation(
+            forced_members = (
+                _select_forced_delegation_members(
+                    team=team,
+                    reason=required_delegation_reason,
+                    delegated_subagent_names=delegated_team_subagent_names,
+                )
+                if required_delegation_reason is not None
+                else []
+            )
+            if forced_members:
+                assert required_delegation_reason is not None
+                forced_count = await _run_forced_team_delegation(
                     team=team,
                     user_input=user_input,
                     reason=required_delegation_reason,
@@ -1285,6 +1320,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     },
                     attachments=attachments,
                     config=config,
+                    delegated_subagent_names=delegated_team_subagent_names,
+                )
+                team_delegation_event_count += forced_count
+                delegated_team_subagent_names.update(
+                    build_team_member_subagent_type(member) for member in forced_members
                 )
     finally:
         await event_processor.flush()
