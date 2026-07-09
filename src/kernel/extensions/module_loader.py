@@ -38,13 +38,22 @@ def load_plugin_attr(
     default_attr: str | None = None,
 ) -> Any:
     module_name, attr_name = split_module_ref(module_ref)
+    is_relative = is_plugin_relative_module_ref(module_ref)
     module = (
         _load_plugin_relative_module(manifest, module_name)
-        if is_plugin_relative_module_ref(module_ref)
+        if is_relative
         else importlib.import_module(module_name)
     )
     resolved_attr = attr_name or default_attr
-    return getattr(module, resolved_attr) if resolved_attr else module
+    if not resolved_attr:
+        return module
+    try:
+        return getattr(module, resolved_attr)
+    except AttributeError:
+        if not is_relative:
+            raise
+        module = _load_plugin_relative_module(manifest, module_name, force_reload=True)
+        return getattr(module, resolved_attr)
 
 
 def validate_plugin_relative_module_ref(manifest: PluginManifest, module_ref: str) -> None:
@@ -53,18 +62,29 @@ def validate_plugin_relative_module_ref(manifest: PluginManifest, module_ref: st
         _plugin_relative_file(manifest, module_name)
 
 
-def _load_plugin_relative_module(manifest: PluginManifest, module_name: str) -> ModuleType:
+def _load_plugin_relative_module(
+    manifest: PluginManifest,
+    module_name: str,
+    *,
+    force_reload: bool = False,
+) -> ModuleType:
     module_file = _plugin_relative_file(manifest, module_name)
     synthetic_name = _synthetic_module_name(manifest.id, module_file)
     cached = sys.modules.get(synthetic_name)
-    if cached is not None:
+    if cached is not None and not force_reload:
         return cached
+    if force_reload:
+        sys.modules.pop(synthetic_name, None)
     spec = importlib.util.spec_from_file_location(synthetic_name, module_file)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load plugin module: {manifest.id}:{module_name}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[synthetic_name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(synthetic_name, None)
+        raise
     return module
 
 
