@@ -53,6 +53,7 @@ from src.agents.team_agent.prompt import (
     summarize_role_system_prompt,
 )
 from src.infra.agent import AgentEventProcessor
+from src.infra.agent.events.types import TOOL_TASK
 from src.infra.agent.middleware import (
     ArtifactDeliveryMiddleware,
     EnvVarPromptMiddleware,
@@ -90,6 +91,18 @@ from src.kernel.schemas.model import ModelConfig
 
 logger = get_logger(__name__)
 
+_FULL_ASSET_PACKAGE_DIRECT_TRIGGERS = (
+    "完整素材包",
+    "全套素材包",
+)
+_FULL_ASSET_PACKAGE_STAGE_TRIGGERS = (
+    "分镜",
+    "提示词",
+    "首帧",
+    "交付",
+    "四阶段",
+    "素材包流程",
+)
 
 # ============================================================================
 # 节点函数
@@ -101,6 +114,85 @@ def build_no_team_fallback_system_prompt(*, sandbox_active: bool) -> str:
     if sandbox_active:
         return SEARCH_SANDBOX_SYSTEM_PROMPT
     return FAST_SYSTEM_PROMPT
+
+
+def _is_full_asset_package_request(user_input: Any) -> bool:
+    text = str(user_input or "").casefold()
+    if any(trigger in text for trigger in _FULL_ASSET_PACKAGE_DIRECT_TRIGGERS):
+        return True
+    return "素材包" in text and any(
+        trigger in text for trigger in _FULL_ASSET_PACKAGE_STAGE_TRIGGERS
+    )
+
+
+def _collect_event_tool_names(event: Any) -> set[str]:
+    if not isinstance(event, dict):
+        return set()
+
+    names: set[str] = set()
+
+    def add_name(value: Any) -> None:
+        if isinstance(value, str) and value.strip():
+            names.add(value.strip())
+
+    def collect_from_mapping(value: Any) -> None:
+        if not isinstance(value, dict):
+            return
+        for key in ("name", "tool", "tool_name", "subagent_type"):
+            add_name(value.get(key))
+        tool_call = value.get("tool_call")
+        if isinstance(tool_call, dict):
+            collect_from_mapping(tool_call)
+        tool_calls = value.get("tool_calls")
+        if isinstance(tool_calls, list):
+            for item in tool_calls:
+                collect_from_mapping(item)
+
+    collect_from_mapping(event)
+    data = event.get("data")
+    collect_from_mapping(data)
+    if isinstance(data, dict):
+        collect_from_mapping(data.get("input"))
+        collect_from_mapping(data.get("output"))
+        chunk = data.get("chunk")
+        collect_from_mapping(chunk)
+        tool_calls = getattr(chunk, "tool_calls", None)
+        if isinstance(tool_calls, list):
+            for item in tool_calls:
+                collect_from_mapping(item)
+
+    return names
+
+
+def _is_team_delegation_event(event: Any, subagent_names: set[str]) -> bool:
+    if not isinstance(event, dict):
+        return False
+    if event.get("event") not in {"on_tool_start", "on_tool_end", "on_tool_error"}:
+        return False
+    tool_names = _collect_event_tool_names(event)
+    return TOOL_TASK in tool_names or bool(tool_names & subagent_names)
+
+
+def _raise_if_team_router_completed_without_required_delegation(
+    *,
+    team: Any,
+    user_input: Any,
+    delegation_event_count: int,
+) -> None:
+    if not team or not getattr(team, "active_members", None):
+        return
+    if delegation_event_count > 0:
+        return
+    if not _is_full_asset_package_request(user_input):
+        return
+
+    logger.warning(
+        "[TeamAgent] Blocking router completion without delegation for full asset-package "
+        "request: team_id=%s team_name=%s",
+        getattr(team, "id", None),
+        getattr(team, "name", None),
+    )
+    raise ValueError("team_router_delegation_required:full_asset_package")
 
 
 async def resolve_runtime_team(
@@ -727,6 +819,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     )
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[TeamAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
+    team_subagent_names = {
+        str(subagent.get("name"))
+        for subagent in custom_subagents
+        if isinstance(subagent, dict) and subagent.get("name")
+    }
+    team_delegation_event_count = 0
 
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
@@ -782,6 +880,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 inner_config,
                 version="v2",
             ):
+                if _is_team_delegation_event(event, team_subagent_names):
+                    team_delegation_event_count += 1
                 await event_processor.process_event(event)
     finally:
         await event_processor.flush()
@@ -793,6 +893,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             model=selected_model,
         )
     logger.info("[TeamAgent] astream_events completed")
+    _raise_if_team_router_completed_without_required_delegation(
+        team=team,
+        user_input=user_input,
+        delegation_event_count=team_delegation_event_count,
+    )
 
     if settings.ENABLE_MEMORY and context.user_id:
         from src.infra.memory.tools import schedule_auto_memory_capture

@@ -12,11 +12,14 @@ class _FakeDeepAgent:
         self.captured_create_kwargs = None
         self.aget_state_calls = 0
         self.state_messages = []
+        self.events = []
 
     def with_config(self, _config):
         return self
 
     async def astream_events(self, _initial_state, _config, version="v2"):
+        for event in self.events:
+            yield event
         if False:
             yield version
 
@@ -357,6 +360,8 @@ async def _run_team_node_with_members(
     team_nodes,
     fake_graph: _FakeDeepAgent,
     members,
+    *,
+    user_input: str = "hello",
 ) -> None:
     from src.agents.team_agent.context import TeamAgentContext
     from src.kernel.schemas.team import TeamResponse
@@ -395,8 +400,94 @@ async def _run_team_node_with_members(
     }
 
     await team_nodes.team_router_node(
-        {"input": "hello", "session_id": "session-1", "attachments": []},
+        {"input": user_input, "session_id": "session-1", "attachments": []},
         config,
+    )
+
+
+@pytest.mark.asyncio
+async def test_team_router_blocks_full_asset_package_completion_without_delegation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    with pytest.raises(ValueError, match="team_router_delegation_required:full_asset_package"):
+        await _run_team_node_with_members(
+            monkeypatch,
+            team_nodes,
+            fake_graph,
+            [
+                TeamMemberResponse(
+                    member_id="m-storyboard",
+                    persona_preset_id="preset-1",
+                    role_name="分镜 Agent",
+                    enabled=True,
+                )
+            ],
+            user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
+        )
+
+
+@pytest.mark.asyncio
+async def test_team_router_allows_full_asset_package_after_task_delegation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    fake_graph.events = [{"event": "on_tool_start", "name": "task", "data": {"input": {}}}]
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-storyboard",
+                persona_preset_id="preset-1",
+                role_name="分镜 Agent",
+                enabled=True,
+            )
+        ],
+        user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
+    )
+
+
+@pytest.mark.asyncio
+async def test_team_router_allows_unrelated_team_completion_without_delegation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-writer",
+                persona_preset_id="preset-1",
+                role_name="Writer",
+                enabled=True,
+            )
+        ],
+        user_input="请先概括一下团队任务范围。",
     )
 
 
