@@ -441,6 +441,7 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
     },
 ]
 
+
 def get_permissions_response() -> PermissionsResponse:
     """
     获取权限列表响应

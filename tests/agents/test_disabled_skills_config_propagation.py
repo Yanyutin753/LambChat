@@ -229,8 +229,8 @@ async def test_fast_agent_node_passes_internal_tools_when_mcp_disabled(
     _patch_common(monkeypatch, fast_nodes, fake_graph)
     monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
 
-    workflow_tool = SimpleNamespace(name="workflow_run")
-    context = _context_with_internal_tool(workflow_tool)
+    internal_tool = SimpleNamespace(name="internal_task_run")
+    context = _context_with_internal_tool(internal_tool)
     config = {
         "configurable": {
             "context": context,
@@ -246,7 +246,7 @@ async def test_fast_agent_node_passes_internal_tools_when_mcp_disabled(
     )
 
     assert fake_graph.captured_create_kwargs is not None
-    assert fake_graph.captured_create_kwargs["tools"] == [workflow_tool]
+    assert fake_graph.captured_create_kwargs["tools"] == [internal_tool]
 
 
 @pytest.mark.asyncio
@@ -641,8 +641,8 @@ async def test_search_agent_node_passes_internal_tools_when_mcp_disabled(
 
     monkeypatch.setattr(search_nodes, "_create_backend_and_prompt", fake_create_backend_and_prompt)
 
-    workflow_tool = SimpleNamespace(name="workflow_run")
-    context = _context_with_internal_tool(workflow_tool)
+    internal_tool = SimpleNamespace(name="internal_task_run")
+    context = _context_with_internal_tool(internal_tool)
     config = {
         "configurable": {
             "context": context,
@@ -658,42 +658,7 @@ async def test_search_agent_node_passes_internal_tools_when_mcp_disabled(
     )
 
     assert fake_graph.captured_create_kwargs is not None
-    assert fake_graph.captured_create_kwargs["tools"] == [workflow_tool]
-
-
-@pytest.mark.asyncio
-async def test_search_agent_node_passes_internal_tools_when_mcp_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _reset_fake_event_processor()
-    from src.agents.search_agent import nodes as search_nodes
-
-    fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, search_nodes, fake_graph)
-
-    async def fake_create_backend_and_prompt(**_kwargs):
-        return object(), "system prompt", object(), None, None
-
-    monkeypatch.setattr(search_nodes, "_create_backend_and_prompt", fake_create_backend_and_prompt)
-
-    workflow_tool = SimpleNamespace(name="workflow_run")
-    context = _context_with_internal_tool(workflow_tool)
-    config = {
-        "configurable": {
-            "context": context,
-            "presenter": object(),
-            "base_url": "",
-            "agent_options": {},
-        }
-    }
-
-    await search_nodes.agent_node(
-        {"input": "hello", "session_id": "session-1", "attachments": []},
-        config,
-    )
-
-    assert fake_graph.captured_create_kwargs is not None
-    assert fake_graph.captured_create_kwargs["tools"] == [workflow_tool]
+    assert fake_graph.captured_create_kwargs["tools"] == [internal_tool]
 
 
 @pytest.mark.asyncio
@@ -841,54 +806,7 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
             "context": context,
             "presenter": object(),
             "base_url": "",
-            "agent_options": {
-                "_plugin_results": {
-                    "workflow": {
-                        "workflow_id": "wf-team",
-                        "version_id": "wfv-team",
-                        "run_id": "wfr-team",
-                        "status": "succeeded",
-                        "output": {"answer": 42, "trace": "runtime detail"},
-                        "io_contract": {
-                            "output_schema": {
-                                "type": "object",
-                                "required": ["answer", "summary"],
-                                "properties": {
-                                    "answer": {"type": "string"},
-                                    "summary": {"type": "string"},
-                                },
-                            }
-                        },
-                        "output_contract": {
-                            "valid": False,
-                            "missing_required": ["summary"],
-                            "type_mismatches": [
-                                {"field": "answer", "expected": "string", "actual": "int"}
-                            ],
-                        },
-                        "interface": {
-                            "entry": {
-                                "tool": "workflow_run",
-                                "argument": "input",
-                                "schema_tool": "workflow_get_schema",
-                                "schema_field": "input_schema",
-                            },
-                            "exit": {
-                                "field": "output",
-                                "schema_tool": "workflow_get_schema",
-                                "schema_field": "output_schema",
-                            },
-                            "debug": {"tool": "workflow_get_run", "events_field": "events"},
-                        },
-                        "next_action": {
-                            "type": "use_output",
-                            "field": "output",
-                            "reason": "workflow_run_succeeded",
-                        },
-                        "error": None,
-                    }
-                }
-            },
+            "agent_options": {},
             "team_id": "team-1",
             "enabled_skills": ["unrelated-skill"],
         }
@@ -910,20 +828,6 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     assert "## Skills System" in sections
     assert "xiaohongshu-copy" in sections
     assert "unrelated-skill" not in sections
-    assert "## Workflow Result" in sections
-    assert "workflow_id: wf-team" in sections
-    assert "run_id: wfr-team" in sections
-    assert "output: 42" in sections
-    assert "outputs: answer:string, summary:string" in sections
-    assert "output_contract: invalid" in sections
-    assert 'missing_required_outputs: ["summary"]' in sections
-    assert '"actual": "int"' in sections
-    assert (
-        "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema "
-        "exit=output output_schema=workflow_get_schema.output_schema "
-        "debug=workflow_get_run.events"
-    ) in sections
-    assert "next_action: use_output output reason=workflow_run_succeeded" in sections
     assert fake_graph.captured_inner_config is not None
     assert fake_graph.captured_inner_config["configurable"]["enabled_skills"] is None
 
@@ -934,79 +838,6 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     assert "## Persona" not in router_sections
     assert "## Skills System" not in router_sections
     assert "xiaohongshu-copy" not in router_sections
-    assert "## Workflow Result" in router_sections
-    assert "workflow_id: wf-team" in router_sections
-    assert "outputs: answer:string, summary:string" in router_sections
-    assert "output_contract: invalid" in router_sections
-    assert "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema" in router_sections
-    assert "output_schema=workflow_get_schema.output_schema" in router_sections
-    assert "next_action: use_output output reason=workflow_run_succeeded" in router_sections
-
-
-def test_team_agent_workflow_result_prompt_section_prefers_nested_output_contract() -> None:
-    from src.agents.team_agent import nodes as team_nodes
-
-    section = team_nodes.workflow_result_prompt_section(
-        {
-            "_plugin_results": {
-                "workflow": {
-                    "workflow_id": "wf-team",
-                    "version_id": "wfv-team",
-                    "run_id": "wfr-team",
-                    "status": "succeeded",
-                    "output": {
-                        "answer": "Generic answer",
-                        "report": {"summary": "Nested team summary"},
-                    },
-                    "io_contract": {
-                        "output_schema": {
-                            "type": "object",
-                            "required": ["report"],
-                            "properties": {
-                                "answer": {"type": "string"},
-                                "report": {
-                                    "type": "object",
-                                    "required": ["summary"],
-                                    "properties": {"summary": {"type": "string"}},
-                                },
-                            },
-                        }
-                    },
-                    "output_contract": {"valid": True},
-                    "interface": {
-                        "entry": {
-                            "tool": "workflow_run",
-                            "argument": "input",
-                            "schema_tool": "workflow_get_schema",
-                            "schema_field": "input_schema",
-                        },
-                        "exit": {
-                            "field": "output",
-                            "schema_tool": "workflow_get_schema",
-                            "schema_field": "output_schema",
-                        },
-                        "debug": {"tool": "workflow_get_run", "events_field": "events"},
-                    },
-                    "next_action": {
-                        "type": "use_output",
-                        "field": "output",
-                        "reason": "workflow_run_succeeded",
-                    },
-                }
-            }
-        }
-    )
-
-    assert "## Workflow Result" in section
-    assert "output: \"Nested team summary\"" in section
-    assert "outputs: report.summary:string, answer:string" in section
-    assert "output_contract: valid" in section
-    assert (
-        "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema "
-        "exit=output output_schema=workflow_get_schema.output_schema "
-        "debug=workflow_get_run.events"
-    ) in section
-    assert "next_action: use_output output reason=workflow_run_succeeded" in section
 
 
 @pytest.mark.asyncio
@@ -1026,8 +857,8 @@ async def test_team_agent_node_passes_internal_tools_when_mcp_disabled(
 
     monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
 
-    workflow_tool = SimpleNamespace(name="workflow_run")
-    context = _context_with_internal_tool(workflow_tool)
+    internal_tool = SimpleNamespace(name="internal_task_run")
+    context = _context_with_internal_tool(internal_tool)
     config = {
         "configurable": {
             "context": context,
@@ -1043,44 +874,7 @@ async def test_team_agent_node_passes_internal_tools_when_mcp_disabled(
     )
 
     assert fake_graph.captured_create_kwargs is not None
-    assert fake_graph.captured_create_kwargs["tools"] == [workflow_tool]
-
-
-@pytest.mark.asyncio
-async def test_team_agent_node_passes_internal_tools_when_mcp_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
-
-    fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, team_nodes, fake_graph)
-    monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
-
-    async def fake_resolve_runtime_team(**_kwargs):
-        return None
-
-    monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
-
-    workflow_tool = SimpleNamespace(name="workflow_run")
-    context = _context_with_internal_tool(workflow_tool)
-    config = {
-        "configurable": {
-            "context": context,
-            "presenter": object(),
-            "base_url": "",
-            "agent_options": {},
-        }
-    }
-
-    await team_nodes.team_router_node(
-        {"input": "hello", "session_id": "session-1", "attachments": []},
-        config,
-    )
-
-    assert fake_graph.captured_create_kwargs is not None
-    assert fake_graph.captured_create_kwargs["tools"] == [workflow_tool]
+    assert fake_graph.captured_create_kwargs["tools"] == [internal_tool]
 
 
 @pytest.mark.asyncio

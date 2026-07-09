@@ -30,14 +30,6 @@ import {
 } from "./blockPreviewStore";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
 function useBlockPreview() {
   const [, setCount] = useState(0);
   useEffect(() => {
