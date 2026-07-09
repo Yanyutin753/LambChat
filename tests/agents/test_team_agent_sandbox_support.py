@@ -454,6 +454,7 @@ async def test_team_router_forces_full_asset_package_delegation_after_router_noo
     assert fake_graph.astream_events_calls == 2
     assert fake_graph.ainvoke_calls == 1
     assert "Team router forced delegation recovery" in str(fake_graph.ainvoke_inputs[0])
+    assert "choose reasonable general-purpose defaults" in str(fake_graph.ainvoke_inputs[0])
 
 
 @pytest.mark.asyncio
