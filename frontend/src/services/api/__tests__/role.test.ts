@@ -1,11 +1,7 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { buildRoleListUrl, roleApi } from "../role.ts";
 
 test("buildRoleListUrl includes pagination and search params", () => {
-  assert.equal(
-    buildRoleListUrl({ skip: 20, limit: 10, q: "admin" }),
+  expect(buildRoleListUrl({ skip: 20, limit: 10, q: "admin" })).toBe(
     "/api/roles/?skip=20&limit=10&q=admin",
   );
 });
@@ -46,10 +42,10 @@ test("roleApi.list reuses in-flight and fresh identical list requests", async ()
     ]);
     const third = await roleApi.list(params);
 
-    assert.equal(fetchCount, 1);
-    assert.equal(first.total, 0);
-    assert.equal(second.total, 0);
-    assert.equal(third.total, 0);
+    expect(fetchCount).toBe(1);
+    expect(first.total).toBe(0);
+    expect(second.total).toBe(0);
+    expect(third.total).toBe(0);
   } finally {
     globalThis.fetch = previousFetch;
     globalThis.localStorage = previousLocalStorage;

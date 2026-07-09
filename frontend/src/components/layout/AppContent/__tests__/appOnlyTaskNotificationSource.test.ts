@@ -1,8 +1,5 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import test from "node:test";
-
 const source = readFileSync(
   join(
     process.cwd(),
@@ -12,24 +9,22 @@ const source = readFileSync(
 );
 
 test("task notifications skip browser notification delivery in native app runtimes", () => {
-  assert.match(
-    source,
+  expect(source).toMatch(
     /const isAppNotificationRuntime =\s+appNotificationRuntime !== "unsupported";/,
   );
-  assert.match(source, /!isAppNotificationRuntime/);
-  assert.match(source, /appNotificationService\.notify/);
+  expect(source).toMatch(/!isAppNotificationRuntime/);
+  expect(source).toMatch(/appNotificationService\.notify/);
 });
 
 test("task notifications attempt app delivery before suppressing active-session surfaces", () => {
-  assert.match(source, /shouldAttemptAppTaskNotification/);
-  assert.match(source, /const shouldAttemptAppNotification/);
-  assert.match(
-    source,
+  expect(source).toMatch(/shouldAttemptAppTaskNotification/);
+  expect(source).toMatch(/const shouldAttemptAppNotification/);
+  expect(source).toMatch(
     /if \(!shouldSurface && !shouldAttemptAppNotification\)/,
   );
 });
 
 test("task notifications do not show stale toasts while the page is hidden", () => {
-  assert.match(source, /if \(visibilityState !== "visible"\) \{/);
-  assert.match(source, /const toastDuration = notificationCopy\.isSuccess/);
+  expect(source).toMatch(/if \(visibilityState !== "visible"\) \{/);
+  expect(source).toMatch(/const toastDuration = notificationCopy\.isSuccess/);
 });

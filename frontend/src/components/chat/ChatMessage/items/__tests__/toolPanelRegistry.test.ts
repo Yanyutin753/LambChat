@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   clearToolPanelRegistry,
   registerToolPanel,
@@ -28,11 +26,7 @@ test("registering a remounted panel with the same registry key does not close it
     "reveal:file-1",
   );
 
-  assert.equal(
-    closeCount,
-    0,
-    "remounting the same logical panel should not trigger its close callback",
-  );
+  expect(closeCount).toBe(0);
 
   cleanupA();
   cleanupB();

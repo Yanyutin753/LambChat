@@ -82,6 +82,7 @@ class TaskExecutor:
         recommendation_input: Optional[str] = None,
         team_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
+        auto_mode: bool = False,
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         """执行任务"""
@@ -150,7 +151,9 @@ class TaskExecutor:
             # 立即发送 user:message 事件（任务开始时固定发送）
             if message and not already_written:
                 await presenter.emit_user_message(
-                    display_message or message, attachments=attachments
+                    display_message or message,
+                    attachments=attachments,
+                    enabled_skills=enabled_skills,
                 )
 
             # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
@@ -188,6 +191,7 @@ class TaskExecutor:
                 recommendation_input=recommendation_input,
                 team_id=team_id,
                 active_goal=active_goal,
+                auto_mode=auto_mode,
                 plugin_options=plugin_options,
             ):
                 await presenter.save_event(event)
@@ -245,36 +249,105 @@ class TaskExecutor:
                 await dual_writer.flush_mongo_buffer()
             except Exception:
                 pass
-        # 完成 trace（如果已创建）
-        if presenter is not None:
-            await presenter.emit(presenter.done())
-            await presenter.complete("error")
-        # 写入错误事件（包含 trace_id 以写入 MongoDB）
         trace_id = presenter.trace_id if presenter else None
         if dual_writer is not None:
-            await dual_writer.write_event(
+            await self._emit_cancel_terminal_events(
                 session_id=session_id,
-                event_type="error",
-                data={
+                run_id=run_id,
+                user_id=user_id,
+                trace_id=trace_id,
+                dual_writer=dual_writer,
+                presenter=presenter,
+                error_data={
                     "error": "Task cancelled",
                     "type": "CancelledError",
                     "run_id": run_id,
                 },
-                trace_id=trace_id,
-                run_id=run_id,
             )
-            # 再次刷新，确保 error 事件被持久化
+            # 再次刷新，确保取消终态事件被持久化
             try:
                 await dual_writer._flush_redis_buffer()
                 await dual_writer.flush_mongo_buffer()
             except Exception:
                 pass
+        if presenter is not None:
+            await presenter.complete("error")
         logger.warning(f"Task cancelled: session={session_id}, run_id={run_id}")
         # 发送任务取消通知
         await self._send_task_notification(
             session_id, run_id, TaskStatus.CANCELLED, user_id, "Task cancelled"
         )
         await self._expire_terminal_stream(session_id, run_id, dual_writer)
+
+    async def _emit_cancel_terminal_events(
+        self,
+        *,
+        session_id: str,
+        run_id: str,
+        user_id: str,
+        trace_id: str | None,
+        dual_writer: Any,
+        presenter: Any,
+        error_data: dict[str, Any],
+    ) -> None:
+        """Persist cancel-specific terminal events before the stream done marker."""
+        done_event: dict[str, Any] | None = None
+        if presenter is not None:
+            await presenter._ensure_token_usage_event()
+            done_event = presenter.done()
+            self._move_recorded_done_to_end(dual_writer, trace_id, run_id)
+            presenter._done_recorded = False
+
+        await self._record_user_cancel_event(
+            session_id=session_id,
+            run_id=run_id,
+            user_id=user_id,
+            trace_id=trace_id,
+            dual_writer=dual_writer,
+        )
+        await dual_writer.write_event(
+            session_id=session_id,
+            event_type="error",
+            data=error_data,
+            trace_id=trace_id,
+            run_id=run_id,
+        )
+        if presenter is not None and done_event is not None:
+            await presenter.emit(done_event)
+
+    @staticmethod
+    def _move_recorded_done_to_end(
+        dual_writer: Any,
+        trace_id: str | None,
+        run_id: str,
+    ) -> None:
+        """Remove an already-buffered done event so cancel events can precede it."""
+        events = getattr(dual_writer, "events", None)
+        if isinstance(events, list):
+            for index in range(len(events) - 1, -1, -1):
+                event = events[index]
+                if (
+                    isinstance(event, dict)
+                    and event.get("event_type") == "done"
+                    and event.get("run_id") == run_id
+                    and (trace_id is None or event.get("trace_id") == trace_id)
+                ):
+                    del events[index]
+                    return
+
+        mongo_buffer = getattr(dual_writer, "_mongo_buffer", None)
+        if isinstance(mongo_buffer, list):
+            for index in range(len(mongo_buffer) - 1, -1, -1):
+                item = mongo_buffer[index]
+                if (
+                    isinstance(item, tuple)
+                    and len(item) >= 5
+                    and item[1] == "done"
+                    and item[4] == run_id
+                    and (trace_id is None or item[0] == trace_id)
+                ):
+                    del mongo_buffer[index]
+                    return
 
     async def _handle_interrupted_error(
         self,
@@ -302,36 +375,63 @@ class TaskExecutor:
             await dual_writer.flush_mongo_buffer()
         except Exception as flush_error:
             logger.warning(f"Failed to flush events on TaskInterruptedError: {flush_error}")
-        # 完成 trace
-        if presenter is not None:
-            await presenter.emit(presenter.done())
-            await presenter.complete("error")
-        # 写入错误事件（包含 trace_id 以写入 MongoDB）
         trace_id = presenter.trace_id if presenter else None
         if dual_writer is not None:
-            await dual_writer.write_event(
+            await self._emit_cancel_terminal_events(
                 session_id=session_id,
-                event_type="error",
-                data={
+                run_id=run_id,
+                user_id=user_id,
+                trace_id=trace_id,
+                dual_writer=dual_writer,
+                presenter=presenter,
+                error_data={
                     "error": error_msg,
                     "type": "TaskInterruptedError",
                     "run_id": run_id,
                 },
-                trace_id=trace_id,
-                run_id=run_id,
             )
-            # 再次刷新，确保 error 事件被持久化
+            # 再次刷新，确保取消终态事件被持久化
             try:
                 await dual_writer._flush_redis_buffer()
                 await dual_writer.flush_mongo_buffer()
             except Exception:
                 pass
+        if presenter is not None:
+            await presenter.complete("error")
         logger.info(f"Task interrupted: session={session_id}, run_id={run_id}")
         # 发送任务中断通知
         await self._send_task_notification(
             session_id, run_id, TaskStatus.CANCELLED, user_id, "Task interrupted"
         )
         await self._expire_terminal_stream(session_id, run_id, dual_writer)
+
+    async def _record_user_cancel_event(
+        self,
+        *,
+        session_id: str,
+        run_id: str,
+        user_id: str,
+        trace_id: str | None,
+        dual_writer: Any,
+    ) -> None:
+        if not user_id or not trace_id or dual_writer is None:
+            return
+        try:
+            from src.infra.utils.datetime import utc_now_iso
+
+            await dual_writer.write_event(
+                session_id=session_id,
+                event_type="user:cancel",
+                data={
+                    "user_id": user_id,
+                    "run_id": run_id,
+                    "timestamp": utc_now_iso(),
+                },
+                trace_id=trace_id,
+                run_id=run_id,
+            )
+        except Exception as e:
+            logger.warning("Failed to record user cancel event after terminal cleanup: %s", e)
 
     async def _handle_generic_error(
         self,

@@ -543,6 +543,7 @@
     "addMoreFiles": "Add more files",
     "assistant": "Assistant",
     "attachFile": "Attach file",
+    "attachments": "Attachments",
     "cancelled": "Cancelled",
     "commands": {
       "agent": "Agent",
@@ -633,6 +634,7 @@
       "starterPrompts": "Starter Prompts",
       "subagentProgress": "Subagent progress",
       "summary": "Summary",
+      "summaryDescription": "Key points",
       "synthesizing": "Synthesizing results from {{count}} subagent(s)...",
       "systemPrompt": "System Prompt",
       "table": "Table",
@@ -779,6 +781,7 @@
   "common": {
     "about": "About",
     "accessDenied": "Access Denied",
+    "add": "Add",
     "all": "All",
     "assistant": "Assistant",
     "back": "Back",
@@ -882,6 +885,7 @@
     "copied": "Copied",
     "copy": "Copy",
     "copyCode": "Copy code",
+    "copyLink": "Copy link",
     "csv": "CSV",
     "csvDataFile": "CSV data file",
     "daysAgo": "{{count}}d ago",
@@ -915,6 +919,7 @@
     "htmlDocument": "HTML Document",
     "invalidExcalidrawFormat": "Invalid Excalidraw file format",
     "lines": "{{count}} lines",
+    "linkCopied": "Link copied",
     "list": "List",
     "listView": "List view",
     "loading": "Loading...",
@@ -1026,8 +1031,10 @@
   },
   "feedback": {
     "addComment": "Add comment",
+    "addImage": "Add images (max 9)",
     "allRatings": "All Ratings",
     "alreadySubmitted": "You've already submitted feedback for this conversation",
+    "attachments": "Attachments",
     "buttonLabel": "Feedback",
     "comment": "Comment",
     "commentLabel": "Comment (optional)",
@@ -1040,6 +1047,7 @@
     "deleteSuccess": "Feedback deleted successfully",
     "detailTitle": "Feedback Details",
     "filterByRating": "Filter by Rating",
+    "imageLimit": "Maximum 9 images allowed",
     "negative": "Negative",
     "noFeedback": "No feedback yet",
     "noFeedbackHint": "User feedback will appear here",
@@ -1053,7 +1061,10 @@
     "submitSuccess": "Feedback submitted successfully",
     "subtitle": "Manage user feedback and ratings",
     "title": "Feedback",
-    "totalCount": "Total Count"
+    "totalCount": "Total Count",
+    "uploadFailed": "Failed to upload image",
+    "uploading": "Uploading...",
+    "viewDetail": "View details"
   },
   "feishu": {
     "appId": "App ID",
@@ -1350,7 +1361,7 @@
     "confirmDelete": "Delete \"{{name}}\"?",
     "confirmDeleteMessage": "This will permanently remove the skill from the marketplace. Users who have already installed it will keep their copy.",
     "confirmInstall": "Install Skill",
-    "confirmInstallMessage": "Are you sure you want to install this skill?",
+    "confirmInstallMessage": "Install this skill? If a local manual skill with the same name exists, it will be replaced by the marketplace version.",
     "confirmUpdate": "Update Skill",
     "confirmUpdateMessage": "This will re-download the skill from the marketplace and overwrite your local changes. Continue?",
     "createAndPublish": "Publish Skill",
@@ -1380,6 +1391,7 @@
     "noMatchingSkills": "No skills match your filters",
     "noSkills": "No skills available in marketplace",
     "preview": "Preview",
+    "closePreview": "Close preview",
     "previewCollapse": "Click to collapse",
     "previewExpand": "Click to preview",
     "publishSuccess": "Skill \"{{name}}\" published to marketplace",
@@ -1450,9 +1462,9 @@
       "commandPlaceholder": "npx -y @anthropic/mcp-server-fetch",
       "createServer": "Create Server",
       "dailyLimit": "Daily limit",
-      "enabled": "Enabled",
       "disableInlineExposure": "Use on-demand search",
       "enableInlineExposure": "Expose directly as function",
+      "enabled": "Enabled",
       "envKeys": "Environment Variables",
       "envKeysDescription": "Select environment variables to inject into this MCP server process. These must be pre-defined in your environment variable settings.",
       "envKeysPlaceholder": "Select environment variables...",
@@ -1582,35 +1594,6 @@
   "mermaidViewer": {
     "hideCode": "Hide code",
     "showCode": "Show code"
-  },
-  "workflowPlugin": {
-    "chat": {
-      "entry": "Entry",
-      "exit": "Exit",
-      "inputOverrideSet": "Input override set",
-      "inputs": "Inputs",
-      "none": "none",
-      "outputs": "Outputs",
-      "selectWorkflow": "Workflow"
-    },
-    "nav": {
-      "editorLabel": "Workflow editor",
-      "label": "Workflows",
-      "runLabel": "Workflow run"
-    },
-    "project": {
-      "defaultWorkflow": "Default workflow",
-      "defaultWorkflowVersion": "Default workflow version"
-    },
-    "scheduledTask": {
-      "workflow": "Workflow",
-      "workflowVersion": "Workflow version"
-    },
-    "session": {
-      "selectedWorkflow": "Selected workflow",
-      "selectedWorkflowVersion": "Selected workflow version",
-      "selectedWorkflowInput": "Selected workflow input"
-    }
   },
   "nav": {
     "adminMarketplace": "Admin Marketplace",
@@ -2105,14 +2088,6 @@
       "description": "Inspect Plugin Runtime state, static contributions, resource ownership, and uninstall dry-run plans for built-in plugins.",
       "title": "Plugin Runtime"
     },
-    "workflows": {
-      "description": "Create, compose, version, run, and debug workflows.",
-      "editorDescription": "Edit a workflow graph with explicit inputs, outputs, nodes, and run traces.",
-      "editorTitle": "Workflow Editor",
-      "runDescription": "Inspect a workflow run trace, node events, output, errors, and approval state.",
-      "runTitle": "Workflow Run",
-      "title": "Workflows"
-    },
     "mcp": {
       "description": "Manage Model Context Protocol server connections. Connect external tools, databases, and services to extend AI agent capabilities.",
       "title": "MCP Server Management"
@@ -2229,6 +2204,7 @@
     "ENABLE_SKILLS": "Enable skills feature",
     "EVENT_MERGE_BATCH_SIZE": "Event merge batch size",
     "EVENT_MERGE_CONCURRENCY": "Event merge concurrency",
+    "EVENT_MERGE_IMMEDIATE_DEBOUNCE_SECONDS": "Immediate event merge debounce in seconds",
     "EVENT_MERGE_INTERVAL": "Event merge interval in seconds",
     "EVENT_MERGE_MAX_EVENTS_PER_TRACE": "Maximum events per trace during event merging",
     "EVENT_MERGE_TIMEOUT_SECONDS": "Event merge timeout in seconds",
@@ -2356,6 +2332,9 @@
     "SANDBOX_GREP_TIMEOUT": "Sandbox grep command timeout in seconds",
     "SANDBOX_MCP_REBUILD_CONCURRENCY": "Concurrency level for rebuilding MCP servers in sandbox",
     "SANDBOX_PLATFORM": "Sandbox platform to use",
+    "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY": "Also write chunked trace events to the legacy events array",
+    "SESSION_EVENT_CHUNK_SIZE": "Maximum events stored in each trace event chunk document",
+    "SESSION_EVENT_CHUNK_STORAGE_ENABLED": "Store new trace events in chunk documents",
     "SESSION_EVENT_MONGO_BUFFER_MAX": "Maximum MongoDB buffer size for session events",
     "SESSION_EVENT_READ_DEFAULT_LIMIT": "Default number of events returned when reading session events",
     "SESSION_EVENT_REDIS_REPLAY_BATCH_SIZE": "Batch size for replaying session events from Redis",
@@ -2644,6 +2623,7 @@
     "filterDisabled": "Disabled",
     "filterEnabled": "Enabled",
     "form": {
+      "addBinaryFile": "Upload binary file",
       "addFile": "Add file",
       "content": "Content (Markdown with optional YAML frontmatter)",
       "contentPlaceholder": "# Skill instructions...",

@@ -36,7 +36,6 @@ class ExtensionType(str, Enum):
     USER_AGENT = "user_agent"
     AGENT = "agent"
     THEME = "theme"
-    WORKFLOW = "workflow"
     PROVIDER = "provider"
     FILE_VIEWER = "file_viewer"
     NOTIFICATION_CHANNEL = "notification_channel"
@@ -481,6 +480,25 @@ class PluginAppPanel(BaseModel):
         return normalized
 
 
+class PluginScheduledTaskSection(BaseModel):
+    """Renderer declaration for plugin-owned scheduled task panel sections."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(..., min_length=1)
+    renderer: str = Field(..., min_length=1)
+    order: int = 100
+    visible_when: PluginFrontendVisibleWhen | None = None
+
+    @field_validator("id", "renderer")
+    @classmethod
+    def normalize_strings(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("scheduled task section fields cannot be blank")
+        return normalized
+
+
 class PluginSidebarItem(BaseModel):
     """Navigation item contributed to the sidebar/more-menu surface."""
 
@@ -624,6 +642,29 @@ class PluginMessageAction(BaseModel):
     @field_validator("permissions")
     @classmethod
     def dedupe_permissions(cls, values: list[str]) -> list[str]:
+        return _dedupe_non_blank_strings(values)
+
+
+class PluginMessageRendererContribution(BaseModel):
+    """Message part renderer declared by a plugin."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(..., min_length=1)
+    renderer: str = Field(..., min_length=1)
+    message_types: list[str] = Field(default_factory=list)
+
+    @field_validator("id", "renderer")
+    @classmethod
+    def normalize_strings(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("message renderer fields cannot be blank")
+        return normalized
+
+    @field_validator("message_types")
+    @classmethod
+    def dedupe_message_types(cls, values: list[str]) -> list[str]:
         return _dedupe_non_blank_strings(values)
 
 
@@ -827,6 +868,7 @@ class PluginFrontendContribution(BaseModel):
     skill_importers: list[PluginSkillImporterContribution] = Field(default_factory=list)
     channel_connectors: list[PluginChannelConnectorContribution] = Field(default_factory=list)
     message_actions: list[PluginMessageAction] = Field(default_factory=list)
+    message_renderers: list[PluginMessageRendererContribution] = Field(default_factory=list)
     chat_input_options: list[PluginChatInputOption] = Field(default_factory=list)
     chat_input_panels: list[PluginChatInputPanel] = Field(default_factory=list)
     mention_providers: list[PluginMentionProvider] = Field(default_factory=list)
@@ -839,6 +881,7 @@ class PluginFrontendContribution(BaseModel):
     session_options: list[PluginScopedOption] = Field(default_factory=list)
     channel_options: list[PluginScopedOption] = Field(default_factory=list)
     scheduled_task_options: list[PluginScopedOption] = Field(default_factory=list)
+    scheduled_task_sections: list[PluginScheduledTaskSection] = Field(default_factory=list)
     settings_sections: list[str] = Field(default_factory=list)
     i18n_namespaces: list[str] = Field(default_factory=list)
     required_permissions: list[str] = Field(default_factory=list)
@@ -1081,7 +1124,6 @@ class PluginManifest(BaseModel):
 
     id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1)
-    description: str = ""
     version: str = Field(..., min_length=1)
     api_version: str = Field(..., min_length=1)
     depends_on: list[str] = Field(default_factory=list)
@@ -1188,12 +1230,14 @@ class PluginManifest(BaseModel):
             *(item.id for item in frontend.sidebar_items),
             *(item.id for item in frontend.user_menu_items),
             *(item.id for item in frontend.message_actions),
+            *(item.id for item in frontend.message_renderers),
             *(item.id for item in frontend.chat_input_options),
             *(item.id for item in frontend.chat_input_panels),
             *(item.id for item in frontend.mention_providers),
             *(item.id for item in frontend.welcome_surfaces),
             *(item.id for item in frontend.assistant_identity_resolvers),
             *(item.id for item in frontend.agent_categories),
+            *(item.id for item in frontend.scheduled_task_sections),
         ]
         for contribution_id in structured_ids:
             if contribution_id and not _is_plugin_owned_id(contribution_id, self.id):
@@ -1207,6 +1251,7 @@ class PluginManifest(BaseModel):
             *(item.panel for item in frontend.app_tabs if item.panel),
             *(item.renderer for item in frontend.app_panels),
             *(item.renderer for item in frontend.message_actions),
+            *(item.renderer for item in frontend.message_renderers),
             *(item.panel for item in frontend.chat_input_options if item.panel),
             *(
                 item.selected_renderer
@@ -1221,6 +1266,7 @@ class PluginManifest(BaseModel):
             *(item.renderer for item in frontend.session_options if item.renderer),
             *(item.renderer for item in frontend.channel_options if item.renderer),
             *(item.renderer for item in frontend.scheduled_task_options if item.renderer),
+            *(item.renderer for item in frontend.scheduled_task_sections),
             *(item.id for item in frontend.tool_renderers),
             *(item.id for item in frontend.file_viewers),
             *(item.id for item in frontend.upload_handlers),
@@ -1366,7 +1412,6 @@ class PluginManifest(BaseModel):
             name=self.name,
             version=self.version,
             publisher=publisher,
-            description=self.description,
             capabilities=["plugin"],
             permissions=self.declared_permissions(),
             install_state=(

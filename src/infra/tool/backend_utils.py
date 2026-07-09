@@ -26,9 +26,12 @@ def get_user_id_from_runtime(runtime: Any) -> Optional[str]:
             if isinstance(config, dict):
                 configurable = config.get("configurable", {})
                 if isinstance(configurable, dict):
+                    user_id = configurable.get("user_id")
+                    if user_id:
+                        return str(user_id)
                     ctx = configurable.get("context")
                     if ctx and hasattr(ctx, "user_id"):
-                        return ctx.user_id
+                        return str(ctx.user_id)
     return None
 
 
@@ -111,6 +114,21 @@ def get_trace_id_from_runtime(runtime: Any) -> Optional[str]:
                     context_trace_id = getattr(ctx, "trace_id", None)
                     if context_trace_id:
                         return str(context_trace_id)
+    return None
+
+
+def get_attachments_from_runtime(runtime: Any) -> list[dict[str, Any]] | None:
+    """Return current message attachments passed through ToolRuntime config."""
+    if runtime is not None:
+        if hasattr(runtime, "config") and runtime.config:
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                if isinstance(configurable, dict):
+                    attachments = configurable.get("attachments")
+                    if isinstance(attachments, list):
+                        items = [dict(item) for item in attachments if isinstance(item, dict)]
+                        return items or None
     return None
 
 

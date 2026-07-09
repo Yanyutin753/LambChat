@@ -428,7 +428,7 @@ class StoragePresenterMixin:
             try:
                 await self._ensure_token_usage_event()
                 # 先刷新 MongoDB 缓冲，确保所有事件已写入
-                await dual_writer.flush_mongo_buffer()
+                await dual_writer.flush_mongo_buffer(require_empty=True)
                 await dual_writer.complete_trace(
                     trace_id=self.trace_id,
                     status=status,

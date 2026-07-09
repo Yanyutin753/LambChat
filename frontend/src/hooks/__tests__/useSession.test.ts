@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import type { BackendSession } from "../../services/api/session.ts";
 import { reconcileSessionList } from "../useSession.ts";
 
@@ -16,25 +13,23 @@ function session(id: string): BackendSession {
 }
 
 test("reconcileSessionList removes sessions missing from a filtered refresh", () => {
-  assert.deepEqual(
+  expect(
     reconcileSessionList({
       previous: [session("keep"), session("drop")],
       latest: [session("keep")],
       removeMissing: true,
     }).map((item) => item.id),
-    ["keep"],
-  );
+  ).toEqual(["keep"]);
 });
 
 test("reconcileSessionList preserves older sessions for unfiltered soft refreshes", () => {
-  assert.deepEqual(
+  expect(
     reconcileSessionList({
       previous: [session("keep"), session("older-page")],
       latest: [session("new-top"), session("keep")],
       removeMissing: false,
     }).map((item) => item.id),
-    ["new-top", "keep", "older-page"],
-  );
+  ).toEqual(["new-top", "keep", "older-page"]);
 });
 
 test("reconcileSessionList does not resurrect locally deleted sessions from stale refreshes", () => {
@@ -45,8 +40,5 @@ test("reconcileSessionList does not resurrect locally deleted sessions from stal
     excludedSessionIds: new Set(["deleted"]),
   };
 
-  assert.deepEqual(
-    reconcileSessionList(input).map((item) => item.id),
-    ["keep"],
-  );
+  expect(reconcileSessionList(input).map((item) => item.id)).toEqual(["keep"]);
 });

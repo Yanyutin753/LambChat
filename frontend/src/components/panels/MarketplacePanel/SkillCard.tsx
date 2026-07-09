@@ -1,7 +1,6 @@
 import {
   Download,
   FileText,
-  AlertTriangle,
   Eye,
   RefreshCcw,
   Loader2 as Loader2Icon,
@@ -13,7 +12,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { SkillBaseCard } from "../../common/SkillBaseCard";
 import { getCategoryIcon, nameToGradient } from "../../common/cardUtils";
 import type { MarketplaceSkillResponse } from "../../../types";
@@ -23,7 +21,6 @@ interface SkillCardProps {
   skill: MarketplaceSkillResponse;
   index: number;
   isInstalled: boolean;
-  hasLocalManualConflict: boolean;
   isOwner: boolean;
   canManage: boolean;
   canWrite: boolean;
@@ -44,7 +41,6 @@ export function SkillCard({
   skill,
   index,
   isInstalled,
-  hasLocalManualConflict,
   isOwner,
   canManage,
   canWrite,
@@ -61,7 +57,6 @@ export function SkillCard({
   onDelete,
 }: SkillCardProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const gradient = nameToGradient(skill.skill_name);
   const primaryTag = skill.tags[0];
   const CategoryIcon = primaryTag ? getCategoryIcon(primaryTag) : Sparkles;
@@ -133,28 +128,6 @@ export function SkillCard({
           </div>
         ) : undefined
       }
-      extraContent={
-        hasLocalManualConflict ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-2.5 py-2 text-[11px] text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-            <div className="flex items-start gap-1.5">
-              <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-              <span>{t("marketplace.installNameConflict")}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() =>
-                navigate("/skills", {
-                  state: { prefillSkillSearch: skill.skill_name },
-                })
-              }
-              className="mt-1.5 inline-flex items-center gap-1 font-medium text-amber-900 underline decoration-amber-400 underline-offset-2 transition-colors hover:text-amber-950 dark:text-amber-200 dark:decoration-amber-700 dark:hover:text-amber-100"
-            >
-              <Pencil size={11} />
-              <span>{t("marketplace.viewInMySkills")}</span>
-            </button>
-          </div>
-        ) : undefined
-      }
       meta={
         <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--theme-text-secondary)]">
           <div className="flex items-center gap-2">
@@ -197,23 +170,14 @@ export function SkillCard({
                     e.stopPropagation();
                     onInstallClick(skill.skill_name);
                   }}
-                  disabled={hasLocalManualConflict}
                   title={
-                    hasLocalManualConflict
-                      ? t("marketplace.installNameConflict")
-                      : isInstalled
-                        ? t("marketplace.update")
-                        : t("marketplace.install")
+                    isInstalled
+                      ? t("marketplace.update")
+                      : t("marketplace.install")
                   }
-                  className={`scb__action-btn ${
-                    hasLocalManualConflict
-                      ? "scb__action-btn--disabled"
-                      : "scb__action-btn--ghost"
-                  }`}
+                  className="scb__action-btn scb__action-btn--ghost"
                 >
-                  {hasLocalManualConflict ? (
-                    <AlertTriangle size={16} />
-                  ) : isInstalled ? (
+                  {isInstalled ? (
                     <RefreshCcw size={16} />
                   ) : (
                     <Download size={16} />
@@ -244,7 +208,7 @@ export function SkillCard({
                           onOpenMenu(null);
                           onEdit(skill.skill_name);
                         }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-bg-subtle)]"
                       >
                         <Pencil size={12} />
                         {t("common.edit")}
@@ -255,7 +219,7 @@ export function SkillCard({
                         onOpenMenu(null);
                         onActivate(skill.skill_name, !skill.is_active);
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-bg-subtle)]"
                     >
                       {skill.is_active ? (
                         <>

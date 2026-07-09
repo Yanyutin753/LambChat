@@ -95,6 +95,7 @@ export function useMessageScrollExternalNavigationEffect({
     externalNavigationTargetFile,
     externalNavigationTargetRunId,
     externalScrollToBottom,
+    pendingExternalNavigationRef,
   ]);
 
   useEffect(() => {
@@ -316,5 +317,15 @@ export function useMessageScrollExternalNavigationEffect({
     externalNavigationTargetRunId,
     externalNavigationTargetRunPending,
     externalNavigationTargetFile,
+    anchorScrollCleanupRef,
+    autoScrollActiveRef,
+    highlightCleanupRef,
+    ignoreProgrammaticScrollUntilRef,
+    pendingExternalNavigationRef,
+    pendingHistoryScrollRef,
+    streamLockActiveRef,
+    userScrolledUpRef,
+    virtuosoRef,
+    virtuosoScrollerRef,
   ]);
 }

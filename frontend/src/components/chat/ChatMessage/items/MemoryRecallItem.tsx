@@ -391,7 +391,7 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
                   return (
                     <div
                       key={mem.memory_id || i}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-primary)_22%,var(--theme-border))] transition-colors"
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
                     >
                       <span
                         className={clsx(

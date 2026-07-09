@@ -752,7 +752,11 @@ export function useMessageScroll(
       cancelAnimationFrame(rafRef.current);
       cancelAnimationFrame(viewportResizeRafRef.current);
       scrollCleanupRef.current?.();
+      // These cleanup callbacks are assigned after mount by external navigation retries.
+      // Read the latest refs on unmount so in-flight scroll/highlight work is cancelled.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       anchorScrollCleanupRef.current?.();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       highlightCleanupRef.current?.();
     };
   }, []);

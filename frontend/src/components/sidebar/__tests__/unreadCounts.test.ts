@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import type { BackendSession } from "../../../services/api/session.ts";
 import {
   getExternalUnreadCountForScheduledTasks,
@@ -41,14 +38,13 @@ test("project unread count includes externally reported sessions", () => {
     isFavorite: false,
   });
 
-  assert.equal(
+  expect(
     getUnreadCountForProject({
       projectId: "project-1",
       loadedSessions: [session("loaded-session", 2, "project-1")],
       unreadBySession,
     }),
-    5,
-  );
+  ).toBe(5);
 });
 
 test("project unread count does not double count loaded sessions", () => {
@@ -59,14 +55,13 @@ test("project unread count does not double count loaded sessions", () => {
     isFavorite: false,
   });
 
-  assert.equal(
+  expect(
     getUnreadCountForProject({
       projectId: "project-1",
       loadedSessions: [session("loaded-session", 4, "project-1")],
       unreadBySession,
     }),
-    4,
-  );
+  ).toBe(4);
 });
 
 test("zero unread updates remove external unread entries", () => {
@@ -83,11 +78,11 @@ test("zero unread updates remove external unread entries", () => {
     isFavorite: false,
   });
 
-  assert.equal(cleared.has("session-1"), false);
+  expect(cleared.has("session-1")).toBe(false);
 });
 
 test("favorite unread count only includes favorited sessions", () => {
-  assert.equal(
+  expect(
     getUnreadCountForFavorites(
       [
         session("favorite-session", 2, "project-1"),
@@ -99,8 +94,7 @@ test("favorite unread count only includes favorited sessions", () => {
       ],
       new Map(),
     ),
-    4,
-  );
+  ).toBe(4);
 });
 
 test("favorite unread count includes external unread sessions not yet loaded", () => {
@@ -112,7 +106,7 @@ test("favorite unread count includes external unread sessions not yet loaded", (
     ["plain-external", { count: 5, projectId: "project-2", isFavorite: false }],
   ]);
 
-  assert.equal(
+  expect(
     getUnreadCountForFavorites(
       [
         {
@@ -122,8 +116,7 @@ test("favorite unread count includes external unread sessions not yet loaded", (
       ],
       unreadBySession,
     ),
-    7,
-  );
+  ).toBe(7);
 });
 
 test("uncategorized unread count excludes scheduled task sessions", () => {
@@ -140,7 +133,7 @@ test("uncategorized unread count excludes scheduled task sessions", () => {
     ["plain-external", { count: 3, projectId: null, isFavorite: false }],
   ]);
 
-  assert.equal(
+  expect(
     getUnreadCountForUncategorized({
       loadedSessions: [
         session("plain-loaded", 2),
@@ -148,8 +141,7 @@ test("uncategorized unread count excludes scheduled task sessions", () => {
       ],
       unreadBySession,
     }),
-    5,
-  );
+  ).toBe(5);
 });
 
 test("scheduled task unread count includes loaded and external sessions without double counting", () => {
@@ -168,14 +160,13 @@ test("scheduled task unread count includes loaded and external sessions without 
     isFavorite: false,
   });
 
-  assert.equal(
+  expect(
     getUnreadCountForScheduledTask({
       scheduledTaskId: "task-1",
       loadedSessions: [session("loaded-scheduled", 4, null, "task-1")],
       unreadBySession: withExternal,
     }),
-    7,
-  );
+  ).toBe(7);
 });
 
 test("scheduled task aggregate external unread can exclude already tracked tasks", () => {
@@ -201,11 +192,10 @@ test("scheduled task aggregate external unread can exclude already tracked tasks
     ["plain-session", { count: 8, projectId: null, isFavorite: false }],
   ]);
 
-  assert.equal(
+  expect(
     getExternalUnreadCountForScheduledTasks(
       unreadBySession,
       new Set(["tracked-task"]),
     ),
-    6,
-  );
+  ).toBe(6);
 });

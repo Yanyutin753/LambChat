@@ -1,9 +1,6 @@
-import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const itemsDir = resolve(__dirname, "..");
 
@@ -24,11 +21,11 @@ test("tool item argument and summary blocks do not render floating copy buttons"
     }
   }
 
-  assert.deepEqual(offenders, []);
+  expect(offenders).toEqual([]);
 });
 
 test("generic tool call argument sections do not expose copy actions", () => {
   const source = readSource("../../ToolCallItem.tsx");
 
-  assert.doesNotMatch(source, /action=\{<CopyButton text=\{argsJson\}/);
+  expect(source).not.toMatch(/action=\{<CopyButton text=\{argsJson\}/);
 });

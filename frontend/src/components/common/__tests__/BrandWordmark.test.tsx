@@ -1,31 +1,30 @@
-import assert from "node:assert/strict";
+/** @vitest-environment jsdom */
 import { renderToStaticMarkup } from "react-dom/server";
-import { test } from "node:test";
 import { BrandWordmark } from "../BrandWordmark";
 
 test("BrandWordmark renders an accessible scalable svg by default", () => {
   const html = renderToStaticMarkup(<BrandWordmark className="brand-mark" />);
 
-  assert.match(html, /<svg/);
-  assert.match(html, /viewBox="0 0 220 62"/);
-  assert.match(html, /role="img"/);
-  assert.match(html, /<title[^>]*>LambChat<\/title>/);
-  assert.match(html, /aria-labelledby="[^"]+"/);
-  assert.match(html, /class="brand-mark"/);
-  assert.match(html, /data-wordmark-style="text-only"/);
-  assert.match(html, /<text[^>]*>LambChat<\/text>/);
-  assert.match(html, /x="110"/);
-  assert.match(html, /y="36"/);
-  assert.match(html, /text-anchor="middle"/);
-  assert.match(html, /dominant-baseline="central"/);
-  assert.doesNotMatch(html, /<path/);
-  assert.doesNotMatch(html, /<circle/);
+  expect(html).toMatch(/<svg/);
+  expect(html).toMatch(/viewBox="0 0 220 62"/);
+  expect(html).toMatch(/role="img"/);
+  expect(html).toMatch(/<title[^>]*>LambChat<\/title>/);
+  expect(html).toMatch(/aria-labelledby="[^"]+"/);
+  expect(html).toMatch(/class="brand-mark"/);
+  expect(html).toMatch(/data-wordmark-style="text-only"/);
+  expect(html).toMatch(/<text[^>]*>LambChat<\/text>/);
+  expect(html).toMatch(/x="110"/);
+  expect(html).toMatch(/y="36"/);
+  expect(html).toMatch(/text-anchor="middle"/);
+  expect(html).toMatch(/dominant-baseline="central"/);
+  expect(html).not.toMatch(/<path/);
+  expect(html).not.toMatch(/<circle/);
 });
 
 test("BrandWordmark can render decoratively when the parent already labels it", () => {
   const html = renderToStaticMarkup(<BrandWordmark decorative />);
 
-  assert.match(html, /aria-hidden="true"/);
-  assert.doesNotMatch(html, /role="img"/);
-  assert.doesNotMatch(html, /<title>/);
+  expect(html).toMatch(/aria-hidden="true"/);
+  expect(html).not.toMatch(/role="img"/);
+  expect(html).not.toMatch(/<title>/);
 });

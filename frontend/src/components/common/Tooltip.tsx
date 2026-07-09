@@ -4,9 +4,9 @@ import {
   useCallback,
   useEffect,
   useRef,
-  type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 
 type Placement = "top" | "bottom" | "auto";
 
@@ -37,6 +37,7 @@ export function Tooltip({
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const touchHideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const wrapperRef = useRef<HTMLSpanElement>(null);
+  const childElRef = useRef<HTMLElement | null>(null);
   const resolvedPlacement = useRef<"top" | "bottom">("top");
 
   // Get the actual child element (not the display:contents wrapper)
@@ -44,6 +45,11 @@ export function Tooltip({
     () => wrapperRef.current?.firstElementChild as HTMLElement | null,
     [],
   );
+
+  // Sync childElRef for the positioning hook
+  useEffect(() => {
+    childElRef.current = getChild();
+  }, [getChild, show]);
 
   // --- Desktop: hover show/hide ---
   const handleMouseEnter = useCallback(() => {
@@ -126,11 +132,7 @@ export function Tooltip({
     };
   }, []);
 
-  const tipStyle = ((): CSSProperties | undefined => {
-    const el = getChild();
-    if (!show || !el) return undefined;
-    const rect = el.getBoundingClientRect();
-
+  const tipStyle = useStickyDropdownPosition(childElRef, show, (rect) => {
     const textLen =
       typeof content === "string"
         ? content.length
@@ -146,18 +148,14 @@ export function Tooltip({
 
     resolvedPlacement.current = showAbove ? "top" : "bottom";
 
-    return showAbove
-      ? {
-          left: rect.left + rect.width / 2,
-          top: rect.top - 8,
-          transform: "translate(-50%, -100%)",
-        }
-      : {
-          left: rect.left + rect.width / 2,
-          top: rect.bottom + 8,
-          transform: "translate(-50%, 0)",
-        };
-  })();
+    return {
+      position: "fixed",
+      left: rect.left + rect.width / 2,
+      top: showAbove ? rect.top - 8 : rect.bottom + 8,
+      transform: showAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)",
+      zIndex,
+    };
+  });
 
   if (typeof content !== "string" && typeof content !== "number") return null;
 

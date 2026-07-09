@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Shrink, Plus, ChevronDown } from "lucide-react";
+import { Shrink, Plus, ChevronDown, Upload } from "lucide-react";
 import { FileTreeItem } from "./FileTreeItem";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
@@ -46,7 +46,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 />
               ))}
             </div>
-            <div className="shrink-0 px-2 py-1.5">
+            <div className="shrink-0 px-2 py-1.5 space-y-1">
               <button
                 type="button"
                 onClick={a.addFile}
@@ -54,6 +54,14 @@ export function SkillFormFullscreen(a: SkillFormActions) {
               >
                 <Plus size={13} />
                 {t("skills.form.addFile")}
+              </button>
+              <button
+                type="button"
+                onClick={a.addBinaryFile}
+                className="w-full flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
+              >
+                <Upload size={13} />
+                {t("skills.form.addBinaryFile", "Upload binary file")}
               </button>
             </div>
           </div>
@@ -78,6 +86,14 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 title={t("skills.form.addFile", "Add file")}
               >
                 <Plus size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={a.addBinaryFile}
+                className="shrink-0 flex items-center justify-center h-9 w-9 rounded-xl text-stone-400 transition-colors duration-150 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
+                title={t("skills.form.addBinaryFile", "Upload binary file")}
+              >
+                <Upload size={15} />
               </button>
             </div>
 

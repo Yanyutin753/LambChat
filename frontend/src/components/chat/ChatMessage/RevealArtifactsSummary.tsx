@@ -262,7 +262,7 @@ function ProjectRow({
     <button
       type="button"
       onClick={() => onOpenPreview?.(artifact.preview, "manual")}
-      className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--theme-primary-light)]"
+      className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--theme-bg-subtle)]"
     >
       <span className="flex items-center justify-center size-10 rounded-xl shrink-0 bg-[var(--theme-primary-light)] transition-transform duration-200 group-hover:scale-105">
         <Icon
@@ -518,7 +518,7 @@ export function RevealArtifactsSummary({
               handleOpenPanel();
             }
           }}
-          className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-[var(--theme-bg-card)] px-3 py-2.5 shadow-[0_1px_3px_var(--theme-shadow-sm)] ring-1 ring-[var(--theme-border)] transition-all duration-200 hover:shadow-[0_4px_12px_var(--theme-shadow-md)] hover:ring-[var(--theme-primary)]/30 sm:px-4 sm:py-3"
+          className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-[var(--theme-bg-card)] px-3 py-2.5 shadow-[0_1px_3px_var(--theme-shadow-sm)] ring-1 ring-[var(--theme-border)] transition-all duration-200 hover:shadow-[0_4px_12px_var(--theme-shadow-md)] hover:ring-[var(--theme-text-secondary)]/20 sm:px-4 sm:py-3"
         >
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--theme-primary-light)] transition-transform duration-200 group-hover:scale-105">
             <FolderIcon size={28} className="shrink-0" />
@@ -532,7 +532,7 @@ export function RevealArtifactsSummary({
             </div>
           </div>
           <div className="relative z-10 flex shrink-0 items-center gap-1">
-            <span className="rounded-lg bg-[var(--theme-primary-light)] px-3 py-1.5 text-xs font-medium text-[var(--theme-primary)] ring-1 ring-[var(--theme-border)] transition-colors group-hover:bg-[var(--theme-primary)]/15 group-hover:ring-[var(--theme-primary)]/30">
+            <span className="rounded-lg bg-[var(--theme-primary-light)] px-3 py-1.5 text-xs font-medium text-[var(--theme-primary)] ring-1 ring-[var(--theme-border)] transition-colors group-hover:bg-[var(--theme-primary)]/15 group-hover:ring-[var(--theme-text-secondary)]/20">
               {t("project.preview", "预览")}
             </span>
           </div>

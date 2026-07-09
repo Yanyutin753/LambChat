@@ -23,15 +23,13 @@ Trace Storage - 按 trace 聚合事件存储
     "metadata": {}
 }
 
-全局序号说明:
-- 每个 session 有一个独立的递增序号计数器 (存储在 session_events_counter 集合)
-- 每个事件写入时获取全局序号，用于断点续读
 """
 
 import asyncio
 from typing import Any, Dict, List, Optional
 
 from src.infra.logging import get_logger
+from src.infra.session.trace_event_chunks import TraceEventChunkMixin
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.config import settings
@@ -54,12 +52,20 @@ async def _write_usage_log(trace_id: str) -> None:
         storage = get_usage_storage()
         collection = storage.collection
 
-        # 读取完整 trace（含 events）
+        # 只读取 trace 元数据；usage 事件通过兼容读路径从 chunk/legacy 中查询。
         trace_doc = await collection.database[settings.MONGODB_TRACES_COLLECTION].find_one(
-            {"trace_id": trace_id}
+            {"trace_id": trace_id},
+            {"_id": 0, "events": 0},
         )
         if trace_doc:
-            await storage.upsert_usage_log(trace_doc)
+            usage_event = await get_trace_storage().get_last_trace_event(
+                trace_id,
+                ["token:usage"],
+            )
+            await storage.upsert_usage_log_from_trace_metadata(
+                trace_doc,
+                (usage_event or {}).get("data", {}),
+            )
     except Exception as e:
         # 写入 usage_logs 失败不应影响主流程
         logger.warning(f"Failed to write usage log for trace {trace_id}: {e}")
@@ -95,6 +101,37 @@ def _clamp_nonnegative_int(value: int | None) -> int:
         return 0
 
 
+def _get_event_chunk_size() -> int:
+    try:
+        return max(int(getattr(settings, "SESSION_EVENT_CHUNK_SIZE", 5000) or 0), 1)
+    except (TypeError, ValueError):
+        return 5000
+
+
+def _event_chunk_index(seq: int) -> int:
+    return (max(int(seq), 1) - 1) // _get_event_chunk_size()
+
+
+def _event_preview(event: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    if not event:
+        return None
+    preview = {
+        "event_type": event.get("event_type"),
+        "data": event.get("data", {}),
+        "timestamp": event.get("timestamp"),
+    }
+    if "seq" in event:
+        preview["seq"] = event.get("seq")
+    return preview
+
+
+def _event_seq(event: Dict[str, Any], fallback: int) -> int:
+    try:
+        return int(event.get("seq", fallback))
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _bounded_unique_strings(
     values: Optional[List[str]],
     limit: int = SESSION_EVENT_FILTER_LIST_LIMIT,
@@ -113,7 +150,7 @@ def _bounded_unique_strings(
     return bounded
 
 
-class TraceStorage:
+class TraceStorage(TraceEventChunkMixin):
     """
     Trace 存储类
 
@@ -123,6 +160,7 @@ class TraceStorage:
 
     def __init__(self):
         self._collection = None
+        self._chunks_collection = None
         self._merger = None  # 事件合并器
         self._indexes_task: asyncio.Task[None] | None = None
 
@@ -135,6 +173,15 @@ class TraceStorage:
             self._collection = db[settings.MONGODB_TRACES_COLLECTION]
             # 索引创建在首次异步操作时触发，避免在 property getter 中调用 create_task
         return self._collection
+
+    @property
+    def chunks_collection(self):
+        """延迟加载 MongoDB trace event chunks 集合"""
+        if self._chunks_collection is None:
+            client = get_mongo_client()
+            db = client[settings.MONGODB_DB]
+            self._chunks_collection = db[settings.MONGODB_TRACE_EVENT_CHUNKS_COLLECTION]
+        return self._chunks_collection
 
     async def ensure_indexes_if_needed(self):
         """确保索引存在（由首次使用时调用）"""
@@ -189,6 +236,28 @@ class TraceStorage:
                 name="status_merged_idx",
                 background=True,
             )
+            chunks_collection = self.chunks_collection
+            await chunks_collection.create_index(
+                [("trace_id", 1), ("chunk_index", 1)],
+                unique=True,
+                name="trace_chunk_unique_idx",
+                background=True,
+            )
+            await chunks_collection.create_index(
+                [("session_id", 1), ("run_id", 1), ("chunk_index", 1)],
+                name="session_run_chunk_idx",
+                background=True,
+            )
+            await chunks_collection.create_index(
+                [("session_id", 1), ("trace_started_at", 1), ("chunk_index", 1)],
+                name="session_trace_started_chunk_idx",
+                background=True,
+            )
+            await chunks_collection.create_index(
+                [("trace_id", 1), ("end_seq", -1)],
+                name="trace_end_seq_idx",
+                background=True,
+            )
             logger.info("MongoDB indexes ensured for trace_storage")
         except Exception as e:
             logger.warning(f"Failed to create indexes (non-critical): {e}")
@@ -234,6 +303,7 @@ class TraceStorage:
         """
         from pymongo.errors import DuplicateKeyError
 
+        await self.ensure_indexes_if_needed()
         now = utc_now()
         doc: Dict[str, Any] = {
             "trace_id": trace_id,
@@ -322,6 +392,31 @@ class TraceStorage:
             "timestamp": now,
         }
         try:
+            if await self._has_event_chunks(trace_id):
+                events = await self.read_trace_events_compat(trace_id)
+                if any(event.get("event_type") == "token:usage" for event in events):
+                    return
+                done_index = next(
+                    (
+                        index
+                        for index, event in enumerate(events)
+                        if event.get("event_type") == "done"
+                    ),
+                    -1,
+                )
+                next_events = list(events)
+                if done_index >= 0:
+                    next_events.insert(done_index, usage_event)
+                else:
+                    next_events.append(usage_event)
+                trace_doc = await self.collection.find_one(
+                    {"trace_id": trace_id},
+                    {"_id": 0, "events": 0},
+                )
+                if trace_doc:
+                    await self.replace_trace_events_with_chunks(trace_doc, next_events)
+                return
+
             await self.collection.update_one(
                 {
                     "trace_id": trace_id,
@@ -402,6 +497,7 @@ class TraceStorage:
                 update["$set"][f"metadata.{key}"] = value
 
         try:
+            await self.ensure_indexes_if_needed()
             if ensure_token_usage:
                 await self._ensure_token_usage_event(trace_id)
             result = await self.collection.update_one(
@@ -411,6 +507,8 @@ class TraceStorage:
             # 异步写入 usage_logs 集合（fire-and-forget，失败不影响主流程）
             if _USAGE_LOGS_ENABLED and result.modified_count > 0:
                 asyncio.create_task(_write_usage_log(trace_id))
+            if result.modified_count > 0 and self._merger is not None:
+                self._merger.schedule_merge_once()
             return result.modified_count > 0
         except Exception as e:
             logger.error(f"Failed to complete trace {trace_id}: {e}")
@@ -433,11 +531,13 @@ class TraceStorage:
             trace 文档或 None
         """
         try:
-            projection = {"_id": 0} if include_events else {"_id": 0, "events": 0}
+            projection = {"_id": 0, "events": 0}
             doc = await self.collection.find_one(
                 {"trace_id": trace_id},
                 projection,
             )
+            if doc is not None and include_events:
+                doc["events"] = await self.read_trace_events_compat(trace_id)
             return doc
         except Exception as e:
             logger.error(f"Failed to get trace {trace_id}: {e}")
@@ -447,7 +547,7 @@ class TraceStorage:
         self,
         trace_id: str,
         event_types: Optional[List[str]] = None,
-        max_events: int = TRACE_EVENTS_DEFAULT_LIMIT,
+        max_events: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         获取 trace 的事件列表
@@ -460,43 +560,12 @@ class TraceStorage:
         Returns:
             事件列表
         """
-        max_events = _clamp_event_read_limit(
-            max_events,
-            default=TRACE_EVENTS_DEFAULT_LIMIT,
-        )
-        if max_events <= 0:
-            return []
-
-        pipeline: List[Dict[str, Any]] = [
-            {"$match": {"trace_id": trace_id}},
-            {
-                "$project": {
-                    "events.event_type": 1,
-                    "events.data": 1,
-                    "events.timestamp": 1,
-                }
-            },
-            {"$unwind": "$events"},
-        ]
-        if event_types:
-            pipeline.append({"$match": {"events.event_type": {"$in": event_types}}})
-        pipeline.append({"$limit": max_events})
-        pipeline.append(
-            {
-                "$project": {
-                    "_id": 0,
-                    "event_type": "$events.event_type",
-                    "data": "$events.data",
-                    "timestamp": "$events.timestamp",
-                }
-            }
-        )
-
-        events: List[Dict[str, Any]] = []
         try:
-            async for event in self.collection.aggregate(pipeline):
-                events.append(event)
-            return events
+            return await self.read_trace_events_compat(
+                trace_id,
+                event_types=event_types,
+                max_events=max_events,
+            )
         except Exception as e:
             logger.error(f"Failed to get trace events for {trace_id}: {e}")
             return []
@@ -507,6 +576,18 @@ class TraceStorage:
         event_types: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Fetch the first matching event from one trace without loading the full events array."""
+        try:
+            if await self._has_event_chunks(trace_id):
+                events = await self.read_trace_events_compat(
+                    trace_id,
+                    event_types=event_types,
+                    max_events=1,
+                )
+                return events[0] if events else None
+        except Exception as e:
+            logger.error(f"Failed to get first trace event from chunks for {trace_id}: {e}")
+            return None
+
         pipeline: List[Dict[str, Any]] = [
             {"$match": {"trace_id": trace_id}},
             {
@@ -548,6 +629,37 @@ class TraceStorage:
         event_types: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Fetch the latest matching event from one trace without returning the full events array."""
+        try:
+            if await self._has_event_chunks(trace_id):
+                bounded_event_types = _bounded_unique_strings(
+                    event_types,
+                    SESSION_EVENT_FILTER_LIST_LIMIT,
+                )
+                allowed_types = set(bounded_event_types)
+                cursor = self.chunks_collection.find(
+                    {"trace_id": trace_id},
+                    {"_id": 0, "events": 1, "chunk_index": 1},
+                ).sort("chunk_index", -1)
+                async for chunk in cursor:
+                    chunk_events = sorted(
+                        enumerate(chunk.get("events", []) or []),
+                        key=lambda item: _event_seq(item[1], item[0]),
+                        reverse=True,
+                    )
+                    for _index, event in chunk_events:
+                        if allowed_types and event.get("event_type") not in allowed_types:
+                            continue
+                        return event
+                events = await self.read_trace_events_compat(
+                    trace_id,
+                    event_types=bounded_event_types,
+                    max_events=None,
+                )
+                return events[-1] if events else None
+        except Exception as e:
+            logger.error(f"Failed to get last trace event from chunks for {trace_id}: {e}")
+            return None
+
         pipeline: List[Dict[str, Any]] = [
             {"$match": {"trace_id": trace_id}},
             {
@@ -661,7 +773,7 @@ class TraceStorage:
             "completed_at": 1,
             "status": 1,
             "event_count": 1,
-            "events": {"$elemMatch": {"event_type": "user:message"}},
+            "first_user_message_preview": 1,
         }
 
         try:
@@ -675,9 +787,17 @@ class TraceStorage:
             summaries: List[Dict[str, Any]] = []
             for trace in traces:
                 user_message = None
-                events = trace.get("events") or []
-                if events:
-                    data = events[0].get("data", {})
+                preview = trace.get("first_user_message_preview") or {}
+                if not preview and trace.get("trace_id"):
+                    preview = (
+                        await self.get_first_trace_event(
+                            trace_id=str(trace.get("trace_id")),
+                            event_types=["user:message"],
+                        )
+                        or {}
+                    )
+                if preview:
+                    data = preview.get("data", {})
                     user_message = data.get("content") or data.get("message") or ""
                     if user_message and len(user_message) > 20:
                         user_message = user_message[:17] + "..."
@@ -750,42 +870,43 @@ class TraceStorage:
             if max_events is not None and max_events <= 0:
                 return []
 
-            pipeline: List[Dict[str, Any]] = [
-                {"$match": match_query},
-                {"$sort": {"started_at": 1}},
+            cursor = self.collection.find(
+                match_query,
                 {
-                    "$project": {
-                        "trace_id": 1,
-                        "run_id": 1,
-                        "events.event_type": 1,
-                        "events.data": 1,
-                        "events.timestamp": 1,
-                    }
+                    "_id": 0,
+                    "trace_id": 1,
+                    "run_id": 1,
+                    "started_at": 1,
                 },
-                {"$unwind": "$events"},
-            ]
-            if event_types:
-                pipeline.append({"$match": {"events.event_type": {"$in": event_types}}})
-            if max_events is not None:
-                pipeline.append({"$limit": max_events})
-            pipeline.extend(
-                [
-                    {
-                        "$project": {
-                            "_id": 0,
-                            "trace_id": 1,
-                            "run_id": 1,
-                            "event_type": "$events.event_type",
-                            "data": "$events.data",
-                            "timestamp": "$events.timestamp",
-                        }
-                    },
-                ]
-            )
+            ).sort("started_at", 1)
 
             events: List[Dict[str, Any]] = []
-            async for event in self.collection.aggregate(pipeline):
-                events.append(event)
+            async for trace in cursor:
+                trace_id = trace.get("trace_id")
+                if not trace_id:
+                    continue
+                trace_events = await self.read_trace_events_compat(
+                    trace_id,
+                    event_types=event_types,
+                    max_events=None if max_events is None else max_events - len(events),
+                )
+                for event in trace_events:
+                    item = {
+                        "trace_id": trace_id,
+                        "run_id": trace.get("run_id"),
+                        "event_type": event.get("event_type"),
+                        "data": event.get("data", {}),
+                        "timestamp": event.get("timestamp"),
+                    }
+                    if "seq" in event:
+                        item["seq"] = event.get("seq")
+                    events.append(item)
+                    if max_events is not None and len(events) >= max_events:
+                        logger.debug(
+                            f"Session {session_id} (run_id={run_id}) returned {len(events)} bounded events"
+                        )
+                        return events
+
             logger.debug(
                 f"Session {session_id} (run_id={run_id}) returned {len(events)} bounded events"
             )
@@ -817,6 +938,8 @@ class TraceStorage:
         """删除 trace"""
         try:
             result = await self.collection.delete_one({"trace_id": trace_id})
+            if result.deleted_count > 0:
+                await self.chunks_collection.delete_many({"trace_id": trace_id})
             return result.deleted_count > 0
         except Exception as e:
             logger.error(f"Failed to delete trace {trace_id}: {e}")
@@ -825,6 +948,16 @@ class TraceStorage:
     async def delete_session_traces(self, session_id: str) -> int:
         """删除会话的所有 traces"""
         try:
+            cursor = self.collection.find(
+                {"session_id": session_id},
+                {"_id": 0, "trace_id": 1},
+            )
+            trace_docs = await cursor.to_list(length=None)
+            trace_ids = [trace.get("trace_id") for trace in trace_docs if trace.get("trace_id")]
+            if trace_ids:
+                await self.chunks_collection.delete_many({"trace_id": {"$in": trace_ids}})
+            else:
+                await self.chunks_collection.delete_many({"session_id": session_id})
             result = await self.collection.delete_many({"session_id": session_id})
             return result.deleted_count
         except Exception as e:
@@ -840,6 +973,7 @@ class TraceStorage:
         if hasattr(self, "_indexes_ensured"):
             delattr(self, "_indexes_ensured")
         self._collection = None
+        self._chunks_collection = None
         self._merger = None
 
 

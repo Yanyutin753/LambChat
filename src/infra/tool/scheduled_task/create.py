@@ -8,9 +8,8 @@ from zoneinfo import ZoneInfo
 from langchain_core.tools import InjectedToolArg
 
 from src.infra.scheduler.service import ScheduledTaskService
-from src.infra.tool.backend_utils import get_user_id_from_runtime
+from src.infra.tool.backend_utils import get_attachments_from_runtime, get_user_id_from_runtime
 from src.infra.utils.datetime import ensure_utc, to_iso, utc_now
-from src.kernel.extensions import WORKFLOW_PLUGIN_ID
 from src.kernel.extensions.plugin_options import (
     AGENT_TEAM_PLUGIN_ID,
     AGENT_TEAM_SELECTED_TEAM_OPTION,
@@ -106,14 +105,6 @@ def _plugin_unavailable(plugin_id: str) -> bool:
 
 def _agent_team_plugin_unavailable() -> bool:
     return _plugin_unavailable(AGENT_TEAM_PLUGIN_ID)
-
-
-def _workflow_plugin_unavailable() -> bool:
-    return _plugin_unavailable(WORKFLOW_PLUGIN_ID)
-
-
-def _has_workflow_options(plugin_options: dict[str, dict[str, Any]]) -> bool:
-    return bool(plugin_options.get(WORKFLOW_PLUGIN_ID))
 
 
 @tool
@@ -228,6 +219,13 @@ async def scheduled_task_create(
         bool,
         "Whether to run the task immediately after creation",
     ] = False,
+    attachments: Annotated[
+        list[dict[str, Any]] | None,
+        "Optional uploaded attachment references to send to the agent on every task run. "
+        "Use the same attachment objects returned by the upload/chat flow "
+        "(id, key, name, type, mime_type, size, url). If omitted, the tool will inherit "
+        "current message attachments when available.",
+    ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
     """Create a scheduled task that automatically runs an agent at specified times.
@@ -256,15 +254,6 @@ async def scheduled_task_create(
         session_team_id,
     ) = await _get_current_session_defaults()
     effective_timezone = schedule_timezone or session_user_timezone or "UTC"
-    normalized_plugin_options = _normalized_plugin_options(plugin_options)
-    if _has_workflow_options(normalized_plugin_options) and _workflow_plugin_unavailable():
-        return _json(
-            {
-                "error": "Workflow plugin is disabled; scheduled workflow tasks cannot be created.",
-                "code": "plugin_unavailable",
-                "plugin_id": WORKFLOW_PLUGIN_ID,
-            }
-        )
 
     # Build trigger_config from structured params
     try:
@@ -324,6 +313,9 @@ async def scheduled_task_create(
             trigger_config["minute"] = "0"
 
     user = await _resolve_user(user_id)
+    effective_attachments = _normalize_attachments(
+        attachments if attachments is not None else get_attachments_from_runtime(runtime)
+    )
     agent_team_agent_id = _agent_team_agent_id()
     requested_agent_uses_team = _uses_agent_team_options(agent_id)
     session_agent_uses_team = _uses_agent_team_options(session_agent_id)
@@ -436,6 +428,7 @@ async def scheduled_task_create(
             "message": message,
             **({"agent_options": effective_agent_options} if effective_agent_options else {}),
             **({"user_timezone": session_user_timezone} if session_user_timezone else {}),
+            **({"attachments": effective_attachments} if effective_attachments else {}),
             **(
                 {"persona_preset_id": effective_persona_preset_id}
                 if effective_persona_preset_id
@@ -444,7 +437,7 @@ async def scheduled_task_create(
         }
         input_payload = with_plugin_options(
             input_payload,
-            normalized_plugin_options,
+            _normalized_plugin_options(plugin_options),
         )
         if effective_team_id:
             input_payload = with_plugin_option(
@@ -492,3 +485,10 @@ async def scheduled_task_create(
             ),
         }
     )
+
+
+def _normalize_attachments(value: Any) -> list[dict[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    attachments = [dict(item) for item in value if isinstance(item, dict)]
+    return attachments or None

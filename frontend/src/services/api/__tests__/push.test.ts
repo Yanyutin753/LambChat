@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -14,38 +12,38 @@ const source = readFileSync(
 );
 
 test("pushApi.getVapidPublicKey calls the correct endpoint with skipAuth", () => {
-  assert.match(source, /api\/push\/vapid-public-key/);
-  assert.match(source, /skipAuth:\s*true/);
+  expect(source).toMatch(/api\/push\/vapid-public-key/);
+  expect(source).toMatch(/skipAuth:\s*true/);
 });
 
 test("pushApi.subscribe sends POST to /api/push/subscribe", () => {
-  assert.match(source, /method:\s*"POST"/);
-  assert.match(source, /api\/push\/subscribe/);
+  expect(source).toMatch(/method:\s*"POST"/);
+  expect(source).toMatch(/api\/push\/subscribe/);
   // Verify it sends endpoint, keys, and user_agent
-  assert.match(source, /endpoint/);
-  assert.match(source, /user_agent/);
+  expect(source).toMatch(/endpoint/);
+  expect(source).toMatch(/user_agent/);
 });
 
 test("pushApi.unsubscribe sends POST to /api/push/unsubscribe", () => {
   // The unsubscribe function should contain the endpoint
-  assert.match(source, /api\/push\/unsubscribe/);
-  assert.match(source, /method:\s*"POST"/);
+  expect(source).toMatch(/api\/push\/unsubscribe/);
+  expect(source).toMatch(/method:\s*"POST"/);
 });
 
 test("pushApi.deleteAllSubscriptions sends DELETE to /api/push/subscriptions", () => {
-  assert.match(source, /api\/push\/subscriptions/);
-  assert.match(source, /method:\s*"DELETE"/);
+  expect(source).toMatch(/api\/push\/subscriptions/);
+  expect(source).toMatch(/method:\s*"DELETE"/);
 });
 
 test("exports PushSubscriptionJSON interface with required fields", () => {
-  assert.match(source, /PushSubscriptionJSON/);
-  assert.match(source, /endpoint:\s*string/);
-  assert.match(source, /keys:.*p256dh.*auth/s);
-  assert.match(source, /expirationTime/);
+  expect(source).toMatch(/PushSubscriptionJSON/);
+  expect(source).toMatch(/endpoint:\s*string/);
+  expect(source).toMatch(/keys:.*p256dh.*auth/s);
+  expect(source).toMatch(/expirationTime/);
 });
 
 test("exports PushSubscriptionResponse interface", () => {
-  assert.match(source, /PushSubscriptionResponse/);
-  assert.match(source, /user_agent:\s*string/);
-  assert.match(source, /last_used_at/);
+  expect(source).toMatch(/PushSubscriptionResponse/);
+  expect(source).toMatch(/user_agent:\s*string/);
+  expect(source).toMatch(/last_used_at/);
 });

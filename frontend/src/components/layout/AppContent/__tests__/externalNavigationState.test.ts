@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   buildExternalNavigationStateForFile,
   buildExternalNavigationPreviewRequest,
@@ -11,45 +9,40 @@ import {
 } from "../externalNavigationState.ts";
 
 test("resets the external navigation flag only when present", () => {
-  assert.equal(
-    shouldResetExternalNavigateFlag({ externalNavigate: true }),
+  expect(shouldResetExternalNavigateFlag({ externalNavigate: true })).toBe(
     true,
   );
-  assert.equal(
-    shouldResetExternalNavigateFlag({ externalNavigate: false }),
+  expect(shouldResetExternalNavigateFlag({ externalNavigate: false })).toBe(
     false,
   );
-  assert.equal(shouldResetExternalNavigateFlag({}), false);
-  assert.equal(shouldResetExternalNavigateFlag(null), false);
+  expect(shouldResetExternalNavigateFlag({})).toBe(false);
+  expect(shouldResetExternalNavigateFlag(null)).toBe(false);
 });
 
 test("marks external navigation requests that should scroll to bottom", () => {
-  assert.equal(
+  expect(
     shouldScrollToBottomAfterExternalNavigation({
       externalNavigate: true,
       scrollToBottom: true,
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldScrollToBottomAfterExternalNavigation({
       externalNavigate: true,
       scrollToBottom: false,
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldScrollToBottomAfterExternalNavigation({
       externalNavigate: false,
       scrollToBottom: true,
     }),
-    false,
-  );
-  assert.equal(shouldScrollToBottomAfterExternalNavigation(null), false);
+  ).toBe(false);
+  expect(shouldScrollToBottomAfterExternalNavigation(null)).toBe(false);
 });
 
 test("extracts the target file only for external navigation", () => {
-  assert.deepEqual(
+  expect(
     getExternalNavigationTargetFile({
       externalNavigate: true,
       targetFile: {
@@ -59,34 +52,31 @@ test("extracts the target file only for external navigation", () => {
         source: "reveal_file",
       },
     }),
-    {
-      fileId: "file-123",
-      originalPath: "/tmp/demo.txt",
-      traceId: "trace-123",
-      source: "reveal_file",
-    },
-  );
-  assert.equal(
+  ).toEqual({
+    fileId: "file-123",
+    originalPath: "/tmp/demo.txt",
+    traceId: "trace-123",
+    source: "reveal_file",
+  });
+  expect(
     getExternalNavigationTargetFile({
       externalNavigate: true,
       targetFile: {},
     }),
-    null,
-  );
-  assert.equal(
+  ).toBe(null);
+  expect(
     getExternalNavigationTargetFile({
       externalNavigate: false,
       targetFile: {
         fileId: "file-123",
       },
     }),
-    null,
-  );
-  assert.equal(getExternalNavigationTargetFile(null), null);
+  ).toBe(null);
+  expect(getExternalNavigationTargetFile(null)).toBe(null);
 });
 
 test("builds a file preview request for external navigation", () => {
-  assert.deepEqual(
+  expect(
     buildExternalNavigationPreviewRequest({
       id: "file-1",
       file_key: "revealed/file-1",
@@ -97,19 +87,18 @@ test("builds a file preview request for external navigation", () => {
       original_path: "/tmp/demo.txt",
       project_meta: null,
     }),
-    {
-      kind: "file",
-      previewKey: "external-file:file-1",
-      filePath: "/tmp/demo.txt",
-      s3Key: "revealed/file-1",
-      signedUrl: "/api/upload/file/revealed/file-1",
-      fileSize: 128,
-    },
-  );
+  ).toEqual({
+    kind: "file",
+    previewKey: "external-file:file-1",
+    filePath: "/tmp/demo.txt",
+    s3Key: "revealed/file-1",
+    signedUrl: "/api/upload/file/revealed/file-1",
+    fileSize: 128,
+  });
 });
 
 test("does not auto-open preview for externally opened image files", () => {
-  assert.deepEqual(
+  expect(
     buildExternalNavigationStateForFile({
       id: "file-image-1",
       file_key: "revealed/file-image-1",
@@ -121,22 +110,21 @@ test("does not auto-open preview for externally opened image files", () => {
       trace_id: "",
       project_meta: null,
     }),
-    {
-      externalNavigate: true,
-      targetFile: {
-        fileId: "file-image-1",
-        fileKey: "revealed/file-image-1",
-        fileName: "diagram.png",
-        originalPath: "/tmp/diagram.png",
-        source: "reveal_file",
-      },
-      targetPreview: null,
+  ).toEqual({
+    externalNavigate: true,
+    targetFile: {
+      fileId: "file-image-1",
+      fileKey: "revealed/file-image-1",
+      fileName: "diagram.png",
+      originalPath: "/tmp/diagram.png",
+      source: "reveal_file",
     },
-  );
+    targetPreview: null,
+  });
 });
 
 test("keeps auto-open preview for non-image external navigation files", () => {
-  assert.deepEqual(
+  expect(
     buildExternalNavigationStateForFile({
       id: "file-text-1",
       file_key: "revealed/file-text-1",
@@ -148,29 +136,28 @@ test("keeps auto-open preview for non-image external navigation files", () => {
       trace_id: "",
       project_meta: null,
     }),
-    {
-      externalNavigate: true,
-      targetFile: {
-        fileId: "file-text-1",
-        fileKey: "revealed/file-text-1",
-        fileName: "notes.txt",
-        originalPath: "/tmp/notes.txt",
-        source: "reveal_file",
-      },
-      targetPreview: {
-        kind: "file",
-        previewKey: "external-file:file-text-1",
-        filePath: "/tmp/notes.txt",
-        s3Key: "revealed/file-text-1",
-        signedUrl: "/api/upload/file/revealed/file-text-1",
-        fileSize: 64,
-      },
+  ).toEqual({
+    externalNavigate: true,
+    targetFile: {
+      fileId: "file-text-1",
+      fileKey: "revealed/file-text-1",
+      fileName: "notes.txt",
+      originalPath: "/tmp/notes.txt",
+      source: "reveal_file",
     },
-  );
+    targetPreview: {
+      kind: "file",
+      previewKey: "external-file:file-text-1",
+      filePath: "/tmp/notes.txt",
+      s3Key: "revealed/file-text-1",
+      signedUrl: "/api/upload/file/revealed/file-text-1",
+      fileSize: 64,
+    },
+  });
 });
 
 test("builds a project preview request for external navigation", () => {
-  assert.deepEqual(
+  expect(
     buildExternalNavigationPreviewRequest({
       id: "file-2",
       file_key: "revealed/project-1",
@@ -193,32 +180,31 @@ test("builds a project preview request for external navigation", () => {
         },
       },
     }),
-    {
-      kind: "project",
-      previewKey: "external-project:file-2",
-      project: {
-        version: 2,
-        name: "demo-app",
-        mode: "project",
-        path: "/workspace/demo-app",
-        template: "vanilla",
-        entry: "index.html",
-        fileCount: 1,
-        files: {
-          "index.html": {
-            url: "/api/upload/file/demo/index.html",
-            size: 42,
-            is_binary: false,
-            content_type: "text/html",
-          },
+  ).toEqual({
+    kind: "project",
+    previewKey: "external-project:file-2",
+    project: {
+      version: 2,
+      name: "demo-app",
+      mode: "project",
+      path: "/workspace/demo-app",
+      template: "vanilla",
+      entry: "index.html",
+      fileCount: 1,
+      files: {
+        "index.html": {
+          url: "/api/upload/file/demo/index.html",
+          size: 42,
+          is_binary: false,
+          content_type: "text/html",
         },
       },
     },
-  );
+  });
 });
 
 test("extracts the preview request only for external navigation", () => {
-  assert.deepEqual(
+  expect(
     getExternalNavigationPreviewRequest({
       externalNavigate: true,
       targetPreview: {
@@ -227,14 +213,13 @@ test("extracts the preview request only for external navigation", () => {
         filePath: "/tmp/demo.txt",
       },
     }),
-    {
-      kind: "file",
-      previewKey: "external-file:file-1",
-      filePath: "/tmp/demo.txt",
-    },
-  );
+  ).toEqual({
+    kind: "file",
+    previewKey: "external-file:file-1",
+    filePath: "/tmp/demo.txt",
+  });
 
-  assert.equal(
+  expect(
     getExternalNavigationPreviewRequest({
       externalNavigate: false,
       targetPreview: {
@@ -243,12 +228,11 @@ test("extracts the preview request only for external navigation", () => {
         filePath: "/tmp/demo.txt",
       },
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("reopens an external preview after the target session changes", () => {
-  assert.equal(
+  expect(
     shouldOpenExternalNavigationPreview({
       externalNavigationToken: "nav-1",
       externalNavigationPreview: {
@@ -260,10 +244,9 @@ test("reopens an external preview after the target session changes", () => {
       handledSessionId: "session-old",
       sessionId: "session-new",
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldOpenExternalNavigationPreview({
       externalNavigationToken: "nav-1",
       externalNavigationPreview: {
@@ -275,6 +258,5 @@ test("reopens an external preview after the target session changes", () => {
       handledSessionId: "session-new",
       sessionId: "session-new",
     }),
-    false,
-  );
+  ).toBe(false);
 });

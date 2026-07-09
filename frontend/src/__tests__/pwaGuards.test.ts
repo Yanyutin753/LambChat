@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -10,43 +8,36 @@ import {
 } from "../pwaGuards.ts";
 
 test("registers the PWA only for production browsers with service worker support", () => {
-  assert.equal(
+  expect(
     shouldRegisterPwa({ isProduction: true, hasServiceWorker: true }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldRegisterPwa({ isProduction: false, hasServiceWorker: true }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldRegisterPwa({ isProduction: true, hasServiceWorker: false }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("reports an installed worker as an update only when a controller exists", () => {
-  assert.equal(
+  expect(
     isPwaUpdateReady({ hasController: true, workerState: "installed" }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isPwaUpdateReady({ hasController: false, workerState: "installed" }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     isPwaUpdateReady({ hasController: true, workerState: "installing" }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("recognizes the skip waiting message without accepting arbitrary payloads", () => {
-  assert.equal(isPwaSkipWaitingMessage(PWA_SKIP_WAITING_MESSAGE), true);
-  assert.equal(
-    isPwaSkipWaitingMessage({ type: PWA_SKIP_WAITING_MESSAGE }),
+  expect(isPwaSkipWaitingMessage(PWA_SKIP_WAITING_MESSAGE)).toBe(true);
+  expect(isPwaSkipWaitingMessage({ type: PWA_SKIP_WAITING_MESSAGE })).toBe(
     true,
   );
-  assert.equal(isPwaSkipWaitingMessage({ type: "OTHER_MESSAGE" }), false);
-  assert.equal(isPwaSkipWaitingMessage(null), false);
+  expect(isPwaSkipWaitingMessage({ type: "OTHER_MESSAGE" })).toBe(false);
+  expect(isPwaSkipWaitingMessage(null)).toBe(false);
 });
 
 function readManifest() {
@@ -63,8 +54,8 @@ test("manifest launch colors match the light app shell background", () => {
     theme_color?: string;
   };
 
-  assert.equal(manifest.background_color, "#f5f5f4");
-  assert.equal(manifest.theme_color, "#f5f5f4");
+  expect(manifest.background_color).toBe("#f5f5f4");
+  expect(manifest.theme_color).toBe("#f5f5f4");
 });
 
 test("manifest exposes install metadata for desktop, tablet, and phone PWAs", () => {
@@ -81,28 +72,28 @@ test("manifest exposes install metadata for desktop, tablet, and phone PWAs", ()
     icons?: Array<{ sizes?: string; purpose?: string }>;
   };
 
-  assert.equal(manifest.id, "/");
-  assert.equal(manifest.scope, "/");
-  assert.equal(manifest.display, "standalone");
-  assert.deepEqual(manifest.display_override, [
+  expect(manifest.id).toBe("/");
+  expect(manifest.scope).toBe("/");
+  expect(manifest.display).toBe("standalone");
+  expect(manifest.display_override).toEqual([
     "window-controls-overlay",
     "standalone",
     "minimal-ui",
     "browser",
   ]);
-  assert.ok(
+  expect(
     manifest.icons?.some(
       (icon) => icon.sizes === "512x512" && icon.purpose === "maskable",
     ),
-  );
-  assert.ok(
+  ).toBeTruthy();
+  expect(
     manifest.screenshots?.some(
       (screenshot) => screenshot.form_factor === "wide",
     ),
-  );
-  assert.ok(
+  ).toBeTruthy();
+  expect(
     manifest.screenshots?.some(
       (screenshot) => screenshot.form_factor === "narrow",
     ),
-  );
+  ).toBeTruthy();
 });

@@ -1,19 +1,17 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { getPwaRequestKind, isBackendPath } from "../pwaRouting.ts";
 
 const ORIGIN = "https://lambchat.com";
 
 test("bypasses backend, streaming, non-GET, and cross-origin requests", () => {
-  assert.equal(isBackendPath("/api/chat"), true);
-  assert.equal(isBackendPath("/ws/session"), true);
-  assert.equal(isBackendPath("/default/stream"), true);
-  assert.equal(isBackendPath("/tools/rebuild"), true);
-  assert.equal(isBackendPath("/human/approval"), true);
-  assert.equal(isBackendPath("/services/github"), true);
-  assert.equal(isBackendPath("/health"), true);
+  expect(isBackendPath("/api/chat")).toBe(true);
+  expect(isBackendPath("/ws/session")).toBe(true);
+  expect(isBackendPath("/default/stream")).toBe(true);
+  expect(isBackendPath("/tools/rebuild")).toBe(true);
+  expect(isBackendPath("/human/approval")).toBe(true);
+  expect(isBackendPath("/services/github")).toBe(true);
+  expect(isBackendPath("/health")).toBe(true);
 
-  assert.equal(
+  expect(
     getPwaRequestKind({
       method: "POST",
       mode: "cors",
@@ -21,9 +19,8 @@ test("bypasses backend, streaming, non-GET, and cross-origin requests", () => {
       scopeOrigin: ORIGIN,
       accept: "text/html",
     }),
-    "bypass",
-  );
-  assert.equal(
+  ).toBe("bypass");
+  expect(
     getPwaRequestKind({
       method: "GET",
       mode: "cors",
@@ -31,9 +28,8 @@ test("bypasses backend, streaming, non-GET, and cross-origin requests", () => {
       scopeOrigin: ORIGIN,
       accept: "application/json",
     }),
-    "bypass",
-  );
-  assert.equal(
+  ).toBe("bypass");
+  expect(
     getPwaRequestKind({
       method: "GET",
       mode: "cors",
@@ -41,9 +37,8 @@ test("bypasses backend, streaming, non-GET, and cross-origin requests", () => {
       scopeOrigin: ORIGIN,
       accept: "application/json",
     }),
-    "bypass",
-  );
-  assert.equal(
+  ).toBe("bypass");
+  expect(
     getPwaRequestKind({
       method: "GET",
       mode: "cors",
@@ -51,9 +46,8 @@ test("bypasses backend, streaming, non-GET, and cross-origin requests", () => {
       scopeOrigin: ORIGIN,
       accept: "text/event-stream",
     }),
-    "bypass",
-  );
-  assert.equal(
+  ).toBe("bypass");
+  expect(
     getPwaRequestKind({
       method: "GET",
       mode: "cors",
@@ -61,12 +55,11 @@ test("bypasses backend, streaming, non-GET, and cross-origin requests", () => {
       scopeOrigin: ORIGIN,
       accept: "font/woff2",
     }),
-    "bypass",
-  );
+  ).toBe("bypass");
 });
 
 test("classifies SPA navigations and static assets for offline handling", () => {
-  assert.equal(
+  expect(
     getPwaRequestKind({
       method: "GET",
       mode: "navigate",
@@ -74,9 +67,8 @@ test("classifies SPA navigations and static assets for offline handling", () => 
       scopeOrigin: ORIGIN,
       accept: "text/html",
     }),
-    "navigation",
-  );
-  assert.equal(
+  ).toBe("navigation");
+  expect(
     getPwaRequestKind({
       method: "GET",
       mode: "cors",
@@ -84,9 +76,8 @@ test("classifies SPA navigations and static assets for offline handling", () => 
       scopeOrigin: ORIGIN,
       accept: "text/javascript",
     }),
-    "static-asset",
-  );
-  assert.equal(
+  ).toBe("static-asset");
+  expect(
     getPwaRequestKind({
       method: "GET",
       mode: "cors",
@@ -94,6 +85,5 @@ test("classifies SPA navigations and static assets for offline handling", () => 
       scopeOrigin: ORIGIN,
       accept: "image/svg+xml",
     }),
-    "static-asset",
-  );
+  ).toBe("static-asset");
 });

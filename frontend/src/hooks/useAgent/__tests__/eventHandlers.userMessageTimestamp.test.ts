@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import type { Message } from "../../../types";
 import { handleStreamEvent } from "../eventHandlers.ts";
 import type { EventHandlerContext } from "../eventHandlers.ts";
@@ -68,9 +66,8 @@ test("replaces the optimistic user message when the backend adds a timestamp pre
   );
 
   const messages = getMessages();
-  assert.equal(messages.length, 2);
-  assert.equal(
-    messages[0]?.content,
+  expect(messages.length).toBe(2);
+  expect(messages[0]?.content).toBe(
     "[2026-04-28 20:00:00 +08:00 Asia/Shanghai] hello world",
   );
 });

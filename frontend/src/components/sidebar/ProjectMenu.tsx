@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Edit2, Trash2, MessageSquarePlus, X, SlidersHorizontal } from "lucide-react";
 import type { Project } from "../../types";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 
 interface ProjectMenuProps {
   project: Project;
@@ -33,6 +34,15 @@ export function ProjectMenu({
   // _project is available for future use (e.g., showing project info in menu)
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef(anchorEl);
+  anchorRef.current = anchorEl;
+
+  const menuStyle = useStickyDropdownPosition(anchorRef, isOpen, (rect) => ({
+    position: "fixed",
+    top: rect.bottom + 4,
+    right: window.innerWidth - rect.right,
+    zIndex: 50,
+  }));
 
   // Reactive mobile detection
   const [isMobile, setIsMobile] = useState(() => {
@@ -192,15 +202,6 @@ export function ProjectMenu({
   }
 
   // Desktop: dropdown menu
-  // Calculate menu position
-  const rect = anchorEl.getBoundingClientRect();
-  const menuStyle: React.CSSProperties = {
-    position: "fixed",
-    top: rect.bottom + 4,
-    right: window.innerWidth - rect.right,
-    zIndex: 50,
-  };
-
   return createPortal(
     <div
       ref={menuRef}

@@ -1,58 +1,50 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   isSessionRunning,
   shouldShowStreamingFooterSkeleton,
 } from "../sessionState.ts";
 
 test("treats loading or visible streaming messages as an active session", () => {
-  assert.equal(isSessionRunning([], true), true);
-  assert.equal(
+  expect(isSessionRunning([], true)).toBe(true);
+  expect(
     isSessionRunning([{ isStreaming: false }, { isStreaming: true }], false),
-    true,
-  );
-  assert.equal(isSessionRunning([{ isStreaming: false }], false), false);
+  ).toBe(true);
+  expect(isSessionRunning([{ isStreaming: false }], false)).toBe(false);
 });
 
 test("shows the footer skeleton only when reconnecting after a stream disappears", () => {
-  assert.equal(
+  expect(
     shouldShowStreamingFooterSkeleton({
       connectionStatus: "reconnecting",
       sessionRunning: true,
       messageCount: 2,
       hasVisibleStreamingMessage: false,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldShowStreamingFooterSkeleton({
       connectionStatus: "connected",
       sessionRunning: true,
       messageCount: 2,
       hasVisibleStreamingMessage: false,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldShowStreamingFooterSkeleton({
       connectionStatus: "disconnected",
       sessionRunning: true,
       messageCount: 2,
       hasVisibleStreamingMessage: true,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldShowStreamingFooterSkeleton({
       connectionStatus: "disconnected",
       sessionRunning: false,
       messageCount: 2,
       hasVisibleStreamingMessage: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });

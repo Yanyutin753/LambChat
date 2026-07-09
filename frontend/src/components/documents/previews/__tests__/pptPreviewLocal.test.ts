@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const previewSource = readFileSync(
   new URL("../PptPreview.tsx", import.meta.url),
   "utf8",
@@ -15,34 +12,33 @@ const frontendPackage = JSON.parse(
 );
 
 test("PPT preview renders locally instead of embedding Office Online", () => {
-  assert.match(previewSource, /from\s+"@jvmr\/pptx-to-html"/);
-  assert.doesNotMatch(previewSource, /from\s+"pptx-preview"/);
-  assert.doesNotMatch(previewSource, /view\.officeapps\.live\.com/);
-  assert.doesNotMatch(previewSource, /<iframe\b/);
-  assert.doesNotMatch(previewSource, /https:\/\/.*office/i);
+  expect(previewSource).toMatch(/from\s+"@jvmr\/pptx-to-html"/);
+  expect(previewSource).not.toMatch(/from\s+"pptx-preview"/);
+  expect(previewSource).not.toMatch(/view\.officeapps\.live\.com/);
+  expect(previewSource).not.toMatch(/<iframe\b/);
+  expect(previewSource).not.toMatch(/https:\/\/.*office/i);
 });
 
 test("PPT preview receives file bytes for browser-side rendering", () => {
   const pptBranch = stateSource.match(
-    /if \(pptFile\) \{(?<body>[\s\S]*?)\n\s*\}\n\n\s*if \(htmlFile\)/,
+    /if \(advancedFileViewersEnabled && pptFile\) \{(?<body>[\s\S]*?)\n\s*\}\n\n\s*if \(advancedFileViewersEnabled && htmlFile\)/,
   )?.groups?.body;
 
-  assert.ok(pptBranch, "pptFile branch should exist");
-  assert.match(pptBranch, /fetchDocumentArrayBuffer\(readUrl\)/);
-  assert.match(pptBranch, /setPptxBuffer\(buffer\)/);
-  assert.doesNotMatch(pptBranch, /setPptUrl\(url\)/);
+  expect(pptBranch).toBeTruthy();
+  expect(pptBranch).toMatch(/fetchDocumentArrayBuffer\(readUrl\)/);
+  expect(pptBranch).toMatch(/setPptxBuffer\(buffer\)/);
+  expect(pptBranch).not.toMatch(/setPptUrl\(url\)/);
 });
 
 test("PPT preview does not let placeholder text content bypass storage bytes", () => {
-  assert.match(
-    stateSource,
+  expect(stateSource).toMatch(
     /content !== undefined && !\(pptFile && \(s3Key \|\| signedUrl\)\)/,
   );
 });
 
 test("PPT preview dependency is declared for bundled local rendering", () => {
-  assert.equal(frontendPackage.dependencies["@jvmr/pptx-to-html"], "^1.0.1");
-  assert.equal(frontendPackage.dependencies["pptx-preview"], undefined);
+  expect(frontendPackage.dependencies["@jvmr/pptx-to-html"]).toBe("^1.0.1");
+  expect(frontendPackage.dependencies["pptx-preview"]).toBe(undefined);
 });
 
 test("PPT preview normalizes mislabeled SVG image data URLs before injection", async () => {
@@ -53,36 +49,37 @@ test("PPT preview normalizes mislabeled SVG image data URLs before injection", a
     `<img src="data:image/png;base64,${svgBase64}" />`,
   );
 
-  assert.match(html, /data:image\/svg\+xml;base64,/);
-  assert.doesNotMatch(html, /data:image\/png;base64,/);
+  expect(html).toMatch(/data:image\/svg\+xml;base64,/);
+  expect(html).not.toMatch(/data:image\/png;base64,/);
 });
 
 test("PPT preview does not rerender slides from resize measurements", () => {
-  assert.doesNotMatch(previewSource, /containerWidth/);
-  assert.doesNotMatch(previewSource, /\[arrayBuffer,\s*previewWidth\]/);
-  assert.match(
-    previewSource,
+  expect(previewSource).not.toMatch(/containerWidth/);
+  expect(previewSource).not.toMatch(/\[arrayBuffer,\s*previewWidth\]/);
+  expect(previewSource).toMatch(
     /pptxToHtml\(arrayBuffer\.slice\(0\),\s*\{[\s\S]*width:\s*PPT_PREVIEW_WIDTH/,
   );
-  assert.match(previewSource, /\[arrayBuffer\]/);
+  expect(previewSource).toMatch(/\[arrayBuffer\]/);
 });
 
 test("PPT preview zooms and pans rendered slides without rotation controls", () => {
-  assert.match(previewSource, /from\s+"\.{2}\/\.{2}\/common\/ViewerToolbar"/);
-  assert.match(previewSource, /showRotation=\{false\}/);
-  assert.match(previewSource, /addEventListener\("wheel",\s*handleNativeWheel/);
-  assert.match(previewSource, /passive:\s*false/);
-  assert.match(previewSource, /event\.preventDefault\(\)/);
-  assert.match(previewSource, /onMouseDown=\{handleMouseDown\}/);
-  assert.match(previewSource, /transformOrigin:\s*"top center"/);
-  assert.match(previewSource, /left:\s*"50%"/);
+  expect(previewSource).toMatch(/from\s+"\.{2}\/\.{2}\/common\/ViewerToolbar"/);
+  expect(previewSource).toMatch(/showRotation=\{false\}/);
+  expect(previewSource).toMatch(
+    /addEventListener\("wheel",\s*handleNativeWheel/,
+  );
+  expect(previewSource).toMatch(/passive:\s*false/);
+  expect(previewSource).toMatch(/event\.preventDefault\(\)/);
+  expect(previewSource).toMatch(/onMouseDown=\{handleMouseDown\}/);
+  expect(previewSource).toMatch(/transformOrigin:\s*"top center"/);
+  expect(previewSource).toMatch(/left:\s*"50%"/);
 });
 
 test("PPT preview treats 100 percent zoom as fitting the sidebar width", () => {
-  assert.match(previewSource, /ResizeObserver/);
-  assert.match(previewSource, /viewportWidth/);
-  assert.match(previewSource, /fitScale/);
-  assert.match(previewSource, /PPT_VIEWPORT_HORIZONTAL_PADDING/);
-  assert.match(previewSource, /fitScale \* scale/);
-  assert.match(previewSource, /scale=\{scale\}/);
+  expect(previewSource).toMatch(/ResizeObserver/);
+  expect(previewSource).toMatch(/viewportWidth/);
+  expect(previewSource).toMatch(/fitScale/);
+  expect(previewSource).toMatch(/PPT_VIEWPORT_HORIZONTAL_PADDING/);
+  expect(previewSource).toMatch(/fitScale \* scale/);
+  expect(previewSource).toMatch(/scale=\{scale\}/);
 });

@@ -1,6 +1,6 @@
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 
 const coreContributionsSource = readFileSync(
   new URL("../../../../extensions/coreContributions.ts", import.meta.url),
@@ -43,10 +43,16 @@ test("persona lives in the core more menu while team is plugin-owned", () => {
 });
 
 test("persona and team are not rendered as primary sidebar actions", () => {
-  assert.doesNotMatch(sessionListContentSource, /navigate\("\/persona"\)/);
-  assert.doesNotMatch(sessionListContentSource, /navigate\("\/team"\)/);
-  assert.doesNotMatch(sidebarRailSource, /onOpenPersonaPlaza/);
-  assert.doesNotMatch(sidebarRailSource, /onOpenTeamBuilder/);
+  expect(sessionListContentSource).not.toMatch(/navigate\("\/persona"\)/);
+  expect(sessionListContentSource).not.toMatch(/navigate\("\/team"\)/);
+  expect(sidebarRailSource).not.toMatch(/onOpenPersonaPlaza/);
+  expect(sidebarRailSource).not.toMatch(/onOpenTeamBuilder/);
+});
+
+test("sidebar more menu receives plugin contributions on chat and non-chat tabs", () => {
+  assert.match(chatAppContentSource, /<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
+  assert.match(nonChatAppContentSource, /<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
+  assert.match(useMoreMenuSource, /buildSidebarMoreNavContributions\(runtimePlugins\)/);
 });
 
 test("sidebar more menu receives plugin contributions on chat and non-chat tabs", () => {

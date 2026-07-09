@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import type { Project } from "../../../../types";
 import { isSidebarProject } from "../projectFilters.ts";
 
@@ -18,9 +15,9 @@ function project(type: Project["type"]): Project {
 }
 
 test("sidebar includes channel projects", () => {
-  assert.equal(isSidebarProject(project("channel")), true);
+  expect(isSidebarProject(project("channel"))).toBe(true);
 });
 
 test("sidebar keeps favorites in the dedicated favorites slot", () => {
-  assert.equal(isSidebarProject(project("favorites")), false);
+  expect(isSidebarProject(project("favorites"))).toBe(false);
 });

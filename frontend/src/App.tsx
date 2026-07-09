@@ -37,14 +37,28 @@ import {
 } from "./extensions/coreContributions";
 
 const EMPTY_RUNTIME_PLUGINS: PluginRuntimeContributionStates = [];
-const BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS = [
-  "/agent-team",
-  "/feedback",
-  "/usage",
-  "/workflows",
-  "/workflows/:workflowId/editor",
-  "/workflows/:workflowId/runs/:runId",
+const NON_PLUGIN_ROUTE_LOADING_PATHS = [
+  "/",
+  "/interface",
+  "/features",
+  "/architecture",
+  "/dashboard",
+  "/responsive",
+  "/github",
+  "/auth/login",
+  "/auth/register",
+  "/auth/callback",
+  "/auth/reset-request",
+  "/auth/reset-password",
+  "/auth/verify-email",
+  "/auth/pending",
+  "/chat/:sessionId?",
+  "/models",
+  "/shared/:shareId",
 ] as const;
+const CORE_APP_ROUTE_LOADING_PATHS = buildAppRouteContributions()
+  .filter((route) => !route.pluginId)
+  .map((route) => route.path);
 
 const SharedPage = lazy(() =>
   import("./components/share/SharedPage").then((m) => ({
@@ -260,24 +274,20 @@ function App() {
     () => buildAppRouteContributions(runtimePlugins),
     [runtimePlugins],
   );
-  const pluginAppRouteLoadingPaths = useMemo(() => {
-    const declaredPluginPaths = appRouteContributions
-      .filter((route) => route.pluginId)
-      .map((route) => route.path);
-    return Array.from(
-      new Set([
-        ...BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS,
-        ...declaredPluginPaths,
-      ]),
+  const isKnownNonPluginPath = useMemo(() => {
+    const knownPaths = [
+      ...NON_PLUGIN_ROUTE_LOADING_PATHS,
+      ...CORE_APP_ROUTE_LOADING_PATHS,
+    ];
+    return knownPaths.some((path) =>
+      path === location.pathname || Boolean(matchPath({ path, end: true }, location.pathname)),
     );
-  }, [appRouteContributions]);
+  }, [location.pathname]);
   const shouldShowPluginRouteLoading =
     canReadExtensionContributions &&
     (areExtensionContributionsLoading ||
       (!extensionContributions && !extensionContributionsError)) &&
-    pluginAppRouteLoadingPaths.some((path) =>
-      path === location.pathname || Boolean(matchPath({ path, end: true }, location.pathname)),
-    );
+    !isKnownNonPluginPath;
 
   // Auto-update for desktop and mobile
   const {
@@ -443,7 +453,7 @@ function App() {
                 }
               />
             )}
-            <Route path="/models" element={<Navigate to="/agents" replace />} />
+            <Route path="/models" element={<Navigate to="/agents?section=models&tab=model-config" replace />} />
             {/* OAuth callback page - handles OAuth redirect from backend */}
             <Route path="/auth/callback" element={<OAuthCallback />} />
             {/* Password reset pages - no auth required */}

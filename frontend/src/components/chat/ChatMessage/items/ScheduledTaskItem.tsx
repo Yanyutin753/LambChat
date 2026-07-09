@@ -468,7 +468,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
           className={clsx(
             "relative flex items-center gap-3 rounded-xl p-3",
             "bg-[color-mix(in_srgb,var(--theme-bg-card)_74%,var(--theme-bg)_26%)] border border-[color-mix(in_srgb,var(--theme-primary)_12%,var(--theme-border))]",
-            "hover:border-[color-mix(in_srgb,var(--theme-primary)_26%,var(--theme-border))] transition-colors shadow-[0_1px_2px_rgb(0_0_0/0.04)]",
+            "hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors shadow-[0_1px_2px_rgb(0_0_0/0.04)]",
           )}
         >
           <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-[color-mix(in_srgb,var(--theme-primary)_9%,var(--theme-bg-card))] ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_16%,var(--theme-border))]">
@@ -560,7 +560,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
                   className={clsx(
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors",
                     "bg-theme-bg border border-theme-border",
-                    "hover:border-[color-mix(in_srgb,var(--theme-primary)_24%,var(--theme-border))]",
+                    "hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))]",
                   )}
                 >
                   <CalendarClock
@@ -684,7 +684,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
             return (
               <div
                 key={i}
-                className="flex items-center gap-2 px-2 py-1 rounded-md bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-primary)_24%,var(--theme-border))] transition-colors"
+                className="flex items-center gap-2 px-2 py-1 rounded-md bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
               >
                 <CalendarClock
                   size={10}

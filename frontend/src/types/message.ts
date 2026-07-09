@@ -28,6 +28,8 @@ export interface Message {
   feedbackId?: string;
   // 是否被取消
   cancelled?: boolean;
+  // 用户消息发送时启用的技能名称列表
+  enabledSkills?: string[];
 }
 
 // 消息内容块类型
@@ -35,7 +37,7 @@ export type MessagePart =
   | TextPart
   | ToolPart
   | ArtifactPart
-  | WorkflowPart
+  | PluginMessagePart
   | SubagentPart
   | ThinkingPart
   | SandboxPart
@@ -183,43 +185,15 @@ export interface ArtifactPart {
   completedAt?: string;
 }
 
-export interface WorkflowInterfaceContract {
-  entry?: {
-    type?: string;
-    tool?: string;
-    argument?: string;
-    workflow_id?: string | null;
-    version_id?: string | null;
-    schema_tool?: string;
-    schema_field?: string;
-  };
-  exit?: {
-    type?: string;
-    field?: string;
-    schema_tool?: string;
-    schema_field?: string;
-  };
-  debug?: {
-    tool?: string;
-    workflow_id?: string | null;
-    run_id?: string | null;
-    events_field?: string;
-  };
-}
-
-export interface WorkflowPart {
-  type: "workflow";
-  plugin_id?: string;
-  workflow_id?: string | null;
-  run_id?: string | null;
-  version_id?: string | null;
+export interface PluginMessagePart {
+  type: "plugin_message";
+  plugin_id: string;
+  renderer: string;
+  id?: string;
+  title?: string;
   status?: string;
-  output?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
   error?: string | null;
-  interface?: WorkflowInterfaceContract | null;
-  next_action?: Record<string, unknown> | null;
-  io_contract?: Record<string, unknown> | null;
-  output_contract?: Record<string, unknown> | null;
   depth?: number;
   agent_id?: string;
   timestamp?: string;

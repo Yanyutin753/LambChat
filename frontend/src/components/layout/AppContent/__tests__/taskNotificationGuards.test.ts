@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   shouldAttemptAppTaskNotification,
   shouldAttemptBrowserNotification,
@@ -8,37 +5,34 @@ import {
 } from "../taskNotificationGuards.ts";
 
 test("does not surface task notifications for the visible active session", () => {
-  assert.equal(
+  expect(
     shouldSurfaceTaskNotification({
       notificationSessionId: "session-1",
       currentSessionId: "session-1",
       visibilityState: "visible",
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("surfaces task notifications for inactive or hidden sessions", () => {
-  assert.equal(
+  expect(
     shouldSurfaceTaskNotification({
       notificationSessionId: "session-2",
       currentSessionId: "session-1",
       visibilityState: "visible",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldSurfaceTaskNotification({
       notificationSessionId: "session-1",
       currentSessionId: "session-1",
       visibilityState: "hidden",
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("attempts browser notifications only after permission is granted and the task should surface", () => {
-  assert.equal(
+  expect(
     shouldAttemptBrowserNotification({
       isSupported: true,
       cachedPermission: "granted",
@@ -46,9 +40,8 @@ test("attempts browser notifications only after permission is granted and the ta
       currentSessionId: "session-1",
       visibilityState: "visible",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldAttemptBrowserNotification({
       isSupported: true,
       cachedPermission: "granted",
@@ -56,9 +49,8 @@ test("attempts browser notifications only after permission is granted and the ta
       currentSessionId: "session-1",
       visibilityState: "hidden",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldAttemptBrowserNotification({
       isSupported: true,
       cachedPermission: "granted",
@@ -66,9 +58,8 @@ test("attempts browser notifications only after permission is granted and the ta
       currentSessionId: "session-1",
       visibilityState: "visible",
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldAttemptBrowserNotification({
       isSupported: true,
       cachedPermission: "default",
@@ -76,9 +67,8 @@ test("attempts browser notifications only after permission is granted and the ta
       currentSessionId: "session-1",
       visibilityState: "visible",
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldAttemptBrowserNotification({
       isSupported: false,
       cachedPermission: "granted",
@@ -86,63 +76,57 @@ test("attempts browser notifications only after permission is granted and the ta
       currentSessionId: "session-1",
       visibilityState: "hidden",
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not attempt app task notifications for the visible active session", () => {
-  assert.equal(
+  expect(
     shouldAttemptAppTaskNotification({
       appRuntime: "capacitor-android",
       notificationSessionId: "session-1",
       currentSessionId: "session-1",
       visibilityState: "visible",
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("attempts app task notifications for other sessions while the native app is visible", () => {
-  assert.equal(
+  expect(
     shouldAttemptAppTaskNotification({
       appRuntime: "tauri",
       notificationSessionId: "session-2",
       currentSessionId: "session-1",
       visibilityState: "visible",
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("attempts app task notifications when the native app is hidden", () => {
-  assert.equal(
+  expect(
     shouldAttemptAppTaskNotification({
       appRuntime: "capacitor-android",
       notificationSessionId: "session-1",
       currentSessionId: "session-1",
       visibilityState: "hidden",
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldAttemptAppTaskNotification({
       appRuntime: "tauri",
       notificationSessionId: "session-2",
       currentSessionId: "session-1",
       visibilityState: "hidden",
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("does not attempt app task notifications when native notifications are unsupported", () => {
-  assert.equal(
+  expect(
     shouldAttemptAppTaskNotification({
       appRuntime: "unsupported",
       notificationSessionId: "session-2",
       currentSessionId: "session-1",
       visibilityState: "hidden",
     }),
-    false,
-  );
+  ).toBe(false);
 });

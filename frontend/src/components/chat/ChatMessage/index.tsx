@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { Copy, GitBranch, Info, Sparkles, Target } from "lucide-react";
+import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
   MessagePart,
@@ -40,6 +41,7 @@ import {
   type PluginRuntimeContributionStates,
 } from "../../../extensions/coreContributions";
 import { MESSAGE_ACTION_RENDERERS } from "./messageActionRenderers";
+import { areChatMessagePropsEqual } from "./messageMemo";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -273,41 +275,27 @@ function GoalDetailsButton({
 }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
-  const [popupPos, setPopupPos] = useState<{
-    top: number;
-    right: number;
-    flipBelow: boolean;
-  } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!showDetails) return;
-    const updatePosition = () => {
-      const rect = buttonRef.current?.getBoundingClientRect();
-      if (rect) {
-        const popupHeight = popupRef.current?.offsetHeight ?? 200;
-        const popupWidth = 256;
-        const spaceAbove = rect.top;
-        const spaceBelow = window.innerHeight - rect.bottom;
-        const flipBelow =
-          spaceAbove < popupHeight + 8 && spaceBelow > spaceAbove;
-        const rightAlign = window.innerWidth - rect.right;
-        setPopupPos({
-          top: flipBelow ? rect.bottom + 8 : rect.top - 16,
-          right: Math.min(rightAlign, window.innerWidth - popupWidth - 8),
-          flipBelow,
-        });
-      }
-    };
-    updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [showDetails]);
+  const popupStyle = useStickyDropdownPosition(
+    buttonRef,
+    showDetails,
+    (rect) => {
+      const popupHeight = popupRef.current?.offsetHeight ?? 200;
+      const popupWidth = 256;
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const flipBelow = spaceAbove < popupHeight + 8 && spaceBelow > spaceAbove;
+      const rightAlign = window.innerWidth - rect.right;
+      return {
+        position: "fixed",
+        top: flipBelow ? rect.bottom + 8 : rect.top - 16,
+        right: Math.min(rightAlign, window.innerWidth - popupWidth - 8),
+        transform: flipBelow ? "translateY(0)" : "translateY(-100%)",
+      };
+    },
+  );
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -378,18 +366,11 @@ function GoalDetailsButton({
         <Target size={16} />
       </button>
       {showDetails &&
-        popupPos &&
+        Object.keys(popupStyle).length > 0 &&
         createPortal(
           <div
             ref={popupRef}
-            style={{
-              position: "fixed",
-              top: popupPos.top,
-              right: popupPos.right,
-              transform: popupPos.flipBelow
-                ? "translateY(0)"
-                : "translateY(-100%)",
-            }}
+            style={popupStyle}
             className={clsx(
               "z-[100] w-64 p-3 rounded-lg shadow-lg",
               "bg-theme-bg-card",
@@ -494,6 +475,7 @@ export const ChatMessage = memo(function ChatMessage({
           content={message.content}
           attachments={message.attachments}
           isLastMessage={isLastMessage}
+          enabledSkills={message.enabledSkills}
         />
       </div>
     );
@@ -556,7 +538,7 @@ export const ChatMessage = memo(function ChatMessage({
           {isStreaming && !hasParts && <ThinkingIndicator />}
 
           {hasParts ? (
-            <div className="space-y-3 my-2 pl-1">
+            <div className="space-y-3 my-2">
               {message.parts!.map((part: MessagePart, index: number) =>
                 part.type === "recommend_questions" ? null : (
                   <MessagePartRenderer
@@ -627,7 +609,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}
           {/* Streaming indicator - bottom of message (when not showing thinking indicator) */}
           {message.isStreaming && !(isStreaming && !hasParts) && (
-            <div className="mt-3 pl-1">
+            <div className="mt-3">
               <CollapsiblePill
                 status="loading"
                 icon={<Sparkles size={12} className="shrink-0 opacity-50" />}
@@ -641,7 +623,7 @@ export const ChatMessage = memo(function ChatMessage({
         </div>
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && (
-          <div className="flex items-center gap-1 pb-2">
+          <div className="chat-message-actions flex items-center gap-1 pb-2">
             <button
               onClick={() => {
                 const textContent = getAssistantTextContent();
@@ -727,7 +709,7 @@ export const ChatMessage = memo(function ChatMessage({
         {!message.isStreaming &&
           isLastMessage &&
           message.parts?.some((p) => p.type === "recommend_questions") && (
-            <div className="space-y-3 my-2 pl-1">
+            <div className="space-y-3 my-2">
               {message
                 .parts!.filter((p) => p.type === "recommend_questions")
                 .map((part, index) => (
@@ -750,4 +732,4 @@ export const ChatMessage = memo(function ChatMessage({
       </div>
     </div>
   );
-});
+}, areChatMessagePropsEqual);

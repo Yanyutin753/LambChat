@@ -67,27 +67,19 @@
 
 .scb:hover {
   transform: translateY(-4px);
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 18%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
   box-shadow:
     0 12px 32px -8px rgb(0 0 0 / 0.1),
     0 4px 12px -4px rgb(0 0 0 / 0.05),
-    0 0 0 1px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 6%, transparent);
 }
 
 .dark .scb:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 22%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
   box-shadow:
     0 12px 32px -8px rgb(0 0 0 / 0.4),
     0 4px 12px -4px rgb(0 0 0 / 0.25),
-    0 0 0 1px color-mix(in srgb, var(--theme-primary) 10%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
 }
 
 .scb--animated {
@@ -164,11 +156,7 @@
   height: 2.5rem;
   border-radius: 0.75rem;
   border: 1px solid var(--theme-border);
-  background: color-mix(
-    in srgb,
-    var(--theme-primary-light) 60%,
-    var(--theme-bg-card)
-  );
+  background: var(--theme-bg-subtle);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
   transition:
     border-color 0.25s ease,
@@ -180,17 +168,13 @@
 .scb:hover .scb__icon-ring {
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 30%,
+    var(--theme-text-secondary) 18%,
     var(--theme-border)
   );
   box-shadow:
-    0 2px 8px color-mix(in srgb, var(--theme-primary) 10%, transparent),
-    0 0 0 3px color-mix(in srgb, var(--theme-primary) 6%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--theme-primary-light) 70%,
-    var(--theme-bg-card)
-  );
+    0 2px 8px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--theme-text-secondary) 6%, transparent);
+  background: var(--theme-bg-subtle);
   transform: scale(1.04);
 }
 
@@ -325,24 +309,20 @@
 }
 
 .scb__mini-tag:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 28%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 18%, var(--theme-border));
   color: var(--theme-text);
-  background: var(--theme-primary-light);
+  background: var(--theme-bg-subtle);
 }
 
 .scb__mini-tag--active {
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 22%,
+    var(--theme-text-secondary) 15%,
     var(--theme-border)
   );
   background: color-mix(
     in srgb,
-    var(--theme-primary-light) 68%,
+    var(--theme-bg-subtle) 68%,
     var(--theme-bg-card)
   );
   color: var(--theme-text);
@@ -368,11 +348,11 @@
 }
 
 .scb__action-btn:hover {
-  background: var(--theme-primary-light);
+  background: var(--theme-bg-subtle);
   color: var(--theme-text);
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 28%,
+    var(--theme-text-secondary) 15%,
     var(--theme-border)
   );
 }
@@ -404,10 +384,10 @@
 }
 
 .scb__action-btn--ghost:hover {
-  background: var(--theme-primary-light);
+  background: var(--theme-bg-subtle);
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 20%,
+    var(--theme-text-secondary) 15%,
     var(--theme-border)
   );
   transform: scale(1.08);
@@ -536,11 +516,7 @@
   height: 2.5rem;
   border-radius: 0.75rem;
   border: 1px solid var(--theme-border);
-  background: color-mix(
-    in srgb,
-    var(--theme-primary-light) 60%,
-    var(--theme-bg-card)
-  );
+  background: var(--theme-bg-subtle);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
   transition:
     border-color 0.2s ease,
@@ -550,10 +526,11 @@
 .mp-card:hover .mp-card__icon-ring {
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 28%,
+    var(--theme-text-secondary) 18%,
     var(--theme-border)
   );
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+  box-shadow: 0 2px 8px
+    color-mix(in srgb, var(--theme-text-secondary) 6%, transparent);
 }
 
 .mp-card__avatar-ring {
@@ -644,24 +621,20 @@
 }
 
 .mp-card__mini-tag:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 28%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 18%, var(--theme-border));
   color: var(--theme-text);
-  background: var(--theme-primary-light);
+  background: var(--theme-bg-subtle);
 }
 
 .mp-card__mini-tag--active {
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 22%,
+    var(--theme-text-secondary) 15%,
     var(--theme-border)
   );
   background: color-mix(
     in srgb,
-    var(--theme-primary-light) 68%,
+    var(--theme-bg-subtle) 68%,
     var(--theme-bg-card)
   );
   color: var(--theme-text);
@@ -686,11 +659,11 @@
 }
 
 .mp-card__action-btn:hover {
-  background: var(--theme-primary-light);
+  background: var(--theme-bg-subtle);
   color: var(--theme-text);
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 28%,
+    var(--theme-text-secondary) 15%,
     var(--theme-border)
   );
 }

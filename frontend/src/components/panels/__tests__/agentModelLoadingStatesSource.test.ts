@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -29,25 +27,25 @@ const tabContentSource = readFileSync(
 );
 
 test("agent and model configuration pages use matching skeleton screens", () => {
-  assert.match(agentPanelSource, /import \{ AgentPanelSkeleton \}/);
-  assert.match(modelPanelSource, /import \{ ModelPanelSkeleton \}/);
-  assert.match(agentPanelSource, /return <AgentPanelSkeleton \/>/);
-  assert.match(modelPanelSource, /return <ModelPanelSkeleton \/>/);
+  expect(agentPanelSource).toMatch(/import \{ AgentPanelSkeleton \}/);
+  expect(modelPanelSource).toMatch(/import \{ ModelPanelSkeleton \}/);
+  expect(agentPanelSource).toMatch(/return <AgentPanelSkeleton \/>/);
+  expect(modelPanelSource).toMatch(/return <ModelPanelSkeleton \/>/);
 });
 
 test("combined agent model sections use embedded skeleton screens", () => {
-  assert.match(agentSectionSource, /import \{ AgentSectionSkeleton \}/);
-  assert.match(modelSectionSource, /import \{ ModelSectionSkeleton \}/);
-  assert.match(agentSectionSource, /return <AgentSectionSkeleton \/>/);
-  assert.match(modelSectionSource, /return <ModelSectionSkeleton \/>/);
-  assert.doesNotMatch(agentSectionSource, /return <AgentPanelSkeleton \/>/);
-  assert.doesNotMatch(modelSectionSource, /return <ModelPanelSkeleton \/>/);
+  expect(agentSectionSource).toMatch(/import \{ AgentSectionSkeleton \}/);
+  expect(modelSectionSource).toMatch(/import \{ ModelSectionSkeleton \}/);
+  expect(agentSectionSource).toMatch(/return <AgentSectionSkeleton \/>/);
+  expect(modelSectionSource).toMatch(/return <ModelSectionSkeleton \/>/);
+  expect(agentSectionSource).not.toMatch(/return <AgentPanelSkeleton \/>/);
+  expect(modelSectionSource).not.toMatch(/return <ModelPanelSkeleton \/>/);
 });
 
 test("agents tab suspense fallback matches combined configuration panel", () => {
-  assert.match(tabContentSource, /AgentModelPanelSkeleton/);
-  assert.match(tabContentSource, /agents:\s*<AgentModelPanelSkeleton \/>/);
-  assert.doesNotMatch(tabContentSource, /agents:\s*<AgentPanelSkeleton \/>/);
+  expect(tabContentSource).toMatch(/AgentModelPanelSkeleton/);
+  expect(tabContentSource).toMatch(/agents:\s*<AgentModelPanelSkeleton \/>/);
+  expect(tabContentSource).not.toMatch(/agents:\s*<AgentPanelSkeleton \/>/);
 });
 
 test("agent and model configuration errors share one callout component", () => {
@@ -57,6 +55,6 @@ test("agent and model configuration errors share one callout component", () => {
     agentSectionSource,
     modelSectionSource,
   ]) {
-    assert.match(source, /ConfigPanelErrorCallout/);
+    expect(source).toMatch(/ConfigPanelErrorCallout/);
   }
 });

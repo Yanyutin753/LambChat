@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from fastapi import HTTPException
 
 from src.api.routes import marketplace as marketplace_routes
-from src.infra.skill.types import MarketplaceSkillResponse
+from src.infra.skill.types import InstalledFrom, MarketplaceSkillResponse, SkillMeta
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -59,6 +60,51 @@ class _MarketplaceShouldNotSync:
         raise AssertionError("metadata should not be created for oversized payload")
 
 
+class _InstallMarketplace:
+    async def get_marketplace_skill(self, name: str) -> SimpleNamespace:
+        return SimpleNamespace(skill_name=name, is_active=True, created_by="publisher")
+
+    async def list_marketplace_file_paths(self, name: str) -> list[str]:
+        return ["SKILL.md"]
+
+    async def iter_marketplace_file_batches(self, name: str):
+        yield {"SKILL.md": "# Marketplace version"}
+
+
+class _FailingInstallMarketplace(_InstallMarketplace):
+    async def iter_marketplace_file_batches(self, name: str):
+        raise RuntimeError("marketplace read failed")
+        yield {}
+
+
+class _ManualSkillStorage:
+    def __init__(self) -> None:
+        self.deleted: list[tuple[str, str]] = []
+        self.upserted: list[tuple[str, dict[str, str], str]] = []
+        self.synced: list[tuple[str, dict[str, str], str]] = []
+        self.meta_calls: list[tuple[str, str, dict[str, Any]]] = []
+        self.invalidated: list[str] = []
+
+    async def get_skill_meta(self, name: str, user_id: str) -> SkillMeta:
+        return SkillMeta(installed_from=InstalledFrom.MANUAL)
+
+    async def delete_skill_files(self, name: str, user_id: str) -> None:
+        self.deleted.append((name, user_id))
+
+    async def upsert_skill_files_batch(self, name: str, files: dict[str, str], user_id: str) -> int:
+        self.upserted.append((name, files, user_id))
+        return len(files)
+
+    async def sync_skill_files(self, name: str, files: dict[str, str], user_id: str) -> None:
+        self.synced.append((name, files, user_id))
+
+    async def set_skill_meta(self, name: str, user_id: str, **kwargs: Any) -> None:
+        self.meta_calls.append((name, user_id, kwargs))
+
+    async def invalidate_user_cache(self, user_id: str) -> None:
+        self.invalidated.append(user_id)
+
+
 @pytest.mark.asyncio
 async def test_list_marketplace_skills_keeps_skill_payload_and_adds_extension_entry() -> None:
     marketplace = _MarketplaceListStorage()
@@ -90,7 +136,6 @@ async def test_list_marketplace_skills_keeps_skill_payload_and_adds_extension_en
     assert result[0].extension.id == "skill:planner"
     assert result[0].extension.type == "skill"
     assert result[0].extension.capabilities == ["skill"]
-
 
 @pytest.mark.asyncio
 async def test_create_marketplace_skill_rejects_too_many_files_before_sync(
@@ -137,3 +182,58 @@ async def test_create_marketplace_skill_rejects_total_file_content_before_sync(
 
     assert exc.value.status_code == 413
     assert "too large" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_install_marketplace_skill_replaces_existing_manual_skill() -> None:
+    storage = _ManualSkillStorage()
+
+    result = await marketplace_routes.install_marketplace_skill(
+        "planner",
+        user=TokenPayload(
+            sub="user-1",
+            username="reader",
+            roles=["user"],
+            permissions=["marketplace:read"],
+        ),
+        marketplace=_InstallMarketplace(),
+        storage=storage,
+    )
+
+    assert result["skill_name"] == "planner"
+    assert result["file_count"] == 1
+    assert storage.deleted == []
+    assert storage.upserted == []
+    assert storage.synced == [("planner", {"SKILL.md": "# Marketplace version"}, "user-1")]
+    assert storage.meta_calls == [
+        (
+            "planner",
+            "user-1",
+            {"installed_from": InstalledFrom.MARKETPLACE},
+        )
+    ]
+    assert storage.invalidated == ["user-1"]
+
+
+@pytest.mark.asyncio
+async def test_install_marketplace_skill_keeps_manual_skill_when_marketplace_read_fails() -> None:
+    storage = _ManualSkillStorage()
+
+    with pytest.raises(RuntimeError, match="marketplace read failed"):
+        await marketplace_routes.install_marketplace_skill(
+            "planner",
+            user=TokenPayload(
+                sub="user-1",
+                username="reader",
+                roles=["user"],
+                permissions=["marketplace:read"],
+            ),
+            marketplace=_FailingInstallMarketplace(),
+            storage=storage,
+        )
+
+    assert storage.deleted == []
+    assert storage.upserted == []
+    assert storage.synced == []
+    assert storage.meta_calls == []
+    assert storage.invalidated == []

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, memo } from "react";
 import { createPortal } from "react-dom";
 import { Brain, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import type { AgentOption } from "../../types";
 import { ICON_MAP, THINKING_LEVEL_COLOR } from "./chatInputConstants";
 
@@ -57,6 +58,24 @@ export const AgentOptionButton = memo(function AgentOptionButton({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDropdown, externalOnOpenChange, setShowDropdown]);
+
+  // Compute dropdown style before any conditional returns — hooks must not be called conditionally
+  const dropdownStyle = useStickyDropdownPosition(
+    dropdownRef,
+    showDropdown,
+    (rect) => {
+      const vw = window.innerWidth;
+      const dropdownW = Math.min(288, vw - 16);
+      const left = Math.max(8, Math.min(rect.left, vw - dropdownW - 8));
+      return {
+        position: "fixed" as const,
+        bottom: window.innerHeight - rect.top + 4,
+        left,
+        width: dropdownW,
+        zIndex: 9999,
+      };
+    },
+  );
 
   if (externalOnOpenChange) {
     if (option.type === "boolean") return null;
@@ -171,21 +190,6 @@ export const AgentOptionButton = memo(function AgentOptionButton({
       ? t(selectedOption.label_key)
       : selectedOption?.label || String(value);
 
-    const getDropdownStyle = (): React.CSSProperties => {
-      const rect = dropdownRef.current?.getBoundingClientRect();
-      if (!rect) return { display: "none" };
-      const vw = window.innerWidth;
-      const dropdownW = Math.min(288, vw - 16);
-      const left = Math.max(8, Math.min(rect.left, vw - dropdownW - 8));
-      return {
-        position: "fixed",
-        bottom: window.innerHeight - rect.top + 4,
-        left,
-        width: dropdownW,
-        zIndex: 9999,
-      };
-    };
-
     const ActiveIcon = IconComponent || Brain;
     const isOff = String(value) === "off";
     const levelColor =
@@ -294,7 +298,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                 ref={portalRef}
                 className="hidden sm:block w-72 rounded-xl px-2 py-1.5 border shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-200"
                 style={{
-                  ...getDropdownStyle(),
+                  ...dropdownStyle,
                   background: "var(--theme-bg-card)",
                   borderColor: "var(--theme-border)",
                 }}

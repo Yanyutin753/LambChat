@@ -10,6 +10,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.kernel.schemas.agent import AttachmentSchema
+
 # 评分值类型：up（好评）或 down（差评）
 RatingValue = Literal["up", "down"]
 
@@ -19,6 +21,7 @@ class FeedbackBase(BaseModel):
 
     rating: RatingValue = Field(..., description="评分：up（好评）或 down（差评）")
     comment: Optional[str] = Field(None, max_length=1000, description="可选评论")
+    attachments: Optional[list[AttachmentSchema]] = Field(None, description="可选图片附件")
 
 
 class FeedbackCreate(FeedbackBase):

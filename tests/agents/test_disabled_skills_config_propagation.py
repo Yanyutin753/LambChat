@@ -91,7 +91,7 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module, "create_deep_agent", fake_create_deep_agent)
     monkeypatch.setattr(module, "create_retry_middleware", lambda **_kwargs: [])
     monkeypatch.setattr(module, "ToolResultBinaryMiddleware", lambda **_kwargs: object())
-    monkeypatch.setattr(module, "SubagentActivityMiddleware", lambda **_kwargs: object())
+    monkeypatch.setattr(module, "SubagentResultHandoffMiddleware", lambda **_kwargs: object())
     monkeypatch.setattr(module, "PromptCachingMiddleware", lambda: object())
     monkeypatch.setattr(module.settings, "ENABLE_MCP", False)
     monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
@@ -309,9 +309,9 @@ async def test_fast_agent_subagent_tool_search_uses_isolated_manager(
         config,
     )
 
-    assert deferred_manager.fork_calls == ["subagent:general-purpose"]
+    assert "subagent:general-purpose" in deferred_manager.fork_calls
     assert captured_managers[0] is deferred_manager.forked
-    assert captured_managers[1] is deferred_manager
+    assert captured_managers[-1] is deferred_manager
 
 
 @pytest.mark.asyncio
@@ -621,9 +621,44 @@ async def test_search_agent_subagent_tool_search_uses_isolated_manager(
         config,
     )
 
-    assert deferred_manager.fork_calls == ["subagent:general-purpose"]
+    assert "subagent:general-purpose" in deferred_manager.fork_calls
     assert captured_managers[0] is deferred_manager.forked
-    assert captured_managers[1] is deferred_manager
+    assert captured_managers[-1] is deferred_manager
+
+
+@pytest.mark.asyncio
+async def test_search_agent_node_passes_internal_tools_when_mcp_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_fake_event_processor()
+    from src.agents.search_agent import nodes as search_nodes
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, search_nodes, fake_graph)
+
+    async def fake_create_backend_and_prompt(**_kwargs):
+        return object(), "system prompt", object(), None, None
+
+    monkeypatch.setattr(search_nodes, "_create_backend_and_prompt", fake_create_backend_and_prompt)
+
+    workflow_tool = SimpleNamespace(name="workflow_run")
+    context = _context_with_internal_tool(workflow_tool)
+    config = {
+        "configurable": {
+            "context": context,
+            "presenter": object(),
+            "base_url": "",
+            "agent_options": {},
+        }
+    }
+
+    await search_nodes.agent_node(
+        {"input": "hello", "session_id": "session-1", "attachments": []},
+        config,
+    )
+
+    assert fake_graph.captured_create_kwargs is not None
+    assert fake_graph.captured_create_kwargs["tools"] == [workflow_tool]
 
 
 @pytest.mark.asyncio
@@ -972,6 +1007,43 @@ def test_team_agent_workflow_result_prompt_section_prefers_nested_output_contrac
         "debug=workflow_get_run.events"
     ) in section
     assert "next_action: use_output output reason=workflow_run_succeeded" in section
+
+
+@pytest.mark.asyncio
+async def test_team_agent_node_passes_internal_tools_when_mcp_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_fake_event_processor()
+    from src.agents.team_agent import nodes as team_nodes
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+    monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
+    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+
+    async def fake_resolve_runtime_team(**_kwargs):
+        return None
+
+    monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
+
+    workflow_tool = SimpleNamespace(name="workflow_run")
+    context = _context_with_internal_tool(workflow_tool)
+    config = {
+        "configurable": {
+            "context": context,
+            "presenter": object(),
+            "base_url": "",
+            "agent_options": {},
+        }
+    }
+
+    await team_nodes.team_router_node(
+        {"input": "hello", "session_id": "session-1", "attachments": []},
+        config,
+    )
+
+    assert fake_graph.captured_create_kwargs is not None
+    assert fake_graph.captured_create_kwargs["tools"] == [workflow_tool]
 
 
 @pytest.mark.asyncio

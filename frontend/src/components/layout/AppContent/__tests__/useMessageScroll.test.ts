@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   alignElementInScroller,
   createMessageScrollFollowState,
@@ -30,7 +28,7 @@ import {
 } from "../useMessageScroll.ts";
 
 test("clears the user-scrolled flag when virtuoso reports bottom reached", () => {
-  assert.deepEqual(
+  expect(
     getNextMessageScrollFollowStateForAtBottomChange({
       state: createMessageScrollFollowState({
         userScrolledUp: true,
@@ -40,17 +38,16 @@ test("clears the user-scrolled flag when virtuoso reports bottom reached", () =>
       }),
       atBottom: true,
     }),
-    {
-      userScrolledUp: false,
-      autoScrollActive: true,
-      streamLockActive: true,
-      manualDetachFromStream: true,
-    },
-  );
+  ).toEqual({
+    userScrolledUp: false,
+    autoScrollActive: true,
+    streamLockActive: true,
+    manualDetachFromStream: true,
+  });
 });
 
 test("resets follow and history state when switching sessions", () => {
-  assert.deepEqual(getMessageScrollSessionResetState(), {
+  expect(getMessageScrollSessionResetState()).toEqual({
     userScrolledUp: false,
     autoScrollActive: false,
     streamLockActive: false,
@@ -93,14 +90,13 @@ test("finds the latest reveal_file tool block for a file target", () => {
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       fileKey: "revealed_files/new.txt",
       originalPath: "/tmp/new.txt",
       source: "reveal_file",
     }),
-    { messageIndex: 1, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 1, partIndex: 0 });
 });
 
 test("finds reveal_project tool blocks by original project path", () => {
@@ -123,13 +119,12 @@ test("finds reveal_project tool blocks by original project path", () => {
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       originalPath: "/workspace/demo-app",
       source: "reveal_project",
     }),
-    { messageIndex: 0, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
 test("finds reveal_file tool blocks nested inside a subagent panel", () => {
@@ -159,22 +154,18 @@ test("finds reveal_file tool blocks nested inside a subagent panel", () => {
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       fileKey: "revealed/nested",
       originalPath: "/tmp/nested.txt",
       source: "reveal_file",
     }),
-    {
-      messageIndex: 0,
-      partIndex: 0,
-      anchorId: createToolPartAnchorId(
-        createSubagentAnchorOwnerId("agent-1"),
-        0,
-      ),
-      subagentChain: ["agent-1"],
-    },
-  );
+  ).toEqual({
+    messageIndex: 0,
+    partIndex: 0,
+    anchorId: createToolPartAnchorId(createSubagentAnchorOwnerId("agent-1"), 0),
+    subagentChain: ["agent-1"],
+  });
 });
 
 test("finds artifact parts for file targets without reveal tool blocks", () => {
@@ -203,22 +194,21 @@ test("finds artifact parts for file targets without reveal tool blocks", () => {
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       fileKey: "revealed/puppy.svg",
       originalPath: "/workspace/puppy.svg",
       source: "reveal_file",
     }),
-    {
-      messageIndex: 0,
-      partIndex: 0,
-      anchorId: createToolPartAnchorId("message-1", 0),
-    },
-  );
+  ).toEqual({
+    messageIndex: 0,
+    partIndex: 0,
+    anchorId: createToolPartAnchorId("message-1", 0),
+  });
 });
 
 test("creates stable tool part anchor ids", () => {
-  assert.equal(createToolPartAnchorId("message-1", 3), "tool-part:message-1:3");
+  expect(createToolPartAnchorId("message-1", 3)).toBe("tool-part:message-1:3");
 });
 
 test("prefers original path matching over filename fallback", () => {
@@ -253,14 +243,13 @@ test("prefers original path matching over filename fallback", () => {
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       fileName: "report.md",
       originalPath: "/tmp/right/report.md",
       source: "reveal_file",
     }),
-    { messageIndex: 0, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
 test("matches reveal_file targets after normalizing path separators and trailing slashes", () => {
@@ -281,13 +270,12 @@ test("matches reveal_file targets after normalizing path separators and trailing
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       originalPath: "C:/workspace/docs/guide.md/",
       source: "reveal_file",
     }),
-    { messageIndex: 0, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
 test("falls back to filename derived from old reveal_file path payloads", () => {
@@ -310,13 +298,12 @@ test("falls back to filename derived from old reveal_file path payloads", () => 
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       fileName: "summary.md",
       source: "reveal_file",
     }),
-    { messageIndex: 0, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
 test("matches reveal_project targets after normalizing project paths", () => {
@@ -339,13 +326,12 @@ test("matches reveal_project targets after normalizing project paths", () => {
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       originalPath: "C:/workspace/demo-app",
       source: "reveal_project",
     }),
-    { messageIndex: 0, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
 test("retries anchor scrolling until the target element appears", async () => {
@@ -370,8 +356,8 @@ test("retries anchor scrolling until the target element appears", async () => {
 
   await new Promise((resolve) => setTimeout(resolve, 20));
 
-  assert.equal(scrolled, 1);
-  assert.equal(attempts, 3);
+  expect(scrolled).toBe(1);
+  expect(attempts).toBe(3);
 });
 
 test("uses smooth scrolling for external navigation targets when requested", () => {
@@ -386,7 +372,7 @@ test("uses smooth scrolling for external navigation targets when requested", () 
     behavior: "smooth",
   });
 
-  assert.deepEqual(receivedOptions, {
+  expect(receivedOptions).toEqual({
     behavior: "smooth",
     block: "start",
   });
@@ -405,7 +391,7 @@ test("uses centered scrolling for external navigation targets when requested", (
     align: "center",
   });
 
-  assert.deepEqual(receivedOptions, {
+  expect(receivedOptions).toEqual({
     behavior: "smooth",
     block: "center",
   });
@@ -427,11 +413,11 @@ test("marks the external navigation target temporarily for highlight styling", a
     durationMs: 5,
   });
 
-  assert.equal(attributes.get("data-external-navigation-highlighted"), "true");
+  expect(attributes.get("data-external-navigation-highlighted")).toBe("true");
 
   await new Promise((resolve) => setTimeout(resolve, 20));
 
-  assert.equal(attributes.has("data-external-navigation-highlighted"), false);
+  expect(attributes.has("data-external-navigation-highlighted")).toBe(false);
 });
 
 test("focuses the external navigation target without triggering another scroll", () => {
@@ -452,8 +438,8 @@ test("focuses the external navigation target without triggering another scroll",
 
   focusElementForExternalNavigation({ element });
 
-  assert.equal(focused, true);
-  assert.deepEqual(receivedOptions, { preventScroll: true });
+  expect(focused).toBe(true);
+  expect(receivedOptions).toEqual({ preventScroll: true });
 });
 
 test("temporarily makes non-focusable external navigation targets focusable", () => {
@@ -472,8 +458,8 @@ test("temporarily makes non-focusable external navigation targets focusable", ()
 
   focusElementForExternalNavigation({ element });
 
-  assert.equal(focused, true);
-  assert.equal(attrs.get("tabindex"), "-1");
+  expect(focused).toBe(true);
+  expect(attrs.get("tabindex")).toBe("-1");
 });
 
 test("stops re-jumping to the message top once the exact anchor appears", () => {
@@ -495,11 +481,11 @@ test("stops re-jumping to the message top once the exact anchor appears", () => 
     getFallbackElement: () => null,
   });
 
-  assert.equal(resolveElement(), null);
-  assert.equal(resolveElement(), null);
-  assert.equal(resolveElement(), target);
-  assert.equal(resolveElement(), target);
-  assert.equal(scrollToMessageCalls, 3);
+  expect(resolveElement()).toBe(null);
+  expect(resolveElement()).toBe(null);
+  expect(resolveElement()).toBe(target);
+  expect(resolveElement()).toBe(target);
+  expect(scrollToMessageCalls).toBe(3);
 });
 
 test("aligns the target component relative to the virtuoso scroller", () => {
@@ -513,14 +499,13 @@ test("aligns the target component relative to the virtuoso scroller", () => {
     getBoundingClientRect: () => ({ top: 360 }),
   };
 
-  assert.equal(
+  expect(
     alignElementInScroller({
       scroller,
       element,
       topOffsetPx: 20,
     }),
-    640,
-  );
+  ).toBe(640);
 });
 
 test("centers the target component relative to the virtuoso scroller", () => {
@@ -534,22 +519,21 @@ test("centers the target component relative to the virtuoso scroller", () => {
     getBoundingClientRect: () => ({ top: 360, height: 120 }),
   };
 
-  assert.equal(
+  expect(
     alignElementInScroller({
       scroller,
       element,
       topOffsetPx: 20,
       align: "center",
     }),
-    470,
-  );
+  ).toBe(470);
 });
 
 test("finds the latest message for a resolved run id", () => {
   const messages = [{ runId: "run-1" }, { runId: "run-2" }, { runId: "run-2" }];
 
-  assert.equal(findMessageIndexForRunId(messages, "run-2"), 2);
-  assert.equal(findMessageIndexForRunId(messages, "run-9"), -1);
+  expect(findMessageIndexForRunId(messages, "run-2")).toBe(2);
+  expect(findMessageIndexForRunId(messages, "run-9")).toBe(-1);
 });
 
 test("finds the matching reveal part inside an already resolved run message", () => {
@@ -578,14 +562,13 @@ test("finds the matching reveal part inside an already resolved run message", ()
     ],
   };
 
-  assert.equal(
+  expect(
     findRevealPartIndexInMessage(message, {
       fileKey: "revealed/second",
       originalPath: "/tmp/second.txt",
       source: "reveal_file",
     }),
-    1,
-  );
+  ).toBe(1);
 });
 
 test("matches reveal_project within the resolved run by project name before falling back to path", () => {
@@ -630,14 +613,13 @@ test("matches reveal_project within the resolved run by project name before fall
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findExternalNavigationMatchForRunId(messages, "run-blog", {
       fileName: "blog",
       originalPath: "/home/user/blog",
       source: "reveal_project",
     }),
-    { messageIndex: 0, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
 test("prefers reveal_project name matching over shared path when locating across the session", () => {
@@ -682,96 +664,87 @@ test("prefers reveal_project name matching over shared path when locating across
     },
   ];
 
-  assert.deepEqual(
+  expect(
     findMessageIndexForExternalNavigation(messages, {
       fileName: "blog",
       originalPath: "/home/user/blog",
       source: "reveal_project",
     }),
-    { messageIndex: 0, partIndex: 0 },
-  );
+  ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
 test("waits until history loading completes before triggering the final bottom scroll", () => {
-  assert.equal(
+  expect(
     shouldFinalizeHistoryLoadScroll({
       pendingHistoryScroll: true,
       isLoadingHistory: true,
       messageCount: 12,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldFinalizeHistoryLoadScroll({
       pendingHistoryScroll: true,
       isLoadingHistory: false,
       messageCount: 12,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("does not trigger a final history scroll when there is no pending scroll or no messages", () => {
-  assert.equal(
+  expect(
     shouldFinalizeHistoryLoadScroll({
       pendingHistoryScroll: false,
       isLoadingHistory: false,
       messageCount: 12,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldFinalizeHistoryLoadScroll({
       pendingHistoryScroll: true,
       isLoadingHistory: false,
       messageCount: 0,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("arms the history finalize scroll only once per loading cycle", () => {
-  assert.equal(
+  expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: true,
       sessionId: "session-1",
       historyScrollArmed: false,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: true,
       sessionId: "session-1",
       historyScrollArmed: true,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: false,
       sessionId: "session-1",
       historyScrollArmed: false,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: true,
       sessionId: null,
       historyScrollArmed: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("infers a batched history load when a new session receives its first messages", () => {
-  assert.equal(
+  expect(
     shouldInferBatchedHistoryLoadReady({
       previousSessionId: "session-1",
       sessionId: "session-2",
@@ -780,10 +753,9 @@ test("infers a batched history load when a new session receives its first messag
       isLoadingHistory: false,
       externalNavigationToken: null,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldInferBatchedHistoryLoadReady({
       previousSessionId: "session-1",
       sessionId: "session-1",
@@ -792,10 +764,9 @@ test("infers a batched history load when a new session receives its first messag
       isLoadingHistory: false,
       externalNavigationToken: null,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldInferBatchedHistoryLoadReady({
       previousSessionId: "session-1",
       sessionId: "session-2",
@@ -804,86 +775,76 @@ test("infers a batched history load when a new session receives its first messag
       isLoadingHistory: false,
       externalNavigationToken: "reveal:file",
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not keep external navigation pending when the run is known but the reveal part is missing", () => {
-  assert.equal(
+  expect(
     shouldKeepExternalNavigationPending({
       runMessageIndex: 3,
       matchedPartIndex: -1,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldKeepExternalNavigationPending({
       runMessageIndex: 3,
       matchedPartIndex: 1,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldKeepExternalNavigationPending({
       runMessageIndex: -1,
       matchedPartIndex: -1,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not defer external navigation scrolling when the run is already known", () => {
-  assert.equal(
+  expect(
     shouldDeferExternalNavigationScroll({
       runMessageIndex: 3,
       matchedPartIndex: -1,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldDeferExternalNavigationScroll({
       runMessageIndex: 3,
       matchedPartIndex: 1,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldDeferExternalNavigationScroll({
       runMessageIndex: -1,
       matchedPartIndex: -1,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("still scrolls to the run message while waiting for the exact reveal part", () => {
-  assert.equal(
+  expect(
     shouldScrollExternalNavigationFallbackToMessage({
       runMessageIndex: 3,
       matchedPartIndex: -1,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldScrollExternalNavigationFallbackToMessage({
       runMessageIndex: 3,
       matchedPartIndex: 1,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldScrollExternalNavigationFallbackToMessage({
       runMessageIndex: -1,
       matchedPartIndex: -1,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("marks the active mobile stream as manually detached on the first intentional upward scroll", () => {
@@ -903,10 +864,10 @@ test("marks the active mobile stream as manually detached on the first intention
     scrollTop: 260,
   });
 
-  assert.equal(nextState.manualDetachFromStream, true);
-  assert.equal(nextState.userScrolledUp, true);
-  assert.equal(nextState.autoScrollActive, false);
-  assert.equal(nextState.streamLockActive, false);
+  expect(nextState.manualDetachFromStream).toBe(true);
+  expect(nextState.userScrolledUp).toBe(true);
+  expect(nextState.autoScrollActive).toBe(false);
+  expect(nextState.streamLockActive).toBe(false);
 });
 
 test("detaches the active mobile stream immediately on an explicit upward touch gesture", () => {
@@ -921,10 +882,10 @@ test("detaches the active mobile stream immediately on an explicit upward touch 
     streamingAssistantActive: true,
   });
 
-  assert.equal(nextState.userScrolledUp, true);
-  assert.equal(nextState.autoScrollActive, false);
-  assert.equal(nextState.streamLockActive, false);
-  assert.equal(nextState.manualDetachFromStream, true);
+  expect(nextState.userScrolledUp).toBe(true);
+  expect(nextState.autoScrollActive).toBe(false);
+  expect(nextState.streamLockActive).toBe(false);
+  expect(nextState.manualDetachFromStream).toBe(true);
 });
 
 test("detaches the active mobile stream immediately when the user starts touching the scroller", () => {
@@ -939,10 +900,10 @@ test("detaches the active mobile stream immediately when the user starts touchin
     streamingAssistantActive: true,
   });
 
-  assert.equal(nextState.userScrolledUp, true);
-  assert.equal(nextState.autoScrollActive, false);
-  assert.equal(nextState.streamLockActive, false);
-  assert.equal(nextState.manualDetachFromStream, true);
+  expect(nextState.userScrolledUp).toBe(true);
+  expect(nextState.autoScrollActive).toBe(false);
+  expect(nextState.streamLockActive).toBe(false);
+  expect(nextState.manualDetachFromStream).toBe(true);
 });
 
 test("detaches the active mobile stream lock even between bottom-scroll runs", () => {
@@ -957,10 +918,10 @@ test("detaches the active mobile stream lock even between bottom-scroll runs", (
     streamingAssistantActive: true,
   });
 
-  assert.equal(nextState.userScrolledUp, true);
-  assert.equal(nextState.autoScrollActive, false);
-  assert.equal(nextState.streamLockActive, false);
-  assert.equal(nextState.manualDetachFromStream, true);
+  expect(nextState.userScrolledUp).toBe(true);
+  expect(nextState.autoScrollActive).toBe(false);
+  expect(nextState.streamLockActive).toBe(false);
+  expect(nextState.manualDetachFromStream).toBe(true);
 });
 
 test("detaches the active desktop stream immediately on an explicit upward wheel intent", () => {
@@ -975,10 +936,10 @@ test("detaches the active desktop stream immediately on an explicit upward wheel
     streamingAssistantActive: true,
   });
 
-  assert.equal(nextState.userScrolledUp, true);
-  assert.equal(nextState.autoScrollActive, false);
-  assert.equal(nextState.streamLockActive, false);
-  assert.equal(nextState.manualDetachFromStream, false);
+  expect(nextState.userScrolledUp).toBe(true);
+  expect(nextState.autoScrollActive).toBe(false);
+  expect(nextState.streamLockActive).toBe(false);
+  expect(nextState.manualDetachFromStream).toBe(false);
 });
 
 test("detaches the active desktop stream on the first slight upward scroll", () => {
@@ -998,10 +959,10 @@ test("detaches the active desktop stream on the first slight upward scroll", () 
     scrollTop: 260,
   });
 
-  assert.equal(nextState.userScrolledUp, true);
-  assert.equal(nextState.autoScrollActive, false);
-  assert.equal(nextState.streamLockActive, false);
-  assert.equal(nextState.manualDetachFromStream, false);
+  expect(nextState.userScrolledUp).toBe(true);
+  expect(nextState.autoScrollActive).toBe(false);
+  expect(nextState.streamLockActive).toBe(false);
+  expect(nextState.manualDetachFromStream).toBe(false);
 });
 
 test("does not re-arm streaming follow mode while mobile detach lock is active", () => {
@@ -1025,7 +986,7 @@ test("does not re-arm streaming follow mode while mobile detach lock is active",
     userScrolledUp: false,
   };
 
-  assert.equal(
+  expect(
     getMessageUpdateScrollAction({
       previousMessages: [{ id: "assistant-1", role: "assistant" }],
       nextMessages: [{ id: "assistant-1", role: "assistant" }],
@@ -1033,12 +994,11 @@ test("does not re-arm streaming follow mode while mobile detach lock is active",
       isNearBottom: true,
       isLoadingHistory: false,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("settles the bottom lock when the active stream finishes near the bottom", () => {
-  assert.equal(
+  expect(
     getMessageUpdateScrollAction({
       previousMessages: [
         { id: "assistant-1", role: "assistant", isStreaming: true },
@@ -1056,12 +1016,11 @@ test("settles the bottom lock when the active stream finishes near the bottom", 
       isLoadingHistory: false,
       shouldMaintainStreamLock: true,
     }),
-    "request-scroll-to-bottom",
-  );
+  ).toBe("request-scroll-to-bottom");
 });
 
 test("does not settle the bottom lock when a detached stream finishes", () => {
-  assert.equal(
+  expect(
     getMessageUpdateScrollAction({
       previousMessages: [
         { id: "assistant-1", role: "assistant", isStreaming: true },
@@ -1079,12 +1038,11 @@ test("does not settle the bottom lock when a detached stream finishes", () => {
       isLoadingHistory: false,
       shouldMaintainStreamLock: false,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("detects when the latest assistant stream finishes", () => {
-  assert.equal(
+  expect(
     didLatestStreamingAssistantFinish({
       previousMessages: [
         { id: "assistant-1", role: "assistant", isStreaming: true },
@@ -1093,10 +1051,9 @@ test("detects when the latest assistant stream finishes", () => {
         { id: "assistant-1", role: "assistant", isStreaming: false },
       ],
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     didLatestStreamingAssistantFinish({
       previousMessages: [
         { id: "assistant-1", role: "assistant", isStreaming: true },
@@ -1105,8 +1062,7 @@ test("detects when the latest assistant stream finishes", () => {
         { id: "assistant-2", role: "assistant", isStreaming: false },
       ],
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("explicit scrollToBottom clears the detach lock and allows follow to resume", () => {
@@ -1121,11 +1077,11 @@ test("explicit scrollToBottom clears the detach lock and allows follow to resume
     clearManualDetachFromStream: true,
   });
 
-  assert.equal(reenteredState.manualDetachFromStream, false);
-  assert.equal(reenteredState.userScrolledUp, false);
-  assert.equal(reenteredState.autoScrollActive, true);
-  assert.equal(reenteredState.streamLockActive, true);
-  assert.equal(
+  expect(reenteredState.manualDetachFromStream).toBe(false);
+  expect(reenteredState.userScrolledUp).toBe(false);
+  expect(reenteredState.autoScrollActive).toBe(true);
+  expect(reenteredState.streamLockActive).toBe(true);
+  expect(
     getMessageUpdateScrollAction({
       previousMessages: [{ id: "assistant-1", role: "assistant" }],
       nextMessages: [{ id: "assistant-1", role: "assistant" }],
@@ -1136,8 +1092,7 @@ test("explicit scrollToBottom clears the detach lock and allows follow to resume
       isNearBottom: true,
       isLoadingHistory: false,
     }),
-    "request-scroll-to-bottom",
-  );
+  ).toBe("request-scroll-to-bottom");
 });
 
 test("passive viewport resize bottom-scroll does not clear the mobile detach lock", () => {
@@ -1154,11 +1109,11 @@ test("passive viewport resize bottom-scroll does not clear the mobile detach loc
     clearManualDetachFromStream: false,
   });
 
-  assert.equal(passiveReentryState.manualDetachFromStream, true);
-  assert.equal(passiveReentryState.userScrolledUp, true);
-  assert.equal(passiveReentryState.autoScrollActive, false);
-  assert.equal(passiveReentryState.streamLockActive, false);
-  assert.equal(
+  expect(passiveReentryState.manualDetachFromStream).toBe(true);
+  expect(passiveReentryState.userScrolledUp).toBe(true);
+  expect(passiveReentryState.autoScrollActive).toBe(false);
+  expect(passiveReentryState.streamLockActive).toBe(false);
+  expect(
     getMessageUpdateScrollAction({
       previousMessages: [{ id: "assistant-1", role: "assistant" }],
       nextMessages: [{ id: "assistant-1", role: "assistant" }],
@@ -1166,8 +1121,7 @@ test("passive viewport resize bottom-scroll does not clear the mobile detach loc
       isNearBottom: true,
       isLoadingHistory: false,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("local send clears the detach lock and starts a fresh follow cycle", () => {
@@ -1178,7 +1132,7 @@ test("local send clears the detach lock and starts a fresh follow cycle", () => 
     manualDetachFromStream: true,
   };
 
-  assert.equal(
+  expect(
     getMessageUpdateScrollAction({
       previousMessages: [{ id: "assistant-1", role: "assistant" }],
       nextMessages: [
@@ -1189,8 +1143,7 @@ test("local send clears the detach lock and starts a fresh follow cycle", () => 
       isNearBottom: false,
       isLoadingHistory: false,
     }),
-    "scroll-to-bottom",
-  );
+  ).toBe("scroll-to-bottom");
 
   const restartedState = getNextMessageScrollFollowStateForBottomScroll({
     state: detachedState,
@@ -1198,7 +1151,7 @@ test("local send clears the detach lock and starts a fresh follow cycle", () => 
     clearManualDetachFromStream: true,
   });
 
-  assert.equal(restartedState.manualDetachFromStream, false);
-  assert.equal(restartedState.userScrolledUp, false);
-  assert.equal(restartedState.autoScrollActive, true);
+  expect(restartedState.manualDetachFromStream).toBe(false);
+  expect(restartedState.userScrolledUp).toBe(false);
+  expect(restartedState.autoScrollActive).toBe(true);
 });

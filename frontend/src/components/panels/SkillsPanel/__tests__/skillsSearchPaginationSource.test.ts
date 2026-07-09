@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 function source(path: string) {
@@ -9,14 +7,12 @@ function source(path: string) {
 test("skills search resets pagination in the input change handler before fetching", () => {
   const file = source("../useSkillsActions.ts");
 
-  assert.match(file, /const handleSearchQueryChange = useCallback/);
-  assert.match(
-    file,
+  expect(file).toMatch(/const handleSearchQueryChange = useCallback/);
+  expect(file).toMatch(
     /const handleSearchQueryChange = useCallback\(\s*\(query: string\) => \{\s*setPage\(1\);\s*setSearchQuery\(query\);/s,
   );
-  assert.match(file, /setSearchQuery:\s*handleSearchQueryChange/);
-  assert.doesNotMatch(
-    file,
+  expect(file).toMatch(/setSearchQuery:\s*handleSearchQueryChange/);
+  expect(file).not.toMatch(
     /useEffect\(\(\) => \{\s*setPage\(1\);\s*\}, \[searchQuery/,
   );
 });

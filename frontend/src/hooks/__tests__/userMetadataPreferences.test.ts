@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import { applyUserMetadataPreferences } from "../userMetadataPreferences.ts";
 
 class LocalStorageMock {
@@ -38,15 +36,15 @@ test("applies all persisted user metadata preferences to local storage and event
     },
   });
 
-  assert.equal(localStorage.getItem("language"), "zh");
-  assert.equal(localStorage.getItem("lamb-agent-theme"), "dark");
-  assert.equal(localStorage.getItem("newlineModifier"), "ctrl");
-  assert.equal(localStorage.getItem("defaultThinkingLevel"), "high");
-  assert.equal(localStorage.getItem("lamb-sidebar-collapsed"), "true");
-  assert.equal(localStorage.getItem("defaultModelId"), "model-config-id");
-  assert.equal(localStorage.getItem("defaultModel"), "openai/gpt-4.1");
-  assert.deepEqual(languages, ["zh"]);
-  assert.deepEqual(events, [
+  expect(localStorage.getItem("language")).toBe("zh");
+  expect(localStorage.getItem("lamb-agent-theme")).toBe("dark");
+  expect(localStorage.getItem("newlineModifier")).toBe("ctrl");
+  expect(localStorage.getItem("defaultThinkingLevel")).toBe("high");
+  expect(localStorage.getItem("lamb-sidebar-collapsed")).toBe("true");
+  expect(localStorage.getItem("defaultModelId")).toBe("model-config-id");
+  expect(localStorage.getItem("defaultModel")).toBe("openai/gpt-4.1");
+  expect(languages).toEqual(["zh"]);
+  expect(events).toEqual([
     { type: "theme:external-change", detail: "dark" },
     { type: "thinking-preference-updated", detail: "high" },
     { type: "sidebar-collapsed-changed", detail: true },

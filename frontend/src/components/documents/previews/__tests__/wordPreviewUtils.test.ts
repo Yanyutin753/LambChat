@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   decodeTextLikeArrayBuffer,
   isDocxZipArrayBuffer,
@@ -13,20 +10,19 @@ test("detects DOCX zip signatures before attempting preview conversion", () => {
   const mixedZipMarker = new Uint8Array([0x50, 0x4b, 0x03, 0x08]);
   const htmlResponse = new TextEncoder().encode("<!doctype html>");
 
-  assert.equal(isDocxZipArrayBuffer(regularZip.buffer), true);
-  assert.equal(isDocxZipArrayBuffer(emptyZip.buffer), true);
-  assert.equal(isDocxZipArrayBuffer(splitZip.buffer), true);
-  assert.equal(isDocxZipArrayBuffer(mixedZipMarker.buffer), false);
-  assert.equal(isDocxZipArrayBuffer(htmlResponse.buffer), false);
+  expect(isDocxZipArrayBuffer(regularZip.buffer)).toBe(true);
+  expect(isDocxZipArrayBuffer(emptyZip.buffer)).toBe(true);
+  expect(isDocxZipArrayBuffer(splitZip.buffer)).toBe(true);
+  expect(isDocxZipArrayBuffer(mixedZipMarker.buffer)).toBe(false);
+  expect(isDocxZipArrayBuffer(htmlResponse.buffer)).toBe(false);
 });
 
 test("decodes text-like buffers for mislabeled Word preview files", () => {
   const text = new TextEncoder().encode("入党申请书\n\n敬爱的党组织：");
   const binary = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0xff]);
 
-  assert.equal(
-    decodeTextLikeArrayBuffer(text.buffer),
+  expect(decodeTextLikeArrayBuffer(text.buffer)).toBe(
     "入党申请书\n\n敬爱的党组织：",
   );
-  assert.equal(decodeTextLikeArrayBuffer(binary.buffer), null);
+  expect(decodeTextLikeArrayBuffer(binary.buffer)).toBe(null);
 });

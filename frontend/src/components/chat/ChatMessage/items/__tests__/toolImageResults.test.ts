@@ -1,6 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
 import { extractGeneratedImageResults } from "../toolImageResults.ts";
 
 test("extracts generated image uploads from Image Generate tool results", () => {
@@ -15,7 +13,7 @@ test("extracts generated image uploads from Image Generate tool results", () => 
     ],
   };
 
-  assert.deepEqual(extractGeneratedImageResults(result), [
+  expect(extractGeneratedImageResults(result)).toEqual([
     {
       url: "https://lambchat.com/api/upload/file/generated-images/6999be7275bdd6b1d868075b/20260527_164547_8ee7dae2_generated-20260527_164547-1.png",
       name: "20260527_164547_8ee7dae2_generated-20260527_164547-1.png",
@@ -35,20 +33,19 @@ test("resolves generated image upload URLs through the configured API base", () 
     ],
   };
 
-  assert.deepEqual(
+  expect(
     extractGeneratedImageResults(result, "https://chat.example.com/"),
-    [
-      {
-        url: "https://chat.example.com/api/upload/file/generated-images/local.png",
-        name: "local.png",
-        contentType: "image/png",
-      },
-    ],
-  );
+  ).toEqual([
+    {
+      url: "https://chat.example.com/api/upload/file/generated-images/local.png",
+      name: "local.png",
+      contentType: "image/png",
+    },
+  ]);
 });
 
 test("ignores non-image upload entries", () => {
-  assert.deepEqual(
+  expect(
     extractGeneratedImageResults({
       success: true,
       images: [
@@ -58,8 +55,7 @@ test("ignores non-image upload entries", () => {
         },
       ],
     }),
-    [],
-  );
+  ).toEqual([]);
 });
 
 test("generated image result previews open the shared ImageViewer", () => {
@@ -68,26 +64,12 @@ test("generated image result previews open the shared ImageViewer", () => {
     "utf8",
   );
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /import\s+\{[^}]*ImageViewer[^}]*\}\s+from\s+"..\/..\/..\/common"/s,
-    "generated image results should use the shared image viewer",
   );
-  assert.match(
-    source,
-    /<ImageViewer[\s\S]*?\bsrc=\{activeImage\.url\}/,
-    "clicking a generated image should open ImageViewer with that image URL",
-  );
-  assert.match(
-    source,
-    /<ImageViewer[\s\S]*?\bonPrevious=/,
-    "generated image ImageViewer should support previous navigation",
-  );
-  assert.match(
-    source,
-    /<ImageViewer[\s\S]*?\bonNext=/,
-    "generated image ImageViewer should support next navigation",
-  );
+  expect(source).toMatch(/<ImageViewer[\s\S]*?\bsrc=\{activeImage\.url\}/);
+  expect(source).toMatch(/<ImageViewer[\s\S]*?\bonPrevious=/);
+  expect(source).toMatch(/<ImageViewer[\s\S]*?\bonNext=/);
 });
 
 test("generated image result previews load eagerly for browser captures", () => {
@@ -96,11 +78,7 @@ test("generated image result previews load eagerly for browser captures", () => 
     "utf8",
   );
 
-  assert.match(
-    source,
-    /<ImageWithSkeleton[\s\S]*?\bloading="eager"/,
-    "generated image previews should not rely on native lazy loading",
-  );
+  expect(source).toMatch(/<ImageWithSkeleton[\s\S]*?\bloading="eager"/);
 });
 
 test("image generation prompt can be copied from the detail panel", () => {
@@ -109,14 +87,8 @@ test("image generation prompt can be copied from the detail panel", () => {
     "utf8",
   );
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /import\s+\{[^}]*CopyButton[^}]*\}\s+from\s+"..\/..\/..\/common"/s,
-    "image generation item should import the shared copy button",
   );
-  assert.match(
-    source,
-    /<CopyButton[\s\S]*?\btext=\{prompt\}/,
-    "the full prompt block should expose a copy action for the prompt",
-  );
+  expect(source).toMatch(/<CopyButton[\s\S]*?\btext=\{prompt\}/);
 });

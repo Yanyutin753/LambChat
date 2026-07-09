@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const helpersSource = readFileSync(
   new URL("../PanelSkeletonHelpers.tsx", import.meta.url),
   "utf8",
@@ -24,7 +21,7 @@ const infraSkeletonSource = readFileSync(
 );
 
 test("card grid panel skeletons render twenty-four placeholder cards", () => {
-  assert.match(helpersSource, /export const PANEL_CARD_SKELETON_COUNT = 24;/);
+  expect(helpersSource).toMatch(/export const PANEL_CARD_SKELETON_COUNT = 24;/);
 
   for (const source of [
     skillSkeletonSource,
@@ -32,8 +29,8 @@ test("card grid panel skeletons render twenty-four placeholder cards", () => {
     adminSkeletonSource,
     infraSkeletonSource,
   ]) {
-    assert.match(source, /PANEL_CARD_SKELETON_COUNT/);
-    assert.doesNotMatch(source, /length:\s*12/);
-    assert.doesNotMatch(source, /count\s*=\s*12/);
+    expect(source).toMatch(/PANEL_CARD_SKELETON_COUNT/);
+    expect(source).not.toMatch(/length:\s*12/);
+    expect(source).not.toMatch(/count\s*=\s*12/);
   }
 });

@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,12 +29,8 @@ test("team member model and team sandbox strings are available in every locale",
     const locale = readJson(localeFile);
 
     for (const key of teamMemberPreferenceKeys) {
-      assert.equal(
-        typeof locale.team[key],
-        "string",
-        `${localeFile} should define team.${key}`,
-      );
-      assert.notEqual(locale.team[key].trim(), "");
+      expect(typeof locale.team[key]).toBe("string");
+      expect(locale.team[key].trim()).not.toBe("");
     }
   }
 });

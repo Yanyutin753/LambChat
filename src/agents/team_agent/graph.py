@@ -163,6 +163,7 @@ class TeamAgent(BaseGraphAgent):
             disabled_skills=disabled_skills,
             enabled_skills=context_enabled_skills,
             disabled_mcp_tools=disabled_mcp_tools,
+            auto_mode=kwargs.get("auto_mode", False),
         )
         await context.setup()
 
@@ -203,6 +204,7 @@ class TeamAgent(BaseGraphAgent):
                 "base_url": kwargs.get("base_url", ""),
                 "team_id": team_id,
                 "active_goal": kwargs.get("active_goal"),
+                "auto_mode": kwargs.get("auto_mode", False),
                 "recommendation_input": kwargs.get("recommendation_input"),
             },
             "metadata": langsmith_metadata,

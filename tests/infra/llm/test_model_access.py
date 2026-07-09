@@ -313,6 +313,8 @@ def test_create_model_does_not_forward_app_only_profile_keys() -> None:
             profile={
                 "max_input_tokens": 128000,
                 "supports_vision": True,
+                "supports_reasoning": True,
+                "supports_structured_output": False,
                 "image_url_to_base64": True,
             },
         )

@@ -6,6 +6,8 @@ export interface BuildSkillFilesPayloadOptions {
   syncedSkillMarkdown: string;
   isEditing: boolean;
   loadedFilePaths: Set<string>;
+  /** File paths that are pending binary uploads — skip them in text payload */
+  pendingBinaryPaths?: Set<string>;
 }
 
 export function getFileIcon(path: string) {
@@ -118,12 +120,15 @@ export function buildSkillFilesPayload({
   syncedSkillMarkdown,
   isEditing,
   loadedFilePaths,
+  pendingBinaryPaths,
 }: BuildSkillFilesPayloadOptions): Record<string, string> {
   const filesDict: Record<string, string> = {};
 
   for (const file of files) {
     const path = file.path.trim();
     if (!path) continue;
+    // Skip pending binary uploads — they are uploaded separately
+    if (pendingBinaryPaths?.has(path)) continue;
     if (path === "SKILL.md") {
       filesDict[path] = syncedSkillMarkdown;
       continue;

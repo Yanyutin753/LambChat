@@ -142,7 +142,6 @@ export type ExtensionMarketplaceType =
   | "user_agent"
   | "agent"
   | "theme"
-  | "workflow"
   | "provider"
   | "file_viewer"
   | "notification_channel"

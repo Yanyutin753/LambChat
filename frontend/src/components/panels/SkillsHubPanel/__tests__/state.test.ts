@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { resolveSkillsHubTab } from "../state.ts";
 
 test("keeps the requested tab when both permissions are available", () => {
@@ -11,8 +8,8 @@ test("keeps the requested tab when both permissions are available", () => {
 });
 
 test("resolves to local skills when only local skills are available", () => {
-  assert.equal(resolveSkillsHubTab(undefined, true, false), "skills");
-  assert.equal(resolveSkillsHubTab("skills", true, false), "skills");
+  expect(resolveSkillsHubTab(undefined, true, false)).toBe("skills");
+  expect(resolveSkillsHubTab("skills", true, false)).toBe("skills");
 });
 
 test("resolves to marketplace when only marketplace is available", () => {

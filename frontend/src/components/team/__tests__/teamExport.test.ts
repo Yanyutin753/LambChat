@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import { fetchAllTeamsForExport, toTeamExportData } from "../teamExport.ts";
 import type {
   Team,
@@ -42,18 +39,14 @@ test("fetchAllTeamsForExport keeps paging until every team is loaded", async () 
     } satisfies TeamListResponse;
   }, 2);
 
-  assert.deepEqual(
-    calls.map((call) => ({ skip: call.skip, limit: call.limit })),
+  expect(calls.map((call) => ({ skip: call.skip, limit: call.limit }))).toEqual(
     [
       { skip: 0, limit: 2 },
       { skip: 2, limit: 2 },
       { skip: 4, limit: 2 },
     ],
   );
-  assert.deepEqual(
-    teams.map((item) => item.id),
-    ["1", "2", "3", "4", "5"],
-  );
+  expect(teams.map((item) => item.id)).toEqual(["1", "2", "3", "4", "5"]);
 });
 
 test("toTeamExportData keeps fields needed for importing teams later", () => {
@@ -78,7 +71,7 @@ test("toTeamExportData keeps fields needed for importing teams later", () => {
     },
   ]);
 
-  assert.deepEqual(exportData, [
+  expect(exportData).toEqual([
     {
       name: "Team 1",
       description: "",

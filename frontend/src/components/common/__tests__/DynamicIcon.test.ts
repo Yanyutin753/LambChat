@@ -1,10 +1,9 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+/** @vitest-environment jsdom */
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DynamicIcon } from "../DynamicIcon";
 
-test("emoji icons render inside a fixed-size box with a tight line height", () => {
+test("emoji icons render inside a fixed-size box via ImageWithSkeleton", () => {
   const markup = renderToStaticMarkup(
     React.createElement(DynamicIcon, {
       name: "💬",
@@ -13,8 +12,7 @@ test("emoji icons render inside a fixed-size box with a tight line height", () =
     }),
   );
 
-  assert.match(markup, /width:18px/);
-  assert.match(markup, /height:18px/);
-  assert.match(markup, /font-size:18px/);
-  assert.match(markup, /line-height:1/);
+  expect(markup).toMatch(/width:18px/);
+  expect(markup).toMatch(/height:18px/);
+  expect(markup).toMatch(/object-fit:contain/);
 });

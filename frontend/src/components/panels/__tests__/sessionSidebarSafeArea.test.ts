@@ -1,9 +1,6 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import test from "node:test";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(
   resolve(__dirname, "../SessionSidebar.tsx"),
@@ -31,31 +28,32 @@ test("mobile sidebar overlay starts below the iOS safe-area top inset", () => {
     /className=\{`fixed left-0 right-0 z-\[60\][\s\S]*?style=\{\{(?<style>[\s\S]*?)\}\}/,
   )?.groups?.style;
 
-  assert.ok(overlayBlock, "mobile overlay block should be present");
-  assert.match(overlayBlock, /top:\s*"env\(safe-area-inset-top\)"/);
-  assert.match(
-    overlayBlock,
-    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - env\(safe-area-inset-top\)\)"/,
+  expect(overlayBlock).toBeTruthy();
+  expect(overlayBlock).toMatch(
+    /top:\s*"var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\)"/,
+  );
+  expect(overlayBlock).toMatch(
+    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\) - var\(--app-safe-area-bottom-active, var\(--app-safe-area-bottom, 0px\)\)\)"/,
   );
 });
 
 test("mobile sidebar panel starts below the iOS safe-area top inset", () => {
   const panelBlock = mobileSidebarPanelStyle();
 
-  assert.ok(panelBlock, "mobile sidebar panel block should be present");
-  assert.match(panelBlock, /top:\s*"env\(safe-area-inset-top\)"/);
-  assert.match(
-    panelBlock,
-    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - env\(safe-area-inset-top\)\)"/,
+  expect(panelBlock).toBeTruthy();
+  expect(panelBlock).toMatch(
+    /top:\s*"var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\)"/,
   );
-  assert.doesNotMatch(panelBlock, /paddingTop:\s*"env\(safe-area-inset-top\)"/);
+  expect(panelBlock).toMatch(
+    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top-active, var\(--app-safe-area-top, 0px\)\) - var\(--app-safe-area-bottom-active, var\(--app-safe-area-bottom, 0px\)\)\)"/,
+  );
+  expect(panelBlock).not.toMatch(/paddingTop:\s*"env\(safe-area-inset-top\)"/);
 });
 
-test("mobile sidebar panel fills the viewport width", () => {
+test("mobile sidebar panel uses a fixed drawer width", () => {
   const panelClass = mobileSidebarPanelClass();
 
-  assert.ok(panelClass, "mobile sidebar panel class should be present");
-  assert.match(panelClass, /\bw-full\b/);
-  assert.doesNotMatch(panelClass, /\bw-64\b/);
-  assert.doesNotMatch(panelClass, /\brounded-r-lg\b/);
+  expect(panelClass).toBeTruthy();
+  expect(panelClass).toMatch(/\bw-64\b/);
+  expect(panelClass).toMatch(/\brounded-r-lg\b/);
 });

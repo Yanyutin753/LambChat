@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   getAppViewportState,
   getAppViewportHeightCssValue,
@@ -9,109 +7,100 @@ import {
 } from "../appViewport.ts";
 
 test("uses visual viewport height only when the keyboard has reduced the viewport", () => {
-  assert.equal(
+  expect(
     getAppViewportHeightCssValue({
       visualViewportHeight: 512.4,
       windowInnerHeight: 800,
     }),
-    "512px",
-  );
+  ).toBe("512px");
 });
 
 test("lets CSS dynamic viewport units handle normal fullscreen sizing", () => {
-  assert.equal(
+  expect(
     getAppViewportHeightCssValue({
       visualViewportHeight: 760,
       windowInnerHeight: 800,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("uses visible viewport height for direct mobile browser chrome", () => {
-  assert.equal(
+  expect(
     getAppViewportHeightCssValue({
       visualViewportHeight: 724.6,
       windowInnerHeight: 800,
       preferVisibleViewportHeight: true,
     }),
-    "725px",
-  );
+  ).toBe("725px");
 });
 
 test("keeps standalone fullscreen sizing even when visual viewport is shorter", () => {
-  assert.equal(
+  expect(
     getAppViewportHeightCssValue({
       visualViewportHeight: 724.6,
       windowInnerHeight: 800,
       preferVisibleViewportHeight: false,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("does not force a height without visual viewport data", () => {
-  assert.equal(
+  expect(
     getAppViewportHeightCssValue({
       visualViewportHeight: null,
       windowInnerHeight: 760,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("does not force a height when no measured height is available", () => {
-  assert.equal(
+  expect(
     getAppViewportHeightCssValue({
       visualViewportHeight: null,
       windowInnerHeight: null,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("detects keyboard viewport only after a significant visual viewport reduction", () => {
-  assert.equal(
+  expect(
     isKeyboardViewport({
       visualViewportHeight: 690,
       windowInnerHeight: 800,
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     isKeyboardViewport({
       visualViewportHeight: 720,
       windowInnerHeight: 800,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("ignores tiny visual viewport height jitter", () => {
-  assert.equal(shouldUpdateAppViewportHeight("512px", "512px"), false);
-  assert.equal(shouldUpdateAppViewportHeight("512px", "513px"), false);
-  assert.equal(shouldUpdateAppViewportHeight("512px", "516px"), true);
+  expect(shouldUpdateAppViewportHeight("512px", "512px")).toBe(false);
+  expect(shouldUpdateAppViewportHeight("512px", "513px")).toBe(false);
+  expect(shouldUpdateAppViewportHeight("512px", "516px")).toBe(true);
 });
 
 test("tracks keyboard viewport height, top offset, and covered bottom area", () => {
-  assert.deepEqual(
+  expect(
     getAppViewportState({
       visualViewportHeight: 512.4,
       visualViewportOffsetTop: 36.2,
       windowInnerHeight: 800,
       editableFocused: true,
     }),
-    {
-      heightCssValue: "512px",
-      offsetTopCssValue: "36px",
-      keyboardInsetCssValue: "252px",
-      keyboardOpen: true,
-    },
-  );
+  ).toEqual({
+    heightCssValue: "512px",
+    offsetTopCssValue: "36px",
+    keyboardInsetCssValue: "252px",
+    keyboardOpen: true,
+  });
 });
 
 test("does not force keyboard viewport variables when no editable field is focused", () => {
-  assert.deepEqual(
+  expect(
     getAppViewportState({
       visualViewportHeight: 512.4,
       visualViewportOffsetTop: 36.2,
@@ -119,17 +108,16 @@ test("does not force keyboard viewport variables when no editable field is focus
       editableFocused: false,
       preferVisibleViewportHeight: true,
     }),
-    {
-      heightCssValue: "512px",
-      offsetTopCssValue: null,
-      keyboardInsetCssValue: null,
-      keyboardOpen: false,
-    },
-  );
+  ).toEqual({
+    heightCssValue: "512px",
+    offsetTopCssValue: null,
+    keyboardInsetCssValue: null,
+    keyboardOpen: false,
+  });
 });
 
 test("does not use visible viewport preference when visual viewport is taller", () => {
-  assert.deepEqual(
+  expect(
     getAppViewportState({
       visualViewportHeight: 820,
       visualViewportOffsetTop: 0,
@@ -137,46 +125,41 @@ test("does not use visible viewport preference when visual viewport is taller", 
       editableFocused: false,
       preferVisibleViewportHeight: true,
     }),
-    {
-      heightCssValue: null,
-      offsetTopCssValue: null,
-      keyboardInsetCssValue: null,
-      keyboardOpen: false,
-    },
-  );
+  ).toEqual({
+    heightCssValue: null,
+    offsetTopCssValue: null,
+    keyboardInsetCssValue: null,
+    keyboardOpen: false,
+  });
 });
 
 test("prefers visible viewport height only for direct mobile browser access", () => {
-  assert.equal(
+  expect(
     shouldPreferVisibleViewportHeight({
       isMobileDevice: true,
       isStandaloneDisplayMode: false,
       hasVisualViewport: true,
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldPreferVisibleViewportHeight({
       isMobileDevice: true,
       isStandaloneDisplayMode: true,
       hasVisualViewport: true,
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldPreferVisibleViewportHeight({
       isMobileDevice: false,
       isStandaloneDisplayMode: false,
       hasVisualViewport: true,
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldPreferVisibleViewportHeight({
       isMobileDevice: true,
       isStandaloneDisplayMode: false,
       hasVisualViewport: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });

@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_SOURCES = {
     "app_panels.renderer": "frontend/src/components/layout/AppContent/TabContent.tsx",
     "message_actions.renderer": "frontend/src/components/chat/ChatMessage/messageActionRenderers.tsx",
+    "message_renderers.renderer": "frontend/src/components/chat/ChatMessage/pluginMessageRenderers.tsx",
     "chat_input_options.selected_renderer": "frontend/src/components/chat/chatInputSelectedRenderers.tsx",
     "chat_input_panels.renderer": "frontend/src/components/chat/chatInputPanelRenderers.tsx",
     "mention_providers.provider": "frontend/src/components/chat/chatMentionProviderRenderers.tsx",
@@ -22,10 +23,11 @@ REGISTRY_SOURCES = {
     "channel_options.renderer": "frontend/src/components/panels/channel/ChannelPluginOptions.tsx",
     "channel_connectors.panel_renderer": "frontend/src/components/pages/channelConnectorPanelRenderers.tsx",
     "scheduled_task_options.renderer": "frontend/src/components/panels/ScheduledTaskPanel/scheduledTaskOptionRenderers.tsx",
+    "scheduled_task_sections.renderer": "frontend/src/components/panels/ScheduledTaskPanel/scheduledTaskSectionRenderers.tsx",
 }
 
 PLUGIN_REFERENCE_RE = re.compile(
-    r"[\"']((?:agent_team|workflow|feedback|usage_reports|feishu_connector)\.[A-Za-z0-9_]+)[\"']"
+    r"[\"']((?:agent_team|feedback|usage_reports|feishu_connector)\.[A-Za-z0-9_]+)[\"']"
 )
 
 
@@ -89,6 +91,9 @@ def test_builtin_frontend_manifest_references_are_declared_in_kernel_contract() 
         references = {
             "app_panels.renderer": [item.renderer for item in frontend.app_panels],
             "message_actions.renderer": [item.renderer for item in frontend.message_actions],
+            "message_renderers.renderer": [
+                item.renderer for item in frontend.message_renderers
+            ],
             "chat_input_options.selected_renderer": [
                 item.selected_renderer for item in frontend.chat_input_options if item.selected_renderer
             ],
@@ -114,6 +119,9 @@ def test_builtin_frontend_manifest_references_are_declared_in_kernel_contract() 
             ],
             "scheduled_task_options.renderer": [
                 item.renderer for item in frontend.scheduled_task_options if item.renderer
+            ],
+            "scheduled_task_sections.renderer": [
+                item.renderer for item in frontend.scheduled_task_sections
             ],
         }
         for contract_key, values in references.items():

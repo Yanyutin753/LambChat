@@ -647,7 +647,7 @@ const TeamItem = memo(function TeamItem({
                     return (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-[10px] text-theme-text-secondary hover:border-[color-mix(in_srgb,var(--theme-primary)_24%,var(--theme-border))] transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-[10px] text-theme-text-secondary hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
                       >
                         <span className="inline-flex w-3.5 h-3.5 items-center justify-center overflow-hidden rounded shrink-0">
                           <RenderAvatar
@@ -675,7 +675,7 @@ const TeamItem = memo(function TeamItem({
             )}
 
             {!isSearch && resultTeamName && (
-              <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-primary)_24%,var(--theme-border))] transition-colors">
+              <div className="flex items-center gap-2 rounded-lg px-2.5 py-2 bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors">
                 <div className="w-5 h-5 rounded flex items-center justify-center text-xs leading-none shrink-0 bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] overflow-hidden">
                   <RenderAvatar
                     avatar={resultAvatar}

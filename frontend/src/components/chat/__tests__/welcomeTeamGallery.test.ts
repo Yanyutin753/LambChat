@@ -1,7 +1,5 @@
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const welcomePageSource = readFileSync(
   new URL("../WelcomePage.tsx", import.meta.url),
   "utf8",
@@ -52,8 +50,7 @@ test("welcome page projects @ mentions through the active welcome surface", () =
     welcomePageSource,
     /hasWelcomeSurface \? !selectedTeamId : !selectedPersonaPresetId/,
   );
-  assert.match(
-    welcomePageSource,
+  expect(welcomePageSource).toMatch(
     /onMentionQueryChange=\{\s*shouldProjectMentionsToWelcome\s*\?\s*handleMentionQueryChange\s*:\s*undefined\s*\}/,
   );
 });

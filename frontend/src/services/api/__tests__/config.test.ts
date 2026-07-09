@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   buildApiUrl,
   buildUploadProxyUrl,
@@ -11,57 +8,56 @@ import {
 } from "../config.ts";
 
 test("buildApiUrl keeps same-origin deployments relative", () => {
-  assert.equal(buildApiUrl("/api/health", ""), "/api/health");
+  expect(buildApiUrl("/api/health", "")).toBe("/api/health");
 });
 
 test("buildApiUrl prefixes relative backend paths for packaged apps", () => {
-  assert.equal(
-    buildApiUrl("/api/health", "https://chat.example.com/"),
+  expect(buildApiUrl("/api/health", "https://chat.example.com/")).toBe(
     "https://chat.example.com/api/health",
   );
 });
 
 test("getFullUrl prefers the configured backend for relative file URLs", () => {
-  assert.equal(
+  expect(
     getFullUrl("/api/upload/file/report.pdf", "https://chat.example.com"),
-    "https://chat.example.com/api/upload/file/report.pdf",
-  );
+  ).toBe("https://chat.example.com/api/upload/file/report.pdf");
 });
 
 test("buildUploadProxyUrl leaves upload proxy URLs unchanged on web", () => {
-  assert.equal(
+  expect(
     buildUploadProxyUrl(
       "/api/upload/file/revealed_files/report.pdf",
       "https://chat.example.com",
     ),
-    "https://chat.example.com/api/upload/file/revealed_files/report.pdf",
-  );
+  ).toBe("https://chat.example.com/api/upload/file/revealed_files/report.pdf");
 });
 
 test("buildUploadProxyUrl appends proxy mode to upload proxy URLs in native apps", () => {
-  assert.equal(
+  expect(
     buildUploadProxyUrl(
       "/api/upload/file/revealed_files/report.pdf",
       "https://chat.example.com",
       { locationLike: { protocol: "capacitor:" } },
     ),
+  ).toBe(
     "https://chat.example.com/api/upload/file/revealed_files/report.pdf?proxy=true",
   );
 });
 
 test("buildUploadProxyUrl preserves existing query params in native apps", () => {
-  assert.equal(
+  expect(
     buildUploadProxyUrl(
       "https://chat.example.com/api/upload/file/revealed_files/report.pdf?download=0",
       "",
       { locationLike: { protocol: "tauri:" } },
     ),
+  ).toBe(
     "https://chat.example.com/api/upload/file/revealed_files/report.pdf?download=0&proxy=true",
   );
 });
 
 test("buildUploadProxyUrl leaves non-upload URLs unchanged", () => {
-  assert.equal(
+  expect(
     buildUploadProxyUrl(
       "https://oss.example.com/revealed_files/report.pdf",
       "",
@@ -69,12 +65,11 @@ test("buildUploadProxyUrl leaves non-upload URLs unchanged", () => {
         locationLike: { protocol: "capacitor:" },
       },
     ),
-    "https://oss.example.com/revealed_files/report.pdf",
-  );
+  ).toBe("https://oss.example.com/revealed_files/report.pdf");
 });
 
 test("buildUploadProxyUrlFromKey keeps native app image URLs web-compatible by default", () => {
-  assert.equal(
+  expect(
     buildUploadProxyUrlFromKey(
       "revealed files/report 1.pdf",
       "https://chat.example.com",
@@ -82,12 +77,13 @@ test("buildUploadProxyUrlFromKey keeps native app image URLs web-compatible by d
         locationLike: { protocol: "capacitor:" },
       },
     ),
+  ).toBe(
     "https://chat.example.com/api/upload/file/revealed%20files/report%201.pdf",
   );
 });
 
 test("buildUploadProxyUrlFromKey can force proxy mode for native content fetches", () => {
-  assert.equal(
+  expect(
     buildUploadProxyUrlFromKey(
       "revealed files/report 1.pdf",
       "https://chat.example.com",
@@ -96,35 +92,33 @@ test("buildUploadProxyUrlFromKey can force proxy mode for native content fetches
         locationLike: { protocol: "https:" },
       },
     ),
+  ).toBe(
     "https://chat.example.com/api/upload/file/revealed%20files/report%201.pdf?proxy=true",
   );
 });
 
 test("isNativeAppRuntime detects native webview origins and bridges", () => {
-  assert.equal(isNativeAppRuntime({ protocol: "capacitor:" }), true);
-  assert.equal(isNativeAppRuntime({ protocol: "https:" }), false);
-  assert.equal(
+  expect(isNativeAppRuntime({ protocol: "capacitor:" })).toBe(true);
+  expect(isNativeAppRuntime({ protocol: "https:" })).toBe(false);
+  expect(
     isNativeAppRuntime(
       { protocol: "https:" },
       { Capacitor: { isNativePlatform: () => true } },
     ),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("buildWebSocketUrl points packaged apps at the configured backend", () => {
-  assert.equal(
-    buildWebSocketUrl("/ws", "https://chat.example.com"),
+  expect(buildWebSocketUrl("/ws", "https://chat.example.com")).toBe(
     "wss://chat.example.com/ws",
   );
 });
 
 test("buildWebSocketUrl keeps same-origin browser deployments on window host", () => {
-  assert.equal(
+  expect(
     buildWebSocketUrl("/ws", "", {
       protocol: "http:",
       host: "localhost:3001",
     }),
-    "ws://localhost:3001/ws",
-  );
+  ).toBe("ws://localhost:3001/ws");
 });

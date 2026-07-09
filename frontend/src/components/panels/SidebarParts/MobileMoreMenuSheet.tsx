@@ -76,7 +76,7 @@ export function MobileMoreMenuSheet({
           </span>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-[var(--theme-primary-light)]"
+            className="p-1 rounded-full hover:bg-[var(--theme-bg-subtle)]"
           >
             <X size={16} className="text-[var(--theme-text-secondary)]" />
           </button>

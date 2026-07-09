@@ -50,7 +50,8 @@ class _FakeDualWriter:
     async def _flush_redis_buffer(self):
         return None
 
-    async def flush_mongo_buffer(self):
+    async def flush_mongo_buffer(self, **kwargs):
+        del kwargs
         return None
 
     async def complete_trace(self, trace_id: str, status: str, metadata=None):
@@ -80,6 +81,16 @@ class _FakeStorage:
             (),
             {"metadata": {"current_run_id": self.current_run_id}},
         )()
+
+
+def _presenter():
+    return create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+    )
 
 
 @pytest.mark.asyncio
@@ -149,11 +160,19 @@ async def test_interrupted_task_uses_cancelled_metadata(
     storage = _FakeStorage()
     writer = _FakeDualWriter()
     executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=None)  # type: ignore[arg-type]
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+    )
 
     async def _no_op(*args, **kwargs):
         return None
 
     monkeypatch.setattr(executor, "_send_task_notification", _no_op)
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
 
     await executor._handle_interrupted_error(
         "session-1",
@@ -172,18 +191,12 @@ async def test_interrupted_task_uses_cancelled_metadata(
 
 
 @pytest.mark.asyncio
-async def test_cancelled_task_emits_usage_then_done_before_terminal_cleanup(
+async def test_cancelled_task_emits_user_cancel_before_done(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     writer = _FakeDualWriter()
     executor = TaskExecutor(storage=None, run_info={}, heartbeat_manager=None)  # type: ignore[arg-type]
-    presenter = create_presenter(
-        session_id="session-1",
-        agent_id="search",
-        agent_name="Search",
-        run_id="run-1",
-        trace_id="trace-1",
-    )
+    presenter = _presenter()
 
     async def _no_op(*args, **kwargs):
         return None
@@ -200,10 +213,90 @@ async def test_cancelled_task_emits_usage_then_done_before_terminal_cleanup(
         presenter,
     )
 
-    assert [event["event_type"] for event in writer.events[:2]] == ["token:usage", "done"]
-    assert [event["trace_id"] for event in writer.events[:2]] == ["trace-1", "trace-1"]
-    assert [event["run_id"] for event in writer.events[:2]] == ["run-1", "run-1"]
+    assert [event["event_type"] for event in writer.events] == [
+        "token:usage",
+        "user:cancel",
+        "error",
+        "done",
+    ]
+    assert [event["trace_id"] for event in writer.events] == [
+        "trace-1",
+        "trace-1",
+        "trace-1",
+        "trace-1",
+    ]
+    assert [event["run_id"] for event in writer.events] == [
+        "run-1",
+        "run-1",
+        "run-1",
+        "run-1",
+    ]
     assert writer.expired_streams == [("session-1", "run-1", 60)]
+
+
+@pytest.mark.asyncio
+async def test_interrupted_task_emits_user_cancel_before_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    writer = _FakeDualWriter()
+    executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=None)  # type: ignore[arg-type]
+    presenter = _presenter()
+
+    async def _no_op(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(executor, "_send_task_notification", _no_op)
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+
+    await executor._handle_interrupted_error(
+        "session-1",
+        "run-1",
+        "user-1",
+        "Task interrupted: run_id=run-1",
+        writer,
+        presenter,
+    )
+
+    assert [event["event_type"] for event in writer.events] == [
+        "token:usage",
+        "user:cancel",
+        "error",
+        "done",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_interrupted_task_reorders_previously_recorded_done_after_user_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    writer = _FakeDualWriter()
+    executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=None)  # type: ignore[arg-type]
+    presenter = _presenter()
+
+    async def _no_op(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(executor, "_send_task_notification", _no_op)
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+
+    await presenter.emit(presenter.done())
+    await executor._handle_interrupted_error(
+        "session-1",
+        "run-1",
+        "user-1",
+        "Task interrupted: run_id=run-1",
+        writer,
+        presenter,
+    )
+
+    assert [event["event_type"] for event in writer.events] == [
+        "token:usage",
+        "user:cancel",
+        "error",
+        "done",
+    ]
 
 
 @pytest.mark.asyncio

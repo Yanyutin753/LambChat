@@ -554,6 +554,7 @@ class BaseGraphAgent(ABC):
                     drained += 1
 
             try:
+                terminal_error: BaseException | None = None
                 while True:
                     # 使用 wait_for 定期检查中断信号
                     # 即使 LLM 请求阻塞，也能响应取消
@@ -584,10 +585,12 @@ class BaseGraphAgent(ABC):
                     # 使用 AgentEventProcessor 处理事件
                     await event_processor.process_event(item_data)
 
-            except (asyncio.CancelledError, TaskInterruptedError):
+            except (asyncio.CancelledError, TaskInterruptedError) as exc:
+                terminal_error = exc
                 await drain_event_queue()
                 raise
-            except Exception:
+            except Exception as exc:
+                terminal_error = exc
                 await drain_event_queue()
                 raise
             finally:
@@ -614,7 +617,8 @@ class BaseGraphAgent(ABC):
                         "data": goal_end_data,
                     }
                     await presenter.emit(goal_end_evt)
-                await presenter.emit(presenter.done())
+                if terminal_error is None:
+                    await presenter.emit(presenter.done())
 
             # 先 yield goal:end，再 yield done
             if active_goal is not None:

@@ -78,6 +78,7 @@ function structuredFrontendDeclarationLabels(plugin: PluginRuntimePlugin): strin
     ...plugin.frontend.session_options.map((value) => `session option ${plugin.plugin_id}.${value.key}`),
     ...(plugin.frontend.channel_options ?? []).map((value) => `channel option ${plugin.plugin_id}.${value.key}`),
     ...plugin.frontend.tool_renderers.map((value) => `renderer ${formatToolRendererContribution(value)}`),
+    ...plugin.frontend.message_renderers.map((value) => `message renderer ${value.renderer}`),
     ...plugin.frontend.file_viewers.map((value) => `viewer ${formatFileViewerContribution(value)}`),
     ...plugin.frontend.skill_importers.map((value) => `importer ${formatSkillImporterContribution(value)}`),
     ...plugin.frontend.channel_connectors.map((value) => `connector ${formatChannelConnectorContribution(value)}`),
@@ -85,6 +86,7 @@ function structuredFrontendDeclarationLabels(plugin: PluginRuntimePlugin): strin
     ...plugin.frontend.assistant_identity_resolvers.map((value) => `assistant identity ${value.resolver}`),
     ...plugin.frontend.agent_categories.map((value) => `agent category ${value.id}`),
     ...plugin.frontend.scheduled_task_options.map((value) => `scheduled task option ${plugin.plugin_id}.${value.key}`),
+    ...(plugin.frontend.scheduled_task_sections ?? []).map((value) => `scheduled task section ${value.renderer}`),
     ...plugin.frontend.settings_sections.map((value) => `settings ${value}`),
     ...plugin.frontend.i18n_namespaces.map((value) => `i18n ${value}`),
     ...assetSlots.map((value) => `asset slot ${value}`),
@@ -112,7 +114,9 @@ export function structuredFrontendContributionCount(plugin: PluginRuntimePlugin)
     plugin.frontend.session_options.length +
     (plugin.frontend.channel_options ?? []).length +
     plugin.frontend.scheduled_task_options.length +
+    (plugin.frontend.scheduled_task_sections ?? []).length +
     plugin.frontend.tool_renderers.length +
+    plugin.frontend.message_renderers.length +
     plugin.frontend.file_viewers.length +
     plugin.frontend.skill_importers.length +
     plugin.frontend.channel_connectors.length +
@@ -169,7 +173,9 @@ export function pluginContributionLabels(plugin: PluginRuntimePlugin): string[] 
     ...plugin.frontend.session_options.map((value) => `Session Option ${plugin.plugin_id}.${value.key}`),
     ...(plugin.frontend.channel_options ?? []).map((value) => `Channel Option ${plugin.plugin_id}.${value.key}`),
     ...plugin.frontend.scheduled_task_options.map((value) => `Scheduled Task Option ${plugin.plugin_id}.${value.key}`),
+    ...(plugin.frontend.scheduled_task_sections ?? []).map((value) => `Scheduled Task Section ${value.renderer}`),
     ...plugin.frontend.tool_renderers.map((value) => `Renderer ${formatToolRendererContribution(value)}`),
+    ...plugin.frontend.message_renderers.map((value) => `Message Renderer ${value.renderer}`),
     ...plugin.frontend.file_viewers.map((value) => `Viewer ${formatFileViewerContribution(value)}`),
     ...plugin.frontend.skill_importers.map((value) => `Importer ${formatSkillImporterContribution(value)}`),
     ...plugin.frontend.channel_connectors.map((value) => `Connector ${formatChannelConnectorContribution(value)}`),
@@ -216,6 +222,7 @@ export function pluginContributionGroups(plugin: PluginRuntimePlugin): PluginCon
           formatChatInputOptionLabel(value, "Chat Option"),
         ),
         ...plugin.frontend.chat_input_panels.map((value) => `Chat Panel ${value.renderer}`),
+        ...plugin.frontend.message_renderers.map((value) => `Message Renderer ${value.renderer}`),
         ...plugin.frontend.mention_providers.map((value) => `Mention ${value.mode} -> ${value.provider}`),
         ...plugin.frontend.welcome_surfaces.map((value) => `Welcome ${value.agent_id} -> ${value.renderer}`),
         ...plugin.frontend.assistant_identity_resolvers.map((value) => `Assistant Identity ${value.agent_id} -> ${value.resolver}`),
@@ -237,6 +244,7 @@ export function pluginContributionGroups(plugin: PluginRuntimePlugin): PluginCon
         ...plugin.frontend.session_options.map((value) => `Session ${plugin.plugin_id}.${value.key}`),
         ...(plugin.frontend.channel_options ?? []).map((value) => `Channel ${plugin.plugin_id}.${value.key}`),
         ...plugin.frontend.scheduled_task_options.map((value) => `Scheduled Task ${plugin.plugin_id}.${value.key}`),
+        ...(plugin.frontend.scheduled_task_sections ?? []).map((value) => `Scheduled Task Section ${value.renderer}`),
       ]),
     },
     {
@@ -244,6 +252,7 @@ export function pluginContributionGroups(plugin: PluginRuntimePlugin): PluginCon
       title: "Integrations",
       entries: uniqueValues([
         ...plugin.frontend.tool_renderers.map((value) => `Tool Renderer ${formatToolRendererContribution(value)}`),
+        ...plugin.frontend.message_renderers.map((value) => `Message Renderer ${value.renderer}`),
         ...plugin.frontend.file_viewers.map((value) => `File Viewer ${formatFileViewerContribution(value)}`),
         ...plugin.frontend.skill_importers.map((value) => `Skill Importer ${formatSkillImporterContribution(value)}`),
         ...plugin.frontend.channel_connectors.map((value) => `Channel Connector ${formatChannelConnectorContribution(value)}`),

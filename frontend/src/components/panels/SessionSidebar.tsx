@@ -779,10 +779,17 @@ export const SessionSidebar = forwardRef<
       {!isMobile && (
         <DesktopMoreMenu
           featureItems={moreMenu.moreMenuFeatureItems}
-          isOpen={moreMenu.isMoreMenuOpen && moreMenu.moreMenuPosition !== null}
+          isOpen={
+            moreMenu.isMoreMenuOpen &&
+            Object.keys(moreMenu.moreMenuPosition).length > 0
+          }
           onClose={() => moreMenu.setIsMoreMenuOpen(false)}
           menuRef={moreMenu.moreMenuRef}
-          position={moreMenu.moreMenuPosition}
+          position={
+            Object.keys(moreMenu.moreMenuPosition).length > 0
+              ? (moreMenu.moreMenuPosition as { top: number; left: number })
+              : null
+          }
         />
       )}
     </>

@@ -15,7 +15,6 @@ import {
 import { buildTaskNotificationCopy } from "./taskNotificationContent";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
 import { isMobileDevice } from "../../../utils/mobile";
-import { TaskToastMarkdown } from "./TaskToastMarkdown";
 
 interface UseWebSocketNotificationsOptions {
   sessionId: string | null;
@@ -225,8 +224,8 @@ export function useWebSocketNotifications({
                 <div className="line-clamp-1 text-[13px] font-semibold leading-tight">
                   {notificationCopy.title}
                 </div>
-                <div className="mt-0.5">
-                  <TaskToastMarkdown content={notificationCopy.body} />
+                <div className="mt-0.5 line-clamp-1 text-xs leading-snug text-stone-500 dark:text-stone-400">
+                  {notificationCopy.body}
                 </div>
               </div>
             </div>

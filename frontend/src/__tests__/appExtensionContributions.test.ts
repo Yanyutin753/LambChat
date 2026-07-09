@@ -1,14 +1,10 @@
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 
 const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
 const hookSource = readFileSync(
   new URL("../hooks/useExtensionContributions.ts", import.meta.url),
-  "utf8",
-);
-const tabContentSource = readFileSync(
-  new URL("../components/layout/AppContent/TabContent.tsx", import.meta.url),
   "utf8",
 );
 
@@ -33,30 +29,15 @@ test("plugin-owned app routes are generated from runtime contributions only", ()
 });
 
 test("plugin-owned app routes show a loading route while contributions load", () => {
-  assert.match(appSource, /matchPath/);
   assert.match(appSource, /useLocation\(\)/);
   assert.match(appSource, /isLoading:\s*areExtensionContributionsLoading/);
-  assert.match(appSource, /BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS/);
-  assert.match(appSource, /"\/agent-team"/);
-  assert.match(appSource, /"\/workflows"/);
-  assert.match(appSource, /"\/workflows\/:workflowId\/editor"/);
-  assert.match(appSource, /"\/workflows\/:workflowId\/runs\/:runId"/);
+  assert.match(appSource, /CORE_APP_ROUTE_LOADING_PATHS/);
+  assert.match(appSource, /isKnownNonPluginPath/);
   assert.doesNotMatch(appSource, /"\/team"/);
   assert.match(appSource, /shouldShowPluginRouteLoading/);
-  assert.match(appSource, /matchPath\(\{ path, end: true \}, location\.pathname\)/);
+  assert.match(appSource, /!isKnownNonPluginPath/);
   assert.match(appSource, /path=\{location\.pathname\}/);
   assert.match(appSource, /<ChatPageSkeleton \/>/);
-});
-
-test("Workflow routes and panel stay plugin-owned", () => {
-  assert.doesNotMatch(appSource, /workflowFallbackRoutes/);
-  assert.doesNotMatch(appSource, /missingWorkflowFallbackRoutes/);
-  assert.doesNotMatch(appSource, /pluginId: "workflow"/);
-  assert.doesNotMatch(tabContentSource, /workflows: WorkflowPanel/);
-  assert.match(tabContentSource, /"workflow\.WorkflowPanel": WorkflowPanel/);
-  assert.match(tabContentSource, /activeTab === "workflows"/);
-  assert.match(tabContentSource, /activeTab === "workflows-editor"/);
-  assert.match(tabContentSource, /activeTab === "workflows-run"/);
 });
 
 test("extension contribution hook uses the lightweight host endpoint and runtime update event", () => {

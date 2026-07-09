@@ -260,7 +260,7 @@ function UserFormModal({
                 {roles.map((role) => (
                   <label
                     key={role.id}
-                    className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40"
+                    className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
                   >
                     <Checkbox
                       size="sm"
@@ -281,7 +281,7 @@ function UserFormModal({
         {/* 状态 */}
         {isEditing && (
           <div className="es-field">
-            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40">
+            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]">
               <Checkbox
                 size="sm"
                 checked={isActive}

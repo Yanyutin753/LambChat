@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   dispatchToolMutationRefresh,
   getPersonaPresetMutationDetail,
@@ -16,27 +13,25 @@ import {
 } from "../../../../../hooks/teamEvents.ts";
 
 test("recognizes persona preset mutation payloads from tool results", () => {
-  assert.deepEqual(
+  expect(
     getPersonaPresetMutationDetail({
       action: "created",
       entity_type: "persona_preset",
       preset: { id: "preset-1", name: "Planner" },
       message: "Created",
     }),
-    { action: "created", presetId: "preset-1", presetName: "Planner" },
-  );
+  ).toEqual({ action: "created", presetId: "preset-1", presetName: "Planner" });
 });
 
 test("recognizes team mutation payloads from tool results", () => {
-  assert.deepEqual(
+  expect(
     getTeamMutationDetail({
       action: "updated",
       entity_type: "team",
       team_id: "team-1",
       team: { id: "team-1", name: "Research Team" },
     }),
-    { action: "updated", teamId: "team-1", teamName: "Research Team" },
-  );
+  ).toEqual({ action: "updated", teamId: "team-1", teamName: "Research Team" });
 });
 
 test("dispatches matching mutation refresh events", () => {
@@ -73,12 +68,12 @@ test("dispatches matching mutation refresh events", () => {
   unsubscribePersonas();
   unsubscribeTeams();
 
-  assert.equal(dispatchedPersona, true);
-  assert.equal(dispatchedTeam, true);
-  assert.deepEqual(seenPersonas, [
+  expect(dispatchedPersona).toBe(true);
+  expect(dispatchedTeam).toBe(true);
+  expect(seenPersonas).toEqual([
     { action: "created", presetId: "preset-2", presetName: "Writer" },
   ]);
-  assert.deepEqual(seenTeams, [
+  expect(seenTeams).toEqual([
     { action: "updated", teamId: "team-2", teamName: "Launch Team" },
   ]);
 });

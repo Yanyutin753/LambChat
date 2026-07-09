@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 function readSource(relativePath: string): string {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8");
 }
@@ -12,29 +9,25 @@ test("file operation pills render full file paths without path-breaking formatti
   const editFileItem = readSource("../EditFileItem.tsx");
   const lsItem = readSource("../LsItem.tsx");
 
-  assert.match(
-    readFileItem,
+  expect(readFileItem).toMatch(
     /label=\{`\$\{t\("chat\.message\.toolRead"\)\} \$\{filePath \|\| ""\}`\}/,
   );
-  assert.match(readFileItem, /formatLabel=\{false\}/);
+  expect(readFileItem).toMatch(/formatLabel=\{false\}/);
 
-  assert.match(
-    writeFileItem,
+  expect(writeFileItem).toMatch(
     /label=\{`\$\{t\("chat\.message\.toolWrite"\)\} \$\{filePath \|\| ""\}`\}/,
   );
-  assert.match(writeFileItem, /formatLabel=\{false\}/);
+  expect(writeFileItem).toMatch(/formatLabel=\{false\}/);
 
-  assert.match(
-    editFileItem,
+  expect(editFileItem).toMatch(
     /label=\{`\$\{t\("chat\.message\.toolEdit"\)\} \$\{filePath \|\| ""\}`\}/,
   );
-  assert.match(editFileItem, /formatLabel=\{false\}/);
+  expect(editFileItem).toMatch(/formatLabel=\{false\}/);
 
-  assert.match(
-    lsItem,
+  expect(lsItem).toMatch(
     /label=\{`\$\{t\("chat\.message\.toolLs"\)\} \$\{dirPath\}`\}/,
   );
-  assert.match(lsItem, /formatLabel=\{false\}/);
+  expect(lsItem).toMatch(/formatLabel=\{false\}/);
 });
 
 test("collapsible pill always truncates labels to prevent overflow", () => {
@@ -43,7 +36,7 @@ test("collapsible pill always truncates labels to prevent overflow", () => {
     "utf8",
   );
 
-  assert.match(source, /"font-mono min-w-0 truncate overflow-hidden[^"]*"/);
+  expect(source).toMatch(/"font-mono min-w-0 truncate overflow-hidden[^"]*"/);
 });
 
 test("collapsible pill can preserve labels without path-breaking formatting", () => {
@@ -52,12 +45,11 @@ test("collapsible pill can preserve labels without path-breaking formatting", ()
     "utf8",
   );
 
-  assert.match(source, /formatLabel\?: boolean/);
-  assert.match(
-    source,
+  expect(source).toMatch(/formatLabel\?: boolean/);
+  expect(source).toMatch(
     /const displayedLabel = formatLabel \? formattedLabel : label/,
   );
-  assert.match(source, /\{displayedLabel\}/);
+  expect(source).toMatch(/\{displayedLabel\}/);
 });
 
 test("collapsible pill uses a non-submit button for form-safe tool clicks", () => {
@@ -66,18 +58,18 @@ test("collapsible pill uses a non-submit button for form-safe tool clicks", () =
     "utf8",
   );
 
-  assert.match(source, /<button[\s\S]*type="button"/);
+  expect(source).toMatch(/<button[\s\S]*type="button"/);
 });
 
 test("ls tool panel has a stable key so repeated clicks keep the sidebar open", () => {
   const source = readSource("../LsItem.tsx");
 
-  assert.match(source, /panelKey:\s*`ls:\$\{dirPath\}`/);
+  expect(source).toMatch(/panelKey:\s*`ls:\$\{dirPath\}`/);
 });
 
 test("ls tool opens from any non-empty result even when entries do not parse", () => {
   const source = readSource("../LsItem.tsx");
 
-  assert.match(source, /const rawText = extractText\(result\);/);
-  assert.match(source, /const canExpand = rawText\.trim\(\)\.length > 0;/);
+  expect(source).toMatch(/const rawText = extractText\(result\);/);
+  expect(source).toMatch(/const canExpand = rawText\.trim\(\)\.length > 0;/);
 });

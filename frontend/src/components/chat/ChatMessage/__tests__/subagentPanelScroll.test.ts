@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   isNearSubagentPanelBottom,
   startSubagentPanelScrollToBottom,
@@ -7,23 +5,21 @@ import {
 } from "../subagentPanelScroll.ts";
 
 test("detects whether the subagent panel is near the bottom", () => {
-  assert.equal(
+  expect(
     isNearSubagentPanelBottom({
       scrollTop: 368,
       clientHeight: 100,
       scrollHeight: 500,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     isNearSubagentPanelBottom({
       scrollTop: 300,
       clientHeight: 100,
       scrollHeight: 500,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("keeps subagent panel bottom-locked unless the user scrolled up", () => {
@@ -33,31 +29,28 @@ test("keeps subagent panel bottom-locked unless the user scrolled up", () => {
     scrollHeight: 500,
   };
 
-  assert.equal(
+  expect(
     shouldAutoScrollSubagentPanel({
       scroller,
       userScrolledUp: false,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldAutoScrollSubagentPanel({
       scroller,
       userScrolledUp: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not auto-scroll before the panel scroller mounts", () => {
-  assert.equal(
+  expect(
     shouldAutoScrollSubagentPanel({
       scroller: null,
       userScrolledUp: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("keeps scrolling to the subagent panel bottom while content height is settling", async () => {
@@ -73,12 +66,12 @@ test("keeps scrolling to the subagent panel bottom while content height is settl
     maxAttempts: 6,
   });
 
-  assert.equal(scroller.scrollTop, 500);
+  expect(scroller.scrollTop).toBe(500);
 
   scroller.scrollHeight = 900;
 
   await new Promise((resolve) => setTimeout(resolve, 15));
   stop();
 
-  assert.equal(scroller.scrollTop, 900);
+  expect(scroller.scrollTop).toBe(900);
 });

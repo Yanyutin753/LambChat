@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   buildScheduledTaskInputPayload,
   getScheduledTaskPersonaPresetId,
@@ -8,7 +5,7 @@ import {
 } from "../scheduledTaskPayload.ts";
 
 test("clearing the model removes stale scheduled task agent options", () => {
-  assert.deepEqual(
+  expect(
     buildScheduledTaskInputPayload(
       {
         message: "run",
@@ -25,14 +22,13 @@ test("clearing the model removes stale scheduled task agent options", () => {
         availableModels: null,
       },
     ),
-    {
-      message: "run",
-    },
-  );
+  ).toEqual({
+    message: "run",
+  });
 });
 
 test("clearing the model preserves non-model agent options", () => {
-  assert.deepEqual(
+  expect(
     buildScheduledTaskInputPayload(
       {
         message: "run",
@@ -48,13 +44,12 @@ test("clearing the model preserves non-model agent options", () => {
         availableModels: null,
       },
     ),
-    {
-      message: "run",
-      agent_options: {
-        temperature: 0.2,
-      },
+  ).toEqual({
+    message: "run",
+    agent_options: {
+      temperature: 0.2,
     },
-  );
+  });
 });
 
 test("scheduled tasks without plugin declarations preserve existing plugin options", () => {
@@ -119,7 +114,6 @@ test("scheduled tasks store declared plugin option values generically", () => {
       message: "run",
       plugin_options: {
         agent_team: { SELECTED_TEAM_ID: "team-1" },
-        another_plugin: { KEEP: true },
       },
     },
   );

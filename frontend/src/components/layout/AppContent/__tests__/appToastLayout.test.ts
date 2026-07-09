@@ -1,18 +1,13 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import { getAppToastSidebarOffset } from "../appToastLayout.ts";
 
 test("uses the rail width as the toast sidebar offset when the sidebar is collapsed", () => {
-  assert.equal(
-    getAppToastSidebarOffset({ sidebarCollapsed: true }),
+  expect(getAppToastSidebarOffset({ sidebarCollapsed: true })).toBe(
     "var(--sidebar-rail-width)",
   );
 });
 
 test("uses the full sidebar width as the toast sidebar offset when the sidebar is expanded", () => {
-  assert.equal(
-    getAppToastSidebarOffset({ sidebarCollapsed: false }),
+  expect(getAppToastSidebarOffset({ sidebarCollapsed: false })).toBe(
     "var(--sidebar-width)",
   );
 });

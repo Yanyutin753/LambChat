@@ -15,6 +15,7 @@
     "format": "make format",
     "typecheck": "make typecheck",
     "test": "make test",
+    "test:frontend": "make frontend-test",
     "pre-commit": "make pre-commit",
     "check": "make check-all",
     "ruff": "uv run ruff check .",

@@ -184,6 +184,10 @@ export function ChatAppContent({
     newlyCreatedSession,
     activeGoal,
     goalsByRunId,
+    autoModeEnabled,
+    goalModeEnabled,
+    setAutoModeEnabled,
+    setGoalModeEnabled,
     sendMessage,
     clearActiveGoal,
     stopGeneration,
@@ -1010,6 +1014,10 @@ export function ChatAppContent({
           activeGoal={activeGoal}
           goalsByRunId={goalsByRunId}
           onClearActiveGoal={clearActiveGoal}
+          autoModeEnabled={autoModeEnabled}
+          goalModeEnabled={goalModeEnabled}
+          onToggleAutoMode={setAutoModeEnabled}
+          onToggleGoalMode={setGoalModeEnabled}
           attachments={pageDragAttachments}
           onAttachmentsChange={setPageDragAttachments}
           externalNavigationToken={externalNavigationToken}

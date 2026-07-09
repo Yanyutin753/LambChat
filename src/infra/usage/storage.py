@@ -172,9 +172,30 @@ class UsageStorage:
                 usage_event = event.get("data", {})
                 break
 
+        return await self.upsert_usage_log_from_trace_metadata(trace_doc, usage_event)
+
+    async def upsert_usage_log_from_trace_metadata(
+        self,
+        trace_doc: Dict[str, Any],
+        usage_data: Optional[Dict[str, Any]],
+    ) -> bool:
+        """
+        使用 trace 元数据和已解析的 token:usage 数据写入 usage_logs。
+
+        Args:
+            trace_doc: trace 元数据（不需要包含完整 events）
+            usage_data: 最后一条 token:usage 事件的 data；缺失时按 0 处理
+
+        Returns:
+            是否写入成功
+        """
+        trace_id = trace_doc.get("trace_id")
+        if not trace_id:
+            return False
+
         metadata = trace_doc.get("metadata", {}) or {}
         session_metadata = await self._get_session_metadata(str(trace_doc.get("session_id") or ""))
-        usage_data = usage_event or {}
+        usage_data = usage_data or {}
         input_tokens = _as_int(usage_data.get("input_tokens", 0))
         output_tokens = _as_int(usage_data.get("output_tokens", 0))
         total_tokens = _as_int(usage_data.get("total_tokens", 0))

@@ -171,7 +171,7 @@ def build_pluginization_acceptance_matrix(
                 "plugin_failure_isolated",
                 "plugin_resource_ledger_present",
                 "plugin_uninstall_dry_run_present",
-                "legacy_workflows_compatible",
+                "legacy_surface_compatible",
             }
             <= feedback_gate_ids,
             evidence_refs=(

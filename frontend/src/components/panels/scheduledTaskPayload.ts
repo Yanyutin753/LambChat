@@ -1,4 +1,5 @@
 import type { AvailableModel } from "../../contexts/SettingsContext";
+import type { MessageAttachment } from "../../types";
 import {
   hasEffectiveCorePersonaSuppressingOption,
   importLegacyPayloadPluginOptions,
@@ -43,6 +44,37 @@ export function getScheduledTaskPersonaPresetId(
   return typeof value === "string" ? value : "";
 }
 
+export function getScheduledTaskTeamId(
+  payload: Record<string, unknown> | undefined,
+): string {
+  const selectedTeamId = getScheduledTaskPluginOptionStringValue(payload, {
+    plugin_id: "agent_team",
+    key: "SELECTED_TEAM_ID",
+    legacy_payload_keys: ["team_id"],
+  });
+  return selectedTeamId;
+}
+
+export function getScheduledTaskAttachments(
+  payload: Record<string, unknown> | undefined,
+): MessageAttachment[] {
+  const attachments = payload?.attachments;
+  return Array.isArray(attachments) ? (attachments as MessageAttachment[]) : [];
+}
+
+export function withScheduledTaskAttachments(
+  payload: Record<string, unknown>,
+  attachments: MessageAttachment[],
+): Record<string, unknown> {
+  const nextPayload = { ...payload };
+  if (attachments.length > 0) {
+    nextPayload.attachments = attachments;
+  } else {
+    delete nextPayload.attachments;
+  }
+  return nextPayload;
+}
+
 export function getScheduledTaskPluginOptionStringValue(
   payload: Record<string, unknown> | undefined,
   option: ScopedPluginOptionLike,
@@ -72,6 +104,19 @@ function applyPluginOptionValues(
       nextPayload = withPluginOption(nextPayload, pluginId, key, value);
     }
   }
+  return nextPayload;
+}
+
+function withNonEmptyPluginOptions(
+  payload: Record<string, unknown>,
+  pluginOptions: PluginOptionsMetadata,
+): Record<string, unknown> {
+  if (Object.keys(pluginOptions).length > 0) {
+    return { ...payload, plugin_options: pluginOptions };
+  }
+
+  const nextPayload = { ...payload };
+  delete nextPayload.plugin_options;
   return nextPayload;
 }
 
@@ -155,15 +200,20 @@ export function buildScheduledTaskInputPayload(
     return nextPayload;
   }
 
-  const currentPluginOptions = pluginOptionsFromMetadata(nextPayload);
+  const currentPluginOptions =
+    pluginOptionValues === undefined ? pluginOptionsFromMetadata(nextPayload) : {};
   delete nextPayload.plugin_options;
-  Object.assign(
-    nextPayload,
-    applyPluginOptionValues(
-      { ...nextPayload, plugin_options: currentPluginOptions },
-      pluginOptionValues,
-    ),
+  const mergedPayload = applyPluginOptionValues(
+    withNonEmptyPluginOptions(nextPayload, currentPluginOptions),
+    pluginOptionValues,
   );
+  Object.assign(nextPayload, mergedPayload);
+  if (
+    !nextPayload.plugin_options ||
+    Object.keys(pluginOptionsFromMetadata(nextPayload)).length === 0
+  ) {
+    delete nextPayload.plugin_options;
+  }
   if (personaPresetId && !hasPluginOptionDeclarations) {
     nextPayload.persona_preset_id = personaPresetId;
   }

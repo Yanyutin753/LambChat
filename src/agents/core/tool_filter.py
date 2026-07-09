@@ -29,6 +29,7 @@ def filter_disabled_tools(
     tools: List[Any],
     disabled_tools: Optional[List[str]] = None,
     disabled_mcp_tools: Optional[List[str]] = None,
+    auto_mode: bool = False,
 ) -> List[Any]:
     """
     根据禁用列表过滤工具
@@ -37,19 +38,23 @@ def filter_disabled_tools(
         tools: 所有可用工具列表
         disabled_tools: 禁用的工具名列表
         disabled_mcp_tools: 禁用的 MCP 工具名列表
+        auto_mode: 自动模式下允许过滤 ask_human 等内置工具
 
     Returns:
         过滤后的工具列表
 
     过滤策略：
-    1. BUILTIN_TOOLS 中的工具永远不被过滤
+    1. BUILTIN_TOOLS 中的工具永远不被过滤（auto_mode 时除外）
     2. 精确名称匹配：如果工具名在 disabled 列表中，过滤掉
     3. MCP 服务器匹配：如果 disabled 列表中有 "mcp:server_name" 格式的条目，
        则该服务器下的所有工具都会被过滤掉
     4. MCP 工具的 server 属性匹配：如果工具有 server 属性且在禁用服务器列表中
     """
-    if not disabled_tools and not disabled_mcp_tools:
+    if not disabled_tools and not disabled_mcp_tools and not auto_mode:
         return tools
+
+    # 自动模式下需要过滤的内置工具
+    auto_mode_disabled_builtin = frozenset(["ask_human"])
 
     # 合并所有禁用名称
     disabled_set = set(disabled_tools or [])
@@ -70,8 +75,10 @@ def filter_disabled_tools(
     for tool in tools:
         tool_name = getattr(tool, "name", str(tool))
 
-        # 内置工具永远不过滤
+        # 内置工具不过滤，除非 auto_mode 且在 AUTO_MODE_DISABLED_BUILTIN 中
         if tool_name in BUILTIN_TOOLS:
+            if auto_mode and tool_name in auto_mode_disabled_builtin:
+                continue
             filtered.append(tool)
             continue
 

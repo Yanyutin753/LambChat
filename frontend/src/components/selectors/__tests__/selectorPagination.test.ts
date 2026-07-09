@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { createPagedGroups } from "../shared/selectorPagination.ts";
 
 test("createPagedGroups paginates after applying stable grouped order", () => {
@@ -18,12 +15,11 @@ test("createPagedGroups paginates after applying stable grouped order", () => {
     },
   );
 
-  assert.deepEqual(Object.keys(result.fullGroups), ["mcp", "builtin"]);
-  assert.deepEqual(
+  expect(Object.keys(result.fullGroups)).toEqual(["mcp", "builtin"]);
+  expect(
     Object.values(result.pagedGroups)
       .flat()
       .map((item) => item.name),
-    ["alpha", "zeta"],
-  );
-  assert.equal(result.totalPages, 2);
+  ).toEqual(["alpha", "zeta"]);
+  expect(result.totalPages).toBe(2);
 });

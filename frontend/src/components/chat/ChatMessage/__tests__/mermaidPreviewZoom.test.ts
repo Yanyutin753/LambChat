@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const source = readFileSync(
   new URL("../MermaidDiagram.tsx", import.meta.url),
   "utf8",
@@ -9,8 +6,8 @@ const source = readFileSync(
 
 test("Mermaid preview captures wheel zoom locally instead of letting the page zoom", () => {
   const handleWheelMatches = source.match(/const handleWheel = useCallback/g);
-  assert.equal(handleWheelMatches?.length, 2);
-  assert.match(source, /event\.(?:ctrlKey|metaKey)/);
-  assert.match(source, /event\.preventDefault\(\)/);
-  assert.match(source, /onWheel=\{handleWheel\}/);
+  expect(handleWheelMatches?.length).toBe(2);
+  expect(source).toMatch(/event\.(?:ctrlKey|metaKey)/);
+  expect(source).toMatch(/event\.preventDefault\(\)/);
+  expect(source).toMatch(/onWheel=\{handleWheel\}/);
 });

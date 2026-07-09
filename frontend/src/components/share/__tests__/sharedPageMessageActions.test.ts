@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -82,10 +81,10 @@ test("share dialog supports editing existing shares without replacing the public
     "utf8",
   );
 
-  assert.match(shareApiSource, /async update\(/);
-  assert.match(shareApiSource, /method: "PATCH"/);
-  assert.match(shareDialogSource, /editingShare/);
-  assert.match(shareDialogSource, /handleEditShare/);
-  assert.match(shareDialogSource, /handleSaveShare/);
-  assert.match(shareDialogSource, /share\.saveShare/);
+  expect(shareApiSource).toMatch(/async update\(/);
+  expect(shareApiSource).toMatch(/method: "PATCH"/);
+  expect(shareDialogSource).toMatch(/editingShare/);
+  expect(shareDialogSource).toMatch(/handleEditShare/);
+  expect(shareDialogSource).toMatch(/handleSaveShare/);
+  expect(shareDialogSource).toMatch(/share\.saveShare/);
 });

@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 
 const panelSource = readFileSync(
@@ -20,24 +19,22 @@ const channelAgentSelectSource = readFileSync(
 );
 
 test("registration polling cleanup cancels active server-side session", () => {
-  assert.match(panelSource, /cancelFeishuRegistration/);
-  assert.match(
-    panelSource,
+  expect(panelSource).toMatch(/cancelFeishuRegistration/);
+  expect(panelSource).toMatch(
     /channelApi\s*\.\s*cancelFeishuRegistration\(\s*registrationSessionId\s*\)/,
   );
-  assert.match(panelSource, /return\s+\(\)\s*=>\s*\{/);
+  expect(panelSource).toMatch(/return\s+\(\)\s*=>\s*\{/);
 });
 
 test("feishu panel uses the bot message icon", () => {
-  assert.match(panelSource, /BotMessageSquare/);
-  assert.doesNotMatch(panelSource, /import \{[^}]*\bMessageSquare\b/);
+  expect(panelSource).toMatch(/BotMessageSquare/);
+  expect(panelSource).not.toMatch(/import \{[^}]*\bMessageSquare\b/);
 });
 
 test("feishu channel form wires persona preset selection through save payloads", () => {
-  assert.match(formSource, /ChannelPersonaSelect/);
-  assert.match(formSource, /personaPresetId/);
-  assert.match(
-    panelSource,
+  expect(formSource).toMatch(/ChannelPersonaSelect/);
+  expect(formSource).toMatch(/personaPresetId/);
+  expect(panelSource).toMatch(
     /const\s+\[personaPresetId,\s*setPersonaPresetId\]/,
   );
   assert.match(panelSource, /corePersonaPresetForChannelConfig\([\s\S]*initialAgentId/);
@@ -99,30 +96,25 @@ test("feishu channel form switches persona visibility through plugin option decl
   assert.doesNotMatch(formSource, /agentId === "team"/);
 });
 
-test("feishu agent selection clears mutually exclusive team and persona state", () => {
-  assert.match(
-    panelSource,
-    /const\s+handleAgentIdChange\s*=\s*\(value:\s*string\s*\|\s*null\)\s*=>\s*\{[\s\S]*?setAgentId\(value\);[\s\S]*?if\s*\(value\s*===\s*"team"\)\s*\{[\s\S]*?setPersonaPresetId\(null\);[\s\S]*?\}\s*else\s*\{[\s\S]*?setTeamId\(null\);[\s\S]*?\}/,
+test("feishu agent selection retains visible plugin options and clears suppressed persona state", () => {
+  expect(panelSource).toMatch(
+    /const\s+handleAgentIdChange\s*=\s*\(value:\s*string\s*\|\s*null\)\s*=>\s*\{[\s\S]*?setAgentId\(value\);[\s\S]*?filterPluginOptionsByVisibleWhen\(channelPluginOptions,\s*\{[\s\S]*?agentId:\s*value,[\s\S]*?route:\s*"\/channels\/feishu"[\s\S]*?scope:\s*"channel"[\s\S]*?\}\)/,
   );
-  assert.match(
-    panelSource,
-    /const\s+handlePersonaPresetIdChange\s*=\s*\(value:\s*string\s*\|\s*null\)\s*=>\s*\{[\s\S]*?setPersonaPresetId\(value\);[\s\S]*?if\s*\(value\)\s*\{[\s\S]*?setTeamId\(null\);[\s\S]*?\}/,
+  expect(panelSource).toMatch(
+    /setChannelPluginOptionValues\(\(current\) =>[\s\S]*retainPluginOptionsForDeclarations\(current,\s*nextOptions\)/,
   );
-  assert.match(panelSource, /onAgentIdChange=\{handleAgentIdChange\}/);
-  assert.match(
-    panelSource,
-    /setPersonaPresetId=\{handlePersonaPresetIdChange\}/,
+  expect(panelSource).toMatch(
+    /nextOptions\.some\([\s\S]*suppresses_core_persona_selector[\s\S]*setPersonaPresetId\(null\)/,
   );
-  assert.match(
-    formSource,
+  expect(panelSource).toMatch(/onAgentIdChange=\{handleAgentIdChange\}/);
+  expect(panelSource).toMatch(/setPersonaPresetId=\{setPersonaPresetId\}/);
+  expect(formSource).toMatch(
     /onAgentIdChange:\s*\(value:\s*string\s*\|\s*null\)\s*=>\s*void/,
   );
-  assert.match(
-    formSource,
+  expect(formSource).toMatch(
     /ChannelAgentSelect value=\{agentId\} onChange=\{onAgentIdChange\}/,
   );
-  assert.doesNotMatch(
-    formSource,
+  expect(formSource).not.toMatch(
     /ChannelAgentSelect value=\{agentId\} onChange=\{setAgentId\}/,
   );
 });

@@ -3,7 +3,7 @@
  * 合并助手配置和模型配置到一个页面，通过顶部 tab 切换
  */
 
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Bot, Cpu, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -20,7 +20,21 @@ export function AgentModelPanel({
   runtimePlugins?: PluginRuntimeContributionStates;
 }) {
   const { t } = useTranslation();
-  const [activeSection, setActiveSection] = useState<SectionType>("agents");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSection: SectionType = searchParams.get("section") === "models"
+    ? "models"
+    : "agents";
+
+  const handleSectionChange = (section: SectionType) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (section === "models") {
+      nextParams.set("section", section);
+    } else {
+      nextParams.delete("section");
+      nextParams.delete("tab");
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const sections: {
     id: SectionType;
@@ -40,7 +54,7 @@ export function AgentModelPanel({
           <button
             key={section.id}
             type="button"
-            onClick={() => setActiveSection(section.id)}
+            onClick={() => handleSectionChange(section.id)}
             className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ${
               isActive
                 ? "bg-white text-stone-950 shadow-sm ring-1 ring-[var(--glass-border)] dark:bg-stone-800 dark:text-stone-50"

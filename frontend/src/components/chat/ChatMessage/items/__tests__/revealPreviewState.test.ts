@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   createActiveRevealPreviewState,
   shouldAcceptRevealPreviewOpen,
@@ -16,8 +14,8 @@ test("marks external previews as already interacted", () => {
     "external",
   );
 
-  assert.equal(previewState.source, "external");
-  assert.equal(previewState.userInteracted, true);
+  expect(previewState.source).toBe("external");
+  expect(previewState.userInteracted).toBe(true);
 });
 
 test("blocks auto preview from replacing an external navigation preview", () => {
@@ -30,7 +28,7 @@ test("blocks auto preview from replacing an external navigation preview", () => 
     "external",
   );
 
-  assert.equal(
+  expect(
     shouldAcceptRevealPreviewOpen({
       activePreview,
       nextPreview: {
@@ -41,8 +39,7 @@ test("blocks auto preview from replacing an external navigation preview", () => 
       source: "auto",
       dismissedPreviewKeys: new Set<string>(),
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("still allows manual preview to replace an external navigation preview", () => {
@@ -55,7 +52,7 @@ test("still allows manual preview to replace an external navigation preview", ()
     "external",
   );
 
-  assert.equal(
+  expect(
     shouldAcceptRevealPreviewOpen({
       activePreview,
       nextPreview: {
@@ -66,8 +63,7 @@ test("still allows manual preview to replace an external navigation preview", ()
       source: "manual",
       dismissedPreviewKeys: new Set<string>(),
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("stabilizes chat scroll only when an auto preview opens near the bottom", () => {
@@ -88,28 +84,25 @@ test("stabilizes chat scroll only when an auto preview opens near the bottom", (
     "auto",
   );
 
-  assert.equal(
+  expect(
     shouldStabilizeScrollForAutoPreviewOpen({
       previousPreview: null,
       nextPreview: autoPreview,
       isNearBottom: true,
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldStabilizeScrollForAutoPreviewOpen({
       previousPreview: null,
       nextPreview: autoPreview,
       isNearBottom: false,
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldStabilizeScrollForAutoPreviewOpen({
       previousPreview: autoPreview,
       nextPreview: autoPreview,
       isNearBottom: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });

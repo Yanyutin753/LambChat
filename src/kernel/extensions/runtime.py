@@ -400,17 +400,23 @@ class PluginRuntime:
 
     def permissions(self, *, enabled_only: bool = True) -> list[str]:
         return PluginRegistry(self.manifests(enabled_only=enabled_only)).permissions(
-            enabled_only=False
+            enabled_only=enabled_only
         )
 
     def routes(self, *, enabled_only: bool = True) -> list[PluginRouteRegistration]:
-        return PluginRegistry(self.manifests(enabled_only=enabled_only)).routes(enabled_only=False)
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).routes(
+            enabled_only=enabled_only
+        )
 
     def tools(self, *, enabled_only: bool = True) -> list[PluginToolRegistration]:
-        return PluginRegistry(self.manifests(enabled_only=enabled_only)).tools(enabled_only=False)
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).tools(
+            enabled_only=enabled_only
+        )
 
     def agents(self, *, enabled_only: bool = True) -> list[PluginAgentRegistration]:
-        return PluginRegistry(self.manifests(enabled_only=enabled_only)).agents(enabled_only=False)
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).agents(
+            enabled_only=enabled_only
+        )
 
     def plugin_for_agent(self, agent_id: str) -> str | None:
         """Return the plugin that owns an agent catalog entry, if any."""
@@ -478,25 +484,19 @@ class PluginRuntime:
         self,
         *,
         phase: LifecyclePhase | None = None,
-        plugin_id: str | None = None,
         enabled_only: bool = True,
     ) -> list[PluginLifecycleHookRegistration]:
-        registrations = PluginRegistry(self.manifests(enabled_only=enabled_only)).lifecycle_hooks(
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).lifecycle_hooks(
             phase=phase,
-            enabled_only=False,
+            enabled_only=enabled_only,
         )
-        if plugin_id is None:
-            return registrations
-        return [
-            registration for registration in registrations if registration.plugin_id == plugin_id
-        ]
 
     async def execute_lifecycle_hooks(
         self,
         *,
         phase: LifecyclePhase,
-        plugin_id: str | None = None,
         executor: HookExecutor,
+        plugin_id: str | None = None,
         timeout_seconds: float = 5.0,
     ) -> list[PluginHookExecutionResult]:
         """Execute lifecycle hooks with timeout/error isolation.
@@ -505,7 +505,9 @@ class PluginRuntime:
         caller, preserving core startup/shutdown flow.
         """
         results: list[PluginHookExecutionResult] = []
-        for registration in self.lifecycle_hooks(phase=phase, plugin_id=plugin_id):
+        for registration in self.lifecycle_hooks(phase=phase):
+            if plugin_id is not None and registration.plugin_id != plugin_id:
+                continue
             started = perf_counter()
             try:
                 await asyncio.wait_for(
@@ -618,6 +620,7 @@ class PluginRuntime:
             scheduled_task_options=[
                 f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options
             ],
+            scheduled_task_sections=[item.id for item in manifest.frontend.scheduled_task_sections],
             permissions=manifest.declared_permissions(),
             settings=[
                 (
@@ -774,6 +777,7 @@ def _invalid_contribution_ids(manifest: PluginManifest) -> list[str]:
     values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.session_options)
     values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.channel_options)
     values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options)
+    values.extend(item.id for item in manifest.frontend.scheduled_task_sections)
     values.extend(item.id for item in manifest.frontend.tool_renderers)
     values.extend(item.id for item in manifest.frontend.file_viewers)
     values.extend(item.id for item in manifest.frontend.upload_handlers)

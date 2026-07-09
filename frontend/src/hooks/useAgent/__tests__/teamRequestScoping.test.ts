@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync(

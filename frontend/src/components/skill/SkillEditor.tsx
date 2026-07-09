@@ -10,12 +10,14 @@ export function SkillEditor({
   className,
   filePath,
   readOnly,
+  lineWrapping = true,
 }: {
   value: string;
   onChange: (val: string) => void;
   className?: string;
   filePath?: string;
   readOnly?: boolean;
+  lineWrapping?: boolean;
 }) {
   const [isDark, setIsDark] = useState(() =>
     typeof document !== "undefined"
@@ -39,7 +41,7 @@ export function SkillEditor({
 
     return [
       ...(langSupport ? [langSupport] : []),
-      EditorView.lineWrapping,
+      ...(lineWrapping ? [EditorView.lineWrapping] : []),
       EditorView.theme({
         "&": {
           height: "100%",
@@ -86,7 +88,7 @@ export function SkillEditor({
         },
       }),
     ];
-  }, [filePath, isDark]);
+  }, [filePath, isDark, lineWrapping]);
 
   return (
     <div

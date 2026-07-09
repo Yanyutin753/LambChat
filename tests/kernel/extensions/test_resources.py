@@ -134,6 +134,7 @@ def test_resource_ledger_registers_manifest_declarations_with_cleanup_policies()
         session_options=["feedback.SELECTED_SESSION"],
         channel_options=["feedback.SELECTED_CHANNEL"],
         scheduled_task_options=["feedback.SELECTED_TASK"],
+        scheduled_task_sections=["feedback:scheduled-task-section"],
         permissions=["feedback:read"],
         settings=[
             "feedback:settings",
@@ -148,7 +149,7 @@ def test_resource_ledger_registers_manifest_declarations_with_cleanup_policies()
         i18n_namespaces=["feedback"],
     )
 
-    assert len(records) == 22
+    assert len(records) == 23
     assert (
         ledger.get(
             plugin_id="feedback",
@@ -178,6 +179,14 @@ def test_resource_ledger_registers_manifest_declarations_with_cleanup_policies()
             plugin_id="feedback",
             resource_type=PluginResourceType.SCHEDULED_TASK_OPTION,
             resource_id="feedback.SELECTED_TASK",
+        ).cleanup_strategy
+        is PluginResourceCleanupStrategy.KEEP
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SCHEDULED_TASK_SECTION,
+            resource_id="feedback:scheduled-task-section",
         ).cleanup_strategy
         is PluginResourceCleanupStrategy.KEEP
     )

@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   getFileTypeInfo,
   getFileLinkInfo,
@@ -17,30 +14,30 @@ Object.defineProperty(globalThis, "window", {
 });
 
 test("recognizes CAD file extensions", () => {
-  assert.equal(isCadFile("dxf"), true);
-  assert.equal(isCadFile("dwg"), true);
-  assert.equal(isDxfFile("dxf"), true);
-  assert.equal(isDxfFile("dwg"), false);
-  assert.equal(isDwgFile("dwg"), true);
-  assert.equal(isDwgFile("dxf"), false);
+  expect(isCadFile("dxf")).toBe(true);
+  expect(isCadFile("dwg")).toBe(true);
+  expect(isDxfFile("dxf")).toBe(true);
+  expect(isDxfFile("dwg")).toBe(false);
+  expect(isDwgFile("dwg")).toBe(true);
+  expect(isDwgFile("dxf")).toBe(false);
 });
 
 test("treats CAD files as previewable links", () => {
-  assert.equal(isPreviewableFile("dxf"), true);
-  assert.equal(isPreviewableFile("dwg"), true);
+  expect(isPreviewableFile("dxf")).toBe(true);
+  expect(isPreviewableFile("dwg")).toBe(true);
 
   const dxfLink = isFileLink("/uploads/site-plan.dxf");
-  assert.equal(dxfLink.isFile, true);
-  assert.equal(dxfLink.fileName, "site-plan.dxf");
+  expect(dxfLink.isFile).toBe(true);
+  expect(dxfLink.fileName).toBe("site-plan.dxf");
 
   const dwgLink = isFileLink("/uploads/site-plan.dwg");
-  assert.equal(dwgLink.isFile, true);
-  assert.equal(dwgLink.fileName, "site-plan.dwg");
+  expect(dwgLink.isFile).toBe(true);
+  expect(dwgLink.fileName).toBe("site-plan.dwg");
 });
 
 test("does not mark ebook formats as previewable without a renderer", () => {
-  assert.equal(isPreviewableFile("epub"), false);
-  assert.equal(isPreviewableFile("mobi"), false);
+  expect(isPreviewableFile("epub")).toBe(false);
+  expect(isPreviewableFile("mobi")).toBe(false);
 });
 
 test("recognizes CAD links from labels and download query metadata", () => {
@@ -48,22 +45,22 @@ test("recognizes CAD links from labels and download query metadata", () => {
     "/api/upload/file/opaque-key",
     "site-plan.dwg",
   );
-  assert.equal(labelled.isFile, true);
-  assert.equal(labelled.fileName, "site-plan.dwg");
+  expect(labelled.isFile).toBe(true);
+  expect(labelled.fileName).toBe("site-plan.dwg");
 
   const queryNamed = getFileLinkInfo(
     "/api/upload/file/opaque-key?filename=site-plan.dxf",
   );
-  assert.equal(queryNamed.isFile, true);
-  assert.equal(queryNamed.fileName, "site-plan.dxf");
+  expect(queryNamed.isFile).toBe(true);
+  expect(queryNamed.fileName).toBe("site-plan.dxf");
 });
 
 test("maps CAD files to a document-style file type", () => {
   const dxfInfo = getFileTypeInfo("site-plan.dxf");
-  assert.equal(dxfInfo.label, "DXF");
-  assert.equal(dxfInfo.category, "document");
+  expect(dxfInfo.label).toBe("DXF");
+  expect(dxfInfo.category).toBe("document");
 
   const dwgInfo = getFileTypeInfo("site-plan.dwg");
-  assert.equal(dwgInfo.label, "DWG");
-  assert.equal(dwgInfo.category, "document");
+  expect(dwgInfo.label).toBe("DWG");
+  expect(dwgInfo.category).toBe("document");
 });

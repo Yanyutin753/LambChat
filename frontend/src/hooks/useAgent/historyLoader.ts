@@ -286,6 +286,9 @@ export function reconstructMessagesFromEvents(
         currentAssistantMessage = null;
       }
       const userAttachments = convertAttachments(eventData.attachments);
+      const enabledSkills = Array.isArray(eventData.enabled_skills)
+        ? eventData.enabled_skills
+        : undefined;
       reconstructedMessages.push({
         id: userMessageId,
         role: "user",
@@ -293,6 +296,7 @@ export function reconstructMessagesFromEvents(
         timestamp: parseEventTimestamp(event.timestamp, Date.now()),
         attachments: userAttachments,
         runId: event.run_id,
+        enabledSkills,
       });
       continue;
     }

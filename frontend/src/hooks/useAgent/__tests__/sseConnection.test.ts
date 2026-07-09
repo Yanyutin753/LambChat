@@ -1,34 +1,29 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import { getSSECloseAction, isTerminalSSEEvent } from "../sseConnection.ts";
 
 test("retries an SSE close that arrives before a terminal stream event", () => {
-  assert.equal(
+  expect(
     getSSECloseAction({
       receivedTerminalEvent: false,
     }),
-    "retry",
-  );
+  ).toBe("retry");
 });
 
 test("treats SSE close as terminal only after done or task error", () => {
-  assert.equal(isTerminalSSEEvent("message:chunk"), false);
-  assert.equal(isTerminalSSEEvent("done"), true);
-  assert.equal(isTerminalSSEEvent("complete"), true);
-  assert.equal(isTerminalSSEEvent("user:cancel"), false);
-  assert.equal(isTerminalSSEEvent("error", { type: "ValueError" }), true);
+  expect(isTerminalSSEEvent("message:chunk")).toBe(false);
+  expect(isTerminalSSEEvent("done")).toBe(true);
+  expect(isTerminalSSEEvent("complete")).toBe(true);
+  expect(isTerminalSSEEvent("user:cancel")).toBe(false);
+  expect(isTerminalSSEEvent("error", { type: "ValueError" })).toBe(true);
 
-  assert.equal(
+  expect(
     getSSECloseAction({
       receivedTerminalEvent: true,
     }),
-    "terminal",
-  );
+  ).toBe("terminal");
 });
 
 test("does not treat transport-level SSE errors as terminal task events", () => {
-  assert.equal(
+  expect(
     isTerminalSSEEvent("error", { error: "An internal error occurred" }),
-    false,
-  );
+  ).toBe(false);
 });

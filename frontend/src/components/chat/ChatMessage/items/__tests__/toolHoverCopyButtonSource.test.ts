@@ -1,9 +1,6 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function readSource(relativePath: string): string {
@@ -24,46 +21,37 @@ const formerArgsCopyConsumers = [
 test("tool hover copy controls are reserved for result and content blocks", () => {
   const source = readSource("../ToolHoverCopyButton.tsx");
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /type ToolHoverCopyPosition =[\s\S]*"panel"[\s\S]*"panelRaised"[\s\S]*"panelCompact"[\s\S]*"panelCompactRaised"[\s\S]*"result"[\s\S]*"resultCompact"/,
   );
-  assert.doesNotMatch(source, /"args(?:Compact)?"/);
-  assert.doesNotMatch(source, /group-hover\/args/);
-  assert.match(
-    source,
+  expect(source).not.toMatch(/"args(?:Compact)?"/);
+  expect(source).not.toMatch(/group-hover\/args/);
+  expect(source).toMatch(
     /panel:\s*"absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"/,
   );
-  assert.match(
-    source,
+  expect(source).toMatch(
     /panelRaised:\s*"absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10"/,
   );
-  assert.match(
-    source,
+  expect(source).toMatch(
     /panelCompact:\s*"absolute top-1 right-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"/,
   );
-  assert.match(
-    source,
+  expect(source).toMatch(
     /panelCompactRaised:\s*"absolute top-1 right-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10"/,
   );
-  assert.match(
-    source,
+  expect(source).toMatch(
     /result:\s*"absolute top-1\.5 right-1\.5 sm:opacity-0 sm:group-hover\/result:opacity-100 transition-opacity"/,
   );
-  assert.match(
-    source,
+  expect(source).toMatch(
     /resultCompact:\s*"absolute top-0\.5 right-0\.5 transition-opacity"/,
   );
-  assert.match(source, /<CopyButton/);
+  expect(source).toMatch(/<CopyButton/);
 
   for (const relativePath of formerArgsCopyConsumers) {
     const consumer = readSource(relativePath);
 
-    assert.doesNotMatch(consumer, /position="args(?:Compact)?"/);
-    assert.doesNotMatch(
-      consumer,
+    expect(consumer).not.toMatch(/position="args(?:Compact)?"/);
+    expect(consumer).not.toMatch(
       /absolute top-(?:1\.5|0\.5|2|1) right-(?:1\.5|0\.5|2|1) sm:opacity-0 sm:group-hover(?:\/args|\/result)?:opacity-100 transition-opacity(?: z-10)?/,
-      `${relativePath} should not duplicate hover copy wrapper classes`,
     );
   }
 });

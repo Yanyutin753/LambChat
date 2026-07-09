@@ -19,6 +19,7 @@ def _first_int(*values: Any) -> int | None:
 class StreamEventMixin:
     _chunk_buffer: TextChunkBuffer
     _summary_chunk_buffer: TextChunkBuffer
+    _thinking_chunk_buffer: TextChunkBuffer
     _output_buffer: StringIO
     _presenter_emit: Any
     presenter: Any
@@ -86,6 +87,10 @@ class StreamEventMixin:
         text, key = self._summary_chunk_buffer.consume()
         await self._emit_summary_flush(text, key)
 
+    async def _flush_thinking_chunk_buffer(self) -> None:
+        text, key = self._thinking_chunk_buffer.consume()
+        await self._emit_thinking_flush(text, key)
+
     async def _emit_text_flush(self, text: str, key: BufferKey | None) -> None:
         if not text or key is None:
             return
@@ -109,6 +114,20 @@ class StreamEventMixin:
             self.presenter.present_summary(
                 text,
                 summary_id=summary_id,
+                depth=depth,
+                agent_id=agent_id,
+            )
+        )
+
+    async def _emit_thinking_flush(self, text: str, key: BufferKey | None) -> None:
+        if not text or key is None:
+            return
+
+        depth, agent_id, thinking_id = key
+        await self._presenter_emit(
+            self.presenter.present_thinking(
+                text,
+                thinking_id=thinking_id,
                 depth=depth,
                 agent_id=agent_id,
             )
@@ -144,6 +163,22 @@ class StreamEventMixin:
             ready_flushes.append(ready)
         if self._summary_chunk_buffer.append(text, key):
             ready_flushes.append(self._summary_chunk_buffer.consume())
+        return ready_flushes or None
+
+    def _buffer_thinking_chunk(
+        self,
+        text: str,
+        depth: int,
+        agent_id: str | None,
+        thinking_id: str | None,
+    ) -> list[tuple[str, BufferKey | None]] | None:
+        key: BufferKey = (depth, agent_id, thinking_id)
+        ready_flushes = []
+        ready = self._thinking_chunk_buffer.consume_ready(key)
+        if ready is not None:
+            ready_flushes.append(ready)
+        if self._thinking_chunk_buffer.append(text, key):
+            ready_flushes.append(self._thinking_chunk_buffer.consume())
         return ready_flushes or None
 
     def _handle_token_usage(self, event: StreamEvent) -> None:
@@ -272,6 +307,7 @@ class StreamEventMixin:
         chunk_id = chunk.id
 
         if isinstance(content, str) and content:
+            await self._flush_thinking_chunk_buffer()
             if current_depth == 0:
                 self._append_output_text(content)
             ready_flushes = self._buffer_text_chunk(
@@ -288,20 +324,18 @@ class StreamEventMixin:
         if isinstance(content, str) and not content:
             rc = getattr(chunk, "additional_kwargs", {}).get("reasoning_content")
             if rc:
-                await self._presenter_emit(
-                    self.presenter.present_thinking(
-                        rc,
-                        thinking_id=chunk_id,
-                        depth=current_depth,
-                        agent_id=current_agent_id,
-                    )
+                ready_flushes = self._buffer_thinking_chunk(
+                    rc,
+                    current_depth,
+                    current_agent_id,
+                    chunk_id,
                 )
+                if ready_flushes:
+                    for ready in ready_flushes:
+                        await self._emit_thinking_flush(*ready)
             return
 
         if isinstance(content, list):
-            present_thinking = self.presenter.present_thinking
-            emit = self._presenter_emit
-
             for block in content:
                 if not isinstance(block, dict):
                     continue
@@ -309,17 +343,19 @@ class StreamEventMixin:
                 if block_type in ("thinking", "reasoning"):
                     reasoning_text = block.get("thinking") or block.get("reasoning", "")
                     if reasoning_text:
-                        await emit(
-                            present_thinking(
-                                reasoning_text,
-                                thinking_id=chunk_id,
-                                depth=current_depth,
-                                agent_id=current_agent_id,
-                            )
+                        ready_flushes = self._buffer_thinking_chunk(
+                            reasoning_text,
+                            current_depth,
+                            current_agent_id,
+                            chunk_id,
                         )
+                        if ready_flushes:
+                            for ready in ready_flushes:
+                                await self._emit_thinking_flush(*ready)
                 elif block_type == "text":
                     text = block.get("text", "")
                     if text:
+                        await self._flush_thinking_chunk_buffer()
                         self.thinking_ids[current_agent_id] = None
                         if current_depth == 0:
                             self._append_output_text(text)

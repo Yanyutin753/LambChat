@@ -3,7 +3,8 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
+from langgraph.types import Command
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.events.buffers import TextChunkBuffer
@@ -191,6 +192,25 @@ def chat_stream(content: str, chunk_id: str = "chunk-1", metadata: dict[str, Any
     }
 
 
+def reasoning_stream(
+    content: str,
+    chunk_id: str = "chunk-r",
+    metadata: dict[str, Any] | None = None,
+):
+    return {
+        "event": "on_chat_model_stream",
+        "name": "chat_model",
+        "data": {
+            "chunk": SimpleNamespace(
+                content="",
+                id=chunk_id,
+                additional_kwargs={"reasoning_content": content},
+            )
+        },
+        "metadata": metadata or {},
+    }
+
+
 @pytest.mark.asyncio
 async def test_finalize_flushes_pending_summary_chunk() -> None:
     presenter = FakePresenter()
@@ -290,24 +310,15 @@ async def test_output_text_keeps_bounded_copy_while_streaming_all_chunks() -> No
 
 
 @pytest.mark.asyncio
-async def test_reasoning_content_chunk_emits_thinking_event() -> None:
+async def test_reasoning_content_chunk_flushes_as_thinking_event() -> None:
     presenter = FakePresenter()
     processor = AgentEventProcessor(presenter)
 
-    await processor.process_event(
-        {
-            "event": "on_chat_model_stream",
-            "name": "chat_model",
-            "data": {
-                "chunk": SimpleNamespace(
-                    content="",
-                    id="chunk-r",
-                    additional_kwargs={"reasoning_content": "step by step"},
-                )
-            },
-            "metadata": {},
-        }
-    )
+    await processor.process_event(reasoning_stream("step by step"))
+
+    assert presenter.emitted == []
+
+    await processor.flush()
 
     assert presenter.emitted == [
         {
@@ -319,6 +330,46 @@ async def test_reasoning_content_chunk_emits_thinking_event() -> None:
                 "agent_id": None,
             },
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reasoning_content_chunks_are_grouped_until_threshold() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(reasoning_stream("a" * 100))
+    await processor.process_event(reasoning_stream("b" * 99))
+    assert presenter.emitted == []
+
+    await processor.process_event(reasoning_stream("c"))
+
+    assert presenter.emitted == [
+        {
+            "event": "thinking",
+            "data": {
+                "content": ("a" * 100) + ("b" * 99) + "c",
+                "thinking_id": "chunk-r",
+                "depth": 0,
+                "agent_id": None,
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_text_chunk_flushes_pending_thinking_first() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(reasoning_stream("thinking first"))
+    await processor.process_event(chat_stream("final answer", "chunk-text"))
+    await processor.flush()
+
+    assert [event["event"] for event in presenter.emitted] == ["thinking", "message:chunk"]
+    assert [event["data"]["content"] for event in presenter.emitted] == [
+        "thinking first",
+        "final answer",
     ]
 
 
@@ -368,6 +419,42 @@ async def test_task_start_reads_langgraph_checkpoint_ns_not_empty_checkpoint_ns(
     assert call_event["event"] == "agent:call"
     assert call_event["data"]["agent_name"] == "健身教练"
     assert call_event["data"]["agent_id"] == instance_id
+
+
+@pytest.mark.asyncio
+async def test_subagent_call_input_hides_internal_main_context_snapshot() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "run_id": "task-run-context",
+            "data": {
+                "input": {
+                    "subagent_type": "general-purpose",
+                    "description": (
+                        "Inspect auth.\n\n"
+                        "## Main-Agent Context Snapshot\n"
+                        "Read it when the assignment depends on prior user/main-agent context: "
+                        "/workflow/session/subagent_context/main_agent_messages_ctx.md\n"
+                        "Treat this file as context only; the explicit task above remains your objective."
+                    ),
+                },
+            },
+            "metadata": {
+                "langgraph_checkpoint_ns": "tools:context",
+            },
+        }
+    )
+
+    call_event = presenter.emitted[0]
+
+    assert call_event["event"] == "agent:call"
+    assert call_event["data"]["input"] == "Inspect auth."
+    assert "Main-Agent Context Snapshot" not in call_event["data"]["input"]
+    assert "/workflow/" not in call_event["data"]["input"]
 
 
 @pytest.mark.asyncio
@@ -497,6 +584,57 @@ async def test_task_end_resolves_agent_info_via_langgraph_checkpoint_ns() -> Non
     assert result_event["data"]["success"] is True
     # checkpoint_to_agent entry must have been popped
     assert tools_ns not in processor.checkpoint_to_agent
+
+
+@pytest.mark.asyncio
+async def test_task_end_prefers_original_subagent_content_for_visible_result() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    tools_ns = "tools:original-result"
+
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "run_id": "task-run-original",
+            "data": {
+                "input": {
+                    "subagent_type": "general-purpose",
+                    "description": "Investigate",
+                },
+            },
+            "metadata": {"langgraph_checkpoint_ns": tools_ns},
+        }
+    )
+
+    presenter.emitted.clear()
+    await processor.process_event(
+        {
+            "event": "on_tool_end",
+            "name": "task",
+            "run_id": "task-run-original",
+            "data": {
+                "output": Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                "Subagent report saved to: /subagent_reports/report.md",
+                                tool_call_id="call-1",
+                                additional_kwargs={
+                                    "lambchat_original_content": "Original final report"
+                                },
+                            )
+                        ]
+                    }
+                )
+            },
+            "metadata": {"langgraph_checkpoint_ns": tools_ns},
+        }
+    )
+
+    result_event = presenter.emitted[0]
+    assert result_event["event"] == "agent:result"
+    assert result_event["data"]["result"] == "Original final report"
 
 
 @pytest.mark.asyncio

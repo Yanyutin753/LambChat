@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   resolveAgentDescription,
   resolveAgentDisplayName,
@@ -24,17 +22,13 @@ const agent = {
 };
 
 test("resolves agent display metadata from the current locale", () => {
-  assert.equal(resolveAgentDisplayName(agent, "zh-CN", t), "搜索助手");
-  assert.equal(
-    resolveAgentDescription(agent, "zh-CN", t),
-    "面向检索和复杂任务",
-  );
+  expect(resolveAgentDisplayName(agent, "zh-CN", t)).toBe("搜索助手");
+  expect(resolveAgentDescription(agent, "zh-CN", t)).toBe("面向检索和复杂任务");
 });
 
 test("falls back through configured languages before legacy i18n keys", () => {
-  assert.equal(resolveAgentDisplayName(agent, "ja", t), "搜索助手");
-  assert.equal(
-    resolveAgentDescription({ ...agent, labels: {} }, "ja", t),
+  expect(resolveAgentDisplayName(agent, "ja", t)).toBe("搜索助手");
+  expect(resolveAgentDescription({ ...agent, labels: {} }, "ja", t)).toBe(
     "i18n:agents.search.description",
   );
 });

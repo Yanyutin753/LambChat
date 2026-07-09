@@ -18,7 +18,11 @@ class _ModelStorage:
                 icon="qwen",
                 label="Allowed",
                 description="Visible",
-                profile=ModelProfile(supports_vision=True),
+                profile=ModelProfile(
+                    supports_vision=True,
+                    supports_reasoning=True,
+                    supports_structured_output=False,
+                ),
                 api_key="sk-secret-allowed",
                 api_base="https://api.example.test",
                 temperature=0.2,
@@ -180,6 +184,8 @@ async def test_list_available_models_returns_public_fields_only(
             "profile": {
                 "max_input_tokens": None,
                 "supports_vision": True,
+                "supports_reasoning": True,
+                "supports_structured_output": False,
                 "image_url_to_base64": False,
             },
         }

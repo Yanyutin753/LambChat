@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useStickyDropdownPosition } from "./useStickyDropdownPosition";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./useAuth";
 import { useSettingsContext } from "../contexts/SettingsContext";
@@ -46,10 +47,6 @@ export function useMoreMenu({
   const hasMoreMenuItems = moreMenuFeatureItems.some((i) => i.show);
 
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [moreMenuPosition, setMoreMenuPosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
 
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuBtnRef = useRef<HTMLButtonElement>(null);
@@ -93,26 +90,23 @@ export function useMoreMenu({
   }, [isMoreMenuOpen]);
 
   // Position calculation
-  useEffect(() => {
-    if (!isMoreMenuOpen) {
-      setMoreMenuPosition(null);
-      return;
-    }
-    if (!activeMoreMenuBtnRef.current) return;
-    const rect = activeMoreMenuBtnRef.current.getBoundingClientRect();
-    const panelWidth = 208;
-    const panelMaxHeight = 480;
-    let top = rect.top;
-    let left = rect.right + 2;
-    if (left + panelWidth > window.innerWidth)
-      left = window.innerWidth - panelWidth - 8;
-    if (left < 8) left = 8;
-    if (top + panelMaxHeight > window.innerHeight)
-      top = window.innerHeight - panelMaxHeight - 8;
-    if (top < 8) top = 8;
-    setMoreMenuPosition({ top, left });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMoreMenuOpen, isCollapsed]);
+  const moreMenuPosition = useStickyDropdownPosition(
+    activeMoreMenuBtnRef,
+    isMoreMenuOpen,
+    (rect) => {
+      const panelWidth = 208;
+      const panelMaxHeight = 480;
+      let top = rect.top;
+      let left = rect.right + 2;
+      if (left + panelWidth > window.innerWidth)
+        left = window.innerWidth - panelWidth - 8;
+      if (left < 8) left = 8;
+      if (top + panelMaxHeight > window.innerHeight)
+        top = window.innerHeight - panelMaxHeight - 8;
+      if (top < 8) top = 8;
+      return { top, left };
+    },
+  );
 
   return {
     moreMenuFeatureItems,

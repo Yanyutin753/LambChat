@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const featureMenuSource = readFileSync(
   new URL("../FeatureMenu.tsx", import.meta.url),
   "utf8",
@@ -13,26 +10,21 @@ const toolbarSource = readFileSync(
 );
 
 test("feature menu uses one upload action instead of category upload items", () => {
-  assert.match(featureMenuSource, /onUploadFiles: \(\) => void/);
-  assert.match(
-    featureMenuSource,
-    /label=\{t\("featureMenu\.upload", "上传"\)\}/,
+  expect(featureMenuSource).toMatch(/onUploadFiles: \(\) => void/);
+  expect(featureMenuSource).toMatch(/label=\{t\("featureMenu\.upload"/);
+  expect(featureMenuSource).toMatch(
+    /onClick=\{\(\) => \{\s*onUploadFiles\(\);/,
   );
-  assert.match(featureMenuSource, /onClick=\{\(\) => \{\s*onUploadFiles\(\);/);
-  assert.doesNotMatch(featureMenuSource, /uploadCategories\.map\(\(category\)/);
-  assert.doesNotMatch(featureMenuSource, /FILE_CATEGORY_ICONS/);
+  expect(featureMenuSource).not.toMatch(/uploadCategories\.map\(\(category\)/);
+  expect(featureMenuSource).not.toMatch(/FILE_CATEGORY_ICONS/);
 });
 
 test("chat input toolbar opens a combined file picker and lets upload auto-detect categories", () => {
-  assert.match(toolbarSource, /const FILE_ACCEPT_ALL =/);
-  assert.match(toolbarSource, /handleUploadFiles/);
-  assert.match(
-    toolbarSource,
+  expect(toolbarSource).toMatch(/const FILE_ACCEPT_ALL =/);
+  expect(toolbarSource).toMatch(/handleUploadFiles/);
+  expect(toolbarSource).toMatch(
     /fileInputRef\.current\.accept = getFileAccept\(uploadCategories\);/,
   );
-  assert.match(toolbarSource, /uploadFiles\(files\);/);
-  assert.doesNotMatch(
-    toolbarSource,
-    /uploadFiles\(files, selectedFileCategory/,
-  );
+  expect(toolbarSource).toMatch(/uploadFiles\(files\);/);
+  expect(toolbarSource).not.toMatch(/uploadFiles\(files, selectedFileCategory/);
 });

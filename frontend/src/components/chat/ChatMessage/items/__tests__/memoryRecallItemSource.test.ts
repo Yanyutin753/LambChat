@@ -1,9 +1,6 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function readSource(relativePath: string): string {
@@ -15,11 +12,11 @@ test("memory recall query summary does not render a floating copy button", () =>
   const querySummaryStart = source.indexOf("{/* Query summary header */}");
   const memoryCardsStart = source.indexOf("{/* Memory cards */}");
 
-  assert.notEqual(querySummaryStart, -1);
-  assert.notEqual(memoryCardsStart, -1);
-  assert.ok(memoryCardsStart > querySummaryStart);
+  expect(querySummaryStart).not.toBe(-1);
+  expect(memoryCardsStart).not.toBe(-1);
+  expect(memoryCardsStart > querySummaryStart).toBeTruthy();
 
   const querySummarySource = source.slice(querySummaryStart, memoryCardsStart);
 
-  assert.doesNotMatch(querySummarySource, /<ToolHoverCopyButton\b/);
+  expect(querySummarySource).not.toMatch(/<ToolHoverCopyButton\b/);
 });

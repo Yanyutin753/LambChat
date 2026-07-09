@@ -56,10 +56,6 @@ logger = get_logger(__name__)
 
 CHAT_SSE_DATA_MAX_BYTES = 256 * 1024
 
-_WORKFLOW_PLUGIN_ID = "workflow"
-_WORKFLOW_PLUGIN_ID_KEY = "SELECTED_WORKFLOW_ID"
-_WORKFLOW_PLUGIN_VERSION_KEY = "SELECTED_WORKFLOW_VERSION_ID"
-
 
 def append_required_skills_prompt(message: str, enabled_skills: list[str] | None) -> str:
     """Append a run-scoped instruction for explicitly selected skills."""
@@ -391,26 +387,8 @@ def _runtime_states_for_project_defaults(runtime) -> list[object]:
             ]
     get_state = getattr(runtime, "get_state", None)
     if callable(get_state):
-        plugin_ids: list[str] = []
-        for manifest in getattr(runtime, "_manifests", {}).values():
-            if any(option.applies_to_session_key for option in manifest.frontend.project_options):
-                plugin_ids.append(manifest.id)
-        if not plugin_ids:
-            from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
-
-            plugin_ids = [
-                manifest.id
-                for manifest in BUILTIN_PLUGIN_MANIFESTS
-                if any(
-                    option.applies_to_session_key for option in manifest.frontend.project_options
-                )
-            ]
-        result = []
-        for plugin_id in dict.fromkeys(plugin_ids):
-            state = get_state(plugin_id)
-            if state is not None:
-                result.append(state)
-        return result
+        state = get_state(AGENT_TEAM_PLUGIN_ID)
+        return [state] if state is not None else []
     return []
 
 
@@ -422,10 +400,6 @@ def _merge_missing_plugin_options(
     for plugin_id, values in defaults.items():
         for key, value in values.items():
             if plugin_option_from_metadata(merged, plugin_id=plugin_id, key=key) not in (None, ""):
-                continue
-            if not _can_merge_plugin_option_default(
-                merged["plugin_options"], defaults, plugin_id, key
-            ):
                 continue
             merged = with_plugin_option(
                 merged,
@@ -442,21 +416,8 @@ def _can_merge_plugin_option_default(
     plugin_id: str,
     key: str,
 ) -> bool:
-    if plugin_id != _WORKFLOW_PLUGIN_ID or key != _WORKFLOW_PLUGIN_VERSION_KEY:
-        return True
-    default_workflow_id = _non_empty_plugin_option(
-        defaults,
-        plugin_id=_WORKFLOW_PLUGIN_ID,
-        key=_WORKFLOW_PLUGIN_ID_KEY,
-    )
-    current_workflow_id = _non_empty_plugin_option(
-        current,
-        plugin_id=_WORKFLOW_PLUGIN_ID,
-        key=_WORKFLOW_PLUGIN_ID_KEY,
-    )
-    if current_workflow_id:
-        return current_workflow_id == default_workflow_id
-    return bool(default_workflow_id)
+    del current, defaults, plugin_id, key
+    return True
 
 
 def _non_empty_plugin_option(
@@ -469,20 +430,6 @@ def _non_empty_plugin_option(
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
-
-
-def _agent_options_with_plugin_result(
-    agent_options: dict | None,
-    *,
-    plugin_id: str,
-    result: dict,
-) -> dict:
-    merged = dict(agent_options or {})
-    raw_plugin_results = merged.get("_plugin_results")
-    plugin_results = dict(raw_plugin_results) if isinstance(raw_plugin_results, dict) else {}
-    plugin_results[plugin_id] = result
-    merged["_plugin_results"] = plugin_results
-    return merged
 
 
 def apply_existing_session_plugin_options(
@@ -674,6 +621,7 @@ def build_conversation_config(
         "enabled_skills": request.enabled_skills,
         "disabled_mcp_tools": request.disabled_mcp_tools or [],
         "language": language,
+        "auto_mode": request.auto_mode,
     }
     if trace_id:
         conversation_config["trace_id"] = trace_id
@@ -743,6 +691,7 @@ async def _execute_agent_stream(
     disabled_mcp_tools: list[str] | None = None,
     team_id: str | None = None,
     active_goal: dict | None = None,
+    auto_mode: bool = False,
     recommendation_input: str | None = None,
     plugin_options: dict[str, dict[str, object]] | None = None,
 ):
@@ -758,28 +707,7 @@ async def _execute_agent_stream(
         yield {"event": "goal:start", "data": {"goal": active_goal, "started_at": started_at}}
 
     try:
-        workflow_result = None
         agent_stream_options = agent_options
-        if plugin_options:
-            from src.plugins.workflow.chat_integration import (
-                run_selected_workflow_for_message,
-                workflow_result_context,
-            )
-
-            workflow_result = await run_selected_workflow_for_message(
-                plugin_options=plugin_options,
-                message=message,
-                user_id=user_id,
-            )
-            if workflow_result is not None:
-                yield {"event": "workflow:run", "data": workflow_result}
-                agent_stream_options = _agent_options_with_plugin_result(
-                    agent_options,
-                    plugin_id=_WORKFLOW_PLUGIN_ID,
-                    result=workflow_result,
-                )
-                message = f"{workflow_result_context(workflow_result)}\n\nUser message:\n{message}"
-
         agent = await AgentFactory.get(agent_id)
         async for event in agent.stream(
             message,
@@ -795,6 +723,7 @@ async def _execute_agent_stream(
             disabled_mcp_tools=disabled_mcp_tools,
             team_id=team_id,
             active_goal=active_goal,
+            auto_mode=auto_mode,
             goal_started_at=started_at,
             recommendation_input=recommendation_input,
         ):
@@ -892,6 +821,10 @@ async def chat_stream(
 
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     active_goal_data = active_goal.model_dump() if active_goal else None
+    formatted_message = format_user_message_with_timestamp(
+        agent_message,
+        request.user_timezone,
+    )
     write_user_message = not request.retry_user_message
     user_message_written = request.retry_user_message
 
@@ -1070,7 +1003,6 @@ async def chat_stream(
             trace_id=trace_id,
             team_id=request.team_id,
             active_goal=active_goal_data,
-            plugin_options=request.plugin_options,
             user_message_written=user_message_written,
             write_user_message_immediately=write_user_message,
         )
@@ -1096,7 +1028,6 @@ async def chat_stream(
             team_id=request.team_id,
             trace_id=trace_id,
             active_goal=active_goal_data,
-            plugin_options=request.plugin_options,
             user_message_written=user_message_written,
             write_user_message_immediately=write_user_message,
         )

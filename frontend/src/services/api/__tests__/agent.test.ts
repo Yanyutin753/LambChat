@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { agentApi } from "../agent.ts";
 
 test("agentApi.list reuses in-flight and fresh identical list requests", async () => {
@@ -30,10 +27,10 @@ test("agentApi.list reuses in-flight and fresh identical list requests", async (
     ]);
     const third = await agentApi.list();
 
-    assert.equal(fetchCount, 1);
-    assert.deepEqual(first, { agents: [] });
-    assert.deepEqual(second, { agents: [] });
-    assert.deepEqual(third, { agents: [] });
+    expect(fetchCount).toBe(1);
+    expect(first).toEqual({ agents: [] });
+    expect(second).toEqual({ agents: [] });
+    expect(third).toEqual({ agents: [] });
   } finally {
     globalThis.fetch = previousFetch;
     globalThis.localStorage = previousLocalStorage;

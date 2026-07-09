@@ -13,11 +13,7 @@ import {
   Shrink,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  LoadingSpinner,
-  OverlayRoundIconButton,
-  ToolbarIconButton,
-} from "../../../common";
+import { LoadingSpinner, ToolbarIconButton } from "../../../common";
 
 import { useSidebarPanel } from "../../../../hooks/useSidebarPanel";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
@@ -135,7 +131,7 @@ export function ToolResultPanel({
   const { t } = useTranslation();
   const [internalViewMode, setInternalViewMode] = useState<
     "sidebar" | "center"
-  >("sidebar");
+  >(externalViewMode ?? "sidebar");
   const [internalIsFullscreen, setInternalIsFullscreen] = useState(false);
   const [contentReady, setContentReady] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -152,8 +148,12 @@ export function ToolResultPanel({
   const effectiveOnBack =
     onBack ?? (historyAvailable ? goBackSidebar : undefined);
 
-  // Allow external control of viewMode, but default to internal state
-  const effectiveViewMode = externalViewMode ?? internalViewMode;
+  // Only use external viewMode when fully controlled (has onChange callback)
+  // Otherwise treat externalViewMode as initial value and manage internally
+  const isViewModeControlled = !!(externalViewMode && onViewModeChange);
+  const effectiveViewMode = isViewModeControlled
+    ? externalViewMode!
+    : internalViewMode;
   const effectiveIsFullscreen = externalIsFullscreen ?? internalIsFullscreen;
   const isFullscreen = effectiveIsFullscreen;
 
@@ -187,8 +187,8 @@ export function ToolResultPanel({
 
   const handleToggleViewMode = useCallback(() => {
     onUserInteraction?.();
-    if (externalViewMode) {
-      onViewModeChange?.(viewMode === "sidebar" ? "center" : "sidebar");
+    if (isViewModeControlled) {
+      onViewModeChange!(viewMode === "sidebar" ? "center" : "sidebar");
       return;
     }
     setInternalViewMode((v) => {
@@ -203,7 +203,7 @@ export function ToolResultPanel({
     });
   }, [
     onUserInteraction,
-    externalViewMode,
+    isViewModeControlled,
     onViewModeChange,
     viewMode,
     isFullscreen,
@@ -219,7 +219,7 @@ export function ToolResultPanel({
     } else if (externalIsFullscreen === undefined) {
       setInternalIsFullscreen(next);
     }
-    if (next && viewMode === "sidebar" && !externalViewMode) {
+    if (next && viewMode === "sidebar" && !isViewModeControlled) {
       setInternalViewMode("center");
     }
   }, [
@@ -228,28 +228,7 @@ export function ToolResultPanel({
     onFullscreenChange,
     externalIsFullscreen,
     viewMode,
-    externalViewMode,
-  ]);
-
-  const handleCancelFullscreen = useCallback(() => {
-    onUserInteraction?.();
-    if (isFullscreen) {
-      if (onFullscreenChange) onFullscreenChange(false);
-      else if (externalIsFullscreen === undefined)
-        setInternalIsFullscreen(false);
-    }
-    if (externalViewMode) {
-      onViewModeChange?.("sidebar");
-    } else {
-      setInternalViewMode("sidebar");
-    }
-  }, [
-    onUserInteraction,
-    isFullscreen,
-    onFullscreenChange,
-    externalIsFullscreen,
-    externalViewMode,
-    onViewModeChange,
+    isViewModeControlled,
   ]);
 
   const panelOwnerRef = useRef(
@@ -326,7 +305,7 @@ export function ToolResultPanel({
         panelClass
           ? panelClass
           : isFullscreen
-            ? "h-full w-full"
+            ? "min-h-full min-w-full h-full w-full"
             : isMobile && mobileFillViewport
               ? "h-full"
               : isMobile
@@ -394,16 +373,16 @@ export function ToolResultPanel({
             }}
           />
           <div
-            className="hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
+            className="tool-console-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
             onMouseDown={handleResize}
           >
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full bg-transparent group-hover:bg-[var(--theme-primary)]/50 transition-colors duration-200" />
+            <div className="tool-console-resize-handle__rail absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 rounded-full bg-transparent transition-colors duration-200" />
           </div>
         </>
       )}
 
-      {/* Header section — sidebar mode always; center mode only when customHeader is provided; mobile always */}
-      {(isSidebar || isMobile || (isCenter && hasCustomHeader)) && (
+      {/* Header section — sidebar mode always; center/fullscreen mode; mobile always */}
+      {(isSidebar || isMobile || isCenter || isFullscreen) && (
         <div
           ref={toolbarRef}
           className={`tool-console-chrome flex flex-col shrink-0 ${
@@ -510,7 +489,7 @@ export function ToolResultPanel({
 
               {/* Center / Fullscreen / Close */}
               {!hideViewToggle && (
-                <div className="flex items-center gap-px sm:gap-1 shrink-0">
+                <div className="tool-console-actions flex items-center gap-px sm:gap-1 shrink-0">
                   <ToolbarIconButton
                     variant="muted"
                     onClick={() => {
@@ -555,43 +534,20 @@ export function ToolResultPanel({
                 </div>
               )}
               {hideViewToggle && (
-                <ToolbarIconButton
-                  variant="muted"
-                  onClick={() => {
-                    handleUserClose();
-                  }}
-                  aria-label={t("common.close")}
-                  title={t("common.close")}
-                  icon={<X size={16} />}
-                />
+                <div className="tool-console-actions flex items-center gap-px sm:gap-1 shrink-0">
+                  <ToolbarIconButton
+                    variant="muted"
+                    onClick={() => {
+                      handleUserClose();
+                    }}
+                    aria-label={t("common.close")}
+                    title={t("common.close")}
+                    icon={<X size={16} />}
+                  />
+                </div>
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Floating cancel-fullscreen button (center mode only, no customHeader, desktop only) */}
-      {isCenter && !hasCustomHeader && !isMobile && (
-        <div className="absolute top-3 right-3 z-[310] flex items-center gap-2">
-          {effectiveOnBack && (
-            <OverlayRoundIconButton
-              onClick={(e) => {
-                e.stopPropagation();
-                effectiveOnBack();
-              }}
-              aria-label={t("common.back", "返回")}
-              icon={<BackIcon size={18} />}
-            />
-          )}
-          <OverlayRoundIconButton
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCancelFullscreen();
-            }}
-            aria-label={t("documents.cancelFullscreen", "取消全屏")}
-            title={t("documents.cancelFullscreen", "取消全屏")}
-            icon={<X size={18} />}
-          />
         </div>
       )}
 
@@ -613,7 +569,7 @@ export function ToolResultPanel({
           {children}
         </div>
         {!contentReady && (
-          <div className="tool-console-body__loading absolute inset-0 z-[1] flex items-center justify-center bg-theme-bg/95-[1px]">
+          <div className="tool-console-body__loading absolute inset-0 z-[1] flex items-center justify-center">
             <LoadingSpinner
               size="md"
               color="text-theme-text-tertiary"
@@ -630,7 +586,11 @@ export function ToolResultPanel({
 
   return createPortal(
     <div
-      className={`safe-area-viewport-padding fixed inset-0 z-[200] flex flex-col ${
+      className={`fixed inset-0 z-[200] flex flex-col ${
+        isFullscreen
+          ? "bg-transparent pointer-events-none"
+          : "safe-area-viewport-padding"
+      } ${
         overlayClass
           ? overlayClass
           : isFullscreen

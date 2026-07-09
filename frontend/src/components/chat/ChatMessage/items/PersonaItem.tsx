@@ -370,7 +370,7 @@ const PersonaItem = memo(function PersonaItem({
                   className={clsx(
                     "flex items-center gap-3 px-3.5 py-2.5 rounded-xl",
                     "bg-theme-bg border border-theme-border",
-                    "hover:border-[color-mix(in_srgb,var(--theme-primary)_24%,var(--theme-border))]",
+                    "hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))]",
                     "hover:bg-[color-mix(in_srgb,var(--theme-primary)_5%,var(--theme-bg-card))]",
                     "transition-all duration-200",
                   )}
@@ -439,7 +439,7 @@ const PersonaItem = memo(function PersonaItem({
                 className={clsx(
                   "flex items-center gap-2 rounded-lg px-2.5 py-2",
                   "bg-theme-bg border border-theme-border",
-                  "hover:border-[color-mix(in_srgb,var(--theme-primary)_24%,var(--theme-border))] transition-colors",
+                  "hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors",
                 )}
               >
                 <div

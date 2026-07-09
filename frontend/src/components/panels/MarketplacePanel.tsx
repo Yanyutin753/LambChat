@@ -82,11 +82,6 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
       .filter((skill) => skill.installed_from === "marketplace")
       .map((skill) => skill.name),
   );
-  const localManualConflicts = new Set(
-    userSkills
-      .filter((skill) => skill.installed_from !== "marketplace")
-      .map((skill) => skill.name),
-  );
 
   useEffect(() => {
     fetchUserSkills();
@@ -177,15 +172,11 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
         );
         await fetchUserSkills();
       } else {
-        if (action === "install" && localManualConflicts.has(skillName)) {
-          toast.error(t("marketplace.installNameConflict"));
-        } else {
-          toast.error(
-            action === "install"
-              ? t("marketplace.installFailed")
-              : t("marketplace.updateFailed"),
-          );
-        }
+        toast.error(
+          action === "install"
+            ? t("marketplace.installFailed")
+            : t("marketplace.updateFailed"),
+        );
       }
     } finally {
       setInstallingSkill(null);
@@ -401,9 +392,6 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
                 skill={skill}
                 index={index}
                 isInstalled={installedMarketplaceNames.has(skill.skill_name)}
-                hasLocalManualConflict={localManualConflicts.has(
-                  skill.skill_name,
-                )}
                 isOwner={skill.is_owner}
                 canManage={skill.is_owner || canAdmin}
                 canWrite={canWrite}

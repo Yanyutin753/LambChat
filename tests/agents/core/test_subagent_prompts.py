@@ -2,12 +2,18 @@ import importlib.util
 from pathlib import Path
 
 from src.agents.core.subagent_prompts import (
+    CODEBASE_INVESTIGATOR_PROMPT,
     DEFAULT_SUBAGENT_PROMPT,
     DETAILED_SUBAGENT_PROMPT,
+    IMPLEMENTATION_WORKER_PROMPT,
     MAIN_AGENT_PROMPT_SECTIONS,
+    RESEARCH_SUBAGENT_PROMPT,
+    SPECIALIZED_SUBAGENT_DESCRIPTIONS,
+    SPECIALIZED_SUBAGENT_NAMES,
     SUBAGENT_PROMPT,
     SUBAGENT_TASK_GUIDE,
     TOOL_PROGRESS_GUIDE,
+    VERIFICATION_RUNNER_PROMPT,
     WORKFLOW_SECTION,
 )
 
@@ -33,6 +39,7 @@ DEFAULT_SYSTEM_PROMPT = _search_prompt.DEFAULT_SYSTEM_PROMPT
 SANDBOX_SYSTEM_PROMPT = _search_prompt.SANDBOX_SYSTEM_PROMPT
 SANDBOX_RUNTIME_SECTION = _search_prompt.SANDBOX_RUNTIME_SECTION
 TEAM_SANDBOX_SYSTEM_PROMPT = _team_prompt.SANDBOX_SYSTEM_PROMPT
+TEAM_ROUTER_SYSTEM_PROMPT = _team_prompt.TEAM_ROUTER_SYSTEM_PROMPT
 
 
 def _effective_main_prompt(base_prompt: str) -> str:
@@ -61,7 +68,8 @@ def test_main_agent_guide_requires_synthesizing_subagent_results() -> None:
         "synthesize",
         "deduplicate",
         "conflict",
-        "handoff notes",
+        "report files",
+        "activity log",
     ]
 
     guide = SUBAGENT_TASK_GUIDE.lower()
@@ -322,6 +330,84 @@ def test_subagent_task_guide_forbids_coordination_notification_tasks() -> None:
     assert "coordination reminders" in guide
 
 
+def test_main_agent_guide_routes_to_specialized_subagents() -> None:
+    guide = SUBAGENT_TASK_GUIDE.lower()
+
+    for name in SPECIALIZED_SUBAGENT_NAMES:
+        assert name in guide
+
+    for phrase in [
+        "dispatch contract",
+        "acceptance criteria",
+        "single final report",
+        "synthesis contract",
+        "do simple one-step work directly",
+    ]:
+        assert phrase in guide
+
+
+def test_specialized_subagent_descriptions_have_clear_boundaries() -> None:
+    assert SPECIALIZED_SUBAGENT_NAMES == (
+        "codebase-investigator",
+        "implementation-worker",
+        "verification-runner",
+        "researcher",
+    )
+
+    for name, description in SPECIALIZED_SUBAGENT_DESCRIPTIONS.items():
+        lower_description = description.lower()
+        assert name in SPECIALIZED_SUBAGENT_NAMES
+        assert "use this subagent" in lower_description
+        assert "do not" in lower_description
+        assert "return" in lower_description
+
+    assert "do not edit files" in SPECIALIZED_SUBAGENT_DESCRIPTIONS["codebase-investigator"].lower()
+    assert (
+        "small, scoped code changes"
+        in SPECIALIZED_SUBAGENT_DESCRIPTIONS["implementation-worker"].lower()
+    )
+    assert (
+        "do not change production files"
+        in SPECIALIZED_SUBAGENT_DESCRIPTIONS["verification-runner"].lower()
+    )
+    assert "external documentation" in SPECIALIZED_SUBAGENT_DESCRIPTIONS["researcher"].lower()
+
+
+def test_specialized_subagent_prompts_keep_role_specific_handoff_contracts() -> None:
+    prompt_expectations = {
+        CODEBASE_INVESTIGATOR_PROMPT: [
+            "## Specialist Mode: Codebase Investigator",
+            "Do not edit files",
+            "Current behavior:",
+            "Relevant files:",
+        ],
+        IMPLEMENTATION_WORKER_PROMPT: [
+            "## Specialist Mode: Implementation Worker",
+            "small, scoped code changes",
+            "Files changed:",
+            "Verification run:",
+        ],
+        VERIFICATION_RUNNER_PROMPT: [
+            "## Specialist Mode: Verification Runner",
+            "Do not change production files",
+            "Commands run:",
+            "Failure analysis:",
+        ],
+        RESEARCH_SUBAGENT_PROMPT: [
+            "## Specialist Mode: Researcher",
+            "external documentation",
+            "Sources used:",
+            "Date/version caveats:",
+        ],
+    }
+
+    for prompt, phrases in prompt_expectations.items():
+        assert "## Handoff Notes" in prompt
+        assert "Stay within the assigned objective" in prompt
+        for phrase in phrases:
+            assert phrase in prompt
+
+
 def test_subagent_prompts_require_scope_and_verification_handoff() -> None:
     required_guidance = [
         "stay within the assigned objective",
@@ -394,3 +480,43 @@ def test_search_agent_uses_single_section_prompt_middleware_instance() -> None:
 
     assert nodes_source.count("user_middleware.append(SectionPromptMiddleware") == 1
     assert "_prompt_sections.append(" in nodes_source
+
+
+def test_fast_and_search_agents_register_specialized_subagents() -> None:
+    repo_root = Path(__file__).parents[3]
+    source_by_agent = {
+        "fast": (repo_root / "src/agents/fast_agent/nodes.py").read_text(encoding="utf-8"),
+        "search": (repo_root / "src/agents/search_agent/nodes.py").read_text(encoding="utf-8"),
+    }
+
+    for source in source_by_agent.values():
+        for name in SPECIALIZED_SUBAGENT_NAMES:
+            assert f'"name": "{name}"' in source
+            assert "SPECIALIZED_SUBAGENT_DESCRIPTIONS" in source
+
+    assert "RESEARCH_SUBAGENT_PROMPT" in source_by_agent["search"]
+
+
+def test_team_router_prompt_describes_natural_collaboration_contract() -> None:
+    prompt = TEAM_ROUTER_SYSTEM_PROMPT.lower()
+
+    for phrase in [
+        "collaboration contract",
+        "short routing plan",
+        "parallel",
+        "dependent work",
+        "acceptance criteria",
+        "natural synthesis",
+        "not a transcript",
+    ]:
+        assert phrase in prompt
+
+
+def test_team_fallback_registers_specialized_subagents() -> None:
+    nodes_source = (Path(__file__).parents[3] / "src/agents/team_agent/nodes.py").read_text(
+        encoding="utf-8"
+    )
+
+    for name in SPECIALIZED_SUBAGENT_NAMES:
+        assert f'"name": "{name}"' in nodes_source
+    assert "SPECIALIZED_SUBAGENT_DESCRIPTIONS" in nodes_source

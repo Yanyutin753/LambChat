@@ -493,6 +493,42 @@ async def test_generate_recommend_questions_uses_default_model_when_title_model_
     ]
 
 
+async def test_generate_recommend_questions_uses_legacy_model_when_resolution_fails(
+    monkeypatch,
+) -> None:
+    calls = []
+    model = _FakeModel()
+
+    async def fake_get_model(**kwargs):
+        calls.append(kwargs)
+        return model
+
+    async def fake_resolve_model_reference(_value):
+        raise RuntimeError("model registry unavailable")
+
+    monkeypatch.setattr("src.infra.llm.client.LLMClient.get_model", fake_get_model)
+    monkeypatch.setattr(
+        "src.infra.llm.models_service.resolve_model_reference",
+        fake_resolve_model_reference,
+    )
+    monkeypatch.setattr(
+        "src.agents.core.recommendations.settings.SESSION_TITLE_MODEL",
+        "legacy/model",
+    )
+
+    questions = await generate_recommend_questions("如何准备半程马拉松？")
+
+    assert calls == [
+        {
+            "model_id": None,
+            "max_retries": 3,
+            "model": "legacy/model",
+        }
+    ]
+    assert model.prompts
+    assert questions == ["这个需要改哪些测试？", "能帮我直接修复吗？", "改完后怎么验证？"]
+
+
 async def test_recommendation_node_emits_llm_followup_questions(monkeypatch) -> None:
     presenter = _FakePresenter()
 

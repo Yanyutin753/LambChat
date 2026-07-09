@@ -6,6 +6,7 @@ interface CreateOptimisticMessagesForSendOptions {
   previousMessages: Message[];
   content: string;
   attachments?: MessageAttachment[];
+  enabledSkills?: string[];
   now?: Date;
   createId?: () => string;
 }
@@ -42,6 +43,7 @@ export function createOptimisticMessagesForSend({
   previousMessages,
   content,
   attachments,
+  enabledSkills,
   now = new Date(),
   createId = () => uuid(),
 }: CreateOptimisticMessagesForSendOptions): CreateOptimisticMessagesForSendResult {
@@ -51,6 +53,7 @@ export function createOptimisticMessagesForSend({
     content: content.trim(),
     timestamp: now,
     attachments,
+    enabledSkills,
   };
 
   const assistantMessage: Message = {

@@ -1,4 +1,4 @@
-.PHONY: help install install-pnpm dev build clean docker-up docker-down docker-logs docker-build docker-workflow-acceptance test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-build-smoke frontend-install
+.PHONY: help install install-pnpm dev build clean docker-up docker-down docker-logs docker-build test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-build-smoke frontend-install
 
 # 默认目标
 help:
@@ -26,7 +26,6 @@ help:
 	@echo "  make docker-down      - 停止 Docker 容器"
 	@echo "  make docker-logs      - 查看 Docker 日志"
 	@echo "  make docker-build     - 构建 Docker 镜像"
-	@echo "  make docker-workflow-acceptance - Run live Workflow plugin acceptance"
 	@echo "  make docker-restart   - 重启 Docker 容器"
 	@echo ""
 	@echo "代码质量:"
@@ -35,8 +34,9 @@ help:
 	@echo "  make lint             - 运行 Ruff 代码检查"
 	@echo "  make format           - 格式化代码"
 	@echo "  make typecheck        - 运行 Mypy 类型检查"
-	@echo "  make test             - 运行测试"
-	@echo "  make check-all        - 运行所有检查（pre-commit + typecheck + test）"
+	@echo "  make test             - 运行所有测试（后端 pytest + 前端 vitest）"
+	@echo "  make frontend-test    - 运行前端测试（vitest）"
+	@echo "  make check-all        - 运行所有检查（pre-commit + typecheck + test + build）"
 	@echo ""
 	@echo "清理:"
 	@echo "  make clean            - 清理缓存和临时文件"
@@ -107,10 +107,6 @@ docker-build:
 	@echo "🔨 构建 Docker 镜像..."
 	docker-compose build
 
-docker-workflow-acceptance:
-	@echo "Run live Workflow plugin acceptance..."
-	python scripts/workflow_container_acceptance.py
-
 docker-restart: docker-down docker-up
 	@echo "🔄 Docker 容器已重启"
 
@@ -136,11 +132,15 @@ typecheck:
 	@echo "🔬 运行 Mypy 类型检查..."
 	uv run mypy src/
 
-test:
-	@echo "🧪 运行测试..."
-	uv run pytest
+test: frontend-test
+	@echo "🧪 运行后端测试..."
+	uv run --no-sync pytest
 
-check-all: pre-commit typecheck test
+frontend-test:
+	@echo "🧪 运行前端测试..."
+	cd frontend && pnpm test
+
+check-all: pre-commit typecheck test build-all
 	@echo "✅ 所有检查通过"
 
 # 清理

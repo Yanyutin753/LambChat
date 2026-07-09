@@ -8,7 +8,10 @@ Settings for managing chat sessions, event streaming, and session titles.
 |----------|---------|-------------|
 | `SESSION_MAX_RUNS_PER_SESSION` | `100` | Maximum agent runs per session. |
 | `SESSION_MAX_MESSAGES` | `20` | Maximum messages loaded per session (internal, not in `.env`). |
-| `SESSION_MAX_EVENTS_PER_TRACE` | `10000` | Maximum events per trace to prevent memory overflow. |
+| `SESSION_MAX_EVENTS_PER_TRACE` | `50000` | Maximum events per trace to prevent memory overflow. |
+| `SESSION_EVENT_CHUNK_STORAGE_ENABLED` | `false` | Store new trace events in `trace_event_chunks` instead of the legacy `traces.events` array. |
+| `SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY` | `false` | When chunk storage is enabled, also write events to legacy `traces.events` during a short rollback window. |
+| `SESSION_EVENT_CHUNK_SIZE` | `5000` | Maximum events per trace event chunk document. This is a storage chunk size, not a read limit. |
 
 ## Message History
 
@@ -23,6 +26,8 @@ Settings for managing chat sessions, event streaming, and session titles.
 |----------|---------|-------------|
 | `ENABLE_EVENT_MERGER` | `true` | Enable event merging to reduce redundant SSE events. |
 | `EVENT_MERGE_INTERVAL` | `300.0` | Merge interval in seconds. |
+| `EVENT_MERGE_MAX_EVENTS_PER_TRACE` | `50000` | Maximum events per completed trace eligible for merging. |
+| `EVENT_MERGE_IMMEDIATE_DEBOUNCE_SECONDS` | `2.0` | Delay used to coalesce immediate merge requests after traces complete. |
 
 ## Session Title Generation
 
@@ -44,7 +49,12 @@ Use `SESSION_TITLE_MODEL` to select an existing model configuration from model m
 SESSION_MAX_RUNS_PER_SESSION=100
 ENABLE_MESSAGE_HISTORY=true
 SSE_CACHE_TTL=86400
+SESSION_EVENT_CHUNK_STORAGE_ENABLED=false
+SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY=false
+SESSION_EVENT_CHUNK_SIZE=5000
 ENABLE_EVENT_MERGER=true
 EVENT_MERGE_INTERVAL=300.0
+EVENT_MERGE_MAX_EVENTS_PER_TRACE=50000
+EVENT_MERGE_IMMEDIATE_DEBOUNCE_SECONDS=2.0
 SESSION_TITLE_MODEL=model-config-id
 ```

@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   CHAT_INPUT_SLASH_COMMANDS,
   applySlashCommandSelection,
@@ -54,50 +51,47 @@ const mockSkills: SkillResponse[] = [
 // ── Legacy getMatchingSlashCommands ────────────────────────────────
 
 test("finds the goal command while typing a slash command prefix", () => {
-  assert.equal(getSlashCommandQuery("/go", 3), "go");
-  assert.deepEqual(getMatchingSlashCommands("/go", 3), [
+  expect(getSlashCommandQuery("/go", 3)).toBe("go");
+  expect(getMatchingSlashCommands("/go", 3)).toEqual([
     CHAT_INPUT_SLASH_COMMANDS[0],
   ]);
 });
 
 test("finds panel commands while typing a slash command prefix", () => {
-  assert.deepEqual(
+  expect(
     getMatchingSlashCommands("/to", 3).map((command) => command.id),
-    ["tools"],
-  );
-  assert.deepEqual(
+  ).toEqual(["tools"]);
+  expect(
     getMatchingSlashCommands("/t", 2).map((command) => command.id),
-    ["tools", "team"],
-  );
+  ).toEqual(["tools", "team"]);
 });
 
 test("does not show slash commands after text content has started", () => {
-  assert.equal(getSlashCommandQuery("please /go", 10), null);
-  assert.deepEqual(getMatchingSlashCommands("/goal write docs", 16), []);
+  expect(getSlashCommandQuery("please /go", 10)).toBe(null);
+  expect(getMatchingSlashCommands("/goal write docs", 16)).toEqual([]);
 });
 
 test("selecting goal command inserts a trailing space for direct goal text", () => {
-  assert.deepEqual(
+  expect(
     applySlashCommandSelection("/go", 3, CHAT_INPUT_SLASH_COMMANDS[0]),
-    {
-      input: "/goal ",
-      cursorPosition: 6,
-    },
-  );
+  ).toEqual({
+    input: "/goal ",
+    cursorPosition: 6,
+  });
 });
 
 // ── clearSlashCommandInput ────────────────────────────────────────
 
 test("clears slash prefix from input", () => {
-  assert.deepEqual(clearSlashCommandInput("/deep-research", 14), {
+  expect(clearSlashCommandInput("/deep-research", 14)).toEqual({
     input: "",
     cursorPosition: 0,
   });
-  assert.deepEqual(clearSlashCommandInput("/go", 3), {
+  expect(clearSlashCommandInput("/go", 3)).toEqual({
     input: "",
     cursorPosition: 0,
   });
-  assert.deepEqual(clearSlashCommandInput("hello", 5), {
+  expect(clearSlashCommandInput("hello", 5)).toEqual({
     input: "hello",
     cursorPosition: 5,
   });
@@ -107,52 +101,52 @@ test("clears slash prefix from input", () => {
 
 test("matches enabled skills by name prefix", () => {
   const items = getMatchingSlashDropdownItems("/deep", 5, mockSkills);
-  assert.equal(items.length, 1);
-  assert.equal(items[0].type, "skill");
+  expect(items.length).toBe(1);
+  expect(items[0].type).toBe("skill");
   if (items[0].type === "skill") {
-    assert.equal(items[0].skill.name, "deep-research");
-    assert.equal(items[0].skill.description, "Deep research harness");
+    expect(items[0].skill.name).toBe("deep-research");
+    expect(items[0].skill.description).toBe("Deep research harness");
   }
 });
 
 test("does not match skills when not provided", () => {
   const items = getMatchingSlashDropdownItems("/code", 5, undefined);
   const skills = items.filter((i) => i.type === "skill");
-  assert.equal(skills.length, 0);
+  expect(skills.length).toBe(0);
 });
 
 test("returns both commands and skills mixed", () => {
   const items = getMatchingSlashDropdownItems("/t", 2, mockSkills);
   // Should match /tools, /team (commands) and team-builder (skill)
-  assert.equal(items.length, 3);
-  assert.equal(items[0].type, "command");
-  assert.equal(items[1].type, "command");
-  assert.equal(items[2].type, "skill");
+  expect(items.length).toBe(3);
+  expect(items[0].type).toBe("command");
+  expect(items[1].type).toBe("command");
+  expect(items[2].type).toBe("skill");
   if (items[2].type === "skill") {
-    assert.equal(items[2].skill.name, "team-builder");
+    expect(items[2].skill.name).toBe("team-builder");
   }
 });
 
 test("returns only commands when no skills match", () => {
-  const items = getMatchingSlashDropdownItems("/sta", 4, mockSkills);
-  assert.equal(items.length, 1);
-  assert.equal(items[0].type, "command");
+  const items = getMatchingSlashDropdownItems("/p", 2, mockSkills);
+  expect(items.length).toBe(1);
+  expect(items[0].type).toBe("command");
   if (items[0].type === "command") {
-    assert.equal(items[0].command.id, "status");
+    expect(items[0].command.id).toBe("persona");
   }
 });
 
 test("returns only skills when no commands match", () => {
   const items = getMatchingSlashDropdownItems("/code", 5, mockSkills);
-  assert.equal(items.length, 1);
-  assert.equal(items[0].type, "skill");
+  expect(items.length).toBe(1);
+  expect(items[0].type).toBe("skill");
   if (items[0].type === "skill") {
-    assert.equal(items[0].skill.name, "code-review");
+    expect(items[0].skill.name).toBe("code-review");
   }
 });
 
 test("empty array when no match", () => {
-  assert.deepEqual(getMatchingSlashDropdownItems("/xyz", 4, mockSkills), []);
+  expect(getMatchingSlashDropdownItems("/xyz", 4, mockSkills)).toEqual([]);
 });
 
 // ── getSlashDropdownSections ───────────────────────────────────────
@@ -166,11 +160,11 @@ test("groups items into commands and skills sections", () => {
     },
   ];
   const sections = getSlashDropdownSections(items);
-  assert.equal(sections.length, 2);
-  assert.equal(sections[0].kind, "commands");
-  assert.equal(sections[0].items.length, 1);
-  assert.equal(sections[1].kind, "skills");
-  assert.equal(sections[1].items.length, 1);
+  expect(sections.length).toBe(2);
+  expect(sections[0].kind).toBe("commands");
+  expect(sections[0].items.length).toBe(1);
+  expect(sections[1].kind).toBe("skills");
+  expect(sections[1].items.length).toBe(1);
 });
 
 test("only returns commands section when no skills", () => {
@@ -178,8 +172,8 @@ test("only returns commands section when no skills", () => {
     { type: "command" as const, command: CHAT_INPUT_SLASH_COMMANDS[0] },
   ];
   const sections = getSlashDropdownSections(items);
-  assert.equal(sections.length, 1);
-  assert.equal(sections[0].kind, "commands");
+  expect(sections.length).toBe(1);
+  expect(sections[0].kind).toBe("commands");
 });
 
 test("only returns skills section when no commands", () => {
@@ -190,11 +184,11 @@ test("only returns skills section when no commands", () => {
     },
   ];
   const sections = getSlashDropdownSections(items);
-  assert.equal(sections.length, 1);
-  assert.equal(sections[0].kind, "skills");
+  expect(sections.length).toBe(1);
+  expect(sections[0].kind).toBe("skills");
 });
 
 test("returns empty array when no items", () => {
   const sections = getSlashDropdownSections([]);
-  assert.deepEqual(sections, []);
+  expect(sections).toEqual([]);
 });

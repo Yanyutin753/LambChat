@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { getPersonaPresetCapabilities } from "../personaPresetAccess.ts";
 import type { PersonaPreset } from "../../../types";
 
@@ -23,43 +20,40 @@ function buildPreset(scope: "user" | "global"): PersonaPreset {
 }
 
 test("non-admin writers can copy official presets but cannot edit or delete them", () => {
-  assert.deepEqual(
+  expect(
     getPersonaPresetCapabilities(buildPreset("global"), {
       canWrite: true,
       canAdmin: false,
     }),
-    {
-      canCopy: true,
-      canEdit: false,
-      canDelete: false,
-    },
-  );
+  ).toEqual({
+    canCopy: true,
+    canEdit: false,
+    canDelete: false,
+  });
 });
 
 test("admins can manage official presets directly", () => {
-  assert.deepEqual(
+  expect(
     getPersonaPresetCapabilities(buildPreset("global"), {
       canWrite: true,
       canAdmin: true,
     }),
-    {
-      canCopy: true,
-      canEdit: true,
-      canDelete: true,
-    },
-  );
+  ).toEqual({
+    canCopy: true,
+    canEdit: true,
+    canDelete: true,
+  });
 });
 
 test("writers can manage their own presets", () => {
-  assert.deepEqual(
+  expect(
     getPersonaPresetCapabilities(buildPreset("user"), {
       canWrite: true,
       canAdmin: false,
     }),
-    {
-      canCopy: false,
-      canEdit: true,
-      canDelete: true,
-    },
-  );
+  ).toEqual({
+    canCopy: false,
+    canEdit: true,
+    canDelete: true,
+  });
 });

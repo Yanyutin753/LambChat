@@ -1,7 +1,5 @@
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const chatInputSource = readFileSync(
   new URL("../ChatInput.tsx", import.meta.url),
   "utf8",
@@ -17,7 +15,10 @@ test("team agent mention switches teams instead of persona presets", () => {
   assert.match(chatInputSource, /buildMentionProviderContributions/);
   assert.match(chatInputSource, /isPluginMentionProviderSupported/);
   assert.match(chatInputSource, /usePluginMentionProviderRuntime/);
-  assert.match(chatInputSource, /const mentionMode = activePluginMentionProvider\?\.mode \?\? "persona"/);
+  assert.match(
+    chatInputSource,
+    /const mentionMode:[\s\S]*activePluginMentionProvider\?\.mode === "team" \? "team" : "persona"/,
+  );
   assert.doesNotMatch(chatInputSource, /currentAgent === "team"[\s\S]*\? "team"[\s\S]*: "persona"/);
   assert.doesNotMatch(chatInputSource, /applyTeamMentionSelection/);
   assert.match(mentionProviderRenderersSource, /useTeamMentionSearch/);
@@ -42,6 +43,6 @@ test("team agent placeholder says @ switches teams", () => {
 });
 
 test("team agent can submit without selecting an existing team", () => {
-  assert.doesNotMatch(chatInputSource, /requiresTeamSelection/);
-  assert.doesNotMatch(chatInputSource, /!\s*requiresTeamSelection/);
+  expect(chatInputSource).not.toMatch(/requiresTeamSelection/);
+  expect(chatInputSource).not.toMatch(/!\s*requiresTeamSelection/);
 });

@@ -24,7 +24,7 @@ export function FileTabs({
           onClick={() => onSelect(index)}
           className={`group flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all duration-150 ${
             activeFileIndex === index
-              ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)] shadow-sm"
+              ? "bg-[var(--theme-bg-subtle)] text-[var(--theme-text)] shadow-sm"
               : "text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
           }`}
           title={file.path || untitledLabel}

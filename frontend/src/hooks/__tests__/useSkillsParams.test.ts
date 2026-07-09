@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   DEFAULT_SKILL_LIST_LIMIT,
   resolveSkillListParams,
@@ -8,16 +5,15 @@ import {
 } from "../useSkills.ts";
 
 test("resolveSkillListParams requests one page by default", () => {
-  assert.deepEqual(resolveSkillListParams(undefined, undefined), {
+  expect(resolveSkillListParams(undefined, undefined)).toEqual({
     limit: 20,
   });
 });
 
 test("resolveSkillListParams gives explicit fetch params priority", () => {
-  assert.deepEqual(
+  expect(
     resolveSkillListParams({ skip: 20, limit: 20 }, { limit: 50 }),
-    { skip: 20, limit: 20 },
-  );
+  ).toEqual({ skip: 20, limit: 20 });
 });
 
 test("resolveSkillListState replaces skills in normal paged mode", () => {
@@ -28,10 +24,7 @@ test("resolveSkillListState replaces skills in normal paged mode", () => {
     appendPages: false,
   });
 
-  assert.deepEqual(
-    result.map((skill) => skill.name),
-    ["second"],
-  );
+  expect(result.map((skill) => skill.name)).toEqual(["second"]);
 });
 
 test("resolveSkillListState appends later pages without duplicating skills", () => {
@@ -48,12 +41,9 @@ test("resolveSkillListState appends later pages without duplicating skills", () 
     appendPages: true,
   });
 
-  assert.deepEqual(
-    result.map((skill) => [skill.name, skill.enabled]),
-    [
-      ["alpha", true],
-      ["bravo", false],
-      ["charlie", true],
-    ],
-  );
+  expect(result.map((skill) => [skill.name, skill.enabled])).toEqual([
+    ["alpha", true],
+    ["bravo", false],
+    ["charlie", true],
+  ]);
 });

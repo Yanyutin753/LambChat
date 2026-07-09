@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import type { BackendSession } from "../../../services/api/session.ts";
 import { isSessionFavorite } from "../sessionFavorites.ts";
 
@@ -16,6 +13,6 @@ function session(metadata: Record<string, unknown>): BackendSession {
 }
 
 test("reads favorite state from normalized session metadata", () => {
-  assert.equal(isSessionFavorite(session({ is_favorite: true })), true);
-  assert.equal(isSessionFavorite(session({ is_favorite: false })), false);
+  expect(isSessionFavorite(session({ is_favorite: true }))).toBe(true);
+  expect(isSessionFavorite(session({ is_favorite: false }))).toBe(false);
 });

@@ -34,20 +34,6 @@ def plugin_option_from_metadata(
     return plugin_options_from_metadata(metadata).get(plugin_id, {}).get(key)
 
 
-def plugin_result_from_agent_options(
-    agent_options: dict[str, Any] | None,
-    *,
-    plugin_id: str,
-) -> Any:
-    """Return one structured plugin result from runtime agent options."""
-    if not isinstance(agent_options, dict):
-        return None
-    plugin_results = agent_options.get("_plugin_results")
-    if not isinstance(plugin_results, dict):
-        return None
-    return plugin_results.get(plugin_id)
-
-
 def filter_declared_plugin_options(
     runtime: Any,
     metadata: dict[str, Any] | None,
@@ -94,14 +80,23 @@ def declared_session_options_from_project_defaults(
     """
     if runtime is None:
         return {}
+    project_options = plugin_options_from_metadata(project_metadata)
+    if not project_options:
+        return {}
     manifests = _runtime_manifests(runtime)
+    if not manifests:
+        get_state = getattr(runtime, "get_state", None)
+        if callable(get_state):
+            manifests = [
+                state.manifest
+                for plugin_id in project_options
+                if (state := get_state(plugin_id)) is not None
+                and getattr(state, "manifest", None) is not None
+            ]
     if not manifests:
         from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
 
         manifests = list(BUILTIN_PLUGIN_MANIFESTS)
-    project_options = plugin_options_from_metadata(project_metadata)
-    if not project_options:
-        return {}
 
     result: dict[str, dict[str, Any]] = {}
     for manifest in manifests:

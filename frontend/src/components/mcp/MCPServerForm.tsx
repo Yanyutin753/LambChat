@@ -327,7 +327,7 @@ export function MCPServerForm({
       </div>
 
       {/* Enabled */}
-      <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-[var(--theme-primary-light)]/30">
+      <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-[var(--theme-bg-subtle)]">
         <input
           type="checkbox"
           id="enabled"

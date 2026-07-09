@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -14,68 +12,68 @@ const source = readFileSync(
 );
 
 test("hook checks for serviceWorker and PushManager availability", () => {
-  assert.match(source, /"serviceWorker"\s+in\s+navigator/);
-  assert.match(source, /"PushManager"\s+in\s+window/);
+  expect(source).toMatch(/"serviceWorker"\s+in\s+navigator/);
+  expect(source).toMatch(/"PushManager"\s+in\s+window/);
 });
 
 test("hook fetches VAPID public key via pushApi", () => {
-  assert.match(source, /pushApi\.getVapidPublicKey/);
+  expect(source).toMatch(/pushApi\.getVapidPublicKey/);
 });
 
 test("hook sets status to unavailable when push not supported", () => {
   // Both unavailable paths should exist
   const unavailableMatches = source.match(/"unavailable"/g);
-  assert.ok(unavailableMatches && unavailableMatches.length >= 2);
+  expect(unavailableMatches && unavailableMatches.length >= 2).toBeTruthy();
 });
 
 test("subscribe calls pushManager.subscribe with userVisibleOnly and applicationServerKey", () => {
-  assert.match(source, /userVisibleOnly:\s*true/);
-  assert.match(source, /applicationServerKey:\s*urlBase64ToUint8Array/);
+  expect(source).toMatch(/userVisibleOnly:\s*true/);
+  expect(source).toMatch(/applicationServerKey:\s*urlBase64ToUint8Array/);
 });
 
 test("subscribe requests Notification permission before subscribing", () => {
-  assert.match(source, /Notification\.requestPermission/);
-  assert.match(source, /permission\s*!==\s*"granted"/);
+  expect(source).toMatch(/Notification\.requestPermission/);
+  expect(source).toMatch(/permission\s*!==\s*"granted"/);
 });
 
 test("subscribe sends subscription to backend via pushApi.subscribe", () => {
-  assert.match(source, /pushApi\.subscribe/);
+  expect(source).toMatch(/pushApi\.subscribe/);
 });
 
 test("unsubscribe calls pushManager.unsubscribe and pushApi.unsubscribe", () => {
-  assert.match(source, /existing\.unsubscribe\(\)/);
-  assert.match(source, /pushApi\.unsubscribe/);
+  expect(source).toMatch(/existing\.unsubscribe\(\)/);
+  expect(source).toMatch(/pushApi\.unsubscribe/);
 });
 
 test("urlBase64ToUint8Array handles base64url encoding", () => {
-  assert.match(source, /urlBase64ToUint8Array/);
+  expect(source).toMatch(/urlBase64ToUint8Array/);
   // Should replace URL-safe characters
-  assert.match(source, /replace\(/);
-  assert.match(source, /-/);
-  assert.match(source, /_/);
+  expect(source).toMatch(/replace\(/);
+  expect(source).toMatch(/-/);
+  expect(source).toMatch(/_/);
   // Should handle padding
-  assert.match(source, /"="/);
+  expect(source).toMatch(/"="/);
 });
 
 test("hook exports PushStatus type with all expected states", () => {
-  assert.match(source, /PushStatus/);
-  assert.match(source, /"idle"/);
-  assert.match(source, /"loading"/);
-  assert.match(source, /"subscribed"/);
-  assert.match(source, /"unavailable"/);
-  assert.match(source, /"error"/);
+  expect(source).toMatch(/PushStatus/);
+  expect(source).toMatch(/"idle"/);
+  expect(source).toMatch(/"loading"/);
+  expect(source).toMatch(/"subscribed"/);
+  expect(source).toMatch(/"unavailable"/);
+  expect(source).toMatch(/"error"/);
 });
 
 test("hook checks existing subscription via pushManager.getSubscription", () => {
-  assert.match(source, /pushManager\.getSubscription/);
-  assert.match(source, /"subscribed"/);
+  expect(source).toMatch(/pushManager\.getSubscription/);
+  expect(source).toMatch(/"subscribed"/);
 });
 
 test("hook verifies a service worker registration before waiting for readiness", () => {
-  assert.match(source, /serviceWorker\.getRegistration\(\)/);
-  assert.match(source, /if \(!registration\)/);
+  expect(source).toMatch(/serviceWorker\.getRegistration\(\)/);
+  expect(source).toMatch(/if \(!registration\)/);
 });
 
 test("subscribe returns false when push is unavailable", () => {
-  assert.match(source, /status\s*===\s*"unavailable".*return/);
+  expect(source).toMatch(/status\s*===\s*"unavailable".*return/);
 });

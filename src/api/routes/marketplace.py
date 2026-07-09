@@ -90,17 +90,23 @@ def _validate_marketplace_files_payload(files: dict[str, str]) -> None:
             )
 
 
-async def _copy_marketplace_files_to_user_skill(
+async def _load_marketplace_files_payload(
     *,
     name: str,
-    user_id: str,
     marketplace: MarketplaceStorage,
-    storage: SkillStorage,
-) -> int:
-    copied = 0
+    expected_paths: list[str],
+) -> dict[str, str]:
+    files: dict[str, str] = {}
     async for batch in marketplace.iter_marketplace_file_batches(name):
-        copied += await storage.upsert_skill_files_batch(name, batch, user_id)
-    return copied
+        files.update(batch)
+    missing_paths = set(expected_paths) - set(files)
+    if missing_paths:
+        raise HTTPException(
+            status_code=500,
+            detail="Marketplace skill files are incomplete",
+        )
+    _validate_marketplace_files_payload(files)
+    return files
 
 
 # ==========================================
@@ -292,24 +298,20 @@ async def install_marketplace_skill(
     if existing_meta:
         if existing_meta.installed_from == InstalledFrom.MARKETPLACE:
             raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
-        raise HTTPException(
-            status_code=409,
-            detail=f"Local manual skill '{name}' already exists. Rename or remove it before installing from marketplace.",
-        )
 
-    # 3. 获取商城文件数量并分批复制到用户目录，避免一次性物化所有文件内容
+    # 3. 获取商城文件数量
     file_paths = await marketplace.list_marketplace_file_paths(name)
     if not file_paths:
         raise HTTPException(status_code=400, detail="Marketplace skill has no files")
 
-    # 4. 创建用户本地副本（利用 MongoDB unique index 防止竞态）
+    # 4. 先完整读取商城文件，再替换用户本地副本；避免读取失败时删除本地手动技能。
     try:
-        copied = await _copy_marketplace_files_to_user_skill(
+        files = await _load_marketplace_files_payload(
             name=name,
-            user_id=user.sub,
             marketplace=marketplace,
-            storage=storage,
+            expected_paths=file_paths,
         )
+        await storage.sync_skill_files(name, files, user.sub)
         await storage.set_skill_meta(
             name,
             user.sub,
@@ -325,7 +327,7 @@ async def install_marketplace_skill(
     return {
         "message": f"Skill '{name}' installed successfully",
         "skill_name": name,
-        "file_count": copied,
+        "file_count": len(files),
     }
 
 
@@ -359,13 +361,12 @@ async def update_from_marketplace(
     if not file_paths:
         raise HTTPException(status_code=400, detail="Marketplace skill has no files")
 
-    await storage.delete_skill_files(name, user.sub)
-    copied = await _copy_marketplace_files_to_user_skill(
+    files = await _load_marketplace_files_payload(
         name=name,
-        user_id=user.sub,
         marketplace=marketplace,
-        storage=storage,
+        expected_paths=file_paths,
     )
+    await storage.sync_skill_files(name, files, user.sub)
 
     # Update __meta__ doc (preserve installed_from and published_marketplace_name)
     await storage.set_skill_meta(
@@ -380,7 +381,7 @@ async def update_from_marketplace(
     return {
         "message": f"Skill '{name}' updated from marketplace",
         "skill_name": name,
-        "file_count": copied,
+        "file_count": len(files),
     }
 
 

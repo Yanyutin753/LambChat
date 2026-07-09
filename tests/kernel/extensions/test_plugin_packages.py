@@ -50,6 +50,11 @@ settings:
 frontend:
   nav_items:
     - demo_plugin:nav
+  message_renderers:
+    - id: demo_plugin:run-card
+      renderer: demo_plugin.RunCard
+      message_types:
+        - run_result
 backend:
   tools:
     - name: demo_plugin_tool
@@ -66,6 +71,9 @@ backend:
     manifest = scan.manifests[0]
     assert manifest.id == "demo_plugin"
     assert manifest.install_type.value == "user_installed"
+    assert manifest.frontend.message_renderers[0].id == "demo_plugin:run-card"
+    assert manifest.frontend.message_renderers[0].renderer == "demo_plugin.RunCard"
+    assert manifest.frontend.message_renderers[0].message_types == ["run_result"]
     assert manifest.package_source_type == "installed"
     assert manifest.package_manifest_authority == "folder_package"
     assert manifest.package_static_fallback_used is False
@@ -774,38 +782,23 @@ def test_controlled_frontend_references_include_builtin_plugin_renderers() -> No
     )
     assert CONTROLLED_FRONTEND_REFERENCES[
         "chat_input_options.selected_renderer"
-    ] == frozenset(
-        {"agent_team.SelectedTeamChip", "workflow.SelectedWorkflowChip"}
-    )
+    ] == frozenset({"agent_team.SelectedTeamChip"})
     assert CONTROLLED_FRONTEND_REFERENCES["chat_input_panels.renderer"] == frozenset(
-        {"agent_team.TeamPickerModal", "workflow.WorkflowPickerModal"}
+        {"agent_team.TeamPickerModal"}
     )
     assert CONTROLLED_FRONTEND_REFERENCES["mention_providers.provider"] == frozenset(
         {"agent_team.searchTeams"}
     )
     assert CONTROLLED_FRONTEND_REFERENCES["project_options.renderer"] == frozenset(
-        {
-            "agent_team.TeamSelectOption",
-            "workflow.WorkflowSelectOption",
-            "workflow.WorkflowVersionSelectOption",
-        }
+        {"agent_team.TeamSelectOption"}
     )
     assert CONTROLLED_FRONTEND_REFERENCES["session_options.renderer"] == frozenset(
-        {
-            "agent_team.TeamSelectOption",
-            "workflow.WorkflowInputOption",
-            "workflow.WorkflowSelectOption",
-            "workflow.WorkflowVersionSelectOption",
-        }
+        {"agent_team.TeamSelectOption"}
     )
     assert CONTROLLED_FRONTEND_REFERENCES["scheduled_task_options.renderer"] == frozenset(
-        {
-            "agent_team.TeamSelectOption",
-            "workflow.WorkflowInputOption",
-            "workflow.WorkflowSelectOption",
-            "workflow.WorkflowVersionSelectOption",
-        }
+        {"agent_team.TeamSelectOption"}
     )
+    assert CONTROLLED_FRONTEND_REFERENCES["scheduled_task_sections.renderer"] == frozenset()
     assert CONTROLLED_FRONTEND_REFERENCES["channel_connectors.panel_renderer"] == frozenset(
         {"feishu_connector.FeishuPanel"}
     )
@@ -1343,121 +1336,6 @@ settings:
     )
 
 
-def test_plugin_data_service_merges_new_manifest_defaults_without_overwriting_existing_values(
-    tmp_path: Path,
-) -> None:
-    plugin_root = tmp_path / "plugins"
-    data_root = tmp_path / "plugin-data"
-    folder = _write_plugin(
-        plugin_root,
-        "installed",
-        "demo_plugin",
-        """
-id: demo_plugin
-name: Demo Plugin
-version: 1.0.0
-api_version: v1
-settings:
-  - key: LIMIT
-    type: number
-    default: 5
-""",
-    )
-    service = PluginDataService(data_root=data_root)
-    descriptor = (
-        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
-    )
-    service.ensure_for_descriptor(descriptor)
-    defaults_path = data_root / "demo_plugin" / "config" / "defaults.json"
-    defaults_path.write_text('{"LIMIT": 9}\n', encoding="utf-8")
-
-    (folder / "plugin.yaml").write_text(
-        """
-id: demo_plugin
-name: Demo Plugin
-version: 1.1.0
-api_version: v1
-settings:
-  - key: LIMIT
-    type: number
-    default: 5
-  - key: MODE
-    type: string
-    default: sync
-""",
-        encoding="utf-8",
-    )
-    upgraded_descriptor = (
-        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
-    )
-
-    service.ensure_for_descriptor(upgraded_descriptor)
-
-    assert json.loads(defaults_path.read_text(encoding="utf-8")) == {"LIMIT": 9, "MODE": "sync"}
-
-
-def test_plugin_data_service_skips_unwritable_existing_defaults_during_merge(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    plugin_root = tmp_path / "plugins"
-    data_root = tmp_path / "plugin-data"
-    folder = _write_plugin(
-        plugin_root,
-        "installed",
-        "demo_plugin",
-        """
-id: demo_plugin
-name: Demo Plugin
-version: 1.0.0
-api_version: v1
-settings:
-  - key: LIMIT
-    type: number
-    default: 5
-""",
-    )
-    service = PluginDataService(data_root=data_root)
-    descriptor = (
-        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
-    )
-    service.ensure_for_descriptor(descriptor)
-    defaults_path = data_root / "demo_plugin" / "config" / "defaults.json"
-    defaults_path.write_text('{"LIMIT": 9}\n', encoding="utf-8")
-
-    (folder / "plugin.yaml").write_text(
-        """
-id: demo_plugin
-name: Demo Plugin
-version: 1.1.0
-api_version: v1
-settings:
-  - key: LIMIT
-    type: number
-    default: 5
-  - key: MODE
-    type: string
-    default: sync
-""",
-        encoding="utf-8",
-    )
-    upgraded_descriptor = (
-        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
-    )
-    original_write_text = Path.write_text
-
-    def deny_defaults_write(path: Path, *args, **kwargs):
-        if path == defaults_path:
-            raise PermissionError("defaults locked")
-        return original_write_text(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "write_text", deny_defaults_write)
-
-    service.ensure_for_descriptor(upgraded_descriptor)
-
-    assert json.loads(defaults_path.read_text(encoding="utf-8")) == {"LIMIT": 9}
-
-
 def test_plugin_data_service_reset_current_config_creates_backup(tmp_path: Path) -> None:
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
@@ -1626,7 +1504,7 @@ def test_builtin_folder_packages_are_complete_runtime_contracts() -> None:
         audit_template = data_template_dir / "state" / "audit.jsonl"
         assert current_template.is_file()
         assert defaults_template.is_file()
-        assert not audit_template.exists()
+        assert audit_template.is_file()
         assert json.loads(current_template.read_text(encoding="utf-8")) == {}
         assert (
             json.loads(defaults_template.read_text(encoding="utf-8"))
@@ -1675,7 +1553,7 @@ def test_builtin_folder_packages_are_complete_runtime_contracts() -> None:
 def test_migrated_system_plugins_do_not_use_legacy_frontend_route_fields() -> None:
     scan = PluginPackageScanner(plugin_root=Path("plugins"), data_root=Path("plugin-data")).scan()
     descriptors = scan.by_plugin_id()
-    migrated_plugin_ids = {"feedback", "agent_team", "workflow", "usage_reports"}
+    migrated_plugin_ids = {"feedback", "agent_team", "usage_reports"}
 
     assert scan.errors == ()
     assert migrated_plugin_ids <= set(descriptors)

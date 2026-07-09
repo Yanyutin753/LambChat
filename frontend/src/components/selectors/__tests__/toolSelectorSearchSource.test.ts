@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const source = readFileSync(
   new URL("../ToolSelector.tsx", import.meta.url),
   "utf8",
@@ -16,67 +13,62 @@ const agentModeSelectorSource = readFileSync(
 );
 
 test("tool selector exposes an editing-safe search module for all tool categories", () => {
-  assert.match(source, /Search,/);
-  assert.match(source, /import \{ PanelSearchInput \}/);
-  assert.match(
-    source,
+  expect(source).toMatch(/Search,/);
+  expect(source).toMatch(/import \{ PanelSearchInput \}/);
+  expect(source).toMatch(
     /const \[searchQuery, setSearchQuery\] = useState\(""\)/,
   );
-  assert.match(source, /placeholder=\{t\("tools\.searchPlaceholder"\)\}/);
-  assert.match(source, /value=\{searchQuery\}/);
-  assert.match(source, /onValueChange=\{setSearchQuery\}/);
-  assert.doesNotMatch(
-    source,
+  expect(source).toMatch(/placeholder=\{t\("tools\.searchPlaceholder"\)\}/);
+  expect(source).toMatch(/value=\{searchQuery\}/);
+  expect(source).toMatch(/onValueChange=\{setSearchQuery\}/);
+  expect(source).not.toMatch(
     /onChange=\{\(e\) => setSearchQuery\(e\.target\.value\)\}/,
   );
-  assert.match(source, /const renderModalContent = \(\) =>/);
-  assert.doesNotMatch(source, /const ModalContent = \(\) =>/);
-  assert.doesNotMatch(source, /<ModalContent \/>/);
+  expect(source).toMatch(/const renderModalContent = \(\) =>/);
+  expect(source).not.toMatch(/const ModalContent = \(\) =>/);
+  expect(source).not.toMatch(/<ModalContent \/>/);
 });
 
 test("skill selector search uses the same editing-safe input", () => {
-  assert.match(skillSelectorSource, /Search,/);
-  assert.match(skillSelectorSource, /import \{ PanelSearchInput \}/);
-  assert.match(
-    skillSelectorSource,
+  expect(skillSelectorSource).toMatch(/Search,/);
+  expect(skillSelectorSource).toMatch(/import \{ PanelSearchInput \}/);
+  expect(skillSelectorSource).toMatch(
     /const \[searchQuery, setSearchQuery\] = useState\(""\)/,
   );
-  assert.match(
-    skillSelectorSource,
+  expect(skillSelectorSource).toMatch(
     /placeholder=\{t\("skills\.searchPlaceholder"\)\}/,
   );
-  assert.match(skillSelectorSource, /value=\{searchQuery\}/);
-  assert.match(skillSelectorSource, /onValueChange=\{setSearchQuery\}/);
-  assert.doesNotMatch(
-    skillSelectorSource,
+  expect(skillSelectorSource).toMatch(/value=\{searchQuery\}/);
+  expect(skillSelectorSource).toMatch(/onValueChange=\{setSearchQuery\}/);
+  expect(skillSelectorSource).not.toMatch(
     /onChange=\{\(e\) => setSearchQuery\(e\.target\.value\)\}/,
   );
-  assert.match(skillSelectorSource, /const renderModalContent = \(\) =>/);
-  assert.doesNotMatch(skillSelectorSource, /const ModalContent = \(\) =>/);
-  assert.doesNotMatch(skillSelectorSource, /<ModalContent \/>/);
+  expect(skillSelectorSource).toMatch(/const renderModalContent = \(\) =>/);
+  expect(skillSelectorSource).not.toMatch(/const ModalContent = \(\) =>/);
+  expect(skillSelectorSource).not.toMatch(/<ModalContent \/>/);
 });
 
 test("tool selector filters tools before grouping and pagination", () => {
-  assert.match(source, /const filteredTools = useMemo/);
-  assert.match(source, /tool\.name/);
-  assert.match(source, /tool\.description/);
-  assert.match(source, /tool\.server/);
-  assert.match(source, /t\(`tools\.categories\.\$\{tool\.category\}`\)/);
-  assert.match(source, /tool\.parameters\?\.flatMap/);
-  assert.match(source, /total: filteredTools\.length/);
-  assert.match(source, /createPagedGroups\(filteredTools/);
-  assert.match(source, /total=\{filteredTools\.length\}/);
+  expect(source).toMatch(/const filteredTools = useMemo/);
+  expect(source).toMatch(/tool\.name/);
+  expect(source).toMatch(/tool\.description/);
+  expect(source).toMatch(/tool\.server/);
+  expect(source).toMatch(/t\(`tools\.categories\.\$\{tool\.category\}`\)/);
+  expect(source).toMatch(/tool\.parameters\?\.flatMap/);
+  expect(source).toMatch(/total: filteredTools\.length/);
+  expect(source).toMatch(/createPagedGroups\(filteredTools/);
+  expect(source).toMatch(/total=\{filteredTools\.length\}/);
 });
 
 test("tool selector shows an empty search result state", () => {
-  assert.match(source, /filteredTools\.length === 0/);
-  assert.match(source, /t\("tools\.noMatchingTools"\)/);
+  expect(source).toMatch(/filteredTools\.length === 0/);
+  expect(source).toMatch(/t\("tools\.noMatchingTools"\)/);
 });
 
 test("selector modal contents are not remounted on local state changes", () => {
   for (const file of [source, skillSelectorSource, agentModeSelectorSource]) {
-    assert.match(file, /const renderModalContent = \(\) =>/);
-    assert.doesNotMatch(file, /const ModalContent = \(\) =>/);
-    assert.doesNotMatch(file, /<ModalContent \/>/);
+    expect(file).toMatch(/const renderModalContent = \(\) =>/);
+    expect(file).not.toMatch(/const ModalContent = \(\) =>/);
+    expect(file).not.toMatch(/<ModalContent \/>/);
   }
 });

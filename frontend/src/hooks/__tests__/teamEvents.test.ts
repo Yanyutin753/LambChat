@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   dispatchTeamsChanged,
   subscribeTeamsChanged,
@@ -23,8 +20,8 @@ test("team change events can be subscribed and dispatched", () => {
 
   unsubscribe();
 
-  assert.equal(dispatched, true);
-  assert.deepEqual(seen, [
+  expect(dispatched).toBe(true);
+  expect(seen).toEqual([
     { action: "created", teamId: "team-1", teamName: "Research Team" },
   ]);
 });
@@ -40,5 +37,5 @@ test("unsubscribed listeners stop receiving team change events", () => {
   unsubscribe();
   dispatchTeamsChanged({ action: "updated" }, target);
 
-  assert.equal(seen, 0);
+  expect(seen).toBe(0);
 });

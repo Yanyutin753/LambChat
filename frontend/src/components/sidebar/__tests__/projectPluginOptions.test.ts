@@ -1,5 +1,5 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { test } from "vitest";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 
 const modalSource = readFileSync(
@@ -22,6 +22,10 @@ const rendererSource = readFileSync(
   new URL("../projectOptionRenderers.tsx", import.meta.url),
   "utf8",
 );
+const rendererComponentsSource = readFileSync(
+  new URL("../projectOptionRendererComponents.tsx", import.meta.url),
+  "utf8",
+);
 
 test("project plugin options modal is contribution-driven", () => {
   assert.match(modalSource, /pluginRuntimeApi[\s\S]*\.listProjectOptions\(\{ includeInactive: true \}\)/);
@@ -35,9 +39,6 @@ test("project plugin options modal is contribution-driven", () => {
   assert.match(modalSource, /if \(option\.effective !== false\) return true/);
   assert.match(modalSource, /return hasStoredValue\(values, option\)/);
   assert.match(modalSource, /const fieldDisabled = saving \|\| inactive/);
-  assert.match(modalSource, /const pluginValues =/);
-  assert.match(modalSource, /pluginValues,/);
-  assert.match(modalSource, /onPluginValueChange/);
   assert.match(modalSource, /for \(const option of visibleOptions\)/);
 });
 
@@ -53,16 +54,14 @@ test("project menu opens plugin-owned project options", () => {
 test("agent team project default team uses a controlled renderer", () => {
   assert.match(rendererSource, /"agent_team\.TeamSelectOption"/);
   assert.match(rendererSource, /props\.option\.renderer/);
-  assert.match(rendererSource, /if \(!option\.effective\)/);
-  assert.match(rendererSource, /placeholder="Team ID"/);
-  assert.match(rendererSource, /teamApi[\s\S]*\.list/);
-  assert.match(rendererSource, /if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
+  assert.match(rendererSource, /<Renderer \{\.\.\.props\} \/>/);
+  assert.match(rendererComponentsSource, /if \(!option\.effective\)/);
+  assert.match(rendererComponentsSource, /placeholder="Team ID"/);
+  assert.match(rendererComponentsSource, /teamApi[\s\S]*\.list/);
+  assert.match(rendererComponentsSource, /if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
 });
 
-test("workflow workflow project and session options use a controlled workflow renderer", () => {
-  assert.match(rendererSource, /WorkflowPluginSelectOption/);
-  assert.match(rendererSource, /WorkflowPluginVersionSelectOption/);
-  assert.match(rendererSource, /"workflow\.WorkflowSelectOption"/);
-  assert.match(rendererSource, /"workflow\.WorkflowVersionSelectOption"/);
-  assert.match(rendererSource, /inactive=\{!props\.option\.effective\}/);
+test("project option renderers do not keep workflow-specific controls", () => {
+  assert.doesNotMatch(rendererSource, /WorkflowPlugin/);
+  assert.doesNotMatch(rendererSource, /workflow\.Workflow/);
 });

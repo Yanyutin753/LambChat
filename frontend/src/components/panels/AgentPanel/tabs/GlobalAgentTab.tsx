@@ -260,7 +260,7 @@ export function GlobalAgentTab({
                       onClick={() => setActiveLocale(locale.code)}
                       className={`rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors duration-150 ${
                         activeLocale === locale.code
-                          ? "bg-[var(--theme-primary-light)] text-[var(--theme-primary-hover)]"
+                          ? "bg-[var(--theme-bg-subtle)] text-[var(--theme-text)]"
                           : "text-theme-text-secondary hover:text-[var(--theme-primary)]"
                       }`}
                     >

@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { collectSessionImageGalleryItems } from "../sessionImageGallery.tsx";
 import type { Message } from "../../../../types";
@@ -71,28 +69,27 @@ test("collects session images from attachments, markdown, and individual reveal_
 
   const items = collectSessionImageGalleryItems(messages);
 
-  assert.deepEqual(
+  expect(
     items.map((item) => [item.id, item.src, item.alt, item.group]),
+  ).toEqual([
     [
-      [
-        "user-1:attachment:attachment-image",
-        "/attachment.png",
-        "attachment.png",
-        "conversation",
-      ],
-      ["user-1:content:image:0", "/inline-user.png", "inline", "conversation"],
-      ["assistant-1:part:0:image:0", "/chart.png", "chart", "conversation"],
-      [
-        "assistant-1:part:1:reveal-file",
-        "/generated.png",
-        "generated.png",
-        "reveal-file",
-      ],
+      "user-1:attachment:attachment-image",
+      "/attachment.png",
+      "attachment.png",
+      "conversation",
     ],
-  );
+    ["user-1:content:image:0", "/inline-user.png", "inline", "conversation"],
+    ["assistant-1:part:0:image:0", "/chart.png", "chart", "conversation"],
+    [
+      "assistant-1:part:1:reveal-file",
+      "/generated.png",
+      "generated.png",
+      "reveal-file",
+    ],
+  ]);
 
-  assert.equal(items.filter((item) => item.group === "conversation").length, 3);
-  assert.equal(items.filter((item) => item.group === "reveal-file").length, 1);
+  expect(items.filter((item) => item.group === "conversation").length).toBe(3);
+  expect(items.filter((item) => item.group === "reveal-file").length).toBe(1);
 });
 
 test("collects generated image tool results for correct preview navigation", () => {
@@ -124,28 +121,27 @@ test("collects generated image tool results for correct preview navigation", () 
     }),
   ];
 
-  assert.deepEqual(
+  expect(
     collectSessionImageGalleryItems(messages).map((item) => [
       item.id,
       item.src,
       item.alt,
       item.group,
     ]),
+  ).toEqual([
     [
-      [
-        "assistant-generated:part:0:generated-image:0",
-        "/api/upload/file/generated-images/cat-1.png",
-        "cat-1.png",
-        "conversation",
-      ],
-      [
-        "assistant-generated:part:0:generated-image:1",
-        "/api/upload/file/generated-images/cat-2.png",
-        "cat-2.png",
-        "conversation",
-      ],
+      "assistant-generated:part:0:generated-image:0",
+      "/api/upload/file/generated-images/cat-1.png",
+      "cat-1.png",
+      "conversation",
     ],
-  );
+    [
+      "assistant-generated:part:0:generated-image:1",
+      "/api/upload/file/generated-images/cat-2.png",
+      "cat-2.png",
+      "conversation",
+    ],
+  ]);
 });
 
 test("deduplicates images collected from markdown, attachments, and generated image results", () => {
@@ -190,10 +186,9 @@ test("deduplicates images collected from markdown, attachments, and generated im
     }),
   ];
 
-  assert.deepEqual(
+  expect(
     collectSessionImageGalleryItems(messages).map((item) => item.src),
-    ["/api/upload/file/generated-images/cat.png"],
-  );
+  ).toEqual(["/api/upload/file/generated-images/cat.png"]);
 });
 
 test("ImageViewer follows the mobile visual viewport instead of the layout viewport", () => {
@@ -202,10 +197,9 @@ test("ImageViewer follows the mobile visual viewport instead of the layout viewp
     "utf8",
   );
 
-  assert.match(source, /className="fixed inset-0 z-\[300\] flex flex-col/);
-  assert.match(source, /height:\s*"var\(--app-viewport-height, 100dvh\)"/);
-  assert.match(
-    source,
+  expect(source).toMatch(/className="fixed inset-0 z-\[300\] flex flex-col/);
+  expect(source).toMatch(/height:\s*"var\(--app-viewport-height, 100dvh\)"/);
+  expect(source).toMatch(
     /transform:\s*"translate3d\(0, var\(--app-viewport-offset-top, 0px\), 0\)"/,
   );
 });
@@ -216,8 +210,8 @@ test("ChatView provides a session image gallery around chat messages", () => {
     "utf8",
   );
 
-  assert.match(source, /SessionImageGalleryProvider/);
-  assert.match(source, /messages=\{messages\}/);
+  expect(source).toMatch(/SessionImageGalleryProvider/);
+  expect(source).toMatch(/messages=\{messages\}/);
 });
 
 test("conversation image entry points use the session gallery when available", () => {
@@ -234,18 +228,14 @@ test("conversation image entry points use the session gallery when available", (
     "utf8",
   );
 
-  assert.match(markdownSource, /useSessionImageGallery/);
-  assert.match(markdownSource, /sessionImageGallery\?\.openImage/);
-  assert.match(
-    markdownSource,
-    /<ImageWithSkeleton[\s\S]*?\bloading="eager"/,
-    "markdown images should be eager so browser captures do not keep skeleton placeholders",
-  );
-  assert.match(userBubbleSource, /useSessionImageGallery/);
-  assert.match(userBubbleSource, /sessionImageGallery\?\.openImage/);
-  assert.match(fileRevealSource, /useSessionImageGallery/);
-  assert.match(fileRevealSource, /sessionImageGallery\?\.openImage/);
-  assert.match(fileRevealSource, /group:\s*"reveal-file"/);
+  expect(markdownSource).toMatch(/useSessionImageGallery/);
+  expect(markdownSource).toMatch(/sessionImageGallery\?\.openImage/);
+  expect(markdownSource).toMatch(/<ImageWithSkeleton[\s\S]*?\bloading="eager"/);
+  expect(userBubbleSource).toMatch(/useSessionImageGallery/);
+  expect(userBubbleSource).toMatch(/sessionImageGallery\?\.openImage/);
+  expect(fileRevealSource).toMatch(/useSessionImageGallery/);
+  expect(fileRevealSource).toMatch(/sessionImageGallery\?\.openImage/);
+  expect(fileRevealSource).toMatch(/group:\s*"reveal-file"/);
 });
 
 test("session image count includes reveal_file cards but not the RevealArtifactsSummary gallery", () => {
@@ -258,16 +248,15 @@ test("session image count includes reveal_file cards but not the RevealArtifacts
     "utf8",
   );
 
-  assert.doesNotMatch(sessionGallerySource, /RevealArtifactsSummary/);
-  assert.doesNotMatch(sessionGallerySource, /collectRevealArtifacts/);
-  assert.doesNotMatch(sessionGallerySource, /buildRevealArtifactTree/);
-  assert.doesNotMatch(
-    sessionGallerySource,
+  expect(sessionGallerySource).not.toMatch(/RevealArtifactsSummary/);
+  expect(sessionGallerySource).not.toMatch(/collectRevealArtifacts/);
+  expect(sessionGallerySource).not.toMatch(/buildRevealArtifactTree/);
+  expect(sessionGallerySource).not.toMatch(
     /getRevealArtifactImagePreviewItems/,
   );
-  assert.doesNotMatch(sessionGallerySource, /from "\.\/revealArtifacts"/);
+  expect(sessionGallerySource).not.toMatch(/from "\.\/revealArtifacts"/);
 
-  assert.doesNotMatch(revealSummarySource, /useSessionImageGallery/);
-  assert.doesNotMatch(revealSummarySource, /SessionImageGalleryProvider/);
-  assert.doesNotMatch(revealSummarySource, /sessionImageGallery/);
+  expect(revealSummarySource).not.toMatch(/useSessionImageGallery/);
+  expect(revealSummarySource).not.toMatch(/SessionImageGalleryProvider/);
+  expect(revealSummarySource).not.toMatch(/sessionImageGallery/);
 });

@@ -233,7 +233,7 @@ PLUGIN_MIGRATION_GATES: tuple[PluginMigrationGate, ...] = (
         required_before_business_migration=False,
     ),
     PluginMigrationGate(
-        "legacy_workflows_compatible",
+        "legacy_surface_compatible",
         PluginMigrationGateCategory.REGRESSION_COMPATIBILITY,
         "Legacy API, URL, permission strings, and data reads remain compatible during migration.",
         executable_check="tests/api/test_core_route_registry.py",

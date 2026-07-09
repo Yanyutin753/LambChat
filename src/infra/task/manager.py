@@ -131,6 +131,7 @@ class BackgroundTaskManager:
         message: str,
         display_message: str | None,
         attachments: Optional[List[Dict[str, Any]]],
+        enabled_skills: Optional[List[str]] = None,
     ) -> str:
         """Persist the user message before the background worker starts."""
         from src.agents.core import resolve_agent_name
@@ -148,7 +149,9 @@ class BackgroundTaskManager:
             )
         )
         await presenter._ensure_trace()
-        await presenter.emit_user_message(display_message or message, attachments=attachments)
+        await presenter.emit_user_message(
+            display_message or message, attachments=attachments, enabled_skills=enabled_skills
+        )
         return presenter.trace_id
 
     def _status_queries(self) -> TaskStatusQueries:
@@ -256,6 +259,7 @@ class BackgroundTaskManager:
         team_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
+        auto_mode: bool = False,
         session_metadata: Optional[Dict[str, Any]] = None,
         user_message_written: bool = False,
         write_user_message_immediately: bool = False,
@@ -312,6 +316,7 @@ class BackgroundTaskManager:
                     message=message,
                     display_message=display_message,
                     attachments=attachments,
+                    enabled_skills=enabled_skills,
                 )
                 user_message_written = True
 
@@ -344,6 +349,7 @@ class BackgroundTaskManager:
                     team_id=team_id,
                     existing_trace_id=trace_id or None,
                     active_goal=active_goal,
+                    auto_mode=auto_mode,
                     plugin_options=plugin_options,
                     user_message_written=user_message_written,
                 )
@@ -381,6 +387,7 @@ class BackgroundTaskManager:
         arq_pool: Any | None = None,
         team_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
+        auto_mode: bool = False,
         session_metadata: Optional[Dict[str, Any]] = None,
         write_user_message_immediately: bool = False,
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -416,6 +423,7 @@ class BackgroundTaskManager:
                     message=message,
                     display_message=display_message,
                     attachments=attachments,
+                    enabled_skills=enabled_skills,
                 )
                 user_message_written = True
 
@@ -440,6 +448,7 @@ class BackgroundTaskManager:
                     "user_message_written": user_message_written,
                     "team_id": team_id,
                     "active_goal": active_goal,
+                    "auto_mode": auto_mode,
                     "recommendation_input": recommendation_input,
                     "plugin_options": plugin_options,
                 },

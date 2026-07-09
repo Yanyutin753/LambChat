@@ -4,9 +4,9 @@ Event Merger - 事件合并器
 定期合并 trace 中的流式事件，减少事件数量，提升前后端性能。
 
 合并策略:
-- 按 (event_type, agent_id, depth, thinking_id, text_id) 分组合并可合并事件（message:chunk, thinking）
-- 相同 key 的事件无论是否连续都会合并，支持并发子 agent 交叉事件场景
-- 合并后的事件出现在该 key 首次出现的位置，不可合并的事件（如 tool:start）保持原位
+- 按 (event_type, agent_id, depth, thinking_id, text_id) 合并连续的可合并事件（message:chunk, thinking）
+- 只合并连续同 key 事件，避免把后续文本提前到中间的 tool/thinking 事件之前
+- 不可合并的事件（如 tool:start）保持原位
 - 合并后的事件标记为 merged=True，并记录 merged_count、started_at、ended_at
 - 只合并 metadata.merged != True 的已完成 trace（status != "running"）
 
@@ -63,6 +63,13 @@ def _get_merge_timeout() -> float:
     return max(float(getattr(settings, "EVENT_MERGE_TIMEOUT_SECONDS", MERGE_TIMEOUT) or 0), 1.0)
 
 
+def _get_immediate_merge_debounce_seconds() -> float:
+    return max(
+        float(getattr(settings, "EVENT_MERGE_IMMEDIATE_DEBOUNCE_SECONDS", 2.0) or 0),
+        0.0,
+    )
+
+
 def _get_merge_batch_size() -> int:
     return max(int(getattr(settings, "EVENT_MERGE_BATCH_SIZE", BATCH_SIZE) or 0), 1)
 
@@ -72,7 +79,7 @@ def _get_merge_concurrency() -> int:
 
 
 def _get_merge_max_events_per_trace() -> int:
-    return max(int(getattr(settings, "EVENT_MERGE_MAX_EVENTS_PER_TRACE", 5000) or 0), 1)
+    return max(int(getattr(settings, "EVENT_MERGE_MAX_EVENTS_PER_TRACE", 50000) or 0), 1)
 
 
 class EventMerger:
@@ -93,6 +100,7 @@ class EventMerger:
         self.trace_storage = trace_storage
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        self._merge_once_task: Optional[asyncio.Task] = None
         self._redis = None
         self._lock_value: Optional[str] = None  # 锁的唯一标识
 
@@ -118,35 +126,65 @@ class EventMerger:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        if self._merge_once_task and not self._merge_once_task.done():
+            self._merge_once_task.cancel()
+            try:
+                await self._merge_once_task
+            except asyncio.CancelledError:
+                pass
+        self._merge_once_task = None
         if self._redis is not None:
             await self._redis.aclose()
             self._redis = None
         logger.info("EventMerger stopped")
 
+    def schedule_merge_once(self) -> None:
+        """Request an immediate one-shot merge without blocking the caller."""
+        if self._merge_once_task is not None and not self._merge_once_task.done():
+            return
+        self._merge_once_task = asyncio.create_task(self._debounced_merge_once())
+        self._merge_once_task.add_done_callback(self._on_merge_once_task_done)
+
+    def _on_merge_once_task_done(self, task: asyncio.Task) -> None:
+        if self._merge_once_task is task:
+            self._merge_once_task = None
+        if task.cancelled():
+            return
+        try:
+            exc = task.exception()
+        except asyncio.CancelledError:
+            return
+        if exc is not None:
+            logger.warning("Immediate event merge failed: %s", exc)
+
+    async def _debounced_merge_once(self) -> None:
+        delay = _get_immediate_merge_debounce_seconds()
+        if delay > 0:
+            await asyncio.sleep(delay)
+        await self.merge_once()
+
+    async def merge_once(self) -> None:
+        """Run one merge pass if this instance can acquire the distributed lock."""
+        if not settings.ENABLE_EVENT_MERGER:
+            return
+        if not await self._acquire_lock():
+            return
+        try:
+            merge_timeout = _get_merge_timeout()
+            async with asyncio.timeout(merge_timeout):
+                await self._merge_completed_traces()
+        except TimeoutError:
+            logger.warning(
+                f"Immediate merge operation timed out after {merge_timeout}s, will retry later"
+            )
+        finally:
+            await self._release_lock()
+
     async def _merge_loop(self):
         """后台合并循环 - 非阻塞设计，首次立即执行"""
         while self._running:
             try:
-                # 尝试获取分布式锁
-                if await self._acquire_lock():
-                    try:
-                        # 使用 asyncio.timeout 防止合并操作超时
-                        merge_timeout = _get_merge_timeout()
-                        async with asyncio.timeout(merge_timeout):
-                            await self._merge_completed_traces()
-                    except TimeoutError:
-                        logger.warning(
-                            f"Merge operation timed out after {merge_timeout}s, will retry next round"
-                        )
-                    except Exception as e:
-                        logger.error(f"Merge operation failed: {e}", exc_info=True)
-                    finally:
-                        # 确保释放锁
-                        await self._release_lock()
-                else:
-                    logger.debug(
-                        "Failed to acquire merge lock (another instance is merging), skipping this round"
-                    )
+                await self.merge_once()
 
                 # 等待到下一个合并时间点（放到循环末尾，首次立即执行）
                 await asyncio.sleep(_get_merge_interval())
@@ -253,7 +291,14 @@ class EventMerger:
                         {"event_count": {"$exists": False}},
                     ],
                 },
-                {"trace_id": 1, "events": 1, "event_count": 1},
+                {
+                    "trace_id": 1,
+                    "session_id": 1,
+                    "run_id": 1,
+                    "started_at": 1,
+                    "event_count": 1,
+                    "metadata": 1,
+                },
             ).limit(batch_size)
 
             trace_batch: list[dict[str, Any]] = []
@@ -345,15 +390,23 @@ class EventMerger:
                     skipped_count += 1
                     continue
 
-                trace_id, original_events, merged_events = r
+                trace_id, original_events, merged_events, trace_doc = (
+                    r if len(r) == 4 else (r[0], r[1], r[2], {"trace_id": r[0]})
+                )
                 update_fields: Dict[str, Any] = {
                     "metadata.merged": True,
                     "metadata.merged_at": now,
                     "updated_at": now,
                 }
                 if len(merged_events) < len(original_events):
-                    update_fields["events"] = merged_events
-                    update_fields["event_count"] = len(merged_events)
+                    if getattr(settings, "SESSION_EVENT_CHUNK_STORAGE_ENABLED", False):
+                        await self.trace_storage.replace_trace_events_with_chunks(
+                            trace_doc,
+                            merged_events,
+                        )
+                    else:
+                        update_fields["events"] = merged_events
+                        update_fields["event_count"] = len(merged_events)
                     merged_count += 1
                 else:
                     skipped_count += 1
@@ -390,11 +443,20 @@ class EventMerger:
                 try:
                     trace_id = trace.get("trace_id")
                     events = trace.get("events", [])
+                    if (
+                        not events
+                        and trace_id
+                        and hasattr(
+                            self.trace_storage,
+                            "read_trace_events_compat",
+                        )
+                    ):
+                        events = await self.trace_storage.read_trace_events_compat(trace_id)
                     if not events:
-                        results.append((trace_id, [], []))
+                        results.append((trace_id, [], [], trace))
                         continue
                     merged_events = await run_blocking_io(self._merge_events, events)
-                    results.append((trace_id, events, merged_events))
+                    results.append((trace_id, events, merged_events, trace))
                 except Exception as exc:
                     results.append(exc)
 
@@ -407,53 +469,50 @@ class EventMerger:
         合并事件列表
 
         策略:
-        - 按 (event_type, agent_id, depth, thinking_id, text_id) 分组合并可合并事件
-        - 相同 key 的事件无论是否连续都会合并（支持并发子 agent 交叉事件）
-        - 保留原始顺序：合并后的事件出现在该 key 首次出现的位置
+        - 按 (event_type, agent_id, depth, thinking_id, text_id) 合并连续的可合并事件
+        - 保留原始时间线：遇到不可合并事件或 key 变化就结束当前合并段
         - 不可合并的事件（如 tool:start）保持原位
         """
         if not events:
             return []
 
-        # 第一轮：按 key 分组所有可合并事件，同时缓存 key 映射避免重复计算
-        groups: dict[tuple[Any, Any, Any, Any, Any], List[Dict[str, Any]]] = {}
-        key_cache: dict[
-            int, Optional[tuple[Any, Any, Any, Any, Any]]
-        ] = {}  # id(event) -> merge key or None
         mergeable = MERGEABLE_EVENT_TYPES
+        merged: list[Dict[str, Any]] = []
+        current_key: Optional[tuple[Any, Any, Any, Any, Any]] = None
+        current_group: list[Dict[str, Any]] = []
 
-        for event in events:
+        def merge_key(event: Dict[str, Any]) -> Optional[tuple[Any, Any, Any, Any, Any]]:
             event_type = event.get("event_type")
-            if event_type in mergeable:
-                data = event.get("data", {})
-                key = (
-                    event_type,
-                    data.get("agent_id"),
-                    data.get("depth"),
-                    data.get("thinking_id"),
-                    data.get("text_id"),
-                )
-                key_cache[id(event)] = key
-                group = groups.get(key)
-                if group is None:
-                    groups[key] = [event]
-                else:
-                    group.append(event)
-            else:
-                key_cache[id(event)] = None
+            if event_type not in mergeable:
+                return None
+            data = event.get("data", {})
+            return (
+                event_type,
+                data.get("agent_id"),
+                data.get("depth"),
+                data.get("thinking_id"),
+                data.get("text_id"),
+            )
 
-        # 第二轮：按原始顺序输出，同 key 只在首次出现时输出合并结果
-        merged = []
-        seen_keys: set[tuple] = set()
+        def flush_group() -> None:
+            nonlocal current_key, current_group
+            if current_group:
+                merged.append(self._merge_group(current_group))
+            current_key = None
+            current_group = []
 
         for event in events:
-            cached_key = key_cache[id(event)]
-            if cached_key is not None and cached_key not in seen_keys:
-                seen_keys.add(cached_key)
-                merged.append(self._merge_group(groups[cached_key]))
-            elif cached_key is None:
+            key = merge_key(event)
+            if key is None:
+                flush_group()
                 merged.append(event)
+                continue
+            if current_group and key != current_key:
+                flush_group()
+            current_key = key
+            current_group.append(event)
 
+        flush_group()
         return merged
 
     def _merge_group(self, group: List[Dict[str, Any]]) -> Dict[str, Any]:

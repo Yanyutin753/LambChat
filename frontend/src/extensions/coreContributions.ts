@@ -12,7 +12,6 @@ import {
   Sparkles,
   Plug,
   UserRound,
-  Workflow,
   Users,
 } from "lucide-react";
 import { Permission } from "../types";
@@ -26,6 +25,7 @@ export type CoreContributionArea =
   | "user_menu"
   | "settings_section"
   | "tool_renderer"
+  | "plugin_message_renderer"
   | "file_viewer"
   | "upload_handler"
   | "skill_importer"
@@ -42,6 +42,7 @@ export type CoreContributionArea =
   | "session_option"
   | "channel_option"
   | "scheduled_task_option"
+  | "scheduled_task_section"
   | "plugin_asset_slot"
   | "i18n_namespace";
 
@@ -50,6 +51,7 @@ export interface CoreAppRouteContribution {
   pluginId?: string;
   insertAfterId?: Exclude<TabType, "chat">;
   path: string;
+  labelKey?: string;
   seoPath?: string;
   seoTitle: string;
   seoDescription: string;
@@ -66,6 +68,14 @@ export interface CorePanelContribution {
   tab: Exclude<TabType, "chat">;
   renderer?: string;
   area: "panel";
+}
+
+export interface CoreScheduledTaskSectionContribution {
+  id: string;
+  pluginId: string;
+  renderer: string;
+  order: number;
+  area: "scheduled_task_section";
 }
 
 export interface CoreSidebarNavContribution {
@@ -101,6 +111,14 @@ export interface CoreToolRendererContribution {
   id: string;
   toolNames: readonly string[];
   area: "tool_renderer";
+}
+
+export interface CorePluginMessageRendererContribution {
+  id: string;
+  pluginId: string;
+  renderer: string;
+  messageTypes: readonly string[];
+  area: "plugin_message_renderer";
 }
 
 export interface CoreFileViewerContribution {
@@ -190,6 +208,13 @@ interface PluginRuntimeAppPanel {
   visible_when?: PluginContributionVisibleWhen | null;
 }
 
+interface PluginRuntimeScheduledTaskSection {
+  id: string;
+  renderer: string;
+  order?: number;
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
 interface PluginRuntimeSidebarItem {
   id: string;
   path: string;
@@ -216,6 +241,12 @@ interface PluginRuntimeMessageAction {
 interface PluginRuntimeToolRenderer {
   id: string;
   tool_names?: string[];
+}
+
+interface PluginRuntimeMessageRenderer {
+  id: string;
+  renderer: string;
+  message_types?: string[];
 }
 
 interface PluginRuntimeFileViewer {
@@ -448,6 +479,7 @@ export interface PluginRuntimeContributionState {
     sidebar_items?: PluginRuntimeSidebarItem[];
     user_menu_items?: PluginRuntimeUserMenuItem[];
     tool_renderers?: Array<string | PluginRuntimeToolRenderer>;
+    message_renderers?: PluginRuntimeMessageRenderer[];
     file_viewers?: Array<string | PluginRuntimeFileViewer>;
     upload_handlers?: Array<string | PluginRuntimeUploadHandler>;
     skill_importers?: Array<string | PluginRuntimeSkillImporter>;
@@ -496,6 +528,7 @@ export interface PluginRuntimeContributionState {
     session_options?: PluginRuntimeScopedOption[];
     channel_options?: PluginRuntimeScopedOption[];
     scheduled_task_options?: PluginRuntimeScopedOption[];
+    scheduled_task_sections?: PluginRuntimeScheduledTaskSection[];
     i18n_namespaces?: string[];
   } | null;
   package?: {
@@ -519,6 +552,7 @@ export interface PluginContributionSnapshot {
   sidebarMoreItems: readonly string[];
   userMenuItems: readonly string[];
   toolRenderers: readonly string[];
+  pluginMessageRenderers: readonly string[];
   fileViewers: readonly string[];
   skillImporters: readonly string[];
   channelConnectors: readonly string[];
@@ -534,6 +568,7 @@ export interface PluginContributionSnapshot {
   sessionOptions: readonly string[];
   channelOptions: readonly string[];
   scheduledTaskOptions: readonly string[];
+  scheduledTaskSections: readonly string[];
   pluginAssetSlots: readonly string[];
   i18nNamespaces: readonly string[];
 }
@@ -864,7 +899,6 @@ function iconByName(name: string): LucideIcon {
     Plug,
     Star,
     Users,
-    Workflow,
   };
   return icons[name] ?? Plug;
 }
@@ -885,6 +919,7 @@ function routeFromRuntimeAppTab(
     pluginId: plugin.plugin_id,
     insertAfterId: tab.insert_after ? asKnownTab(tab.insert_after) ?? undefined : undefined,
     path: tab.path,
+    labelKey: tab.label,
     seoTitle: tab.seo_title || `seo.${knownTab}.title`,
     seoDescription: tab.seo_description || `seo.${knownTab}.description`,
     tab: knownTab,
@@ -921,6 +956,21 @@ function sidebarItemFromRuntime(
     labelKey: item.label,
     icon: iconByName(item.icon),
     requiredAnyPermissions: asPermissionValues(item.permissions),
+    area: "sidebar_more_menu",
+  };
+}
+
+function sidebarItemFromRuntimeAppTab(
+  route: CoreAppRouteContribution,
+): CoreSidebarNavContribution | null {
+  if (!route.pluginId) return null;
+  return {
+    id: route.id,
+    pluginId: route.pluginId,
+    path: route.seoPath ?? route.path,
+    labelKey: route.labelKey ?? `nav.${route.id}`,
+    icon: Plug,
+    requiredAnyPermissions: route.permissions,
     area: "sidebar_more_menu",
   };
 }
@@ -970,6 +1020,39 @@ function scopedOptionFromRuntime(
   };
 }
 
+function insertRuntimeRoutes(
+  coreRoutes: readonly CoreAppRouteContribution[],
+  pluginRoutes: readonly CoreAppRouteContribution[],
+): readonly CoreAppRouteContribution[] {
+  const routes = [...coreRoutes];
+  const remaining = [...pluginRoutes];
+  let changed = true;
+
+  while (changed && remaining.length) {
+    changed = false;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const route = remaining[index];
+      const insertAfterId = route.insertAfterId;
+      if (!insertAfterId) {
+        routes.push(route);
+        remaining.splice(index, 1);
+        index -= 1;
+        changed = true;
+        continue;
+      }
+
+      const targetIndex = routes.findIndex((item) => item.id === insertAfterId);
+      if (targetIndex === -1) continue;
+      routes.splice(targetIndex + 1, 0, route);
+      remaining.splice(index, 1);
+      index -= 1;
+      changed = true;
+    }
+  }
+
+  return [...routes, ...remaining];
+}
+
 export function buildAppRouteContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): readonly CoreAppRouteContribution[] {
@@ -985,37 +1068,7 @@ export function buildAppRouteContributions(
         return structuredRoutes;
       })
     : [];
-  const routes = CORE_APP_ROUTES.reduce<CoreAppRouteContribution[]>((routes, coreRoute) => {
-    routes.push(coreRoute);
-    routes.push(
-      ...pluginRoutes.filter(
-        (pluginRoute) => pluginRoute.insertAfterId === coreRoute.id,
-      ),
-    );
-    return routes;
-  }, [
-    ...pluginRoutes.filter((pluginRoute) => !pluginRoute.insertAfterId),
-  ]);
-  const insertedRouteIds = new Set(routes.map((route) => route.id));
-  const pendingRoutes = pluginRoutes.filter(
-    (pluginRoute) => pluginRoute.insertAfterId && !insertedRouteIds.has(pluginRoute.id),
-  );
-  while (pendingRoutes.length > 0) {
-    const pendingBefore = pendingRoutes.length;
-    for (let index = pendingRoutes.length - 1; index >= 0; index -= 1) {
-      const route = pendingRoutes[index];
-      const insertIndex = routes.findIndex(
-        (candidate) => candidate.id === route.insertAfterId,
-      );
-      if (insertIndex === -1) continue;
-      routes.splice(insertIndex + 1, 0, route);
-      insertedRouteIds.add(route.id);
-      pendingRoutes.splice(index, 1);
-    }
-    if (pendingRoutes.length === pendingBefore) break;
-  }
-  routes.push(...pendingRoutes);
-  return routes;
+  return insertRuntimeRoutes(CORE_APP_ROUTES, pluginRoutes);
 }
 
 export function buildPanelContributions(
@@ -1081,17 +1134,37 @@ export function buildSidebarMoreNavContributions(
   const pluginNavItems = runtimePlugins
     ? runtimePlugins.flatMap((plugin) => {
         if (!plugin.enabled || !plugin.executable) return [];
-        const structuredItems = sortByOrderThenId(
+        return sortByOrderThenId(
           (plugin.frontend?.sidebar_items ?? [])
             .filter((item) => matchesVisibleWhen(item.visible_when))
             .map((item) => sidebarItemFromRuntime(plugin, item)),
         );
-        return structuredItems;
       })
     : [];
+  const explicitPluginNavKeys = new Set(
+    pluginNavItems.map((item) => `${item.pluginId ?? ""}:${item.id}:${item.path}`),
+  );
+  const appRouteNavItems = buildAppRouteContributions(runtimePlugins)
+    .flatMap((route) => {
+      const navItem = sidebarItemFromRuntimeAppTab(route);
+      if (!navItem) return [];
+      const exactKey = `${navItem.pluginId ?? ""}:${navItem.id}:${navItem.path}`;
+      if (explicitPluginNavKeys.has(exactKey)) return [];
+      if (
+        pluginNavItems.some(
+          (item) =>
+            item.pluginId === navItem.pluginId &&
+            (item.id === navItem.id || item.path === navItem.path),
+        )
+      ) {
+        return [];
+      }
+      return [navItem];
+    });
   return [
     ...CORE_SIDEBAR_MORE_NAV.slice(0, 1),
     ...pluginNavItems,
+    ...appRouteNavItems,
     ...CORE_SIDEBAR_MORE_NAV.slice(1),
   ];
 }
@@ -1113,6 +1186,9 @@ function snapshotContributions(
     ),
     toolRenderers: buildToolRendererContributions(runtimePlugins).map(
       (renderer) => renderer.id,
+    ),
+    pluginMessageRenderers: buildPluginMessageRendererContributions(runtimePlugins).map(
+      (renderer) => renderer.renderer,
     ),
     fileViewers: buildFileViewerContributions(runtimePlugins).map(
       (viewer) => viewer.id,
@@ -1159,6 +1235,9 @@ function snapshotContributions(
     ),
     scheduledTaskOptions: buildScheduledTaskOptionContributions(runtimePlugins, context).map(
       (option) => option.id,
+    ),
+    scheduledTaskSections: buildScheduledTaskSectionContributions(runtimePlugins, context).map(
+      (section) => section.id,
     ),
     pluginAssetSlots: buildPluginAssetSlotContributions(runtimePlugins).map(
       (slot) => slot.id,
@@ -1217,6 +1296,10 @@ export function buildPluginContributionPreview(
         current.toolRenderers,
         simulatedDisabled.toolRenderers,
       ),
+      pluginMessageRenderers: removedValues(
+        current.pluginMessageRenderers,
+        simulatedDisabled.pluginMessageRenderers,
+      ),
       fileViewers: removedValues(current.fileViewers, simulatedDisabled.fileViewers),
       skillImporters: removedValues(
         current.skillImporters,
@@ -1274,6 +1357,10 @@ export function buildPluginContributionPreview(
         current.scheduledTaskOptions,
         simulatedDisabled.scheduledTaskOptions,
       ),
+      scheduledTaskSections: removedValues(
+        current.scheduledTaskSections,
+        simulatedDisabled.scheduledTaskSections,
+      ),
       pluginAssetSlots: removedValues(
         current.pluginAssetSlots,
         simulatedDisabled.pluginAssetSlots,
@@ -1330,21 +1417,53 @@ export const CORE_TOOL_RENDERERS: readonly CoreToolRendererContribution[] = [
   { id: "glob", toolNames: ["glob"], area: "tool_renderer" },
   { id: "execute", toolNames: ["execute"], area: "tool_renderer" },
   {
+    id: "upload-url-to-sandbox",
+    toolNames: ["upload_url_to_sandbox"],
+    area: "tool_renderer",
+  },
+  {
+    id: "image-analyze",
+    toolNames: ["image_analyze", "image_edit_with_references"],
+    area: "tool_renderer",
+  },
+  {
+    id: "transfer",
+    toolNames: ["transfer_file", "transfer_path"],
+    area: "tool_renderer",
+  },
+  {
     id: "scheduled-task",
     toolNames: [
       "scheduled_task_create",
       "scheduled_task_list",
+      "scheduled_task_get",
       "scheduled_task_update",
+      "scheduled_task_pause",
+      "scheduled_task_resume",
       "scheduled_task_delete",
+      "scheduled_task_run",
     ],
     area: "tool_renderer",
   },
   {
     id: "env-var",
-    toolNames: ["env_var_list", "env_var_set", "env_var_delete"],
+    toolNames: [
+      "env_var_list",
+      "env_var_set",
+      "env_var_delete",
+      "env_var_delete_all",
+    ],
     area: "tool_renderer",
   },
-  { id: "persona", toolNames: ["save_persona_preset"], area: "tool_renderer" },
+  {
+    id: "persona",
+    toolNames: [
+      "save_persona_preset",
+      "create_persona_preset",
+      "update_persona_preset",
+    ],
+    area: "tool_renderer",
+  },
   {
     id: "sandbox-mcp",
     toolNames: ["sandbox_mcp_add", "sandbox_mcp_update", "sandbox_mcp_remove"],
@@ -1399,6 +1518,22 @@ export function buildToolRendererContributions(
     ];
   }
   return CORE_TOOL_RENDERERS;
+}
+
+export function buildPluginMessageRendererContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+): readonly CorePluginMessageRendererContribution[] {
+  if (!runtimePlugins) return [];
+  return runtimePlugins.flatMap((plugin) => {
+    if (!plugin.enabled || !plugin.executable) return [];
+    return (plugin.frontend?.message_renderers ?? []).map((renderer) => ({
+      id: unqualifiedContributionId(renderer.id, plugin.plugin_id),
+      pluginId: plugin.plugin_id,
+      renderer: renderer.renderer,
+      messageTypes: renderer.message_types ?? [],
+      area: "plugin_message_renderer" as const,
+    }));
+  });
 }
 
 export function buildFileViewerContributions(
@@ -1815,6 +1950,30 @@ export function buildScheduledTaskOptionContributions(
   );
 }
 
+export function buildScheduledTaskSectionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreScheduledTaskSectionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.scheduled_task_sections ?? []).flatMap((section) => {
+        if (!matchesVisibleWhen(section.visible_when, context)) return [];
+        return [
+          {
+            id: section.id,
+            pluginId: plugin.plugin_id,
+            renderer: section.renderer,
+            order: section.order ?? 100,
+            area: "scheduled_task_section" as const,
+          },
+        ];
+      });
+    }),
+  );
+}
+
 export function buildI18nNamespaceContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): readonly CoreI18nNamespaceContribution[] {
@@ -1997,4 +2156,23 @@ export function hasToolRenderer(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): boolean {
   return getToolRenderer(toolName, runtimePlugins) !== undefined;
+}
+
+export function getPluginMessageRenderer(
+  pluginId: string,
+  renderer: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): CorePluginMessageRendererContribution | undefined {
+  return buildPluginMessageRendererContributions(runtimePlugins).find(
+    (contribution) =>
+      contribution.pluginId === pluginId && contribution.renderer === renderer,
+  );
+}
+
+export function hasPluginMessageRenderer(
+  pluginId: string,
+  renderer: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): boolean {
+  return getPluginMessageRenderer(pluginId, renderer, runtimePlugins) !== undefined;
 }

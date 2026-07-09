@@ -95,6 +95,10 @@ class FeedbackStorage:
             "comment": feedback_data.comment,
             "created_at": now,
         }
+        if feedback_data.attachments:
+            feedback_dict["attachments"] = [
+                a.model_dump(by_alias=True) for a in feedback_data.attachments
+            ]
         result = await self.collection.insert_one(feedback_dict)
         feedback_dict["id"] = str(result.inserted_id)
         return Feedback.model_validate(feedback_dict)

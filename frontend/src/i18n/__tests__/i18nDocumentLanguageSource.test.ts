@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 import { resolve } from "node:path";
 
 const source = readFileSync(resolve(import.meta.dirname, "../index.ts"), "utf8");

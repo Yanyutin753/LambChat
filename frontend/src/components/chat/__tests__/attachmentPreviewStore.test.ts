@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   closeAttachmentPreview,
   getAttachmentPreviewState,
@@ -21,11 +19,8 @@ test("attachment preview store preserves the selected attachment until explicitl
     "chat-input",
   );
 
-  assert.deepEqual(getAttachmentPreviewState()?.source, "chat-input");
-  assert.deepEqual(
-    getAttachmentPreviewState()?.attachment.key,
-    "uploads/a1.txt",
-  );
+  expect(getAttachmentPreviewState()?.source).toEqual("chat-input");
+  expect(getAttachmentPreviewState()?.attachment.key).toEqual("uploads/a1.txt");
 
   openAttachmentPreview(
     {
@@ -39,12 +34,9 @@ test("attachment preview store preserves the selected attachment until explicitl
     "user-message",
   );
 
-  assert.deepEqual(getAttachmentPreviewState()?.source, "user-message");
-  assert.deepEqual(
-    getAttachmentPreviewState()?.attachment.key,
-    "uploads/a2.txt",
-  );
+  expect(getAttachmentPreviewState()?.source).toEqual("user-message");
+  expect(getAttachmentPreviewState()?.attachment.key).toEqual("uploads/a2.txt");
 
   closeAttachmentPreview();
-  assert.equal(getAttachmentPreviewState(), null);
+  expect(getAttachmentPreviewState()).toBe(null);
 });

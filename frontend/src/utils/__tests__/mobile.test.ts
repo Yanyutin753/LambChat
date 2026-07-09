@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   installMobileViewportResetHandlers,
   resetMobileViewport,
@@ -51,13 +49,9 @@ test("resetMobileViewport preserves the current page scroll position", async () 
     resetMobileViewport();
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    assert.equal(
-      scrollCalls.some(([x, y]) => x === 0 && y === 0),
-      false,
-    );
-    assert.deepEqual(scrollCalls[scrollCalls.length - 1], [14, 320]);
-    assert.equal(
-      viewportAttributes.get("content"),
+    expect(scrollCalls.some(([x, y]) => x === 0 && y === 0)).toBe(false);
+    expect(scrollCalls[scrollCalls.length - 1]).toEqual([14, 320]);
+    expect(viewportAttributes.get("content")).toBe(
       "width=device-width, initial-scale=1, maximum-scale=1",
     );
   } finally {
@@ -136,9 +130,8 @@ test("mobile window focus alone does not reset viewport during normal taps", asy
     listeners.get("focus")?.forEach((listener) => listener());
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    assert.deepEqual(scrollCalls, []);
-    assert.equal(
-      viewportAttributes.get("content"),
+    expect(scrollCalls).toEqual([]);
+    expect(viewportAttributes.get("content")).toBe(
       "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
     );
   } finally {

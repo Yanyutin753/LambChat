@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   dismissSubagentPanelAutoOpen,
   isSubagentPanelAutoOpenDismissed,
@@ -9,69 +7,64 @@ import {
 } from "../subagentPanelControl.ts";
 
 test("auto-opens a running subagent only when no panel is already open", () => {
-  assert.equal(
+  expect(
     shouldAutoOpenSubagentPanel({
       status: "running",
       anyPanelOpen: false,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldAutoOpenSubagentPanel({
       status: "running",
       anyPanelOpen: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not auto-open completed or failed subagents", () => {
-  assert.equal(
+  expect(
     shouldAutoOpenSubagentPanel({
       status: "complete",
       anyPanelOpen: false,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldAutoOpenSubagentPanel({
       status: "error",
       anyPanelOpen: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not auto-open after the user dismisses an auto-opened subagent panel", () => {
-  assert.equal(
+  expect(
     shouldAutoOpenSubagentPanel({
       status: "running",
       anyPanelOpen: false,
       autoOpenDismissed: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("tracks whether subagent panel auto-open has been dismissed", () => {
   resetSubagentPanelAutoOpenDismissal();
-  assert.equal(isSubagentPanelAutoOpenDismissed(), false);
+  expect(isSubagentPanelAutoOpenDismissed()).toBe(false);
 
   dismissSubagentPanelAutoOpen();
 
-  assert.equal(isSubagentPanelAutoOpenDismissed(), true);
+  expect(isSubagentPanelAutoOpenDismissed()).toBe(true);
 
   resetSubagentPanelAutoOpenDismissal();
-  assert.equal(isSubagentPanelAutoOpenDismissed(), false);
+  expect(isSubagentPanelAutoOpenDismissed()).toBe(false);
 });
 
 test("expands the subagent process section by default while running", () => {
-  assert.equal(shouldExpandSubagentProcessByDefault("running"), true);
-  assert.equal(shouldExpandSubagentProcessByDefault("pending"), false);
-  assert.equal(shouldExpandSubagentProcessByDefault("complete"), false);
-  assert.equal(shouldExpandSubagentProcessByDefault("error"), false);
-  assert.equal(shouldExpandSubagentProcessByDefault("cancelled"), false);
-  assert.equal(shouldExpandSubagentProcessByDefault(undefined), false);
+  expect(shouldExpandSubagentProcessByDefault("running")).toBe(true);
+  expect(shouldExpandSubagentProcessByDefault("pending")).toBe(false);
+  expect(shouldExpandSubagentProcessByDefault("complete")).toBe(false);
+  expect(shouldExpandSubagentProcessByDefault("error")).toBe(false);
+  expect(shouldExpandSubagentProcessByDefault("cancelled")).toBe(false);
+  expect(shouldExpandSubagentProcessByDefault(undefined)).toBe(false);
 });

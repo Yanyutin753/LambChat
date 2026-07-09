@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const panelSource = readFileSync(
   new URL("../AgentModelPanel.tsx", import.meta.url),
   "utf8",

@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   forceScrollerToPhysicalBottom,
   forceVirtuosoToBottom,
@@ -45,8 +43,8 @@ test("keeps asking Virtuoso to scroll until the scroller reaches the bottom", as
   await new Promise((resolve) => setTimeout(resolve, 20));
   stop();
 
-  assert.ok(scrollCalls.length >= 2);
-  assert.deepEqual(scrollCalls[0], {
+  expect(scrollCalls.length >= 2).toBeTruthy();
+  expect(scrollCalls[0]).toEqual({
     top: Number.MAX_SAFE_INTEGER,
     behavior: "auto",
   });
@@ -75,43 +73,41 @@ test("forces the physical scroller during a preferred bottom lock even when Virt
   await new Promise((resolve) => setTimeout(resolve, 5));
   stop();
 
-  assert.equal(scroller.scrollTop, scroller.scrollHeight);
+  expect(scroller.scrollTop).toBe(scroller.scrollHeight);
 });
 
 test("initializes history at the bottom edge of the latest message", () => {
-  assert.deepEqual(getInitialBottomItemLocation(3), {
+  expect(getInitialBottomItemLocation(3)).toEqual({
     index: 2,
     align: "end",
   });
 
-  assert.equal(getInitialBottomItemLocation(0), undefined);
+  expect(getInitialBottomItemLocation(0)).toBe(undefined);
 });
 
 test("changes the message list key when switching sessions", () => {
-  assert.equal(getMessageListSessionKey("session-a"), "session-a");
-  assert.equal(getMessageListSessionKey("session-b"), "session-b");
-  assert.notEqual(
-    getMessageListSessionKey("session-a"),
+  expect(getMessageListSessionKey("session-a")).toBe("session-a");
+  expect(getMessageListSessionKey("session-b")).toBe("session-b");
+  expect(getMessageListSessionKey("session-a")).not.toBe(
     getMessageListSessionKey("session-b"),
   );
-  assert.equal(getMessageListSessionKey(null), "__new_session__");
+  expect(getMessageListSessionKey(null)).toBe("__new_session__");
 });
 
 test("uses a much tighter bottom threshold on desktop than on mobile", () => {
-  assert.equal(getAtBottomThresholdPx(false), 4);
-  assert.equal(getAtBottomThresholdPx(true), 120);
-  assert.equal(getAutoScrollResumeThresholdPx(false, 16), 48);
-  assert.equal(getAutoScrollResumeThresholdPx(true, 96), 120);
-  assert.equal(getAwayFromBottomThresholdPx(false, 16), 16);
-  assert.equal(getAwayFromBottomThresholdPx(true, 96), 96);
+  expect(getAtBottomThresholdPx(false)).toBe(4);
+  expect(getAtBottomThresholdPx(true)).toBe(120);
+  expect(getAutoScrollResumeThresholdPx(false, 16)).toBe(48);
+  expect(getAutoScrollResumeThresholdPx(true, 96)).toBe(120);
+  expect(getAwayFromBottomThresholdPx(false, 16)).toBe(16);
+  expect(getAwayFromBottomThresholdPx(true, 96)).toBe(96);
 });
 
 test("keeps the mobile footer spacer compact so history loads can settle near the latest message", () => {
-  assert.equal(
-    getMessageListFooterSpacerClass(true),
+  expect(getMessageListFooterSpacerClass(true)).toBe(
     "h-[calc(1.5rem+env(safe-area-inset-bottom))]",
   );
-  assert.equal(getMessageListFooterSpacerClass(false), "h-8");
+  expect(getMessageListFooterSpacerClass(false)).toBe("h-8");
 });
 
 test("falls back to the footer sentinel when Virtuoso handles are unavailable", () => {
@@ -127,7 +123,7 @@ test("falls back to the footer sentinel when Virtuoso handles are unavailable", 
   });
   stop();
 
-  assert.equal(called, true);
+  expect(called).toBe(true);
 });
 
 test("forwards scroller to the physical-bottom fallback when Virtuoso is temporarily unavailable", () => {
@@ -152,7 +148,7 @@ test("forwards scroller to the physical-bottom fallback when Virtuoso is tempora
   });
   stop();
 
-  assert.equal(scroller.scrollTop, scroller.scrollHeight);
+  expect(scroller.scrollTop).toBe(scroller.scrollHeight);
 });
 
 test("forces the physical bottom by scrolling the footer sentinel into view", () => {
@@ -176,11 +172,11 @@ test("forces the physical bottom by scrolling the footer sentinel into view", ()
 
   forceScrollerToPhysicalBottom({ scroller, footer });
 
-  assert.deepEqual(footerArgs, {
+  expect(footerArgs).toEqual({
     behavior: "auto",
     block: "end",
   });
-  assert.equal(scroller.scrollTop, scroller.scrollHeight);
+  expect(scroller.scrollTop).toBe(scroller.scrollHeight);
 });
 
 test("keeps Virtuoso synced while physically pinning the scroller during a bottom lock", async () => {
@@ -216,13 +212,13 @@ test("keeps Virtuoso synced while physically pinning the scroller during a botto
   await new Promise((resolve) => setTimeout(resolve, 20));
   stop();
 
-  assert.ok(scrollToIndexCalls > 0);
-  assert.equal(footerCalls, 0);
-  assert.equal(scroller.scrollTop, scroller.scrollHeight);
+  expect(scrollToIndexCalls > 0).toBeTruthy();
+  expect(footerCalls).toBe(0);
+  expect(scroller.scrollTop).toBe(scroller.scrollHeight);
 });
 
 test("treats a top jump right after bottom-locking as recoverable", () => {
-  assert.equal(
+  expect(
     shouldIgnoreUnexpectedTopJumpDuringBottomLock({
       scrollTop: 0,
       clientHeight: 600,
@@ -232,12 +228,11 @@ test("treats a top jump right after bottom-locking as recoverable", () => {
       userScrolledUp: false,
       manualDetachActive: false,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("does not recover a top jump after the user intentionally detached", () => {
-  assert.equal(
+  expect(
     shouldIgnoreUnexpectedTopJumpDuringBottomLock({
       scrollTop: 0,
       clientHeight: 600,
@@ -247,26 +242,23 @@ test("does not recover a top jump after the user intentionally detached", () => 
       userScrolledUp: true,
       manualDetachActive: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("clears the unexpected top jump recovery window on user intent", () => {
-  assert.equal(
+  expect(
     getUnexpectedTopJumpRecoveryUntilAfterUserIntent({
       recoverUntil: 2000,
       now: 1000,
     }),
-    0,
-  );
+  ).toBe(0);
 
-  assert.equal(
+  expect(
     getUnexpectedTopJumpRecoveryUntilAfterUserIntent({
       recoverUntil: 1000,
       now: 2000,
     }),
-    1000,
-  );
+  ).toBe(1000);
 });
 
 test("forces the list to the last item when Virtuoso supports scrollToIndex", () => {
@@ -291,12 +283,12 @@ test("forces the list to the last item when Virtuoso supports scrollToIndex", ()
 
   forceVirtuosoToBottom({ virtuoso, scroller });
 
-  assert.deepEqual(scrollToIndexArgs, {
+  expect(scrollToIndexArgs).toEqual({
     index: "LAST",
     align: "end",
     behavior: "auto",
   });
-  assert.equal(scroller.scrollTop, 0);
+  expect(scroller.scrollTop).toBe(0);
 });
 
 test("prefers Virtuoso scrolling without nudging the footer sentinel when handles are available", async () => {
@@ -329,8 +321,8 @@ test("prefers Virtuoso scrolling without nudging the footer sentinel when handle
 
   await new Promise((resolve) => setTimeout(resolve, 5));
 
-  assert.ok(virtuosoScrolls > 0);
-  assert.equal(footerScrolls, 0);
+  expect(virtuosoScrolls > 0).toBeTruthy();
+  expect(footerScrolls).toBe(0);
 });
 
 test("prefers Virtuoso autoscrollToBottom when the handle supports it", async () => {
@@ -360,8 +352,8 @@ test("prefers Virtuoso autoscrollToBottom when the handle supports it", async ()
 
   await new Promise((resolve) => setTimeout(resolve, 20));
 
-  assert.ok(autoScrollCalls > 0);
-  assert.equal(scrollToCalls, 0);
+  expect(autoScrollCalls > 0).toBeTruthy();
+  expect(scrollToCalls).toBe(0);
 });
 
 test("does not settle early just because the scroller is within the breathing room", async () => {
@@ -388,7 +380,7 @@ test("does not settle early just because the scroller is within the breathing ro
 
   await new Promise((resolve) => setTimeout(resolve, 130));
 
-  assert.notEqual(completionReason, "settled");
+  expect(completionReason).not.toBe("settled");
 });
 
 test("waits for the configured stable height window before settling", async () => {
@@ -415,10 +407,10 @@ test("waits for the configured stable height window before settling", async () =
   });
 
   await new Promise((resolve) => setTimeout(resolve, 160));
-  assert.equal(completionReason, null);
+  expect(completionReason).toBe(null);
 
   await new Promise((resolve) => setTimeout(resolve, 100));
-  assert.equal(completionReason, "settled");
+  expect(completionReason).toBe("settled");
 });
 
 test("honors the configured maxAttempts instead of retrying until the time budget expires", async () => {
@@ -448,14 +440,14 @@ test("honors the configured maxAttempts instead of retrying until the time budge
 
   await new Promise((resolve) => setTimeout(resolve, 80));
 
-  assert.equal(completionReason, "max-attempts");
-  assert.equal(scrollCalls, 3);
+  expect(completionReason).toBe("max-attempts");
+  expect(scrollCalls).toBe(3);
 });
 
 test("keeps bottom locked when observed layout changes", async () => {
   let observedTarget: unknown = null;
   let resizeCallback: () => void = () => {
-    assert.fail("resize observer was not registered");
+    throw new Error("resize observer was not registered");
   };
   let disconnected = false;
   const scroller = {
@@ -490,20 +482,20 @@ test("keeps bottom locked when observed layout changes", async () => {
   });
 
   await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.equal(observedTarget, scroller);
+  expect(observedTarget).toBe(scroller);
 
   scroller.scrollHeight = 700;
   resizeCallback();
 
-  assert.equal(scroller.scrollTop, 600);
+  expect(scroller.scrollTop).toBe(600);
 
   stop();
-  assert.equal(disconnected, true);
+  expect(disconnected).toBe(true);
 });
 
 test("keeps the resize observer alive past the normal time budget while a streaming lock is active", async () => {
   let resizeCallback: () => void = () => {
-    assert.fail("resize observer was not registered");
+    throw new Error("resize observer was not registered");
   };
   let disconnected = false;
   let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
@@ -543,23 +535,23 @@ test("keeps the resize observer alive past the normal time budget while a stream
   });
 
   await new Promise((resolve) => setTimeout(resolve, 60));
-  assert.equal(completionReason, null);
-  assert.equal(disconnected, false);
+  expect(completionReason).toBe(null);
+  expect(disconnected).toBe(false);
 
   scroller.scrollHeight = 700;
   resizeCallback();
-  assert.equal(scroller.scrollTop, 600);
+  expect(scroller.scrollTop).toBe(600);
 
   keepStreamingLock = false;
 
   await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.equal(completionReason, "settled");
-  assert.equal(disconnected, true);
+  expect(completionReason).toBe("settled");
+  expect(disconnected).toBe(true);
 });
 
 test("extends the settle window when observed layout changes keep arriving during history finalize", async () => {
   let resizeCallback: () => void = () => {
-    assert.fail("resize observer was not registered");
+    throw new Error("resize observer was not registered");
   };
   let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
   const scroller = {
@@ -602,16 +594,16 @@ test("extends the settle window when observed layout changes keep arriving durin
   resizeCallback();
 
   await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.equal(completionReason, null);
+  expect(completionReason).toBe(null);
 
   await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.equal(completionReason, "settled");
-  assert.equal(scroller.scrollTop, 800);
+  expect(completionReason).toBe("settled");
+  expect(scroller.scrollTop).toBe(800);
 });
 
 test("keeps history bottom lock alive for late layout shifts after the first settle", async () => {
   let resizeCallback: () => void = () => {
-    assert.fail("resize observer was not registered");
+    throw new Error("resize observer was not registered");
   };
   let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
   const scroller = {
@@ -647,15 +639,15 @@ test("keeps history bottom lock alive for late layout shifts after the first set
   });
 
   await new Promise((resolve) => setTimeout(resolve, 45));
-  assert.equal(completionReason, null);
+  expect(completionReason).toBe(null);
 
   scroller.scrollHeight = 900;
   resizeCallback();
 
-  assert.equal(scroller.scrollTop, 800);
+  expect(scroller.scrollTop).toBe(800);
 
   await new Promise((resolve) => setTimeout(resolve, 130));
-  assert.equal(completionReason, "settled");
+  expect(completionReason).toBe("settled");
 });
 
 test("reports the first stable bottom before the post-settle observation window finishes", async () => {
@@ -690,15 +682,15 @@ test("reports the first stable bottom before the post-settle observation window 
 
   await new Promise((resolve) => setTimeout(resolve, 45));
 
-  assert.equal(initialSettleCalls, 1);
-  assert.equal(completeCalls, 0);
+  expect(initialSettleCalls).toBe(1);
+  expect(completeCalls).toBe(0);
 
   stop();
 });
 
 test("does not keep extending post-settle observation on repeated layout changes", async () => {
   let resizeCallback: () => void = () => {
-    assert.fail("resize observer was not registered");
+    throw new Error("resize observer was not registered");
   };
   let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
   const scroller = {
@@ -734,7 +726,7 @@ test("does not keep extending post-settle observation on repeated layout changes
   });
 
   await new Promise((resolve) => setTimeout(resolve, 35));
-  assert.equal(completionReason, null);
+  expect(completionReason).toBe(null);
 
   for (let i = 0; i < 3; i += 1) {
     scroller.scrollHeight += 100;
@@ -742,17 +734,17 @@ test("does not keep extending post-settle observation on repeated layout changes
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 
-  assert.equal(completionReason, "settled");
+  expect(completionReason).toBe("settled");
 
   scroller.scrollTop = 123;
   scroller.scrollHeight += 100;
   resizeCallback();
-  assert.equal(scroller.scrollTop, 123);
+  expect(scroller.scrollTop).toBe(123);
 });
 
 test("keeps default bottom lock alive briefly for post-stream layout shifts", async () => {
   let resizeCallback: () => void = () => {
-    assert.fail("resize observer was not registered");
+    throw new Error("resize observer was not registered");
   };
   let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
   const scroller = {
@@ -792,13 +784,13 @@ test("keeps default bottom lock alive briefly for post-stream layout shifts", as
   });
 
   await new Promise((resolve) => setTimeout(resolve, 45));
-  assert.equal(completionReason, null);
+  expect(completionReason).toBe(null);
 
   scroller.scrollHeight = 900;
   resizeCallback();
 
-  assert.equal(scroller.scrollTop, 800);
-  assert.equal(completionReason, null);
+  expect(scroller.scrollTop).toBe(800);
+  expect(completionReason).toBe(null);
 });
 
 test("recovers an unexpected top jump during the post-stream bottom lock", async () => {
@@ -829,18 +821,18 @@ test("recovers an unexpected top jump during the post-stream bottom lock", async
   });
 
   await new Promise((resolve) => setTimeout(resolve, 45));
-  assert.equal(completionReason, null);
+  expect(completionReason).toBe(null);
 
   scroller.scrollTop = 0;
   await new Promise((resolve) => setTimeout(resolve, 15));
 
-  assert.equal(scroller.scrollTop, 400);
-  assert.equal(completionReason, null);
+  expect(scroller.scrollTop).toBe(400);
+  expect(completionReason).toBe(null);
 });
 
 test("does not pull back to bottom after the user leaves bottom during history settle observation", async () => {
   let resizeCallback: () => void = () => {
-    assert.fail("resize observer was not registered");
+    throw new Error("resize observer was not registered");
   };
   let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
   const scroller = {
@@ -876,18 +868,18 @@ test("does not pull back to bottom after the user leaves bottom during history s
   });
 
   await new Promise((resolve) => setTimeout(resolve, 45));
-  assert.equal(completionReason, null);
+  expect(completionReason).toBe(null);
 
   scroller.scrollTop = 360;
   scroller.scrollHeight = 900;
   resizeCallback();
 
-  assert.equal(scroller.scrollTop, 360);
-  assert.equal(completionReason, "aborted");
+  expect(scroller.scrollTop).toBe(360);
+  expect(completionReason).toBe("aborted");
 });
 
 test("does not auto-scroll on viewport changes when the list is not scrollable", () => {
-  assert.equal(
+  expect(
     shouldAutoScrollAfterViewportChange({
       scroller: {
         scrollTop: 0,
@@ -899,12 +891,11 @@ test("does not auto-scroll on viewport changes when the list is not scrollable",
       autoScrollActive: false,
       isNearBottom: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("auto-scrolls on viewport changes only when a scrollable list is still bottom-anchored", () => {
-  assert.equal(
+  expect(
     shouldAutoScrollAfterViewportChange({
       scroller: {
         scrollTop: 800,
@@ -916,10 +907,9 @@ test("auto-scrolls on viewport changes only when a scrollable list is still bott
       autoScrollActive: false,
       isNearBottom: true,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldAutoScrollAfterViewportChange({
       scroller: {
         scrollTop: 800,
@@ -931,8 +921,7 @@ test("auto-scrolls on viewport changes only when a scrollable list is still bott
       autoScrollActive: false,
       isNearBottom: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("detects when the local send path appends a user message and placeholder reply", () => {
@@ -945,11 +934,11 @@ test("detects when the local send path appends a user message and placeholder re
     ],
   );
 
-  assert.equal(hasOutgoingMessage, true);
+  expect(hasOutgoingMessage).toBe(true);
 });
 
 test("does not treat assistant-only streaming updates or bulk history loads as local sends", () => {
-  assert.equal(
+  expect(
     hasNewOutgoingMessage(
       [{ id: "1", role: "user" }],
       [
@@ -957,10 +946,9 @@ test("does not treat assistant-only streaming updates or bulk history loads as l
         { id: "2", role: "assistant" },
       ],
     ),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     hasNewOutgoingMessage(
       [],
       [
@@ -969,12 +957,11 @@ test("does not treat assistant-only streaming updates or bulk history loads as l
         { id: "3", role: "user" },
       ],
     ),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not auto-scroll while history loading is still in progress", () => {
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages: [],
       nextMessages: [
@@ -988,12 +975,11 @@ test("does not auto-scroll while history loading is still in progress", () => {
       isNearBottom: true,
       isLoadingHistory: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not auto-scroll non-assistant bulk history updates just because the list grew", () => {
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages: [{ id: "1", role: "user" }],
       nextMessages: [
@@ -1005,12 +991,11 @@ test("does not auto-scroll non-assistant bulk history updates just because the l
       autoScrollActive: false,
       isNearBottom: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not auto-scroll when multiple messages are appended at once", () => {
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages: [{ id: "1", role: "user" }],
       nextMessages: [
@@ -1023,12 +1008,11 @@ test("does not auto-scroll when multiple messages are appended at once", () => {
       isNearBottom: true,
       isLoadingHistory: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("treats an early upward mobile user scroll during active follow as an immediate detach", () => {
-  assert.equal(
+  expect(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: true,
       autoScrollActive: true,
@@ -1038,12 +1022,11 @@ test("treats an early upward mobile user scroll during active follow as an immed
       deltaScrollPx: 18,
       scrollTop: 260,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("treats an early upward mobile user scroll as a detach even in short transcripts", () => {
-  assert.equal(
+  expect(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: true,
       autoScrollActive: true,
@@ -1053,12 +1036,11 @@ test("treats an early upward mobile user scroll as a detach even in short transc
       deltaScrollPx: 12,
       scrollTop: 80,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("does not stop auto-scroll for programmatic or tiny upward adjustments", () => {
-  assert.equal(
+  expect(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: true,
       autoScrollActive: true,
@@ -1068,10 +1050,9 @@ test("does not stop auto-scroll for programmatic or tiny upward adjustments", ()
       deltaScrollPx: 40,
       scrollTop: 260,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: true,
       autoScrollActive: true,
@@ -1081,12 +1062,11 @@ test("does not stop auto-scroll for programmatic or tiny upward adjustments", ()
       deltaScrollPx: 1,
       scrollTop: 260,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("ignores an unexpected top jump while the bottom lock is still active", () => {
-  assert.equal(
+  expect(
     shouldIgnoreUnexpectedTopJumpDuringBottomLock({
       scrollTop: 0,
       clientHeight: 100,
@@ -1095,10 +1075,9 @@ test("ignores an unexpected top jump while the bottom lock is still active", () 
       userScrolledUp: false,
       manualDetachActive: false,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldIgnoreUnexpectedTopJumpDuringBottomLock({
       scrollTop: 0,
       clientHeight: 100,
@@ -1107,12 +1086,11 @@ test("ignores an unexpected top jump while the bottom lock is still active", () 
       userScrolledUp: true,
       manualDetachActive: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("treats that same early upward scroll as a detach on desktop too", () => {
-  assert.equal(
+  expect(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: false,
       autoScrollActive: true,
@@ -1122,8 +1100,7 @@ test("treats that same early upward scroll as a detach on desktop too", () => {
       deltaScrollPx: 18,
       scrollTop: 260,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("auto-scrolls appended assistant messages only while the view is bottom-anchored", () => {
@@ -1133,7 +1110,7 @@ test("auto-scrolls appended assistant messages only while the view is bottom-anc
     { id: "2", role: "assistant" },
   ];
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1141,10 +1118,9 @@ test("auto-scrolls appended assistant messages only while the view is bottom-anc
       autoScrollActive: false,
       isNearBottom: true,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1152,8 +1128,7 @@ test("auto-scrolls appended assistant messages only while the view is bottom-anc
       autoScrollActive: false,
       isNearBottom: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("starts a bottom-lock run when a streaming assistant message continues near the bottom", () => {
@@ -1166,7 +1141,7 @@ test("starts a bottom-lock run when a streaming assistant message continues near
     { id: "2", role: "assistant" },
   ];
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1175,8 +1150,7 @@ test("starts a bottom-lock run when a streaming assistant message continues near
       isNearBottom: true,
       shouldMaintainStreamLock: false,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("resumes bottom-lock for a streaming assistant update while the stream lock is still active", () => {
@@ -1189,7 +1163,7 @@ test("resumes bottom-lock for a streaming assistant update while the stream lock
     { id: "2", role: "assistant" },
   ];
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1198,8 +1172,7 @@ test("resumes bottom-lock for a streaming assistant update while the stream lock
       isNearBottom: false,
       shouldMaintainStreamLock: true,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("does not restart bottom-lock while a streaming assistant update is already being followed", () => {
@@ -1212,7 +1185,7 @@ test("does not restart bottom-lock while a streaming assistant update is already
     { id: "2", role: "assistant" },
   ];
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1221,8 +1194,7 @@ test("does not restart bottom-lock while a streaming assistant update is already
       isNearBottom: false,
       shouldMaintainStreamLock: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not allow detached mobile streaming to restart bottom-lock automatically", () => {
@@ -1235,7 +1207,7 @@ test("does not allow detached mobile streaming to restart bottom-lock automatica
     { id: "2", role: "assistant" },
   ];
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1245,8 +1217,7 @@ test("does not allow detached mobile streaming to restart bottom-lock automatica
       shouldMaintainStreamLock: true,
       manualDetachActive: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not auto-scroll a newly appended assistant message while detached", () => {
@@ -1256,7 +1227,7 @@ test("does not auto-scroll a newly appended assistant message while detached", (
     { id: "2", role: "assistant" },
   ];
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1265,8 +1236,7 @@ test("does not auto-scroll a newly appended assistant message while detached", (
       isNearBottom: true,
       manualDetachActive: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not resume auto-scroll after stream lock is released when the view is no longer near bottom", () => {
@@ -1279,7 +1249,7 @@ test("does not resume auto-scroll after stream lock is released when the view is
     { id: "2", role: "assistant" },
   ];
 
-  assert.equal(
+  expect(
     shouldAutoScrollForMessageUpdate({
       previousMessages,
       nextMessages,
@@ -1288,6 +1258,5 @@ test("does not resume auto-scroll after stream lock is released when the view is
       isNearBottom: false,
       shouldMaintainStreamLock: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });

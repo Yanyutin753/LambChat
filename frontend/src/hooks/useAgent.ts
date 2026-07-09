@@ -116,6 +116,22 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     Record<string, ActiveGoalSpec>
   >({});
   const [goalModeEnabled, setGoalModeEnabled] = useState(false);
+  const [autoModeEnabled, setAutoModeEnabled] = useState(() => {
+    try {
+      return localStorage.getItem("lamb-chat-auto-mode") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  // Persist autoModeEnabled to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem("lamb-chat-auto-mode", String(autoModeEnabled));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [autoModeEnabled]);
 
   // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1034,6 +1050,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     newlyCreatedSession,
     activeGoal,
     goalsByRunId,
+    autoModeEnabled,
+    goalModeEnabled,
+    setAutoModeEnabled,
+    setGoalModeEnabled,
     isInitializingSandbox,
     sandboxError,
     sendMessage,

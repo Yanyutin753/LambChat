@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const source = readFileSync(
   new URL("../modelIcon.ts", import.meta.url),
   "utf8",
@@ -12,11 +9,12 @@ const componentSource = readFileSync(
 );
 
 test("model icon resolver accepts an explicit icon before provider fallback", () => {
-  assert.match(source, /explicitIcon\?:\s*string/);
-  assert.match(
-    source,
+  expect(source).toMatch(/explicitIcon\?:\s*string/);
+  expect(source).toMatch(
     /if\s*\(\s*explicitIcon\s*&&\s*providerMap\[explicitIcon\]\s*\)/,
   );
-  assert.match(componentSource, /icon\?:\s*string/);
-  assert.match(componentSource, /getModelIconUrl\(model,\s*provider,\s*icon\)/);
+  expect(componentSource).toMatch(/icon\?:\s*string/);
+  expect(componentSource).toMatch(
+    /getModelIconUrl\(model,\s*provider,\s*icon\)/,
+  );
 });

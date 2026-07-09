@@ -1,17 +1,14 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { findMentionMatch, getMentionState } from "../useMentionState.ts";
 
 test("detects a standalone at sign as an empty mention query", () => {
-  assert.deepEqual(findMentionMatch("@", 1), {
+  expect(findMentionMatch("@", 1)).toEqual({
     atIndex: 0,
     query: "",
   });
 });
 
 test("activates mention search without requiring preloaded results", () => {
-  assert.deepEqual(
+  expect(
     getMentionState({
       input: "@",
       cursorPosition: 1,
@@ -19,17 +16,16 @@ test("activates mention search without requiring preloaded results", () => {
       highlightedIndex: 0,
       dismissedMention: null,
     }),
-    {
-      isActive: true,
-      query: "",
-      atIndex: 0,
-      highlightedIndex: 0,
-    },
-  );
+  ).toEqual({
+    isActive: true,
+    query: "",
+    atIndex: 0,
+    highlightedIndex: 0,
+  });
 });
 
 test("suppresses only the currently dismissed mention token", () => {
-  assert.equal(
+  expect(
     getMentionState({
       input: "@",
       cursorPosition: 1,
@@ -37,10 +33,9 @@ test("suppresses only the currently dismissed mention token", () => {
       highlightedIndex: 0,
       dismissedMention: { input: "@", atIndex: 0 },
     }).isActive,
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     getMentionState({
       input: " @",
       cursorPosition: 2,
@@ -48,6 +43,5 @@ test("suppresses only the currently dismissed mention token", () => {
       highlightedIndex: 0,
       dismissedMention: { input: "@", atIndex: 0 },
     }).isActive,
-    true,
-  );
+  ).toBe(true);
 });

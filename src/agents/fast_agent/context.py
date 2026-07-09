@@ -48,6 +48,7 @@ class FastAgentContext:
         disabled_skills: Optional[List[str]] = None,
         enabled_skills: Optional[List[str]] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
+        auto_mode: bool = False,
     ):
         self.session_id = session_id or str(uuid.uuid4())
         self.agent_id = agent_id
@@ -56,6 +57,7 @@ class FastAgentContext:
         self.disabled_skills = disabled_skills
         self.enabled_skills = enabled_skills
         self.disabled_mcp_tools = disabled_mcp_tools
+        self.auto_mode = auto_mode
         self.mcp_manager: Optional[MCPClientManager] = None
         self._mcp_loaded: bool = False
         self.tools: List[Any] = []
@@ -88,11 +90,13 @@ class FastAgentContext:
             self.tools,
             disabled_tools=self.disabled_tools,
             disabled_mcp_tools=self.disabled_mcp_tools,
+            auto_mode=self.auto_mode,
         )
         logger.debug(
-            "[FastAgentContext] Tool filtering: %d/%d tools enabled",
+            "[FastAgentContext] Tool filtering: %d/%d tools enabled (auto_mode=%s)",
             len(filtered),
             len(self.tools),
+            self.auto_mode,
         )
         return filtered
 
