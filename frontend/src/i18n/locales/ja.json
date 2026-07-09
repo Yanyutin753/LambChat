@@ -1595,35 +1595,6 @@
     "hideCode": "コードを隠す",
     "showCode": "コードを表示"
   },
-  "workflowPlugin": {
-    "chat": {
-      "entry": "入口",
-      "exit": "出口",
-      "inputOverrideSet": "入力上書き設定済み",
-      "inputs": "入力",
-      "none": "なし",
-      "outputs": "出力",
-      "selectWorkflow": "ワークフロー"
-    },
-    "nav": {
-      "editorLabel": "ワークフローエディター",
-      "label": "ワークフロー",
-      "runLabel": "ワークフロー実行"
-    },
-    "project": {
-      "defaultWorkflow": "既定のワークフロー",
-      "defaultWorkflowVersion": "既定のワークフローバージョン"
-    },
-    "scheduledTask": {
-      "workflow": "ワークフロー",
-      "workflowVersion": "ワークフローバージョン"
-    },
-    "session": {
-      "selectedWorkflow": "選択中のワークフロー",
-      "selectedWorkflowVersion": "選択中のワークフローバージョン",
-      "selectedWorkflowInput": "選択中のワークフロー入力"
-    }
-  },
   "nav": {
     "adminMarketplace": "管理マーケット",
     "agents": "設定",
@@ -2116,14 +2087,6 @@
     "mcp": {
       "description": "Model Context Protocolサーバー接続の管理。外部ツール、データベース、サービスを接続してAIエージェントの能力を拡張。",
       "title": "MCPサーバー管理"
-    },
-    "workflows": {
-      "description": "ワークフローを作成、編成、バージョン管理、実行、デバッグします。",
-      "editorDescription": "明示的な入力、出力、ノード、実行トレースを持つワークフローグラフを編集します。",
-      "editorTitle": "ワークフローエディター",
-      "runDescription": "ワークフロー実行トレース、ノードイベント、出力、エラー、承認状態を確認します。",
-      "runTitle": "ワークフロー実行",
-      "title": "ワークフロー"
     },
     "memory": {
       "description": "AIメモリコンテンツの表示と管理。永続的なコンテキストと知識保存で対話間の長期的なAIエージェント理解を実現。",

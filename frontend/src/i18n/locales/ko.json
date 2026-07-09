@@ -1595,35 +1595,6 @@
     "hideCode": "코드 숨기기",
     "showCode": "코드 보기"
   },
-  "workflowPlugin": {
-    "chat": {
-      "entry": "진입",
-      "exit": "출구",
-      "inputOverrideSet": "입력 재정의 설정됨",
-      "inputs": "입력",
-      "none": "없음",
-      "outputs": "출력",
-      "selectWorkflow": "워크플로"
-    },
-    "nav": {
-      "editorLabel": "워크플로 편집기",
-      "label": "워크플로",
-      "runLabel": "워크플로 실행"
-    },
-    "project": {
-      "defaultWorkflow": "기본 워크플로",
-      "defaultWorkflowVersion": "기본 워크플로 버전"
-    },
-    "scheduledTask": {
-      "workflow": "워크플로",
-      "workflowVersion": "워크플로 버전"
-    },
-    "session": {
-      "selectedWorkflow": "선택된 워크플로",
-      "selectedWorkflowVersion": "선택된 워크플로 버전",
-      "selectedWorkflowInput": "선택된 워크플로 입력"
-    }
-  },
   "nav": {
     "adminMarketplace": "관리자 마켓플레이스",
     "agents": "설정",
@@ -2116,14 +2087,6 @@
     "mcp": {
       "description": "Model Context Protocol 서버 연결을 관리하세요. 외부 도구, 데이터베이스 및 서비스를 연결하여 AI 에이전트 기능을 확장합니다.",
       "title": "MCP 서버 관리"
-    },
-    "workflows": {
-      "description": "워크플로를 생성, 구성, 버전 관리, 실행 및 디버그합니다.",
-      "editorDescription": "명시적인 입력, 출력, 노드 및 실행 트레이스를 가진 워크플로 그래프를 편집합니다.",
-      "editorTitle": "워크플로 편집기",
-      "runDescription": "워크플로 실행 트레이스, 노드 이벤트, 출력, 오류 및 승인 상태를 확인합니다.",
-      "runTitle": "워크플로 실행",
-      "title": "워크플로"
     },
     "memory": {
       "description": "AI 메모리 콘텐츠를 보고 관리하세요. 영구적인 컨텍스트와 지식 저장으로 대화 간 장기적인 AI 에이전트 이해를 실현합니다.",
