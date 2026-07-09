@@ -158,6 +158,7 @@ async def test_retain_updates_existing_memory_and_refreshes_embedding():
         context="user_identity",
         title="DuckDB preference",
         summary="Prefers raw SQL for analytics work.",
+        tags=["duckdb", "analytics", "preference"],
     )
 
     assert result["success"] is True
