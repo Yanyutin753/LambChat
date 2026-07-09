@@ -5,7 +5,9 @@ test("attachment preview host is mounted at ChatView level", () => {
     "utf8",
   );
 
-  expect(chatViewSource).toMatch(/<AttachmentPreviewHost\s*\/>/);
+  expect(chatViewSource).toMatch(
+    /<AttachmentPreviewHost runtimePlugins=\{runtimePlugins\} \/>/,
+  );
 });
 
 test("attachment preview host fills the mobile viewport", () => {

@@ -1,5 +1,5 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { test } from "vitest";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 
 const modalSource = readFileSync(
@@ -20,6 +20,10 @@ const sessionSidebarSource = readFileSync(
 );
 const rendererSource = readFileSync(
   new URL("../projectOptionRenderers.tsx", import.meta.url),
+  "utf8",
+);
+const rendererComponentsSource = readFileSync(
+  new URL("../projectOptionRendererComponents.tsx", import.meta.url),
   "utf8",
 );
 
@@ -50,10 +54,11 @@ test("project menu opens plugin-owned project options", () => {
 test("agent team project default team uses a controlled renderer", () => {
   assert.match(rendererSource, /"agent_team\.TeamSelectOption"/);
   assert.match(rendererSource, /props\.option\.renderer/);
-  assert.match(rendererSource, /if \(!option\.effective\)/);
-  assert.match(rendererSource, /placeholder="Team ID"/);
-  assert.match(rendererSource, /teamApi[\s\S]*\.list/);
-  assert.match(rendererSource, /if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
+  assert.match(rendererSource, /<Renderer \{\.\.\.props\} \/>/);
+  assert.match(rendererComponentsSource, /if \(!option\.effective\)/);
+  assert.match(rendererComponentsSource, /placeholder="Team ID"/);
+  assert.match(rendererComponentsSource, /teamApi[\s\S]*\.list/);
+  assert.match(rendererComponentsSource, /if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
 });
 
 test("project option renderers do not keep workflow-specific controls", () => {

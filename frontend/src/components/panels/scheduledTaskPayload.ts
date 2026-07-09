@@ -107,6 +107,19 @@ function applyPluginOptionValues(
   return nextPayload;
 }
 
+function withNonEmptyPluginOptions(
+  payload: Record<string, unknown>,
+  pluginOptions: PluginOptionsMetadata,
+): Record<string, unknown> {
+  if (Object.keys(pluginOptions).length > 0) {
+    return { ...payload, plugin_options: pluginOptions };
+  }
+
+  const nextPayload = { ...payload };
+  delete nextPayload.plugin_options;
+  return nextPayload;
+}
+
 function applyDeclaredPluginOptions(
   payload: Record<string, unknown>,
   originalPayload: Record<string, unknown>,
@@ -187,15 +200,20 @@ export function buildScheduledTaskInputPayload(
     return nextPayload;
   }
 
-  const currentPluginOptions = pluginOptionsFromMetadata(nextPayload);
+  const currentPluginOptions =
+    pluginOptionValues === undefined ? pluginOptionsFromMetadata(nextPayload) : {};
   delete nextPayload.plugin_options;
-  Object.assign(
-    nextPayload,
-    applyPluginOptionValues(
-      { ...nextPayload, plugin_options: currentPluginOptions },
-      pluginOptionValues,
-    ),
+  const mergedPayload = applyPluginOptionValues(
+    withNonEmptyPluginOptions(nextPayload, currentPluginOptions),
+    pluginOptionValues,
   );
+  Object.assign(nextPayload, mergedPayload);
+  if (
+    !nextPayload.plugin_options ||
+    Object.keys(pluginOptionsFromMetadata(nextPayload)).length === 0
+  ) {
+    delete nextPayload.plugin_options;
+  }
   if (personaPresetId && !hasPluginOptionDeclarations) {
     nextPayload.persona_preset_id = personaPresetId;
   }

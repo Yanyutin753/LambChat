@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 const chatInputSource = readFileSync(
   new URL("../ChatInput.tsx", import.meta.url),
@@ -14,7 +15,10 @@ test("team agent mention switches teams instead of persona presets", () => {
   assert.match(chatInputSource, /buildMentionProviderContributions/);
   assert.match(chatInputSource, /isPluginMentionProviderSupported/);
   assert.match(chatInputSource, /usePluginMentionProviderRuntime/);
-  assert.match(chatInputSource, /const mentionMode = activePluginMentionProvider\?\.mode \?\? "persona"/);
+  assert.match(
+    chatInputSource,
+    /const mentionMode:[\s\S]*activePluginMentionProvider\?\.mode === "team" \? "team" : "persona"/,
+  );
   assert.doesNotMatch(chatInputSource, /currentAgent === "team"[\s\S]*\? "team"[\s\S]*: "persona"/);
   assert.doesNotMatch(chatInputSource, /applyTeamMentionSelection/);
   assert.match(mentionProviderRenderersSource, /useTeamMentionSearch/);

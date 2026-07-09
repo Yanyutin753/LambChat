@@ -51,6 +51,7 @@ export interface CoreAppRouteContribution {
   pluginId?: string;
   insertAfterId?: Exclude<TabType, "chat">;
   path: string;
+  labelKey?: string;
   seoPath?: string;
   seoTitle: string;
   seoDescription: string;
@@ -918,6 +919,7 @@ function routeFromRuntimeAppTab(
     pluginId: plugin.plugin_id,
     insertAfterId: tab.insert_after ? asKnownTab(tab.insert_after) ?? undefined : undefined,
     path: tab.path,
+    labelKey: tab.label,
     seoTitle: tab.seo_title || `seo.${knownTab}.title`,
     seoDescription: tab.seo_description || `seo.${knownTab}.description`,
     tab: knownTab,
@@ -954,6 +956,21 @@ function sidebarItemFromRuntime(
     labelKey: item.label,
     icon: iconByName(item.icon),
     requiredAnyPermissions: asPermissionValues(item.permissions),
+    area: "sidebar_more_menu",
+  };
+}
+
+function sidebarItemFromRuntimeAppTab(
+  route: CoreAppRouteContribution,
+): CoreSidebarNavContribution | null {
+  if (!route.pluginId) return null;
+  return {
+    id: route.id,
+    pluginId: route.pluginId,
+    path: route.seoPath ?? route.path,
+    labelKey: route.labelKey ?? `nav.${route.id}`,
+    icon: Plug,
+    requiredAnyPermissions: route.permissions,
     area: "sidebar_more_menu",
   };
 }
@@ -1003,6 +1020,39 @@ function scopedOptionFromRuntime(
   };
 }
 
+function insertRuntimeRoutes(
+  coreRoutes: readonly CoreAppRouteContribution[],
+  pluginRoutes: readonly CoreAppRouteContribution[],
+): readonly CoreAppRouteContribution[] {
+  const routes = [...coreRoutes];
+  const remaining = [...pluginRoutes];
+  let changed = true;
+
+  while (changed && remaining.length) {
+    changed = false;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const route = remaining[index];
+      const insertAfterId = route.insertAfterId;
+      if (!insertAfterId) {
+        routes.push(route);
+        remaining.splice(index, 1);
+        index -= 1;
+        changed = true;
+        continue;
+      }
+
+      const targetIndex = routes.findIndex((item) => item.id === insertAfterId);
+      if (targetIndex === -1) continue;
+      routes.splice(targetIndex + 1, 0, route);
+      remaining.splice(index, 1);
+      index -= 1;
+      changed = true;
+    }
+  }
+
+  return [...routes, ...remaining];
+}
+
 export function buildAppRouteContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): readonly CoreAppRouteContribution[] {
@@ -1018,17 +1068,7 @@ export function buildAppRouteContributions(
         return structuredRoutes;
       })
     : [];
-  return CORE_APP_ROUTES.reduce<CoreAppRouteContribution[]>((routes, coreRoute) => {
-    routes.push(coreRoute);
-    routes.push(
-      ...pluginRoutes.filter(
-        (pluginRoute) => pluginRoute.insertAfterId === coreRoute.id,
-      ),
-    );
-    return routes;
-  }, [
-    ...pluginRoutes.filter((pluginRoute) => !pluginRoute.insertAfterId),
-  ]);
+  return insertRuntimeRoutes(CORE_APP_ROUTES, pluginRoutes);
 }
 
 export function buildPanelContributions(
@@ -1094,17 +1134,37 @@ export function buildSidebarMoreNavContributions(
   const pluginNavItems = runtimePlugins
     ? runtimePlugins.flatMap((plugin) => {
         if (!plugin.enabled || !plugin.executable) return [];
-        const structuredItems = sortByOrderThenId(
+        return sortByOrderThenId(
           (plugin.frontend?.sidebar_items ?? [])
             .filter((item) => matchesVisibleWhen(item.visible_when))
             .map((item) => sidebarItemFromRuntime(plugin, item)),
         );
-        return structuredItems;
       })
     : [];
+  const explicitPluginNavKeys = new Set(
+    pluginNavItems.map((item) => `${item.pluginId ?? ""}:${item.id}:${item.path}`),
+  );
+  const appRouteNavItems = buildAppRouteContributions(runtimePlugins)
+    .flatMap((route) => {
+      const navItem = sidebarItemFromRuntimeAppTab(route);
+      if (!navItem) return [];
+      const exactKey = `${navItem.pluginId ?? ""}:${navItem.id}:${navItem.path}`;
+      if (explicitPluginNavKeys.has(exactKey)) return [];
+      if (
+        pluginNavItems.some(
+          (item) =>
+            item.pluginId === navItem.pluginId &&
+            (item.id === navItem.id || item.path === navItem.path),
+        )
+      ) {
+        return [];
+      }
+      return [navItem];
+    });
   return [
     ...CORE_SIDEBAR_MORE_NAV.slice(0, 1),
     ...pluginNavItems,
+    ...appRouteNavItems,
     ...CORE_SIDEBAR_MORE_NAV.slice(1),
   ];
 }
@@ -1357,21 +1417,53 @@ export const CORE_TOOL_RENDERERS: readonly CoreToolRendererContribution[] = [
   { id: "glob", toolNames: ["glob"], area: "tool_renderer" },
   { id: "execute", toolNames: ["execute"], area: "tool_renderer" },
   {
+    id: "upload-url-to-sandbox",
+    toolNames: ["upload_url_to_sandbox"],
+    area: "tool_renderer",
+  },
+  {
+    id: "image-analyze",
+    toolNames: ["image_analyze", "image_edit_with_references"],
+    area: "tool_renderer",
+  },
+  {
+    id: "transfer",
+    toolNames: ["transfer_file", "transfer_path"],
+    area: "tool_renderer",
+  },
+  {
     id: "scheduled-task",
     toolNames: [
       "scheduled_task_create",
       "scheduled_task_list",
+      "scheduled_task_get",
       "scheduled_task_update",
+      "scheduled_task_pause",
+      "scheduled_task_resume",
       "scheduled_task_delete",
+      "scheduled_task_run",
     ],
     area: "tool_renderer",
   },
   {
     id: "env-var",
-    toolNames: ["env_var_list", "env_var_set", "env_var_delete"],
+    toolNames: [
+      "env_var_list",
+      "env_var_set",
+      "env_var_delete",
+      "env_var_delete_all",
+    ],
     area: "tool_renderer",
   },
-  { id: "persona", toolNames: ["save_persona_preset"], area: "tool_renderer" },
+  {
+    id: "persona",
+    toolNames: [
+      "save_persona_preset",
+      "create_persona_preset",
+      "update_persona_preset",
+    ],
+    area: "tool_renderer",
+  },
   {
     id: "sandbox-mcp",
     toolNames: ["sandbox_mcp_add", "sandbox_mcp_update", "sandbox_mcp_remove"],

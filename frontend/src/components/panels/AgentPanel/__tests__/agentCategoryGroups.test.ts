@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { groupAgentsByPluginCategory } from "../agentCategoryGroups";
 import type { CoreAgentCategoryContribution } from "../../../../extensions";
 import type { AgentInfo } from "../../../../types";

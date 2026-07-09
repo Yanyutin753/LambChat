@@ -1,6 +1,6 @@
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {

@@ -160,7 +160,7 @@ test("includes retry_user_message only for regenerated replies", () => {
       enabled_skills: undefined,
       persona_preset_id: undefined,
       disabled_mcp_tools: undefined,
-      user_timezone: "Asia/Shanghai",
+      retry_user_message: true,
     },
   );
 });

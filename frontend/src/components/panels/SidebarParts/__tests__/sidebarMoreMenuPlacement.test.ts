@@ -1,5 +1,6 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 
 const coreContributionsSource = readFileSync(
   new URL("../../../../extensions/coreContributions.ts", import.meta.url),

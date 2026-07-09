@@ -241,7 +241,7 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         setMembers([]);
         setDefaultMemberId(null);
       }
-    }, [teamId]);
+    }, [teamId, t]);
 
     const handleAddRole = useCallback(
       (preset: PersonaPreset) => {

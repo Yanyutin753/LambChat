@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 function readSource(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
@@ -691,7 +692,8 @@ test("scheduled task form uses shared primitives for generic form controls", () 
   expect(source).toMatch(
     /<Textarea[\s\S]*scheduledTask\.descriptionPlaceholder/,
   );
-  expect(source).toMatch(/<Select[\s\S]*scheduledTask\.agentPlaceholder/);
+  expect(source).toMatch(/const agentOptions =[\s\S]*scheduledTask\.agentPlaceholder/);
+  expect(source).toMatch(/<Select[\s\S]*options=\{agentOptions\}/);
   expect(source).toMatch(/<Select[\s\S]*scheduledTask\.modelPlaceholder/);
   expect(source).not.toMatch(/GlassSelect/);
   expect(source).not.toMatch(/className="btn-(primary|secondary)[^"]*"/);

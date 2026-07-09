@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 const welcomePageSource = readFileSync(
   new URL("../WelcomePage.tsx", import.meta.url),

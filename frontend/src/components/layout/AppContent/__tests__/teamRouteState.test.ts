@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { getTeamRouteRequest } from "../teamRouteState";
 

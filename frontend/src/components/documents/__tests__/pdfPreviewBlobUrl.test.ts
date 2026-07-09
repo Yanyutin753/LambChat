@@ -10,7 +10,7 @@ const contentSource = readFileSync(
 
 test("PDF preview uses a local PDF blob URL instead of embedding the download URL directly", () => {
   const pdfBranch = stateSource.match(
-    /if \(resolvedPdfFile\) \{(?<body>[\s\S]*?)\n\s*\}\n\n\s*if \(resolvedVideoFile\)/,
+    /if \(advancedFileViewersEnabled && resolvedPdfFile\) \{(?<body>[\s\S]*?)\n\s*\}\n\n\s*if \(resolvedVideoFile\)/,
   )?.groups?.body;
 
   expect(pdfBranch).toBeTruthy();
@@ -29,7 +29,7 @@ test("PDF preview revokes generated blob URLs", () => {
 
 test("unsupported preview files render a guardrail instead of auto-downloading", () => {
   const unsupportedBranch = stateSource.match(
-    /else if \(unsupportedPreviewFile\) \{(?<body>[\s\S]*?)\n\s*\}\s*else if \(wordPreviewFile/,
+    /else if \(unsupportedPreviewFile\) \{(?<body>[\s\S]*?)\n\s*\}\s*else if \(advancedFileViewersEnabled && \(wordPreviewFile/,
   )?.groups?.body;
 
   expect(unsupportedBranch).toBeTruthy();

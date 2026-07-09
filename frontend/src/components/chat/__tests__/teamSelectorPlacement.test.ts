@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 const toolbarSource = readFileSync(
   new URL("../ChatInputToolbar.tsx", import.meta.url),
@@ -11,8 +12,16 @@ const chatInputPanelRenderersSource = readFileSync(
   new URL("../chatInputPanelRenderers.tsx", import.meta.url),
   "utf8",
 );
+const chatInputPanelRendererComponentsSource = readFileSync(
+  new URL("../chatInputPanelRendererComponents.tsx", import.meta.url),
+  "utf8",
+);
 const chatInputSelectedRenderersSource = readFileSync(
   new URL("../chatInputSelectedRenderers.tsx", import.meta.url),
+  "utf8",
+);
+const chatInputSelectedRendererComponentsSource = readFileSync(
+  new URL("../chatInputSelectedRendererComponents.tsx", import.meta.url),
   "utf8",
 );
 const chatInputSource = readFileSync(
@@ -47,6 +56,10 @@ const messageActionRenderersSource = readFileSync(
   new URL("../ChatMessage/messageActionRenderers.tsx", import.meta.url),
   "utf8",
 );
+const messageActionRendererComponentsSource = readFileSync(
+  new URL("../ChatMessage/messageActionRendererComponents.tsx", import.meta.url),
+  "utf8",
+);
 const featureMenuSource = readFileSync(
   new URL("../../selectors/FeatureMenu.tsx", import.meta.url),
   "utf8",
@@ -79,23 +92,24 @@ test("team toolbar chip only renders after a team is selected", () => {
   assert.match(chatInputSelectedRenderersSource, /hasSelection/);
   assert.match(chatInputSelectedRenderersSource, /Component: AgentTeamSelectedChip/);
   assert.doesNotMatch(chatInputSelectedRenderersSource, /render: AgentTeamSelectedChip/);
-  assert.match(chatInputSelectedRenderersSource, /teamApi/);
-  assert.match(chatInputSelectedRenderersSource, /TeamAvatar/);
-  assert.match(chatInputSelectedRenderersSource, /getTeamFallbackAvatar/);
+  assert.match(chatInputSelectedRendererComponentsSource, /teamApi/);
+  assert.match(chatInputSelectedRendererComponentsSource, /TeamAvatar/);
+  assert.match(chatInputSelectedRendererComponentsSource, /getTeamFallbackAvatar/);
   assert.doesNotMatch(selectorsSource, /TeamPickerModal/);
   assert.match(selectorsSource, /CHAT_INPUT_PANEL_RENDERERS/);
   assert.match(selectorsSource, /chatInputPanels\.map/);
   assert.match(selectorsSource, /CHAT_INPUT_PANEL_RENDERERS\[panel\.renderer\]/);
-  assert.match(chatInputPanelRenderersSource, /TeamPickerModal/);
+  assert.match(chatInputPanelRenderersSource, /AgentTeamPickerRenderer/);
   assert.match(chatInputPanelRenderersSource, /"agent_team\.TeamPickerModal"/);
-  assert.match(chatInputPanelRenderersSource, /activePanel === contribution\.id/);
-  assert.match(chatInputPanelRenderersSource, /const optionPath = contribution\.optionBinding/);
-  assert.match(chatInputPanelRenderersSource, /pluginOptionValues/);
-  assert.match(chatInputPanelRenderersSource, /onPluginOptionChange/);
-  assert.match(chatInputPanelRenderersSource, /pluginOptionFromValues\(pluginOptionValues, optionPath\.pluginId, optionPath\.key\)/);
-  assert.match(chatInputPanelRenderersSource, /selectedTeamId=\{effectiveSelectedTeamId \?\? null\}/);
-  assert.match(chatInputPanelRenderersSource, /navigateToCreate = contribution\.createPath/);
-  assert.match(chatInputPanelRenderersSource, /navigateToManage = contribution\.managePath/);
+  assert.match(chatInputPanelRendererComponentsSource, /TeamPickerModal/);
+  assert.match(chatInputPanelRendererComponentsSource, /activePanel === contribution\.id/);
+  assert.match(chatInputPanelRendererComponentsSource, /const optionPath = contribution\.optionBinding/);
+  assert.match(chatInputPanelRendererComponentsSource, /pluginOptionValues/);
+  assert.match(chatInputPanelRendererComponentsSource, /onPluginOptionChange/);
+  assert.match(chatInputPanelRendererComponentsSource, /pluginOptionFromValues\(pluginOptionValues, optionPath\.pluginId, optionPath\.key\)/);
+  assert.match(chatInputPanelRendererComponentsSource, /selectedTeamId=\{effectiveSelectedTeamId \?\? null\}/);
+  assert.match(chatInputPanelRendererComponentsSource, /navigateToCreate = contribution\.createPath/);
+  assert.match(chatInputPanelRendererComponentsSource, /navigateToManage = contribution\.managePath/);
   assert.doesNotMatch(chatInputPanelRenderersSource, /agentTeamSelectedTeamOptionPath/);
   assert.doesNotMatch(chatInputPanelRenderersSource, /onOpenTeamBuilder/);
   assert.doesNotMatch(chatInputSource, /onOpenTeamBuilder/);
@@ -128,19 +142,18 @@ test("team selector uses the persona selector interaction surfaces", () => {
   assert.doesNotMatch(toolbarSource, /currentAgent !== "team"/);
   assert.match(toolbarSource, /suppressesCorePersonaSelector/);
   assert.doesNotMatch(toolbarSource, /onSelectTeam\?\.\(null\)/);
-  assert.match(chatInputSelectedRenderersSource, /const optionPath = option\.optionBinding/);
-  assert.match(chatInputSelectedRenderersSource, /pluginOptionFromValues\(pluginOptionValues, optionPath\.pluginId, optionPath\.key\)/);
-  assert.match(chatInputSelectedRenderersSource, /onPluginOptionChange\?\.\(optionPath\.pluginId, optionPath\.key, null\)/);
+  assert.match(chatInputSelectedRendererComponentsSource, /const optionPath = option\.optionBinding/);
+  assert.match(chatInputSelectedRendererComponentsSource, /pluginOptionFromValues\(pluginOptionValues, optionPath\.pluginId, optionPath\.key\)/);
+  assert.match(chatInputSelectedRendererComponentsSource, /onPluginOptionChange\?\.\(optionPath\.pluginId, optionPath\.key, null\)/);
   assert.doesNotMatch(chatInputSelectedRenderersSource, /agentTeamSelectedTeamOptionPath/);
   assert.doesNotMatch(chatInputSelectedRenderersSource, /onSelectTeam\?\.\(null\)/);
   assert.match(toolbarSource, /group-hover:opacity-0/);
   assert.doesNotMatch(featureMenuSource, /hasTeamSelector/);
   assert.match(featureMenuSource, /uploadPluginOptions = pluginOptions\.filter/);
-  assert.match(featureMenuSource, /settingsPluginOptions = pluginOptions\.filter/);
   assert.match(featureMenuSource, /enhancePluginOptions = pluginOptions\.filter/);
   assert.match(featureMenuSource, /uploadPluginOptions\.map\(renderPluginOption\)/);
   assert.match(featureMenuSource, /enhancePluginOptions\.map\(renderPluginOption\)/);
-  assert.match(featureMenuSource, /settingsPluginOptions\.map\(renderPluginOption\)/);
+  assert.doesNotMatch(featureMenuSource, /settingsPluginOptions/);
   assert.match(featureMenuSource, /label=\{t\(option\.label\)\}/);
   assert.match(featureMenuSource, /onOpen\(option\.panel \?\? option\.id\)/);
   assert.doesNotMatch(featureMenuSource, /onOpen\("team"\)/);
@@ -197,7 +210,7 @@ test("message plugin actions render through the static renderer registry", () =>
   assert.match(chatMessageSource, /rendererId = contribution\.renderer/);
   assert.doesNotMatch(chatMessageSource, /FeedbackButtons/);
   assert.match(messageActionRenderersSource, /"feedback\.FeedbackButtons"/);
-  assert.match(messageActionRenderersSource, /FeedbackButtons/);
+  assert.match(messageActionRendererComponentsSource, /FeedbackButtons/);
   assert.doesNotMatch(chatMessageSource, /hasMessageActionContribution/);
   assert.doesNotMatch(chatMessageSource, /canUseFeedbackAction/);
 });

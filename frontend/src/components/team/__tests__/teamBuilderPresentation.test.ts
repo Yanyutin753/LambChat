@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { existsSync, readFileSync } from "node:fs";
 const wrapperSource = readFileSync(
   new URL("../TeamBuilderWrapper.tsx", import.meta.url),

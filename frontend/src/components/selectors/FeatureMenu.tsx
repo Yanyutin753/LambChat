@@ -6,24 +6,15 @@ import {
   Wrench,
   Sparkles,
   Plus,
-  Image,
-  Video,
-  Music,
-  FileText,
   UserRound,
   UsersRound,
   ChevronDown,
   Upload,
   Layers,
   Plug,
-  Settings2,
-  ToggleLeft,
-  Bot,
-  Brain,
 } from "lucide-react";
 
-import type { AgentOption, FileCategory } from "../../types";
-import type { UploadLimits } from "../../hooks/useFileUpload";
+import type { FileCategory } from "../../types";
 import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
 
 export type FeaturePanel =
@@ -34,13 +25,6 @@ export type FeaturePanel =
   | "thinking"
   | (string & {})
   | null;
-
-const FILE_CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
-  image: Image,
-  video: Video,
-  audio: Music,
-  document: FileText,
-};
 
 const PLUGIN_OPTION_ICONS: Record<string, React.ElementType> = {
   UsersRound,
@@ -59,16 +43,11 @@ interface FeatureMenuProps {
   pluginOptions?: readonly CoreChatInputOptionContribution[];
   hasAgentSelector: boolean;
   agentName?: string | null;
-  hasThinkingOption: boolean;
   thinkingLabel?: string;
   thinkingLevel?: string;
-  booleanAgentOptions?: Record<string, AgentOption>;
-  agentOptionValues?: Record<string, boolean | string | number>;
-  onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
   // File upload
   uploadCategories: FileCategory[];
-  uploadLimits?: UploadLimits | null;
-  onFileCategorySelect: (category: FileCategory) => void;
+  onUploadFiles: () => void;
 }
 
 function MenuGroup({
@@ -151,17 +130,8 @@ export const FeatureMenu = memo(function FeatureMenu({
   hasPersonaSelector = false,
   personaName,
   pluginOptions = [],
-  hasAgentSelector,
-  agentName,
-  hasThinkingOption,
-  thinkingLabel,
-  thinkingLevel,
-  booleanAgentOptions,
-  agentOptionValues = {},
-  onToggleAgentOption,
   uploadCategories,
-  uploadLimits,
-  onFileCategorySelect,
+  onUploadFiles,
 }: FeatureMenuProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -207,12 +177,8 @@ export const FeatureMenu = memo(function FeatureMenu({
     setIsOpen((prev) => !prev);
   };
 
-  const booleanOptionEntries = Object.entries(booleanAgentOptions ?? {});
   const uploadPluginOptions = pluginOptions.filter(
     (option) => option.slot === "upload",
-  );
-  const settingsPluginOptions = pluginOptions.filter(
-    (option) => option.slot === "settings",
   );
   const enhancePluginOptions = pluginOptions.filter(
     (option) => option.slot !== "upload" && option.slot !== "settings",
@@ -233,10 +199,8 @@ export const FeatureMenu = memo(function FeatureMenu({
     totalToolsCount > 0 ||
     totalSkillsCount > 0 ||
     hasPersonaSelector ||
-    pluginOptions.length > 0 ||
-    hasAgentSelector ||
-    hasThinkingOption ||
-    booleanOptionEntries.length > 0;
+    uploadPluginOptions.length > 0 ||
+    enhancePluginOptions.length > 0;
   if (!hasFeatureItems && uploadCategories.length === 0) return null;
 
   return (
@@ -251,7 +215,7 @@ export const FeatureMenu = memo(function FeatureMenu({
         }}
         style={isOpen ? { position: "relative", zIndex: 10000 } : undefined}
         className="chat-tool-btn"
-        aria-label={t("chat.features", "功能")}
+        aria-label={t("chat.features", "Features")}
       >
         <Plus size={18} />
       </button>
@@ -269,36 +233,27 @@ export const FeatureMenu = memo(function FeatureMenu({
           >
             {(uploadCategories.length > 0 || uploadPluginOptions.length > 0) && (
               <MenuGroup
-                label={t("featureMenu.upload", "上传")}
+                label={t("featureMenu.upload", "Upload")}
                 icon={<Upload size={18} />}
                 defaultExpanded
               >
-                {uploadCategories.map((category) => {
-                  const Icon = FILE_CATEGORY_ICONS[category];
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => {
-                        onFileCategorySelect(category);
-                        setIsOpen(false);
-                      }}
-                      className="feature-menu-item"
-                    >
-                      <span className="feature-menu-item-icon">
-                        <Icon size={18} />
-                      </span>
-                      <span className="flex-1 text-left truncate">
-                        {t(`fileUpload.categories.${category}`)}
-                      </span>
-                      {uploadLimits && (
-                        <span className="feature-menu-item-badge">
-                          {uploadLimits[category]}MB
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                {uploadCategories.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUploadFiles();
+                      setIsOpen(false);
+                    }}
+                    className="feature-menu-item"
+                  >
+                    <span className="feature-menu-item-icon">
+                      <Upload size={18} />
+                    </span>
+                    <span className="flex-1 text-left truncate">
+                      {t("featureMenu.upload", "Upload")}
+                    </span>
+                  </button>
+                )}
                 {uploadPluginOptions.map(renderPluginOption)}
               </MenuGroup>
             )}
@@ -307,13 +262,13 @@ export const FeatureMenu = memo(function FeatureMenu({
               totalToolsCount > 0 ||
               totalSkillsCount > 0) && (
               <MenuGroup
-                label={t("featureMenu.enhance", "增强")}
+                label={t("featureMenu.enhance", "Enhance")}
                 icon={<Layers size={18} />}
               >
                 {hasPersonaSelector && (
                   <MenuItem
                     icon={<UserRound size={18} />}
-                    label={t("featureMenu.persona", "角色")}
+                    label={t("featureMenu.persona", "Persona")}
                     badge={personaName || undefined}
                     active={activePanel === "persona"}
                     onClick={() => onOpen("persona")}
@@ -332,61 +287,12 @@ export const FeatureMenu = memo(function FeatureMenu({
                 {totalSkillsCount > 0 && (
                   <MenuItem
                     icon={<Sparkles size={18} />}
-                    label={t("skillSelector.title", "技能")}
+                    label={t("skillSelector.title", "Skills")}
                     badge={`${enabledSkillsCount}/${totalSkillsCount}`}
                     active={activePanel === "skills"}
                     onClick={() => onOpen("skills")}
                   />
                 )}
-              </MenuGroup>
-            )}
-            {(hasAgentSelector ||
-              hasThinkingOption ||
-              settingsPluginOptions.length > 0 ||
-              booleanOptionEntries.length > 0) && (
-              <MenuGroup
-                label={t("featureMenu.settings", "设置")}
-                icon={<Settings2 size={18} />}
-              >
-                {hasAgentSelector && (
-                  <MenuItem
-                    icon={<Bot size={18} />}
-                    label={t("agent.selectMode", "选择模式")}
-                    badge={agentName ? t(agentName) : undefined}
-                    active={activePanel === "agent"}
-                    onClick={() => onOpen("agent")}
-                  />
-                )}
-                {hasThinkingOption && (
-                  <MenuItem
-                    icon={<Brain size={18} />}
-                    label={t("chat.thinkingIntensity", "思考强度")}
-                    badge={thinkingLabel}
-                    badgeColor={thinkingLevel}
-                    active={activePanel === "thinking"}
-                    onClick={() => onOpen("thinking")}
-                  />
-                )}
-                {settingsPluginOptions.map(renderPluginOption)}
-                {booleanOptionEntries.map(([key, option]) => {
-                  const value = agentOptionValues[key] ?? option.default;
-                  const enabled = value === true;
-                  const label = option.label_key
-                    ? t(option.label_key)
-                    : option.label;
-                  return (
-                    <MenuItem
-                      key={key}
-                      icon={<ToggleLeft size={18} />}
-                      label={label}
-                      badge={
-                        enabled ? t("common.on", "On") : t("common.off", "Off")
-                      }
-                      active={enabled}
-                      onClick={() => onToggleAgentOption?.(key, !enabled)}
-                    />
-                  );
-                })}
               </MenuGroup>
             )}
           </div>,

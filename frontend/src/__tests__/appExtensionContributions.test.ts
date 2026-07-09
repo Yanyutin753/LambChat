@@ -1,6 +1,6 @@
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 
 const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
 const hookSource = readFileSync(
@@ -31,10 +31,11 @@ test("plugin-owned app routes are generated from runtime contributions only", ()
 test("plugin-owned app routes show a loading route while contributions load", () => {
   assert.match(appSource, /useLocation\(\)/);
   assert.match(appSource, /isLoading:\s*areExtensionContributionsLoading/);
-  assert.match(appSource, /BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS/);
-  assert.match(appSource, /"\/agent-team"/);
+  assert.match(appSource, /CORE_APP_ROUTE_LOADING_PATHS/);
+  assert.match(appSource, /isKnownNonPluginPath/);
   assert.doesNotMatch(appSource, /"\/team"/);
   assert.match(appSource, /shouldShowPluginRouteLoading/);
+  assert.match(appSource, /!isKnownNonPluginPath/);
   assert.match(appSource, /path=\{location\.pathname\}/);
   assert.match(appSource, /<ChatPageSkeleton \/>/);
 });

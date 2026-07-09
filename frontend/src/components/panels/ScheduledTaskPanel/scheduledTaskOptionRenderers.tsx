@@ -1,95 +1,17 @@
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
-import { useTranslation } from "react-i18next";
-import { UsersRound } from "lucide-react";
-import { Select } from "../../common";
+import type { ComponentType } from "react";
 import { teamApi } from "../../../services/api/team";
 import type { ExtensionScopedOption } from "../../../types";
-import type { Team } from "../../../types/team";
+import {
+  AgentTeamScheduledTaskTeamSelect,
+  type ScheduledTaskOptionRendererProps,
+} from "./scheduledTaskOptionRendererComponents";
 
-interface ScheduledTaskOptionRendererProps {
-  option: ExtensionScopedOption;
-  value: unknown;
-  disabled?: boolean;
-  inactive?: boolean;
-  triggerClassName?: string;
-  onChange: (value: unknown) => void;
-}
-
-type ScheduledTaskOptionRenderer = (
-  props: ScheduledTaskOptionRendererProps,
-) => ReactNode;
+type ScheduledTaskOptionRenderer = ComponentType<ScheduledTaskOptionRendererProps>;
 
 type ScheduledTaskOptionLabelResolver = (
   values: readonly string[],
 ) => Promise<Record<string, string>>;
-
-function labelWithIcon(label: string) {
-  return (
-    <span className="inline-flex min-w-0 items-center gap-2">
-      <UsersRound size={14} className="shrink-0 opacity-70" />
-      <span className="truncate">{label}</span>
-    </span>
-  );
-}
-
-function AgentTeamScheduledTaskTeamSelect({
-  value,
-  disabled,
-  inactive,
-  triggerClassName,
-  onChange,
-}: ScheduledTaskOptionRendererProps) {
-  const { t } = useTranslation();
-  const [teams, setTeams] = useState<Team[]>([]);
-
-  useEffect(() => {
-    if (inactive) {
-      setTeams([]);
-      return;
-    }
-    let cancelled = false;
-    teamApi
-      .list({ limit: 100 })
-      .then((response) => {
-        if (!cancelled) setTeams(response.teams);
-      })
-      .catch(() => {
-        if (!cancelled) setTeams([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [inactive]);
-
-  const options = [
-    {
-      value: "",
-      label: labelWithIcon(t("scheduledTask.teamPlaceholder")),
-    },
-    ...teams.map((team) => ({
-      value: team.id,
-      label: labelWithIcon(team.name),
-    })),
-  ];
-  const stringValue = typeof value === "string" ? value : "";
-  if (stringValue && !options.some((option) => option.value === stringValue)) {
-    options.push({
-      value: stringValue,
-      label: labelWithIcon(stringValue),
-    });
-  }
-
-  return (
-    <Select
-      value={stringValue}
-      onChange={onChange}
-      disabled={disabled}
-      triggerClassName={triggerClassName}
-      options={options}
-    />
-  );
-}
 
 const SCHEDULED_TASK_OPTION_RENDERERS: Record<string, ScheduledTaskOptionRenderer> = {
   "agent_team.TeamSelectOption": AgentTeamScheduledTaskTeamSelect,
@@ -127,7 +49,9 @@ export function renderScheduledTaskOptionField(
   const renderer = props.option.renderer
     ? SCHEDULED_TASK_OPTION_RENDERERS[props.option.renderer]
     : null;
-  return renderer ? renderer(props) : null;
+  if (!renderer) return null;
+  const Renderer = renderer;
+  return <Renderer {...props} />;
 }
 
 export function useScheduledTaskOptionValueLabels(
@@ -160,3 +84,5 @@ export function useScheduledTaskOptionValueLabels(
 
   return labels;
 }
+
+export type { ScheduledTaskOptionRendererProps };

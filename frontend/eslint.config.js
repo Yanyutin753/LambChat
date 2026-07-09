@@ -25,7 +25,19 @@ export default tseslint.config(
         "warn",
         {
           allowConstantExport: true,
-          allowExportNames: ["useSessionImageGallery"],
+          allowExportNames: [
+            "CHAT_INPUT_PANEL_RENDERERS",
+            "CHAT_INPUT_SELECTED_RENDERERS",
+            "MESSAGE_ACTION_RENDERERS",
+            "PLUGIN_MESSAGE_RENDERERS",
+            "WELCOME_SURFACE_RENDERERS",
+            "findScheduledTaskOptionRenderer",
+            "renderProjectOptionField",
+            "renderScheduledTaskOptionField",
+            "renderScheduledTaskSectionContribution",
+            "useScheduledTaskOptionValueLabels",
+            "useSessionImageGallery",
+          ],
         },
       ],
       "@typescript-eslint/no-unused-vars": [

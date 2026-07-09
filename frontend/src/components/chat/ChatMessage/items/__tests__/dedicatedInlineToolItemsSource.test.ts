@@ -12,6 +12,17 @@ function readRepoSource(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), "utf8");
 }
 
+function readToolRendererSources(): string {
+  return [
+    "frontend/src/extensions/coreContributions.ts",
+    "plugins/preinstalled/audio_transcription/frontend/plugin.json",
+    "plugins/preinstalled/image_generation/frontend/plugin.json",
+    "plugins/system/agent_team/frontend/plugin.json",
+  ]
+    .map(readRepoSource)
+    .join("\n");
+}
+
 function extractToolFunctionNames(relativePath: string): string[] {
   const source = readRepoSource(relativePath);
   const names = Array.from(
@@ -26,6 +37,7 @@ function extractToolFunctionNames(relativePath: string): string[] {
 
 test("message part renderer routes internal inline tools to dedicated items", () => {
   const source = readSource("../../MessagePartRenderer.tsx");
+  const toolRendererSources = readToolRendererSources();
 
   const expectedRoutes = [
     "upload_url_to_sandbox",
@@ -39,16 +51,19 @@ test("message part renderer routes internal inline tools to dedicated items", ()
   ];
 
   for (const toolName of expectedRoutes) {
-    expect(source).toMatch(new RegExp(`part\\.name\\s*===\\s*"${toolName}"`));
+    expect(toolRendererSources).toMatch(new RegExp(`"${toolName}"`));
   }
 
+  expect(source).toMatch(/coreToolRendererId === "upload-url-to-sandbox"/);
+  expect(source).toMatch(/coreToolRendererId === "image-analyze"/);
+  expect(source).toMatch(/coreToolRendererId === "transfer"/);
   expect(source).toMatch(/<UploadUrlToSandboxItem/);
   expect(source).toMatch(/<ImageAnalyzeItem/);
   expect(source).toMatch(/<TransferItem/);
 });
 
 test("message part renderer covers every backend internal tool", () => {
-  const source = readSource("../../MessagePartRenderer.tsx");
+  const toolRendererSources = readToolRendererSources();
   const backendToolFiles = [
     "src/infra/tool/upload_url_tool.py",
     "src/infra/tool/reveal_file_tool.py",
@@ -72,7 +87,7 @@ test("message part renderer covers every backend internal tool", () => {
   expect(internalToolNames.length).toBe(32);
 
   for (const toolName of internalToolNames) {
-    expect(source).toMatch(new RegExp(`part\\.name\\s*===\\s*"${toolName}"`));
+    expect(toolRendererSources).toMatch(new RegExp(`"${toolName}"`));
   }
 });
 

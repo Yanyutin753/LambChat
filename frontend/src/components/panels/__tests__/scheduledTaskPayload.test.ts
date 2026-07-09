@@ -1,6 +1,5 @@
 import {
   buildScheduledTaskInputPayload,
-  getScheduledTaskAttachments,
   getScheduledTaskPersonaPresetId,
   getScheduledTaskPluginOptionStringValue,
 } from "../scheduledTaskPayload.ts";
@@ -115,7 +114,6 @@ test("scheduled tasks store declared plugin option values generically", () => {
       message: "run",
       plugin_options: {
         agent_team: { SELECTED_TEAM_ID: "team-1" },
-        another_plugin: { KEEP: true },
       },
     },
   );
@@ -207,10 +205,6 @@ test("empty plugin option declarations do not suppress core persona payload", ()
     {
       message: "run",
       persona_preset_id: "persona-1",
-      plugin_options: {
-        agent_team: { SELECTED_TEAM_ID: "team-old" },
-        another_plugin: { KEEP: true },
-      },
     },
   );
 });

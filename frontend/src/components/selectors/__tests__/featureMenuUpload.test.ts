@@ -11,9 +11,7 @@ const toolbarSource = readFileSync(
 
 test("feature menu uses one upload action instead of category upload items", () => {
   expect(featureMenuSource).toMatch(/onUploadFiles: \(\) => void/);
-  expect(featureMenuSource).toMatch(
-    /label=\{t\("featureMenu\.upload", "上传"\)\}/,
-  );
+  expect(featureMenuSource).toMatch(/label=\{t\("featureMenu\.upload"/);
   expect(featureMenuSource).toMatch(
     /onClick=\{\(\) => \{\s*onUploadFiles\(\);/,
   );

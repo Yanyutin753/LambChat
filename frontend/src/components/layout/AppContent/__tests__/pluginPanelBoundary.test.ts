@@ -1,6 +1,6 @@
-import assert from "node:assert/strict";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 
 const tabContentSource = readFileSync(
   new URL("../TabContent.tsx", import.meta.url),
@@ -39,7 +39,9 @@ test("plugin-owned app panels fail closed when renderer is not registered", () =
 });
 
 test("core agents panel receives runtime plugin state for plugin-owned agent categories", () => {
-  assert.match(tabContentSource, /if \(activeTab === "agents"\)/);
-  assert.match(tabContentSource, /RuntimeAwareAgentModelPanel/);
-  assert.match(tabContentSource, /<RuntimeAwareAgentModelPanel runtimePlugins=\{runtimePlugins\}/);
+  assert.match(tabContentSource, /agents:\s*AgentModelPanel/);
+  assert.match(tabContentSource, /type RuntimeAwarePanelProps/);
+  assert.match(tabContentSource, /runtimePlugins\?: PluginRuntimeContributionStates/);
+  assert.match(tabContentSource, /function renderPanel/);
+  assert.match(tabContentSource, /<Panel activeTab=\{activeTab\} runtimePlugins=\{runtimePlugins\} \/>/);
 });

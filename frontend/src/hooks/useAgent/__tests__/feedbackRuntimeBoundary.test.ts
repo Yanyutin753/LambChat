@@ -1,5 +1,5 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { test } from "vitest";
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 
 const useAgentSource = readFileSync(

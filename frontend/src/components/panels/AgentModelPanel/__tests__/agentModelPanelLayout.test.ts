@@ -7,6 +7,14 @@ const agentSectionSource = readFileSync(
   new URL("../AgentSection.tsx", import.meta.url),
   "utf8",
 );
+const globalAgentTabSource = readFileSync(
+  new URL("../../AgentPanel/tabs/GlobalAgentTab.tsx", import.meta.url),
+  "utf8",
+);
+const rolesAgentTabSource = readFileSync(
+  new URL("../../AgentPanel/tabs/RolesAgentTab.tsx", import.meta.url),
+  "utf8",
+);
 const rolesModelTabSource = readFileSync(
   new URL("../../ModelPanel/tabs/RolesModelTab.tsx", import.meta.url),
   "utf8",
