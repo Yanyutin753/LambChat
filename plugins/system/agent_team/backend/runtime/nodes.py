@@ -193,6 +193,114 @@ def _build_team_router_delegation_retry_input(*, user_input: Any, reason: str) -
     )
 
 
+def _select_forced_delegation_members(*, team: Any, reason: str | None) -> list[Any]:
+    members = list(getattr(team, "active_members", []) or [])
+    if not members:
+        return []
+    if reason == "full_asset_package":
+        return members
+    default_member_id = getattr(team, "default_member_id", None)
+    if default_member_id:
+        default_member = next((m for m in members if m.member_id == default_member_id), None)
+        if default_member is not None:
+            return [default_member]
+    return [members[0]]
+
+
+def _build_forced_delegation_description(
+    *,
+    team: Any,
+    member: Any,
+    user_input: Any,
+    reason: str,
+    index: int,
+    total: int,
+    previous_results: list[tuple[str, str]],
+) -> str:
+    role_name = getattr(member, "role_name", None) or build_team_member_subagent_type(member)
+    prior = "\n\n".join(
+        f"### Previous result from {name}\n{result.strip()}"
+        for name, result in previous_results
+        if result.strip()
+    )
+    prior_section = prior or "No previous member result yet. Start from the original request."
+    return (
+        "Team router forced delegation recovery.\n"
+        f"Reason: {reason}.\n"
+        f"Team: {getattr(team, 'name', '')}.\n"
+        f"Current member: {role_name} ({index}/{total}).\n\n"
+        "Original user request:\n"
+        f"{str(user_input or '').strip()}\n\n"
+        "Previous member results:\n"
+        f"{prior_section}\n\n"
+        "Assignment:\n"
+        "- Complete the concrete portion of the request that matches your role.\n"
+        "- For a complete short-video/material package, produce actual deliverable content, "
+        "not just a plan.\n"
+        "- Include clear handoff details for the next member when useful.\n"
+        "- If you are the final member, include a concise final package summary and any "
+        "artifact or image-generation status you can verify.\n"
+    )
+
+
+def _extract_forced_delegation_text(result: Any) -> str:
+    if not isinstance(result, dict):
+        return str(result or "").strip()
+    messages = result.get("messages")
+    if not isinstance(messages, list):
+        return str(result or "").strip()
+    for message in reversed(messages):
+        content = getattr(message, "content", None)
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        if isinstance(content, list):
+            parts: list[str] = []
+            for block in content:
+                if isinstance(block, dict):
+                    text = block.get("text") or block.get("content")
+                    if text:
+                        parts.append(str(text))
+                elif block:
+                    parts.append(str(block))
+            joined = "".join(parts).strip()
+            if joined:
+                return joined
+    return ""
+
+
+def _append_processor_output(event_processor: Any, text: str) -> None:
+    append = getattr(event_processor, "_append_output_text", None)
+    if callable(append):
+        append(text)
+
+
+async def _emit_presenter_event(presenter: Any, event: dict[str, Any] | None) -> None:
+    if not event:
+        return
+    emit = getattr(presenter, "emit", None)
+    if callable(emit):
+        await emit(event)
+
+
+async def _emit_forced_delegation_text(
+    *,
+    presenter: Any,
+    event_processor: Any,
+    text: str,
+) -> None:
+    if not text:
+        return
+    await event_processor.flush()
+    _append_processor_output(event_processor, text)
+    emit_text = getattr(presenter, "emit_text", None)
+    if callable(emit_text):
+        await emit_text(text)
+        return
+    present_text = getattr(presenter, "present_text", None)
+    if callable(present_text):
+        await _emit_presenter_event(presenter, present_text(text))
+
+
 def _collect_event_tool_names(event: Any) -> set[str]:
     if not isinstance(event, dict):
         return set()
@@ -261,6 +369,173 @@ def _raise_if_team_router_completed_without_required_delegation(
         getattr(team, "name", None),
     )
     raise ValueError(f"team_router_delegation_required:{reason}")
+
+
+async def _run_forced_team_delegation(
+    *,
+    team: Any,
+    user_input: Any,
+    reason: str,
+    custom_subagents: list[SubAgent | CompiledSubAgent],
+    llm: Any,
+    backend: Any,
+    filtered_tools: Any,
+    inner_checkpointer: Any,
+    store: Any,
+    context: TeamAgentContext,
+    presenter: Any,
+    event_processor: Any,
+    subagent_display_names: dict[str, str],
+    subagent_avatars: dict[str, str],
+    configurable: dict[str, Any],
+    attachments: list[Any],
+    config: RunnableConfig,
+) -> int:
+    members = _select_forced_delegation_members(team=team, reason=reason)
+    if not members:
+        return 0
+
+    subagents_by_name = {
+        str(subagent.get("name")): subagent
+        for subagent in custom_subagents
+        if isinstance(subagent, dict) and subagent.get("name")
+    }
+    previous_results: list[tuple[str, str]] = []
+    emitted_results: list[tuple[str, str]] = []
+    session_id = configurable.get("session_id") or ""
+
+    logger.warning(
+        "[TeamAgent] Forcing team delegation after router zero-delegation: "
+        "reason=%s team_id=%s team_name=%s members=%d",
+        reason,
+        getattr(team, "id", None),
+        getattr(team, "name", None),
+        len(members),
+    )
+
+    for index, member in enumerate(members, start=1):
+        subagent_type = build_team_member_subagent_type(member)
+        subagent = subagents_by_name.get(subagent_type)
+        if not subagent:
+            logger.warning(
+                "[TeamAgent] Forced delegation skipped missing subagent: type=%s",
+                subagent_type,
+            )
+            continue
+
+        role_name = getattr(member, "role_name", None) or subagent_type
+        agent_instance_id = f"forced_{subagent_type}_{uuid.uuid4().hex[:8]}"
+        description = _build_forced_delegation_description(
+            team=team,
+            member=member,
+            user_input=user_input,
+            reason=reason,
+            index=index,
+            total=len(members),
+            previous_results=previous_results,
+        )
+
+        present_call = getattr(presenter, "present_agent_call", None)
+        if callable(present_call):
+            await _emit_presenter_event(
+                presenter,
+                present_call(
+                    agent_id=agent_instance_id,
+                    agent_name=subagent_display_names.get(subagent_type, role_name),
+                    input_message=description,
+                    depth=1,
+                    agent_avatar=subagent_avatars.get(subagent_type),
+                ),
+            )
+
+        try:
+            forced_model: Any = subagent.get("model", llm)
+            forced_system_prompt = str(subagent.get("system_prompt") or SUBAGENT_PROMPT)
+            forced_middleware_value = subagent.get("middleware", [])
+            forced_middleware = (
+                list(forced_middleware_value)
+                if isinstance(forced_middleware_value, (list, tuple))
+                else []
+            )
+            forced_graph = create_deep_agent(
+                model=forced_model,
+                system_prompt=forced_system_prompt,
+                backend=backend,
+                tools=filtered_tools,
+                checkpointer=inner_checkpointer,
+                store=store,
+                skills=None,
+                subagents=[],
+                middleware=forced_middleware,
+            )
+            forced_config: RunnableConfig = {
+                "configurable": build_nested_graph_configurable(
+                    thread_id=(
+                        f"{session_id}:forced:{subagent_type}:{uuid.uuid4().hex}"
+                        if session_id
+                        else f"forced:{subagent_type}:{uuid.uuid4().hex}"
+                    ),
+                    checkpointer=inner_checkpointer,
+                    backend=backend,
+                    context=context,
+                    disabled_skills=configurable.get("disabled_skills"),
+                    enabled_skills=None,
+                    base_url=configurable.get("base_url", ""),
+                    session_id=configurable.get("session_id"),
+                    trace_id=getattr(presenter, "trace_id", None),
+                    presenter=presenter,
+                    attachments=attachments,
+                ),
+                "recursion_limit": config.get(
+                    "recursion_limit",
+                    settings.SESSION_MAX_RUNS_PER_SESSION,
+                ),
+            }
+            result = await forced_graph.ainvoke(
+                {"messages": [build_human_message(description, [], supports_vision=False)]},
+                forced_config,
+            )
+            result_text = _extract_forced_delegation_text(result)
+        except Exception as exc:
+            present_result = getattr(presenter, "present_agent_result", None)
+            if callable(present_result):
+                await _emit_presenter_event(
+                    presenter,
+                    present_result(
+                        agent_id=agent_instance_id,
+                        result="",
+                        success=False,
+                        depth=1,
+                        error=str(exc),
+                    ),
+                )
+            raise
+
+        present_result = getattr(presenter, "present_agent_result", None)
+        if callable(present_result):
+            await _emit_presenter_event(
+                presenter,
+                present_result(
+                    agent_id=agent_instance_id,
+                    result=result_text,
+                    success=True,
+                    depth=1,
+                ),
+            )
+        previous_results.append((role_name, result_text))
+        emitted_results.append((role_name, result_text))
+
+    if emitted_results:
+        forced_output = "\n\n".join(
+            f"### {role_name}\n{result_text}" for role_name, result_text in emitted_results
+        )
+        await _emit_forced_delegation_text(
+            presenter=presenter,
+            event_processor=event_processor,
+            text=f"\n\n{forced_output}",
+        )
+
+    return len(emitted_results)
 
 
 async def resolve_runtime_team(
@@ -986,6 +1261,30 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     attempt,
                     getattr(team, "id", None),
                     getattr(team, "name", None),
+                )
+
+            if required_delegation_reason is not None and team_delegation_event_count <= 0:
+                team_delegation_event_count += await _run_forced_team_delegation(
+                    team=team,
+                    user_input=user_input,
+                    reason=required_delegation_reason,
+                    custom_subagents=custom_subagents,
+                    llm=llm,
+                    backend=backend,
+                    filtered_tools=filtered_tools,
+                    inner_checkpointer=inner_checkpointer,
+                    store=store,
+                    context=context,
+                    presenter=presenter,
+                    event_processor=event_processor,
+                    subagent_display_names=subagent_display_names,
+                    subagent_avatars=subagent_avatars,
+                    configurable={
+                        **configurable,
+                        "session_id": state.get("session_id"),
+                    },
+                    attachments=attachments,
+                    config=config,
                 )
     finally:
         await event_processor.flush()

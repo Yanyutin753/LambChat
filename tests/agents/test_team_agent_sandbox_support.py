@@ -16,6 +16,9 @@ class _FakeDeepAgent:
         self.events_by_call = None
         self.astream_events_calls = 0
         self.initial_states = []
+        self.ainvoke_calls = 0
+        self.ainvoke_inputs = []
+        self.ainvoke_result_text = "forced delegation result"
 
     def with_config(self, _config):
         return self
@@ -36,6 +39,11 @@ class _FakeDeepAgent:
         self.aget_state_calls += 1
         return SimpleNamespace(values={"messages": self.state_messages})
 
+    async def ainvoke(self, initial_state, _config):
+        self.ainvoke_calls += 1
+        self.ainvoke_inputs.append(initial_state)
+        return {"messages": [SimpleNamespace(content=self.ainvoke_result_text)]}
+
 
 class _FakeEventProcessor:
     def __init__(self, *_args, **_kwargs) -> None:
@@ -49,6 +57,9 @@ class _FakeEventProcessor:
 
     def clear(self) -> None:
         return None
+
+    def _append_output_text(self, text: str) -> None:
+        self.output_text += text
 
 
 def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeepAgent) -> None:
@@ -415,7 +426,7 @@ async def _run_team_node_with_members(
 
 
 @pytest.mark.asyncio
-async def test_team_router_blocks_full_asset_package_completion_without_delegation(
+async def test_team_router_forces_full_asset_package_delegation_after_router_noops(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_deepagents_shims(monkeypatch)
@@ -426,22 +437,23 @@ async def test_team_router_blocks_full_asset_package_completion_without_delegati
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
 
-    with pytest.raises(ValueError, match="team_router_delegation_required:full_asset_package"):
-        await _run_team_node_with_members(
-            monkeypatch,
-            team_nodes,
-            fake_graph,
-            [
-                TeamMemberResponse(
-                    member_id="m-storyboard",
-                    persona_preset_id="preset-1",
-                    role_name="分镜 Agent",
-                    enabled=True,
-                )
-            ],
-            user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
-        )
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-storyboard",
+                persona_preset_id="preset-1",
+                role_name="分镜 Agent",
+                enabled=True,
+            )
+        ],
+        user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
+    )
     assert fake_graph.astream_events_calls == 2
+    assert fake_graph.ainvoke_calls == 1
+    assert "Team router forced delegation recovery" in str(fake_graph.ainvoke_inputs[0])
 
 
 @pytest.mark.asyncio
@@ -511,7 +523,7 @@ async def test_team_router_allows_full_asset_package_after_task_delegation(
 
 
 @pytest.mark.asyncio
-async def test_team_router_blocks_complete_short_video_plan_without_delegation(
+async def test_team_router_forces_all_members_for_complete_short_video_plan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_deepagents_shims(monkeypatch)
@@ -522,22 +534,37 @@ async def test_team_router_blocks_complete_short_video_plan_without_delegation(
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
 
-    with pytest.raises(ValueError, match="team_router_delegation_required:full_asset_package"):
-        await _run_team_node_with_members(
-            monkeypatch,
-            team_nodes,
-            fake_graph,
-            [
-                TeamMemberResponse(
-                    member_id="m-storyboard",
-                    persona_preset_id="preset-1",
-                    role_name="分镜 Agent",
-                    enabled=True,
-                )
-            ],
-            user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
-        )
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-manager",
+                persona_preset_id="preset-1",
+                role_name="管理 Agent",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="m-copywriter",
+                persona_preset_id="preset-1",
+                role_name="分镜文案 Agent",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="m-prompt",
+                persona_preset_id="preset-1",
+                role_name="提示词 Agent",
+                enabled=True,
+            ),
+        ],
+        user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
+    )
     assert fake_graph.astream_events_calls == 2
+    assert fake_graph.ainvoke_calls == 3
+    assert "管理 Agent" in str(fake_graph.ainvoke_inputs[0])
+    assert "分镜文案 Agent" in str(fake_graph.ainvoke_inputs[1])
+    assert "提示词 Agent" in str(fake_graph.ainvoke_inputs[2])
 
 
 @pytest.mark.asyncio
