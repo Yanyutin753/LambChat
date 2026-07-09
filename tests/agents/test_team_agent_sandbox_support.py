@@ -13,12 +13,21 @@ class _FakeDeepAgent:
         self.aget_state_calls = 0
         self.state_messages = []
         self.events = []
+        self.events_by_call = None
+        self.astream_events_calls = 0
+        self.initial_states = []
 
     def with_config(self, _config):
         return self
 
-    async def astream_events(self, _initial_state, _config, version="v2"):
-        for event in self.events:
+    async def astream_events(self, initial_state, _config, version="v2"):
+        self.astream_events_calls += 1
+        self.initial_states.append(initial_state)
+        events = self.events
+        if self.events_by_call is not None:
+            index = self.astream_events_calls - 1
+            events = self.events_by_call[index] if index < len(self.events_by_call) else []
+        for event in events:
             yield event
         if False:
             yield version
@@ -432,6 +441,43 @@ async def test_team_router_blocks_full_asset_package_completion_without_delegati
             ],
             user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
         )
+    assert fake_graph.astream_events_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_team_router_retries_full_asset_package_once_before_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+
+    fake_graph = _FakeDeepAgent()
+    fake_graph.events_by_call = [
+        [],
+        [{"event": "on_tool_start", "name": "task", "data": {"input": {}}}],
+    ]
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-storyboard",
+                persona_preset_id="preset-1",
+                role_name="分镜 Agent",
+                enabled=True,
+            )
+        ],
+        user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
+    )
+
+    assert fake_graph.astream_events_calls == 2
+    assert "必须先调用 `task` 工具" in str(fake_graph.initial_states[1])
+    assert "完整素材包流程" in str(fake_graph.initial_states[1])
 
 
 @pytest.mark.asyncio
@@ -461,6 +507,37 @@ async def test_team_router_allows_full_asset_package_after_task_delegation(
         ],
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
     )
+    assert fake_graph.astream_events_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_team_router_blocks_complete_short_video_plan_without_delegation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    with pytest.raises(ValueError, match="team_router_delegation_required:full_asset_package"):
+        await _run_team_node_with_members(
+            monkeypatch,
+            team_nodes,
+            fake_graph,
+            [
+                TeamMemberResponse(
+                    member_id="m-storyboard",
+                    persona_preset_id="preset-1",
+                    role_name="分镜 Agent",
+                    enabled=True,
+                )
+            ],
+            user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
+        )
+    assert fake_graph.astream_events_calls == 2
 
 
 @pytest.mark.asyncio
@@ -489,6 +566,7 @@ async def test_team_router_allows_unrelated_team_completion_without_delegation(
         ],
         user_input="请先概括一下团队任务范围。",
     )
+    assert fake_graph.astream_events_calls == 1
 
 
 @pytest.mark.asyncio

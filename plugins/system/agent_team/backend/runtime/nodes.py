@@ -94,6 +94,7 @@ logger = get_logger(__name__)
 _FULL_ASSET_PACKAGE_DIRECT_TRIGGERS = (
     "完整素材包",
     "全套素材包",
+    "完整抖音策划",
 )
 _FULL_ASSET_PACKAGE_STAGE_TRIGGERS = (
     "分镜",
@@ -102,7 +103,36 @@ _FULL_ASSET_PACKAGE_STAGE_TRIGGERS = (
     "交付",
     "四阶段",
     "素材包流程",
+    "文案",
+    "图生视频",
+    "多片段",
 )
+_TEAM_META_REQUEST_MARKERS = (
+    "任务范围",
+    "团队成员",
+    "团队配置",
+    "团队能力",
+    "介绍团队",
+    "说明团队",
+)
+_SUBSTANTIVE_REQUEST_MARKERS = (
+    "生成",
+    "创建",
+    "制作",
+    "写",
+    "策划",
+    "方案",
+    "执行",
+    "完成",
+    "交付",
+    "整理",
+    "输出",
+    "首帧",
+    "文案",
+    "提示词",
+    "素材包",
+)
+_TEAM_ROUTER_DELEGATION_ATTEMPTS = 2
 
 # ============================================================================
 # 节点函数
@@ -120,8 +150,46 @@ def _is_full_asset_package_request(user_input: Any) -> bool:
     text = str(user_input or "").casefold()
     if any(trigger in text for trigger in _FULL_ASSET_PACKAGE_DIRECT_TRIGGERS):
         return True
+    if "抖音策划" in text and any(trigger in text for trigger in ("完整", "首帧", "文案")):
+        return True
     return "素材包" in text and any(
         trigger in text for trigger in _FULL_ASSET_PACKAGE_STAGE_TRIGGERS
+    )
+
+
+def _is_team_meta_request(user_input: Any) -> bool:
+    text = str(user_input or "").casefold()
+    return bool(text) and any(marker in text for marker in _TEAM_META_REQUEST_MARKERS)
+
+
+def _is_substantive_team_request(user_input: Any) -> bool:
+    text = str(user_input or "").casefold().strip()
+    if not text or _is_team_meta_request(text):
+        return False
+    if len(text) >= 24:
+        return True
+    return any(marker in text for marker in _SUBSTANTIVE_REQUEST_MARKERS)
+
+
+def _get_team_router_required_delegation_reason(*, team: Any, user_input: Any) -> str | None:
+    if not team or not getattr(team, "active_members", None):
+        return None
+    if _is_full_asset_package_request(user_input):
+        return "full_asset_package"
+    if _is_substantive_team_request(user_input):
+        return "substantive_team_request"
+    return None
+
+
+def _build_team_router_delegation_retry_input(*, user_input: Any, reason: str) -> str:
+    return (
+        "团队路由恢复指令：上一轮只输出了路由计划或普通文本，但没有调用 `task` "
+        "工具委派任何团队成员，因此不能视为完成。\n"
+        f"保护原因：{reason}。\n"
+        "现在必须先调用 `task` 工具，把实际工作分派给至少一名活跃团队成员；"
+        "如果是多阶段素材、策划、首帧图、文案或交付任务，请按依赖顺序委派对应角色。"
+        "在至少一次 `task` 调用完成前，不要输出最终答复。\n\n"
+        f"原始用户请求：\n{str(user_input or '').strip()}"
     )
 
 
@@ -179,20 +247,20 @@ def _raise_if_team_router_completed_without_required_delegation(
     user_input: Any,
     delegation_event_count: int,
 ) -> None:
-    if not team or not getattr(team, "active_members", None):
-        return
     if delegation_event_count > 0:
         return
-    if not _is_full_asset_package_request(user_input):
+    reason = _get_team_router_required_delegation_reason(team=team, user_input=user_input)
+    if reason is None:
         return
 
     logger.warning(
-        "[TeamAgent] Blocking router completion without delegation for full asset-package "
-        "request: team_id=%s team_name=%s",
+        "[TeamAgent] Blocking router completion without delegation: reason=%s "
+        "team_id=%s team_name=%s",
+        reason,
         getattr(team, "id", None),
         getattr(team, "name", None),
     )
-    raise ValueError("team_router_delegation_required:full_asset_package")
+    raise ValueError(f"team_router_delegation_required:{reason}")
 
 
 async def resolve_runtime_team(
@@ -873,16 +941,52 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         )
 
     logger.info("[TeamAgent] Starting astream_events")
+    required_delegation_reason = _get_team_router_required_delegation_reason(
+        team=team,
+        user_input=user_input,
+    )
     try:
         async with isolated_nested_graph_run():
-            async for event in inner_graph.astream_events(  # type: ignore[call-overload]
-                build_goal_input(new_message, active_goal, rubric_middleware=rubric_middleware),
-                inner_config,
-                version="v2",
-            ):
-                if _is_team_delegation_event(event, team_subagent_names):
-                    team_delegation_event_count += 1
-                await event_processor.process_event(event)
+            for attempt in range(1, _TEAM_ROUTER_DELEGATION_ATTEMPTS + 1):
+                attempt_message = new_message
+                if attempt > 1 and required_delegation_reason is not None:
+                    attempt_message = build_human_message(
+                        _build_team_router_delegation_retry_input(
+                            user_input=user_input,
+                            reason=required_delegation_reason,
+                        ),
+                        [],
+                        supports_vision=False,
+                    )
+
+                async for event in inner_graph.astream_events(  # type: ignore[call-overload]
+                    build_goal_input(
+                        attempt_message,
+                        active_goal,
+                        rubric_middleware=rubric_middleware,
+                    ),
+                    inner_config,
+                    version="v2",
+                ):
+                    if _is_team_delegation_event(event, team_subagent_names):
+                        team_delegation_event_count += 1
+                    await event_processor.process_event(event)
+
+                if (
+                    required_delegation_reason is None
+                    or team_delegation_event_count > 0
+                    or attempt >= _TEAM_ROUTER_DELEGATION_ATTEMPTS
+                ):
+                    break
+
+                logger.warning(
+                    "[TeamAgent] Retrying router after zero-delegation completion: "
+                    "reason=%s attempt=%d team_id=%s team_name=%s",
+                    required_delegation_reason,
+                    attempt,
+                    getattr(team, "id", None),
+                    getattr(team, "name", None),
+                )
     finally:
         await event_processor.flush()
         await emit_token_usage(
