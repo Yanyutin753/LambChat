@@ -1321,21 +1321,22 @@ async def _create_and_reveal_full_asset_package_fallback(
         reveal_data = {"raw": reveal_result}
     file_count = len(reveal_data.get("files", {}) or reveal_data.get("files_manifest", {}) or {})
     completion_label = "完整交付" if len(generated_images) == len(scenes) else "部分交付"
-    failure_summary = ""
-    if image_failures:
-        failure_summary = "\n- Image generation failures: " + json.dumps(
-            image_failures,
-            ensure_ascii=False,
-        )[:1200]
+    failed_scene_count = len(image_failures)
+    failure_note = (
+        "- 失败 Scene 已写入 first_frame_status.md，未使用占位图冒充首帧图。\n"
+        if image_failures
+        else ""
+    )
     return (
-        f"已执行 agent_team 确定性兜底{completion_label}。\n"
+        f"完整抖音策划素材包已{completion_label}。\n\n"
+        "- 交付目录已通过 reveal_project 展示。\n"
         f"- Project directory: {project_dir}\n"
-        f"- Uploaded files: {len(files)}\n"
-        f"- Image generation status: {image_status}\n"
-        f"- Reveal file count: {file_count}\n"
-        "- Placeholder policy: 未生成成功的 Scene 不会写入 first_frame.png，只写 first_frame_status.md 标明部分完成。\n"
-        f"{failure_summary}\n"
-        f"- Reveal result: {json.dumps(reveal_data, ensure_ascii=False)[:4000]}"
+        f"- Scene：{len(scenes)} 段\n"
+        f"- 文件数：{file_count or len(files)}\n"
+        f"- 首帧图：{len(generated_images)}/{len(scenes)} 成功\n"
+        f"- 图片生成失败：{failed_scene_count} 段\n"
+        f"{failure_note}"
+        "- 已包含：策划文档、分镜文案、中英文图片提示词、图生视频提示词、负面提示词、zip 包。"
     )
 
 
@@ -1569,9 +1570,12 @@ async def _run_forced_team_delegation(
         emitted_results.append(("agent_team deterministic delivery fallback", fallback_text))
 
     if emitted_results:
-        forced_output = "\n\n".join(
-            f"### {role_name}\n{result_text}" for role_name, result_text in emitted_results
-        )
+        if reason == "full_asset_package":
+            forced_output = emitted_results[-1][1]
+        else:
+            forced_output = "\n\n".join(
+                f"### {role_name}\n{result_text}" for role_name, result_text in emitted_results
+            )
         await _emit_forced_delegation_text(
             presenter=presenter,
             event_processor=event_processor,
