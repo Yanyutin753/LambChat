@@ -569,6 +569,13 @@ async def test_forced_team_delegation_streams_tool_events_with_member_context(
     fake_graph = _FakeDeepAgent()
     fake_graph.events = [
         {
+            "event": "on_chat_model_stream",
+            "name": "chat_model",
+            "run_id": "chat-run-1",
+            "metadata": {"langgraph_checkpoint_ns": "agent:inner"},
+            "data": {"chunk": SimpleNamespace(content="member streamed detail", id="chunk-1")},
+        },
+        {
             "event": "on_tool_start",
             "name": "mcp_lookup",
             "run_id": "tool-run-1",
@@ -651,7 +658,12 @@ async def test_forced_team_delegation_streams_tool_events_with_member_context(
     member_tool_events = [
         event for event in processor.processed if event.get("name") == "mcp_lookup"
     ]
+    member_text_events = [
+        event for event in processor.processed if event.get("event") == "on_chat_model_stream"
+    ]
     assert len(member_tool_events) == 8
+    assert member_text_events == []
+    assert "member streamed detail" not in processor.output_text
     assert "完整素材包兜底交付失败" in processor.output_text
     assert "Reveal result" not in processor.output_text
     checkpoint_roots = list(processor.checkpoint_to_agent)

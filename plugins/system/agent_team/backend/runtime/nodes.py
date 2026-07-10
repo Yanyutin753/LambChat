@@ -4,11 +4,11 @@ Team Agent 节点 - 团队路由，角色分派
 基于 fast_agent/nodes.py 扩展，增加团队解析和多角色子代理。
 """
 
-import time
-import uuid
 import io
 import json
 import os
+import time
+import uuid
 import zipfile
 from types import SimpleNamespace
 from typing import Any, Dict
@@ -875,6 +875,12 @@ async def _emit_forced_delegation_text(
         await _emit_presenter_event(presenter, present_text(text))
 
 
+def _should_suppress_public_text_event(event: Any, *, reason: str | None) -> bool:
+    if reason != "full_asset_package" or not isinstance(event, dict):
+        return False
+    return event.get("event") in {"on_chat_model_stream", "on_chat_model_end"}
+
+
 def _collect_event_tool_names(event: Any) -> set[str]:
     if not isinstance(event, dict):
         return set()
@@ -1506,12 +1512,15 @@ async def _run_forced_team_delegation(
                 forced_config,
                 version="v2",
             ):
-                await event_processor.process_event(
-                    _with_forced_delegation_agent_context(
-                        event,
-                        checkpoint_root=forced_checkpoint_root,
-                    )
+                contextual_event = _with_forced_delegation_agent_context(
+                    event,
+                    checkpoint_root=forced_checkpoint_root,
                 )
+                if not _should_suppress_public_text_event(
+                    contextual_event,
+                    reason=reason,
+                ):
+                    await event_processor.process_event(contextual_event)
             await event_processor.flush()
             result_text = await _extract_forced_delegation_text_from_graph_state(
                 forced_graph,
@@ -2300,7 +2309,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         completed_full_asset_stages.update(
                             _collect_full_asset_package_stages_from_event(event)
                         )
-                    await event_processor.process_event(event)
+                    if not _should_suppress_public_text_event(
+                        event,
+                        reason=required_delegation_reason,
+                    ):
+                        await event_processor.process_event(event)
 
                 if (
                     required_delegation_reason is None
