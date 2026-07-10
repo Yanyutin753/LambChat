@@ -825,6 +825,8 @@ async def reveal_file(
         if use_filesystem_stream:
             upload_result = await _upload_filesystem_file(file_path, storage, filename, mime_type)
         else:
+            if file_content is None:
+                raise ValueError(f"Unable to read file content for {file_path}")
             with SpooledTemporaryFile(
                 max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
                 mode="w+b",

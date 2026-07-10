@@ -648,8 +648,11 @@ async def test_forced_team_delegation_streams_tool_events_with_member_context(
     assert count == 5
     assert fake_graph.astream_events_calls == 4
     assert fake_graph.ainvoke_calls == 0
-    assert len(processor.processed) == 8
-    assert "完整抖音策划素材包已" in processor.output_text
+    member_tool_events = [
+        event for event in processor.processed if event.get("name") == "mcp_lookup"
+    ]
+    assert len(member_tool_events) == 8
+    assert "完整素材包兜底交付失败" in processor.output_text
     assert "Reveal result" not in processor.output_text
     checkpoint_roots = list(processor.checkpoint_to_agent)
     assert len(checkpoint_roots) == 4
@@ -660,9 +663,9 @@ async def test_forced_team_delegation_streams_tool_events_with_member_context(
     assert all(
         any(
             event["metadata"]["langgraph_checkpoint_ns"].startswith(f"{root}|")
-            for root in checkpoint_roots
+            for event in member_tool_events
         )
-        for event in processor.processed
+        for root in checkpoint_roots
     )
 
 
