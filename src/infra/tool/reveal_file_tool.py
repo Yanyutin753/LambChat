@@ -303,6 +303,54 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
     return None
 
 
+async def _is_backend_directory(backend: Any, file_path: str) -> bool:
+    """Best-effort check for the common case where reveal_file is called on a directory."""
+    for method_name in ("als", "ls"):
+        method = getattr(backend, method_name, None)
+        if not callable(method):
+            continue
+        try:
+            result = method(file_path)
+            if inspect.isawaitable(result):
+                result = await result
+            entries = getattr(result, "entries", None)
+            if entries is None and isinstance(result, dict):
+                entries = result.get("entries")
+            return bool(entries)
+        except Exception as e:
+            logger.debug("[reveal_file] %s directory probe failed for %s: %s", method_name, file_path, e)
+    return False
+
+
+async def _reveal_directory_as_project(
+    *,
+    file_path: str,
+    description: str | None,
+    runtime: ToolRuntime | None,
+) -> str:
+    """Route accidental directory reveals to reveal_project instead of failing."""
+    from src.infra.tool.reveal_project_tool import reveal_project
+
+    project_name = os.path.basename(file_path.rstrip("/")) or "revealed_project"
+    coroutine = getattr(reveal_project, "coroutine", None)
+    if callable(coroutine):
+        return await coroutine(
+            project_path=file_path,
+            name=project_name,
+            description=description,
+            template=None,
+            runtime=runtime,
+        )
+    return await reveal_project.ainvoke(
+        {
+            "project_path": file_path,
+            "name": project_name,
+            "description": description,
+            "template": None,
+        }
+    )
+
+
 async def _read_file_from_filesystem(file_path: str) -> Optional[bytes]:
     """非沙箱模式下的兜底：直接从本地文件系统读取文件内容"""
     try:
@@ -727,6 +775,16 @@ async def reveal_file(
             use_filesystem_stream = await run_blocking_io(_is_file_path, file_path)
 
         if file_content is None and not use_filesystem_stream:
+            if await _is_backend_directory(backend, file_path):
+                logger.info(
+                    "[reveal_file] Path is a directory; routing to reveal_project: %s",
+                    file_path,
+                )
+                return await _reveal_directory_as_project(
+                    file_path=file_path,
+                    description=description,
+                    runtime=runtime,
+                )
             logger.error(f"Failed to read file {file_path} from backend")
             missing_file_result = {
                 "type": "file_reveal",
