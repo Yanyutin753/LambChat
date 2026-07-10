@@ -542,6 +542,20 @@ async def get_global_mcp_tools(
             tools = await manager.get_tools()
             logger.info(f"[Global MCP] Got {len(tools)} tools for {user_id}")
 
+            all_servers_failed = (
+                not tools
+                and hasattr(manager, "all_configured_servers_failed")
+                and manager.all_configured_servers_failed()
+            )
+            if all_servers_failed:
+                failed_servers = getattr(manager, "failed_servers", {})
+                logger.warning(
+                    "[Global MCP] Not caching failed MCP discovery for user %s: %s",
+                    user_id,
+                    failed_servers,
+                )
+                return tools, manager
+
             # 7. 保存到全局单例
             _global_entries[user_id] = GlobalMCPEntry(
                 manager=manager,

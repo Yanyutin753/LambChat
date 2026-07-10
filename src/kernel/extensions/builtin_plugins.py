@@ -32,6 +32,7 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
             Permission.TEAM_READ.value,
             Permission.TEAM_WRITE.value,
             Permission.TEAM_DELETE.value,
+            Permission.MCP_READ.value,
         ],
         settings=[
             {
@@ -97,7 +98,7 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
                 "icon": "Users",
                 "sort_order": 15,
                 "category": "agent_team:team-builder",
-                "required_permissions": [Permission.TEAM_READ.value],
+                "required_permissions": [Permission.TEAM_READ.value, Permission.MCP_READ.value],
             }
         ],
         tools=[

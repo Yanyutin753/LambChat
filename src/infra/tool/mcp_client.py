@@ -44,6 +44,31 @@ CONFLICTING_TOOL_NAMES = frozenset(
 )
 
 
+def _iter_leaf_exceptions(exc: BaseException) -> list[BaseException]:
+    if isinstance(exc, BaseExceptionGroup):
+        leaves: list[BaseException] = []
+        for nested in exc.exceptions:
+            leaves.extend(_iter_leaf_exceptions(nested))
+        return leaves
+    return [exc]
+
+
+def _format_mcp_load_error(exc: BaseException) -> str:
+    leaves = _iter_leaf_exceptions(exc)
+    if not leaves:
+        return f"[{type(exc).__name__}] {str(exc) or repr(exc)}"
+
+    details = []
+    for leaf in leaves[:3]:
+        message = str(leaf) or repr(leaf)
+        details.append(f"[{type(leaf).__name__}] {message}")
+    if len(leaves) > 3:
+        details.append(f"... and {len(leaves) - 3} more")
+    if len(leaves) == 1:
+        return details[0]
+    return f"[{type(exc).__name__}] {str(exc) or repr(exc)}; causes: " + "; ".join(details)
+
+
 def _get_effective_config_max_servers() -> int:
     value = getattr(settings, "MCP_EFFECTIVE_CONFIG_MAX_SERVERS", 100)
     try:
@@ -289,9 +314,24 @@ class MCPClientManager:
         self._tool_name_server_map: dict[str, str] = {}
         self._server_role_quotas: dict[str, dict[str, MCPRoleQuota]] = {}
         self._server_tool_policies: dict[str, dict[str, MCPToolPolicy]] = {}
+        self._configured_server_count = 0
+        self._failed_servers: dict[str, str] = {}
         self._user_roles: list[str] = []
         self._is_admin = False
         self._initialized = False
+
+    @property
+    def configured_server_count(self) -> int:
+        return self._configured_server_count
+
+    @property
+    def failed_servers(self) -> dict[str, str]:
+        return dict(self._failed_servers)
+
+    def all_configured_servers_failed(self) -> bool:
+        return self._configured_server_count > 0 and len(self._failed_servers) >= (
+            self._configured_server_count
+        )
 
     async def initialize(self) -> None:
         """初始化 MCP 连接"""
@@ -464,6 +504,8 @@ class MCPClientManager:
         server_configs: dict[str, dict[str, Any]] = {}
         self._server_role_quotas.clear()
         self._server_tool_policies.clear()
+        self._failed_servers.clear()
+        self._configured_server_count = 0
         for server_name, server_config in list(mcp_servers.items())[:max_servers]:
             transport = server_config.get("transport", "streamable_http")
             role_quotas = server_config.get("role_quotas") or {}
@@ -497,6 +539,7 @@ class MCPClientManager:
                 continue
 
         # 创建 MultiServerMCPClient
+        self._configured_server_count = len(server_configs)
         client = MultiServerMCPClient(server_configs)  # type: ignore[arg-type]
 
         # 并行加载所有服务器的工具，失败的服务器不影响其他服务器
@@ -562,7 +605,8 @@ class MCPClientManager:
         for server_name, result in results:
             if isinstance(result, Exception):
                 failed_servers.append(server_name)
-                error_msg = str(result)
+                error_msg = _format_mcp_load_error(result)
+                self._failed_servers[server_name] = error_msg
                 if "ValidationError" in error_msg or "JSONRPCMessage" in error_msg:
                     logger.warning(
                         f"[MCP] Server '{server_name}' returned invalid JSON-RPC response. "
@@ -570,7 +614,7 @@ class MCPClientManager:
                     )
                 else:
                     logger.warning(
-                        f"[MCP] Failed to load tools from server '{server_name}': {result}"
+                        f"[MCP] Failed to load tools from server '{server_name}': {error_msg}"
                     )
             else:
                 remaining = max_tools - len(all_tools)

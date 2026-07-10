@@ -20,7 +20,7 @@
         "icon": "Users",
         "sort_order": 15,
         "category": "agent_team:team-builder",
-        "required_permissions": ["team:read"]
+        "required_permissions": ["team:read", "mcp:read"]
       }
     ],
     "tools": [

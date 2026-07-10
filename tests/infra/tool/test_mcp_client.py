@@ -102,6 +102,44 @@ async def test_mcp_client_caps_direct_config_server_count(
 
 
 @pytest.mark.asyncio
+async def test_mcp_client_records_leaf_error_when_server_tool_loading_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import mcp_client
+
+    class _FakeMultiServerMCPClient:
+        def __init__(self, configs: dict[str, Any]) -> None:
+            self.configs = configs
+
+    async def fake_load_mcp_tools(*args: Any, **kwargs: Any) -> list[Any]:
+        raise ExceptionGroup("unhandled errors in a TaskGroup", [ConnectionError("no route")])
+
+    fake_tools_module = types.ModuleType("langchain_mcp_adapters.tools")
+    fake_tools_module.load_mcp_tools = fake_load_mcp_tools
+    monkeypatch.setitem(sys.modules, "langchain_mcp_adapters.tools", fake_tools_module)
+    monkeypatch.setattr(mcp_client, "MultiServerMCPClient", _FakeMultiServerMCPClient)
+    monkeypatch.setattr(mcp_client.settings, "MCP_SERVER_LOAD_CONCURRENCY", 1, raising=False)
+
+    client = mcp_client.MCPClientManager()
+    tools, created_client = await client._create_mcp_client(
+        {
+            "mcpServers": {
+                "server-a": {
+                    "transport": "streamable_http",
+                    "url": "https://example.test/a",
+                }
+            }
+        }
+    )
+
+    assert tools == []
+    assert created_client is not None
+    assert client.configured_server_count == 1
+    assert client.all_configured_servers_failed() is True
+    assert client.failed_servers == {"server-a": "[ConnectionError] no route"}
+
+
+@pytest.mark.asyncio
 async def test_mcp_client_caps_total_loaded_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
