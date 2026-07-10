@@ -34,6 +34,7 @@ from urllib.parse import unquote, urlparse
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
+
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.logging.context import TraceContext
@@ -831,9 +832,11 @@ async def reveal_file(
                 max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
                 mode="w+b",
             ) as spooled:
-                spooled.write(file_content)
+                spool_content = bytes(file_content)
                 del file_content
-                spooled.seek(0)
+                await run_blocking_io(spooled.write, spool_content)
+                del spool_content
+                await run_blocking_io(spooled.seek, 0)
                 upload_result = await storage.upload_file(
                     file=spooled,
                     folder="revealed_files",
