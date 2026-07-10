@@ -34,7 +34,6 @@ from urllib.parse import unquote, urlparse
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
-
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.logging.context import TraceContext
@@ -305,6 +304,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
 
 async def _is_backend_directory(backend: Any, file_path: str) -> bool:
     """Best-effort check for the common case where reveal_file is called on a directory."""
+    if backend is None:
+        return False
     for method_name in ("als", "ls"):
         method = getattr(backend, method_name, None)
         if not callable(method):
@@ -318,7 +319,9 @@ async def _is_backend_directory(backend: Any, file_path: str) -> bool:
                 entries = result.get("entries")
             return bool(entries)
         except Exception as e:
-            logger.debug("[reveal_file] %s directory probe failed for %s: %s", method_name, file_path, e)
+            logger.debug(
+                "[reveal_file] %s directory probe failed for %s: %s", method_name, file_path, e
+            )
     return False
 
 
@@ -826,9 +829,9 @@ async def reveal_file(
                 max_size=_UPLOAD_SPOOL_MEMORY_LIMIT,
                 mode="w+b",
             ) as spooled:
-                await run_blocking_io(spooled.write, file_content)
+                spooled.write(file_content)
                 del file_content
-                await run_blocking_io(spooled.seek, 0)
+                spooled.seek(0)
                 upload_result = await storage.upload_file(
                     file=spooled,
                     folder="revealed_files",
