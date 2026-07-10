@@ -281,6 +281,63 @@ def _extract_forced_delegation_text(result: Any) -> str:
     return ""
 
 
+async def _extract_forced_delegation_text_from_graph_state(
+    forced_graph: Any,
+    forced_config: RunnableConfig,
+) -> str:
+    get_state = getattr(forced_graph, "aget_state", None)
+    if not callable(get_state):
+        return ""
+    try:
+        state = await get_state(forced_config)
+    except Exception as exc:
+        logger.warning("[TeamAgent] Failed to read forced delegation graph state: %s", exc)
+        return ""
+
+    values = getattr(state, "values", None)
+    if isinstance(values, dict):
+        return _extract_forced_delegation_text(values)
+    return _extract_forced_delegation_text(values)
+
+
+def _register_forced_delegation_agent_context(
+    event_processor: Any,
+    *,
+    checkpoint_root: str,
+    agent_instance_id: str,
+    subagent_type: str,
+) -> None:
+    checkpoint_to_agent = getattr(event_processor, "checkpoint_to_agent", None)
+    if not isinstance(checkpoint_to_agent, dict):
+        return
+    checkpoint_to_agent[checkpoint_root] = (agent_instance_id, subagent_type)
+    agent_context_cache = getattr(event_processor, "_agent_context_cache", None)
+    if agent_context_cache is not None and hasattr(agent_context_cache, "clear"):
+        agent_context_cache.clear()
+
+
+def _with_forced_delegation_agent_context(event: Any, *, checkpoint_root: str) -> Any:
+    if not isinstance(event, dict):
+        return event
+
+    updated = dict(event)
+    metadata = dict(updated.get("metadata") or {})
+    checkpoint_ns = metadata.get("langgraph_checkpoint_ns") or metadata.get("checkpoint_ns")
+    if checkpoint_ns:
+        checkpoint_ns_text = str(checkpoint_ns)
+        if not checkpoint_ns_text.startswith(f"{checkpoint_root}|"):
+            checkpoint_ns_text = f"{checkpoint_root}|{checkpoint_ns_text}"
+    else:
+        event_name = str(updated.get("name") or updated.get("event") or "event")
+        run_id = str(updated.get("run_id") or uuid.uuid4().hex)
+        checkpoint_ns_text = f"{checkpoint_root}|{event_name}:{run_id}"
+
+    metadata["langgraph_checkpoint_ns"] = checkpoint_ns_text
+    metadata["checkpoint_ns"] = checkpoint_ns_text
+    updated["metadata"] = metadata
+    return updated
+
+
 def _append_processor_output(event_processor: Any, text: str) -> None:
     append = getattr(event_processor, "_append_output_text", None)
     if callable(append):
@@ -492,6 +549,13 @@ async def _run_forced_team_delegation(
                 subagents=[],
                 middleware=forced_middleware,
             )
+            forced_checkpoint_root = f"forced:{subagent_type}:{agent_instance_id}"
+            _register_forced_delegation_agent_context(
+                event_processor,
+                checkpoint_root=forced_checkpoint_root,
+                agent_instance_id=agent_instance_id,
+                subagent_type=subagent_type,
+            )
             forced_config: RunnableConfig = {
                 "configurable": build_nested_graph_configurable(
                     thread_id=(
@@ -515,11 +579,29 @@ async def _run_forced_team_delegation(
                     settings.SESSION_MAX_RUNS_PER_SESSION,
                 ),
             }
-            result = await forced_graph.ainvoke(
-                {"messages": [build_human_message(description, [], supports_vision=False)]},
+            forced_input = {
+                "messages": [build_human_message(description, [], supports_vision=False)]
+            }
+            async for event in forced_graph.astream_events(  # type: ignore[call-overload]
+                forced_input,
+                forced_config,
+                version="v2",
+            ):
+                await event_processor.process_event(
+                    _with_forced_delegation_agent_context(
+                        event,
+                        checkpoint_root=forced_checkpoint_root,
+                    )
+                )
+            await event_processor.flush()
+            result_text = await _extract_forced_delegation_text_from_graph_state(
+                forced_graph,
                 forced_config,
             )
-            result_text = _extract_forced_delegation_text(result)
+            if not result_text:
+                result_text = _extract_forced_delegation_text(
+                    getattr(event_processor, "output_text", "")
+                )
         except Exception as exc:
             present_result = getattr(presenter, "present_agent_result", None)
             if callable(present_result):

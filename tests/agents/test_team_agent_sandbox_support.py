@@ -451,10 +451,128 @@ async def test_team_router_forces_full_asset_package_delegation_after_router_noo
         ],
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
     )
-    assert fake_graph.astream_events_calls == 2
-    assert fake_graph.ainvoke_calls == 1
-    assert "Team router forced delegation recovery" in str(fake_graph.ainvoke_inputs[0])
-    assert "choose reasonable general-purpose defaults" in str(fake_graph.ainvoke_inputs[0])
+    assert fake_graph.astream_events_calls == 3
+    assert fake_graph.ainvoke_calls == 0
+    assert "Team router forced delegation recovery" in str(fake_graph.initial_states[2])
+    assert "choose reasonable general-purpose defaults" in str(fake_graph.initial_states[2])
+
+
+@pytest.mark.asyncio
+async def test_forced_team_delegation_streams_tool_events_with_member_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from plugins.system.agent_team.backend.domain.schemas import (
+        TeamMemberResponse,
+        TeamResponse,
+    )
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
+
+    member = TeamMemberResponse(
+        member_id="m-tool",
+        persona_preset_id="preset-1",
+        role_name="Tool Agent",
+        enabled=True,
+    )
+    team = TeamResponse(
+        id="team-1",
+        owner_user_id="user-1",
+        name="Tool Team",
+        members=[member],
+    )
+    subagent_type = team_nodes.build_team_member_subagent_type(member)
+    fake_graph = _FakeDeepAgent()
+    fake_graph.events = [
+        {
+            "event": "on_tool_start",
+            "name": "mcp_lookup",
+            "run_id": "tool-run-1",
+            "metadata": {"langgraph_checkpoint_ns": "agent:inner"},
+            "data": {"input": {"query": "野自在"}},
+        },
+        {
+            "event": "on_tool_end",
+            "name": "mcp_lookup",
+            "run_id": "tool-run-1",
+            "metadata": {"langgraph_checkpoint_ns": "agent:inner"},
+            "data": {"output": "normal tool result"},
+        },
+    ]
+    fake_graph.state_messages = [SimpleNamespace(content="member final")]
+
+    monkeypatch.setattr(team_nodes, "create_deep_agent", lambda **_kwargs: fake_graph)
+
+    class _Presenter:
+        trace_id = "trace-1"
+
+        async def emit(self, _event):
+            return None
+
+        def present_agent_call(self, **kwargs):
+            return {"event_type": "agent:call", "data": kwargs}
+
+        def present_agent_result(self, **kwargs):
+            return {"event_type": "agent:result", "data": kwargs}
+
+    class _Processor:
+        def __init__(self) -> None:
+            self.checkpoint_to_agent = {}
+            self._agent_context_cache = {}
+            self.processed = []
+            self.output_text = ""
+
+        async def process_event(self, event):
+            self.processed.append(event)
+
+        async def flush(self):
+            return None
+
+        def _append_output_text(self, text):
+            self.output_text += text
+
+    processor = _Processor()
+
+    count = await team_nodes._run_forced_team_delegation(
+        team=team,
+        user_input="一份完整素材包",
+        reason="full_asset_package",
+        custom_subagents=[
+            {
+                "name": subagent_type,
+                "model": object(),
+                "system_prompt": "You are a tool member.",
+                "middleware": [],
+            }
+        ],
+        llm=object(),
+        backend=object(),
+        filtered_tools=[],
+        inner_checkpointer=object(),
+        store=object(),
+        context=TeamAgentContext(session_id="session-1", user_id="user-1"),
+        presenter=_Presenter(),
+        event_processor=processor,
+        subagent_display_names={subagent_type: "Tool Agent"},
+        subagent_avatars={},
+        configurable={"session_id": "session-1"},
+        attachments=[],
+        config={},
+        delegated_subagent_names=set(),
+    )
+
+    assert count == 1
+    assert fake_graph.astream_events_calls == 1
+    assert fake_graph.ainvoke_calls == 0
+    assert len(processor.processed) == 2
+    checkpoint_roots = list(processor.checkpoint_to_agent)
+    assert len(checkpoint_roots) == 1
+    assert processor.checkpoint_to_agent[checkpoint_roots[0]][0].startswith(
+        f"forced_{subagent_type}_"
+    )
+    assert all(
+        event["metadata"]["langgraph_checkpoint_ns"].startswith(f"{checkpoint_roots[0]}|")
+        for event in processor.processed
+    )
 
 
 @pytest.mark.asyncio
@@ -584,10 +702,10 @@ async def test_team_router_forces_missing_members_after_partial_full_asset_deleg
         user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
     )
 
-    assert fake_graph.astream_events_calls == 1
-    assert fake_graph.ainvoke_calls == 2
-    assert "分镜文案 Agent" in str(fake_graph.ainvoke_inputs[0])
-    assert "提示词 Agent" in str(fake_graph.ainvoke_inputs[1])
+    assert fake_graph.astream_events_calls == 3
+    assert fake_graph.ainvoke_calls == 0
+    assert "分镜文案 Agent" in str(fake_graph.initial_states[1])
+    assert "提示词 Agent" in str(fake_graph.initial_states[2])
 
 
 @pytest.mark.asyncio
@@ -628,11 +746,11 @@ async def test_team_router_forces_all_members_for_complete_short_video_plan(
         ],
         user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
     )
-    assert fake_graph.astream_events_calls == 2
-    assert fake_graph.ainvoke_calls == 3
-    assert "管理 Agent" in str(fake_graph.ainvoke_inputs[0])
-    assert "分镜文案 Agent" in str(fake_graph.ainvoke_inputs[1])
-    assert "提示词 Agent" in str(fake_graph.ainvoke_inputs[2])
+    assert fake_graph.astream_events_calls == 5
+    assert fake_graph.ainvoke_calls == 0
+    assert "管理 Agent" in str(fake_graph.initial_states[2])
+    assert "分镜文案 Agent" in str(fake_graph.initial_states[3])
+    assert "提示词 Agent" in str(fake_graph.initial_states[4])
 
 
 @pytest.mark.asyncio
