@@ -451,10 +451,14 @@ async def test_team_router_forces_full_asset_package_delegation_after_router_noo
         ],
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
     )
-    assert fake_graph.astream_events_calls == 3
+    assert fake_graph.astream_events_calls == 6
     assert fake_graph.ainvoke_calls == 0
-    assert "Team router forced delegation recovery" in str(fake_graph.initial_states[2])
-    assert "choose reasonable general-purpose defaults" in str(fake_graph.initial_states[2])
+    assert "Team router forced full asset package pipeline" in str(fake_graph.initial_states[2])
+    assert "需求梳理" in str(fake_graph.initial_states[2])
+    assert "Tool policy: NO_TOOLS" in str(fake_graph.initial_states[2])
+    assert "Image Prompt EN" in str(fake_graph.initial_states[4])
+    assert "image_generate" in str(fake_graph.initial_states[5])
+    assert "reveal_project" in str(fake_graph.initial_states[5])
 
 
 @pytest.mark.asyncio
@@ -560,17 +564,21 @@ async def test_forced_team_delegation_streams_tool_events_with_member_context(
         delegated_subagent_names=set(),
     )
 
-    assert count == 1
-    assert fake_graph.astream_events_calls == 1
+    assert count == 4
+    assert fake_graph.astream_events_calls == 4
     assert fake_graph.ainvoke_calls == 0
-    assert len(processor.processed) == 2
+    assert len(processor.processed) == 8
     checkpoint_roots = list(processor.checkpoint_to_agent)
-    assert len(checkpoint_roots) == 1
-    assert processor.checkpoint_to_agent[checkpoint_roots[0]][0].startswith(
-        f"forced_{subagent_type}_"
+    assert len(checkpoint_roots) == 4
+    assert all(
+        processor.checkpoint_to_agent[root][0].startswith(f"forced_{subagent_type}_")
+        for root in checkpoint_roots
     )
     assert all(
-        event["metadata"]["langgraph_checkpoint_ns"].startswith(f"{checkpoint_roots[0]}|")
+        any(
+            event["metadata"]["langgraph_checkpoint_ns"].startswith(f"{root}|")
+            for root in checkpoint_roots
+        )
         for event in processor.processed
     )
 
@@ -612,13 +620,15 @@ async def test_team_router_retries_full_asset_package_once_before_success(
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
     )
 
-    assert fake_graph.astream_events_calls == 2
+    assert fake_graph.astream_events_calls == 6
     assert "必须先调用 `task` 工具" in str(fake_graph.initial_states[1])
     assert "完整素材包流程" in str(fake_graph.initial_states[1])
+    assert "需求梳理" in str(fake_graph.initial_states[2])
+    assert "CREATE_FILES" in str(fake_graph.initial_states[5])
 
 
 @pytest.mark.asyncio
-async def test_team_router_allows_full_asset_package_after_task_delegation(
+async def test_team_router_forces_full_asset_package_stages_after_generic_task_delegation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_deepagents_shims(monkeypatch)
@@ -649,6 +659,94 @@ async def test_team_router_allows_full_asset_package_after_task_delegation(
             )
         ],
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
+    )
+    assert fake_graph.astream_events_calls == 5
+    assert fake_graph.ainvoke_calls == 0
+    assert "需求梳理" in str(fake_graph.initial_states[1])
+    assert "分镜" in str(fake_graph.initial_states[2])
+    assert "Image Prompt EN" in str(fake_graph.initial_states[3])
+    assert "CREATE_FILES" in str(fake_graph.initial_states[4])
+
+
+@pytest.mark.asyncio
+async def test_team_router_does_not_force_when_full_asset_stages_are_delegated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+
+    fake_graph = _FakeDeepAgent()
+    fake_graph.events = [
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "data": {
+                "input": {
+                    "subagent_type": "team-m-manager-agent",
+                    "task": "需求梳理；素材包交付清单；可用素材；总时长",
+                }
+            },
+        },
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "data": {
+                "input": {
+                    "subagent_type": "team-m-copywriter-agent",
+                    "task": "宣传文案；分镜；Scene 编号；画面目标",
+                }
+            },
+        },
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "data": {
+                "input": {
+                    "subagent_type": "team-m-prompt-agent",
+                    "task": "Image Prompt EN；Negative Prompt EN；Image-to-Video Prompt EN；图生视频提示词",
+                }
+            },
+        },
+        {
+            "event": "on_tool_start",
+            "name": "task",
+            "data": {
+                "input": {
+                    "subagent_type": "team-m-manager-agent",
+                    "task": "FILE_ARTIFACT；CREATE_FILES；image_generate；reveal_project；下载包；scene_01",
+                }
+            },
+        },
+    ]
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-manager",
+                persona_preset_id="preset-1",
+                role_name="管理 Agent",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="m-copywriter",
+                persona_preset_id="preset-1",
+                role_name="分镜文案 Agent",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="m-prompt",
+                persona_preset_id="preset-1",
+                role_name="提示词 Agent",
+                enabled=True,
+            ),
+        ],
+        user_input="一份完整的抖音策划，包含首帧图和素材包下载交付。",
     )
     assert fake_graph.astream_events_calls == 1
     assert fake_graph.ainvoke_calls == 0
@@ -702,10 +800,14 @@ async def test_team_router_forces_missing_members_after_partial_full_asset_deleg
         user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
     )
 
-    assert fake_graph.astream_events_calls == 3
+    assert fake_graph.astream_events_calls == 5
     assert fake_graph.ainvoke_calls == 0
-    assert "分镜文案 Agent" in str(fake_graph.initial_states[1])
-    assert "提示词 Agent" in str(fake_graph.initial_states[2])
+    assert "管理 Agent" in str(fake_graph.initial_states[1])
+    assert "需求梳理" in str(fake_graph.initial_states[1])
+    assert "分镜文案 Agent" in str(fake_graph.initial_states[2])
+    assert "提示词 Agent" in str(fake_graph.initial_states[3])
+    assert "管理 Agent" in str(fake_graph.initial_states[4])
+    assert "CREATE_FILES" in str(fake_graph.initial_states[4])
 
 
 @pytest.mark.asyncio
@@ -746,11 +848,13 @@ async def test_team_router_forces_all_members_for_complete_short_video_plan(
         ],
         user_input="一份完整的抖音策划，包含首帧图和文案，但不仅限于上述内容的完整内容。",
     )
-    assert fake_graph.astream_events_calls == 5
+    assert fake_graph.astream_events_calls == 6
     assert fake_graph.ainvoke_calls == 0
     assert "管理 Agent" in str(fake_graph.initial_states[2])
     assert "分镜文案 Agent" in str(fake_graph.initial_states[3])
     assert "提示词 Agent" in str(fake_graph.initial_states[4])
+    assert "管理 Agent" in str(fake_graph.initial_states[5])
+    assert "CREATE_FILES" in str(fake_graph.initial_states[5])
 
 
 @pytest.mark.asyncio

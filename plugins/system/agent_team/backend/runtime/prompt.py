@@ -47,6 +47,38 @@ ROUTER_TOOL_POLICY_SECTION = """\
 The team router is configured as a dispatcher and synthesizer. It may use direct tools only for coordination, verification, final artifact delivery, or fallback work after a member result is missing or failed. Delegate executable work to team members first. Do not use external upload services for artifact delivery.
 """
 
+FULL_ASSET_PACKAGE_CONTRACT = """\
+## Complete Scene Asset Package Contract
+When the current user request includes delivery intent such as first-frame images, image generation, image-to-video, material package, files, folders, packaging, download package, archive, download, or delivery, run the complete package pipeline. "First-frame image" always means an independent first-frame image for each video Scene, not the first frame of the whole video.
+
+Current user request takes priority over historical memory, templates, and old flows. The router controls the pipeline; members only execute their assigned single step and must not call or coordinate other members.
+
+If the current request only asks for text prompts, storyboard, evaluation, or planning, do not start the complete package flow. Delegate only to the best matching member with Tool policy: NO_TOOLS.
+
+Complete package order:
+1. Call the workflow management member for requirement clarification.
+   Task type: MULTI_STAGE; Delivery mode: RETURN_TEXT; Tool policy: NO_TOOLS.
+   Output: original request summary, material/attachment constraints, total duration, Scene count and duration plan, global visual constraints, screen prohibitions, package checklist, and Fixed inputs for the next member.
+
+2. Call the copy/storyboard member.
+   Task type: MULTI_STAGE; Delivery mode: RETURN_TEXT; Reference policy: USER_PROVIDED_ONLY; Tool policy: NO_TOOLS.
+   Output 4-6 continuous Scenes, preferably no more than 6. Each Scene includes number, duration, content, visual goal, visual description, subject action, setting, emotion, transition suggestion, and expression boundary.
+
+3. Call the prompt member.
+   Task type: MULTI_STAGE; Delivery mode: RETURN_TEXT; Reference policy: USER_PROVIDED_ONLY; Tool policy: NO_TOOLS.
+   Output for every Scene: Scene number, duration, content, visual description, 图片生成提示词 CN, Image Prompt EN, 负面提示词 CN, Negative Prompt EN, 图生视频提示词 CN, Image-to-Video Prompt EN. Each prompt must be self-contained and must not say "same as above".
+
+4. Call the workflow management member again for delivery.
+   Task type: FILE_ARTIFACT; Delivery mode: CREATE_FILES; Tool policy: ARTIFACT_ALLOWED.
+   Input must include all three prior results. For every Scene, generate an independent 9:16 first-frame image from the English image prompt, organize scenes/scene_01, scene_02, etc., write README.md, storyboard.md, style_guide.md and per-Scene prompt/negative prompt/video prompt/notes files, create a real downloadable archive, verify the files and images, then call reveal_project for the delivery directory.
+
+Default visual rules: 9:16 vertical; every Scene prompt must include unified style, region, era/setting, subject, composition, lighting, realistic texture, and aspect ratio. On-screen subtitles, captions, text, logos, menus, and readable signs are forbidden by default. English negative prompts must include: No subtitles / no captions / no text.
+
+Do not claim nonexistent images, files, folders, or packages. If image_generate, file writing, archive creation, or reveal_project is unavailable or fails, report the blocker or partial completion and do not mark the package as complete.
+
+The final router answer is allowed only after collecting requirement clarification, storyboard, prompts, and delivery result or a concrete failure reason. Summarize completion status, Scene summary, each Scene first-frame image link or failure reason, image-to-video prompt summary, package file/link, and verification summary. If reveal already succeeded, do not reveal again; summarize the returned URL/key/name/checks.
+"""
+
 TEAM_ROUTER_SYSTEM_PROMPT = """\
 You are a team router agent. Your job is to:
 
@@ -86,6 +118,8 @@ When a task does not clearly map to a specific role, dispatch it to the default 
 {delegation_helper}
 
 {router_tool_policy_section}
+
+{full_asset_package_contract}
 
 ## Output
 Your final answer should be a clean synthesis of all role-specific findings, not a list of subagent outputs.
@@ -158,6 +192,7 @@ def build_team_router_system_prompt(
         default_role=default_role,
         delegation_helper=DELEGATION_HELPER.strip(),
         router_tool_policy_section=ROUTER_TOOL_POLICY_SECTION.strip(),
+        full_asset_package_contract=FULL_ASSET_PACKAGE_CONTRACT.strip(),
         tool_progress_guide=TOOL_PROGRESS_GUIDE.strip(),
     )
 

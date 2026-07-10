@@ -107,6 +107,28 @@ _FULL_ASSET_PACKAGE_STAGE_TRIGGERS = (
     "图生视频",
     "多片段",
 )
+_FULL_ASSET_PACKAGE_DELIVERY_TRIGGERS = (
+    "首帧图",
+    "图片生成",
+    "生成图片",
+    "图生视频",
+    "素材包",
+    "文件",
+    "目录",
+    "打包",
+    "下载包",
+    "压缩包",
+    "下载",
+    "交付",
+)
+_TEXT_ONLY_REQUEST_MARKERS = (
+    "只要文字",
+    "只要提示词",
+    "仅文字",
+    "仅提示词",
+    "评估",
+    "规划",
+)
 _TEAM_META_REQUEST_MARKERS = (
     "任务范围",
     "团队成员",
@@ -148,6 +170,12 @@ def build_no_team_fallback_system_prompt(*, sandbox_active: bool) -> str:
 
 def _is_full_asset_package_request(user_input: Any) -> bool:
     text = str(user_input or "").casefold()
+    if any(trigger in text for trigger in _FULL_ASSET_PACKAGE_DELIVERY_TRIGGERS):
+        return True
+    if any(marker in text for marker in _TEXT_ONLY_REQUEST_MARKERS) and not any(
+        trigger in text for trigger in _FULL_ASSET_PACKAGE_DELIVERY_TRIGGERS
+    ):
+        return False
     if any(trigger in text for trigger in _FULL_ASSET_PACKAGE_DIRECT_TRIGGERS):
         return True
     if "抖音策划" in text and any(trigger in text for trigger in ("完整", "首帧", "文案")):
@@ -215,6 +243,231 @@ def _select_forced_delegation_members(
         if default_member is not None:
             return [default_member]
     return [members[0]]
+
+
+def _member_role_text(member: Any) -> str:
+    return " ".join(
+        str(value or "")
+        for value in (
+            getattr(member, "role_name", None),
+            getattr(member, "member_id", None),
+            getattr(member, "role_instructions", None),
+        )
+    ).casefold()
+
+
+def _select_member_by_role(
+    members: list[Any],
+    *,
+    preferred_markers: tuple[str, ...],
+    fallback_index: int,
+) -> Any | None:
+    for member in members:
+        role_text = _member_role_text(member)
+        if any(marker.casefold() in role_text for marker in preferred_markers):
+            return member
+    if not members:
+        return None
+    return members[min(fallback_index, len(members) - 1)]
+
+
+def _build_full_asset_package_pipeline(team: Any) -> list[dict[str, Any]]:
+    members = list(getattr(team, "active_members", []) or [])
+    if not members:
+        return []
+
+    manager = _select_member_by_role(
+        members,
+        preferred_markers=("工作流管理", "管理", "manager", "workflow"),
+        fallback_index=0,
+    )
+    storyboard = _select_member_by_role(
+        members,
+        preferred_markers=("宣传文案", "分镜", "文案", "storyboard", "copy"),
+        fallback_index=1,
+    )
+    prompt = _select_member_by_role(
+        members,
+        preferred_markers=("提示词", "prompt", "图生视频", "video"),
+        fallback_index=2,
+    )
+    if manager is None:
+        return []
+
+    return [
+        {
+            "stage": "requirements",
+            "member": manager,
+            "title": "需求梳理",
+        },
+        {
+            "stage": "storyboard",
+            "member": storyboard or manager,
+            "title": "分镜文案",
+        },
+        {
+            "stage": "prompts",
+            "member": prompt or storyboard or manager,
+            "title": "首帧图与图生视频提示词",
+        },
+        {
+            "stage": "delivery",
+            "member": manager,
+            "title": "图片生成、文件整理与下载包交付",
+        },
+    ]
+
+
+def _extract_event_text_fragments(value: Any) -> list[str]:
+    fragments: list[str] = []
+    if isinstance(value, str):
+        if value.strip():
+            fragments.append(value.strip())
+        return fragments
+    if isinstance(value, dict):
+        for nested in value.values():
+            fragments.extend(_extract_event_text_fragments(nested))
+        return fragments
+    if isinstance(value, (list, tuple)):
+        for nested in value:
+            fragments.extend(_extract_event_text_fragments(nested))
+        return fragments
+    content = getattr(value, "content", None)
+    if content is not None:
+        fragments.extend(_extract_event_text_fragments(content))
+    return fragments
+
+
+def _collect_full_asset_package_stages_from_event(event: Any) -> set[str]:
+    if not isinstance(event, dict):
+        return set()
+    if event.get("event") != "on_tool_start":
+        return set()
+    fragments = _extract_event_text_fragments(event.get("data"))
+    if not fragments:
+        fragments = _extract_event_text_fragments(event)
+    text = "\n".join(fragments).casefold()
+    stages: set[str] = set()
+    if any(marker in text for marker in ("需求梳理", "素材包交付清单", "可用素材", "总时长")):
+        stages.add("requirements")
+    if any(marker in text for marker in ("宣传文案", "分镜", "scene 编号", "画面目标")):
+        stages.add("storyboard")
+    if any(
+        marker in text
+        for marker in (
+            "image prompt en",
+            "negative prompt en",
+            "image-to-video prompt en",
+            "图生视频提示词",
+            "负面提示词",
+        )
+    ):
+        stages.add("prompts")
+    if any(
+        marker in text
+        for marker in (
+            "create_files",
+            "file_artifact",
+            "image_generate",
+            "reveal_project",
+            "下载包",
+            "压缩包",
+            "scene_01",
+        )
+    ):
+        stages.add("delivery")
+    return stages
+
+
+def _build_full_asset_package_stage_description(
+    *,
+    team: Any,
+    member: Any,
+    user_input: Any,
+    stage: str,
+    title: str,
+    index: int,
+    total: int,
+    previous_results: list[tuple[str, str]],
+) -> str:
+    role_name = getattr(member, "role_name", None) or build_team_member_subagent_type(member)
+    prior = "\n\n".join(
+        f"### Previous result from {name}\n{result.strip()}"
+        for name, result in previous_results
+        if result.strip()
+    )
+    prior_section = prior or "No previous stage result yet. Use the original request as input."
+    common_header = (
+        "Team router forced full asset package pipeline.\n"
+        "This is a hard recovery assignment because the router did not prove that the "
+        "complete four-stage deliverable contract was satisfied.\n"
+        f"Team: {getattr(team, 'name', '')}.\n"
+        f"Current task start time: {time.strftime('%Y-%m-%d %H:%M:%S %z')}.\n"
+        f"Pipeline stage: {index}/{total} - {title}.\n"
+        f"Target member: {role_name}.\n\n"
+        "Original user request:\n"
+        f"{str(user_input or '').strip()}\n\n"
+        "Fixed inputs from prior stages:\n"
+        f"{prior_section}\n\n"
+    )
+    if stage == "requirements":
+        return (
+            common_header
+            + "Task type: MULTI_STAGE\n"
+            + "Delivery mode: RETURN_TEXT\n"
+            + "Reference policy: USER_PROVIDED_ONLY\n"
+            + "Tool policy: NO_TOOLS\n"
+            + "Max tool calls: 0\n"
+            + "Artifact intent: false\n"
+            + "Allowed tools: none\n"
+            + "Forbidden actions: read files, write files, generate images, create folders, package, reveal.\n"
+            + "Objective: perform only requirement clarification for a scene-level first-frame image and image-to-video package.\n"
+            + "Output format: user request summary; available materials/attachment constraints; total duration; Scene count and duration plan; global visual constraints; screen prohibitions; material package checklist; Fixed inputs for the next member.\n"
+        )
+    if stage == "storyboard":
+        return (
+            common_header
+            + "Task type: MULTI_STAGE\n"
+            + "Delivery mode: RETURN_TEXT\n"
+            + "Reference policy: USER_PROVIDED_ONLY\n"
+            + "Tool policy: NO_TOOLS\n"
+            + "Max tool calls: 0\n"
+            + "Artifact intent: false\n"
+            + "Allowed tools: none\n"
+            + "Forbidden actions: read files, create directories, write prompt files, generate images, package, reveal.\n"
+            + "Objective: produce 4-6 continuous scenes, preferably no more than 6, each usually 6 or 10 seconds.\n"
+            + "Output format for each Scene: Scene number; duration; corresponding copy/content; visual goal; visual description; subject action; setting; emotion; transition suggestion; expression boundary.\n"
+        )
+    if stage == "prompts":
+        return (
+            common_header
+            + "Task type: MULTI_STAGE\n"
+            + "Delivery mode: RETURN_TEXT\n"
+            + "Reference policy: USER_PROVIDED_ONLY\n"
+            + "Tool policy: NO_TOOLS\n"
+            + "Max tool calls: 0\n"
+            + "Artifact intent: false\n"
+            + "Allowed tools: none\n"
+            + "Forbidden actions: use tools, read files, create files, reveal, use placeholders, write 'same as above'.\n"
+            + "Objective: write self-contained per-Scene image and image-to-video prompts for independent first-frame images.\n"
+            + "Global rules: default 9:16 vertical; each prompt must include unified style, region, era/setting, subject, composition, lighting, realistic texture, and aspect ratio; screen text, subtitles, logos, menus, readable signs are forbidden by default; English negative prompt must contain: No subtitles / no captions / no text.\n"
+            + "Output format for each Scene: Scene number; duration; corresponding content; visual description; 图片生成提示词 CN; Image Prompt EN; 负面提示词 CN; Negative Prompt EN; 图生视频提示词 CN; Image-to-Video Prompt EN.\n"
+        )
+    return (
+        common_header
+        + "Task type: FILE_ARTIFACT\n"
+        + "Delivery mode: CREATE_FILES\n"
+        + "Reference policy: USER_PROVIDED_ONLY\n"
+        + "Tool policy: ARTIFACT_ALLOWED\n"
+        + "Max tool calls: as needed\n"
+        + "Artifact intent: true\n"
+        + "Allowed tools: image_generate, file write/edit tools, shell/archive tools, reveal_project, and verification tools as available.\n"
+        + "Forbidden actions: claim nonexistent images, files, folders, or zip packages; use placeholder images as first-frame images; copy URL text as a PNG; finish without reveal_project when a folder/package was created.\n"
+        + "Objective: create the real deliverable package for every Scene.\n"
+        + "Required execution: for each Scene, use the English image prompt to generate an independent 9:16 first-frame image; save real image files under scenes/scene_01, scene_02, etc.; write README.md, storyboard.md, style_guide.md, and each Scene's CN/EN image prompts, CN/EN image-to-video prompts, negative prompts, and notes; create a real downloadable archive; verify Scene count, total duration, files, images, and archive.\n"
+        + "Image URL handling: if image_generate returns images[].url as an HTTP URL, download it to a PNG file with curl -fL or Python; verify it with file/PIL/Image.open; do not package cache query strings or raw URL text.\n"
+        + "Final action: call reveal_project for the delivery directory. If image generation, file writing, zipping, or reveal fails, clearly report the blocker or partial completion and do not mark the package as complete.\n"
+    )
 
 
 def _build_forced_delegation_description(
@@ -467,13 +720,25 @@ async def _run_forced_team_delegation(
     attachments: list[Any],
     config: RunnableConfig,
     delegated_subagent_names: set[str] | None = None,
+    completed_full_asset_stages: set[str] | None = None,
 ) -> int:
-    members = _select_forced_delegation_members(
-        team=team,
-        reason=reason,
-        delegated_subagent_names=delegated_subagent_names,
-    )
-    if not members:
+    if reason == "full_asset_package":
+        completed_stages = completed_full_asset_stages or set()
+        assignments = [
+            assignment
+            for assignment in _build_full_asset_package_pipeline(team)
+            if assignment["stage"] not in completed_stages
+        ]
+    else:
+        assignments = [
+            {"member": member, "stage": None, "title": None}
+            for member in _select_forced_delegation_members(
+                team=team,
+                reason=reason,
+                delegated_subagent_names=delegated_subagent_names,
+            )
+        ]
+    if not assignments:
         return 0
 
     subagents_by_name = {
@@ -487,14 +752,16 @@ async def _run_forced_team_delegation(
 
     logger.warning(
         "[TeamAgent] Forcing team delegation after router zero-delegation: "
-        "reason=%s team_id=%s team_name=%s members=%d",
+        "reason=%s team_id=%s team_name=%s assignments=%d completed_stages=%s",
         reason,
         getattr(team, "id", None),
         getattr(team, "name", None),
-        len(members),
+        len(assignments),
+        sorted(completed_full_asset_stages or set()),
     )
 
-    for index, member in enumerate(members, start=1):
+    for index, assignment in enumerate(assignments, start=1):
+        member = assignment["member"]
         subagent_type = build_team_member_subagent_type(member)
         subagent = subagents_by_name.get(subagent_type)
         if not subagent:
@@ -506,15 +773,27 @@ async def _run_forced_team_delegation(
 
         role_name = getattr(member, "role_name", None) or subagent_type
         agent_instance_id = f"forced_{subagent_type}_{uuid.uuid4().hex[:8]}"
-        description = _build_forced_delegation_description(
-            team=team,
-            member=member,
-            user_input=user_input,
-            reason=reason,
-            index=index,
-            total=len(members),
-            previous_results=previous_results,
-        )
+        if reason == "full_asset_package" and assignment.get("stage"):
+            description = _build_full_asset_package_stage_description(
+                team=team,
+                member=member,
+                user_input=user_input,
+                stage=str(assignment["stage"]),
+                title=str(assignment.get("title") or assignment["stage"]),
+                index=index,
+                total=len(assignments),
+                previous_results=previous_results,
+            )
+        else:
+            description = _build_forced_delegation_description(
+                team=team,
+                member=member,
+                user_input=user_input,
+                reason=reason,
+                index=index,
+                total=len(assignments),
+                previous_results=previous_results,
+            )
 
         present_call = getattr(presenter, "present_agent_call", None)
         if callable(present_call):
@@ -1275,6 +1554,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     }
     team_delegation_event_count = 0
     delegated_team_subagent_names: set[str] = set()
+    completed_full_asset_stages: set[str] = set()
 
     inner_config: RunnableConfig = {
         "configurable": build_nested_graph_configurable(
@@ -1355,6 +1635,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         delegated_team_subagent_names.update(
                             _collect_team_delegation_subagents(event, team_subagent_names)
                         )
+                        completed_full_asset_stages.update(
+                            _collect_full_asset_package_stages_from_event(event)
+                        )
                     await event_processor.process_event(event)
 
                 if (
@@ -1373,16 +1656,26 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     getattr(team, "name", None),
                 )
 
-            forced_members = (
-                _select_forced_delegation_members(
-                    team=team,
-                    reason=required_delegation_reason,
-                    delegated_subagent_names=delegated_team_subagent_names,
+            if required_delegation_reason == "full_asset_package":
+                forced_assignments = [
+                    assignment
+                    for assignment in _build_full_asset_package_pipeline(team)
+                    if assignment["stage"] not in completed_full_asset_stages
+                ]
+            else:
+                forced_assignments = (
+                    [
+                        {"member": member, "stage": None}
+                        for member in _select_forced_delegation_members(
+                            team=team,
+                            reason=required_delegation_reason,
+                            delegated_subagent_names=delegated_team_subagent_names,
+                        )
+                    ]
+                    if required_delegation_reason is not None
+                    else []
                 )
-                if required_delegation_reason is not None
-                else []
-            )
-            if forced_members:
+            if forced_assignments:
                 assert required_delegation_reason is not None
                 forced_count = await _run_forced_team_delegation(
                     team=team,
@@ -1406,10 +1699,17 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     attachments=attachments,
                     config=config,
                     delegated_subagent_names=delegated_team_subagent_names,
+                    completed_full_asset_stages=completed_full_asset_stages,
                 )
                 team_delegation_event_count += forced_count
                 delegated_team_subagent_names.update(
-                    build_team_member_subagent_type(member) for member in forced_members
+                    build_team_member_subagent_type(assignment["member"])
+                    for assignment in forced_assignments
+                )
+                completed_full_asset_stages.update(
+                    str(assignment["stage"])
+                    for assignment in forced_assignments
+                    if assignment.get("stage")
                 )
     finally:
         await event_processor.flush()
