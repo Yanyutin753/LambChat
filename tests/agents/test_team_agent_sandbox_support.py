@@ -425,6 +425,87 @@ async def _run_team_node_with_members(
     )
 
 
+def test_team_prompt_cleaning_removes_corrupted_lines() -> None:
+    from plugins.system.agent_team.backend.runtime.prompt import clean_team_prompt_text
+
+    cleaned = clean_team_prompt_text(
+        "完整素材包任务禁止在只完成需求梳理后结束。\n"
+        "????????????????????????????????\n"
+        "每次成员返回后 router 必须调用下一个指定成员。\n"
+        "坏行��继续坏\n"
+    )
+
+    assert "完整素材包任务禁止在只完成需求梳理后结束" in cleaned
+    assert "必须调用下一个指定成员" in cleaned
+    assert "????????" not in cleaned
+    assert "��" not in cleaned
+
+
+def test_full_asset_stage_detection_does_not_overcount_broad_storyboard_task() -> None:
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+
+    event = {
+        "event": "on_tool_start",
+        "name": "task",
+        "data": {
+            "input": {
+                "subagent_type": "team-copywriter-agent",
+                "task": (
+                    "Task type: MULTI_STAGE\n"
+                    "Target member: 宣传文案与分镜片段生成 Agent\n"
+                    "输出宣传文案、分镜、Scene 编号、画面目标。\n"
+                    "上下文提到后续还会生成 Image Prompt EN、Negative Prompt EN、"
+                    "Image-to-Video Prompt EN、image_generate、reveal_project 和下载包。"
+                ),
+            }
+        },
+    }
+
+    assert team_nodes._collect_full_asset_package_stages_from_event(event) == {"storyboard"}
+
+
+def test_full_asset_pipeline_prefers_prompt_engineer_member() -> None:
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
+
+    team = TeamResponse(
+        id="team-1",
+        owner_user_id="user-1",
+        name="Asset Team",
+        members=[
+            TeamMemberResponse(
+                member_id="manager",
+                persona_preset_id="preset-1",
+                role_name="片段级首帧图工作流管理 Agent",
+                role_tags=["workflow", "agent-manager", "packaging"],
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="copywriter",
+                persona_preset_id="preset-1",
+                role_name="宣传文案与分镜片段生成 Agent",
+                role_tags=["copywriting", "storyboard", "short-video"],
+                role_instructions="可接收上下文里的提示词交付要求，但本角色只写分镜文案。",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="prompt_engineer",
+                persona_preset_id="preset-1",
+                role_name="片段级首帧图与图生视频提示词生成 Agent",
+                role_tags=["prompt", "first-frame", "image-to-video"],
+                enabled=True,
+            ),
+        ],
+    )
+
+    pipeline = team_nodes._build_full_asset_package_pipeline(team)
+
+    assert pipeline[0]["member"].member_id == "manager"
+    assert pipeline[1]["member"].member_id == "copywriter"
+    assert pipeline[2]["member"].member_id == "prompt_engineer"
+    assert pipeline[3]["member"].member_id == "manager"
+
+
 @pytest.mark.asyncio
 async def test_team_router_forces_full_asset_package_delegation_after_router_noops(
     monkeypatch: pytest.MonkeyPatch,
@@ -620,11 +701,11 @@ async def test_team_router_retries_full_asset_package_once_before_success(
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
     )
 
-    assert fake_graph.astream_events_calls == 6
+    assert fake_graph.astream_events_calls == 5
     assert "必须先调用 `task` 工具" in str(fake_graph.initial_states[1])
     assert "完整素材包流程" in str(fake_graph.initial_states[1])
     assert "需求梳理" in str(fake_graph.initial_states[2])
-    assert "CREATE_FILES" in str(fake_graph.initial_states[5])
+    assert "CREATE_FILES" in str(fake_graph.initial_states[4])
 
 
 @pytest.mark.asyncio
@@ -660,12 +741,11 @@ async def test_team_router_forces_full_asset_package_stages_after_generic_task_d
         ],
         user_input="继续按完整素材包流程执行：分镜文案、每段提示词、首帧图和交付。",
     )
-    assert fake_graph.astream_events_calls == 5
+    assert fake_graph.astream_events_calls == 4
     assert fake_graph.ainvoke_calls == 0
     assert "需求梳理" in str(fake_graph.initial_states[1])
-    assert "分镜" in str(fake_graph.initial_states[2])
-    assert "Image Prompt EN" in str(fake_graph.initial_states[3])
-    assert "CREATE_FILES" in str(fake_graph.initial_states[4])
+    assert "Image Prompt EN" in str(fake_graph.initial_states[2])
+    assert "CREATE_FILES" in str(fake_graph.initial_states[3])
 
 
 @pytest.mark.asyncio

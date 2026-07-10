@@ -251,9 +251,30 @@ def _member_role_text(member: Any) -> str:
         for value in (
             getattr(member, "role_name", None),
             getattr(member, "member_id", None),
+            " ".join(getattr(member, "role_tags", []) or []),
             getattr(member, "role_instructions", None),
         )
     ).casefold()
+
+
+def _member_role_score(member: Any, preferred_markers: tuple[str, ...]) -> int:
+    marker_values = tuple(marker.casefold() for marker in preferred_markers)
+    primary_text = " ".join(
+        str(value or "")
+        for value in (
+            getattr(member, "member_id", None),
+            getattr(member, "role_name", None),
+            " ".join(getattr(member, "role_tags", []) or []),
+        )
+    ).casefold()
+    instruction_text = str(getattr(member, "role_instructions", "") or "").casefold()
+    score = 0
+    for marker in marker_values:
+        if marker in primary_text:
+            score += 4
+        if marker in instruction_text:
+            score += 1
+    return score
 
 
 def _select_member_by_role(
@@ -262,10 +283,15 @@ def _select_member_by_role(
     preferred_markers: tuple[str, ...],
     fallback_index: int,
 ) -> Any | None:
+    best_member: Any | None = None
+    best_score = 0
     for member in members:
-        role_text = _member_role_text(member)
-        if any(marker.casefold() in role_text for marker in preferred_markers):
-            return member
+        score = _member_role_score(member, preferred_markers)
+        if score > best_score:
+            best_member = member
+            best_score = score
+    if best_member is not None:
+        return best_member
     if not members:
         return None
     return members[min(fallback_index, len(members) - 1)]
@@ -278,17 +304,32 @@ def _build_full_asset_package_pipeline(team: Any) -> list[dict[str, Any]]:
 
     manager = _select_member_by_role(
         members,
-        preferred_markers=("工作流管理", "管理", "manager", "workflow"),
+        preferred_markers=(
+            "manager",
+            "workflow",
+            "agent-manager",
+            "packaging",
+            "工作流管理",
+            "管理",
+        ),
         fallback_index=0,
     )
     storyboard = _select_member_by_role(
         members,
-        preferred_markers=("宣传文案", "分镜", "文案", "storyboard", "copy"),
+        preferred_markers=("copywriter", "copywriting", "storyboard", "宣传文案", "分镜", "文案"),
         fallback_index=1,
     )
     prompt = _select_member_by_role(
         members,
-        preferred_markers=("提示词", "prompt", "图生视频", "video"),
+        preferred_markers=(
+            "prompt_engineer",
+            "prompt",
+            "first-frame",
+            "text-to-image",
+            "image-to-video",
+            "提示词",
+            "图生视频",
+        ),
         fallback_index=2,
     )
     if manager is None:
@@ -338,44 +379,146 @@ def _extract_event_text_fragments(value: Any) -> list[str]:
     return fragments
 
 
+def _extract_task_tool_input(event: dict[str, Any]) -> dict[str, Any] | None:
+    if event.get("event") != "on_tool_start":
+        return None
+    if str(event.get("name") or "").casefold() != TOOL_TASK:
+        return None
+    data = event.get("data")
+    if not isinstance(data, dict):
+        return None
+    task_input = data.get("input")
+    if isinstance(task_input, dict):
+        return task_input
+    return None
+
+
+def _task_input_text(task_input: dict[str, Any]) -> str:
+    return "\n".join(_extract_event_text_fragments(task_input)).casefold()
+
+
+def _task_subagent_type(task_input: dict[str, Any]) -> str:
+    return str(
+        task_input.get("subagent_type")
+        or task_input.get("subagent")
+        or task_input.get("agent")
+        or task_input.get("target")
+        or ""
+    ).casefold()
+
+
+def _task_target_text(subagent_type: str, text: str) -> str:
+    target_lines = [
+        line
+        for line in text.splitlines()
+        if any(marker in line for marker in ("target member", "current member", "subagent_type"))
+    ]
+    return "\n".join((subagent_type, *target_lines))
+
+
+def _task_targets_prompt_member(subagent_type: str, text: str) -> bool:
+    target_text = _task_target_text(subagent_type, text)
+    return any(
+        marker in target_text
+        for marker in (
+            "prompt_engineer",
+            "prompt-engineer",
+            "prompt",
+            "提示词 agent",
+            "提示词成员",
+        )
+    )
+
+
+def _task_targets_storyboard_member(subagent_type: str, text: str) -> bool:
+    target_text = _task_target_text(subagent_type, text)
+    return any(
+        marker in target_text
+        for marker in (
+            "copywriter",
+            "copy-writing",
+            "storyboard",
+            "分镜 agent",
+            "文案 agent",
+            "宣传文案",
+        )
+    )
+
+
+def _task_targets_manager_member(subagent_type: str, text: str) -> bool:
+    target_text = _task_target_text(subagent_type, text)
+    return any(
+        marker in target_text
+        for marker in (
+            "manager",
+            "workflow",
+            "agent-manager",
+            "工作流管理",
+            "管理 agent",
+        )
+    )
+
+
 def _collect_full_asset_package_stages_from_event(event: Any) -> set[str]:
     if not isinstance(event, dict):
         return set()
-    if event.get("event") != "on_tool_start":
+    task_input = _extract_task_tool_input(event)
+    if task_input is None:
         return set()
-    fragments = _extract_event_text_fragments(event.get("data"))
-    if not fragments:
-        fragments = _extract_event_text_fragments(event)
-    text = "\n".join(fragments).casefold()
+    text = _task_input_text(task_input)
+    subagent_type = _task_subagent_type(task_input)
     stages: set[str] = set()
-    if any(marker in text for marker in ("需求梳理", "素材包交付清单", "可用素材", "总时长")):
-        stages.add("requirements")
-    if any(marker in text for marker in ("宣传文案", "分镜", "scene 编号", "画面目标")):
-        stages.add("storyboard")
-    if any(
+
+    is_delivery = any(
         marker in text
+        for marker in ("file_artifact", "create_files", "delivery mode: create_files")
+    ) and any(
+        marker in text
+        for marker in ("image_generate", "reveal_project", "下载包", "压缩包", "archive", "zip")
+    )
+    if is_delivery:
+        stages.add("delivery")
+        return stages
+
+    if _task_targets_manager_member(subagent_type, text) and any(
+        marker in text
+        for marker in (
+            "需求梳理",
+            "requirement clarification",
+            "material/attachment constraints",
+            "素材包交付清单",
+            "可用素材",
+            "总时长",
+        )
+    ):
+        stages.add("requirements")
+    if _task_targets_storyboard_member(subagent_type, text) and any(
+        marker in text
+        for marker in (
+            "宣传文案",
+            "分镜",
+            "storyboard",
+            "scene 编号",
+            "scene number",
+            "画面目标",
+            "visual goal",
+        )
+    ):
+        stages.add("storyboard")
+    prompt_field_count = sum(
+        1
         for marker in (
             "image prompt en",
             "negative prompt en",
             "image-to-video prompt en",
+            "图片生成提示词",
             "图生视频提示词",
             "负面提示词",
         )
-    ):
+        if marker in text
+    )
+    if _task_targets_prompt_member(subagent_type, text) and prompt_field_count >= 3:
         stages.add("prompts")
-    if any(
-        marker in text
-        for marker in (
-            "create_files",
-            "file_artifact",
-            "image_generate",
-            "reveal_project",
-            "下载包",
-            "压缩包",
-            "scene_01",
-        )
-    ):
-        stages.add("delivery")
     return stages
 
 

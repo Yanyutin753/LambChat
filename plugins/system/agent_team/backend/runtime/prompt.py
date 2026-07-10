@@ -4,6 +4,27 @@ import re
 
 from src.agents.core.subagent_prompts import TOOL_PROGRESS_GUIDE
 
+
+def _looks_like_corrupted_prompt_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    question_count = stripped.count("?")
+    replacement_count = stripped.count("�")
+    if question_count >= 8 and question_count / max(len(stripped), 1) >= 0.18:
+        return True
+    if replacement_count >= 2:
+        return True
+    return False
+
+
+def clean_team_prompt_text(text: str) -> str:
+    """Remove common mojibake fragments from stored team instructions."""
+    return "\n".join(
+        line for line in (text or "").splitlines() if not _looks_like_corrupted_prompt_line(line)
+    ).strip()
+
+
 DELEGATION_HELPER = """\
 ## Delegation Helper
 Before calling `task`, classify the assignment and write a compact structured task brief.
@@ -179,7 +200,7 @@ def build_team_router_system_prompt(
     role_summaries: dict[str, str] | None = None,
 ) -> str:
     """Build the router system prompt for a concrete team."""
-    team_instructions = (getattr(team, "team_instructions", "") or "").strip()
+    team_instructions = clean_team_prompt_text(getattr(team, "team_instructions", "") or "")
     team_instructions_section = (
         f"## Team Instructions\n{team_instructions}" if team_instructions else ""
     )
