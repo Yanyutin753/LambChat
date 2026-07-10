@@ -613,7 +613,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
             "icon": "Users",
             "sort_order": 15,
             "category": "agent_team:team-builder",
-            "required_permissions": ["team:read"],
+            "required_permissions": ["team:read", "mcp:read"],
         }
     ]
     assert {tool["name"] for tool in agent_team["tools"]} == {

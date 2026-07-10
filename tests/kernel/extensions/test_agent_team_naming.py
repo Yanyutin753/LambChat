@@ -99,7 +99,10 @@ def test_agent_team_manifest_declares_plugin_owned_team_agent_entry() -> None:
 
     assert [agent.id for agent in manifest.agents] == ["team"]
     assert manifest.agents[0].module == "./backend/runtime/graph.py:TeamAgent"
-    assert manifest.agents[0].required_permissions == [Permission.TEAM_READ.value]
+    assert manifest.agents[0].required_permissions == [
+        Permission.TEAM_READ.value,
+        Permission.MCP_READ.value,
+    ]
 
 
 def test_agent_team_declares_chat_input_and_mention_contributions() -> None:
