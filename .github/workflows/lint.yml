@@ -141,6 +141,13 @@ jobs:
       - name: Run backend tests
         run: uv run pytest
 
+      - name: Enforce critical backend coverage
+        run: >-
+          uv run pytest tests/api/routes/test_plugin_runtime_packages.py
+          --cov=src.api.routes.plugin_runtime_packages
+          --cov-report=term-missing
+          --cov-fail-under=95
+
   # Prevent bulky generated artifacts and oversized source files
   large-files:
     name: Large File Check
@@ -228,8 +235,8 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: frontend
 
-      - name: Run frontend tests
-        run: pnpm test
+      - name: Run frontend tests with coverage
+        run: pnpm run test:coverage
         working-directory: frontend
 
   frontend-audit:

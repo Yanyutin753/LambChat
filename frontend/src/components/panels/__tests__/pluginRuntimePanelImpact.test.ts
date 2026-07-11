@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const readPanelSources = () =>
   [
     "../PluginRuntimePanel.tsx",
+    "../PluginRuntimeOverview.tsx",
     "../pluginRuntimePanelUtils.ts",
     "../pluginRuntimeImpactSummary.ts",
   ]

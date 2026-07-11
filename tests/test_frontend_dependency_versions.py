@@ -55,6 +55,23 @@ def test_frontend_production_build_is_exercised_in_ci() -> None:
     assert build_steps[0]["env"]["NODE_OPTIONS"] == "--max-old-space-size=4096"
 
 
+def test_frontend_coverage_thresholds_are_exercised_in_ci() -> None:
+    package_json = json.loads((FRONTEND_DIR / "package.json").read_text())
+    assert package_json["scripts"]["test:coverage"] == "vitest run --coverage"
+
+    config = (FRONTEND_DIR / "vitest.config.ts").read_text(encoding="utf-8")
+    for threshold in ("statements: 12", "branches: 12", "functions: 12", "lines: 13"):
+        assert threshold in config
+
+    workflow = yaml.safe_load(LINT_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["frontend-tests"]["steps"]
+    coverage_steps = [
+        step for step in steps if step.get("name") == "Run frontend tests with coverage"
+    ]
+    assert len(coverage_steps) == 1
+    assert coverage_steps[0]["run"] == "pnpm run test:coverage"
+
+
 def test_ci_quality_gates_cover_plugins_and_distribution() -> None:
     workflow = yaml.safe_load(LINT_WORKFLOW_PATH.read_text(encoding="utf-8"))
     jobs = workflow["jobs"]
@@ -68,6 +85,14 @@ def test_ci_quality_gates_cover_plugins_and_distribution() -> None:
 
     wheel_runs = [step.get("run") for step in jobs["wheel-build"]["steps"]]
     assert "uv build --wheel" in wheel_runs
+
+    backend_steps = jobs["backend-tests"]["steps"]
+    coverage_steps = [
+        step for step in backend_steps if step.get("name") == "Enforce critical backend coverage"
+    ]
+    assert len(coverage_steps) == 1
+    assert "--cov=src.api.routes.plugin_runtime_packages" in coverage_steps[0]["run"]
+    assert "--cov-fail-under=95" in coverage_steps[0]["run"]
 
 
 def test_production_dependencies_are_audited_in_ci() -> None:
