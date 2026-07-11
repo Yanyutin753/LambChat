@@ -6,18 +6,21 @@ Team Agent 节点 - 团队路由，角色分派
 
 import io
 import json
-import os
 import time
 import uuid
 import zipfile
 from types import SimpleNamespace
 from typing import Any, Dict
-from urllib.parse import unquote, urlparse
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
 from langchain_core.runnables import RunnableConfig
 
+from plugins.system.agent_team.backend.runtime.asset_delivery import (
+    AssetDeliveryEvidence,
+    reveal_project_files,
+    uploaded_file_path_from_url,
+)
 from plugins.system.agent_team.backend.runtime.context import TeamAgentContext
 from plugins.system.agent_team.backend.runtime.prompt import (
     build_team_member_subagent_type,
@@ -239,8 +242,10 @@ def _looks_like_unreadable_user_input(user_input: Any) -> bool:
     if replacement_count >= 2:
         return True
     visible = "".join(char for char in text if not char.isspace())
-    if len(visible) >= 8 and not _contains_cjk(visible) and not any(
-        char.isalnum() for char in visible
+    if (
+        len(visible) >= 8
+        and not _contains_cjk(visible)
+        and not any(char.isalnum() for char in visible)
     ):
         return True
     return False
@@ -998,19 +1003,8 @@ def _default_full_asset_scenes() -> list[dict[str, str]]:
     ]
 
 
-def _uploaded_file_path_from_url(url: str) -> str | None:
-    parsed = urlparse(url)
-    marker = "/api/upload/file/"
-    if marker not in parsed.path:
-        return None
-    key = unquote(parsed.path.split(marker, 1)[1])
-    if not key or key.startswith("../") or "/../" in key:
-        return None
-    return os.path.join("/app/uploads", key)
-
-
 def _read_uploaded_file_url_bytes(url: str) -> bytes:
-    local_path = _uploaded_file_path_from_url(url)
+    local_path = uploaded_file_path_from_url(url)
     if not local_path:
         raise ValueError(f"unsupported generated image URL: {url}")
     with open(local_path, "rb") as file_obj:
@@ -1321,11 +1315,16 @@ async def _create_and_reveal_full_asset_package_fallback(
             }
         )
 
-    try:
-        reveal_data = json.loads(reveal_result)
-    except Exception:
-        reveal_data = {"raw": reveal_result}
-    file_count = len(reveal_data.get("files", {}) or reveal_data.get("files_manifest", {}) or {})
+    revealed_files, reveal_error = reveal_project_files(reveal_result)
+    file_count = len(revealed_files)
+    if reveal_error:
+        return (
+            "完整抖音策划素材包已部分完成，但项目目录交付失败。\n\n"
+            f"- reveal_project 失败：{reveal_error}\n"
+            f"- 已写入素材文件：{len(files)} 个\n"
+            f"- 首帧图：{len(generated_images)}/{len(scenes)} 成功\n"
+            "- 未声称下载包已交付；未使用占位图冒充首帧图。"
+        )
     completion_label = "完整交付" if len(generated_images) == len(scenes) else "部分交付"
     failed_scene_count = len(image_failures)
     failure_note = (
@@ -1367,6 +1366,7 @@ async def _run_forced_team_delegation(
     config: RunnableConfig,
     delegated_subagent_names: set[str] | None = None,
     completed_full_asset_stages: set[str] | None = None,
+    delivery_evidence: AssetDeliveryEvidence | None = None,
 ) -> int:
     if reason == "full_asset_package":
         completed_stages = completed_full_asset_stages or set()
@@ -1516,6 +1516,8 @@ async def _run_forced_team_delegation(
                     event,
                     checkpoint_root=forced_checkpoint_root,
                 )
+                if delivery_evidence is not None:
+                    delivery_evidence.observe(contextual_event)
                 if not _should_suppress_public_text_event(
                     contextual_event,
                     reason=reason,
@@ -1559,24 +1561,30 @@ async def _run_forced_team_delegation(
         previous_results.append((role_name, result_text))
         emitted_results.append((role_name, result_text))
 
-    # Full asset package delivery must be backed by real tool events. Text from
-    # a subagent is not enough to prove that files were written and revealed.
+    # Full asset package delivery must be backed by real tool events. Preserve
+    # an existing delivery attempt instead of replacing it with a generic package.
     if reason == "full_asset_package":
-        try:
-            fallback_text = await _create_and_reveal_full_asset_package_fallback(
-                team=team,
-                user_input=user_input,
-                backend=backend,
-                context=context,
-                presenter=presenter,
-                event_processor=event_processor,
-                configurable=configurable,
-            )
-        except Exception as exc:
-            logger.exception("[TeamAgent] Full asset package fallback delivery failed")
-            fallback_text = f"完整素材包兜底交付失败：{exc}"
-        previous_results.append(("agent_team deterministic delivery fallback", fallback_text))
-        emitted_results.append(("agent_team deterministic delivery fallback", fallback_text))
+        evidence = delivery_evidence or AssetDeliveryEvidence()
+        if evidence.has_delivery_attempt:
+            delivery_result_label = "agent_team verified delivery"
+            fallback_text = evidence.public_summary()
+        else:
+            delivery_result_label = "agent_team deterministic delivery fallback"
+            try:
+                fallback_text = await _create_and_reveal_full_asset_package_fallback(
+                    team=team,
+                    user_input=user_input,
+                    backend=backend,
+                    context=context,
+                    presenter=presenter,
+                    event_processor=event_processor,
+                    configurable=configurable,
+                )
+            except Exception as exc:
+                logger.exception("[TeamAgent] Full asset package fallback delivery failed")
+                fallback_text = f"完整素材包兜底交付失败：{exc}"
+        previous_results.append((delivery_result_label, fallback_text))
+        emitted_results.append((delivery_result_label, fallback_text))
 
     if emitted_results:
         if reason == "full_asset_package":
@@ -2278,6 +2286,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         team=team,
         user_input=user_input,
     )
+    delivery_evidence = (
+        AssetDeliveryEvidence() if required_delegation_reason == "full_asset_package" else None
+    )
     try:
         async with isolated_nested_graph_run():
             for attempt in range(1, _TEAM_ROUTER_DELEGATION_ATTEMPTS + 1):
@@ -2309,6 +2320,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         completed_full_asset_stages.update(
                             _collect_full_asset_package_stages_from_event(event)
                         )
+                    if delivery_evidence is not None:
+                        delivery_evidence.observe(event)
                     if not _should_suppress_public_text_event(
                         event,
                         reason=required_delegation_reason,
@@ -2375,6 +2388,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     config=config,
                     delegated_subagent_names=delegated_team_subagent_names,
                     completed_full_asset_stages=completed_full_asset_stages,
+                    delivery_evidence=delivery_evidence,
                 )
                 team_delegation_event_count += forced_count
                 delegated_team_subagent_names.update(
