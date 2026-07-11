@@ -104,6 +104,10 @@ function applyPluginOptionValues(
       nextPayload = withPluginOption(nextPayload, pluginId, key, value);
     }
   }
+  if (Object.keys(pluginOptionsFromMetadata(nextPayload)).length === 0) {
+    nextPayload = { ...nextPayload };
+    delete nextPayload.plugin_options;
+  }
   return nextPayload;
 }
 

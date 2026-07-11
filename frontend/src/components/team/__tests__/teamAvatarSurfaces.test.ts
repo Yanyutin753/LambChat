@@ -44,13 +44,10 @@ test("team avatar component supports team, default-role, and generic fallback ic
 });
 
 test("all team selection surfaces render team avatars consistently", () => {
-  assert.match(wrapperSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
-  assert.match(pickerSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
-  assert.doesNotMatch(welcomePageSource, /<TeamAvatar/);
-  assert.match(welcomeSurfaceRendererSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
-  assert.doesNotMatch(toolbarSource, /<TeamAvatar/);
-  assert.match(
-    selectedRendererSource,
-    /<TeamAvatar[\s\S]*avatar=\{selectedTeam\?\.avatar\}/,
-  );
+  expect(wrapperSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  expect(pickerSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  expect(welcomePageSource).not.toMatch(/<TeamAvatar/);
+  expect(welcomeSurfaceRendererSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  expect(toolbarSource).not.toMatch(/<TeamAvatar/);
+  expect(selectedRendererSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{selectedTeam\?\.avatar\}/);
 });

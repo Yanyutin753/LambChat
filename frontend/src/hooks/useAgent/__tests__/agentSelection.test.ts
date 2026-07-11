@@ -21,35 +21,26 @@ test("replaces an unavailable current agent with the first available agent", () 
 });
 
 test("persona mode keeps the current non-plugin agent", () => {
-  assert.equal(resolvePersonaAgentId("fast", "search", agents), "fast");
+  expect(resolvePersonaAgentId("fast", "search", agents)).toBe("fast");
 });
 
 test("persona mode switches an excluded plugin agent to the preferred non-plugin default", () => {
-  assert.equal(
-    resolvePersonaAgentId("team", "fast", [
+  expect(resolvePersonaAgentId("team", "fast", [
       { id: "team", name: "Team", description: "", version: "1.0.0" },
       ...agents,
-    ], ["team"]),
-    "fast",
-  );
+    ], ["team"])).toBe("fast");
 });
 
 test("persona mode switches an excluded plugin agent to the first non-plugin agent when needed", () => {
-  assert.equal(
-    resolvePersonaAgentId("team", "team", [
+  expect(resolvePersonaAgentId("team", "team", [
       { id: "team", name: "Team", description: "", version: "1.0.0" },
       ...agents,
-    ], ["team"]),
-    "search",
-  );
+    ], ["team"])).toBe("search");
 });
 
 test("persona mode can exclude any plugin-owned agent id", () => {
-  assert.equal(
-    resolvePersonaAgentId("plugin_agent", "plugin_agent", [
+  expect(resolvePersonaAgentId("plugin_agent", "plugin_agent", [
       { id: "plugin_agent", name: "Plugin Agent", description: "", version: "1.0.0" },
       ...agents,
-    ], ["plugin_agent"]),
-    "search",
-  );
+    ], ["plugin_agent"])).toBe("search");
 });

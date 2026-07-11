@@ -9,7 +9,10 @@ function extractFunctionBody(name: string): string {
   const start = appSource.indexOf(`function ${name}(`);
   expect(start).not.toBe(-1);
 
-  const firstBrace = appSource.indexOf("{", start);
+  const signatureEnd = appSource.indexOf(") {", start);
+  expect(signatureEnd).not.toBe(-1);
+
+  const firstBrace = appSource.indexOf("{", signatureEnd);
   expect(firstBrace).not.toBe(-1);
 
   let depth = 0;
@@ -30,7 +33,9 @@ test("keeps chat page title updates isolated from the chat UI tree", () => {
 
   expect(appSource).toMatch(/function ChatPageSEO\(/);
   expect(chatPageBody).toMatch(/<ChatPageSEO \/>/);
-  expect(chatPageBody).toMatch(/<AppContent key="chat" activeTab="chat" \/>/);
+  expect(chatPageBody).toMatch(
+    /<AppContent key="chat" activeTab="chat" runtimePlugins=\{runtimePlugins\} \/>/,
+  );
   expect(chatPageBody).not.toMatch(/useState<.*sessionName|setSessionName/);
   expect(chatPageBody).not.toMatch(/listenSessionTitleUpdated|sessionApi\.get/);
 });

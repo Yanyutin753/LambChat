@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   collectPluginPermissions,
   ExtensionRegistry,
@@ -29,15 +26,15 @@ test("extension registry registers, filters, and dedupes permissions", () => {
     enabled: false,
   });
 
-  assert.deepEqual(registry.list({ type: "skill" }).map((item) => item.id), [
+  expect(registry.list({ type: "skill" }).map((item) => item.id)).toEqual([
     "skills",
   ]);
-  assert.deepEqual(registry.list({ enabled: false }).map((item) => item.id), [
+  expect(registry.list({ enabled: false }).map((item) => item.id)).toEqual([
     "feedback",
   ]);
-  assert.deepEqual(registry.get("skills")?.tags, ["core"]);
-  assert.deepEqual(registry.permissions(), ["skill:read", "skill:write"]);
-  assert.deepEqual(registry.permissions({ enabledOnly: false }), [
+  expect(registry.get("skills")?.tags).toEqual(["core"]);
+  expect(registry.permissions()).toEqual(["skill:read", "skill:write"]);
+  expect(registry.permissions({ enabledOnly: false })).toEqual([
     "skill:read",
     "skill:write",
     "feedback:read",
@@ -69,9 +66,9 @@ test("extension registry accepts reserved future extension types", () => {
     },
   ]);
 
-  assert.equal(registry.get("pdf-viewer")?.type, "file_viewer");
-  assert.equal(registry.get("agent-team")?.type, "agent_team");
-  assert.equal(registry.get("user-agent")?.type, "user_agent");
+  expect(registry.get("pdf-viewer")?.type).toBe("file_viewer");
+  expect(registry.get("agent-team")?.type).toBe("agent_team");
+  expect(registry.get("user-agent")?.type).toBe("user_agent");
 });
 
 test("registries reject duplicate ids", () => {
@@ -183,33 +180,33 @@ test("plugin registry exposes route, panel, nav, settings, renderer, i18n, and p
     },
   ]);
 
-  assert.deepEqual(registry.list({ enabled: true }).map((plugin) => plugin.id), [
+  expect(registry.list({ enabled: true }).map((plugin) => plugin.id)).toEqual([
     "feedback",
   ]);
-  assert.deepEqual(registry.routes().map((route) => route.id), ["feedback-route"]);
-  assert.deepEqual(registry.panels().map((panel) => panel.id), ["feedback-panel"]);
-  assert.deepEqual(registry.navItems().map((item) => item.id), ["feedback-nav"]);
-  assert.deepEqual(registry.routes({ enabled: false }).map((route) => route.id), [
+  expect(registry.routes().map((route) => route.id)).toEqual(["feedback-route"]);
+  expect(registry.panels().map((panel) => panel.id)).toEqual(["feedback-panel"]);
+  expect(registry.navItems().map((item) => item.id)).toEqual(["feedback-nav"]);
+  expect(registry.routes({ enabled: false }).map((route) => route.id)).toEqual([
     "audio-route",
   ]);
-  assert.deepEqual(registry.panels({ enabled: false }).map((panel) => panel.id), [
+  expect(registry.panels({ enabled: false }).map((panel) => panel.id)).toEqual([
     "audio-panel",
   ]);
-  assert.deepEqual(registry.navItems({ enabled: false }).map((item) => item.id), [
+  expect(registry.navItems({ enabled: false }).map((item) => item.id)).toEqual([
     "audio-nav",
   ]);
-  assert.deepEqual(registry.settingsSections(), ["feedback:settings"]);
-  assert.deepEqual(registry.toolRenderers(), ["feedback.summary"]);
-  assert.deepEqual(registry.i18nNamespaces(), ["feedback"]);
-  assert.deepEqual(registry.settingsSections({ enabled: false }), ["audio:settings"]);
-  assert.deepEqual(registry.toolRenderers({ enabled: false }), ["audio.transcribe"]);
-  assert.deepEqual(registry.i18nNamespaces({ enabled: false }), ["audio"]);
-  assert.deepEqual(registry.permissions(), [
+  expect(registry.settingsSections()).toEqual(["feedback:settings"]);
+  expect(registry.toolRenderers()).toEqual(["feedback.summary"]);
+  expect(registry.i18nNamespaces()).toEqual(["feedback"]);
+  expect(registry.settingsSections({ enabled: false })).toEqual(["audio:settings"]);
+  expect(registry.toolRenderers({ enabled: false })).toEqual(["audio.transcribe"]);
+  expect(registry.i18nNamespaces({ enabled: false })).toEqual(["audio"]);
+  expect(registry.permissions()).toEqual([
     "feedback:read",
     "feedback:write",
     "feedback:admin",
   ]);
-  assert.deepEqual(registry.permissions({ enabledOnly: false }), [
+  expect(registry.permissions({ enabledOnly: false })).toEqual([
     "feedback:read",
     "feedback:write",
     "feedback:admin",
@@ -252,9 +249,9 @@ test("plugin registry hides disabled route, panel, and nav contributions", () =>
     },
   ]);
 
-  assert.deepEqual(registry.routes().map((route) => route.id), []);
-  assert.deepEqual(registry.panels().map((panel) => panel.id), []);
-  assert.deepEqual(registry.navItems().map((item) => item.id), []);
+  expect(registry.routes().map((route) => route.id)).toEqual([]);
+  expect(registry.panels().map((panel) => panel.id)).toEqual([]);
+  expect(registry.navItems().map((item) => item.id)).toEqual([]);
 });
 
 test("plugin nav items are ordered without mutating registration state", () => {
@@ -271,8 +268,8 @@ test("plugin nav items are ordered without mutating registration state", () => {
     },
   ]);
 
-  assert.deepEqual(registry.navItems().map((item) => item.id), ["first", "later"]);
-  assert.deepEqual(registry.get("plugin-a")?.navItems?.map((item) => item.id), [
+  expect(registry.navItems().map((item) => item.id)).toEqual(["first", "later"]);
+  expect(registry.get("plugin-a")?.navItems?.map((item) => item.id)).toEqual([
     "later",
     "first",
   ]);
@@ -302,16 +299,15 @@ test("plugin registry converts plugins to extension manifests", () => {
   const extensions = registry.asExtensionRegistry({ publisher: "LambChat" });
   const extension = extensions.get("agent-team");
 
-  assert.equal(extension?.type, "plugin");
-  assert.equal(extension?.publisher, "LambChat");
-  assert.equal(extension?.enabled, false);
-  assert.deepEqual(extension?.permissions, ["team:read", "team:write"]);
-  assert.equal(extension?.compatibility?.apiVersion, "v1");
+  expect(extension?.type).toBe("plugin");
+  expect(extension?.publisher).toBe("LambChat");
+  expect(extension?.enabled).toBe(false);
+  expect(extension?.permissions).toEqual(["team:read", "team:write"]);
+  expect(extension?.compatibility?.apiVersion).toBe("v1");
 });
 
 test("collectPluginPermissions dedupes top-level and contribution permissions", () => {
-  assert.deepEqual(
-    collectPluginPermissions({
+  expect(collectPluginPermissions({
       id: "feedback",
       name: "Feedback",
       version: "1.0.0",
@@ -325,7 +321,5 @@ test("collectPluginPermissions dedupes top-level and contribution permissions", 
           requiredPermissions: ["feedback:write", ""],
         },
       ],
-    }),
-    ["feedback:read", "feedback:write"],
-  );
+    })).toEqual(["feedback:read", "feedback:write"]);
 });

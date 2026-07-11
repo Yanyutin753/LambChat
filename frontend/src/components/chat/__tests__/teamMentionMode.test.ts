@@ -9,33 +9,30 @@ const mentionProviderRenderersSource = readFileSync(
 );
 
 test("team agent mention switches teams instead of persona presets", () => {
-  assert.doesNotMatch(chatInputSource, /useTeamMentionSearch/);
-  assert.doesNotMatch(chatInputSource, /TeamMentionPopup/);
-  assert.match(chatInputSource, /buildMentionProviderContributions/);
-  assert.match(chatInputSource, /isPluginMentionProviderSupported/);
-  assert.match(chatInputSource, /usePluginMentionProviderRuntime/);
-  assert.match(chatInputSource, /const mentionMode = activePluginMentionProvider\?\.mode \?\? "persona"/);
-  assert.doesNotMatch(chatInputSource, /currentAgent === "team"[\s\S]*\? "team"[\s\S]*: "persona"/);
-  assert.doesNotMatch(chatInputSource, /applyTeamMentionSelection/);
-  assert.match(mentionProviderRenderersSource, /useTeamMentionSearch/);
-  assert.match(mentionProviderRenderersSource, /provider\.provider === "agent_team\.searchTeams"/);
-  assert.match(mentionProviderRenderersSource, /provider\.optionBinding/);
-  assert.match(mentionProviderRenderersSource, /optionBinding\.pluginId,\s*optionBinding\.key,\s*team\.id/);
-  assert.doesNotMatch(mentionProviderRenderersSource, /AGENT_TEAM_PLUGIN_ID|AGENT_TEAM_SELECTED_TEAM_OPTION/);
-  assert.doesNotMatch(mentionProviderRenderersSource, /onSelectTeam/);
-  assert.doesNotMatch(chatInputSource, /isPluginMentionProviderSupported\(provider, \{[\s\S]*onSelectTeam/);
-  assert.match(chatInputSource, /onPluginOptionChange: handlePluginOptionChange/);
-  assert.match(mentionProviderRenderersSource, /<TeamMentionPopup/);
-  assert.match(mentionProviderRenderersSource, /mode: provider\.mode/);
-  assert.match(chatInputSource, /mentionMode === "persona"/);
+  expect(chatInputSource).not.toMatch(/useTeamMentionSearch/);
+  expect(chatInputSource).not.toMatch(/TeamMentionPopup/);
+  expect(chatInputSource).toMatch(/buildMentionProviderContributions/);
+  expect(chatInputSource).toMatch(/isPluginMentionProviderSupported/);
+  expect(chatInputSource).toMatch(/usePluginMentionProviderRuntime/);
+  expect(chatInputSource).toMatch(/const mentionMode:[\s\S]*activePluginMentionProvider\?\.mode === "team" \? "team" : "persona"/);
+  expect(chatInputSource).not.toMatch(/currentAgent === "team"[\s\S]*\? "team"[\s\S]*: "persona"/);
+  expect(chatInputSource).not.toMatch(/applyTeamMentionSelection/);
+  expect(mentionProviderRenderersSource).toMatch(/useTeamMentionSearch/);
+  expect(mentionProviderRenderersSource).toMatch(/provider\.provider === "agent_team\.searchTeams"/);
+  expect(mentionProviderRenderersSource).toMatch(/provider\.optionBinding/);
+  expect(mentionProviderRenderersSource).toMatch(/optionBinding\.pluginId,\s*optionBinding\.key,\s*team\.id/);
+  expect(mentionProviderRenderersSource).not.toMatch(/AGENT_TEAM_PLUGIN_ID|AGENT_TEAM_SELECTED_TEAM_OPTION/);
+  expect(mentionProviderRenderersSource).not.toMatch(/onSelectTeam/);
+  expect(chatInputSource).not.toMatch(/isPluginMentionProviderSupported\(provider, \{[\s\S]*onSelectTeam/);
+  expect(chatInputSource).toMatch(/onPluginOptionChange: handlePluginOptionChange/);
+  expect(mentionProviderRenderersSource).toMatch(/<TeamMentionPopup/);
+  expect(mentionProviderRenderersSource).toMatch(/mode: provider\.mode/);
+  expect(chatInputSource).toMatch(/mentionMode === "persona"/);
 });
 
 test("team agent placeholder says @ switches teams", () => {
-  assert.match(mentionProviderRenderersSource, /chat\.teamPlaceholder/);
-  assert.match(
-    chatInputSource,
-    /pluginMentionRuntime\?\.placeholderKey[\s\S]*t\(pluginMentionRuntime\.placeholderKey\)/,
-  );
+  expect(mentionProviderRenderersSource).toMatch(/chat\.teamPlaceholder/);
+  expect(chatInputSource).toMatch(/pluginMentionRuntime\?\.placeholderKey[\s\S]*t\(pluginMentionRuntime\.placeholderKey\)/);
 });
 
 test("team agent can submit without selecting an existing team", () => {

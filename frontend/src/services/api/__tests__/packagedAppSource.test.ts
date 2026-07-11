@@ -128,15 +128,9 @@ test("API modules share the normalized API base configuration", () => {
   const feedbackCompatibility = readSource("../feedback.ts");
   const notification = readSource("../notification.ts");
 
-  assert.match(
-    feedback,
-    /import \{ API_BASE \} from "\.\.\/\.\.\/services\/api\/config"/,
-  );
-  assert.match(
-    feedbackCompatibility,
-    /export \{ feedbackApi \} from "\.\.\/\.\.\/plugins\/feedback\/api"/,
-  );
-  assert.match(notification, /import \{ API_BASE \} from "\.\/config"/);
-  assert.doesNotMatch(feedback, /import\.meta\.env\.VITE_API_BASE/);
-  assert.doesNotMatch(notification, /import\.meta\.env\.VITE_API_BASE/);
+  expect(feedback).toMatch(/import \{ API_BASE \} from "\.\.\/\.\.\/services\/api\/config"/);
+  expect(feedbackCompatibility).toMatch(/export \{ feedbackApi \} from "\.\.\/\.\.\/plugins\/feedback\/api"/);
+  expect(notification).toMatch(/import \{ API_BASE \} from "\.\/config"/);
+  expect(feedback).not.toMatch(/import\.meta\.env\.VITE_API_BASE/);
+  expect(notification).not.toMatch(/import\.meta\.env\.VITE_API_BASE/);
 });

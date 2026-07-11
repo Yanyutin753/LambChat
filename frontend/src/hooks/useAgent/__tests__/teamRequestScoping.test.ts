@@ -10,68 +10,47 @@ const typesSource = readFileSync(
 );
 
 test("submits session plugin options from active plugin declarations", () => {
-  assert.match(source, /const isCurrentAgentAvailable = useCallback/);
-  assert.match(source, /agents\.some\(\(agent\) => agent\.id === agentId\)/);
-  assert.match(source, /const currentSessionOptionContributions = useMemo/);
-  assert.match(source, /buildSessionOptionContributions\(options\?\.runtimePlugins/);
-  assert.match(
-    source,
-    /retainPluginOptionsForDeclarations\([\s\S]*sessionOptionSeed,[\s\S]*currentSessionOptionContributions[\s\S]*\)/,
-  );
-  assert.match(source, /importLegacyPayloadPluginOptions/);
-  assert.match(source, /legacyPayloadKeysForPluginOption/);
-  assert.doesNotMatch(source, /isCurrentAgentAvailable\(AGENT_TEAM_LEGACY_AGENT_ID\)/);
-  assert.doesNotMatch(source, /currentAgent === AGENT_TEAM_LEGACY_AGENT_ID/);
-  assert.doesNotMatch(source, /canUseCurrentTeamAgent/);
-  assert.match(
-    source,
-    /const canUseLegacyTeamField =[\s\S]*selectedTeamId[\s\S]*isCurrentAgentAvailable\(currentAgent\)[\s\S]*hasAgentCatalogEntryContribution\(currentAgent, options\?\.runtimePlugins\)/,
-  );
-  assert.match(
-    source,
-    /const requestTeamId = canUseLegacyTeamField && Object\.keys\(requestPluginOptions\)\.length === 0[\s\S]*\?[\s\S]*selectedTeamId[\s\S]*:[\s\S]*null/,
-  );
-  assert.match(
-    source,
-    /const sessionOptionSeed = importLegacyPayloadPluginOptions\([\s\S]*plugin_options: sessionPluginOptions,[\s\S]*team_id: legacyTeamId \?\? undefined,[\s\S]*currentSessionOptionContributions,[\s\S]*sessionPluginOptions[\s\S]*\)/,
-  );
-  assert.doesNotMatch(source, /withSelectedAgentTeamId/);
-  assert.match(
-    source,
-    /requestTeamId,[\s\S]*requestPluginOptions,[\s\S]*goalForRun/,
-  );
+  expect(source).toMatch(/const isCurrentAgentAvailable = useCallback/);
+  expect(source).toMatch(/agents\.some\(\(agent\) => agent\.id === agentId\)/);
+  expect(source).toMatch(/const currentSessionOptionContributions = useMemo/);
+  expect(source).toMatch(/buildSessionOptionContributions\(options\?\.runtimePlugins/);
+  expect(source).toMatch(/retainPluginOptionsForDeclarations\([\s\S]*sessionOptionSeed,[\s\S]*currentSessionOptionContributions[\s\S]*\)/);
+  expect(source).toMatch(/importLegacyPayloadPluginOptions/);
+  expect(source).toMatch(/legacyPayloadKeysForPluginOption/);
+  expect(source).not.toMatch(/isCurrentAgentAvailable\(AGENT_TEAM_LEGACY_AGENT_ID\)/);
+  expect(source).not.toMatch(/currentAgent === AGENT_TEAM_LEGACY_AGENT_ID/);
+  expect(source).not.toMatch(/canUseCurrentTeamAgent/);
+  expect(source).toMatch(/const canUseLegacyTeamField =[\s\S]*selectedTeamId[\s\S]*isCurrentAgentAvailable\(currentAgent\)[\s\S]*hasAgentCatalogEntryContribution\(currentAgent, options\?\.runtimePlugins\)/);
+  expect(source).toMatch(/const requestTeamId = canUseLegacyTeamField && Object\.keys\(requestPluginOptions\)\.length === 0[\s\S]*\?[\s\S]*selectedTeamId[\s\S]*:[\s\S]*null/);
+  expect(source).toMatch(/const sessionOptionSeed = importLegacyPayloadPluginOptions\([\s\S]*plugin_options: sessionPluginOptions,[\s\S]*team_id: legacyTeamId \?\? undefined,[\s\S]*currentSessionOptionContributions,[\s\S]*sessionPluginOptions[\s\S]*\)/);
+  expect(source).not.toMatch(/withSelectedAgentTeamId/);
+  expect(source).toMatch(/requestTeamId,[\s\S]*requestPluginOptions,[\s\S]*goalForRun/);
 });
 
 test("stores Agent Team optimistic session metadata only under plugin options", () => {
-  assert.doesNotMatch(source, /conversationConfig\.team_id\s*=\s*selectedTeamId/);
-  assert.doesNotMatch(source, /conversationConfig\.team_id\s*=\s*requestTeamId/);
-  assert.match(source, /conversationConfig\.plugin_options = requestPluginOptions/);
-  assert.match(source, /isCurrentAgentAvailable,/);
-  assert.match(source, /hasAgentCatalogEntryContribution/);
-  assert.match(source, /currentSessionOptionContributions,/);
+  expect(source).not.toMatch(/conversationConfig\.team_id\s*=\s*selectedTeamId/);
+  expect(source).not.toMatch(/conversationConfig\.team_id\s*=\s*requestTeamId/);
+  expect(source).toMatch(/conversationConfig\.plugin_options = requestPluginOptions/);
+  expect(source).toMatch(/isCurrentAgentAvailable,/);
+  expect(source).toMatch(/hasAgentCatalogEntryContribution/);
+  expect(source).toMatch(/currentSessionOptionContributions,/);
 });
 
 test("keeps Team selection writes in the plugin namespace rather than optimistic legacy metadata", () => {
-  assert.match(source, /const \[legacyTeamId, setLegacyTeamId\]/);
-  assert.match(
-    source,
-    /const selectedTeamId = selectedAgentTeamIdFromMetadata\([\s\S]*plugin_options: sessionPluginOptions,[\s\S]*team_id: legacyTeamId \?\? undefined/,
-  );
-  assert.match(source, /const \[sessionPluginOptions, setSessionPluginOptions\]/);
-  assert.match(source, /const setSessionPluginOption = useCallback/);
-  assert.match(source, /setSessionPluginOptions\(\(current\) =>/);
-  assert.match(source, /withPluginOption\([\s\S]*pluginId,[\s\S]*key,[\s\S]*value/);
-  assert.match(
-    source,
-    /legacyPayloadKeysForPluginOption\(option\)\.includes\("team_id"\)/,
-  );
-  assert.doesNotMatch(source, /isAgentTeamSelectedTeamOption\(pluginId, key\)/);
-  assert.match(source, /setLegacyTeamId\(null\)/);
-  assert.doesNotMatch(source, /selectTeam = useCallback/);
-  assert.doesNotMatch(typesSource, /selectTeam:/);
-  assert.match(source, /requestPluginOptions/);
-  assert.match(source, /plugin_options: requestPluginOptions|conversationConfig\.plugin_options = requestPluginOptions/);
-  assert.doesNotMatch(source, /team_id:\s*requestTeamId/);
-  assert.doesNotMatch(source, /metadata:\s*{[\s\S]*team_id:\s*selectedTeamId/);
-  assert.doesNotMatch(source, /submitChat\([\s\S]*team_id:\s*selectedTeamId/);
+  expect(source).toMatch(/const \[legacyTeamId, setLegacyTeamId\]/);
+  expect(source).toMatch(/const selectedTeamId = selectedAgentTeamIdFromMetadata\([\s\S]*plugin_options: sessionPluginOptions,[\s\S]*team_id: legacyTeamId \?\? undefined/);
+  expect(source).toMatch(/const \[sessionPluginOptions, setSessionPluginOptions\]/);
+  expect(source).toMatch(/const setSessionPluginOption = useCallback/);
+  expect(source).toMatch(/setSessionPluginOptions\(\(current\) =>/);
+  expect(source).toMatch(/withPluginOption\([\s\S]*pluginId,[\s\S]*key,[\s\S]*value/);
+  expect(source).toMatch(/legacyPayloadKeysForPluginOption\(option\)\.includes\("team_id"\)/);
+  expect(source).not.toMatch(/isAgentTeamSelectedTeamOption\(pluginId, key\)/);
+  expect(source).toMatch(/setLegacyTeamId\(null\)/);
+  expect(source).not.toMatch(/selectTeam = useCallback/);
+  expect(typesSource).not.toMatch(/selectTeam:/);
+  expect(source).toMatch(/requestPluginOptions/);
+  expect(source).toMatch(/plugin_options: requestPluginOptions|conversationConfig\.plugin_options = requestPluginOptions/);
+  expect(source).not.toMatch(/team_id:\s*requestTeamId/);
+  expect(source).not.toMatch(/metadata:\s*{[\s\S]*team_id:\s*selectedTeamId/);
+  expect(source).not.toMatch(/submitChat\([\s\S]*team_id:\s*selectedTeamId/);
 });

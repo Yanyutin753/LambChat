@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -18,108 +16,108 @@ const readPanelSources = () =>
 test("plugin runtime panel exposes operator-facing impact sections", () => {
   const source = readPanelSources();
 
-  assert.match(source, /buildPluginRuntimeImpactSummary/);
-  assert.match(source, /activeEntries: plugin\.executable/);
-  assert.match(source, /blockedWhenDisabled/);
-  assert.match(source, /resourceActions/);
-  assert.match(source, /pluginRuntime\.contributionPreview\.disablePolicy/);
-  assert.match(source, /pluginRuntime\.contributionPreview\.uninstallPolicy/);
-  assert.match(source, /pluginRuntime\.runtimeSideEffect\.title/);
-  assert.match(source, /plugin\.runtime_side_effect\.status/);
-  assert.match(source, /sideEffectStatusClassName/);
-  assert.match(source, /action \$\{value\}/);
-  assert.match(source, /welcome surface \$\{value\}/);
-  assert.match(source, /asset slot \$\{value\}/);
-  assert.match(source, /i18n \$\{value\}/);
-  assert.match(source, /AcceptanceMatrixOverview/);
-  assert.match(source, /pluginRuntime\.acceptance\.title/);
-  assert.match(source, /data\?\.runtime\.acceptance_matrix/);
-  assert.match(source, /MigrationProgressOverview/);
-  assert.match(source, /pluginRuntime\.progress\.title/);
-  assert.match(source, /data\?\.runtime\.phase_progress/);
-  assert.match(source, /pluginRuntime\.feedbackMigration\.title/);
-  assert.match(source, /feedbackMigration\.gate_evidence/);
+  expect(source).toMatch(/buildPluginRuntimeImpactSummary/);
+  expect(source).toMatch(/activeEntries: plugin\.executable/);
+  expect(source).toMatch(/blockedWhenDisabled/);
+  expect(source).toMatch(/resourceActions/);
+  expect(source).toMatch(/pluginRuntime\.contributionPreview\.disablePolicy/);
+  expect(source).toMatch(/pluginRuntime\.contributionPreview\.uninstallPolicy/);
+  expect(source).toMatch(/pluginRuntime\.runtimeSideEffect\.title/);
+  expect(source).toMatch(/plugin\.runtime_side_effect\.status/);
+  expect(source).toMatch(/sideEffectStatusClassName/);
+  expect(source).toMatch(/action \$\{value\}/);
+  expect(source).toMatch(/welcome surface \$\{value\}/);
+  expect(source).toMatch(/asset slot \$\{value\}/);
+  expect(source).toMatch(/i18n \$\{value\}/);
+  expect(source).toMatch(/AcceptanceMatrixOverview/);
+  expect(source).toMatch(/pluginRuntime\.acceptance\.title/);
+  expect(source).toMatch(/data\?\.runtime\.acceptance_matrix/);
+  expect(source).toMatch(/MigrationProgressOverview/);
+  expect(source).toMatch(/pluginRuntime\.progress\.title/);
+  expect(source).toMatch(/data\?\.runtime\.phase_progress/);
+  expect(source).toMatch(/pluginRuntime\.feedbackMigration\.title/);
+  expect(source).toMatch(/feedbackMigration\.gate_evidence/);
 });
 
 test("plugin runtime panel shows a first-screen ownership overview", () => {
   const source = readPanelSources();
 
-  assert.match(source, /PluginOwnershipOverview/);
-  assert.match(source, /pluginContributionLabels/);
-  assert.match(source, /structuredFrontendDeclarationLabels/);
-  assert.match(source, /legacyFrontendDeclarationLabels/);
-  assert.match(source, /structuredFrontendContributionCount/);
-  assert.match(source, /legacyFrontendContributionCount/);
-  assert.match(source, /pluginRuntime\.ownership\.title/);
-  assert.match(source, /API \$\{route\.prefix\}/);
-  assert.match(source, /Agent \$\{agent\.id\}/);
-  assert.match(source, /App Tab \$\{value\.path \|\| value\.tab\}/);
-  assert.match(source, /App Panel \$\{value\.renderer\}/);
-  assert.match(source, /Sidebar \$\{value\.path\}/);
-  assert.match(source, /User Menu \$\{value\.path\}/);
-  assert.match(source, /formatChatInputOptionLabel\(value, "Chat Option"\)/);
-  assert.match(source, /suppresses core persona selector/);
-  assert.match(source, /Message Action \$\{value\.id\}/);
-  assert.match(source, /Mention \$\{value\.mode\}/);
-  assert.match(source, /Welcome Surface \$\{value\.renderer\}/);
-  assert.match(source, /Assistant Identity \$\{value\.resolver\}/);
-  assert.match(source, /Agent Category \$\{value\.id\}/);
-  assert.match(source, /Project Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /Session Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /Channel Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /Scheduled Task Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /formatToolRendererContribution/);
-  assert.match(source, /formatFileViewerContribution/);
-  assert.match(source, /formatSkillImporterContribution/);
-  assert.match(source, /formatChannelConnectorContribution/);
-  assert.match(source, /Importer \$\{formatSkillImporterContribution\(value\)\}/);
-  assert.match(source, /Connector \$\{formatChannelConnectorContribution\(value\)\}/);
-  assert.match(source, /Asset Slot \$\{value\}/);
-  assert.match(source, /Legacy UI/);
+  expect(source).toMatch(/PluginOwnershipOverview/);
+  expect(source).toMatch(/pluginContributionLabels/);
+  expect(source).toMatch(/structuredFrontendDeclarationLabels/);
+  expect(source).toMatch(/legacyFrontendDeclarationLabels/);
+  expect(source).toMatch(/structuredFrontendContributionCount/);
+  expect(source).toMatch(/legacyFrontendContributionCount/);
+  expect(source).toMatch(/pluginRuntime\.ownership\.title/);
+  expect(source).toMatch(/API \$\{route\.prefix\}/);
+  expect(source).toMatch(/Agent \$\{agent\.id\}/);
+  expect(source).toMatch(/App Tab \$\{value\.path \|\| value\.tab\}/);
+  expect(source).toMatch(/App Panel \$\{value\.renderer\}/);
+  expect(source).toMatch(/Sidebar \$\{value\.path\}/);
+  expect(source).toMatch(/User Menu \$\{value\.path\}/);
+  expect(source).toMatch(/formatChatInputOptionLabel\(value, "Chat Option"\)/);
+  expect(source).toMatch(/suppresses core persona selector/);
+  expect(source).toMatch(/Message Action \$\{value\.id\}/);
+  expect(source).toMatch(/Mention \$\{value\.mode\}/);
+  expect(source).toMatch(/Welcome Surface \$\{value\.renderer\}/);
+  expect(source).toMatch(/Assistant Identity \$\{value\.resolver\}/);
+  expect(source).toMatch(/Agent Category \$\{value\.id\}/);
+  expect(source).toMatch(/Project Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/Session Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/Channel Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/Scheduled Task Option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/formatToolRendererContribution/);
+  expect(source).toMatch(/formatFileViewerContribution/);
+  expect(source).toMatch(/formatSkillImporterContribution/);
+  expect(source).toMatch(/formatChannelConnectorContribution/);
+  expect(source).toMatch(/Importer \$\{formatSkillImporterContribution\(value\)\}/);
+  expect(source).toMatch(/Connector \$\{formatChannelConnectorContribution\(value\)\}/);
+  expect(source).toMatch(/Asset Slot \$\{value\}/);
+  expect(source).toMatch(/Legacy UI/);
 });
 
 test("plugin runtime impact summary includes directory-declared UI and scoped option surfaces", () => {
   const source = readPanelSources();
 
-  assert.match(source, /PluginContributionGroup/);
-  assert.match(source, /pluginContributionGroups/);
-  assert.match(source, /PluginContributionGroupGrid/);
-  assert.match(source, /Backend/);
-  assert.match(source, /App UI/);
-  assert.match(source, /Chat UI/);
-  assert.match(source, /Scoped Options/);
-  assert.match(source, /Integrations/);
-  assert.match(source, /Assets And Config/);
-  assert.match(source, /frontendDeclarationLabels/);
-  assert.match(source, /No directory-declared contributions/);
-  assert.doesNotMatch(source, /Structured frontend declarations/);
-  assert.doesNotMatch(source, /Legacy frontend compatibility/);
-  assert.match(source, /app tab \$\{value\.path \|\| value\.tab\}/);
-  assert.match(source, /app panel \$\{value\.renderer\}/);
-  assert.match(source, /sidebar \$\{value\.path\}/);
-  assert.match(source, /user menu \$\{value\.path\}/);
-  assert.match(source, /formatChatInputOptionLabel\(value, "chat option"\)/);
-  assert.match(source, /suppresses_core_persona_selector/);
-  assert.match(source, /chat panel \$\{value\.renderer\}/);
-  assert.match(source, /mention \$\{value\.mode\}/);
-  assert.match(source, /welcome surface \$\{value\.renderer\}/);
-  assert.match(source, /project option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /session option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /channel option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /scheduled task option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
-  assert.match(source, /assistant identity \$\{value\.resolver\}/);
-  assert.match(source, /agent category \$\{value\.id\}/);
-  assert.match(source, /agent \$\{agent\.id\}/);
-  assert.match(source, /structuredFrontendCount/);
-  assert.match(source, /legacyFrontendCount/);
-  assert.match(source, /plugin\.frontend\.app_tabs\.length/);
-  assert.match(source, /plugin\.frontend\.chat_input_options\.length/);
-  assert.match(source, /plugin\.frontend\.welcome_surfaces\.length/);
-  assert.match(source, /plugin\.frontend\.project_options\.length/);
-  assert.match(source, /plugin\.frontend\.session_options\.length/);
-  assert.match(source, /plugin\.frontend\.channel_options/);
-  assert.match(source, /plugin\.frontend\.scheduled_task_options\.length/);
-  assert.match(source, /plugin\.agents\.length/);
+  expect(source).toMatch(/PluginContributionGroup/);
+  expect(source).toMatch(/pluginContributionGroups/);
+  expect(source).toMatch(/PluginContributionGroupGrid/);
+  expect(source).toMatch(/Backend/);
+  expect(source).toMatch(/App UI/);
+  expect(source).toMatch(/Chat UI/);
+  expect(source).toMatch(/Scoped Options/);
+  expect(source).toMatch(/Integrations/);
+  expect(source).toMatch(/Assets And Config/);
+  expect(source).toMatch(/frontendDeclarationLabels/);
+  expect(source).toMatch(/No directory-declared contributions/);
+  expect(source).not.toMatch(/Structured frontend declarations/);
+  expect(source).not.toMatch(/Legacy frontend compatibility/);
+  expect(source).toMatch(/app tab \$\{value\.path \|\| value\.tab\}/);
+  expect(source).toMatch(/app panel \$\{value\.renderer\}/);
+  expect(source).toMatch(/sidebar \$\{value\.path\}/);
+  expect(source).toMatch(/user menu \$\{value\.path\}/);
+  expect(source).toMatch(/formatChatInputOptionLabel\(value, "chat option"\)/);
+  expect(source).toMatch(/suppresses_core_persona_selector/);
+  expect(source).toMatch(/chat panel \$\{value\.renderer\}/);
+  expect(source).toMatch(/mention \$\{value\.mode\}/);
+  expect(source).toMatch(/welcome surface \$\{value\.renderer\}/);
+  expect(source).toMatch(/project option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/session option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/channel option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/scheduled task option \$\{plugin\.plugin_id\}\.\$\{value\.key\}/);
+  expect(source).toMatch(/assistant identity \$\{value\.resolver\}/);
+  expect(source).toMatch(/agent category \$\{value\.id\}/);
+  expect(source).toMatch(/agent \$\{agent\.id\}/);
+  expect(source).toMatch(/structuredFrontendCount/);
+  expect(source).toMatch(/legacyFrontendCount/);
+  expect(source).toMatch(/plugin\.frontend\.app_tabs\.length/);
+  expect(source).toMatch(/plugin\.frontend\.chat_input_options\.length/);
+  expect(source).toMatch(/plugin\.frontend\.welcome_surfaces\.length/);
+  expect(source).toMatch(/plugin\.frontend\.project_options\.length/);
+  expect(source).toMatch(/plugin\.frontend\.session_options\.length/);
+  expect(source).toMatch(/plugin\.frontend\.channel_options/);
+  expect(source).toMatch(/plugin\.frontend\.scheduled_task_options\.length/);
+  expect(source).toMatch(/plugin\.agents\.length/);
 });
 
 test("first-party frontend package manifests use structured declarations instead of legacy route fields", () => {
@@ -131,36 +129,36 @@ test("first-party frontend package manifests use structured declarations instead
     const manifest = JSON.parse(readFileSync(resolve(__dirname, relativePath), "utf8"));
     const frontend = manifest.frontend ?? manifest;
 
-    assert.equal(frontend.routes, undefined, `${relativePath} must not declare legacy routes`);
-    assert.equal(frontend.panels, undefined, `${relativePath} must not declare legacy panels`);
-    assert.equal(frontend.nav_items, undefined, `${relativePath} must not declare legacy nav_items`);
-    assert.ok(Array.isArray(frontend.app_tabs), `${relativePath} declares app_tabs`);
-    assert.ok(Array.isArray(frontend.app_panels), `${relativePath} declares app_panels`);
+    expect(frontend.routes).toBe(undefined);
+    expect(frontend.panels).toBe(undefined);
+    expect(frontend.nav_items).toBe(undefined);
+    expect(Array.isArray(frontend.app_tabs)).toBeTruthy();
+    expect(Array.isArray(frontend.app_panels)).toBeTruthy();
   }
 });
 
 test("plugin runtime panel keeps plugin rows compact and truly collapsible", () => {
   const source = readPanelSources();
 
-  assert.doesNotMatch(source, /setExpandedPluginId\(plugins\[0\]\.plugin_id\)/);
-  assert.match(source, /aria-expanded=\{isExpanded\}/);
-  assert.match(source, /pluginRuntime\.diagnostics\.title/);
-  assert.match(source, /showDiagnostics/);
-  assert.match(source, /CompactStat label=\{t\("pluginRuntime\.metrics\.settings"\)\}/);
-  assert.match(source, /plugin\.resource_types\.setting/);
-  assert.match(source, /space-y-2/);
+  expect(source).not.toMatch(/setExpandedPluginId\(plugins\[0\]\.plugin_id\)/);
+  expect(source).toMatch(/aria-expanded=\{isExpanded\}/);
+  expect(source).toMatch(/pluginRuntime\.diagnostics\.title/);
+  expect(source).toMatch(/showDiagnostics/);
+  expect(source).toMatch(/CompactStat label=\{t\("pluginRuntime\.metrics\.settings"\)\}/);
+  expect(source).toMatch(/plugin\.resource_types\.setting/);
+  expect(source).toMatch(/space-y-2/);
 });
 
 test("plugin runtime panel exposes export import and protected uninstall controls", () => {
   const source = readPanelSources();
 
-  assert.match(source, /pluginRuntime\.actions\.export/);
-  assert.match(source, /pluginRuntime\.actions\.import/);
-  assert.match(source, /pluginRuntime\.actions\.uninstall/);
-  assert.match(source, /plugin\.install_type/);
-  assert.match(source, /plugin\.uninstallable/);
-  assert.match(source, /pluginRuntime\.uninstall\.protected/);
-  assert.match(source, /pluginRuntime\.uninstall\.confirm/);
+  expect(source).toMatch(/pluginRuntime\.actions\.export/);
+  expect(source).toMatch(/pluginRuntime\.actions\.import/);
+  expect(source).toMatch(/pluginRuntime\.actions\.uninstall/);
+  expect(source).toMatch(/plugin\.install_type/);
+  expect(source).toMatch(/plugin\.uninstallable/);
+  expect(source).toMatch(/pluginRuntime\.uninstall\.protected/);
+  expect(source).toMatch(/pluginRuntime\.uninstall\.confirm/);
 });
 
 test("plugin runtime panel surfaces plugin data templates", () => {
@@ -170,60 +168,60 @@ test("plugin runtime panel surfaces plugin data templates", () => {
     "utf8",
   );
 
-  assert.match(typeSource, /data_template: string/);
-  assert.match(source, /plugin-data-template/);
-  assert.match(source, /packageLayout\.data_template/);
-  assert.match(source, /dataTemplate\.template/);
-  assert.match(source, /dataTemplate\.file_count/);
-  assert.match(source, /dataTemplate\.files\.slice/);
-  assert.match(source, /dataTemplate\.total_bytes/);
-  assert.match(source, /config\/current\.json/);
-  assert.match(source, /config\/defaults\.json/);
-  assert.match(source, /state\/audit\.jsonl/);
+  expect(typeSource).toMatch(/data_template: string/);
+  expect(source).toMatch(/plugin-data-template/);
+  expect(source).toMatch(/packageLayout\.data_template/);
+  expect(source).toMatch(/dataTemplate\.template/);
+  expect(source).toMatch(/dataTemplate\.file_count/);
+  expect(source).toMatch(/dataTemplate\.files\.slice/);
+  expect(source).toMatch(/dataTemplate\.total_bytes/);
+  expect(source).toMatch(/config\/current\.json/);
+  expect(source).toMatch(/config\/defaults\.json/);
+  expect(source).toMatch(/state\/audit\.jsonl/);
 });
 
 test("plugin runtime panel exposes package manifest authority", () => {
   const source = readPanelSources();
 
-  assert.match(source, /manifest_authority/);
-  assert.match(source, /static_fallback_used/);
-  assert.match(source, /static_fallback_fields/);
-  assert.match(source, /authority \{packageInfo\.manifest_authority/);
-  assert.match(source, /fallback \{packageInfo\.static_fallback_used/);
+  expect(source).toMatch(/manifest_authority/);
+  expect(source).toMatch(/static_fallback_used/);
+  expect(source).toMatch(/static_fallback_fields/);
+  expect(source).toMatch(/authority \{packageInfo\.manifest_authority/);
+  expect(source).toMatch(/fallback \{packageInfo\.static_fallback_used/);
 });
 
 test("plugin runtime panel exposes package data export policy", () => {
   const source = readPanelSources();
 
-  assert.match(source, /data export policy/);
-  assert.match(source, /runtime_data_in_archive/);
-  assert.match(source, /snapshot_metadata_in_export/);
-  assert.match(source, /default_retention/);
-  assert.match(source, /sensitive_settings_included/);
+  expect(source).toMatch(/data export policy/);
+  expect(source).toMatch(/runtime_data_in_archive/);
+  expect(source).toMatch(/snapshot_metadata_in_export/);
+  expect(source).toMatch(/default_retention/);
+  expect(source).toMatch(/sensitive_settings_included/);
 });
 
 test("plugin runtime panel exposes dry-run package data policy", () => {
   const source = readPanelSources();
 
-  assert.match(source, /package_data_policy/);
-  assert.match(source, /package folder \{dryRun\.package_data_policy\.package_folder_action/);
-  assert.match(source, /plugin-data \{dryRun\.package_data_policy\.plugin_data_folder_action/);
-  assert.match(source, /data config \{dryRun\.package_data_policy\.plugin_data_config_action/);
-  assert.match(source, /data storage \{dryRun\.package_data_policy\.plugin_data_storage_action/);
-  assert.match(source, /runtime data delete/);
-  assert.match(source, /sensitive settings delete/);
+  expect(source).toMatch(/package_data_policy/);
+  expect(source).toMatch(/package folder \{dryRun\.package_data_policy\.package_folder_action/);
+  expect(source).toMatch(/plugin-data \{dryRun\.package_data_policy\.plugin_data_folder_action/);
+  expect(source).toMatch(/data config \{dryRun\.package_data_policy\.plugin_data_config_action/);
+  expect(source).toMatch(/data storage \{dryRun\.package_data_policy\.plugin_data_storage_action/);
+  expect(source).toMatch(/runtime data delete/);
+  expect(source).toMatch(/sensitive settings delete/);
 });
 
 test("plugin runtime panel exposes archived package restore controls", () => {
   const source = readPanelSources();
 
-  assert.match(source, /archivedPackages/);
-  assert.match(source, /Archived packages/);
-  assert.match(source, /restoreArchivedPackage/);
-  assert.match(source, /packageRestoreResult/);
-  assert.match(source, /lastUninstallResult/);
-  assert.match(source, /plugin-data \{lastUninstallResult\.plugin_data_retained/);
-  assert.match(source, /Restore/);
+  expect(source).toMatch(/archivedPackages/);
+  expect(source).toMatch(/Archived packages/);
+  expect(source).toMatch(/restoreArchivedPackage/);
+  expect(source).toMatch(/packageRestoreResult/);
+  expect(source).toMatch(/lastUninstallResult/);
+  expect(source).toMatch(/plugin-data \{lastUninstallResult\.plugin_data_retained/);
+  expect(source).toMatch(/Restore/);
 });
 
 test("plugin runtime imports notify contribution consumers after runtime mutations", () => {
@@ -232,22 +230,22 @@ test("plugin runtime imports notify contribution consumers after runtime mutatio
     "utf8",
   );
 
-  assert.match(hookSource, /await pluginRuntimeApi\.importPlugin\(payload, restoreState\);[\s\S]*dispatchPluginRuntimeUpdated\(\);/);
-  assert.match(hookSource, /await pluginRuntimeApi\.importPackage\(sourcePath, dryRun\);[\s\S]*if \(!dryRun\) \{\s*dispatchPluginRuntimeUpdated\(\);\s*\}/);
+  expect(hookSource).toMatch(/await pluginRuntimeApi\.importPlugin\(payload, restoreState\);[\s\S]*dispatchPluginRuntimeUpdated\(\);/);
+  expect(hookSource).toMatch(/await pluginRuntimeApi\.importPackage\(sourcePath, dryRun\);[\s\S]*if \(!dryRun\) \{\s*dispatchPluginRuntimeUpdated\(\);\s*\}/);
 });
 
 test("plugin runtime panel exposes package integrity evidence", () => {
   const source = readPanelSources();
 
-  assert.match(source, /package_sha256/);
-  assert.match(source, /signature_status/);
-  assert.match(source, /sha256 \{packageImportResult\.integrity\.package_sha256/);
-  assert.match(source, /lastUninstallResult\.package_integrity/);
-  assert.match(source, /packageRestoreResult\.integrity\.package_sha256/);
-  assert.match(source, /item\.integrity\.package_sha256/);
-  assert.match(source, /supports_package_integrity/);
-  assert.match(source, /requires_signed_user_installed_enable/);
-  assert.match(source, /unsigned plugin packages stay disabled/);
+  expect(source).toMatch(/package_sha256/);
+  expect(source).toMatch(/signature_status/);
+  expect(source).toMatch(/sha256 \{packageImportResult\.integrity\.package_sha256/);
+  expect(source).toMatch(/lastUninstallResult\.package_integrity/);
+  expect(source).toMatch(/packageRestoreResult\.integrity\.package_sha256/);
+  expect(source).toMatch(/item\.integrity\.package_sha256/);
+  expect(source).toMatch(/supports_package_integrity/);
+  expect(source).toMatch(/requires_signed_user_installed_enable/);
+  expect(source).toMatch(/unsigned plugin packages stay disabled/);
 });
 
 test("plugin runtime panel exposes local package hash review controls", () => {
@@ -261,13 +259,13 @@ test("plugin runtime panel exposes local package hash review controls", () => {
     "utf8",
   );
 
-  assert.match(panelSource, /package review/);
-  assert.match(panelSource, /Review hash/);
-  assert.match(panelSource, /active_for_current_package/);
-  assert.match(panelSource, /packageReviewByPlugin/);
-  assert.match(hookSource, /getPackageReview/);
-  assert.match(hookSource, /reviewPluginPackage/);
-  assert.match(apiSource, /package-review/);
+  expect(panelSource).toMatch(/package review/);
+  expect(panelSource).toMatch(/Review hash/);
+  expect(panelSource).toMatch(/active_for_current_package/);
+  expect(panelSource).toMatch(/packageReviewByPlugin/);
+  expect(hookSource).toMatch(/getPackageReview/);
+  expect(hookSource).toMatch(/reviewPluginPackage/);
+  expect(apiSource).toMatch(/package-review/);
 });
 
 test("plugin runtime panel exposes plugin-data reset and backup evidence", () => {
@@ -281,12 +279,12 @@ test("plugin runtime panel exposes plugin-data reset and backup evidence", () =>
     "utf8",
   );
 
-  assert.match(panelSource, /Reset data config/);
-  assert.match(panelSource, /backup_count/);
-  assert.match(panelSource, /last_backup_path/);
-  assert.match(panelSource, /onResetPluginData/);
-  assert.match(hookSource, /resetPluginData/);
-  assert.match(apiSource, /data\/reset/);
+  expect(panelSource).toMatch(/Reset data config/);
+  expect(panelSource).toMatch(/backup_count/);
+  expect(panelSource).toMatch(/last_backup_path/);
+  expect(panelSource).toMatch(/onResetPluginData/);
+  expect(hookSource).toMatch(/resetPluginData/);
+  expect(apiSource).toMatch(/data\/reset/);
 });
 
 test("plugin runtime panel exposes plugin package dependencies", () => {
@@ -296,8 +294,8 @@ test("plugin runtime panel exposes plugin package dependencies", () => {
     "utf8",
   );
 
-  assert.match(typeSource, /depends_on: string\[\]/);
-  assert.match(panelSource, /dependencies/);
-  assert.match(panelSource, /plugin\.depends_on \?\? \[\]/);
-  assert.match(panelSource, /Deps/);
+  expect(typeSource).toMatch(/depends_on: string\[\]/);
+  expect(panelSource).toMatch(/dependencies/);
+  expect(panelSource).toMatch(/plugin\.depends_on \?\? \[\]/);
+  expect(panelSource).toMatch(/Deps/);
 });

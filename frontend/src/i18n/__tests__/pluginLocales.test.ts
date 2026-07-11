@@ -1,6 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -14,11 +12,11 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 test("plugin locale loader uses a direct literal glob for Vite production builds", () => {
   const source = readFileSync(resolve(currentDir, "../pluginLocales.ts"), "utf8");
 
-  assert.doesNotMatch(source, /const\s+\w+\s*=\s*import\.meta\.glob/);
-  assert.match(source, /import\.meta\.glob<PluginLocaleResource>\(\s*\[/);
-  assert.match(source, /"\.\.\/\.\.\/\.\.\/plugins\/system\/\*\/frontend\/locales\/\*\.json"/);
-  assert.match(source, /"\.\.\/\.\.\/\.\.\/plugins\/preinstalled\/\*\/frontend\/locales\/\*\.json"/);
-  assert.match(source, /"\.\.\/\.\.\/\.\.\/plugin-data\/\*\/frontend\/locales\/\*\.json"/);
+  expect(source).not.toMatch(/const\s+\w+\s*=\s*import\.meta\.glob/);
+  expect(source).toMatch(/import\.meta\.glob<PluginLocaleResource>\(\s*\[/);
+  expect(source).toMatch(/"\.\.\/\.\.\/\.\.\/plugins\/system\/\*\/frontend\/locales\/\*\.json"/);
+  expect(source).toMatch(/"\.\.\/\.\.\/\.\.\/plugins\/preinstalled\/\*\/frontend\/locales\/\*\.json"/);
+  expect(source).toMatch(/"\.\.\/\.\.\/\.\.\/plugin-data\/\*\/frontend\/locales\/\*\.json"/);
 });
 
 test("plugin locale resources are collected by language and deeply merged", () => {
@@ -42,21 +40,20 @@ test("plugin locale resources are collected by language and deeply merged", () =
     },
   });
 
-  assert.deepEqual(resources.en, {
+  expect(resources.en).toEqual({
     samplePlugin: { nav: { label: "Sample" } },
   });
-  assert.deepEqual(resources.zh, {
+  expect(resources.zh).toEqual({
     samplePlugin: {
       nav: { label: "Sample zh" },
       editor: { graph: { title: "Editor zh" } },
     },
   });
-  assert.equal(resources.fr, undefined);
+  expect(resources.fr).toBe(undefined);
 });
 
 test("plugin locale resources override base locale keys while preserving siblings", () => {
-  assert.deepEqual(
-    mergeLocaleResource(
+  expect(mergeLocaleResource(
       {
         samplePlugin: {
           nav: { label: "Base" },
@@ -64,14 +61,12 @@ test("plugin locale resources override base locale keys while preserving sibling
         },
       },
       { samplePlugin: { nav: { label: "Plugin" } } },
-    ),
-    {
+    )).toEqual({
       samplePlugin: {
         nav: { label: "Plugin" },
         chat: { selectItem: "Sample" },
       },
-    },
-  );
+    });
 });
 
 test("plugin-data supplemental locale resources override bundled plugin defaults", () => {
@@ -116,7 +111,7 @@ test("plugin-data supplemental locale resources override bundled plugin defaults
     samplePlugin: { editor: { route: { listTitle: string } } };
   };
 
-  assert.equal(en.samplePlugin.editor.route.listTitle, "Supplemental samples");
-  assert.equal(en.samplePlugin.editor.route.listSubtitle, "Bundled subtitle");
-  assert.equal(zh.samplePlugin.editor.route.listTitle, "Supplemental samples zh");
+  expect(en.samplePlugin.editor.route.listTitle).toBe("Supplemental samples");
+  expect(en.samplePlugin.editor.route.listSubtitle).toBe("Bundled subtitle");
+  expect(zh.samplePlugin.editor.route.listTitle).toBe("Supplemental samples zh");
 });

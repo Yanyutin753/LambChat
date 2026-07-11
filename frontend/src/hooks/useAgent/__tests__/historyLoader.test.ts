@@ -566,15 +566,12 @@ test("reconstructMessagesFromEvents treats assistant-only run after cancel as re
     { activeSubagentStack: [] },
   );
 
-  assert.deepEqual(
-    messages.map((message) => [message.id, message.role, message.runId]),
-    [
+  expect(messages.map((message) => [message.id, message.role, message.runId])).toEqual([
       [`${cancelledRunId}:user`, "user", cancelledRunId],
       [retryRunId, "assistant", retryRunId],
-    ],
-  );
-  assert.equal(messages[1]?.content, "fresh answer");
-  assert.equal(messages[1]?.cancelled, undefined);
+    ]);
+  expect(messages[1]?.content).toBe("fresh answer");
+  expect(messages[1]?.cancelled).toBe(undefined);
 });
 
 test("reconstructMessagesFromEvents preserves plugin tool result outlet from persisted events", () => {
@@ -664,24 +661,21 @@ test("reconstructMessagesFromEvents preserves plugin tool result outlet from per
     { activeSubagentStack: [] },
   );
 
-  assert.equal(messages.length, 2);
+  expect(messages.length).toBe(2);
   const assistant = messages[1];
-  assert.equal(assistant?.role, "assistant");
-  assert.equal(assistant?.content, "Plugin debug lookup failed.");
+  expect(assistant?.role).toBe("assistant");
+  expect(assistant?.content).toBe("Plugin debug lookup failed.");
   const toolPart = assistant?.parts?.find((part) => part.type === "tool");
-  assert.ok(toolPart);
-  assert.equal(toolPart.type, "tool");
-  assert.equal(toolPart.name, "review_get_run");
-  assert.equal(toolPart.success, false);
-  assert.equal(toolPart.error, "review_run_not_found");
-  assert.deepEqual(toolPart.result, pluginOutlet);
-  assert.deepEqual(assistant?.toolResults?.[0]?.result, pluginOutlet);
-  assert.equal(
-    (
+  expect(toolPart).toBeTruthy();
+  expect(toolPart.type).toBe("tool");
+  expect(toolPart.name).toBe("review_get_run");
+  expect(toolPart.success).toBe(false);
+  expect(toolPart.error).toBe("review_run_not_found");
+  expect(toolPart.result).toEqual(pluginOutlet);
+  expect(assistant?.toolResults?.[0]?.result).toEqual(pluginOutlet);
+  expect((
       assistant?.toolResults?.[0]?.result as {
         interface?: { debug?: { tool?: string } };
       }
-    ).interface?.debug?.tool,
-    "review_get_run",
-  );
+    ).interface?.debug?.tool).toBe("review_get_run");
 });

@@ -21,7 +21,7 @@ test("PPT preview renders locally instead of embedding Office Online", () => {
 
 test("PPT preview receives file bytes for browser-side rendering", () => {
   const pptBranch = stateSource.match(
-    /if \(pptFile\) \{(?<body>[\s\S]*?)\n\s*\}\n\n\s*if \(htmlFile\)/,
+    /if \(advancedFileViewersEnabled && pptFile\) \{(?<body>[\s\S]*?)\r?\n\s*\}\r?\n\r?\n\s*if \(advancedFileViewersEnabled && htmlFile\)/,
   )?.groups?.body;
 
   expect(pptBranch).toBeTruthy();

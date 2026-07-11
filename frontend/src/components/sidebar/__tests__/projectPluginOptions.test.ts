@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const modalSource = readFileSync(
@@ -24,39 +22,39 @@ const rendererSource = readFileSync(
 );
 
 test("project plugin options modal is contribution-driven", () => {
-  assert.match(modalSource, /pluginRuntimeApi[\s\S]*\.listProjectOptions\(\{ includeInactive: true \}\)/);
-  assert.doesNotMatch(modalSource, /buildProjectOptionContributions\(/);
-  assert.match(modalSource, /projectApi[\s\S]*\.getPluginOptions\(project\.id\)/);
-  assert.match(modalSource, /projectApi[\s\S]*\.updatePluginOption\(project\.id, option\.pluginId, option\.key, value\)/);
-  assert.match(modalSource, /!option\.effective/);
-  assert.match(modalSource, /saved but currently has no effect/);
-  assert.match(modalSource, /function hasStoredValue/);
-  assert.match(modalSource, /const visibleOptions = options\.filter/);
-  assert.match(modalSource, /if \(option\.effective !== false\) return true/);
-  assert.match(modalSource, /return hasStoredValue\(values, option\)/);
-  assert.match(modalSource, /const fieldDisabled = saving \|\| inactive/);
-  assert.match(modalSource, /for \(const option of visibleOptions\)/);
+  expect(modalSource).toMatch(/pluginRuntimeApi[\s\S]*\.listProjectOptions\(\{ includeInactive: true \}\)/);
+  expect(modalSource).not.toMatch(/buildProjectOptionContributions\(/);
+  expect(modalSource).toMatch(/projectApi[\s\S]*\.getPluginOptions\(project\.id\)/);
+  expect(modalSource).toMatch(/projectApi[\s\S]*\.updatePluginOption\(project\.id, option\.pluginId, option\.key, value\)/);
+  expect(modalSource).toMatch(/!option\.effective/);
+  expect(modalSource).toMatch(/saved but currently has no effect/);
+  expect(modalSource).toMatch(/function hasStoredValue/);
+  expect(modalSource).toMatch(/const visibleOptions = options\.filter/);
+  expect(modalSource).toMatch(/if \(option\.effective !== false\) return true/);
+  expect(modalSource).toMatch(/return hasStoredValue\(values, option\)/);
+  expect(modalSource).toMatch(/const fieldDisabled = saving \|\| inactive/);
+  expect(modalSource).toMatch(/for \(const option of visibleOptions\)/);
 });
 
 test("project menu opens plugin-owned project options", () => {
-  assert.match(menuSource, /onPluginOptions/);
-  assert.match(menuSource, /SlidersHorizontal/);
-  assert.match(itemSource, /onOpenPluginOptions\?: \(project: Project\) => void/);
-  assert.match(itemSource, /onPluginOptions=\{/);
-  assert.match(sessionSidebarSource, /ProjectPluginOptionsModal/);
-  assert.match(sessionSidebarSource, /onOpenProjectPluginOptions: setProjectOptionsProject/);
+  expect(menuSource).toMatch(/onPluginOptions/);
+  expect(menuSource).toMatch(/SlidersHorizontal/);
+  expect(itemSource).toMatch(/onOpenPluginOptions\?: \(project: Project\) => void/);
+  expect(itemSource).toMatch(/onPluginOptions=\{/);
+  expect(sessionSidebarSource).toMatch(/ProjectPluginOptionsModal/);
+  expect(sessionSidebarSource).toMatch(/onOpenProjectPluginOptions: setProjectOptionsProject/);
 });
 
 test("agent team project default team uses a controlled renderer", () => {
-  assert.match(rendererSource, /"agent_team\.TeamSelectOption"/);
-  assert.match(rendererSource, /props\.option\.renderer/);
-  assert.match(rendererSource, /if \(!option\.effective\)/);
-  assert.match(rendererSource, /placeholder="Team ID"/);
-  assert.match(rendererSource, /teamApi[\s\S]*\.list/);
-  assert.match(rendererSource, /if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
+  expect(rendererSource).toMatch(/"agent_team\.TeamSelectOption"/);
+  expect(rendererSource).toMatch(/props\.option\.renderer/);
+  expect(rendererSource).toMatch(/if \(!option\.effective\)/);
+  expect(rendererSource).toMatch(/placeholder="Team ID"/);
+  expect(rendererSource).toMatch(/teamApi[\s\S]*\.list/);
+  expect(rendererSource).toMatch(/if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
 });
 
 test("project option renderers do not keep workflow-specific controls", () => {
-  assert.doesNotMatch(rendererSource, /WorkflowPlugin/);
-  assert.doesNotMatch(rendererSource, /workflow\.Workflow/);
+  expect(rendererSource).not.toMatch(/WorkflowPlugin/);
+  expect(rendererSource).not.toMatch(/workflow\.Workflow/);
 });

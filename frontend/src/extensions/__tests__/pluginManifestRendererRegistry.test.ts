@@ -1,7 +1,5 @@
-import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 interface FrontendPluginManifest {
@@ -162,25 +160,21 @@ function escapedStringLiteral(value: string): RegExp {
 }
 
 test("all plugin-declared frontend renderers are registered in controlled host registries", () => {
-  assert.ok(existsSync(join(repoRoot, "plugins")), "plugins directory exists");
+  expect(existsSync(join(repoRoot, "plugins"))).toBeTruthy();
   const references = listFrontendManifestPaths().flatMap(referencesForManifest);
-  assert.ok(references.length > 0, "frontend plugin manifests declare registry-backed references");
+  expect(references.length > 0).toBeTruthy();
 
   const missing = references.filter(
     (reference) => !escapedStringLiteral(reference.value).test(reference.registrySource),
   );
 
-  assert.deepEqual(
-    missing.map((reference) => ({
+  expect(missing.map((reference) => ({
       manifest: reference.manifest,
       area: reference.area,
       value: reference.value,
-    })),
-    [],
-    "plugin frontend declarations must map to static host registries before runtime can render them",
-  );
+    }))).toEqual([]);
 });
 
 test("plugin renderer registry coverage test is rooted in the repository, not the test folder", () => {
-  assert.equal(relative(repoRoot, testDir).replace(/\\/g, "/"), "frontend/src/extensions/__tests__");
+  expect(relative(repoRoot, testDir).replace(/\\/g, "/")).toBe("frontend/src/extensions/__tests__");
 });

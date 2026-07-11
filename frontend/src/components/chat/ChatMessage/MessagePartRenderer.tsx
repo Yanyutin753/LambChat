@@ -26,6 +26,9 @@ import {
   MemoryStoreItem,
   AskHumanItem,
   ToolSearchItem,
+  UploadUrlToSandboxItem,
+  ImageAnalyzeItem,
+  TransferItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { TodoBlock } from "./TodoBlock";
@@ -254,6 +257,46 @@ export function MessagePartRenderer({
     if (part.name === "eval") {
       return (
         <EvalItem
+          toolName={part.name}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (coreToolRendererId === "upload-url-to-sandbox") {
+      return (
+        <UploadUrlToSandboxItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (coreToolRendererId === "image-analyze") {
+      return (
+        <ImageAnalyzeItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (coreToolRendererId === "transfer") {
+      return (
+        <TransferItem
           toolName={part.name}
           args={part.args}
           result={part.result}

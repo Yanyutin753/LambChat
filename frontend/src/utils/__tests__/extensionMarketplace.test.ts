@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   marketplaceSkillsToExtensionItems,
   skillToExtensionMarketplaceEntry,
@@ -31,7 +29,7 @@ function marketplaceSkill(
 test("skill marketplace responses adapt to extension marketplace entries", () => {
   const entry = skillToExtensionMarketplaceEntry(marketplaceSkill());
 
-  assert.deepEqual(entry, {
+  expect(entry).toEqual({
     id: "skill:planner",
     type: "skill",
     name: "planner",
@@ -69,16 +67,16 @@ test("backend-provided extension entries are preserved", () => {
     legacy: { skill_name: "planner" },
   };
 
-  assert.equal(skillToExtensionMarketplaceEntry(marketplaceSkill({ extension })), extension);
+  expect(skillToExtensionMarketplaceEntry(marketplaceSkill({ extension }))).toBe(extension);
 });
 
 test("extension marketplace item keeps the legacy skill payload", () => {
   const skill = marketplaceSkill({ skill_name: "writer", extension_id: "skill:writer" });
   const item = skillToExtensionMarketplaceItem(skill);
 
-  assert.equal(item.skill, skill);
-  assert.equal(item.extension.id, "skill:writer");
-  assert.equal(item.extension.name, "writer");
+  expect(item.skill).toBe(skill);
+  expect(item.extension.id).toBe("skill:writer");
+  expect(item.extension.name).toBe("writer");
 });
 
 test("fallback skill extension entries do not share compatibility objects", () => {
@@ -89,7 +87,7 @@ test("fallback skill extension entries do not share compatibility objects", () =
     marketplaceSkill({ skill_name: "writer" }),
   );
 
-  assert.notEqual(first.compatibility, second.compatibility);
+  expect(first.compatibility).not.toBe(second.compatibility);
 });
 
 test("marketplace skill lists can be projected to extension lists", () => {
@@ -98,14 +96,11 @@ test("marketplace skill lists can be projected to extension lists", () => {
     marketplaceSkill({ skill_name: "writer", tags: ["writing"] }),
   ]);
 
-  assert.deepEqual(
-    items.map((item) => [item.extension.id, item.extension.type]),
-    [
+  expect(items.map((item) => [item.extension.id, item.extension.type])).toEqual([
       ["skill:planner", "skill"],
       ["skill:writer", "skill"],
-    ],
-  );
-  assert.equal(items[1].skill?.tags[0], "writing");
+    ]);
+  expect(items[1].skill?.tags[0]).toBe("writing");
 });
 
 test("extension marketplace items can model plugin and mcp entries", () => {
@@ -144,11 +139,8 @@ test("extension marketplace items can model plugin and mcp entries", () => {
     },
   ];
 
-  assert.deepEqual(
-    items.map((item) => [item.extension.type, item.extension.capabilities[0], item.skill]),
-    [
+  expect(items.map((item) => [item.extension.type, item.extension.capabilities[0], item.skill])).toEqual([
       ["plugin", "plugin", undefined],
       ["mcp", "mcp", undefined],
-    ],
-  );
+    ]);
 });

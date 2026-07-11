@@ -513,17 +513,11 @@ test("core admin crud panels use shared panel controls for generic actions", () 
   ].join("\n");
   const feedbackCompatibility = readSource("../../panels/FeedbackPanel.tsx");
 
-  assert.match(sources, /PanelFilterSelect/);
-  assert.match(sources, /PanelFooterActions/);
-  assert.match(sources, /<Button[\s>]/);
-  assert.match(
-    feedbackCompatibility,
-    /export \{ FeedbackPanel \} from "\.\.\/\.\.\/plugins\/feedback\/FeedbackPanel"/,
-  );
-  assert.doesNotMatch(
-    sources,
-    /className="btn-(primary|secondary|danger|icon)[^"]*"/,
-  );
+  expect(sources).toMatch(/PanelFilterSelect/);
+  expect(sources).toMatch(/PanelFooterActions/);
+  expect(sources).toMatch(/<Button[\s>]/);
+  expect(feedbackCompatibility).toMatch(/export \{ FeedbackPanel \} from "\.\.\/\.\.\/plugins\/feedback\/FeedbackPanel"/);
+  expect(sources).not.toMatch(/className="btn-(primary|secondary|danger|icon)[^"]*"/);
   expect(sources).not.toMatch(/<GlassSelect/);
 });
 
@@ -691,7 +685,8 @@ test("scheduled task form uses shared primitives for generic form controls", () 
   expect(source).toMatch(
     /<Textarea[\s\S]*scheduledTask\.descriptionPlaceholder/,
   );
-  expect(source).toMatch(/<Select[\s\S]*scheduledTask\.agentPlaceholder/);
+  expect(source).toMatch(/const agentOptions =[\s\S]*scheduledTask\.agentPlaceholder/);
+  expect(source).toMatch(/<Select[\s\S]*options=\{agentOptions\}/);
   expect(source).toMatch(/<Select[\s\S]*scheduledTask\.modelPlaceholder/);
   expect(source).not.toMatch(/GlassSelect/);
   expect(source).not.toMatch(/className="btn-(primary|secondary)[^"]*"/);

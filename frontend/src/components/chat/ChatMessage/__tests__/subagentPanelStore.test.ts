@@ -71,8 +71,8 @@ test("notifies listeners when runtime plugin contribution state changes", () => 
   store.subscribe("agent-a", () => calls.push("a"));
   store.set({ ...createData("agent-a"), runtimePlugins: nextRuntimeState });
 
-  assert.deepEqual(calls, ["a"]);
-  assert.equal(store.get("agent-a")?.runtimePlugins, nextRuntimeState);
+  expect(calls).toEqual(["a"]);
+  expect(store.get("agent-a")?.runtimePlugins).toBe(nextRuntimeState);
 });
 
 test("notifies listeners when runtime plugin contribution state changes", () => {
@@ -99,6 +99,6 @@ test("notifies listeners when runtime plugin contribution state changes", () => 
   store.subscribe("agent-a", () => calls.push("a"));
   store.set({ ...createData("agent-a"), runtimePlugins: nextRuntimeState });
 
-  assert.deepEqual(calls, ["a"]);
-  assert.equal(store.get("agent-a")?.runtimePlugins, nextRuntimeState);
+  expect(calls).toEqual(["a"]);
+  expect(store.get("agent-a")?.runtimePlugins).toBe(nextRuntimeState);
 });

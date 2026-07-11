@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import { groupAgentsByPluginCategory } from "../agentCategoryGroups";
 import type { CoreAgentCategoryContribution } from "../../../../extensions";
 import type { AgentInfo } from "../../../../types";
@@ -35,13 +33,10 @@ test("groups agents by plugin-declared category", () => {
 
   const groups = groupAgentsByPluginCategory(agents, categories);
 
-  assert.deepEqual(
-    groups.map((group) => ({ id: group.id, agents: group.agents.map((agent) => agent.id) })),
-    [
+  expect(groups.map((group) => ({ id: group.id, agents: group.agents.map((agent) => agent.id) }))).toEqual([
       { id: "core", agents: ["search"] },
       { id: "agent_team:team-builder", agents: ["team"] },
-    ],
-  );
+    ]);
 });
 
 test("hides plugin-owned agents when disabled plugin category is absent", () => {
@@ -58,7 +53,7 @@ test("hides plugin-owned agents when disabled plugin category is absent", () => 
     [],
   );
 
-  assert.equal(groups.length, 0);
+  expect(groups.length).toBe(0);
 });
 
 test("keeps unknown non-plugin categories in the core group", () => {
@@ -75,7 +70,7 @@ test("keeps unknown non-plugin categories in the core group", () => {
     [],
   );
 
-  assert.equal(groups.length, 1);
-  assert.equal(groups[0].id, "core");
-  assert.equal(groups[0].agents[0].id, "custom");
+  expect(groups.length).toBe(1);
+  expect(groups[0].id).toBe("core");
+  expect(groups[0].agents[0].id).toBe("custom");
 });

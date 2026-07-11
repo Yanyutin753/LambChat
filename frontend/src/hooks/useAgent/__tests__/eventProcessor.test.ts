@@ -184,15 +184,15 @@ test("adds generic plugin message events as plugin message parts", () => {
     "message-1",
   );
 
-  assert.equal(result.parts.length, 1);
+  expect(result.parts.length).toBe(1);
   const pluginMessage = result.parts[0];
-  assert.equal(pluginMessage.type, "plugin_message");
+  expect(pluginMessage.type).toBe("plugin_message");
   if (pluginMessage.type !== "plugin_message") return;
-  assert.equal(pluginMessage.plugin_id, "automation_runner");
-  assert.equal(pluginMessage.renderer, "automation_runner.RunCard");
-  assert.equal(pluginMessage.id, "run-1");
-  assert.equal(pluginMessage.status, "completed");
-  assert.deepEqual(pluginMessage.payload, {
+  expect(pluginMessage.plugin_id).toBe("automation_runner");
+  expect(pluginMessage.renderer).toBe("automation_runner.RunCard");
+  expect(pluginMessage.id).toBe("run-1");
+  expect(pluginMessage.status).toBe("completed");
+  expect(pluginMessage.payload).toEqual({
     run_id: "run-1",
     output: { answer: "done" },
   });
@@ -211,7 +211,7 @@ test("ignores plugin message events without a plugin id or renderer", () => {
     "message-1",
   );
 
-  assert.equal(result.parts.length, 0);
+  expect(result.parts.length).toBe(0);
 });
 
 test("complete event cancels unfinished todo items", () => {

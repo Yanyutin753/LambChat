@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 function readSource(relativePath: string): string {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8");
 }
@@ -10,15 +7,15 @@ test("document preview gates advanced viewers through plugin runtime state", () 
   const stateSource = readSource("../useDocumentPreviewState.ts");
   const contentSource = readSource("../DocumentPreviewContent.tsx");
 
-  assert.match(stateSource, /runtimePlugins\?: PluginRuntimeContributionStates/);
-  assert.match(stateSource, /hasFileViewerContribution\("code", runtimePlugins\)/);
-  assert.match(stateSource, /hasPluginAssetSlot\("file_viewer", runtimePlugins\)/);
-  assert.doesNotMatch(stateSource, /runtimePlugins === undefined/);
-  assert.match(stateSource, /advancedFileViewersEnabled && resolvedPdfFile/);
-  assert.match(stateSource, /advancedFileViewersEnabled && cadFile/);
-  assert.match(stateSource, /advancedFileViewersEnabled && \(wordPreviewFile \|\| excelFile\)/);
-  assert.match(contentSource, /!advancedFileViewersEnabled/);
-  assert.match(contentSource, /<FileFallbackPanel/);
+  expect(stateSource).toMatch(/runtimePlugins\?: PluginRuntimeContributionStates/);
+  expect(stateSource).toMatch(/hasFileViewerContribution\("code", runtimePlugins\)/);
+  expect(stateSource).toMatch(/hasPluginAssetSlot\("file_viewer", runtimePlugins\)/);
+  expect(stateSource).not.toMatch(/runtimePlugins === undefined/);
+  expect(stateSource).toMatch(/advancedFileViewersEnabled && resolvedPdfFile/);
+  expect(stateSource).toMatch(/advancedFileViewersEnabled && cadFile/);
+  expect(stateSource).toMatch(/advancedFileViewersEnabled && \(wordPreviewFile \|\| excelFile\)/);
+  expect(contentSource).toMatch(/!advancedFileViewersEnabled/);
+  expect(contentSource).toMatch(/<FileFallbackPanel/);
 });
 
 test("chat preview hosts pass runtime state into document preview", () => {
@@ -28,19 +25,19 @@ test("chat preview hosts pass runtime state into document preview", () => {
   );
   const chatView = readSource("../../layout/AppContent/ChatView.tsx");
 
-  assert.match(attachmentHost, /runtimePlugins\?: PluginRuntimeContributionStates/);
-  assert.match(attachmentHost, /runtimePlugins=\{runtimePlugins\}/);
-  assert.match(revealHost, /runtimePlugins\?: PluginRuntimeContributionStates/);
-  assert.match(revealHost, /runtimePlugins=\{runtimePlugins\}/);
-  assert.match(chatView, /<AttachmentPreviewHost runtimePlugins=\{runtimePlugins\}/);
-  assert.match(chatView, /<RevealPreviewHost[\s\S]*runtimePlugins=\{runtimePlugins\}/);
+  expect(attachmentHost).toMatch(/runtimePlugins\?: PluginRuntimeContributionStates/);
+  expect(attachmentHost).toMatch(/runtimePlugins=\{runtimePlugins\}/);
+  expect(revealHost).toMatch(/runtimePlugins\?: PluginRuntimeContributionStates/);
+  expect(revealHost).toMatch(/runtimePlugins=\{runtimePlugins\}/);
+  expect(chatView).toMatch(/<AttachmentPreviewHost runtimePlugins=\{runtimePlugins\}/);
+  expect(chatView).toMatch(/<RevealPreviewHost[\s\S]*runtimePlugins=\{runtimePlugins\}/);
 });
 
 test("file library gates advanced viewer shortcuts through the plugin asset slot", () => {
   const fileLibrarySource = readSource("../../fileLibrary/RevealedFilesPanel.tsx");
 
-  assert.match(fileLibrarySource, /hasFileViewerContribution\("code", runtimePlugins\)/);
-  assert.match(fileLibrarySource, /hasPluginAssetSlot\("file_viewer", runtimePlugins\)/);
-  assert.doesNotMatch(fileLibrarySource, /runtimePlugins === undefined/);
-  assert.match(fileLibrarySource, /advancedFileViewersEnabled && file\.url && isExcalidrawFile/);
+  expect(fileLibrarySource).toMatch(/hasFileViewerContribution\("code", runtimePlugins\)/);
+  expect(fileLibrarySource).toMatch(/hasPluginAssetSlot\("file_viewer", runtimePlugins\)/);
+  expect(fileLibrarySource).not.toMatch(/runtimePlugins === undefined/);
+  expect(fileLibrarySource).toMatch(/advancedFileViewersEnabled && file\.url && isExcalidrawFile/);
 });

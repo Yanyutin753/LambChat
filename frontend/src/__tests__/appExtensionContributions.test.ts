@@ -1,6 +1,5 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import { test } from "vitest";
 
 const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
 const hookSource = readFileSync(
@@ -9,38 +8,39 @@ const hookSource = readFileSync(
 );
 
 test("App consumes extension host contributions instead of plugin runtime management data", () => {
-  assert.match(appSource, /useExtensionContributions/);
-  assert.match(appSource, /const EMPTY_RUNTIME_PLUGINS/);
-  assert.match(appSource, /extensionContributions\?\.plugins \?\? EMPTY_RUNTIME_PLUGINS/);
-  assert.match(appSource, /buildAppRouteContributions\(runtimePlugins\)/);
-  assert.match(appSource, /runtimePlugins=\{runtimePlugins\}/);
-  assert.doesNotMatch(appSource, /usePluginRuntime/);
-  assert.doesNotMatch(appSource, /fetchPlugins/);
+  expect(appSource).toMatch(/useExtensionContributions/);
+  expect(appSource).toMatch(/const EMPTY_RUNTIME_PLUGINS/);
+  expect(appSource).toMatch(/extensionContributions\?\.plugins \?\? EMPTY_RUNTIME_PLUGINS/);
+  expect(appSource).toMatch(/buildAppRouteContributions\(runtimePlugins\)/);
+  expect(appSource).toMatch(/runtimePlugins=\{runtimePlugins\}/);
+  expect(appSource).not.toMatch(/usePluginRuntime/);
+  expect(appSource).not.toMatch(/fetchPlugins/);
 });
 
 test("plugin-owned app routes are generated from runtime contributions only", () => {
-  assert.match(appSource, /appRouteContributions\.map\(\(route\) => \(/);
-  assert.match(appSource, /path=\{route\.path\}/);
-  assert.doesNotMatch(appSource, /<Route\s+path="\/feedback"/);
-  assert.doesNotMatch(appSource, /<Route\s+path="\/team"/);
-  assert.doesNotMatch(appSource, /<Route\s+path="\/agent-team"/);
-  assert.doesNotMatch(appSource, /<Route\s+path="\/usage"/);
-  assert.doesNotMatch(appSource, /path:\s*"\/feedback"|path:\s*"\/team"|path:\s*"\/usage"/);
+  expect(appSource).toMatch(/appRouteContributions\.map\(\(route\) => \(/);
+  expect(appSource).toMatch(/path=\{route\.path\}/);
+  expect(appSource).not.toMatch(/<Route\s+path="\/feedback"/);
+  expect(appSource).not.toMatch(/<Route\s+path="\/team"/);
+  expect(appSource).not.toMatch(/<Route\s+path="\/agent-team"/);
+  expect(appSource).not.toMatch(/<Route\s+path="\/usage"/);
+  expect(appSource).not.toMatch(/path:\s*"\/feedback"|path:\s*"\/team"|path:\s*"\/usage"/);
 });
 
 test("plugin-owned app routes show a loading route while contributions load", () => {
-  assert.match(appSource, /useLocation\(\)/);
-  assert.match(appSource, /isLoading:\s*areExtensionContributionsLoading/);
-  assert.match(appSource, /BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS/);
-  assert.match(appSource, /"\/agent-team"/);
-  assert.doesNotMatch(appSource, /"\/team"/);
-  assert.match(appSource, /shouldShowPluginRouteLoading/);
-  assert.match(appSource, /path=\{location\.pathname\}/);
-  assert.match(appSource, /<ChatPageSkeleton \/>/);
+  expect(appSource).toMatch(/useLocation\(\)/);
+  expect(appSource).toMatch(/isLoading:\s*areExtensionContributionsLoading/);
+  expect(appSource).toMatch(/CORE_APP_ROUTE_LOADING_PATHS/);
+  expect(appSource).toMatch(/isKnownNonPluginPath/);
+  expect(appSource).not.toMatch(/"\/team"/);
+  expect(appSource).toMatch(/shouldShowPluginRouteLoading/);
+  expect(appSource).toMatch(/!isKnownNonPluginPath/);
+  expect(appSource).toMatch(/path=\{location\.pathname\}/);
+  expect(appSource).toMatch(/<ChatPageSkeleton \/>/);
 });
 
 test("extension contribution hook uses the lightweight host endpoint and runtime update event", () => {
-  assert.match(hookSource, /pluginRuntimeApi\.listContributions\(\)/);
-  assert.match(hookSource, /listenPluginRuntimeUpdated/);
-  assert.doesNotMatch(hookSource, /pluginRuntimeApi\.list\(\)/);
+  expect(hookSource).toMatch(/pluginRuntimeApi\.listContributions\(\)/);
+  expect(hookSource).toMatch(/listenPluginRuntimeUpdated/);
+  expect(hookSource).not.toMatch(/pluginRuntimeApi\.list\(\)/);
 });
