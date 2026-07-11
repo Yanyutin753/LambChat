@@ -37,4 +37,10 @@ export default tseslint.config(
       "prefer-const": "warn",
     },
   },
+  {
+    files: ["**/*[Rr]enderers.tsx"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
 );

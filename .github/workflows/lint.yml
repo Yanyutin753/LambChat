@@ -59,10 +59,10 @@ jobs:
         run: uv sync --group dev
 
       - name: Run Ruff check
-        run: uv run ruff check src/
+        run: uv run ruff check src/ plugins/
 
       - name: Run Ruff format
-        run: uv run ruff format --check src/
+        run: uv run ruff format --check src/ plugins/
 
   # Type checking for backend
   mypy:
@@ -82,7 +82,44 @@ jobs:
         run: uv sync --group dev
 
       - name: Run MyPy
-        run: uv run mypy src/
+        run: uv run mypy src/ plugins/
+
+  # Verify the distributable wheel contains both core and plugin runtimes.
+  wheel-build:
+    name: Wheel Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build wheel
+        run: uv build --wheel
+
+      - name: Verify wheel contents
+        shell: python
+        run: |
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheels = list(Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, f"Expected one wheel, found: {wheels}"
+          with ZipFile(wheels[0]) as archive:
+              names = set(archive.namelist())
+
+          required = {
+              "src/api/routes/share.py",
+              "src/kernel/extensions/agent_team_service.py",
+              "plugins/system/agent_team/backend/service.py",
+              "plugins/system/agent_team/plugin.yaml",
+          }
+          missing = required - names
+          assert not missing, f"Wheel is missing required files: {sorted(missing)}"
 
   # Full backend test suite
   backend-tests:
@@ -193,6 +230,27 @@ jobs:
 
       - name: Run frontend tests
         run: pnpm test
+        working-directory: frontend
+
+  frontend-audit:
+    name: Frontend Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
         working-directory: frontend
 
   # Full frontend production build, including PWA inject-manifest.

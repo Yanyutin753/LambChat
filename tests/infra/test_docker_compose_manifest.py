@@ -59,6 +59,11 @@ def test_dockerfile_exposes_plugin_locale_sources_to_frontend_build() -> None:
 
 
 def test_python_wheel_bundles_plugin_backend_namespace() -> None:
-    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    import tomllib
 
-    assert '"src/plugins"' in pyproject
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert project["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"] == [
+        "src",
+        "plugins",
+    ]

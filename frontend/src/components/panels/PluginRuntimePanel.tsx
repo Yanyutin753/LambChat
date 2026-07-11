@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Archive,
@@ -472,10 +472,7 @@ function PluginSettingsSection({
 }) {
   const { t } = useTranslation();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const items = settings?.settings ?? [];
-  const settingsVersion = items
-    .map((item) => `${item.key}:${settingDisplayValue(item.value)}:${item.updated_at ?? ""}`)
-    .join("|");
+  const items = useMemo(() => settings?.settings ?? [], [settings?.settings]);
 
   useEffect(() => {
     const next: Record<string, string> = {};
@@ -483,7 +480,7 @@ function PluginSettingsSection({
       next[item.key] = settingDisplayValue(item.value);
     }
     setDrafts(next);
-  }, [settings?.plugin_id, settingsVersion]);
+  }, [items, settings?.plugin_id]);
 
   const groups = Array.from(new Set(items.map((item) => item.group || "general")));
 

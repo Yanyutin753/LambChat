@@ -208,8 +208,10 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
     }, [rolePickerOpen]);
 
     useEffect(() => {
+      let cancelled = false;
       if (teamId) {
         teamApi.get(teamId).then((team) => {
+          if (cancelled) return;
           setExistingTeamId(team.id);
           setTeamName(team.name);
           setTeamDescription(team.description);
@@ -241,7 +243,10 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
         setMembers([]);
         setDefaultMemberId(null);
       }
-    }, [teamId]);
+      return () => {
+        cancelled = true;
+      };
+    }, [teamId, t]);
 
     const handleAddRole = useCallback(
       (preset: PersonaPreset) => {

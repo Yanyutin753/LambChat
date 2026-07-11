@@ -26,6 +26,7 @@ import {
   shouldFinalizeHistoryLoadScroll,
   shouldInferBatchedHistoryLoadReady,
 } from "../useMessageScroll.ts";
+import { vi } from "vitest";
 
 test("clears the user-scrolled flag when virtuoso reports bottom reached", () => {
   expect(
@@ -334,30 +335,36 @@ test("matches reveal_project targets after normalizing project paths", () => {
   ).toEqual({ messageIndex: 0, partIndex: 0 });
 });
 
-test("retries anchor scrolling until the target element appears", async () => {
-  let attempts = 0;
-  let scrolled = 0;
-  const target = {
-    scrollIntoView: () => {
-      scrolled += 1;
-    },
-  };
+test("retries anchor scrolling until the target element appears", () => {
+  vi.useFakeTimers();
+  try {
+    let attempts = 0;
+    let scrolled = 0;
+    const target = {
+      scrollIntoView: () => {
+        scrolled += 1;
+      },
+    };
 
-  scrollElementIntoViewWithRetries({
-    getElement: () => {
-      attempts += 1;
-      return attempts >= 3 ? target : null;
-    },
-    schedule: (callback) => setTimeout(callback, 1) as unknown as number,
-    cancelSchedule: (handle) =>
-      clearTimeout(handle as unknown as NodeJS.Timeout),
-    maxAttempts: 5,
-  });
+    scrollElementIntoViewWithRetries({
+      getElement: () => {
+        attempts += 1;
+        return attempts >= 3 ? target : null;
+      },
+      schedule: (callback) => setTimeout(callback, 1) as unknown as number,
+      cancelSchedule: (handle) =>
+        clearTimeout(handle as unknown as NodeJS.Timeout),
+      maxAttempts: 5,
+    });
 
-  await new Promise((resolve) => setTimeout(resolve, 20));
+    vi.runAllTimers();
 
-  expect(scrolled).toBe(1);
-  expect(attempts).toBe(3);
+    expect(scrolled).toBe(1);
+    expect(attempts).toBe(3);
+  } finally {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  }
 });
 
 test("uses smooth scrolling for external navigation targets when requested", () => {

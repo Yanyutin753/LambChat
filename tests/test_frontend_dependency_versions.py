@@ -53,3 +53,30 @@ def test_frontend_production_build_is_exercised_in_ci() -> None:
     assert build_steps[0]["run"] == "pnpm run build"
     assert build_steps[0]["working-directory"] == "frontend"
     assert build_steps[0]["env"]["NODE_OPTIONS"] == "--max-old-space-size=4096"
+
+
+def test_ci_quality_gates_cover_plugins_and_distribution() -> None:
+    workflow = yaml.safe_load(LINT_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+
+    ruff_runs = [step.get("run") for step in jobs["ruff"]["steps"]]
+    assert "uv run ruff check src/ plugins/" in ruff_runs
+    assert "uv run ruff format --check src/ plugins/" in ruff_runs
+
+    mypy_runs = [step.get("run") for step in jobs["mypy"]["steps"]]
+    assert "uv run mypy src/ plugins/" in mypy_runs
+
+    wheel_runs = [step.get("run") for step in jobs["wheel-build"]["steps"]]
+    assert "uv build --wheel" in wheel_runs
+
+
+def test_production_dependencies_are_audited_in_ci() -> None:
+    workflow = yaml.safe_load(LINT_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    audit_job = workflow["jobs"]["frontend-audit"]
+    audit_steps = [
+        step for step in audit_job["steps"] if step.get("name") == "Audit production dependencies"
+    ]
+
+    assert len(audit_steps) == 1
+    assert audit_steps[0]["run"] == "pnpm audit --prod --audit-level high"
+    assert audit_steps[0]["working-directory"] == "frontend"
