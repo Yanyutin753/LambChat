@@ -12,6 +12,7 @@ from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import parse_iso
 from src.kernel.config import settings
+from src.kernel.extensions.agent_team_service import get_agent_team_directory
 
 logger = get_logger(__name__)
 
@@ -133,18 +134,11 @@ class UsageStorage:
     async def _resolve_team_name(self, team_id: str) -> str:
         if not team_id:
             return ""
+        directory = get_agent_team_directory()
+        if directory is None:
+            return ""
         try:
-            from bson import ObjectId
-
-            from plugins.system.agent_team.backend.domain.storage import TeamStorage
-
-            query_id: ObjectId | str
-            try:
-                query_id = ObjectId(team_id)
-            except Exception:
-                query_id = team_id
-            doc = await TeamStorage().collection.find_one({"_id": query_id}, {"_id": 0, "name": 1})
-            return _as_str((doc or {}).get("name"))
+            return await directory.get_team_name(team_id)
         except Exception as e:
             logger.debug("Failed to resolve team name for usage log %s: %s", team_id, e)
             return ""

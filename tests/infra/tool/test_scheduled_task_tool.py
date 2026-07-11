@@ -796,14 +796,18 @@ async def test_create_task_searches_team_by_query_and_uses_team_agent(
     create_mock = AsyncMock(return_value=task)
     _auto_approve(monkeypatch)
 
-    class _FakeTeamManager:
-        async def list_teams(self, **kwargs):
+    class _FakeTeamDirectory:
+        async def search_teams(self, **kwargs):
             assert kwargs["owner_user_id"] == "user-1"
-            assert kwargs["q"] == "研究团队"
-            return SimpleNamespace(teams=[SimpleNamespace(id="team-research", name="研究团队")])
+            assert kwargs["query"] == "研究团队"
+            return [SimpleNamespace(id="team-research", name="研究团队")]
 
     monkeypatch.setattr(scheduled_task_tool, "_resolve_user", AsyncMock(return_value=None))
-    monkeypatch.setattr(scheduled_task_tool, "TeamManager", lambda: _FakeTeamManager())
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "get_agent_team_directory",
+        lambda: _FakeTeamDirectory(),
+    )
     monkeypatch.setattr(
         scheduled_task_tool,
         "ScheduledTaskService",
