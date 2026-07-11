@@ -73,10 +73,13 @@ def test_ci_quality_gates_cover_plugins_and_distribution() -> None:
 def test_production_dependencies_are_audited_in_ci() -> None:
     workflow = yaml.safe_load(LINT_WORKFLOW_PATH.read_text(encoding="utf-8"))
     audit_job = workflow["jobs"]["frontend-audit"]
+    node_steps = [step for step in audit_job["steps"] if step.get("name") == "Setup Node.js"]
     audit_steps = [
         step for step in audit_job["steps"] if step.get("name") == "Audit production dependencies"
     ]
 
+    assert len(node_steps) == 1
+    assert "cache" not in node_steps[0]["with"]
     assert len(audit_steps) == 1
     assert audit_steps[0]["run"] == "pnpm audit --prod --audit-level high"
     assert audit_steps[0]["working-directory"] == "frontend"

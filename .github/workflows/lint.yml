@@ -246,8 +246,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Audit production dependencies
         run: pnpm audit --prod --audit-level high
