@@ -269,7 +269,7 @@ class PluginPackageScanner:
                 config_defaults=config_defaults,
                 frontend_assets=frontend_assets,
             )
-        except (OSError, ValidationError, ValueError) as exc:
+        except (OSError, ValidationError, ValueError, yaml.YAMLError) as exc:
             errors.append(str(exc) or exc.__class__.__name__)
         return PluginFolderDescriptor(
             plugin_id=plugin_id,

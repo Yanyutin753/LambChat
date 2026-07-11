@@ -1526,6 +1526,66 @@ api_version: v1
     assert any("bad_plugin" in error and "config/schema.json" in error for error in scan.errors)
 
 
+def test_plugin_package_scanner_rejects_bad_yaml_without_blocking_other_plugins(
+    tmp_path: Path,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    data_root = tmp_path / "plugin-data"
+    _write_plugin(
+        plugin_root,
+        "installed",
+        "bad_plugin",
+        "id: bad_plugin\nname: [unterminated\n",
+    )
+    _write_plugin(
+        plugin_root,
+        "installed",
+        "good_plugin",
+        """
+id: good_plugin
+name: Good Plugin
+version: 1.0.0
+api_version: v1
+""",
+    )
+
+    scan = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan()
+    descriptors = scan.by_plugin_id()
+
+    assert descriptors["bad_plugin"].manifest is None
+    assert descriptors["good_plugin"].valid
+    assert any("bad_plugin" in error for error in scan.errors)
+
+
+def test_plugin_package_scanner_rejects_bad_resource_yaml(
+    tmp_path: Path,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    data_root = tmp_path / "plugin-data"
+    plugin = _write_plugin(
+        plugin_root,
+        "installed",
+        "bad_resources",
+        """
+id: bad_resources
+name: Bad Resources
+version: 1.0.0
+api_version: v1
+""",
+    )
+    resources = plugin / "resources"
+    resources.mkdir()
+    (resources / "resources.yaml").write_text(
+        "resources: [unterminated\n",
+        encoding="utf-8",
+    )
+
+    scan = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan()
+
+    assert scan.descriptors[0].manifest is None
+    assert "bad_resources" in scan.errors[0]
+
+
 def test_builtin_folder_packages_are_complete_runtime_contracts() -> None:
     scan = PluginPackageScanner(plugin_root=Path("plugins"), data_root=Path("plugin-data")).scan()
     descriptors = {descriptor.plugin_id: descriptor for descriptor in scan.descriptors}
