@@ -548,6 +548,7 @@ async def test_dispatch_queued_task_uses_arq_backend_without_local_task(
             "team_id": "team-1",
             "active_goal": {"objective": "ship it"},
             "recommendation_input": "hello",
+            "auto_mode": True,
         },
     }
 

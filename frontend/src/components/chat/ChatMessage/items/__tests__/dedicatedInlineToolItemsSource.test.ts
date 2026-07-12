@@ -1,9 +1,6 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../../../../..");
 
@@ -13,6 +10,17 @@ function readSource(relativePath: string): string {
 
 function readRepoSource(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), "utf8");
+}
+
+function readToolRendererSources(): string {
+  return [
+    "frontend/src/extensions/coreContributions.ts",
+    "plugins/preinstalled/audio_transcription/frontend/plugin.json",
+    "plugins/preinstalled/image_generation/frontend/plugin.json",
+    "plugins/system/agent_team/frontend/plugin.json",
+  ]
+    .map(readRepoSource)
+    .join("\n");
 }
 
 function extractToolFunctionNames(relativePath: string): string[] {
@@ -29,6 +37,7 @@ function extractToolFunctionNames(relativePath: string): string[] {
 
 test("message part renderer routes internal inline tools to dedicated items", () => {
   const source = readSource("../../MessagePartRenderer.tsx");
+  const toolRendererSources = readToolRendererSources();
 
   const expectedRoutes = [
     "upload_url_to_sandbox",
@@ -42,16 +51,19 @@ test("message part renderer routes internal inline tools to dedicated items", ()
   ];
 
   for (const toolName of expectedRoutes) {
-    assert.match(source, new RegExp(`part\\.name\\s*===\\s*"${toolName}"`));
+    expect(toolRendererSources).toMatch(new RegExp(`"${toolName}"`));
   }
 
-  assert.match(source, /<UploadUrlToSandboxItem/);
-  assert.match(source, /<ImageAnalyzeItem/);
-  assert.match(source, /<TransferItem/);
+  expect(source).toMatch(/coreToolRendererId === "upload-url-to-sandbox"/);
+  expect(source).toMatch(/coreToolRendererId === "image-analyze"/);
+  expect(source).toMatch(/coreToolRendererId === "transfer"/);
+  expect(source).toMatch(/<UploadUrlToSandboxItem/);
+  expect(source).toMatch(/<ImageAnalyzeItem/);
+  expect(source).toMatch(/<TransferItem/);
 });
 
 test("message part renderer covers every backend internal tool", () => {
-  const source = readSource("../../MessagePartRenderer.tsx");
+  const toolRendererSources = readToolRendererSources();
   const backendToolFiles = [
     "src/infra/tool/upload_url_tool.py",
     "src/infra/tool/reveal_file_tool.py",
@@ -62,7 +74,7 @@ test("message part renderer covers every backend internal tool", () => {
     "src/infra/tool/reveal_project_tool.py",
     "src/infra/tool/transfer_file_tool.py",
     "src/infra/tool/sandbox_mcp_tool.py",
-    "src/infra/tool/team_tool.py",
+    "plugins/system/agent_team/backend/tools.py",
     "src/infra/tool/image_generation_tool.py",
     "src/infra/tool/scheduled_task/read.py",
     "src/infra/tool/scheduled_task/delete.py",
@@ -72,44 +84,40 @@ test("message part renderer covers every backend internal tool", () => {
   ];
   const internalToolNames = backendToolFiles.flatMap(extractToolFunctionNames);
 
-  assert.equal(internalToolNames.length, 32);
+  expect(internalToolNames.length).toBe(32);
 
   for (const toolName of internalToolNames) {
-    assert.match(
-      source,
-      new RegExp(`part\\.name\\s*===\\s*"${toolName}"`),
-      `${toolName} should route to a dedicated message item`,
-    );
+    expect(toolRendererSources).toMatch(new RegExp(`"${toolName}"`));
   }
 });
 
 test("upload URL to sandbox item presents URL and destination path details", () => {
   const source = readSource("../UploadUrlToSandboxItem.tsx");
 
-  assert.match(source, /toolUploadUrlToSandbox/);
-  assert.match(source, /args\.url/);
-  assert.match(source, /args\.file_path/);
-  assert.match(source, /Download size=\{12\}/);
-  assert.match(source, /ToolResultContent/);
+  expect(source).toMatch(/toolUploadUrlToSandbox/);
+  expect(source).toMatch(/args\.url/);
+  expect(source).toMatch(/args\.file_path/);
+  expect(source).toMatch(/Download size=\{12\}/);
+  expect(source).toMatch(/ToolResultContent/);
 });
 
 test("image analyze item presents prompt, images, and analysis output", () => {
   const source = readSource("../ImageAnalyzeItem.tsx");
 
-  assert.match(source, /toolImageAnalyze/);
-  assert.match(source, /args\.image_urls/);
-  assert.match(source, /args\.prompt/);
-  assert.match(source, /DeferredCodeMirrorViewer/);
-  assert.match(source, /ScanSearch size=\{12\}/);
+  expect(source).toMatch(/toolImageAnalyze/);
+  expect(source).toMatch(/args\.image_urls/);
+  expect(source).toMatch(/args\.prompt/);
+  expect(source).toMatch(/DeferredCodeMirrorViewer/);
+  expect(source).toMatch(/ScanSearch size=\{12\}/);
 });
 
 test("transfer item presents file and path transfer arguments", () => {
   const source = readSource("../TransferItem.tsx");
 
-  assert.match(source, /toolTransferFile/);
-  assert.match(source, /toolTransferPath/);
-  assert.match(source, /args\.source_path/);
-  assert.match(source, /args\.target_path/);
-  assert.match(source, /args\.source_dir/);
-  assert.match(source, /args\.target_prefix/);
+  expect(source).toMatch(/toolTransferFile/);
+  expect(source).toMatch(/toolTransferPath/);
+  expect(source).toMatch(/args\.source_path/);
+  expect(source).toMatch(/args\.target_path/);
+  expect(source).toMatch(/args\.source_dir/);
+  expect(source).toMatch(/args\.target_prefix/);
 });

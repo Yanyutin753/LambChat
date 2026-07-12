@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronsUpDown,
@@ -235,27 +235,42 @@ export function SessionListContent({
     scheduledTaskUnreadByTaskRef.current = next;
   }, [scheduledTasks]);
 
-  const visibleUncategorizedSessions = uncategorizedSessions.filter(
-    (session) => !session.metadata?.scheduled_task_id,
+  const visibleUncategorizedSessions = useMemo(
+    () =>
+      uncategorizedSessions.filter(
+        (session) => !session.metadata?.scheduled_task_id,
+      ),
+    [uncategorizedSessions],
   );
   const chatsUnreadCount = getUnreadCountForUncategorized({
     loadedSessions: visibleUncategorizedSessions,
     unreadBySession,
   });
-  const groupedUncategorized = groupSessionsByTime(
-    visibleUncategorizedSessions,
-    t,
+  const groupedUncategorized = useMemo(
+    () => groupSessionsByTime(visibleUncategorizedSessions, t),
+    [visibleUncategorizedSessions, t],
   );
-  const visibleUncategorizedIds = visibleUncategorizedSessions
-    .map((session) => session.id)
-    .filter(Boolean);
+  const visibleUncategorizedIds = useMemo(
+    () =>
+      visibleUncategorizedSessions.map((session) => session.id).filter(Boolean),
+    [visibleUncategorizedSessions],
+  );
   const allVisibleSelected = isEveryVisibleSessionSelected(
     selectedSessionIds,
     visibleUncategorizedIds,
   );
   const selectedCount = selectedSessionIds.size;
-  const selectedIds = Array.from(selectedSessionIds);
-  const customProjects = projects.filter(isSidebarProject);
+  const selectedIds = useMemo(
+    () => Array.from(selectedSessionIds),
+    [selectedSessionIds],
+  );
+  const customProjects = useMemo(
+    () =>
+      projects
+        .filter(isSidebarProject)
+        .sort((a, b) => a.sort_order - b.sort_order),
+    [projects],
+  );
   const handleScheduledTaskUnreadChange = useCallback(
     (taskId: string, unreadCount: number) => {
       const prev = scheduledTaskUnreadByTaskRef.current;
@@ -486,41 +501,38 @@ export function SessionListContent({
 
           {/* Custom projects */}
           {!isProjectsCollapsed &&
-            projects
-              .filter(isSidebarProject)
-              .sort((a, b) => a.sort_order - b.sort_order)
-              .map((project) => (
-                <ProjectItem
-                  key={project.id}
-                  ref={(el) => projectActions.onSetProjectRef(project.id, el)}
-                  project={project}
-                  currentSessionId={currentSessionId}
-                  allProjects={projects}
-                  onSelectSession={sessionActions.onSelectSession}
-                  onDeleteSession={sessionActions.onDeleteSession}
-                  onMoveSession={sessionActions.onMoveSession}
-                  onToggleFavorite={sessionActions.onToggleFavorite}
-                  onShareSession={sessionActions.onShareSession}
-                  onRenameProject={projectActions.onRenameProject}
-                  onDeleteProject={projectActions.onDeleteProject}
-                  onUpdateIcon={projectActions.onUpdateIcon}
-                  scrollRoot={scrollEl}
-                  draggingSessionId={
-                    sessionActions.touchDropTarget === project.id
-                      ? sessionActions.draggingSessionId
-                      : null
-                  }
-                  onNewSessionInProject={projectActions.onNewSessionInProject}
-                  forceExpandProjectId={autoExpandProjectId}
-                  onConsumeAutoExpand={onConsumeAutoExpandProjectId}
-                  unreadBySession={unreadBySession}
-                  onMarkAllRead={onMarkAllRead}
-                  markingReadId={markingReadId}
-                  selectionMode={isSelectionMode}
-                  selectedSessionIds={selectedSessionIds}
-                  onToggleSessionSelected={handleToggleSessionSelected}
-                />
-              ))}
+            customProjects.map((project) => (
+              <ProjectItem
+                key={project.id}
+                ref={(el) => projectActions.onSetProjectRef(project.id, el)}
+                project={project}
+                currentSessionId={currentSessionId}
+                allProjects={projects}
+                onSelectSession={sessionActions.onSelectSession}
+                onDeleteSession={sessionActions.onDeleteSession}
+                onMoveSession={sessionActions.onMoveSession}
+                onToggleFavorite={sessionActions.onToggleFavorite}
+                onShareSession={sessionActions.onShareSession}
+                onRenameProject={projectActions.onRenameProject}
+                onDeleteProject={projectActions.onDeleteProject}
+                onUpdateIcon={projectActions.onUpdateIcon}
+                scrollRoot={scrollEl}
+                draggingSessionId={
+                  sessionActions.touchDropTarget === project.id
+                    ? sessionActions.draggingSessionId
+                    : null
+                }
+                onNewSessionInProject={projectActions.onNewSessionInProject}
+                forceExpandProjectId={autoExpandProjectId}
+                onConsumeAutoExpand={onConsumeAutoExpandProjectId}
+                unreadBySession={unreadBySession}
+                onMarkAllRead={onMarkAllRead}
+                markingReadId={markingReadId}
+                selectionMode={isSelectionMode}
+                selectedSessionIds={selectedSessionIds}
+                onToggleSessionSelected={handleToggleSessionSelected}
+              />
+            ))}
 
           {!isProjectsCollapsed && (
             <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
@@ -844,7 +856,7 @@ export function SessionListContent({
           onClick={onShowProfile}
           className="group flex items-center rounded-xl py-3 px-2 w-full hover:bg-stone-100 dark:hover:bg-stone-800/60 transition cursor-pointer"
         >
-          <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden ring-1 ring-stone-200 dark:ring-stone-700 group-hover:ring-[var(--theme-primary)] transition mr-3">
+          <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden ring-1 ring-stone-200 dark:ring-stone-700 group-hover:ring-[var(--theme-text-secondary)] transition mr-3">
             {user?.avatar_url && !imgError ? (
               <ImageWithSkeleton
                 src={getFullUrl(user.avatar_url) ?? user.avatar_url}

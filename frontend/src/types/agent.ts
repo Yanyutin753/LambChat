@@ -33,15 +33,6 @@ export interface AgentListResponse {
   allowed_model_ids?: string[] | null;
 }
 
-// Workflow event types
-export interface WorkflowStepData {
-  step_id: string;
-  step_name: string;
-  agent_id?: string;
-  status?: "running" | "completed" | "failed";
-  result?: string;
-}
-
 // ============================================
 // Agent Config Types
 // ============================================

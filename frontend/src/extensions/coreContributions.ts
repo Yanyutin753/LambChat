@@ -12,393 +12,114 @@ import {
   Sparkles,
   Plug,
   UserRound,
-  Workflow,
   Users,
 } from "lucide-react";
 import { Permission } from "../types";
 import type { SettingCategory } from "../types/settings";
 import type { TabType } from "../components/layout/AppContent/types";
+import type {
+  CoreContributionArea,
+  CoreAppRouteContribution,
+  CorePanelContribution,
+  CoreScheduledTaskSectionContribution,
+  CoreSidebarNavContribution,
+  CoreUserMenuContribution,
+  CoreSettingsSectionContribution,
+  CoreToolRendererContribution,
+  CorePluginMessageRendererContribution,
+  CoreFileViewerContribution,
+  CoreUploadHandlerContribution,
+  CoreSkillImporterContribution,
+  CoreChannelConnectorContribution,
+  CoreMessageActionContribution,
+  PluginContributionVisibilityContext,
+  PluginMessageActionContext,
+  PluginContributionVisibleWhen,
+  PluginOptionBindingContribution,
+  PluginRuntimeAppTab,
+  PluginRuntimeAppPanel,
+  PluginRuntimeScheduledTaskSection,
+  PluginRuntimeSidebarItem,
+  PluginRuntimeUserMenuItem,
+  PluginRuntimeMessageAction,
+  PluginRuntimeToolRenderer,
+  PluginRuntimeMessageRenderer,
+  PluginRuntimeFileViewer,
+  PluginRuntimeUploadHandler,
+  PluginRuntimeSkillImporter,
+  PluginRuntimeChannelConnector,
+  CoreChatInputOptionContribution,
+  CoreChatInputPanelContribution,
+  CoreMentionProviderContribution,
+  CoreWelcomeSurfaceContribution,
+  CoreAssistantIdentityResolverContribution,
+  CoreAgentCategoryContribution,
+  CoreAgentCatalogEntryContribution,
+  PluginRuntimeAgent,
+  CoreScopedPluginOptionContribution,
+  PluginRuntimeAgentCategory,
+  PluginRuntimeAssistantIdentityResolver,
+  PluginRuntimeScopedOption,
+  PluginRuntimeOptionBinding,
+  CoreI18nNamespaceContribution,
+  CorePluginAssetSlotContribution,
+  PluginRuntimeContributionState,
+  PluginRuntimeContributionStates,
+  PluginContributionSnapshot,
+  PluginContributionPreview,
+} from "./coreContributionTypes";
 
-export type CoreContributionArea =
-  | "app_route"
-  | "panel"
-  | "sidebar_more_menu"
-  | "user_menu"
-  | "settings_section"
-  | "tool_renderer"
-  | "file_viewer"
-  | "upload_handler"
-  | "skill_importer"
-  | "channel_connector"
-  | "message_action"
-  | "chat_input_option"
-  | "chat_input_panel"
-  | "mention_provider"
-  | "welcome_surface"
-  | "assistant_identity_resolver"
-  | "agent_catalog_entry"
-  | "agent_category"
-  | "project_option"
-  | "session_option"
-  | "channel_option"
-  | "scheduled_task_option"
-  | "plugin_asset_slot"
-  | "i18n_namespace";
-
-export interface CoreAppRouteContribution {
-  id: Exclude<TabType, "chat">;
-  pluginId?: string;
-  insertAfterId?: Exclude<TabType, "chat">;
-  path: string;
-  seoPath?: string;
-  seoTitle: string;
-  seoDescription: string;
-  tab: Exclude<TabType, "chat">;
-  permissions?: Permission[];
-  redirectTo?: string;
-  showNoPermissionToast?: boolean;
-  area: "app_route";
-}
-
-export interface CorePanelContribution {
-  id: Exclude<TabType, "chat">;
-  pluginId?: string;
-  tab: Exclude<TabType, "chat">;
-  renderer?: string;
-  area: "panel";
-}
-
-export interface CoreSidebarNavContribution {
-  id: string;
-  pluginId?: string;
-  path: string;
-  labelKey: string;
-  fallbackLabel?: string;
-  icon: LucideIcon;
-  requiredAnyPermissions?: Permission[];
-  requiresSetting?: "memory";
-  area: "sidebar_more_menu";
-}
-
-export interface CoreUserMenuContribution {
-  id: string;
-  pluginId?: string;
-  path: string;
-  labelKey: string;
-  icon: LucideIcon;
-  requiredAnyPermissions: Permission[];
-  group: "admin" | "system";
-  area: "user_menu";
-}
-
-export interface CoreSettingsSectionContribution {
-  id: SettingCategory;
-  category: SettingCategory;
-  area: "settings_section";
-}
-
-export interface CoreToolRendererContribution {
-  id: string;
-  toolNames: readonly string[];
-  area: "tool_renderer";
-}
-
-export interface CoreFileViewerContribution {
-  id: string;
-  extensions: readonly string[];
-  area: "file_viewer";
-}
-
-export interface CoreUploadHandlerContribution {
-  id: string;
-  pluginId: string;
-  accept: readonly string[];
-  maxBytes?: number | null;
-  handler?: string | null;
-  area: "upload_handler";
-}
-
-export interface CoreSkillImporterContribution {
-  id: string;
-  source: "github" | "zip";
-  area: "skill_importer";
-}
-
-export interface CoreChannelConnectorContribution {
-  id: string;
-  pluginId: string;
-  channelType: string;
-  panelRenderer?: string | null;
-  area: "channel_connector";
-}
-
-export interface CoreMessageActionContribution {
-  id: string;
-  pluginId: string;
-  target: "assistant_message" | "user_message" | "tool_result" | "shared_message" | string;
-  renderer: string;
-  order: number;
-  permissions?: string[];
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "message_action";
-}
-
-export interface PluginContributionVisibilityContext {
-  agentId?: string | null;
-  route?: string | null;
-  scope?: string | null;
-  permissions?: readonly string[];
-}
-
-export interface PluginMessageActionContext extends PluginContributionVisibilityContext {
-  target?: CoreMessageActionContribution["target"];
-}
-
-interface PluginContributionVisibleWhen {
-  agent_id?: string | null;
-  route?: string | null;
-  scope?: string | null;
-  permissions?: string[];
-}
-
-export interface PluginOptionBindingContribution {
-  pluginId: string;
-  key: string;
-  scope: string;
-}
-
-interface PluginRuntimeAppTab {
-  id: string;
-  tab: string;
-  path: string;
-  label?: string;
-  panel?: string | null;
-  order: number;
-  insert_after?: string | null;
-  permissions?: string[];
-  seo_title?: string;
-  seo_description?: string;
-  redirect_to?: string | null;
-  show_no_permission_toast?: boolean;
-  visible_when?: PluginContributionVisibleWhen | null;
-}
-
-interface PluginRuntimeAppPanel {
-  id: string;
-  tab: string;
-  renderer: string;
-  visible_when?: PluginContributionVisibleWhen | null;
-}
-
-interface PluginRuntimeSidebarItem {
-  id: string;
-  path: string;
-  label: string;
-  icon: string;
-  order: number;
-  permissions?: string[];
-  visible_when?: PluginContributionVisibleWhen | null;
-}
-
-interface PluginRuntimeUserMenuItem extends PluginRuntimeSidebarItem {
-  group: "admin" | "system";
-}
-
-interface PluginRuntimeMessageAction {
-  id: string;
-  target?: string;
-  renderer: string;
-  order?: number;
-  permissions?: string[];
-  visible_when?: PluginContributionVisibleWhen | null;
-}
-
-interface PluginRuntimeToolRenderer {
-  id: string;
-  tool_names?: string[];
-}
-
-interface PluginRuntimeFileViewer {
-  id: string;
-  extensions?: string[];
-}
-
-interface PluginRuntimeUploadHandler {
-  id: string;
-  accept?: string[];
-  max_bytes?: number | null;
-  handler?: string | null;
-}
-
-interface PluginRuntimeSkillImporter {
-  id: string;
-  source: "github" | "zip";
-}
-
-interface PluginRuntimeChannelConnector {
-  id: string;
-  channel_type: string;
-  panel_renderer?: string | null;
-}
-
-export interface CoreChatInputOptionContribution {
-  id: string;
-  pluginId: string;
-  slot: "enhance" | "settings" | "upload" | string;
-  label: string;
-  icon: string;
-  panel?: string | null;
-  selectedRenderer?: string | null;
-  suppressesCorePersonaSelector: boolean;
-  shortcut?: string | null;
-  order: number;
-  optionBinding?: PluginOptionBindingContribution | null;
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "chat_input_option";
-}
-
-export interface CoreChatInputPanelContribution {
-  id: string;
-  pluginId: string;
-  renderer: string;
-  createPath?: string | null;
-  managePath?: string | null;
-  optionBinding?: PluginOptionBindingContribution | null;
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "chat_input_panel";
-}
-
-export interface CoreMentionProviderContribution {
-  id: string;
-  pluginId: string;
-  trigger: string;
-  mode: string;
-  provider: string;
-  optionBinding?: PluginOptionBindingContribution | null;
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "mention_provider";
-}
-
-export interface CoreWelcomeSurfaceContribution {
-  id: string;
-  pluginId: string;
-  agentId: string;
-  renderer: string;
-  order: number;
-  optionBinding?: PluginOptionBindingContribution | null;
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "welcome_surface";
-}
-
-export interface CoreAssistantIdentityResolverContribution {
-  id: string;
-  pluginId: string;
-  agentId: string;
-  resolver: string;
-  order: number;
-  optionBinding?: PluginOptionBindingContribution | null;
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "assistant_identity_resolver";
-}
-
-export interface CoreAgentCategoryContribution {
-  id: string;
-  pluginId: string;
-  label: string;
-  description: string;
-  icon: string;
-  order: number;
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "agent_category";
-}
-
-export interface CoreAgentCatalogEntryContribution {
-  id: string;
-  pluginId: string;
-  name: string;
-  description: string;
-  icon: string;
-  category?: string | null;
-  order: number;
-  sortOrder: number;
-  requiredPermissions: readonly string[];
-  area: "agent_catalog_entry";
-}
-
-interface PluginRuntimeAgent {
-  id: string;
-  module?: string;
-  name?: string;
-  description?: string;
-  icon?: string;
-  sort_order?: number;
-  category?: string | null;
-  required_permissions?: string[];
-}
-
-export interface CoreScopedPluginOptionContribution {
-  id: string;
-  pluginId: string;
-  pluginEnabled: boolean;
-  effective: boolean;
-  pluginStatus: string;
-  key: string;
-  type: "string" | "text" | "number" | "boolean" | "select" | "json" | string;
-  label: string;
-  description: string;
-  defaultValue?: unknown;
-  group: string;
-  order: number;
-  options?: string[] | null;
-  jsonSchema?: Record<string, unknown> | null;
-  renderer?: string | null;
-  suppressesCorePersonaSelector: boolean;
-  legacyPayloadKeys: readonly string[];
-  appliesToSessionKey?: string | null;
-  visibleWhen?: PluginContributionVisibleWhen | null;
-  area: "project_option" | "session_option" | "channel_option" | "scheduled_task_option";
-}
-
-interface PluginRuntimeAgentCategory {
-  id: string;
-  label: string;
-  description?: string;
-  icon: string;
-  order: number;
-  visible_when?: PluginContributionVisibleWhen | null;
-}
-
-interface PluginRuntimeAssistantIdentityResolver {
-  id: string;
-  agent_id: string;
-  resolver: string;
-  order: number;
-  option_binding?: PluginRuntimeOptionBinding | null;
-  visible_when?: PluginContributionVisibleWhen | null;
-}
-
-interface PluginRuntimeScopedOption {
-  key: string;
-  type: string;
-  label: string;
-  description?: string;
-  default?: unknown;
-  group?: string;
-  order: number;
-  options?: string[] | null;
-  json_schema?: Record<string, unknown> | null;
-  renderer?: string | null;
-  suppresses_core_persona_selector?: boolean;
-  legacy_payload_keys?: string[];
-  applies_to_session_key?: string | null;
-  visible_when?: PluginContributionVisibleWhen | null;
-}
-
-interface PluginRuntimeOptionBinding {
-  plugin_id?: string | null;
-  key: string;
-  scope?: string;
-}
+export type {
+  CoreContributionArea,
+  CoreAppRouteContribution,
+  CorePanelContribution,
+  CoreScheduledTaskSectionContribution,
+  CoreSidebarNavContribution,
+  CoreUserMenuContribution,
+  CoreSettingsSectionContribution,
+  CoreToolRendererContribution,
+  CorePluginMessageRendererContribution,
+  CoreFileViewerContribution,
+  CoreUploadHandlerContribution,
+  CoreSkillImporterContribution,
+  CoreChannelConnectorContribution,
+  CoreMessageActionContribution,
+  PluginContributionVisibilityContext,
+  PluginMessageActionContext,
+  PluginContributionVisibleWhen,
+  PluginOptionBindingContribution,
+  PluginRuntimeAppTab,
+  PluginRuntimeAppPanel,
+  PluginRuntimeScheduledTaskSection,
+  PluginRuntimeSidebarItem,
+  PluginRuntimeUserMenuItem,
+  PluginRuntimeMessageAction,
+  PluginRuntimeToolRenderer,
+  PluginRuntimeMessageRenderer,
+  PluginRuntimeFileViewer,
+  PluginRuntimeUploadHandler,
+  PluginRuntimeSkillImporter,
+  PluginRuntimeChannelConnector,
+  CoreChatInputOptionContribution,
+  CoreChatInputPanelContribution,
+  CoreMentionProviderContribution,
+  CoreWelcomeSurfaceContribution,
+  CoreAssistantIdentityResolverContribution,
+  CoreAgentCategoryContribution,
+  CoreAgentCatalogEntryContribution,
+  PluginRuntimeAgent,
+  CoreScopedPluginOptionContribution,
+  PluginRuntimeAgentCategory,
+  PluginRuntimeAssistantIdentityResolver,
+  PluginRuntimeScopedOption,
+  PluginRuntimeOptionBinding,
+  CoreI18nNamespaceContribution,
+  CorePluginAssetSlotContribution,
+  PluginRuntimeContributionState,
+  PluginRuntimeContributionStates,
+  PluginContributionSnapshot,
+  PluginContributionPreview,
+};
 
 function optionBindingFromRuntime(
   pluginId: string,
@@ -410,138 +131,6 @@ function optionBindingFromRuntime(
     key: binding.key,
     scope: binding.scope || "session",
   };
-}
-
-export interface CoreI18nNamespaceContribution {
-  id: string;
-  pluginId: string;
-  namespace: string;
-  area: "i18n_namespace";
-}
-
-export interface CorePluginAssetSlotContribution {
-  id: string;
-  pluginId: string;
-  slot: string;
-  assetSchema: string;
-  assets: readonly string[];
-  mountPath: string;
-  area: "plugin_asset_slot";
-}
-
-export interface PluginRuntimeContributionState {
-  plugin_id: string;
-  enabled: boolean;
-  executable: boolean;
-  status: string;
-  agents?: PluginRuntimeAgent[];
-  tools?: Array<{
-    name: string;
-    legacy_ids?: string[];
-  }>;
-  frontend?: {
-    routes?: string[];
-    panels?: string[];
-    nav_items?: string[];
-    app_tabs?: PluginRuntimeAppTab[];
-    app_panels?: PluginRuntimeAppPanel[];
-    sidebar_items?: PluginRuntimeSidebarItem[];
-    user_menu_items?: PluginRuntimeUserMenuItem[];
-    tool_renderers?: Array<string | PluginRuntimeToolRenderer>;
-    file_viewers?: Array<string | PluginRuntimeFileViewer>;
-    upload_handlers?: Array<string | PluginRuntimeUploadHandler>;
-    skill_importers?: Array<string | PluginRuntimeSkillImporter>;
-    channel_connectors?: Array<string | PluginRuntimeChannelConnector>;
-    message_actions?: Array<string | PluginRuntimeMessageAction>;
-    chat_input_options?: Array<{
-      id: string;
-      slot: string;
-      label: string;
-      icon: string;
-      panel?: string | null;
-      selected_renderer?: string | null;
-      suppresses_core_persona_selector?: boolean;
-      shortcut?: string | null;
-      order: number;
-      option_binding?: PluginRuntimeOptionBinding | null;
-      visible_when?: PluginContributionVisibleWhen | null;
-    }>;
-    chat_input_panels?: Array<{
-      id: string;
-      renderer: string;
-      create_path?: string | null;
-      manage_path?: string | null;
-      option_binding?: PluginRuntimeOptionBinding | null;
-      visible_when?: PluginContributionVisibleWhen | null;
-    }>;
-    mention_providers?: Array<{
-      id: string;
-      trigger: string;
-      mode: string;
-      provider: string;
-      option_binding?: PluginRuntimeOptionBinding | null;
-      visible_when?: PluginContributionVisibleWhen | null;
-    }>;
-    welcome_surfaces?: Array<{
-      id: string;
-      agent_id: string;
-      renderer: string;
-      order: number;
-      option_binding?: PluginRuntimeOptionBinding | null;
-      visible_when?: PluginContributionVisibleWhen | null;
-    }>;
-    assistant_identity_resolvers?: PluginRuntimeAssistantIdentityResolver[];
-    agent_categories?: PluginRuntimeAgentCategory[];
-    project_options?: PluginRuntimeScopedOption[];
-    session_options?: PluginRuntimeScopedOption[];
-    channel_options?: PluginRuntimeScopedOption[];
-    scheduled_task_options?: PluginRuntimeScopedOption[];
-    i18n_namespaces?: string[];
-  } | null;
-  package?: {
-    frontend_assets?: {
-      plugin_id: string;
-      asset_schema: string;
-      slots: string[];
-      assets: string[];
-      phase: string;
-    } | null;
-  };
-}
-
-export type PluginRuntimeContributionStates =
-  | readonly PluginRuntimeContributionState[]
-  | undefined;
-
-export interface PluginContributionSnapshot {
-  appRoutes: readonly string[];
-  panels: readonly string[];
-  sidebarMoreItems: readonly string[];
-  userMenuItems: readonly string[];
-  toolRenderers: readonly string[];
-  fileViewers: readonly string[];
-  skillImporters: readonly string[];
-  channelConnectors: readonly string[];
-  messageActions: readonly string[];
-  chatInputOptions: readonly string[];
-  chatInputPanels: readonly string[];
-  mentionProviders: readonly string[];
-  welcomeSurfaces: readonly string[];
-  assistantIdentityResolvers: readonly string[];
-  agentCatalogEntries: readonly string[];
-  agentCategories: readonly string[];
-  projectOptions: readonly string[];
-  sessionOptions: readonly string[];
-  channelOptions: readonly string[];
-  scheduledTaskOptions: readonly string[];
-  pluginAssetSlots: readonly string[];
-  i18nNamespaces: readonly string[];
-}
-
-export interface PluginContributionPreview {
-  current: PluginContributionSnapshot;
-  simulatedDisabled: PluginContributionSnapshot;
-  removedWhenDisabled: PluginContributionSnapshot;
 }
 
 export const CORE_APP_ROUTES: readonly CoreAppRouteContribution[] = [
@@ -864,7 +453,6 @@ function iconByName(name: string): LucideIcon {
     Plug,
     Star,
     Users,
-    Workflow,
   };
   return icons[name] ?? Plug;
 }
@@ -885,6 +473,7 @@ function routeFromRuntimeAppTab(
     pluginId: plugin.plugin_id,
     insertAfterId: tab.insert_after ? asKnownTab(tab.insert_after) ?? undefined : undefined,
     path: tab.path,
+    labelKey: tab.label,
     seoTitle: tab.seo_title || `seo.${knownTab}.title`,
     seoDescription: tab.seo_description || `seo.${knownTab}.description`,
     tab: knownTab,
@@ -921,6 +510,21 @@ function sidebarItemFromRuntime(
     labelKey: item.label,
     icon: iconByName(item.icon),
     requiredAnyPermissions: asPermissionValues(item.permissions),
+    area: "sidebar_more_menu",
+  };
+}
+
+function sidebarItemFromRuntimeAppTab(
+  route: CoreAppRouteContribution,
+): CoreSidebarNavContribution | null {
+  if (!route.pluginId) return null;
+  return {
+    id: route.id,
+    pluginId: route.pluginId,
+    path: route.seoPath ?? route.path,
+    labelKey: route.labelKey ?? `nav.${route.id}`,
+    icon: Plug,
+    requiredAnyPermissions: route.permissions,
     area: "sidebar_more_menu",
   };
 }
@@ -970,6 +574,39 @@ function scopedOptionFromRuntime(
   };
 }
 
+function insertRuntimeRoutes(
+  coreRoutes: readonly CoreAppRouteContribution[],
+  pluginRoutes: readonly CoreAppRouteContribution[],
+): readonly CoreAppRouteContribution[] {
+  const routes = [...coreRoutes];
+  const remaining = [...pluginRoutes];
+  let changed = true;
+
+  while (changed && remaining.length) {
+    changed = false;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const route = remaining[index];
+      const insertAfterId = route.insertAfterId;
+      if (!insertAfterId) {
+        routes.push(route);
+        remaining.splice(index, 1);
+        index -= 1;
+        changed = true;
+        continue;
+      }
+
+      const targetIndex = routes.findIndex((item) => item.id === insertAfterId);
+      if (targetIndex === -1) continue;
+      routes.splice(targetIndex + 1, 0, route);
+      remaining.splice(index, 1);
+      index -= 1;
+      changed = true;
+    }
+  }
+
+  return [...routes, ...remaining];
+}
+
 export function buildAppRouteContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): readonly CoreAppRouteContribution[] {
@@ -985,37 +622,7 @@ export function buildAppRouteContributions(
         return structuredRoutes;
       })
     : [];
-  const routes = CORE_APP_ROUTES.reduce<CoreAppRouteContribution[]>((routes, coreRoute) => {
-    routes.push(coreRoute);
-    routes.push(
-      ...pluginRoutes.filter(
-        (pluginRoute) => pluginRoute.insertAfterId === coreRoute.id,
-      ),
-    );
-    return routes;
-  }, [
-    ...pluginRoutes.filter((pluginRoute) => !pluginRoute.insertAfterId),
-  ]);
-  const insertedRouteIds = new Set(routes.map((route) => route.id));
-  const pendingRoutes = pluginRoutes.filter(
-    (pluginRoute) => pluginRoute.insertAfterId && !insertedRouteIds.has(pluginRoute.id),
-  );
-  while (pendingRoutes.length > 0) {
-    const pendingBefore = pendingRoutes.length;
-    for (let index = pendingRoutes.length - 1; index >= 0; index -= 1) {
-      const route = pendingRoutes[index];
-      const insertIndex = routes.findIndex(
-        (candidate) => candidate.id === route.insertAfterId,
-      );
-      if (insertIndex === -1) continue;
-      routes.splice(insertIndex + 1, 0, route);
-      insertedRouteIds.add(route.id);
-      pendingRoutes.splice(index, 1);
-    }
-    if (pendingRoutes.length === pendingBefore) break;
-  }
-  routes.push(...pendingRoutes);
-  return routes;
+  return insertRuntimeRoutes(CORE_APP_ROUTES, pluginRoutes);
 }
 
 export function buildPanelContributions(
@@ -1089,9 +696,22 @@ export function buildSidebarMoreNavContributions(
         return structuredItems;
       })
     : [];
+  const appRouteNavItems = buildAppRouteContributions(runtimePlugins).flatMap(
+    (route) => {
+      const navItem = sidebarItemFromRuntimeAppTab(route);
+      if (!navItem) return [];
+      const hasExplicitItem = pluginNavItems.some(
+        (item) =>
+          item.pluginId === navItem.pluginId &&
+          (item.id === navItem.id || item.path === navItem.path),
+      );
+      return hasExplicitItem ? [] : [navItem];
+    },
+  );
   return [
     ...CORE_SIDEBAR_MORE_NAV.slice(0, 1),
     ...pluginNavItems,
+    ...appRouteNavItems,
     ...CORE_SIDEBAR_MORE_NAV.slice(1),
   ];
 }
@@ -1113,6 +733,9 @@ function snapshotContributions(
     ),
     toolRenderers: buildToolRendererContributions(runtimePlugins).map(
       (renderer) => renderer.id,
+    ),
+    pluginMessageRenderers: buildPluginMessageRendererContributions(runtimePlugins).map(
+      (renderer) => renderer.renderer,
     ),
     fileViewers: buildFileViewerContributions(runtimePlugins).map(
       (viewer) => viewer.id,
@@ -1159,6 +782,9 @@ function snapshotContributions(
     ),
     scheduledTaskOptions: buildScheduledTaskOptionContributions(runtimePlugins, context).map(
       (option) => option.id,
+    ),
+    scheduledTaskSections: buildScheduledTaskSectionContributions(runtimePlugins, context).map(
+      (section) => section.id,
     ),
     pluginAssetSlots: buildPluginAssetSlotContributions(runtimePlugins).map(
       (slot) => slot.id,
@@ -1217,6 +843,10 @@ export function buildPluginContributionPreview(
         current.toolRenderers,
         simulatedDisabled.toolRenderers,
       ),
+      pluginMessageRenderers: removedValues(
+        current.pluginMessageRenderers,
+        simulatedDisabled.pluginMessageRenderers,
+      ),
       fileViewers: removedValues(current.fileViewers, simulatedDisabled.fileViewers),
       skillImporters: removedValues(
         current.skillImporters,
@@ -1274,6 +904,10 @@ export function buildPluginContributionPreview(
         current.scheduledTaskOptions,
         simulatedDisabled.scheduledTaskOptions,
       ),
+      scheduledTaskSections: removedValues(
+        current.scheduledTaskSections,
+        simulatedDisabled.scheduledTaskSections,
+      ),
       pluginAssetSlots: removedValues(
         current.pluginAssetSlots,
         simulatedDisabled.pluginAssetSlots,
@@ -1330,21 +964,53 @@ export const CORE_TOOL_RENDERERS: readonly CoreToolRendererContribution[] = [
   { id: "glob", toolNames: ["glob"], area: "tool_renderer" },
   { id: "execute", toolNames: ["execute"], area: "tool_renderer" },
   {
+    id: "upload-url-to-sandbox",
+    toolNames: ["upload_url_to_sandbox"],
+    area: "tool_renderer",
+  },
+  {
+    id: "image-analyze",
+    toolNames: ["image_analyze", "image_edit_with_references"],
+    area: "tool_renderer",
+  },
+  {
+    id: "transfer",
+    toolNames: ["transfer_file", "transfer_path"],
+    area: "tool_renderer",
+  },
+  {
     id: "scheduled-task",
     toolNames: [
       "scheduled_task_create",
       "scheduled_task_list",
+      "scheduled_task_get",
       "scheduled_task_update",
+      "scheduled_task_pause",
+      "scheduled_task_resume",
       "scheduled_task_delete",
+      "scheduled_task_run",
     ],
     area: "tool_renderer",
   },
   {
     id: "env-var",
-    toolNames: ["env_var_list", "env_var_set", "env_var_delete"],
+    toolNames: [
+      "env_var_list",
+      "env_var_set",
+      "env_var_delete",
+      "env_var_delete_all",
+    ],
     area: "tool_renderer",
   },
-  { id: "persona", toolNames: ["save_persona_preset"], area: "tool_renderer" },
+  {
+    id: "persona",
+    toolNames: [
+      "save_persona_preset",
+      "create_persona_preset",
+      "update_persona_preset",
+    ],
+    area: "tool_renderer",
+  },
   {
     id: "sandbox-mcp",
     toolNames: ["sandbox_mcp_add", "sandbox_mcp_update", "sandbox_mcp_remove"],
@@ -1399,6 +1065,22 @@ export function buildToolRendererContributions(
     ];
   }
   return CORE_TOOL_RENDERERS;
+}
+
+export function buildPluginMessageRendererContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+): readonly CorePluginMessageRendererContribution[] {
+  if (!runtimePlugins) return [];
+  return runtimePlugins.flatMap((plugin) => {
+    if (!plugin.enabled || !plugin.executable) return [];
+    return (plugin.frontend?.message_renderers ?? []).map((renderer) => ({
+      id: unqualifiedContributionId(renderer.id, plugin.plugin_id),
+      pluginId: plugin.plugin_id,
+      renderer: renderer.renderer,
+      messageTypes: renderer.message_types ?? [],
+      area: "plugin_message_renderer" as const,
+    }));
+  });
 }
 
 export function buildFileViewerContributions(
@@ -1815,6 +1497,30 @@ export function buildScheduledTaskOptionContributions(
   );
 }
 
+export function buildScheduledTaskSectionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreScheduledTaskSectionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.scheduled_task_sections ?? []).flatMap((section) => {
+        if (!matchesVisibleWhen(section.visible_when, context)) return [];
+        return [
+          {
+            id: section.id,
+            pluginId: plugin.plugin_id,
+            renderer: section.renderer,
+            order: section.order ?? 100,
+            area: "scheduled_task_section" as const,
+          },
+        ];
+      });
+    }),
+  );
+}
+
 export function buildI18nNamespaceContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): readonly CoreI18nNamespaceContribution[] {
@@ -1997,4 +1703,23 @@ export function hasToolRenderer(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): boolean {
   return getToolRenderer(toolName, runtimePlugins) !== undefined;
+}
+
+export function getPluginMessageRenderer(
+  pluginId: string,
+  renderer: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): CorePluginMessageRendererContribution | undefined {
+  return buildPluginMessageRendererContributions(runtimePlugins).find(
+    (contribution) =>
+      contribution.pluginId === pluginId && contribution.renderer === renderer,
+  );
+}
+
+export function hasPluginMessageRenderer(
+  pluginId: string,
+  renderer: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): boolean {
+  return getPluginMessageRenderer(pluginId, renderer, runtimePlugins) !== undefined;
 }

@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { buildPersonaPresetPayload } from "../personaPresetEditor.ts";
 import type { PersonaPreset } from "../../../types";
 
@@ -21,35 +18,33 @@ const draft = {
 };
 
 test("builds published global payload for new official preset", () => {
-  assert.deepEqual(
+  expect(
     buildPersonaPresetPayload(null, draft, {
       scope: "global",
       status: "published",
     }),
-    {
-      ...draft,
-      avatar: null,
-      scope: "global",
-      visibility: "public",
-      status: "published",
-    },
-  );
+  ).toEqual({
+    ...draft,
+    avatar: null,
+    scope: "global",
+    visibility: "public",
+    status: "published",
+  });
 });
 
 test("builds draft private payload for new user preset", () => {
-  assert.deepEqual(
+  expect(
     buildPersonaPresetPayload(null, draft, {
       scope: "user",
       status: "published",
     }),
-    {
-      ...draft,
-      avatar: null,
-      scope: "user",
-      visibility: "private",
-      status: "draft",
-    },
-  );
+  ).toEqual({
+    ...draft,
+    avatar: null,
+    scope: "user",
+    visibility: "private",
+    status: "draft",
+  });
 });
 
 test("preserves user preset updates without admin-only fields", () => {
@@ -70,13 +65,12 @@ test("preserves user preset updates without admin-only fields", () => {
     updated_at: "2026-01-01T00:00:00Z",
   } satisfies PersonaPreset;
 
-  assert.deepEqual(
+  expect(
     buildPersonaPresetPayload(preset, draft, {
       scope: "user",
       status: "published",
     }),
-    { ...draft, avatar: null },
-  );
+  ).toEqual({ ...draft, avatar: null });
 });
 
 test("includes public global fields when editing a user preset as official", () => {
@@ -97,19 +91,18 @@ test("includes public global fields when editing a user preset as official", () 
     updated_at: "2026-01-01T00:00:00Z",
   } satisfies PersonaPreset;
 
-  assert.deepEqual(
+  expect(
     buildPersonaPresetPayload(preset, draft, {
       scope: "global",
       status: "published",
     }),
-    {
-      ...draft,
-      avatar: null,
-      scope: "global",
-      visibility: "public",
-      status: "published",
-    },
-  );
+  ).toEqual({
+    ...draft,
+    avatar: null,
+    scope: "global",
+    visibility: "public",
+    status: "published",
+  });
 });
 
 test("includes private user fields when editing an official preset as mine", () => {
@@ -130,19 +123,18 @@ test("includes private user fields when editing an official preset as mine", () 
     updated_at: "2026-01-01T00:00:00Z",
   } satisfies PersonaPreset;
 
-  assert.deepEqual(
+  expect(
     buildPersonaPresetPayload(preset, draft, {
       scope: "user",
       status: "published",
     }),
-    {
-      ...draft,
-      avatar: null,
-      scope: "user",
-      visibility: "private",
-      status: "draft",
-    },
-  );
+  ).toEqual({
+    ...draft,
+    avatar: null,
+    scope: "user",
+    visibility: "private",
+    status: "draft",
+  });
 });
 
 test("includes status when updating an official preset", () => {
@@ -163,16 +155,15 @@ test("includes status when updating an official preset", () => {
     updated_at: "2026-01-01T00:00:00Z",
   } satisfies PersonaPreset;
 
-  assert.deepEqual(
+  expect(
     buildPersonaPresetPayload(preset, draft, {
       scope: "global",
       status: "published",
     }),
-    {
-      ...draft,
-      avatar: null,
-      visibility: "public",
-      status: "published",
-    },
-  );
+  ).toEqual({
+    ...draft,
+    avatar: null,
+    visibility: "public",
+    status: "published",
+  });
 });

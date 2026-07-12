@@ -1,9 +1,6 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function readSource(relativePath: string): string {
@@ -22,39 +19,26 @@ const argsBlockConsumers = [
 test("tool argument blocks share detail and compact wrappers", () => {
   const source = readSource("../ToolArgsBlock.tsx");
 
-  assert.match(source, /type ToolArgsBlockSize = "detail" \| "compact"/);
-  assert.match(
-    source,
-    /detail:\s*"tool-args-block group\/args relative flex items-center gap-2 px-3 py-2 rounded-lg bg-theme-bg-subtle text-sm text-theme-text-tertiary font-mono"/,
+  expect(source).toMatch(/type ToolArgsBlockSize = "detail" \| "compact"/);
+  expect(source).toMatch(
+    /detail:\s*"tool-args-block group\/args relative flex items-center gap-2 px-3 py-2 rounded-\[var\(--radius-sm\)\] bg-white dark:bg-\[var\(--theme-bg-card\)\] text-sm text-theme-text-tertiary font-mono/,
   );
-  assert.match(
-    source,
-    /compact:\s*"tool-args-block group\/args relative flex items-center gap-2 mb-2 px-2 py-1\.5 rounded-md bg-theme-bg-subtle text-xs text-theme-text-tertiary font-mono"/,
+  expect(source).toMatch(
+    /compact:\s*"tool-args-block group\/args relative flex items-center gap-2 mb-2 px-2 py-1\.5 rounded-\[var\(--radius-sm\)\] bg-white dark:bg-\[var\(--theme-bg-card\)\] text-xs text-theme-text-tertiary font-mono/,
   );
-  assert.match(source, /wrap \? "flex-wrap" : ""/);
+  expect(source).toMatch(/wrap \? "flex-wrap" : ""/);
+  expect(source).toMatch(/copyText\?: string/);
 
   for (const relativePath of argsBlockConsumers) {
     const consumer = readSource(relativePath);
 
-    assert.match(
-      consumer,
+    expect(consumer).toMatch(
       /import \{ ToolArgsBlock \} from "\.\/ToolArgsBlock"/,
-      `${relativePath} should import ToolArgsBlock`,
     );
-    assert.match(
-      consumer,
-      /<ToolArgsBlock size="detail"/,
-      `${relativePath} should use the detail args block`,
-    );
-    assert.match(
-      consumer,
-      /<ToolArgsBlock size="compact"/,
-      `${relativePath} should use the compact args block`,
-    );
-    assert.doesNotMatch(
-      consumer,
-      /group\/args relative flex items-center gap-2 (?:mb-2 )?px-(?:3 py-2 rounded-lg|2 py-1\.5 rounded-md) bg-theme-bg-subtle text-(?:sm|xs) text-theme-text-tertiary font-mono/,
-      `${relativePath} should not duplicate ToolArgsBlock classes`,
+    expect(consumer).toMatch(/<ToolArgsBlock size="detail"/);
+    expect(consumer).toMatch(/<ToolArgsBlock size="compact"/);
+    expect(consumer).not.toMatch(
+      /group\/args relative flex items-center gap-2 (?:mb-2 )?px-(?:3 py-2 rounded-\[var|2 py-1\.5 rounded-\[var).*bg-white dark:bg-\[var\(--theme-bg-card\)\].*text-(?:sm|xs) text-theme-text-tertiary font-mono/,
     );
   }
 });

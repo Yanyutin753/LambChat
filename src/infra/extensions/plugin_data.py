@@ -56,7 +56,7 @@ class PluginDataService:
         )
         manifest = descriptor.manifest
         defaults = _manifest_defaults(manifest) if manifest is not None else {}
-        self._write_json_defaults(data_dir / "config" / "defaults.json", defaults)
+        self._write_json_if_missing(data_dir / "config" / "defaults.json", defaults)
         self._write_json_if_missing(data_dir / "config" / "current.json", {})
         self._write_json_if_missing(
             data_dir / "state" / "runtime.json",
@@ -213,27 +213,6 @@ class PluginDataService:
             return
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-    def _write_json_defaults(self, path: Path, payload: dict[str, Any]) -> None:
-        if not path.exists():
-            self._write_json_if_missing(path, payload)
-            return
-        try:
-            existing = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
-        if not isinstance(existing, dict):
-            return
-        missing = {key: value for key, value in payload.items() if key not in existing}
-        if not missing:
-            return
-        merged = {**existing, **missing}
-        try:
-            path.write_text(
-                json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-            )
-        except OSError:
-            return
 
 
 def _manifest_defaults(manifest) -> dict[str, Any]:

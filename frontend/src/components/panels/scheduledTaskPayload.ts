@@ -1,4 +1,5 @@
 import type { AvailableModel } from "../../contexts/SettingsContext";
+import type { MessageAttachment } from "../../types";
 import {
   hasEffectiveCorePersonaSuppressingOption,
   importLegacyPayloadPluginOptions,
@@ -43,6 +44,37 @@ export function getScheduledTaskPersonaPresetId(
   return typeof value === "string" ? value : "";
 }
 
+export function getScheduledTaskTeamId(
+  payload: Record<string, unknown> | undefined,
+): string {
+  const selectedTeamId = getScheduledTaskPluginOptionStringValue(payload, {
+    plugin_id: "agent_team",
+    key: "SELECTED_TEAM_ID",
+    legacy_payload_keys: ["team_id"],
+  });
+  return selectedTeamId;
+}
+
+export function getScheduledTaskAttachments(
+  payload: Record<string, unknown> | undefined,
+): MessageAttachment[] {
+  const attachments = payload?.attachments;
+  return Array.isArray(attachments) ? (attachments as MessageAttachment[]) : [];
+}
+
+export function withScheduledTaskAttachments(
+  payload: Record<string, unknown>,
+  attachments: MessageAttachment[],
+): Record<string, unknown> {
+  const nextPayload = { ...payload };
+  if (attachments.length > 0) {
+    nextPayload.attachments = attachments;
+  } else {
+    delete nextPayload.attachments;
+  }
+  return nextPayload;
+}
+
 export function getScheduledTaskPluginOptionStringValue(
   payload: Record<string, unknown> | undefined,
   option: ScopedPluginOptionLike,
@@ -71,6 +103,10 @@ function applyPluginOptionValues(
     for (const [key, value] of Object.entries(pluginValues)) {
       nextPayload = withPluginOption(nextPayload, pluginId, key, value);
     }
+  }
+  if (Object.keys(pluginOptionsFromMetadata(nextPayload)).length === 0) {
+    nextPayload = { ...nextPayload };
+    delete nextPayload.plugin_options;
   }
   return nextPayload;
 }

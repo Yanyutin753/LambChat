@@ -1,13 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   countProjectRevealFiles,
   shouldLoadProjectRevealFiles,
 } from "../projectRevealState.ts";
 
 test("counts text and binary reveal_project files together", () => {
-  assert.equal(
+  expect(
     countProjectRevealFiles(
       {
         "/index.html": '<img src="/main.png">',
@@ -17,12 +14,11 @@ test("counts text and binary reveal_project files together", () => {
         "/detail.png": "https://example.com/detail.png",
       },
     ),
-    3,
-  );
+  ).toBe(3);
 });
 
 test("counts pure binary reveal_project folders", () => {
-  assert.equal(
+  expect(
     countProjectRevealFiles(
       {},
       {
@@ -31,38 +27,34 @@ test("counts pure binary reveal_project folders", () => {
         "/flatlay.png": "https://example.com/flatlay.png",
       },
     ),
-    3,
-  );
+  ).toBe(3);
 });
 
 test("loads versioned project files only when preview work is actually needed", () => {
-  assert.equal(
+  expect(
     shouldLoadProjectRevealFiles({
       isVersionedProject: true,
       success: true,
       isPreviewOpen: false,
       allowAutoPreview: false,
     }),
-    false,
-  );
+  ).toBe(false);
 
-  assert.equal(
+  expect(
     shouldLoadProjectRevealFiles({
       isVersionedProject: true,
       success: true,
       isPreviewOpen: true,
       allowAutoPreview: false,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     shouldLoadProjectRevealFiles({
       isVersionedProject: true,
       success: true,
       isPreviewOpen: false,
       allowAutoPreview: true,
     }),
-    true,
-  );
+  ).toBe(true);
 });

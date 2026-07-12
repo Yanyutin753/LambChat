@@ -4,7 +4,7 @@ from typing import Any
 
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
-from src.infra.team.manager import TeamManager
+from src.kernel.extensions.agent_team_service import get_agent_team_directory
 
 logger = get_logger(__name__)
 
@@ -94,16 +94,19 @@ async def _resolve_team_id_from_query(
 ) -> tuple[str | None, dict[str, Any] | None, str | None]:
     if not query or not query.strip():
         return None, None, None
+    directory = get_agent_team_directory()
+    if directory is None:
+        return None, None, "Agent Team plugin service is unavailable."
     try:
-        response = await TeamManager().list_teams(
+        teams = await directory.search_teams(
             owner_user_id=user_id,
-            q=query.strip(),
+            query=query.strip(),
             limit=10,
         )
     except Exception as e:
         return None, None, f"Failed to search teams: {e}"
 
-    match = _choose_named_match(response.teams, query)
+    match = _choose_named_match(teams, query)
     if match is None:
         return None, None, f"No team matched '{query}'."
     return (

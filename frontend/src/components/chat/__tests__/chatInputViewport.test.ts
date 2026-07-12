@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   getTextareaMaxHeightPx,
   resizeTextareaForContent,
@@ -14,24 +12,21 @@ test("resizeTextareaForContent keeps the newest typed content visible", () => {
 
   resizeTextareaForContent(textarea, 250);
 
-  assert.equal(textarea.style.height, "250px");
-  assert.equal(textarea.scrollTop, 420);
+  expect(textarea.style.height).toBe("250px");
+  expect(textarea.scrollTop).toBe(420);
 });
 
 test("getTextareaMaxHeightPx uses a comfortable fraction of small mobile viewports", () => {
-  assert.equal(
-    getTextareaMaxHeightPx({ isMobile: true, viewportHeight: 500 }),
+  expect(getTextareaMaxHeightPx({ isMobile: true, viewportHeight: 500 })).toBe(
     120,
   );
 });
 
 test("getTextareaMaxHeightPx keeps the default cap on desktop and roomy mobile viewports", () => {
-  assert.equal(
-    getTextareaMaxHeightPx({ isMobile: false, viewportHeight: 500 }),
+  expect(getTextareaMaxHeightPx({ isMobile: false, viewportHeight: 500 })).toBe(
     150,
   );
-  assert.equal(
-    getTextareaMaxHeightPx({ isMobile: true, viewportHeight: 900 }),
+  expect(getTextareaMaxHeightPx({ isMobile: true, viewportHeight: 900 })).toBe(
     150,
   );
 });

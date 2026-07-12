@@ -66,6 +66,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_base_url",
         "_chunk_buffer",
         "_summary_chunk_buffer",
+        "_thinking_chunk_buffer",
         "_agent_context_cache",
         "_subagent_display_names",
         "_subagent_avatars",
@@ -102,6 +103,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._presenter_emit = presenter.emit
         self._chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
         self._summary_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
+        self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}
         self._subagent_display_names = subagent_display_names or {}
         self._subagent_avatars = subagent_avatars or {}
@@ -118,6 +120,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         """Flush pending stream chunks without clearing counters or output text."""
         await self._flush_chunk_buffer()
         await self._flush_summary_chunk_buffer()
+        await self._flush_thinking_chunk_buffer()
 
     async def finalize(self) -> None:
         """Flush pending chunks and release session-scoped buffers."""
@@ -165,6 +168,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._agent_context_cache.clear()
         self._chunk_buffer.clear()
         self._summary_chunk_buffer.clear()
+        self._thinking_chunk_buffer.clear()
         self._started_tool_call_ids.clear()
 
     async def process_event(self, event: StreamEvent) -> None:

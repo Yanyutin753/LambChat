@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   getPersonaAvatarIcon,
   getPersonaAvatarIconValue,
@@ -10,12 +7,12 @@ import {
 test("stores built-in persona avatars as compact icon keys", () => {
   const value = getPersonaAvatarIconValue("sparkles");
 
-  assert.equal(value, "icon:sparkles");
-  assert.equal(getPersonaAvatarIcon(value)?.key, "sparkles");
-  assert.equal(isPersonaImageAvatar(value), false);
+  expect(value).toBe("icon:sparkles");
+  expect(getPersonaAvatarIcon(value)?.key).toBe("sparkles");
+  expect(isPersonaImageAvatar(value)).toBe(false);
 });
 
 test("treats uploaded avatar urls as image avatars", () => {
-  assert.equal(isPersonaImageAvatar("/api/upload/file/avatar.png"), true);
-  assert.equal(getPersonaAvatarIcon("/api/upload/file/avatar.png"), null);
+  expect(isPersonaImageAvatar("/api/upload/file/avatar.png")).toBe(true);
+  expect(getPersonaAvatarIcon("/api/upload/file/avatar.png")).toBe(null);
 });

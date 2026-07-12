@@ -511,7 +511,7 @@ export function MCPPanel() {
         <div className="es-form" style={{ gap: 0 }}>
           {/* Admin option for creating system server */}
           {isCreating && canAdmin && (
-            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 mb-4 transition-colors hover:bg-[var(--theme-primary-light)]/30">
+            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 mb-4 transition-colors hover:bg-[var(--theme-bg-subtle)]">
               <Checkbox
                 size="sm"
                 checked={createAsSystem}
@@ -524,7 +524,7 @@ export function MCPPanel() {
           )}
           {/* Admin option for changing server type when editing */}
           {!isCreating && editingServer && canAdmin && (
-            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 mb-4 transition-colors hover:bg-[var(--theme-primary-light)]/30">
+            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 mb-4 transition-colors hover:bg-[var(--theme-bg-subtle)]">
               <Checkbox
                 size="sm"
                 checked={changeToSystem}
@@ -594,7 +594,7 @@ export function MCPPanel() {
           </div>
 
           <div className="es-field">
-            <label className="group flex cursor-pointer items-center gap-2.5 es-label rounded-lg px-1 py-1 transition-colors hover:bg-[var(--theme-primary-light)]/30">
+            <label className="group flex cursor-pointer items-center gap-2.5 es-label rounded-lg px-1 py-1 transition-colors hover:bg-[var(--theme-bg-subtle)]">
               <Checkbox
                 size="sm"
                 checked={importOverwrite}

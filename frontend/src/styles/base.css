@@ -50,7 +50,8 @@
   }
   /* Sidebar panel uses percentage width on desktop */
   [data-sidebar-panel] {
-    width: var(--sidebar-preview-width, 60%) !important;
+    width: calc(var(--sidebar-preview-width, 60%) - 1.5rem) !important;
+    max-width: calc(var(--sidebar-preview-width, 60%) - 1.5rem) !important;
   }
 }
 

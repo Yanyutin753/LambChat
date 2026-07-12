@@ -46,12 +46,8 @@ def test_uninstall_dry_run_classifies_resource_cleanup_actions() -> None:
     assert [resource.resource_id for resource in dry_run.will_delete] == ["delete-me"]
     assert [resource.resource_id for resource in dry_run.will_keep] == ["keep-me"]
     assert [resource.resource_id for resource in dry_run.will_archive] == ["archive-me"]
-    assert [resource.resource_id for resource in dry_run.needs_manual_review] == [
-        "review-me"
-    ]
-    assert [resource.resource_id for resource in dry_run.forbidden_to_delete] == [
-        "core-owned"
-    ]
+    assert [resource.resource_id for resource in dry_run.needs_manual_review] == ["review-me"]
+    assert [resource.resource_id for resource in dry_run.forbidden_to_delete] == ["core-owned"]
     assert dry_run.will_delete[0].requires_confirmation is True
     assert dry_run.will_delete[0].irreversible is True
     assert dry_run.forbidden_to_delete[0].requires_confirmation is True
@@ -134,13 +130,22 @@ def test_uninstall_dry_run_archives_scoped_plugin_settings_without_delete() -> N
 
     assert dry_run.will_delete == []
     assert dry_run.needs_manual_review == []
-    assert resources_by_id["agent_team.project.DEFAULT_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert (
+        resources_by_id["agent_team.project.DEFAULT_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    )
     assert resources_by_id["agent_team.project.DEFAULT_TEAM_ID"].scope == "project"
-    assert resources_by_id["agent_team.session.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert (
+        resources_by_id["agent_team.session.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    )
     assert resources_by_id["agent_team.session.SELECTED_TEAM_ID"].scope == "session"
-    assert resources_by_id["agent_team.channel.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert (
+        resources_by_id["agent_team.channel.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    )
     assert resources_by_id["agent_team.channel.SELECTED_TEAM_ID"].scope == "channel"
-    assert resources_by_id["agent_team.scheduled_task.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert (
+        resources_by_id["agent_team.scheduled_task.SELECTED_TEAM_ID"].action
+        is PluginDryRunAction.ARCHIVE
+    )
     assert resources_by_id["agent_team.scheduled_task.SELECTED_TEAM_ID"].scope == "scheduled_task"
 
 

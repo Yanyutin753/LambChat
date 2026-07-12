@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   buildPersonaCardModel,
   getPersonaFormCopy,
@@ -37,17 +34,17 @@ test("buildPersonaCardModel maps user presets to editable marketplace-style card
     isSelected: false,
   });
 
-  assert.equal(model.description, "Plan before acting.");
-  assert.equal(model.primaryTag, "planning");
-  assert.deepEqual(model.secondaryTags, ["writing", "analysis", "review"]);
-  assert.equal(model.hiddenTagCount, 1);
-  assert.equal(model.canCopy, false);
-  assert.equal(model.canEdit, true);
-  assert.equal(model.canDelete, true);
-  assert.equal(model.showUseAction, true);
-  assert.equal(model.showClearAction, false);
-  assert.equal(model.skillCount, 2);
-  assert.equal(model.tagCount, 5);
+  expect(model.description).toBe("Plan before acting.");
+  expect(model.primaryTag).toBe("planning");
+  expect(model.secondaryTags).toEqual(["writing", "analysis", "review"]);
+  expect(model.hiddenTagCount).toBe(1);
+  expect(model.canCopy).toBe(false);
+  expect(model.canEdit).toBe(true);
+  expect(model.canDelete).toBe(true);
+  expect(model.showUseAction).toBe(true);
+  expect(model.showClearAction).toBe(false);
+  expect(model.skillCount).toBe(2);
+  expect(model.tagCount).toBe(5);
 });
 
 test("buildPersonaCardModel maps official selected presets to copyable cards", () => {
@@ -65,24 +62,24 @@ test("buildPersonaCardModel maps official selected presets to copyable cards", (
     },
   );
 
-  assert.equal(model.description, "Official helper");
-  assert.equal(model.canCopy, true);
-  assert.equal(model.canEdit, false);
-  assert.equal(model.canDelete, false);
-  assert.equal(model.showUseAction, false);
-  assert.equal(model.showClearAction, true);
-  assert.equal(model.skillCount, 0);
+  expect(model.description).toBe("Official helper");
+  expect(model.canCopy).toBe(true);
+  expect(model.canEdit).toBe(false);
+  expect(model.canDelete).toBe(false);
+  expect(model.showUseAction).toBe(false);
+  expect(model.showClearAction).toBe(true);
+  expect(model.skillCount).toBe(0);
 });
 
 test("getPersonaFormCopy returns create and edit copy", () => {
-  assert.deepEqual(getPersonaFormCopy(false), {
+  expect(getPersonaFormCopy(false)).toEqual({
     titleKey: "personaPresets.createMine",
     titleFallback: "新建我的角色",
     subtitleKey: "personaPresets.createHint",
     subtitleFallback: "定义角色的行为、语气和能力边界",
   });
 
-  assert.deepEqual(getPersonaFormCopy(true), {
+  expect(getPersonaFormCopy(true)).toEqual({
     titleKey: "personaPresets.editMine",
     titleFallback: "编辑我的角色",
     subtitleKey: "personaPresets.editHint",

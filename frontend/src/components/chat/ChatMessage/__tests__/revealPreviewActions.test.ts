@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   getActiveRevealPreviewState,
   setActiveRevealPreviewState,
@@ -17,8 +15,8 @@ test("opens the global preview state when manual open has no callback", () => {
 
   const opened = openRevealPreview(preview, "manual");
 
-  assert.equal(opened, true);
-  assert.deepEqual(getActiveRevealPreviewState()?.request, preview);
+  expect(opened).toBe(true);
+  expect(getActiveRevealPreviewState()?.request).toEqual(preview);
 
   setActiveRevealPreviewState(null);
 });
@@ -28,8 +26,8 @@ test("does not auto-open without a callback", () => {
 
   const opened = openRevealPreview(preview, "auto");
 
-  assert.equal(opened, false);
-  assert.equal(getActiveRevealPreviewState(), null);
+  expect(opened).toBe(false);
+  expect(getActiveRevealPreviewState()).toBe(null);
 });
 
 test("uses the provided callback when present", () => {
@@ -41,7 +39,7 @@ test("uses the provided callback when present", () => {
     return true;
   });
 
-  assert.equal(opened, true);
-  assert.equal(called, 1);
-  assert.equal(getActiveRevealPreviewState(), null);
+  expect(opened).toBe(true);
+  expect(called).toBe(1);
+  expect(getActiveRevealPreviewState()).toBe(null);
 });

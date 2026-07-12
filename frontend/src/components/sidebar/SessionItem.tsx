@@ -2,7 +2,7 @@
  * Session item component with inline title editing and drag support
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, MoreHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
@@ -37,7 +37,7 @@ interface SessionItemProps {
   onToggleSelected?: () => void;
 }
 
-export function SessionItem({
+function SessionItemComponent({
   session,
   isActive,
   projects,
@@ -370,3 +370,22 @@ export function SessionItem({
     </>
   );
 }
+
+function areSessionItemPropsEqual(
+  prev: SessionItemProps,
+  next: SessionItemProps,
+): boolean {
+  return (
+    prev.session === next.session &&
+    prev.isActive === next.isActive &&
+    prev.projects === next.projects &&
+    prev.isFavorite === next.isFavorite &&
+    prev.currentProjectId === next.currentProjectId &&
+    prev.isDraggingTouch === next.isDraggingTouch &&
+    prev.selectionMode === next.selectionMode &&
+    prev.isSelected === next.isSelected &&
+    prev.onSessionUpdate === next.onSessionUpdate
+  );
+}
+
+export const SessionItem = memo(SessionItemComponent, areSessionItemPropsEqual);

@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -12,10 +10,10 @@ function readSource(relativePath: string): string {
 
 function extractFunctionBody(source: string, name: string): string {
   const start = source.indexOf(`function ${name}(`);
-  assert.notEqual(start, -1, `${name} should exist`);
+  expect(start).not.toBe(-1);
 
   const firstBrace = source.indexOf("{", start);
-  assert.notEqual(firstBrace, -1, `${name} should have a body`);
+  expect(firstBrace).not.toBe(-1);
 
   let depth = 0;
   for (let index = firstBrace; index < source.length; index += 1) {
@@ -39,10 +37,10 @@ test("keeps generated session title updates out of the chat message tree", () =>
   const chatAppBody = extractFunctionBody(chatAppSource, "ChatAppContent");
   const chatViewBody = extractFunctionBody(chatViewSource, "ChatView");
 
-  assert.doesNotMatch(chatAppBody, /setSessionName|useState<.*sessionName/);
-  assert.doesNotMatch(chatAppBody, /onStreamDone:\s*\(\)\s*=>\s*\{/);
-  assert.doesNotMatch(chatViewSource, /sessionName:/);
-  assert.doesNotMatch(chatViewBody, /sessionName=/);
-  assert.doesNotMatch(chatMessageSource, /sessionName\?:|sessionName=/);
-  assert.doesNotMatch(appShellSource, /sessionName\?:|sessionName=/);
+  expect(chatAppBody).not.toMatch(/setSessionName|useState<.*sessionName/);
+  expect(chatAppBody).not.toMatch(/onStreamDone:\s*\(\)\s*=>\s*\{/);
+  expect(chatViewSource).not.toMatch(/sessionName:/);
+  expect(chatViewBody).not.toMatch(/sessionName=/);
+  expect(chatMessageSource).not.toMatch(/sessionName\?:|sessionName=/);
+  expect(appShellSource).not.toMatch(/sessionName\?:|sessionName=/);
 });

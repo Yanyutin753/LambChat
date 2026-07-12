@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState } from "react";
-import { ArrowUp, Square, Lock } from "lucide-react";
+import { ArrowUp, Square, Lock, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import {
@@ -14,6 +14,7 @@ import { AgentIcon } from "../agent/AgentIcon";
 import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
 import { CHAT_INPUT_SELECTED_RENDERERS } from "./chatInputSelectedRenderers";
 import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
+import { RunModePopover } from "./RunModePopover";
 
 export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
@@ -53,6 +54,11 @@ export interface ChatInputToolbarProps {
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
   onStopClick: () => void;
   onNoPermissionClick: () => void;
+  // Run mode
+  autoModeEnabled?: boolean;
+  goalModeEnabled?: boolean;
+  onToggleAutoMode?: (enabled: boolean) => void;
+  onToggleGoalMode?: (enabled: boolean) => void;
 }
 
 const FILE_CATEGORY_ACCEPT: Record<FileCategory, string> = {
@@ -65,6 +71,15 @@ const FILE_CATEGORY_ACCEPT: Record<FileCategory, string> = {
   document:
     ".pdf,.doc,.docx,.dot,.dotx,.docm,.xls,.xlsx,.xlsm,.csv,.xlt,.ods,.ppt,.pptx,.potx,.ppsx,.pptm,.odp,.txt,.md,.csv,.rtf,.odt,.epub,.dxf,.dwg,.log,.json,.xml,.html,.htm,.yaml,.yml,.toml,.ini,.cfg,.tex,.diff,.patch,.py,.js,.ts,.jsx,.tsx,.vue,.svelte,.go,.rs,.rb,.php,.java,.c,.cpp,.h,.cs,.swift,.kt,.scala,.dart,.lua,.r,.pl,.sql,.sh,.bash,.zsh,.fish,.ps1,.bat,.cmd,.properties,.gradle,.cmake,.env,.graphql,.proto,.zip,.rar,.7z,.tar,.gz,.bz2,.xz,.tgz",
 };
+const FILE_ACCEPT_ALL = Object.values(FILE_CATEGORY_ACCEPT).join(",");
+
+function getFileAccept(categories: FileCategory[]): string {
+  if (categories.length === 0) return FILE_ACCEPT_ALL;
+  return categories
+    .map((category) => FILE_CATEGORY_ACCEPT[category])
+    .filter(Boolean)
+    .join(",");
+}
 
 export function ChatInputToolbar({
   activePanel,
@@ -86,7 +101,6 @@ export function ChatInputToolbar({
   thinkingLabel,
   thinkingLevel,
   uploadCategories,
-  uploadLimits,
   uploadFiles,
   selectedPersonaName,
   personaAvatar,
@@ -100,11 +114,16 @@ export function ChatInputToolbar({
   onToggleAgentOption,
   onStopClick,
   onNoPermissionClick,
+  autoModeEnabled = false,
+  goalModeEnabled = false,
+  onToggleAutoMode,
+  onToggleGoalMode,
 }: ChatInputToolbarProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFileCategory, setSelectedFileCategory] =
-    useState<FileCategory | null>(null);
+  const [modePopoverOpen, setModePopoverOpen] = useState(false);
+
+  const hasActiveMode = autoModeEnabled || goalModeEnabled;
 
   const booleanAgentOptions = agentOptions
     ? Object.fromEntries(
@@ -114,22 +133,21 @@ export function ChatInputToolbar({
       )
     : undefined;
 
-  const handleFileCategorySelect = useCallback((category: FileCategory) => {
-    setSelectedFileCategory(category);
+  const handleUploadFiles = useCallback(() => {
     if (fileInputRef.current) {
-      fileInputRef.current.accept = FILE_CATEGORY_ACCEPT[category];
+      fileInputRef.current.accept = getFileAccept(uploadCategories);
       fileInputRef.current.click();
     }
-  }, []);
+  }, [uploadCategories]);
 
   const handleFileInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
-      uploadFiles(files, selectedFileCategory || undefined);
+      uploadFiles(files);
       e.target.value = "";
     },
-    [uploadFiles, selectedFileCategory],
+    [uploadFiles],
   );
   const selectedPluginOptions = chatInputOptions.filter(
     (option) => option.selectedRenderer,
@@ -175,15 +193,10 @@ export function ChatInputToolbar({
           pluginOptions={chatInputOptions}
           hasAgentSelector={hasAgentSelector}
           agentName={agentName}
-          hasThinkingOption={hasThinkingOption}
           uploadCategories={uploadCategories}
-          uploadLimits={uploadLimits}
-          onFileCategorySelect={handleFileCategorySelect}
+          onUploadFiles={handleUploadFiles}
           thinkingLabel={thinkingLabel}
           thinkingLevel={thinkingLevel}
-          booleanAgentOptions={booleanAgentOptions}
-          agentOptionValues={agentOptionValues}
-          onToggleAgentOption={onToggleAgentOption}
         />
         {hasAgentSelector &&
           !selectedPersonaName &&
@@ -242,7 +255,90 @@ export function ChatInputToolbar({
         })}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 self-end">
+      <div className="flex shrink-0 items-center gap-3 self-end">
+        {/* Mode labels — desktop only (sm:) */}
+        {autoModeEnabled && (
+          <button
+            type="button"
+            onClick={() => onToggleAutoMode?.(false)}
+            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-[11px] font-medium transition-colors duration-200"
+            style={{
+              color: "var(--theme-text-secondary)",
+              background: "var(--theme-bg-card)",
+              border: "1px solid var(--theme-border)",
+            }}
+            title={t("mode.auto", "Auto Mode")}
+          >
+            {t("mode.auto", "Auto")}
+          </button>
+        )}
+        {goalModeEnabled && (
+          <button
+            type="button"
+            onClick={() => onToggleGoalMode?.(false)}
+            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-[11px] font-medium transition-colors duration-200"
+            style={{
+              color: "var(--theme-text-secondary)",
+              background: "var(--theme-bg-card)",
+              border: "1px solid var(--theme-border)",
+            }}
+            title={t("mode.goal", "Goal Mode")}
+          >
+            {t("mode.goal", "Goal")}
+          </button>
+        )}
+
+        {/* Settings / Run Mode button */}
+        <button
+          type="button"
+          data-run-mode-trigger
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setModePopoverOpen((v) => !v);
+          }}
+          className="chat-tool-btn group shrink-0 relative"
+          style={{
+            color: hasActiveMode
+              ? "var(--theme-text-secondary)"
+              : "var(--theme-text-tertiary)",
+          }}
+          title={t("mode.title", "Run Mode")}
+        >
+          <Settings2 size={16} />
+          {/* Status dot when modes are active */}
+          {hasActiveMode && (
+            <span
+              className="absolute -top-0 -right-0.5"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "var(--theme-text)",
+              }}
+            />
+          )}
+        </button>
+
+        <RunModePopover
+          open={modePopoverOpen}
+          onClose={() => setModePopoverOpen(false)}
+          autoModeEnabled={autoModeEnabled}
+          goalModeEnabled={goalModeEnabled}
+          onToggleAutoMode={onToggleAutoMode ?? (() => {})}
+          onToggleGoalMode={onToggleGoalMode ?? (() => {})}
+          hasAgentSelector={hasAgentSelector}
+          agentName={agentName}
+          onOpenAgentPanel={() => onActivePanelChange("agent")}
+          hasThinkingOption={hasThinkingOption}
+          thinkingLabel={thinkingLabel}
+          thinkingLevel={thinkingLevel}
+          onOpenThinkingPanel={() => onActivePanelChange("thinking")}
+          booleanAgentOptions={booleanAgentOptions}
+          agentOptionValues={agentOptionValues}
+          onToggleAgentOption={onToggleAgentOption}
+        />
+
         {!canSend ? (
           <button
             type="button"
@@ -251,7 +347,7 @@ export function ChatInputToolbar({
               e.stopPropagation();
               onNoPermissionClick();
             }}
-            className="flex items-center justify-center rounded-full p-2 cursor-pointer transition-all duration-200 hover:scale-105"
+            className="flex items-center justify-center rounded-full h-9 w-9 cursor-pointer transition-all duration-200 hover:scale-105"
             style={{
               backgroundColor: "var(--theme-primary-light)",
               color: "var(--theme-text-secondary)",
@@ -268,11 +364,13 @@ export function ChatInputToolbar({
               e.stopPropagation();
               onStopClick();
             }}
-            className="chat-tool-btn-active flex items-center justify-center rounded-full p-2 transition-all duration-300 hover:scale-105 active:scale-95"
+            className="chat-tool-btn-active flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300 hover:scale-105 active:scale-95"
             style={{
-              borderColor: "color-mix(in srgb, #fbbf24 40%, transparent)",
-              background: "color-mix(in srgb, #fbbf24 10%, transparent)",
-              color: "#fbbf24",
+              borderColor:
+                "color-mix(in srgb, var(--theme-primary) 40%, transparent)",
+              background:
+                "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
+              color: "var(--theme-primary)",
             }}
             title={t("chat.stop")}
           >
@@ -282,13 +380,13 @@ export function ChatInputToolbar({
           <button
             type="submit"
             disabled={!canSubmit}
-            className={`flex items-center justify-center rounded-full p-2 transition-all duration-300`}
+            className={`flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300`}
             style={
               canSubmit
                 ? {
                     backgroundColor: "var(--theme-primary)",
                     border: "1px solid var(--theme-primary)",
-                    color: "var(--theme-bg, #fff)",
+                    color: "var(--theme-bg-card)",
                   }
                 : {
                     backgroundColor: "transparent",

@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const coreContributionsSource = readFileSync(
   new URL("../../../../extensions/coreContributions.ts", import.meta.url),
   "utf8",
@@ -32,25 +29,25 @@ test("persona lives in the core more menu while team is plugin-owned", () => {
     /CORE_SIDEBAR_MORE_NAV[\s\S]*?\];/,
   );
 
-  assert.ok(coreMoreMenuMatch, "core more menu item config should exist");
-  assert.match(coreMoreMenuMatch[0], /path:\s*"\/persona"/);
-  assert.doesNotMatch(coreMoreMenuMatch[0], /path:\s*"\/team"/);
-  assert.doesNotMatch(coreContributionsSource, /BUILTIN_PLUGIN_SIDEBAR_MORE_NAV/);
-  assert.doesNotMatch(coreMoreMenuMatch[0], /href:\s*GITHUB_URL/);
-  assert.doesNotMatch(coreMoreMenuMatch[0], /label:\s*t\("nav\.contribute"/);
-  assert.match(useMoreMenuSource, /buildSidebarMoreNavContributions\(runtimePlugins\)/);
-  assert.match(coreContributionsSource, /plugin\.frontend\?\.sidebar_items/);
+  expect(coreMoreMenuMatch).toBeTruthy();
+  expect(coreMoreMenuMatch[0]).toMatch(/path:\s*"\/persona"/);
+  expect(coreMoreMenuMatch[0]).not.toMatch(/path:\s*"\/team"/);
+  expect(coreContributionsSource).not.toMatch(/BUILTIN_PLUGIN_SIDEBAR_MORE_NAV/);
+  expect(coreMoreMenuMatch[0]).not.toMatch(/href:\s*GITHUB_URL/);
+  expect(coreMoreMenuMatch[0]).not.toMatch(/label:\s*t\("nav\.contribute"/);
+  expect(useMoreMenuSource).toMatch(/buildSidebarMoreNavContributions\(runtimePlugins\)/);
+  expect(coreContributionsSource).toMatch(/plugin\.frontend\?\.sidebar_items/);
 });
 
 test("persona and team are not rendered as primary sidebar actions", () => {
-  assert.doesNotMatch(sessionListContentSource, /navigate\("\/persona"\)/);
-  assert.doesNotMatch(sessionListContentSource, /navigate\("\/team"\)/);
-  assert.doesNotMatch(sidebarRailSource, /onOpenPersonaPlaza/);
-  assert.doesNotMatch(sidebarRailSource, /onOpenTeamBuilder/);
+  expect(sessionListContentSource).not.toMatch(/navigate\("\/persona"\)/);
+  expect(sessionListContentSource).not.toMatch(/navigate\("\/team"\)/);
+  expect(sidebarRailSource).not.toMatch(/onOpenPersonaPlaza/);
+  expect(sidebarRailSource).not.toMatch(/onOpenTeamBuilder/);
 });
 
 test("sidebar more menu receives plugin contributions on chat and non-chat tabs", () => {
-  assert.match(chatAppContentSource, /<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
-  assert.match(nonChatAppContentSource, /<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
-  assert.match(useMoreMenuSource, /buildSidebarMoreNavContributions\(runtimePlugins\)/);
+  expect(chatAppContentSource).toMatch(/<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
+  expect(nonChatAppContentSource).toMatch(/<SessionSidebar[\s\S]*runtimePlugins=\{runtimePlugins\}/);
+  expect(useMoreMenuSource).toMatch(/buildSidebarMoreNavContributions\(runtimePlugins\)/);
 });

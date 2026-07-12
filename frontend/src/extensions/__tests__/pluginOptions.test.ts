@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   firstEffectivePluginOptionPath,
   filterPluginOptionsByVisibleWhen,
@@ -26,24 +24,18 @@ test("plugin option helpers read namespaced Agent Team session options", () => {
     },
   };
 
-  assert.equal(
-    pluginOptionFromMetadata(
+  expect(pluginOptionFromMetadata(
       metadata,
       AGENT_TEAM_PLUGIN_ID,
       AGENT_TEAM_SELECTED_TEAM_OPTION,
-    ),
-    "plugin-team",
-  );
-  assert.equal(selectedAgentTeamIdFromMetadata(metadata), "plugin-team");
+    )).toBe("plugin-team");
+  expect(selectedAgentTeamIdFromMetadata(metadata)).toBe("plugin-team");
 });
 
 test("plugin option helpers keep legacy team_id as read-only fallback", () => {
-  assert.equal(
-    selectedAgentTeamIdFromMetadata({ team_id: "legacy-team" }),
-    "legacy-team",
-  );
-  assert.equal(selectedAgentTeamIdFromMetadata({ team_id: "" }), null);
-  assert.equal(selectedAgentTeamIdFromMetadata(null), null);
+  expect(selectedAgentTeamIdFromMetadata({ team_id: "legacy-team" })).toBe("legacy-team");
+  expect(selectedAgentTeamIdFromMetadata({ team_id: "" })).toBe(null);
+  expect(selectedAgentTeamIdFromMetadata(null)).toBe(null);
 });
 
 test("plugin option writer updates one namespace without dropping other plugins", () => {
@@ -59,15 +51,12 @@ test("plugin option writer updates one namespace without dropping other plugins"
     "team-1",
   );
 
-  assert.deepEqual(pluginOptionsFromMetadata(metadata), {
+  expect(pluginOptionsFromMetadata(metadata)).toEqual({
     other_plugin: { KEEP: true },
     agent_team: { SELECTED_TEAM_ID: "team-1" },
   });
 
-  assert.deepEqual(
-    withPluginOption(metadata, "agent_team", "SELECTED_TEAM_ID", null),
-    { plugin_options: { other_plugin: { KEEP: true } } },
-  );
+  expect(withPluginOption(metadata, "agent_team", "SELECTED_TEAM_ID", null)).toEqual({ plugin_options: { other_plugin: { KEEP: true } } });
 });
 
 test("generic plugin option helpers resolve declared option paths", () => {
@@ -76,28 +65,16 @@ test("generic plugin option helpers resolve declared option paths", () => {
     reporter: { WINDOW_DAYS: 30 },
   };
 
-  assert.equal(pluginOptionFromValues(options, "reporter", "WINDOW_DAYS"), 30);
-  assert.deepEqual(
-    pluginOptionPathFromDeclaration({ plugin_id: "reporter", key: "WINDOW_DAYS" }),
-    { pluginId: "reporter", key: "WINDOW_DAYS" },
-  );
-  assert.deepEqual(
-    pluginOptionPathFromDeclaration({ pluginId: "reporter", key: "WINDOW_DAYS" }),
-    { pluginId: "reporter", key: "WINDOW_DAYS" },
-  );
-  assert.deepEqual(
-    firstEffectivePluginOptionPath([
+  expect(pluginOptionFromValues(options, "reporter", "WINDOW_DAYS")).toBe(30);
+  expect(pluginOptionPathFromDeclaration({ plugin_id: "reporter", key: "WINDOW_DAYS" })).toEqual({ pluginId: "reporter", key: "WINDOW_DAYS" });
+  expect(pluginOptionPathFromDeclaration({ pluginId: "reporter", key: "WINDOW_DAYS" })).toEqual({ pluginId: "reporter", key: "WINDOW_DAYS" });
+  expect(firstEffectivePluginOptionPath([
       { plugin_id: "disabled", key: "VALUE", effective: false },
       { plugin_id: "reporter", key: "WINDOW_DAYS", effective: true },
-    ], { effectiveOnly: true }),
-    { pluginId: "reporter", key: "WINDOW_DAYS" },
-  );
-  assert.equal(
-    firstEffectivePluginOptionPath([
+    ], { effectiveOnly: true })).toEqual({ pluginId: "reporter", key: "WINDOW_DAYS" });
+  expect(firstEffectivePluginOptionPath([
       { plugin_id: "disabled", key: "VALUE", effective: false },
-    ], { effectiveOnly: true }),
-    null,
-  );
+    ], { effectiveOnly: true })).toBe(null);
 });
 
 test("generic plugin option helpers filter by safe visible_when declarations", () => {
@@ -119,22 +96,16 @@ test("generic plugin option helpers filter by safe visible_when declarations", (
     },
   ];
 
-  assert.deepEqual(
-    filterPluginOptionsByVisibleWhen(options, {
+  expect(filterPluginOptionsByVisibleWhen(options, {
       agentId: "team",
       route: "/channels/feishu",
       scope: "channel",
-    }).map((option) => `${option.plugin_id}.${option.key}`),
-    ["agent_team.SELECTED_TEAM_ID", "reporter.WINDOW_DAYS"],
-  );
-  assert.deepEqual(
-    filterPluginOptionsByVisibleWhen(options, {
+    }).map((option) => `${option.plugin_id}.${option.key}`)).toEqual(["agent_team.SELECTED_TEAM_ID", "reporter.WINDOW_DAYS"]);
+  expect(filterPluginOptionsByVisibleWhen(options, {
       agentId: "chat",
       route: "/channels/feishu",
       scope: "channel",
-    }).map((option) => `${option.plugin_id}.${option.key}`),
-    ["reporter.WINDOW_DAYS"],
-  );
+    }).map((option) => `${option.plugin_id}.${option.key}`)).toEqual(["reporter.WINDOW_DAYS"]);
 });
 
 test("generic plugin option helpers retain only currently declared option values", () => {
@@ -143,42 +114,33 @@ test("generic plugin option helpers retain only currently declared option values
     reporter: { WINDOW_DAYS: 30 },
   };
 
-  assert.deepEqual(
-    retainPluginOptionsForDeclarations(values, [
+  expect(retainPluginOptionsForDeclarations(values, [
       { plugin_id: "agent_team", key: "SELECTED_TEAM_ID" },
       { plugin_id: "reporter", key: "WINDOW_DAYS" },
-    ]),
-    {
+    ])).toEqual({
       agent_team: { SELECTED_TEAM_ID: "team-1" },
       reporter: { WINDOW_DAYS: 30 },
-    },
-  );
-  assert.deepEqual(retainPluginOptionsForDeclarations(values, []), {});
+    });
+  expect(retainPluginOptionsForDeclarations(values, [])).toEqual({});
 });
 
 test("generic plugin option helpers detect persona suppressing declarations", () => {
-  assert.equal(
-    hasEffectiveCorePersonaSuppressingOption([
+  expect(hasEffectiveCorePersonaSuppressingOption([
       {
         plugin_id: "agent_team",
         key: "SELECTED_TEAM_ID",
         effective: true,
         suppresses_core_persona_selector: true,
       },
-    ]),
-    true,
-  );
-  assert.equal(
-    hasEffectiveCorePersonaSuppressingOption([
+    ])).toBe(true);
+  expect(hasEffectiveCorePersonaSuppressingOption([
       {
         plugin_id: "agent_team",
         key: "SELECTED_TEAM_ID",
         effective: false,
         suppresses_core_persona_selector: true,
       },
-    ]),
-    false,
-  );
+    ])).toBe(false);
 });
 
 test("generic plugin option helpers replace Agent Team-specific path helpers", () => {
@@ -195,12 +157,6 @@ test("generic plugin option helpers replace Agent Team-specific path helpers", (
     },
   ];
 
-  assert.deepEqual(
-    pluginOptionPathFromDeclaration(declarations[0]),
-    { pluginId: AGENT_TEAM_PLUGIN_ID, key: AGENT_TEAM_SELECTED_TEAM_OPTION },
-  );
-  assert.deepEqual(
-    firstEffectivePluginOptionPath(declarations, { effectiveOnly: true }),
-    { pluginId: "other_plugin", key: "SELECTED_ITEM_ID" },
-  );
+  expect(pluginOptionPathFromDeclaration(declarations[0])).toEqual({ pluginId: AGENT_TEAM_PLUGIN_ID, key: AGENT_TEAM_SELECTED_TEAM_OPTION });
+  expect(firstEffectivePluginOptionPath(declarations, { effectiveOnly: true })).toEqual({ pluginId: "other_plugin", key: "SELECTED_ITEM_ID" });
 });

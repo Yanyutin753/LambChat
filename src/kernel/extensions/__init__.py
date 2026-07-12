@@ -16,7 +16,6 @@ from src.kernel.extensions.builtin_plugins import (
     GITHUB_INSTALLER_PLUGIN_ID,
     IMAGE_GENERATION_PLUGIN_ID,
     USAGE_REPORTS_PLUGIN_ID,
-    WORKFLOW_PLUGIN_ID,
     build_advanced_file_viewers_plugin_manifest,
     build_agent_team_plugin_manifest,
     build_audio_transcription_plugin_manifest,
@@ -24,7 +23,6 @@ from src.kernel.extensions.builtin_plugins import (
     build_github_installer_plugin_manifest,
     build_image_generation_plugin_manifest,
     build_usage_reports_plugin_manifest,
-    build_workflow_plugin_manifest,
 )
 from src.kernel.extensions.classification import (
     CORE_CAPABILITIES,
@@ -128,7 +126,6 @@ __all__ = [
     "BACKEND_PLUGIN_MANIFEST_KEYS",
     "CONTROLLED_FRONTEND_REFERENCE_FIELDS",
     "CONTROLLED_FRONTEND_REFERENCES",
-    "WORKFLOW_PLUGIN_ID",
     "BUILTIN_PLUGIN_MANIFESTS",
     "CORE_CAPABILITIES",
     "EXTENSION_ONLY_CAPABILITIES",
@@ -204,7 +201,6 @@ __all__ = [
     "build_agent_team_plugin_manifest",
     "build_advanced_file_viewers_plugin_manifest",
     "build_audio_transcription_plugin_manifest",
-    "build_workflow_plugin_manifest",
     "build_feedback_plugin_manifest",
     "build_feishu_connector_plugin_manifest",
     "build_github_installer_plugin_manifest",

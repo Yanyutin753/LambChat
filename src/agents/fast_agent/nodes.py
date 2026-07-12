@@ -25,8 +25,13 @@ from src.agents.core.node_utils import (
 )
 from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.subagent_prompts import (
+    CODEBASE_INVESTIGATOR_PROMPT,
+    IMPLEMENTATION_WORKER_PROMPT,
     MAIN_AGENT_PROMPT_SECTIONS,
+    RESEARCH_SUBAGENT_PROMPT,
+    SPECIALIZED_SUBAGENT_DESCRIPTIONS,
     SUBAGENT_PROMPT,
+    VERIFICATION_RUNNER_PROMPT,
     get_memory_guide,
 )
 from src.agents.core.thinking import build_thinking_config
@@ -36,13 +41,15 @@ from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     ArtifactDeliveryMiddleware,
     ImageUrlToBase64Middleware,
+    MainAgentContextMiddleware,
     PromptCachingMiddleware,
     SectionPromptMiddleware,
+    SubagentActivityMiddleware,
+    SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
 )
-from src.infra.agent.middleware_subagent import SubagentActivityMiddleware
 from src.infra.backend.deepagent import create_persistent_backend_factory
 from src.infra.goal import (
     build_goal_input,
@@ -199,37 +206,64 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     subagent_base_url = configurable.get("base_url", "")
     subagent_prompt_sections = [s for s in (*persona_sections, skills_prompt, memory_guide) if s]
-    subagent_middleware = [
-        *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
-        ToolResultBinaryMiddleware(base_url=subagent_base_url),
-        ArtifactDeliveryMiddleware(),
-        SubagentActivityMiddleware(backend=backend),
-    ]
-    if image_url_to_base64:
-        subagent_middleware.append(ImageUrlToBase64Middleware())
-    if subagent_prompt_sections:
-        subagent_middleware.append(SectionPromptMiddleware(sections=subagent_prompt_sections))
-    if context.deferred_manager is not None:
-        from src.infra.agent.middleware import ToolSearchMiddleware
 
-        subagent_deferred_manager = context.deferred_manager.fork_for_scope(
-            "subagent:general-purpose"
-        )
-        subagent_middleware.append(
-            ToolSearchMiddleware(
-                deferred_manager=subagent_deferred_manager,
-                search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
+    def _build_subagent_middleware(subagent_type: str) -> list:
+        mw = [
+            *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
+            ToolResultBinaryMiddleware(base_url=subagent_base_url),
+            ArtifactDeliveryMiddleware(),
+            SubagentActivityMiddleware(backend=backend),
+        ]
+        if image_url_to_base64:
+            mw.append(ImageUrlToBase64Middleware())
+        if subagent_prompt_sections:
+            mw.append(SectionPromptMiddleware(sections=subagent_prompt_sections))
+        if context.deferred_manager is not None:
+            from src.infra.agent.middleware import ToolSearchMiddleware
+
+            subagent_deferred_manager = context.deferred_manager.fork_for_scope(
+                f"subagent:{subagent_type}"
             )
-        )
-    subagent_middleware.append(PromptCachingMiddleware())
+            mw.append(
+                ToolSearchMiddleware(
+                    deferred_manager=subagent_deferred_manager,
+                    search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
+                )
+            )
+        mw.append(PromptCachingMiddleware())
+        return mw
 
     custom_subagents: list[SubAgent | CompiledSubAgent] = [
         {
             "name": "general-purpose",
             "description": "General-purpose agent for researching complex questions, searching for files and content, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you. This agent has access to all tools as the main agent.",
             "system_prompt": SUBAGENT_PROMPT,
-            "middleware": subagent_middleware,
-        }
+            "middleware": _build_subagent_middleware("general-purpose"),
+        },
+        {
+            "name": "codebase-investigator",
+            "description": SPECIALIZED_SUBAGENT_DESCRIPTIONS["codebase-investigator"],
+            "system_prompt": CODEBASE_INVESTIGATOR_PROMPT,
+            "middleware": _build_subagent_middleware("codebase-investigator"),
+        },
+        {
+            "name": "implementation-worker",
+            "description": SPECIALIZED_SUBAGENT_DESCRIPTIONS["implementation-worker"],
+            "system_prompt": IMPLEMENTATION_WORKER_PROMPT,
+            "middleware": _build_subagent_middleware("implementation-worker"),
+        },
+        {
+            "name": "verification-runner",
+            "description": SPECIALIZED_SUBAGENT_DESCRIPTIONS["verification-runner"],
+            "system_prompt": VERIFICATION_RUNNER_PROMPT,
+            "middleware": _build_subagent_middleware("verification-runner"),
+        },
+        {
+            "name": "researcher",
+            "description": SPECIALIZED_SUBAGENT_DESCRIPTIONS["researcher"],
+            "system_prompt": RESEARCH_SUBAGENT_PROMPT,
+            "middleware": _build_subagent_middleware("researcher"),
+        },
     ]
 
     # 构建中间件栈：retry → binary upload → skills+memory → memory_index → tool search → cache tag
@@ -279,6 +313,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     if rubric_middleware is not None:
         user_middleware.append(rubric_middleware)
 
+    user_middleware.append(MainAgentContextMiddleware(backend=backend))
+    user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
+
     # KV cache: tag final system block + last tool AFTER all dynamic injection
     user_middleware.append(PromptCachingMiddleware())
 
@@ -308,6 +345,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             session_id=state.get("session_id"),
             trace_id=getattr(presenter, "trace_id", None),
             presenter=presenter,  # 传递 presenter 给工具调用
+            attachments=attachments,
         ),
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }

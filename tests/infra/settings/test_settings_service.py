@@ -84,10 +84,7 @@ async def test_plugin_owned_legacy_keys_are_only_read_through_migration_api() ->
 
     assert await service.get("IMAGE_GENERATION_API_KEY") is None
     assert await service.get_raw("IMAGE_GENERATION_API_KEY") is None
-    assert (
-        await service.get_plugin_owned_legacy_raw("IMAGE_GENERATION_API_KEY")
-        == "sk-legacy"
-    )
+    assert await service.get_plugin_owned_legacy_raw("IMAGE_GENERATION_API_KEY") == "sk-legacy"
 
     with pytest.raises(ValueError, match="owned by plugin image_generation"):
         await service.set("IMAGE_GENERATION_API_KEY", "sk-new", "admin")

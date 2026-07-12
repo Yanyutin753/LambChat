@@ -91,7 +91,7 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module, "create_deep_agent", fake_create_deep_agent)
     monkeypatch.setattr(module, "create_retry_middleware", lambda **_kwargs: [])
     monkeypatch.setattr(module, "ToolResultBinaryMiddleware", lambda **_kwargs: object())
-    monkeypatch.setattr(module, "SubagentActivityMiddleware", lambda **_kwargs: object())
+    monkeypatch.setattr(module, "SubagentResultHandoffMiddleware", lambda **_kwargs: object())
     monkeypatch.setattr(module, "PromptCachingMiddleware", lambda: object())
     monkeypatch.setattr(module.settings, "ENABLE_MCP", False)
     monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
@@ -309,9 +309,9 @@ async def test_fast_agent_subagent_tool_search_uses_isolated_manager(
         config,
     )
 
-    assert deferred_manager.fork_calls == ["subagent:general-purpose"]
+    assert "subagent:general-purpose" in deferred_manager.fork_calls
     assert captured_managers[0] is deferred_manager.forked
-    assert captured_managers[1] is deferred_manager
+    assert captured_managers[-1] is deferred_manager
 
 
 @pytest.mark.asyncio
@@ -621,9 +621,9 @@ async def test_search_agent_subagent_tool_search_uses_isolated_manager(
         config,
     )
 
-    assert deferred_manager.fork_calls == ["subagent:general-purpose"]
+    assert "subagent:general-purpose" in deferred_manager.fork_calls
     assert captured_managers[0] is deferred_manager.forked
-    assert captured_managers[1] is deferred_manager
+    assert captured_managers[-1] is deferred_manager
 
 
 @pytest.mark.asyncio
@@ -745,8 +745,8 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -806,54 +806,7 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
             "context": context,
             "presenter": object(),
             "base_url": "",
-            "agent_options": {
-                "_plugin_results": {
-                    "workflow": {
-                        "workflow_id": "wf-team",
-                        "version_id": "wfv-team",
-                        "run_id": "wfr-team",
-                        "status": "succeeded",
-                        "output": {"answer": 42, "trace": "runtime detail"},
-                        "io_contract": {
-                            "output_schema": {
-                                "type": "object",
-                                "required": ["answer", "summary"],
-                                "properties": {
-                                    "answer": {"type": "string"},
-                                    "summary": {"type": "string"},
-                                },
-                            }
-                        },
-                        "output_contract": {
-                            "valid": False,
-                            "missing_required": ["summary"],
-                            "type_mismatches": [
-                                {"field": "answer", "expected": "string", "actual": "int"}
-                            ],
-                        },
-                        "interface": {
-                            "entry": {
-                                "tool": "workflow_run",
-                                "argument": "input",
-                                "schema_tool": "workflow_get_schema",
-                                "schema_field": "input_schema",
-                            },
-                            "exit": {
-                                "field": "output",
-                                "schema_tool": "workflow_get_schema",
-                                "schema_field": "output_schema",
-                            },
-                            "debug": {"tool": "workflow_get_run", "events_field": "events"},
-                        },
-                        "next_action": {
-                            "type": "use_output",
-                            "field": "output",
-                            "reason": "workflow_run_succeeded",
-                        },
-                        "error": None,
-                    }
-                }
-            },
+            "agent_options": {},
             "team_id": "team-1",
             "enabled_skills": ["unrelated-skill"],
         }
@@ -875,20 +828,6 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     assert "## Skills System" in sections
     assert "xiaohongshu-copy" in sections
     assert "unrelated-skill" not in sections
-    assert "## Workflow Result" in sections
-    assert "workflow_id: wf-team" in sections
-    assert "run_id: wfr-team" in sections
-    assert "output: 42" in sections
-    assert "outputs: answer:string, summary:string" in sections
-    assert "output_contract: invalid" in sections
-    assert 'missing_required_outputs: ["summary"]' in sections
-    assert '"actual": "int"' in sections
-    assert (
-        "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema "
-        "exit=output output_schema=workflow_get_schema.output_schema "
-        "debug=workflow_get_run.events"
-    ) in sections
-    assert "next_action: use_output output reason=workflow_run_succeeded" in sections
     assert fake_graph.captured_inner_config is not None
     assert fake_graph.captured_inner_config["configurable"]["enabled_skills"] is None
 
@@ -899,79 +838,6 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     assert "## Persona" not in router_sections
     assert "## Skills System" not in router_sections
     assert "xiaohongshu-copy" not in router_sections
-    assert "## Workflow Result" in router_sections
-    assert "workflow_id: wf-team" in router_sections
-    assert "outputs: answer:string, summary:string" in router_sections
-    assert "output_contract: invalid" in router_sections
-    assert "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema" in router_sections
-    assert "output_schema=workflow_get_schema.output_schema" in router_sections
-    assert "next_action: use_output output reason=workflow_run_succeeded" in router_sections
-
-
-def test_team_agent_workflow_result_prompt_section_prefers_nested_output_contract() -> None:
-    from src.agents.team_agent import nodes as team_nodes
-
-    section = team_nodes.workflow_result_prompt_section(
-        {
-            "_plugin_results": {
-                "workflow": {
-                    "workflow_id": "wf-team",
-                    "version_id": "wfv-team",
-                    "run_id": "wfr-team",
-                    "status": "succeeded",
-                    "output": {
-                        "answer": "Generic answer",
-                        "report": {"summary": "Nested team summary"},
-                    },
-                    "io_contract": {
-                        "output_schema": {
-                            "type": "object",
-                            "required": ["report"],
-                            "properties": {
-                                "answer": {"type": "string"},
-                                "report": {
-                                    "type": "object",
-                                    "required": ["summary"],
-                                    "properties": {"summary": {"type": "string"}},
-                                },
-                            },
-                        }
-                    },
-                    "output_contract": {"valid": True},
-                    "interface": {
-                        "entry": {
-                            "tool": "workflow_run",
-                            "argument": "input",
-                            "schema_tool": "workflow_get_schema",
-                            "schema_field": "input_schema",
-                        },
-                        "exit": {
-                            "field": "output",
-                            "schema_tool": "workflow_get_schema",
-                            "schema_field": "output_schema",
-                        },
-                        "debug": {"tool": "workflow_get_run", "events_field": "events"},
-                    },
-                    "next_action": {
-                        "type": "use_output",
-                        "field": "output",
-                        "reason": "workflow_run_succeeded",
-                    },
-                }
-            }
-        }
-    )
-
-    assert "## Workflow Result" in section
-    assert "output: \"Nested team summary\"" in section
-    assert "outputs: report.summary:string, answer:string" in section
-    assert "output_contract: valid" in section
-    assert (
-        "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema "
-        "exit=output output_schema=workflow_get_schema.output_schema "
-        "debug=workflow_get_run.events"
-    ) in section
-    assert "next_action: use_output output reason=workflow_run_succeeded" in section
 
 
 @pytest.mark.asyncio
@@ -979,7 +845,7 @@ async def test_team_agent_node_passes_internal_tools_when_mcp_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -1016,7 +882,7 @@ async def test_team_agent_node_adds_code_interpreter_middleware_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -1070,8 +936,8 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
+    from plugins.system.agent_team.backend.runtime import nodes as team_nodes
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)

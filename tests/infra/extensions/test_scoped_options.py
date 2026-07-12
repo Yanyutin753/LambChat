@@ -18,30 +18,42 @@ async def test_scoped_options_helpers_cover_project_session_channel_and_schedule
     storage = InMemoryPluginSettingsStorage()
     service = PluginSettingsService(storage=storage)
 
-    assert scoped_option_definition(
-        runtime,
-        scope="project",
-        plugin_id="agent_team",
-        key="DEFAULT_TEAM_ID",
-    ).key == "DEFAULT_TEAM_ID"
-    assert scoped_option_definition(
-        runtime,
-        scope="session",
-        plugin_id="agent_team",
-        key="SELECTED_TEAM_ID",
-    ).key == "SELECTED_TEAM_ID"
-    assert scoped_option_definition(
-        runtime,
-        scope="channel",
-        plugin_id="agent_team",
-        key="SELECTED_TEAM_ID",
-    ).key == "SELECTED_TEAM_ID"
-    assert scoped_option_definition(
-        runtime,
-        scope="scheduled_task",
-        plugin_id="agent_team",
-        key="SELECTED_TEAM_ID",
-    ).key == "SELECTED_TEAM_ID"
+    assert (
+        scoped_option_definition(
+            runtime,
+            scope="project",
+            plugin_id="agent_team",
+            key="DEFAULT_TEAM_ID",
+        ).key
+        == "DEFAULT_TEAM_ID"
+    )
+    assert (
+        scoped_option_definition(
+            runtime,
+            scope="session",
+            plugin_id="agent_team",
+            key="SELECTED_TEAM_ID",
+        ).key
+        == "SELECTED_TEAM_ID"
+    )
+    assert (
+        scoped_option_definition(
+            runtime,
+            scope="channel",
+            plugin_id="agent_team",
+            key="SELECTED_TEAM_ID",
+        ).key
+        == "SELECTED_TEAM_ID"
+    )
+    assert (
+        scoped_option_definition(
+            runtime,
+            scope="scheduled_task",
+            plugin_id="agent_team",
+            key="SELECTED_TEAM_ID",
+        ).key
+        == "SELECTED_TEAM_ID"
+    )
 
     await sync_plugin_options_to_settings(
         runtime=runtime,

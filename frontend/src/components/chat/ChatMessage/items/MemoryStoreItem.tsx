@@ -380,7 +380,7 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
           <ToolInlineDetails>
             {/* Retain compact */}
             {action === "retain" && content && (
-              <div className="rounded-lg px-2.5 py-2 bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-primary)_26%,var(--theme-border))] transition-colors">
+              <div className="rounded-lg px-2.5 py-2 bg-theme-bg border border-theme-border hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors">
                 {title && (
                   <div className="text-xs text-theme-text font-medium truncate">
                     {title}

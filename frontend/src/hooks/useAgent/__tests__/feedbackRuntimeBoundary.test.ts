@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const useAgentSource = readFileSync(
@@ -20,15 +18,15 @@ const historyHydratorSource = readFileSync(
 );
 
 test("Feedback history hydration follows the plugin message-action contribution", () => {
-  assert.match(useAgentTypesSource, /runtimePlugins\?: PluginRuntimeContributionStates/);
-  assert.match(useAgentSource, /buildMessageActionContributions/);
-  assert.match(useAgentSource, /hydrateMessageActionHistory/);
-  assert.match(useAgentSource, /messageActionHistoryContributions/);
-  assert.doesNotMatch(useAgentSource, /feedbackApi/);
-  assert.doesNotMatch(useAgentSource, /hasMessageActionContribution/);
-  assert.doesNotMatch(useAgentSource, /const feedbackPromise/);
-  assert.doesNotMatch(useAgentSource, /const feedbackPromise = canReadFeedback/);
-  assert.match(historyHydratorSource, /feedbackApi/);
-  assert.match(historyHydratorSource, /"feedback\.FeedbackButtons"/);
-  assert.match(chatAppContentSource, /useAgent\(\{[\s\S]*runtimePlugins,/);
+  expect(useAgentTypesSource).toMatch(/runtimePlugins\?: PluginRuntimeContributionStates/);
+  expect(useAgentSource).toMatch(/buildMessageActionContributions/);
+  expect(useAgentSource).toMatch(/hydrateMessageActionHistory/);
+  expect(useAgentSource).toMatch(/messageActionHistoryContributions/);
+  expect(useAgentSource).not.toMatch(/feedbackApi/);
+  expect(useAgentSource).not.toMatch(/hasMessageActionContribution/);
+  expect(useAgentSource).not.toMatch(/const feedbackPromise/);
+  expect(useAgentSource).not.toMatch(/const feedbackPromise = canReadFeedback/);
+  expect(historyHydratorSource).toMatch(/feedbackApi/);
+  expect(historyHydratorSource).toMatch(/"feedback\.FeedbackButtons"/);
+  expect(chatAppContentSource).toMatch(/useAgent\(\{[\s\S]*runtimePlugins,/);
 });

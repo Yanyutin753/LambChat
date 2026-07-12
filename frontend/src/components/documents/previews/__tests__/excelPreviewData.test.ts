@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
 import { worksheetToDisplayRows } from "../excelPreviewData.ts";
 
@@ -9,5 +7,5 @@ test("uses formatted worksheet text for date cells", () => {
 
   const rows = worksheetToDisplayRows(worksheet, XLSX.utils);
 
-  assert.deepEqual(rows, [["month"], ["May-26"]]);
+  expect(rows).toEqual([["month"], ["May-26"]]);
 });

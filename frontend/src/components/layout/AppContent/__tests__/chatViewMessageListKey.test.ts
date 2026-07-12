@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -16,51 +14,44 @@ const chatViewSource = readFileSync(
 );
 
 test("drives the Virtuoso session key through state so session switches remount the message list", () => {
-  assert.match(chatViewSource, /setMessageListSessionKey/);
-  assert.match(chatViewSource, /key=\{messageListSessionKey\}/);
-  assert.doesNotMatch(
-    chatViewSource,
+  expect(chatViewSource).toMatch(/setMessageListSessionKey/);
+  expect(chatViewSource).toMatch(/key=\{messageListSessionKey\}/);
+  expect(chatViewSource).not.toMatch(
     /key=\{messageListSessionKeyRef\.current\}/,
   );
 });
 
 test("does not reuse the Virtuoso remount key as a bottom-lock token", () => {
-  assert.doesNotMatch(
-    chatViewSource,
+  expect(chatViewSource).not.toMatch(
     /useMessageScroll\([\s\S]*isLoadingHistory,\s*messageListSessionKey,\s*\)/,
   );
-  assert.match(
-    chatViewSource,
+  expect(chatViewSource).toMatch(
     /useMessageScroll\([\s\S]*isLoadingHistory,\s*null,\s*\)/,
   );
 });
 
 test("lets Virtuoso follow output smoothly only outside history restore", () => {
-  assert.match(
-    chatViewSource,
+  expect(chatViewSource).toMatch(
     /if \(shouldHideHistoryMeasurementFrame\) \{\s*return isAtBottom \? "auto" : false;\s*\}/,
   );
-  assert.match(chatViewSource, /return isAtBottom \? "smooth" : false;/);
-  assert.match(chatViewSource, /followOutput=\{handleVirtuosoFollowOutput\}/);
-  assert.doesNotMatch(chatViewSource, /followOutput=\{"smooth"\}/);
+  expect(chatViewSource).toMatch(/return isAtBottom \? "smooth" : false;/);
+  expect(chatViewSource).toMatch(/followOutput=\{handleVirtuosoFollowOutput\}/);
+  expect(chatViewSource).not.toMatch(/followOutput=\{"smooth"\}/);
 });
 
 test("anchors floating scroll buttons to the chat input", () => {
-  assert.match(
-    chatViewSource,
+  expect(chatViewSource).toMatch(
     /const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";/,
   );
-  assert.equal(
+  expect(
     chatViewSource.match(/\$\{FLOATING_SCROLL_BUTTON_OFFSET_CLASS\}/g)?.length,
-    1,
-  );
-  assert.match(
-    chatViewSource,
+  ).toBe(1);
+  expect(chatViewSource).toMatch(
     /\{messages\.length > 0 && \(\s*<div className="relative">[\s\S]*<ChatInput\s+[\s\S]*\{\.\.\.chatInputProps\}[\s\S]*<\/div>\s*\)\}/,
   );
-  assert.doesNotMatch(chatViewSource, /bottom-\d+/);
+  expect(chatViewSource).not.toMatch(/bottom-[1-9]\d*/);
 });
 
 test("renders eight chat skeleton groups while loading history", () => {
-  assert.match(chatViewSource, /<ChatSkeleton count=\{8\} \/>/);
+  expect(chatViewSource).toMatch(/<ChatSkeleton count=\{8\} \/>/);
 });

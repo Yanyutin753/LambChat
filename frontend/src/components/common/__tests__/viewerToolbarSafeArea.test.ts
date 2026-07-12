@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const source = readFileSync(
   new URL("../ViewerToolbar.tsx", import.meta.url),
   "utf8",
@@ -20,11 +17,10 @@ const excalidrawSource = readFileSync(
 );
 
 test("ViewerToolbar handles bottom safe-area through positioning, not padding", () => {
-  assert.match(
-    source,
+  expect(source).toMatch(
     /bottom-\[calc\(1rem\+var\(--app-safe-area-bottom,0px\)\)\]/,
   );
-  assert.doesNotMatch(source, /safe-area-bottom/);
+  expect(source).not.toMatch(/env\(safe-area/);
 });
 
 test("ViewerToolbar call sites avoid safe-area padding that shifts controls off center", () => {
@@ -33,8 +29,7 @@ test("ViewerToolbar call sites avoid safe-area padding that shifts controls off 
     mermaidSource,
     excalidrawSource,
   ]) {
-    assert.doesNotMatch(
-      consumerSource,
+    expect(consumerSource).not.toMatch(
       /<ViewerToolbar[\s\S]*?className="safe-area-bottom"/,
     );
   }

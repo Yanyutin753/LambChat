@@ -16,6 +16,7 @@ from src.agents.core import (
     # 基类
     BaseGraphAgent,
     GraphBuilder,
+    discover_plugin_agents,
     ensure_agent_executable,
     get_agent_class,
     # 辅助
@@ -31,7 +32,8 @@ def discover_agents() -> None:
     # 导入会触发 @register_agent 装饰器
     from src.agents.fast_agent import FastAgent  # noqa: F401
     from src.agents.search_agent import SearchAgent  # noqa: F401
-    from src.agents.team_agent import TeamAgent  # noqa: F401
+
+    discover_plugin_agents()
 
 
 async def get_agent_async(agent_id: str) -> BaseGraphAgent:
@@ -50,6 +52,7 @@ __all__ = [
     "GraphBuilder",
     # 注册
     "_AGENT_REGISTRY",
+    "discover_plugin_agents",
     "ensure_agent_executable",
     "register_agent",
     "set_plugin_runtime",

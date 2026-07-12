@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,7 @@ import { LogOut, User } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { clearSessionSelectionGuard } from "../../utils/sessionSelectionGuard";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { getFullUrl } from "../../services/api";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import {
@@ -23,7 +24,6 @@ export function UserMenu({ onShowProfile, runtimePlugins }: UserMenuProps) {
   const { logout, hasAnyPermission, user } = useAuth();
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 640,
   );
@@ -42,16 +42,15 @@ export function UserMenu({ onShowProfile, runtimePlugins }: UserMenuProps) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Update menu position (desktop only)
-  const updateMenuPosition = useCallback(() => {
-    if (buttonRef.current && !isMobile) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setMenuPosition({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right,
-      });
-    }
-  }, [isMobile]);
+  // Position dropdown once on open, never recalculate (desktop only)
+  const menuPosition = useStickyDropdownPosition(
+    buttonRef,
+    showMenu && !isMobile,
+    (rect) => ({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    }),
+  );
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -66,20 +65,15 @@ export function UserMenu({ onShowProfile, runtimePlugins }: UserMenuProps) {
       }
     };
     if (showMenu) {
-      updateMenuPosition();
       const timer = setTimeout(() => {
         document.addEventListener("click", handleClickOutside);
       }, 0);
-      window.addEventListener("resize", updateMenuPosition);
-      window.addEventListener("scroll", updateMenuPosition, true);
       return () => {
         clearTimeout(timer);
         document.removeEventListener("click", handleClickOutside);
-        window.removeEventListener("resize", updateMenuPosition);
-        window.removeEventListener("scroll", updateMenuPosition, true);
       };
     }
-  }, [showMenu, updateMenuPosition]);
+  }, [showMenu]);
 
   // Lock body scroll on mobile when menu is open
   useEffect(() => {
@@ -100,7 +94,7 @@ export function UserMenu({ onShowProfile, runtimePlugins }: UserMenuProps) {
   }, [location.pathname]);
 
   const menuItemClass =
-    "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-all duration-150 rounded-lg text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] active:scale-[0.98]";
+    "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-all duration-150 rounded-lg text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] active:scale-[0.98]";
 
   const navigateTo = (path: string) => {
     setShowMenu(false);
@@ -158,7 +152,7 @@ export function UserMenu({ onShowProfile, runtimePlugins }: UserMenuProps) {
                 onClick={() => navigateTo(item.path)}
                 className={`${menuItemClass} ${
                   location.pathname === item.path
-                    ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)] font-medium"
+                    ? "text-[var(--theme-text)] font-medium"
                     : ""
                 }`}
               >
@@ -184,7 +178,7 @@ export function UserMenu({ onShowProfile, runtimePlugins }: UserMenuProps) {
                 onClick={() => navigateTo(item.path)}
                 className={`${menuItemClass} ${
                   location.pathname === item.path
-                    ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)] font-medium"
+                    ? "text-[var(--theme-text)] font-medium"
                     : ""
                 }`}
               >

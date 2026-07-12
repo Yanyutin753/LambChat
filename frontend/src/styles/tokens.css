@@ -48,6 +48,123 @@
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
 
+  /* ═══════════════════════════════════════════════
+     Astryx-Inspired Semantic Tokens
+     ═══════════════════════════════════════════════ */
+
+  /* ── Semantic Background Aliases (4-level surface hierarchy) ── */
+  --color-background-body: var(--theme-bg);
+  --color-background-surface: var(--theme-bg-elevated);
+  --color-background-card: var(--theme-bg-card);
+  --color-background-popover: var(--theme-bg-elevated);
+  --color-background-muted: var(--theme-bg-subtle);
+
+  /* ── Semantic Text Aliases ── */
+  --color-text-primary: var(--theme-text);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-disabled: var(--theme-text-tertiary);
+
+  /* ── Semantic Border Aliases ── */
+  --color-border: var(--theme-border);
+  --color-border-emphasized: var(--theme-border-hover);
+
+  /* ── Semantic Radius (Astryx-style contextual names) ── */
+  --radius-inner: 0.25rem;
+  --radius-element: 0.5rem;
+  --radius-container: 0.75rem;
+  --radius-page: 1rem;
+  --radius-chat: 1.5rem;
+
+  /* ── Unified Motion Tokens ── */
+  --duration-fast: 125ms;
+  --duration-fast-max: 165ms;
+  --duration-medium: 300ms;
+  --duration-medium-max: 400ms;
+  --duration-slow: 700ms;
+  --ease-standard: cubic-bezier(0.24, 1, 0.4, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Inset State Rings (Astryx core pattern) ── */
+  --shadow-inset-hover: inset 0 0 0 2px
+    color-mix(in srgb, var(--theme-ring) 30%, transparent);
+  --shadow-inset-selected: inset 0 0 0 2px
+    color-mix(in srgb, var(--theme-ring) 50%, transparent);
+  --shadow-inset-success: inset 0 0 0 2px rgba(16, 185, 129, 0.3);
+  --shadow-inset-error: inset 0 0 0 2px rgba(239, 68, 68, 0.3);
+  --shadow-inset-warning: inset 0 0 0 2px rgba(245, 158, 11, 0.3);
+
+  /* ── Enhanced Shadow System (3-level + dark bezel) ── */
+  --shadow-low: 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 8px rgb(0 0 0 / 0.08);
+  --shadow-med: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.1);
+  --shadow-high: 0 2px 2px rgb(0 0 0 / 0.08), 0 8px 24px rgb(0 0 0 / 0.15);
+
+  /* ── 10-Hue Categorical Color Palette (stone warm base) ── */
+  /* Red */
+  --color-background-red: #facecb;
+  --color-border-red: #e6bab8;
+  --color-icon-red: #be123c;
+  --color-text-red: #9f1239;
+
+  /* Orange */
+  --color-background-orange: #fed7aa;
+  --color-border-orange: #fdba74;
+  --color-icon-orange: #c2410c;
+  --color-text-orange: #9a3412;
+
+  /* Yellow */
+  --color-background-yellow: #fef08a;
+  --color-border-yellow: #fde047;
+  --color-icon-yellow: #a16207;
+  --color-text-yellow: #854d0e;
+
+  /* Green */
+  --color-background-green: #bbf7d0;
+  --color-border-green: #86efac;
+  --color-icon-green: #15803d;
+  --color-text-green: #166534;
+
+  /* Teal */
+  --color-background-teal: #99f6e4;
+  --color-border-teal: #5eead4;
+  --color-icon-teal: #0f766e;
+  --color-text-teal: #115e59;
+
+  /* Cyan */
+  --color-background-cyan: #a5f3fc;
+  --color-border-cyan: #67e8f9;
+  --color-icon-cyan: #0e7490;
+  --color-text-cyan: #155e75;
+
+  /* Blue (info/primary accent) */
+  --color-background-blue: #bfdbfe;
+  --color-border-blue: #93c5fd;
+  --color-icon-blue: #1d4ed8;
+  --color-text-blue: #1e40af;
+
+  /* Purple */
+  --color-background-purple: #e9d5ff;
+  --color-border-purple: #d8b4fe;
+  --color-icon-purple: #7e22ce;
+  --color-text-purple: #6b21a8;
+
+  /* Pink */
+  --color-background-pink: #fbcfe8;
+  --color-border-pink: #f9a8d4;
+  --color-icon-pink: #be185d;
+  --color-text-pink: #9d174d;
+
+  /* Gray (categorical neutral) */
+  --color-background-gray: #e7e5e4;
+  --color-border-gray: #d6d3d1;
+  --color-icon-gray: #57534e;
+  --color-text-gray: #292524;
+
+  /* ── Accent (toggle switch) ── */
+  --theme-accent: linear-gradient(to bottom right, #fbbf24, #f97316);
+  --theme-accent-hover: linear-gradient(to bottom right, #f59e0b, #ea580c);
+  --theme-accent-light: #fffbeb;
+  --theme-accent-glow: rgba(251, 191, 36, 0.2);
+
   /* ── Composed Shadows ── */
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
   --shadow-card-hover: 0 12px 32px -8px rgb(0 0 0 / 0.1),
@@ -116,10 +233,89 @@
   --theme-shadow-md: rgba(0, 0, 0, 0.4);
   --theme-shadow-lg: rgba(0, 0, 0, 0.5);
 
+  /* ── Accent (toggle switch) ── */
+  --theme-accent: linear-gradient(to bottom right, #fbbf24, #f97316);
+  --theme-accent-hover: linear-gradient(to bottom right, #f59e0b, #ea580c);
+  --theme-accent-light: #451a03;
+  --theme-accent-glow: rgba(251, 191, 36, 0.15);
+
   /* ── Composed Shadows ── */
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.2);
   --shadow-card-hover: 0 12px 32px -8px rgb(0 0 0 / 0.4),
     0 4px 12px -4px rgb(0 0 0 / 0.25);
   --shadow-dropdown: 0 10px 40px -8px rgb(0 0 0 / 0.4),
     0 4px 12px -2px rgb(0 0 0 / 0.3);
+
+  /* ═══════════════════════════════════════════════
+     Astryx-Inspired Dark Mode Overrides
+     ═══════════════════════════════════════════════ */
+
+  /* ── Enhanced Shadows (deepened + 1px white bezel) ── */
+  --shadow-low: 0 2px 4px rgb(0 0 0 / 0.25), 0 4px 8px rgb(0 0 0 / 0.4),
+    inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-med: 0 2px 4px rgb(0 0 0 / 0.35), 0 4px 12px rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  --shadow-high: 0 4px 6px rgb(0 0 0 / 0.5), 0 12px 24px rgb(0 0 0 / 0.7),
+    inset 0 0 0 1px rgb(255 255 255 / 0.1);
+
+  /* ── 10-Hue Categorical Palette — Dark (alpha overlay style) ── */
+  /* background: hue @ 24% alpha overlay (composites onto body) */
+  --color-background-red: rgb(254 202 202 / 0.24);
+  --color-background-orange: rgb(254 215 170 / 0.24);
+  --color-background-yellow: rgb(254 240 138 / 0.24);
+  --color-background-green: rgb(187 247 208 / 0.24);
+  --color-background-teal: rgb(153 246 228 / 0.24);
+  --color-background-cyan: rgb(165 243 252 / 0.24);
+  --color-background-blue: rgb(191 219 254 / 0.24);
+  --color-background-purple: rgb(233 213 255 / 0.24);
+  --color-background-pink: rgb(251 207 232 / 0.24);
+  --color-background-gray: rgb(168 162 158 / 0.15);
+
+  /* border / icon / text — light pastels for dark mode */
+  --color-border-red: #fca5a5;
+  --color-icon-red: #fda4af;
+  --color-text-red: #fecdd3;
+
+  --color-border-orange: #fdba74;
+  --color-icon-orange: #fb923c;
+  --color-text-orange: #fed7aa;
+
+  --color-border-yellow: #fde047;
+  --color-icon-yellow: #facc15;
+  --color-text-yellow: #fef08a;
+
+  --color-border-green: #86efac;
+  --color-icon-green: #4ade80;
+  --color-text-green: #bbf7d0;
+
+  --color-border-teal: #5eead4;
+  --color-icon-teal: #2dd4bf;
+  --color-text-teal: #99f6e4;
+
+  --color-border-cyan: #67e8f9;
+  --color-icon-cyan: #22d3ee;
+  --color-text-cyan: #a5f3fc;
+
+  --color-border-blue: #93c5fd;
+  --color-icon-blue: #60a5fa;
+  --color-text-blue: #bfdbfe;
+
+  --color-border-purple: #d8b4fe;
+  --color-icon-purple: #c084fc;
+  --color-text-purple: #e9d5ff;
+
+  --color-border-pink: #f9a8d4;
+  --color-icon-pink: #f472b6;
+  --color-text-pink: #fbcfe8;
+
+  --color-border-gray: #a8a29e;
+  --color-icon-gray: #a8a29e;
+  --color-text-gray: #d6d3d1;
+
+  /* ── Inset State Rings (dark-friendly: lower opacity, subtle tint) ── */
+  --shadow-inset-hover: inset 0 0 0 2px rgba(214, 211, 209, 0.12);
+  --shadow-inset-selected: inset 0 0 0 2px rgba(214, 211, 209, 0.25);
+  --shadow-inset-success: inset 0 0 0 2px rgba(52, 211, 153, 0.2);
+  --shadow-inset-error: inset 0 0 0 2px rgba(245, 101, 101, 0.2);
+  --shadow-inset-warning: inset 0 0 0 2px rgba(245, 158, 11, 0.2);
 }

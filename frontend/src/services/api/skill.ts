@@ -72,6 +72,32 @@ export const skillApi = {
   },
 
   /**
+   * Upload a binary file to skill (stored in S3/local storage)
+   */
+  async uploadBinaryFile(
+    skillName: string,
+    filePath: string,
+    file: File,
+  ): Promise<{
+    message: string;
+    url: string;
+    mime_type: string;
+    size: number;
+  }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return authFetch(
+      `${SKILLS_API}/${encodeURIComponent(
+        skillName,
+      )}/binary-files/${encodeURIComponent(filePath)}`,
+      {
+        method: "PUT",
+        body: formData,
+      },
+    );
+  },
+
+  /**
    * Update skill file content
    */
   async updateFile(

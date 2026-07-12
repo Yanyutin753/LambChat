@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,7 +46,7 @@ test("all locale files have the same top-level sections as en.json", () => {
     const extra = localeSections.filter((s) => !enSections.includes(s));
 
     if (missing.length > 0 || extra.length > 0) {
-      assert.fail(
+      throw new Error(
         `${locale}.json section mismatch:\n` +
           (missing.length > 0
             ? `  Missing sections: ${missing.join(", ")}\n`
@@ -72,7 +70,7 @@ test("all locale files have the same nested keys as en.json", () => {
     const extra = localeKeys.filter((k) => !enKeys.includes(k));
 
     if (missing.length > 0 || extra.length > 0) {
-      assert.fail(
+      throw new Error(
         `${locale}.json key mismatch (compared to ${BASE_LOCALE}.json):\n` +
           (missing.length > 0
             ? `  Missing keys (${missing.length}):\n    ${missing.join(
@@ -122,7 +120,7 @@ test("no locale file has empty string translations that differ from en.json empt
 
       // Flag values that look like they were copied from English without translation
       if (localeVal === enVal && enVal.length > 20) {
-        assert.fail(
+        throw new Error(
           `${locale}.json key "${key}" appears to be untranslated (same as English): "${enVal}"`,
         );
       }

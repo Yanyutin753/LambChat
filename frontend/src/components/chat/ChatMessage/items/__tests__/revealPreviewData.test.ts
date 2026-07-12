@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   parseProjectRevealSummary,
   shouldShowProjectRevealLoadingError,
@@ -26,7 +23,7 @@ test("parses folder mode from reveal_project results", () => {
     parseErrorMessage: "parse error",
   });
 
-  assert.equal(summary.parsed?.mode, "folder");
+  expect(summary.parsed?.mode).toBe("folder");
 });
 
 test("defaults legacy reveal_project results to project mode", () => {
@@ -49,7 +46,7 @@ test("defaults legacy reveal_project results to project mode", () => {
     parseErrorMessage: "parse error",
   });
 
-  assert.equal(summary.parsed?.mode, "project");
+  expect(summary.parsed?.mode).toBe("project");
 });
 
 test("does not mark pure binary reveal_project folders as failed loads", () => {
@@ -73,5 +70,5 @@ test("does not mark pure binary reveal_project folders as failed loads", () => {
     },
   });
 
-  assert.equal(showError, false);
+  expect(showError).toBe(false);
 });

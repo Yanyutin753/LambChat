@@ -7,13 +7,13 @@
   --glass-border: color-mix(in srgb, var(--theme-border) 64%, transparent);
   --glass-border-hover: color-mix(
     in srgb,
-    var(--theme-primary) 22%,
+    var(--theme-text) 15%,
     var(--theme-border)
   );
   --glass-shadow: 0 4px 24px -8px rgb(0 0 0 / 0.08);
   --glass-shadow-hover: 0 8px 32px -8px rgb(0 0 0 / 0.12);
   --glass-glow: 0 0 20px
-    color-mix(in srgb, var(--theme-primary) 8%, transparent);
+    color-mix(in srgb, var(--theme-text-secondary) 6%, transparent);
   --glass-blur: none;
 }
 
@@ -24,42 +24,42 @@
   --glass-border: color-mix(in srgb, var(--theme-border) 54%, transparent);
   --glass-border-hover: color-mix(
     in srgb,
-    var(--theme-primary) 28%,
+    var(--theme-text) 18%,
     var(--theme-border)
   );
   --glass-shadow: 0 4px 24px -8px rgb(0 0 0 / 0.24);
   --glass-shadow-hover: 0 8px 32px -8px rgb(0 0 0 / 0.32);
   --glass-glow: 0 0 24px
-    color-mix(in srgb, var(--theme-primary) 10%, transparent);
+    color-mix(in srgb, var(--theme-text-secondary) 6%, transparent);
   --glass-blur: none;
 }
 
 .glass-card {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 0.875rem;
-  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-low), var(--glass-shadow);
   transition:
-    border-color 0.24s ease,
-    box-shadow 0.24s ease,
-    background-color 0.24s ease;
+    border-color var(--duration-medium) ease,
+    box-shadow var(--duration-medium) ease,
+    background-color var(--duration-medium) ease;
 }
 
 .glass-card:hover {
   border-color: var(--glass-border-hover);
-  box-shadow: var(--glass-shadow-hover), var(--glass-glow);
+  box-shadow: var(--shadow-med), var(--glass-glow);
 }
 
 .glass-card-subtle {
   background: var(--glass-bg-subtle);
   border: 1px solid var(--glass-border);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-container);
 }
 
 .glass-input {
   background: var(--theme-bg);
   border: 1px solid var(--theme-border);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-element);
   color: var(--theme-text);
   transition:
     border-color 0.2s ease,
@@ -72,19 +72,19 @@
 }
 
 .glass-input:focus {
-  border-color: var(--theme-primary);
+  border-color: var(--theme-text-secondary);
   box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--theme-primary) 20%, transparent);
+    color-mix(in srgb, var(--theme-text-secondary) 20%, transparent);
   outline: none;
 }
 
 .dark .glass-input {
-  background: var(--theme-primary-light);
+  background: var(--theme-bg);
 }
 
 .dark .glass-input:focus {
   box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--theme-primary) 20%, transparent);
+    color-mix(in srgb, var(--theme-text-secondary) 20%, transparent);
 }
 
 .glass-pill {
@@ -147,7 +147,7 @@
   right: 0;
   height: 2px;
   border-radius: 1px 1px 0 0;
-  background: var(--theme-primary);
+  background: var(--theme-text-secondary);
   opacity: 0.85;
   transition: opacity 0.2s ease;
 }
@@ -241,11 +241,11 @@
   0%,
   100% {
     box-shadow: 0 0 0 0
-      color-mix(in srgb, var(--theme-primary) 14%, transparent);
+      color-mix(in srgb, var(--theme-text-secondary) 14%, transparent);
   }
   50% {
     box-shadow:
-      0 0 0 4px color-mix(in srgb, var(--theme-primary) 8%, transparent),
+      0 0 0 4px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent),
       0 12px 24px -8px rgb(0 0 0 / 0.15);
   }
 }

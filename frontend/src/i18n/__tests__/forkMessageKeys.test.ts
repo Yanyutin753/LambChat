@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,9 +16,9 @@ function readJson(path: string) {
 test("message fork strings are available in every locale", () => {
   for (const localeFile of localeFiles) {
     const locale = readJson(localeFile);
-    assert.equal(typeof locale.chat.message.fork, "string");
-    assert.equal(typeof locale.chat.message.forkSuccess, "string");
-    assert.equal(typeof locale.chat.message.forkFailed, "string");
+    expect(typeof locale.chat.message.fork).toBe("string");
+    expect(typeof locale.chat.message.forkSuccess).toBe("string");
+    expect(typeof locale.chat.message.forkFailed).toBe("string");
   }
 });
 
@@ -39,8 +37,8 @@ test("fork message components use i18n keys instead of inline English text", () 
 
   for (const file of files) {
     const source = readFileSync(file, "utf8");
-    assert.equal(source.includes('title="Fork"'), false);
-    assert.equal(source.includes('"Forked to new session"'), false);
-    assert.equal(source.includes('"Fork failed"'), false);
+    expect(source.includes('title="Fork"')).toBe(false);
+    expect(source.includes('"Forked to new session"')).toBe(false);
+    expect(source.includes('"Fork failed"')).toBe(false);
   }
 });

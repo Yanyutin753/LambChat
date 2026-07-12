@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   getLatestAutoPreviewTarget,
   getLatestChatAutoPreviewTarget,
@@ -8,7 +6,7 @@ import {
 } from "../autoPreviewEligibility.ts";
 
 test("returns the latest reveal tool part when auto preview is allowed", () => {
-  assert.deepEqual(
+  expect(
     getLatestChatAutoPreviewTarget({
       messages: [
         {
@@ -40,15 +38,14 @@ test("returns the latest reveal tool part when auto preview is allowed", () => {
       ],
       suppressAutoPreview: false,
     }),
-    {
-      messageId: "message-2",
-      partIndex: 0,
-    },
-  );
+  ).toEqual({
+    messageId: "message-2",
+    partIndex: 0,
+  });
 });
 
 test("suppresses session auto preview while external navigation preview has priority", () => {
-  assert.equal(
+  expect(
     getLatestChatAutoPreviewTarget({
       messages: [
         {
@@ -67,12 +64,11 @@ test("suppresses session auto preview while external navigation preview has prio
       ],
       suppressAutoPreview: true,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("keeps the base latest auto preview lookup unchanged", () => {
-  assert.deepEqual(
+  expect(
     getLatestAutoPreviewTarget([
       {
         id: "message-1",
@@ -88,15 +84,14 @@ test("keeps the base latest auto preview lookup unchanged", () => {
         ],
       },
     ]),
-    {
-      messageId: "message-1",
-      partIndex: 0,
-    },
-  );
+  ).toEqual({
+    messageId: "message-1",
+    partIndex: 0,
+  });
 });
 
 test("returns the latest artifact part for chat auto preview", () => {
-  assert.deepEqual(
+  expect(
     getLatestChatAutoPreviewTarget({
       messages: [
         {
@@ -122,11 +117,10 @@ test("returns the latest artifact part for chat auto preview", () => {
       ],
       suppressAutoPreview: false,
     }),
-    {
-      messageId: "message-1",
-      partIndex: 0,
-    },
-  );
+  ).toEqual({
+    messageId: "message-1",
+    partIndex: 0,
+  });
 });
 
 test("does not auto preview historical reveal results until a streaming message completes", () => {
@@ -159,28 +153,26 @@ test("does not auto preview historical reveal results until a streaming message 
     },
   ];
 
-  assert.equal(
+  expect(
     getLatestObservedCompletionAutoPreviewTarget({
       messages,
       observedStreamingMessageIds: new Set(),
     }),
-    null,
-  );
+  ).toBe(null);
 
-  assert.deepEqual(
+  expect(
     getLatestObservedCompletionAutoPreviewTarget({
       messages,
       observedStreamingMessageIds: new Set(["completed-after-streaming"]),
     }),
-    {
-      messageId: "completed-after-streaming",
-      partIndex: 0,
-    },
-  );
+  ).toEqual({
+    messageId: "completed-after-streaming",
+    partIndex: 0,
+  });
 });
 
 test("allows the latest reveal from the current run even if streaming was not observed", () => {
-  assert.deepEqual(
+  expect(
     getLatestObservedCompletionAutoPreviewTarget({
       messages: [
         {
@@ -215,11 +207,10 @@ test("allows the latest reveal from the current run even if streaming was not ob
       observedStreamingMessageIds: new Set(),
       currentRunId: "run-current",
     }),
-    {
-      messageId: "current-run-message",
-      partIndex: 0,
-    },
-  );
+  ).toEqual({
+    messageId: "current-run-message",
+    partIndex: 0,
+  });
 });
 
 test("finds the latest nested reveal preview request from the current run", () => {
@@ -264,7 +255,7 @@ test("finds the latest nested reveal preview request from the current run", () =
     currentRunId: "run-current",
   });
 
-  assert.deepEqual(preview, {
+  expect(preview).toEqual({
     kind: "file",
     previewKey: "revealed/report.pdf",
     filePath: "/workspace/report.pdf",
@@ -307,7 +298,7 @@ test("returns image file reveal preview requests for latest-file auto preview", 
     currentRunId: "run-current",
   });
 
-  assert.deepEqual(preview, {
+  expect(preview).toEqual({
     kind: "file",
     previewKey: "revealed/chart.png",
     filePath: "/workspace/chart.png",
@@ -346,27 +337,25 @@ test("can return the latest historical reveal preview request after history has 
     },
   ];
 
-  assert.equal(
+  expect(
     getLatestObservedCompletionRevealPreviewRequest({
       messages,
       observedStreamingMessageIds: new Set(),
     }),
-    null,
-  );
+  ).toBe(null);
 
-  assert.deepEqual(
+  expect(
     getLatestObservedCompletionRevealPreviewRequest({
       messages,
       observedStreamingMessageIds: new Set(),
       allowHistoricalLatest: true,
     }),
-    {
-      kind: "file",
-      previewKey: "revealed/application.md",
-      filePath: "/home/user/application.md",
-      s3Key: "revealed/application.md",
-      signedUrl: "/api/upload/file/revealed/application.md",
-      fileSize: 2134,
-    },
-  );
+  ).toEqual({
+    kind: "file",
+    previewKey: "revealed/application.md",
+    filePath: "/home/user/application.md",
+    s3Key: "revealed/application.md",
+    signedUrl: "/api/upload/file/revealed/application.md",
+    fileSize: 2134,
+  });
 });

@@ -1,9 +1,6 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function readSource(relativePath: string): string {
@@ -30,45 +27,38 @@ test("tool item duration footers share one component and formatter", () => {
   const footer = readSource("../ToolDurationFooter.tsx");
   const helper = readSource("../toolDuration.ts");
 
-  assert.match(helper, /export function getToolDurationSeconds/);
-  assert.match(helper, /export function formatToolDuration/);
-  assert.match(footer, /export function ToolDurationFooter/);
-  assert.match(
-    footer,
+  expect(helper).toMatch(/export function getToolDurationSeconds/);
+  expect(helper).toMatch(/export function formatToolDuration/);
+  expect(footer).toMatch(/export function ToolDurationFooter/);
+  expect(footer).toMatch(
     /import \{ formatToolDuration, getToolDurationSeconds \}/,
   );
-  assert.doesNotMatch(footer, /export function formatToolDuration/);
-  assert.doesNotMatch(footer, /export function getToolDurationSeconds/);
-  assert.match(footer, /className="tool-duration-footer"/);
-  assert.match(
-    footer,
+  expect(footer).not.toMatch(/export function formatToolDuration/);
+  expect(footer).not.toMatch(/export function getToolDurationSeconds/);
+  expect(footer).toMatch(/className="tool-duration-footer"/);
+  expect(footer).toMatch(
     /<Clock size=\{11\} className="tool-duration-footer__icon shrink-0" \/>/,
   );
-  assert.match(footer, /<span className="tool-duration-footer__text">/);
-  assert.match(componentsCss, /\.tool-duration-footer\s*\{/);
-  assert.match(componentsCss, /display:\s*flex/);
-  assert.match(componentsCss, /align-items:\s*center/);
-  assert.match(componentsCss, /gap:\s*0\.375rem/);
-  assert.match(componentsCss, /padding:\s*0\.5rem 1rem/);
-  assert.match(componentsCss, /border-top:\s*1px solid/);
-  assert.match(componentsCss, /font-variant-numeric:\s*tabular-nums/);
+  expect(footer).toMatch(/<span className="tool-duration-footer__text">/);
+  expect(componentsCss).toMatch(/\.tool-duration-footer\s*\{/);
+  expect(componentsCss).toMatch(/display:\s*flex/);
+  expect(componentsCss).toMatch(/align-items:\s*center/);
+  expect(componentsCss).toMatch(/gap:\s*0\.375rem/);
+  expect(componentsCss).toMatch(/padding:\s*0\.5rem 1rem/);
+  expect(componentsCss).toMatch(/border-top:\s*1px solid/);
+  expect(componentsCss).toMatch(/font-variant-numeric:\s*tabular-nums/);
 
   for (const relativePath of footerConsumers) {
     const source = readSource(relativePath);
 
-    assert.match(
-      source,
+    expect(source).toMatch(
       /import \{ ToolDurationFooter \} from "\.\/ToolDurationFooter"|import \{ ToolDurationFooter \} from "\.\/items\/ToolDurationFooter"/,
-      `${relativePath} should import the shared footer`,
     );
-    assert.match(
-      source,
+    expect(source).toMatch(
       /<ToolDurationFooter startedAt=\{startedAt\} completedAt=\{completedAt\} \/>/,
-      `${relativePath} should render the shared footer`,
     );
-    assert.doesNotMatch(source, /Math\.round\(ms \/ 1000\)/);
-    assert.doesNotMatch(
-      source,
+    expect(source).not.toMatch(/Math\.round\(ms \/ 1000\)/);
+    expect(source).not.toMatch(
       /border-t border-stone-100 dark:border-stone-800/,
     );
   }

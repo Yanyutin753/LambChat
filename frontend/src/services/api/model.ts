@@ -68,6 +68,8 @@ function getCachedModelList<T>(url: string): Promise<T> {
 export interface ModelProfile {
   max_input_tokens?: number;
   supports_vision?: boolean;
+  supports_reasoning?: boolean;
+  supports_structured_output?: boolean;
   image_url_to_base64?: boolean;
 }
 

@@ -46,7 +46,11 @@ def test_pluginization_acceptance_matrix_passes_with_current_evidence() -> None:
     assert acceptance_matrix_passed(matrix) is True
     assert missing_acceptance_requirements(matrix) == ()
     assert all(requirement.evidence_refs for requirement in matrix)
-    assert all("::" in ref or ref.startswith("src/") for requirement in matrix for ref in requirement.evidence_refs)
+    assert all(
+        "::" in ref or ref.startswith("src/")
+        for requirement in matrix
+        for ref in requirement.evidence_refs
+    )
 
 
 def test_pluginization_acceptance_matrix_reports_missing_core_route_evidence() -> None:

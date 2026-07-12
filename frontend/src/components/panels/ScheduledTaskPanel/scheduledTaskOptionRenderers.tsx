@@ -4,25 +4,16 @@ import { useTranslation } from "react-i18next";
 import { UsersRound } from "lucide-react";
 import { Select } from "../../common";
 import { teamApi } from "../../../services/api/team";
-import {
-  WorkflowPluginInputOption,
-  WorkflowPluginSelectOption,
-  WorkflowPluginVersionSelectOption,
-  resolveWorkflowPluginLabels,
-  resolveWorkflowPluginVersionLabels,
-} from "../../../plugins/workflow/WorkflowSelectOption";
 import type { ExtensionScopedOption } from "../../../types";
 import type { Team } from "../../../types/team";
 
 interface ScheduledTaskOptionRendererProps {
   option: ExtensionScopedOption;
   value: unknown;
-  pluginValues?: Record<string, unknown>;
   disabled?: boolean;
   inactive?: boolean;
   triggerClassName?: string;
   onChange: (value: unknown) => void;
-  onPluginValueChange?: (key: string, value: unknown) => void;
 }
 
 type ScheduledTaskOptionRenderer = (
@@ -102,21 +93,6 @@ function AgentTeamScheduledTaskTeamSelect({
 
 const SCHEDULED_TASK_OPTION_RENDERERS: Record<string, ScheduledTaskOptionRenderer> = {
   "agent_team.TeamSelectOption": AgentTeamScheduledTaskTeamSelect,
-  "workflow.WorkflowSelectOption": (props) => (
-    <WorkflowPluginSelectOption
-      {...props}
-      placeholder="No workflow"
-    />
-  ),
-  "workflow.WorkflowVersionSelectOption": (props) => (
-    <WorkflowPluginVersionSelectOption
-      {...props}
-      placeholder="No version"
-    />
-  ),
-  "workflow.WorkflowInputOption": (props) => (
-    <WorkflowPluginInputOption {...props} />
-  ),
 };
 
 const SCHEDULED_TASK_OPTION_LABEL_RESOLVERS: Record<
@@ -133,8 +109,6 @@ const SCHEDULED_TASK_OPTION_LABEL_RESOLVERS: Record<
         .map((team) => [team.id, team.name]),
     );
   },
-  "workflow.WorkflowSelectOption": resolveWorkflowPluginLabels,
-  "workflow.WorkflowVersionSelectOption": resolveWorkflowPluginVersionLabels,
 };
 
 export function findScheduledTaskOptionRenderer(

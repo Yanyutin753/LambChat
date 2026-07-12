@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   buildSelectionActionPrompt,
   getSelectionPopoverPosition,
@@ -23,7 +21,7 @@ test("getSelectionPopoverPosition places the menu below the selected text and cl
     scrollY: 100,
   });
 
-  assert.deepEqual(position, {
+  expect(position).toEqual({
     left: 612,
     top: 156,
   });
@@ -47,11 +45,11 @@ test("getSelectionPopoverPosition flips above the selected text near the bottom 
     scrollY: 0,
   });
 
-  assert.equal(position.top, 510);
+  expect(position.top).toBe(510);
 });
 
 test("buildSelectionActionPrompt creates localized ask and explain prompts", () => {
-  assert.equal(
+  expect(
     buildSelectionActionPrompt({
       action: "ask",
       selectedText: "React Server Components",
@@ -60,10 +58,9 @@ test("buildSelectionActionPrompt creates localized ask and explain prompts", () 
         explain: "Explain:\n\n{{text}}",
       },
     }),
-    "Question about:\n\nReact Server Components",
-  );
+  ).toBe("Question about:\n\nReact Server Components");
 
-  assert.equal(
+  expect(
     buildSelectionActionPrompt({
       action: "explain",
       selectedText: "React Server Components",
@@ -72,12 +69,11 @@ test("buildSelectionActionPrompt creates localized ask and explain prompts", () 
         explain: "Explain:\n\n{{text}}",
       },
     }),
-    "Explain:\n\nReact Server Components",
-  );
+  ).toBe("Explain:\n\nReact Server Components");
 });
 
 test("buildSelectionActionPrompt can wrap selected text in a markdown code block", () => {
-  assert.equal(
+  expect(
     buildSelectionActionPrompt({
       action: "ask",
       selectedText: "const answer = `yes`;",
@@ -86,6 +82,7 @@ test("buildSelectionActionPrompt can wrap selected text in a markdown code block
         explain: "Explain:\n\n{{codeBlock}}",
       },
     }),
+  ).toBe(
     "Question about:\n\n```\nconst answer = `yes`;\n```\n\nMy question is:",
   );
 });

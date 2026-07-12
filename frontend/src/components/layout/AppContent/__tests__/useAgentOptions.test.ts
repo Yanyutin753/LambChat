@@ -1,9 +1,7 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { getAgentOptionSyncMode } from "../useAgentOptions";
 
 test("resets agent options when switching to a different agent with identical option schemas", () => {
-  assert.equal(
+  expect(
     getAgentOptionSyncMode({
       currentAgentId: "agent-b",
       previousAgentId: "agent-a",
@@ -11,12 +9,11 @@ test("resets agent options when switching to a different agent with identical op
       previousOptionsJson: '{"enable_thinking":{"default":"medium"}}',
       hasPendingRestoredOptions: false,
     }),
-    "reset",
-  );
+  ).toBe("reset");
 });
 
 test("applies restored session options before skip checks", () => {
-  assert.equal(
+  expect(
     getAgentOptionSyncMode({
       currentAgentId: "agent-a",
       previousAgentId: "agent-a",
@@ -24,12 +21,11 @@ test("applies restored session options before skip checks", () => {
       previousOptionsJson: '{"enable_thinking":{"default":"medium"}}',
       hasPendingRestoredOptions: true,
     }),
-    "restore",
-  );
+  ).toBe("restore");
 });
 
 test("preserves overlapping values only when the same agent schema changes", () => {
-  assert.equal(
+  expect(
     getAgentOptionSyncMode({
       currentAgentId: "agent-a",
       previousAgentId: "agent-a",
@@ -37,6 +33,5 @@ test("preserves overlapping values only when the same agent schema changes", () 
       previousOptionsJson: '{"enable_thinking":{"default":"medium"}}',
       hasPendingRestoredOptions: false,
     }),
-    "preserve",
-  );
+  ).toBe("preserve");
 });

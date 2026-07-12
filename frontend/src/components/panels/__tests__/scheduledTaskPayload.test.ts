@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   buildScheduledTaskInputPayload,
   getScheduledTaskPersonaPresetId,
@@ -8,7 +5,7 @@ import {
 } from "../scheduledTaskPayload.ts";
 
 test("clearing the model removes stale scheduled task agent options", () => {
-  assert.deepEqual(
+  expect(
     buildScheduledTaskInputPayload(
       {
         message: "run",
@@ -25,14 +22,13 @@ test("clearing the model removes stale scheduled task agent options", () => {
         availableModels: null,
       },
     ),
-    {
-      message: "run",
-    },
-  );
+  ).toEqual({
+    message: "run",
+  });
 });
 
 test("clearing the model preserves non-model agent options", () => {
-  assert.deepEqual(
+  expect(
     buildScheduledTaskInputPayload(
       {
         message: "run",
@@ -48,18 +44,16 @@ test("clearing the model preserves non-model agent options", () => {
         availableModels: null,
       },
     ),
-    {
-      message: "run",
-      agent_options: {
-        temperature: 0.2,
-      },
+  ).toEqual({
+    message: "run",
+    agent_options: {
+      temperature: 0.2,
     },
-  );
+  });
 });
 
 test("scheduled tasks without plugin declarations preserve existing plugin options", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
         team_id: "team-old",
@@ -75,21 +69,18 @@ test("scheduled tasks without plugin declarations preserve existing plugin optio
         availableModels: null,
         personaPresetId: "persona-1",
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       persona_preset_id: "persona-1",
       plugin_options: {
         agent_team: { SELECTED_TEAM_ID: "team-old" },
         another_plugin: { KEEP: true },
       },
-    },
-  );
+    });
 });
 
 test("scheduled tasks store declared plugin option values generically", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
         persona_preset_id: "persona-old",
@@ -114,20 +105,16 @@ test("scheduled tasks store declared plugin option values generically", () => {
           },
         ],
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       plugin_options: {
         agent_team: { SELECTED_TEAM_ID: "team-1" },
-        another_plugin: { KEEP: true },
       },
-    },
-  );
+    });
 });
 
-test("scheduled task payload can merge declared plugin option values generically", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+test("scheduled task payload merges plugin option values when declarations are unavailable", () => {
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
         plugin_options: {
@@ -145,20 +132,18 @@ test("scheduled task payload can merge declared plugin option values generically
           export_plugin: { FORMAT: "csv" },
         },
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       plugin_options: {
+        agent_team: { SELECTED_TEAM_ID: "team-old" },
         retention_plugin: { WINDOW_DAYS: 30 },
         export_plugin: { FORMAT: "csv" },
       },
-    },
-  );
+    });
 });
 
 test("scheduled task payload retains only declared plugin options when declarations are supplied", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
         plugin_options: {
@@ -181,21 +166,18 @@ test("scheduled task payload retains only declared plugin options when declarati
           { plugin_id: "export_plugin", key: "FORMAT" },
         ],
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       persona_preset_id: "persona-1",
       plugin_options: {
         retention_plugin: { WINDOW_DAYS: 30 },
         export_plugin: { FORMAT: "csv" },
       },
-    },
-  );
+    });
 });
 
 test("empty plugin option declarations do not suppress core persona payload", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
       },
@@ -207,17 +189,14 @@ test("empty plugin option declarations do not suppress core persona payload", ()
         personaPresetId: "persona-1",
         pluginOptionDeclarations: [],
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       persona_preset_id: "persona-1",
-    },
-  );
+    });
 });
 
 test("plugin option declarations suppress core persona only when requested", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
       },
@@ -238,19 +217,16 @@ test("plugin option declarations suppress core persona only when requested", () 
           },
         ],
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       plugin_options: {
         agent_team: { SELECTED_TEAM_ID: "team-1" },
       },
-    },
-  );
+    });
 });
 
 test("scheduled task payload imports legacy fields through plugin declarations", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
         team_id: "legacy-team",
@@ -268,19 +244,16 @@ test("scheduled task payload imports legacy fields through plugin declarations",
           },
         ],
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       plugin_options: {
         agent_team: { SELECTED_TEAM_ID: "legacy-team" },
       },
-    },
-  );
+    });
 });
 
 test("scheduled tasks preserve explicit plugin option values", () => {
-  assert.deepEqual(
-    buildScheduledTaskInputPayload(
+  expect(buildScheduledTaskInputPayload(
       {
         message: "run",
         team_id: "legacy-team",
@@ -301,24 +274,18 @@ test("scheduled tasks preserve explicit plugin option values", () => {
           },
         ],
       },
-    ),
-    {
+    )).toEqual({
       message: "run",
       plugin_options: {
         agent_team: { SELECTED_TEAM_ID: "team-from-plugin-option" },
       },
-    },
-  );
+    });
 });
 
 test("scheduled task payload id readers use plugin declarations", () => {
-  assert.equal(
-    getScheduledTaskPersonaPresetId({ persona_preset_id: "persona-1" }),
-    "persona-1",
-  );
-  assert.equal(getScheduledTaskPersonaPresetId({ persona_preset_id: 1 }), "");
-  assert.equal(
-    getScheduledTaskPluginOptionStringValue(
+  expect(getScheduledTaskPersonaPresetId({ persona_preset_id: "persona-1" })).toBe("persona-1");
+  expect(getScheduledTaskPersonaPresetId({ persona_preset_id: 1 })).toBe("");
+  expect(getScheduledTaskPluginOptionStringValue(
       {
         team_id: "legacy-team",
         plugin_options: { agent_team: { SELECTED_TEAM_ID: "team-1" } },
@@ -328,29 +295,21 @@ test("scheduled task payload id readers use plugin declarations", () => {
         key: "SELECTED_TEAM_ID",
         legacy_payload_keys: ["team_id"],
       },
-    ),
-    "team-1",
-  );
-  assert.equal(
-    getScheduledTaskPluginOptionStringValue(
+    )).toBe("team-1");
+  expect(getScheduledTaskPluginOptionStringValue(
       { team_id: "legacy-team" },
       {
         plugin_id: "agent_team",
         key: "SELECTED_TEAM_ID",
         legacy_payload_keys: ["team_id"],
       },
-    ),
-    "legacy-team",
-  );
-  assert.equal(
-    getScheduledTaskPluginOptionStringValue(
+    )).toBe("legacy-team");
+  expect(getScheduledTaskPluginOptionStringValue(
       { team_id: null },
       {
         plugin_id: "agent_team",
         key: "SELECTED_TEAM_ID",
         legacy_payload_keys: ["team_id"],
       },
-    ),
-    "",
-  );
+    )).toBe("");
 });

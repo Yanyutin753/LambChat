@@ -6,6 +6,7 @@ import { sessionApi } from "../../services/api/session";
 import { getSessionTitle } from "../panels/sessionHelpers";
 import { APP_NAME } from "../../constants";
 import { BrandLogo } from "../common/BrandLogo";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import type { BackendSession } from "../../services/api/session";
 import { formatDateTime } from "../../utils/datetime";
 import {
@@ -52,9 +53,19 @@ export function RecentChatsDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ top: number; left: number }>({
-    top: 0,
-    left: 0,
+  const anchorRef = useRef(anchorEl);
+  anchorRef.current = anchorEl;
+
+  const position = useStickyDropdownPosition(anchorRef, isOpen, (rect) => {
+    const panelWidth = 280;
+    const panelMaxHeight = 480;
+    let top = rect.bottom + 2;
+    let left = rect.right + 2;
+    if (left + panelWidth > window.innerWidth)
+      left = rect.left - panelWidth - 2;
+    if (top + panelMaxHeight > window.innerHeight)
+      top = window.innerHeight - panelMaxHeight - 8;
+    return { top, left };
   });
   const paginationRef = useRef<RecentChatsPaginationState>(
     initialPaginationState,
@@ -156,24 +167,6 @@ export function RecentChatsDialog({
       ))}
     </div>
   );
-
-  useEffect(() => {
-    if (!isOpen || !anchorEl) return;
-    const rect = anchorEl.getBoundingClientRect();
-    const panelWidth = 280;
-    const panelMaxHeight = 480;
-    let top = rect.bottom + 2;
-    let left = rect.right + 2;
-
-    if (left + panelWidth > window.innerWidth) {
-      left = rect.left - panelWidth - 2;
-    }
-    if (top + panelMaxHeight > window.innerHeight) {
-      top = window.innerHeight - panelMaxHeight - 8;
-    }
-
-    setPosition({ top, left });
-  }, [isOpen, anchorEl]);
 
   useEffect(() => {
     if (!isOpen) return;

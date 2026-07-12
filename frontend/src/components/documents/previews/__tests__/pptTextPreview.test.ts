@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import JSZip from "jszip";
 
 import { extractPptxSlideTexts } from "../pptTextPreview.ts";
@@ -19,7 +17,7 @@ test("extracts visible text from pptx slide XML in slide order", async () => {
 
   const slides = await extractPptxSlideTexts(buffer);
 
-  assert.deepEqual(slides, [
+  expect(slides).toEqual([
     { index: 1, text: "First & Title" },
     { index: 2, text: "Second" },
   ]);
@@ -33,5 +31,5 @@ test("returns an empty list when pptx has no readable slide text", async () => {
 
   const slides = await extractPptxSlideTexts(buffer);
 
-  assert.deepEqual(slides, []);
+  expect(slides).toEqual([]);
 });

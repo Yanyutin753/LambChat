@@ -1,35 +1,29 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { resolveMCPServerFormSystemMode } from "../mcpServerEditor.ts";
 
 test("uses the pending server type when editing an MCP server", () => {
-  assert.equal(
+  expect(
     resolveMCPServerFormSystemMode({
       isCreating: false,
       createAsSystem: false,
       changeToSystem: true,
     }),
-    true,
-  );
+  ).toBe(true);
 
-  assert.equal(
+  expect(
     resolveMCPServerFormSystemMode({
       isCreating: false,
       createAsSystem: false,
       changeToSystem: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("uses create-as-system only while creating an MCP server", () => {
-  assert.equal(
+  expect(
     resolveMCPServerFormSystemMode({
       isCreating: true,
       createAsSystem: true,
       changeToSystem: false,
     }),
-    true,
-  );
+  ).toBe(true);
 });

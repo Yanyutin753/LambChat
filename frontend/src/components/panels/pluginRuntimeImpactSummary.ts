@@ -9,6 +9,7 @@ function emptyContributionSnapshot(): PluginContributionSnapshot {
     sidebarMoreItems: [],
     userMenuItems: [],
     toolRenderers: [],
+    pluginMessageRenderers: [],
     fileViewers: [],
     skillImporters: [],
     channelConnectors: [],
@@ -24,6 +25,7 @@ function emptyContributionSnapshot(): PluginContributionSnapshot {
     sessionOptions: [],
     channelOptions: [],
     scheduledTaskOptions: [],
+    scheduledTaskSections: [],
     pluginAssetSlots: [],
     i18nNamespaces: [],
   };
@@ -45,6 +47,10 @@ export function buildPluginRuntimeImpactSummary(
       sidebarMoreItems: uniqueValues([...acc.sidebarMoreItems, ...preview.removedWhenDisabled.sidebarMoreItems]),
       userMenuItems: uniqueValues([...acc.userMenuItems, ...preview.removedWhenDisabled.userMenuItems]),
       toolRenderers: uniqueValues([...acc.toolRenderers, ...preview.removedWhenDisabled.toolRenderers]),
+      pluginMessageRenderers: uniqueValues([
+        ...acc.pluginMessageRenderers,
+        ...preview.removedWhenDisabled.pluginMessageRenderers,
+      ]),
       fileViewers: uniqueValues([...acc.fileViewers, ...preview.removedWhenDisabled.fileViewers]),
       skillImporters: uniqueValues([...acc.skillImporters, ...preview.removedWhenDisabled.skillImporters]),
       channelConnectors: uniqueValues([...acc.channelConnectors, ...preview.removedWhenDisabled.channelConnectors]),
@@ -60,6 +66,7 @@ export function buildPluginRuntimeImpactSummary(
       sessionOptions: uniqueValues([...acc.sessionOptions, ...preview.removedWhenDisabled.sessionOptions]),
       channelOptions: uniqueValues([...acc.channelOptions, ...preview.removedWhenDisabled.channelOptions]),
       scheduledTaskOptions: uniqueValues([...acc.scheduledTaskOptions, ...preview.removedWhenDisabled.scheduledTaskOptions]),
+      scheduledTaskSections: uniqueValues([...acc.scheduledTaskSections, ...preview.removedWhenDisabled.scheduledTaskSections]),
       pluginAssetSlots: uniqueValues([...acc.pluginAssetSlots, ...preview.removedWhenDisabled.pluginAssetSlots]),
       i18nNamespaces: uniqueValues([...acc.i18nNamespaces, ...preview.removedWhenDisabled.i18nNamespaces]),
     }),
@@ -73,6 +80,9 @@ export function buildPluginRuntimeImpactSummary(
       ...declaredEntries,
       ...removedWhenDisabled.toolRenderers.map(
         (value) => `renderer ${value}`,
+      ),
+      ...removedWhenDisabled.pluginMessageRenderers.map(
+        (value) => `message renderer ${value}`,
       ),
       ...removedWhenDisabled.fileViewers.map(
         (value) => `viewer ${value}`,
@@ -118,6 +128,9 @@ export function buildPluginRuntimeImpactSummary(
       ),
       ...removedWhenDisabled.scheduledTaskOptions.map(
         (value) => `scheduled task option ${value}`,
+      ),
+      ...removedWhenDisabled.scheduledTaskSections.map(
+        (value) => `scheduled task section ${value}`,
       ),
       ...removedWhenDisabled.pluginAssetSlots.map(
         (value) => `asset slot ${value}`,

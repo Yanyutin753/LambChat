@@ -23,14 +23,10 @@ from src.api.routes.chat import (
     session_stream,
 )
 from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
-from src.kernel.extensions import PluginManifest, PluginRuntime
-from src.kernel.extensions.builtin_plugins import (
-    build_agent_team_plugin_manifest,
-    build_workflow_plugin_manifest,
-)
+from src.kernel.extensions import PluginInstallType, PluginManifest, PluginRuntime
+from src.kernel.extensions.builtin_plugins import build_agent_team_plugin_manifest
 from src.kernel.extensions.plugin_options import selected_agent_team_id_from_metadata
 from src.kernel.schemas.agent import AgentRequest, GoalSpec
-from src.plugins.workflow.chat_integration import workflow_result_interface
 
 
 def test_build_conversation_config_does_not_persist_run_scoped_goal() -> None:
@@ -51,7 +47,7 @@ def test_build_conversation_config_does_not_persist_run_scoped_goal() -> None:
 
 
 def test_build_conversation_config_persists_trace_id_for_cancellation_recovery() -> None:
-    request = AgentRequest(message="continue")
+    request = AgentRequest(message="continue", auto_mode=True)
 
     config = build_conversation_config(
         run_id="run-1",
@@ -63,6 +59,7 @@ def test_build_conversation_config_persists_trace_id_for_cancellation_recovery()
     )
 
     assert config["trace_id"] == "trace-1"
+    assert config["auto_mode"] is True
 
 
 def test_build_conversation_config_writes_agent_team_session_plugin_option() -> None:
@@ -77,16 +74,14 @@ def test_build_conversation_config_writes_agent_team_session_plugin_option() -> 
     )
 
     assert "team_id" not in config
-    assert config["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
-    }
+    assert config["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-1"}}
 
 
 def test_build_conversation_config_preserves_generic_plugin_session_options() -> None:
     request = AgentRequest(
         message="run workflow",
         plugin_options={
-            "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"},
+            "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"},
             "feedback": {"DRAFT_MODE": True},
         },
     )
@@ -100,21 +95,23 @@ def test_build_conversation_config_preserves_generic_plugin_session_options() ->
     )
 
     assert config["plugin_options"] == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"},
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"},
         "feedback": {"DRAFT_MODE": True},
     }
 
 
-def test_build_conversation_config_filters_plugin_options_by_manifest_when_runtime_is_available() -> None:
+def test_build_conversation_config_filters_plugin_options_by_manifest_when_runtime_is_available() -> (
+    None
+):
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
-        permissions=["workflow_runner:read"],
+        permissions=["automation_runner:read"],
         settings=[
             {
-                "key": "SELECTED_WORKFLOW_ID",
+                "key": "SELECTED_AUTOMATION_ID",
                 "type": "string",
                 "scope": "session",
             }
@@ -122,7 +119,7 @@ def test_build_conversation_config_filters_plugin_options_by_manifest_when_runti
         frontend={
             "session_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                 }
@@ -133,8 +130,8 @@ def test_build_conversation_config_filters_plugin_options_by_manifest_when_runti
     request = AgentRequest(
         message="run workflow",
         plugin_options={
-            "workflow_runner": {
-                "SELECTED_WORKFLOW_ID": "workflow-1",
+            "automation_runner": {
+                "SELECTED_AUTOMATION_ID": "automation-1",
                 "UNDECLARED": "drop-me",
             },
             "missing_plugin": {"ANY": "drop-me"},
@@ -151,7 +148,7 @@ def test_build_conversation_config_filters_plugin_options_by_manifest_when_runti
     )
 
     assert config["plugin_options"] == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"}
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}
     }
 
 
@@ -170,9 +167,7 @@ def test_build_conversation_config_overlays_agent_team_legacy_selection() -> Non
         session_id="session-1",
     )
 
-    assert config["plugin_options"] == {
-        "agent_team": {"SELECTED_TEAM_ID": "team-current"}
-    }
+    assert config["plugin_options"] == {"agent_team": {"SELECTED_TEAM_ID": "team-current"}}
 
 
 def test_apply_agent_team_plugin_session_option_prefers_plugin_namespace() -> None:
@@ -193,18 +188,12 @@ def test_apply_existing_session_plugin_options_restores_agent_team_selection() -
     apply_existing_session_plugin_options(
         request,
         agent_id="team",
-        existing_metadata={
-            "plugin_options": {
-                "agent_team": {"SELECTED_TEAM_ID": "saved-team"}
-            }
-        },
+        existing_metadata={"plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "saved-team"}}},
         plugin_runtime=PluginRuntime([build_agent_team_plugin_manifest()]),
     )
 
     assert request.team_id == "saved-team"
-    assert request.plugin_options == {
-        "agent_team": {"SELECTED_TEAM_ID": "saved-team"}
-    }
+    assert request.plugin_options == {"agent_team": {"SELECTED_TEAM_ID": "saved-team"}}
 
 
 def test_apply_existing_session_plugin_options_keeps_explicit_agent_team_selection() -> None:
@@ -217,33 +206,27 @@ def test_apply_existing_session_plugin_options_keeps_explicit_agent_team_selecti
     apply_existing_session_plugin_options(
         request,
         agent_id="team",
-        existing_metadata={
-            "plugin_options": {
-                "agent_team": {"SELECTED_TEAM_ID": "saved-team"}
-            }
-        },
+        existing_metadata={"plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "saved-team"}}},
         plugin_runtime=PluginRuntime([build_agent_team_plugin_manifest()]),
     )
 
     assert request.team_id == "current-team"
-    assert request.plugin_options == {
-        "agent_team": {"SELECTED_TEAM_ID": "current-team"}
-    }
+    assert request.plugin_options == {"agent_team": {"SELECTED_TEAM_ID": "current-team"}}
 
 
 def test_apply_declared_plugin_session_options_imports_manifest_legacy_payload() -> None:
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
         settings=[
-            {"key": "SELECTED_WORKFLOW_ID", "type": "string", "scope": "session"},
+            {"key": "SELECTED_AUTOMATION_ID", "type": "string", "scope": "session"},
         ],
         frontend={
             "session_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                     "legacy_payload_keys": ["workflow_id"],
@@ -255,7 +238,7 @@ def test_apply_declared_plugin_session_options_imports_manifest_legacy_payload()
         message="run workflow",
         context={"note": "legacy field stays outside plugin state"},
     )
-    request.context["workflow_id"] = "workflow-1"
+    request.context["workflow_id"] = "automation-1"
 
     apply_declared_plugin_session_options(
         request,
@@ -264,23 +247,23 @@ def test_apply_declared_plugin_session_options_imports_manifest_legacy_payload()
     )
 
     assert request.plugin_options == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"}
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}
     }
 
 
 def test_apply_declared_plugin_session_options_filters_disabled_plugins() -> None:
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
         settings=[
-            {"key": "SELECTED_WORKFLOW_ID", "type": "string", "scope": "session"},
+            {"key": "SELECTED_AUTOMATION_ID", "type": "string", "scope": "session"},
         ],
         frontend={
             "session_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                 }
@@ -288,10 +271,10 @@ def test_apply_declared_plugin_session_options_filters_disabled_plugins() -> Non
         },
     )
     runtime = PluginRuntime([manifest])
-    runtime.disable_plugin("workflow_runner")
+    runtime.disable_plugin("automation_runner")
     request = AgentRequest(
         message="run workflow",
-        plugin_options={"workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"}},
+        plugin_options={"automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}},
     )
 
     apply_declared_plugin_session_options(
@@ -308,9 +291,7 @@ def test_selected_agent_team_id_from_metadata_prefers_plugin_option_with_legacy_
         selected_agent_team_id_from_metadata(
             {
                 "team_id": "legacy-team",
-                "plugin_options": {
-                    "agent_team": {"SELECTED_TEAM_ID": "plugin-team"}
-                },
+                "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "plugin-team"}},
             }
         )
         == "plugin-team"
@@ -331,7 +312,9 @@ def test_ensure_agent_team_executable_allows_other_agents_when_disabled() -> Non
         "search",
         SimpleNamespace(
             app=SimpleNamespace(
-                state=SimpleNamespace(plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False))
+                state=SimpleNamespace(
+                    plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False)
+                )
             )
         ),
     )
@@ -343,7 +326,9 @@ def test_ensure_agent_team_executable_rejects_disabled_agent_team() -> None:
             "team",
             SimpleNamespace(
                 app=SimpleNamespace(
-                    state=SimpleNamespace(plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False))
+                    state=SimpleNamespace(
+                        plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False)
+                    )
                 )
             ),
         )
@@ -361,22 +346,23 @@ def test_ensure_plugin_agent_executable_rejects_any_disabled_plugin_agent() -> N
     runtime = PluginRuntime(
         [
             PluginManifest(
-                id="workflow_runner",
+                id="automation_runner",
                 name="Workflow Runner",
                 version="1.0.0",
                 api_version="v1",
-                permissions=["workflow_runner:read"],
+                permissions=["automation_runner:read"],
+                install_type=PluginInstallType.SYSTEM_BUILTIN,
                 agents=[
                     {
                         "id": "workflow",
-                        "module": "plugins.workflow.agent.WorkflowAgent",
-                        "required_permissions": ["workflow_runner:read"],
+                        "module": "./backend/runtime/graph.py:WorkflowAgent",
+                        "required_permissions": ["automation_runner:read"],
                     }
                 ],
             )
         ]
     )
-    runtime.disable_plugin("workflow_runner")
+    runtime.disable_plugin("automation_runner")
 
     with pytest.raises(Exception) as exc_info:
         ensure_plugin_agent_executable(
@@ -387,12 +373,12 @@ def test_ensure_plugin_agent_executable_rejects_any_disabled_plugin_agent() -> N
     exc = exc_info.value
     assert getattr(exc, "status_code", None) == 503
     assert exc.detail["error"] == "plugin_unavailable"
-    assert exc.detail["plugin_id"] == "workflow_runner"
+    assert exc.detail["plugin_id"] == "automation_runner"
 
 
 def test_ensure_chat_agent_executable_rejects_any_manifest_declared_disabled_agent() -> None:
     runtime = SimpleNamespace(
-        plugin_for_agent=lambda agent_id: "workflow_runner" if agent_id == "workflow" else None,
+        plugin_for_agent=lambda agent_id: "automation_runner" if agent_id == "workflow" else None,
         is_enabled=lambda _plugin_id: False,
     )
 
@@ -405,7 +391,7 @@ def test_ensure_chat_agent_executable_rejects_any_manifest_declared_disabled_age
     exc = exc_info.value
     assert getattr(exc, "status_code", None) == 503
     assert exc.detail["error"] == "plugin_unavailable"
-    assert exc.detail["plugin_id"] == "workflow_runner"
+    assert exc.detail["plugin_id"] == "automation_runner"
 
 
 def test_chat_agent_team_guard_uses_shared_plugin_unavailable_helper() -> None:
@@ -443,7 +429,9 @@ async def test_apply_project_agent_team_default_uses_plugin_project_option(
         http_request=SimpleNamespace(
             app=SimpleNamespace(
                 state=SimpleNamespace(
-                    plugin_runtime=SimpleNamespace(is_enabled=lambda plugin_id: plugin_id == "agent_team")
+                    plugin_runtime=SimpleNamespace(
+                        is_enabled=lambda plugin_id: plugin_id == "agent_team"
+                    )
                 )
             )
         ),
@@ -563,7 +551,9 @@ async def test_apply_project_agent_team_default_ignores_disabled_plugin(
         user=SimpleNamespace(sub="user-1"),
         http_request=SimpleNamespace(
             app=SimpleNamespace(
-                state=SimpleNamespace(plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False))
+                state=SimpleNamespace(
+                    plugin_runtime=SimpleNamespace(is_enabled=lambda _plugin_id: False)
+                )
             )
         ),
     )
@@ -591,26 +581,26 @@ async def test_apply_project_plugin_session_defaults_uses_manifest_projection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
         settings=[
-            {"key": "DEFAULT_WORKFLOW_ID", "type": "string", "scope": "project"},
-            {"key": "SELECTED_WORKFLOW_ID", "type": "string", "scope": "session"},
+            {"key": "DEFAULT_AUTOMATION_ID", "type": "string", "scope": "project"},
+            {"key": "SELECTED_AUTOMATION_ID", "type": "string", "scope": "session"},
         ],
         frontend={
             "project_options": [
                 {
-                    "key": "DEFAULT_WORKFLOW_ID",
+                    "key": "DEFAULT_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.default",
-                    "applies_to_session_key": "SELECTED_WORKFLOW_ID",
+                    "applies_to_session_key": "SELECTED_AUTOMATION_ID",
                 }
             ],
             "session_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                 }
@@ -621,9 +611,7 @@ async def test_apply_project_plugin_session_defaults_uses_manifest_projection(
     request = AgentRequest(message="run workflow", project_id="project-1")
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "workflow_runner": {"DEFAULT_WORKFLOW_ID": "workflow-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -646,23 +634,49 @@ async def test_apply_project_plugin_session_defaults_uses_manifest_projection(
     )
 
     assert request.plugin_options == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-project"}
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-project"}
     }
 
 
 @pytest.mark.asyncio
-async def test_apply_project_plugin_session_defaults_supports_get_state_only_runtime_for_workflow(
+async def test_apply_project_plugin_session_defaults_supports_get_state_only_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest = build_workflow_plugin_manifest()
+    manifest = PluginManifest(
+        id="automation_runner",
+        name="Workflow Runner",
+        version="1.0.0",
+        api_version="v1",
+        settings=[
+            {"key": "DEFAULT_AUTOMATION_ID", "type": "string", "scope": "project"},
+            {"key": "SELECTED_AUTOMATION_ID", "type": "string", "scope": "session"},
+        ],
+        frontend={
+            "project_options": [
+                {
+                    "key": "DEFAULT_AUTOMATION_ID",
+                    "type": "string",
+                    "label": "workflow.default",
+                    "applies_to_session_key": "SELECTED_AUTOMATION_ID",
+                }
+            ],
+            "session_options": [
+                {
+                    "key": "SELECTED_AUTOMATION_ID",
+                    "type": "string",
+                    "label": "workflow.selected",
+                }
+            ],
+        },
+    )
     state = SimpleNamespace(manifest=manifest, executable=True)
-    runtime = SimpleNamespace(get_state=lambda plugin_id: state if plugin_id == manifest.id else None)
+    runtime = SimpleNamespace(
+        get_state=lambda plugin_id: state if plugin_id == manifest.id else None
+    )
     request = AgentRequest(message="run workflow", project_id="project-1")
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "workflow": {"DEFAULT_WORKFLOW_ID": "workflow-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -685,24 +699,63 @@ async def test_apply_project_plugin_session_defaults_supports_get_state_only_run
     )
 
     assert request.plugin_options == {
-        "workflow": {"SELECTED_WORKFLOW_ID": "workflow-project"}
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-project"}
     }
 
 
 @pytest.mark.asyncio
-async def test_apply_project_plugin_session_defaults_inherits_workflow_version_pair(
+async def test_apply_project_plugin_session_defaults_inherits_related_session_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    manifest = build_workflow_plugin_manifest()
+    manifest = PluginManifest(
+        id="automation_runner",
+        name="Workflow Runner",
+        version="1.0.0",
+        api_version="v1",
+        settings=[
+            {"key": "DEFAULT_AUTOMATION_ID", "type": "string", "scope": "project"},
+            {"key": "DEFAULT_AUTOMATION_VERSION_ID", "type": "string", "scope": "project"},
+            {"key": "SELECTED_AUTOMATION_ID", "type": "string", "scope": "session"},
+            {"key": "SELECTED_AUTOMATION_VERSION_ID", "type": "string", "scope": "session"},
+        ],
+        frontend={
+            "project_options": [
+                {
+                    "key": "DEFAULT_AUTOMATION_ID",
+                    "type": "string",
+                    "label": "workflow.default",
+                    "applies_to_session_key": "SELECTED_AUTOMATION_ID",
+                },
+                {
+                    "key": "DEFAULT_AUTOMATION_VERSION_ID",
+                    "type": "string",
+                    "label": "workflow.defaultVersion",
+                    "applies_to_session_key": "SELECTED_AUTOMATION_VERSION_ID",
+                },
+            ],
+            "session_options": [
+                {
+                    "key": "SELECTED_AUTOMATION_ID",
+                    "type": "string",
+                    "label": "workflow.selected",
+                },
+                {
+                    "key": "SELECTED_AUTOMATION_VERSION_ID",
+                    "type": "string",
+                    "label": "workflow.selectedVersion",
+                },
+            ],
+        },
+    )
     runtime = PluginRuntime([manifest])
-    runtime.enable_plugin("workflow")
+    runtime.enable_plugin("automation_runner")
     request = AgentRequest(message="run workflow", project_id="project-1")
     project = SimpleNamespace(
         metadata={
             "plugin_options": {
-                "workflow": {
-                    "DEFAULT_WORKFLOW_ID": "workflow-project",
-                    "DEFAULT_WORKFLOW_VERSION_ID": "version-project",
+                "automation_runner": {
+                    "DEFAULT_AUTOMATION_ID": "automation-project",
+                    "DEFAULT_AUTOMATION_VERSION_ID": "version-project",
                 }
             }
         }
@@ -726,55 +779,10 @@ async def test_apply_project_plugin_session_defaults_inherits_workflow_version_p
     )
 
     assert request.plugin_options == {
-        "workflow": {
-            "SELECTED_WORKFLOW_ID": "workflow-project",
-            "SELECTED_WORKFLOW_VERSION_ID": "version-project",
+        "automation_runner": {
+            "SELECTED_AUTOMATION_ID": "automation-project",
+            "SELECTED_AUTOMATION_VERSION_ID": "version-project",
         }
-    }
-
-
-@pytest.mark.asyncio
-async def test_apply_project_plugin_session_defaults_does_not_pair_manual_workflow_with_default_version(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    manifest = build_workflow_plugin_manifest()
-    runtime = PluginRuntime([manifest])
-    runtime.enable_plugin("workflow")
-    request = AgentRequest(
-        message="run workflow",
-        project_id="project-1",
-        plugin_options={"workflow": {"SELECTED_WORKFLOW_ID": "workflow-manual"}},
-    )
-    project = SimpleNamespace(
-        metadata={
-            "plugin_options": {
-                "workflow": {
-                    "DEFAULT_WORKFLOW_ID": "workflow-project",
-                    "DEFAULT_WORKFLOW_VERSION_ID": "version-project",
-                }
-            }
-        }
-    )
-
-    async def get_by_id(_project_id, _user_id):
-        return project
-
-    monkeypatch.setattr(
-        "src.infra.folder.storage.get_project_storage",
-        lambda: SimpleNamespace(get_by_id=get_by_id),
-    )
-
-    await apply_project_plugin_session_defaults(
-        request,
-        agent_id="search",
-        user=SimpleNamespace(sub="user-1"),
-        http_request=SimpleNamespace(
-            app=SimpleNamespace(state=SimpleNamespace(plugin_runtime=runtime))
-        ),
-    )
-
-    assert request.plugin_options == {
-        "workflow": {"SELECTED_WORKFLOW_ID": "workflow-manual"}
     }
 
 
@@ -783,26 +791,26 @@ async def test_apply_project_plugin_session_defaults_keeps_explicit_session_opti
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
         settings=[
-            {"key": "DEFAULT_WORKFLOW_ID", "type": "string", "scope": "project"},
-            {"key": "SELECTED_WORKFLOW_ID", "type": "string", "scope": "session"},
+            {"key": "DEFAULT_AUTOMATION_ID", "type": "string", "scope": "project"},
+            {"key": "SELECTED_AUTOMATION_ID", "type": "string", "scope": "session"},
         ],
         frontend={
             "project_options": [
                 {
-                    "key": "DEFAULT_WORKFLOW_ID",
+                    "key": "DEFAULT_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.default",
-                    "applies_to_session_key": "SELECTED_WORKFLOW_ID",
+                    "applies_to_session_key": "SELECTED_AUTOMATION_ID",
                 }
             ],
             "session_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                 }
@@ -812,13 +820,11 @@ async def test_apply_project_plugin_session_defaults_keeps_explicit_session_opti
     request = AgentRequest(
         message="run workflow",
         project_id="project-1",
-        plugin_options={"workflow_runner": {"SELECTED_WORKFLOW_ID": "manual"}},
+        plugin_options={"automation_runner": {"SELECTED_AUTOMATION_ID": "manual"}},
     )
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "workflow_runner": {"DEFAULT_WORKFLOW_ID": "workflow-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -839,37 +845,7 @@ async def test_apply_project_plugin_session_defaults_keeps_explicit_session_opti
         ),
     )
 
-    assert request.plugin_options == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "manual"}
-    }
-
-
-def test_apply_existing_session_plugin_options_does_not_restore_stale_workflow_version() -> None:
-    runtime = PluginRuntime([build_workflow_plugin_manifest()])
-    runtime.enable_plugin("workflow")
-    request = AgentRequest(
-        message="continue",
-        session_id="session-1",
-        plugin_options={"workflow": {"SELECTED_WORKFLOW_ID": "workflow-current"}},
-    )
-
-    apply_existing_session_plugin_options(
-        request,
-        agent_id="search",
-        existing_metadata={
-            "plugin_options": {
-                "workflow": {
-                    "SELECTED_WORKFLOW_ID": "workflow-saved",
-                    "SELECTED_WORKFLOW_VERSION_ID": "version-saved",
-                }
-            }
-        },
-        plugin_runtime=runtime,
-    )
-
-    assert request.plugin_options == {
-        "workflow": {"SELECTED_WORKFLOW_ID": "workflow-current"}
-    }
+    assert request.plugin_options == {"automation_runner": {"SELECTED_AUTOMATION_ID": "manual"}}
 
 
 @pytest.mark.asyncio
@@ -877,26 +853,26 @@ async def test_apply_project_plugin_session_defaults_uses_generic_defaults_when_
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
         settings=[
-            {"key": "DEFAULT_WORKFLOW_ID", "type": "string", "scope": "project"},
-            {"key": "SELECTED_WORKFLOW_ID", "type": "string", "scope": "session"},
+            {"key": "DEFAULT_AUTOMATION_ID", "type": "string", "scope": "project"},
+            {"key": "SELECTED_AUTOMATION_ID", "type": "string", "scope": "session"},
         ],
         frontend={
             "project_options": [
                 {
-                    "key": "DEFAULT_WORKFLOW_ID",
+                    "key": "DEFAULT_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.default",
-                    "applies_to_session_key": "SELECTED_WORKFLOW_ID",
+                    "applies_to_session_key": "SELECTED_AUTOMATION_ID",
                 }
             ],
             "session_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                 }
@@ -905,9 +881,7 @@ async def test_apply_project_plugin_session_defaults_uses_generic_defaults_when_
     )
     project = SimpleNamespace(
         metadata={
-            "plugin_options": {
-                "workflow_runner": {"DEFAULT_WORKFLOW_ID": "workflow-project"}
-            }
+            "plugin_options": {"automation_runner": {"DEFAULT_AUTOMATION_ID": "automation-project"}}
         }
     )
 
@@ -935,7 +909,7 @@ async def test_apply_project_plugin_session_defaults_uses_generic_defaults_when_
 
     assert request.team_id == "manual-team"
     assert request.plugin_options == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-project"}
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-project"}
     }
 
 
@@ -974,9 +948,7 @@ async def test_apply_project_agent_team_default_does_not_override_explicit_team_
     )
 
     assert request.team_id == "manual-team"
-    assert request.plugin_options == {
-        "agent_team": {"SELECTED_TEAM_ID": "manual-team"}
-    }
+    assert request.plugin_options == {"agent_team": {"SELECTED_TEAM_ID": "manual-team"}}
 
 
 def test_resolve_goal_for_request_uses_request_goal_without_rewriting_message() -> None:
@@ -1153,354 +1125,3 @@ async def test_execute_agent_stream_runs_agent_when_active_goal_is_supplied(
     assert events[2]["data"]["goal"] == {"objective": "hi", "rubric": "- say hi"}
     assert events[2]["data"]["ended_at"]
     assert agent.stream_kwargs["active_goal"] == {"objective": "hi", "rubric": "- say hi"}
-
-
-@pytest.mark.asyncio
-async def test_execute_agent_stream_continues_after_workflow_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _Agent:
-        def __init__(self) -> None:
-            self.messages: list[str] = []
-
-        async def stream(self, message, *args, **kwargs):
-            self.messages.append(message)
-            yield {"event": "message:chunk", "data": {"content": "agent ok"}}
-
-    agent = _Agent()
-
-    async def _get(_agent_id: str):
-        return agent
-
-    async def _workflow_run(**kwargs):
-        return {
-            "plugin_id": "workflow",
-            "workflow_id": "wf-missing",
-            "version_id": "wfv-missing",
-            "run_id": None,
-            "status": "failed",
-            "output": {},
-            "error": "workflow_not_found",
-        }
-
-    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
-    monkeypatch.setattr(
-        "src.plugins.workflow.chat_integration.run_selected_workflow_for_message",
-        _workflow_run,
-    )
-
-    events = [
-        event
-        async for event in _execute_agent_stream(
-            session_id="session-1",
-            agent_id="search",
-            message="hi",
-            user_id="user-1",
-            plugin_options={
-                "workflow": {
-                    "SELECTED_WORKFLOW_ID": "wf-missing",
-                    "SELECTED_WORKFLOW_VERSION_ID": "wfv-missing",
-                }
-            },
-        )
-    ]
-
-    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
-    assert events[0]["data"] == {
-        "plugin_id": "workflow",
-        "workflow_id": "wf-missing",
-        "version_id": "wfv-missing",
-        "run_id": None,
-        "status": "failed",
-        "output": {},
-        "error": "workflow_not_found",
-    }
-    assert "Workflow pre-run result:" in agent.messages[0]
-    assert "status: failed" in agent.messages[0]
-    assert "error: workflow_not_found" in agent.messages[0]
-    assert "User message:\nhi" in agent.messages[0]
-
-
-@pytest.mark.asyncio
-async def test_execute_agent_stream_continues_after_workflow_factory_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _Agent:
-        def __init__(self) -> None:
-            self.messages: list[str] = []
-
-        async def stream(self, message, *args, **kwargs):
-            self.messages.append(message)
-            yield {"event": "message:chunk", "data": {"content": "agent ok"}}
-
-    agent = _Agent()
-
-    async def _get(_agent_id: str):
-        return agent
-
-    async def _create_service():
-        raise RuntimeError("database password=secret-token host=https://internal.example")
-
-    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
-    monkeypatch.setattr(
-        "src.plugins.workflow.chat_integration.create_workflow_service",
-        _create_service,
-    )
-
-    events = [
-        event
-        async for event in _execute_agent_stream(
-            session_id="session-1",
-            agent_id="search",
-            message="hi",
-            user_id="user-1",
-            plugin_options={
-                "workflow": {
-                    "SELECTED_WORKFLOW_ID": "wf-1",
-                    "SELECTED_WORKFLOW_VERSION_ID": "wfv-1",
-                }
-            },
-        )
-    ]
-
-    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
-    assert events[0]["data"] == {
-        "plugin_id": "workflow",
-        "workflow_id": "wf-1",
-        "version_id": "wfv-1",
-        "run_id": None,
-        "status": "failed",
-        "output": {},
-        "error": "workflow_pre_run_failed",
-        "interface": workflow_result_interface(
-            workflow_id="wf-1",
-            version_id="wfv-1",
-            run_id=None,
-        ),
-        "next_action": {
-            "type": "handle_terminal_error",
-            "field": "error",
-            "reason": "workflow_run_failed",
-        },
-    }
-    assert "Workflow pre-run result:" in agent.messages[0]
-    assert "workflow_id: wf-1" in agent.messages[0]
-    assert "status: failed" in agent.messages[0]
-    assert "error: workflow_pre_run_failed" in agent.messages[0]
-    assert "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema exit=output" in agent.messages[0]
-    assert "output_schema=workflow_get_schema.output_schema" in agent.messages[0]
-    assert "secret-token" not in agent.messages[0]
-    assert "User message:\nhi" in agent.messages[0]
-
-
-@pytest.mark.asyncio
-async def test_execute_agent_stream_runs_workflow_from_scheduled_task_options(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _Agent:
-        def __init__(self) -> None:
-            self.messages: list[str] = []
-
-        async def stream(self, message, *args, **kwargs):
-            self.messages.append(message)
-            yield {"event": "message:chunk", "data": {"content": "agent ok"}}
-
-    agent = _Agent()
-    workflow_calls: list[dict] = []
-
-    async def _get(_agent_id: str):
-        return agent
-
-    async def _workflow_run(**kwargs):
-        workflow_calls.append(kwargs)
-        return {
-            "plugin_id": "workflow",
-            "workflow_id": "wf-task",
-            "version_id": "wfv-task",
-            "run_id": "run-workflow-1",
-            "status": "completed",
-            "output": {"answer": "workflow ok"},
-            "error": None,
-        }
-
-    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
-    monkeypatch.setattr(
-        "src.plugins.workflow.chat_integration.run_selected_workflow_for_message",
-        _workflow_run,
-    )
-
-    scheduled_task_options = {
-        "workflow": {
-            "WORKFLOW_ID": "wf-task",
-            "WORKFLOW_VERSION_ID": "wfv-task",
-        }
-    }
-    events = [
-        event
-        async for event in _execute_agent_stream(
-            session_id="session-1",
-            agent_id="search",
-            message="hi from schedule",
-            user_id="user-1",
-            plugin_options=scheduled_task_options,
-        )
-    ]
-
-    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
-    assert workflow_calls == [
-        {
-            "plugin_options": scheduled_task_options,
-            "message": "hi from schedule",
-            "user_id": "user-1",
-        }
-    ]
-    assert events[0]["data"] == {
-        "plugin_id": "workflow",
-        "workflow_id": "wf-task",
-        "version_id": "wfv-task",
-        "run_id": "run-workflow-1",
-        "status": "completed",
-        "output": {"answer": "workflow ok"},
-        "error": None,
-    }
-    assert "Workflow pre-run result:" in agent.messages[0]
-    assert "workflow_id: wf-task" in agent.messages[0]
-    assert "debug: use workflow_get_run with workflow_id and run_id to inspect events" in agent.messages[0]
-    assert "output: workflow ok" in agent.messages[0]
-    assert "User message:\nhi from schedule" in agent.messages[0]
-
-
-@pytest.mark.asyncio
-async def test_execute_agent_stream_keeps_agent_team_selection_with_workflow_prerun(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _Agent:
-        def __init__(self) -> None:
-            self.messages: list[str] = []
-            self.stream_kwargs: dict | None = None
-
-        async def stream(self, message, *args, **kwargs):
-            self.messages.append(message)
-            self.stream_kwargs = kwargs
-            yield {"event": "message:chunk", "data": {"content": "team ok"}}
-
-    agent = _Agent()
-    workflow_calls: list[dict] = []
-
-    async def _get(agent_id: str):
-        assert agent_id == "team"
-        return agent
-
-    async def _workflow_run(**kwargs):
-        workflow_calls.append(kwargs)
-        interface = workflow_result_interface(
-            workflow_id="wf-team",
-            version_id="wfv-team",
-            run_id="run-workflow-team",
-        )
-        return {
-            "plugin_id": "workflow",
-            "workflow_id": "wf-team",
-            "version_id": "wfv-team",
-            "run_id": "run-workflow-team",
-            "status": "completed",
-            "output": {"answer": "workflow context for team"},
-            "error": None,
-            "io_contract": {
-                "input_schema": {
-                    "type": "object",
-                    "required": ["brief"],
-                    "properties": {"brief": {"type": "string"}},
-                },
-                "output_schema": {
-                    "type": "object",
-                    "required": ["answer"],
-                    "properties": {"answer": {"type": "string"}},
-                },
-            },
-            "output_contract": {
-                "valid": True,
-                "schema_field": "output_schema",
-                "declared_fields": ["answer"],
-                "declared_field_paths": ["answer"],
-                "required_fields": ["answer"],
-                "required_field_paths": ["answer"],
-                "missing_required": [],
-                "type_mismatches": [],
-                "extra_fields": [],
-            },
-            "interface": interface,
-            "next_action": {
-                "type": "use_output",
-                "field": "output",
-                "reason": "workflow_run_succeeded",
-            },
-        }
-
-    monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
-    monkeypatch.setattr(
-        "src.plugins.workflow.chat_integration.run_selected_workflow_for_message",
-        _workflow_run,
-    )
-
-    plugin_options = {
-        "agent_team": {"SELECTED_TEAM_ID": "team-1"},
-        "workflow": {
-            "SELECTED_WORKFLOW_ID": "wf-team",
-            "SELECTED_WORKFLOW_VERSION_ID": "wfv-team",
-        },
-    }
-    events = [
-        event
-        async for event in _execute_agent_stream(
-            session_id="session-1",
-            agent_id="team",
-            message="coordinate launch",
-            user_id="user-1",
-            team_id="team-1",
-            agent_options={
-                "model": "gpt-test",
-                "_plugin_results": {"other_plugin": {"status": "ok"}},
-            },
-            plugin_options=plugin_options,
-        )
-    ]
-
-    assert [event["event"] for event in events] == ["workflow:run", "message:chunk"]
-    assert workflow_calls == [
-        {
-            "plugin_options": plugin_options,
-            "message": "coordinate launch",
-            "user_id": "user-1",
-        }
-    ]
-    assert agent.stream_kwargs is not None
-    assert agent.stream_kwargs["team_id"] == "team-1"
-    assert agent.stream_kwargs["agent_options"]["model"] == "gpt-test"
-    assert agent.stream_kwargs["agent_options"]["_plugin_results"]["other_plugin"] == {
-        "status": "ok"
-    }
-    workflow_result = agent.stream_kwargs["agent_options"]["_plugin_results"]["workflow"]
-    assert workflow_result == events[0]["data"]
-    assert workflow_result["interface"] == workflow_result_interface(
-        workflow_id="wf-team",
-        version_id="wfv-team",
-        run_id="run-workflow-team",
-    )
-    assert workflow_result["io_contract"]["input_schema"]["required"] == ["brief"]
-    assert workflow_result["io_contract"]["output_schema"]["required"] == ["answer"]
-    assert workflow_result["output_contract"]["valid"] is True
-    assert workflow_result["next_action"] == {
-        "type": "use_output",
-        "field": "output",
-        "reason": "workflow_run_succeeded",
-    }
-    assert "Workflow pre-run result:" in agent.messages[0]
-    assert "workflow_id: wf-team" in agent.messages[0]
-    assert "outputs: answer:string" in agent.messages[0]
-    assert "output_contract: valid" in agent.messages[0]
-    assert "interface: entry=workflow_run.input schema=workflow_get_schema.input_schema exit=output" in agent.messages[0]
-    assert "output_schema=workflow_get_schema.output_schema" in agent.messages[0]
-    assert "debug: use workflow_get_run with workflow_id and run_id to inspect events" in agent.messages[0]
-    assert "output: workflow context for team" in agent.messages[0]
-    assert "User message:\ncoordinate launch" in agent.messages[0]

@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   dispatchPersonaPresetsChanged,
   type PersonaPresetsChangedDetail,
@@ -23,8 +20,8 @@ test("persona preset change events can be subscribed and dispatched", () => {
 
   unsubscribe();
 
-  assert.equal(dispatched, true);
-  assert.deepEqual(seen, [
+  expect(dispatched).toBe(true);
+  expect(seen).toEqual([
     { action: "created", presetId: "preset-1", presetName: "Planner" },
   ]);
 });
@@ -40,5 +37,5 @@ test("unsubscribed listeners stop receiving persona preset change events", () =>
   unsubscribe();
   dispatchPersonaPresetsChanged({ action: "updated" }, target);
 
-  assert.equal(seen, 0);
+  expect(seen).toBe(0);
 });

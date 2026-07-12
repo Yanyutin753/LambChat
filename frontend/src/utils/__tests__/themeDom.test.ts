@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   applyThemeToDocument,
   getInitialThemePreference,
@@ -14,7 +11,7 @@ test("getInitialThemePreference prefers persisted theme over system preference",
     matchMedia: () => ({ matches: true }),
   };
 
-  assert.equal(getInitialThemePreference(env), "light");
+  expect(getInitialThemePreference(env)).toBe("light");
 });
 
 test("getInitialThemePreference falls back to dark system preference", () => {
@@ -25,7 +22,7 @@ test("getInitialThemePreference falls back to dark system preference", () => {
     matchMedia: () => ({ matches: true }),
   };
 
-  assert.equal(getInitialThemePreference(env), "dark");
+  expect(getInitialThemePreference(env)).toBe("dark");
 });
 
 test("applyThemeToDocument synchronously toggles dark class and browser chrome", () => {
@@ -60,12 +57,11 @@ test("applyThemeToDocument synchronously toggles dark class and browser chrome",
 
   applyThemeToDocument("light", documentLike);
 
-  assert.equal(classes.has("dark"), false);
-  assert.equal(metaValues.get('meta[name="theme-color"]:default'), "#f5f5f4");
-  assert.equal(
+  expect(classes.has("dark")).toBe(false);
+  expect(metaValues.get('meta[name="theme-color"]:default')).toBe("#f5f5f4");
+  expect(
     metaValues.get('meta[name="apple-mobile-web-app-status-bar-style"]'),
-    "default",
-  );
+  ).toBe("default");
 });
 
 test("applyThemeToDocument updates every theme-color meta tag", () => {
@@ -95,7 +91,7 @@ test("applyThemeToDocument updates every theme-color meta tag", () => {
 
   applyThemeToDocument("dark", documentLike);
 
-  assert.deepEqual(metaValues, ["#151210", "#151210", "#151210"]);
+  expect(metaValues).toEqual(["#151210", "#151210", "#151210"]);
 });
 
 test("applyThemeToDocument keeps the page background in sync for system bars", () => {
@@ -126,8 +122,8 @@ test("applyThemeToDocument keeps the page background in sync for system bars", (
 
   applyThemeToDocument("dark", documentLike);
 
-  assert.equal(rootStyle.get("background-color"), "#151210");
-  assert.equal(rootStyle.get("color-scheme"), "dark");
-  assert.equal(bodyStyle.get("background-color"), "#151210");
-  assert.equal(bodyStyle.get("color-scheme"), "dark");
+  expect(rootStyle.get("background-color")).toBe("#151210");
+  expect(rootStyle.get("color-scheme")).toBe("dark");
+  expect(bodyStyle.get("background-color")).toBe("#151210");
+  expect(bodyStyle.get("color-scheme")).toBe("dark");
 });

@@ -226,7 +226,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
       {/* Toolbar */}
       <div
         className={clsx(
-          "flex items-center justify-between px-2 py-1.5",
+          "flex items-center justify-between px-2 py-2",
           "border-b border-stone-200/60 dark:border-stone-700/60",
           "bg-stone-50/80 dark:bg-stone-800/60",
         )}

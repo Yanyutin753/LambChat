@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import { buildTaskNotificationCopy } from "../taskNotificationContent.ts";
 
 test("uses the latest assistant reply as the completed notification summary", () => {
@@ -35,7 +32,7 @@ test("uses the latest assistant reply as the completed notification summary", ()
     ],
   });
 
-  assert.deepEqual(notification, {
+  expect(notification).toEqual({
     title: "Design Review",
     body: "Sure, here are the three biggest risks. First, the retry path can duplicate writes.",
     statusLabel: "Task completed",
@@ -53,7 +50,7 @@ test("falls back to the websocket message when no assistant summary is available
     events: [],
   });
 
-  assert.equal(notification.body, "The background task has finished.");
+  expect(notification.body).toBe("The background task has finished.");
 });
 
 test("uses the failure message for failed notifications", () => {
@@ -74,7 +71,7 @@ test("uses the failure message for failed notifications", () => {
     ],
   });
 
-  assert.deepEqual(notification, {
+  expect(notification).toEqual({
     title: "Deploy Check",
     body: "Rate limit exceeded",
     statusLabel: "Task failed",
@@ -93,6 +90,6 @@ test("truncates very long notification summaries to a readable short preview", (
     events: [],
   });
 
-  assert.equal(notification.body.endsWith("…"), true);
-  assert.equal(notification.body.length <= 96, true);
+  expect(notification.body.endsWith("…")).toBe(true);
+  expect(notification.body.length <= 96).toBe(true);
 });

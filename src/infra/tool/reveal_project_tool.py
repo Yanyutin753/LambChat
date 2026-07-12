@@ -144,6 +144,20 @@ def _append_capped(files: list[str], file_path: str | None, seen: set[str] | Non
     return len(files) >= _get_project_scan_limit()
 
 
+def _is_single_file_project_path(project_path: str, all_files: list[str]) -> bool:
+    return len(all_files) == 1 and os.path.normpath(all_files[0]) == os.path.normpath(project_path)
+
+
+def _to_project_rel_path(project_path: str, file_path: str, *, single_file_path: bool) -> str:
+    if single_file_path:
+        return f"/{os.path.basename(file_path)}"
+
+    rel_path = file_path[len(project_path) :] if file_path.startswith(project_path) else file_path
+    if not rel_path.startswith("/"):
+        rel_path = "/" + rel_path
+    return rel_path
+
+
 async def _get_storage():
     """获取已初始化的 storage 服务（复用 upload 模块的初始化逻辑）"""
     from src.infra.storage.s3.service import get_or_init_storage
@@ -488,7 +502,8 @@ async def _upload_project_files_bounded(
 @tool
 async def reveal_project(
     project_path: Annotated[
-        str, "项目或文件夹目录路径；前端项目可预览，普通文件夹会以 folder 模式展示"
+        str,
+        "项目或文件夹目录路径；单个文件请使用 reveal_file；前端项目可预览，普通文件夹会以 folder 模式展示",
     ],
     name: Annotated[Optional[str], "项目名称（可选，默认使用目录名）"] = None,
     description: Annotated[Optional[str], "项目描述（可选）"] = None,
@@ -502,12 +517,13 @@ async def reveal_project(
     向用户展示一个项目或文件夹（多文件预览 / 文件树浏览）
 
     当 AI 生成或整理了多个文件时，使用此工具把整个目录展示给用户。
+    单个 HTML、Markdown、PDF、图片或其他文件应优先使用 reveal_file。
     对 HTML/CSS/JS、React/Vue 等前端项目，工具会返回 project 模式用于浏览器预览；
     对没有前端入口的非前端普通代码目录、文档目录、配置目录或文件很多的结果，工具会返回 folder
     模式，让用户直接浏览文件夹内容。
 
     Args:
-        project_path: 项目或文件夹目录路径；前端项目可预览，普通文件夹会以 folder 模式展示
+        project_path: 项目或文件夹目录路径；单个文件请使用 reveal_file
         name: 项目名称（可选，默认使用目录名）
         description: 项目描述（可选）
         template: 项目模板类型（可选，自动检测：react/vue/vanilla/static/angular/svelte/solid/nextjs）
@@ -556,12 +572,13 @@ async def reveal_project(
         upload_tasks: list[tuple[str, str]] = []  # (file_path, rel_path)
         skipped_files = 0
         skipped_due_to_file_limit = 0
+        single_file_path = _is_single_file_project_path(project_path, all_files)
         for file_path in all_files:
-            rel_path = (
-                file_path[len(project_path) :] if file_path.startswith(project_path) else file_path
+            rel_path = _to_project_rel_path(
+                project_path,
+                file_path,
+                single_file_path=single_file_path,
             )
-            if not rel_path.startswith("/"):
-                rel_path = "/" + rel_path
             if not _should_skip(rel_path):
                 if len(upload_tasks) >= MAX_PROJECT_FILES:
                     skipped_due_to_file_limit += 1
@@ -619,6 +636,10 @@ async def reveal_project(
                 file_keys,
             )
         entry = _find_entry(file_keys, detected_template)
+        if entry is None and single_file_path and len(file_keys) == 1:
+            only_file = next(iter(file_keys))
+            if only_file.lower().endswith((".html", ".htm")):
+                entry = only_file
         mode = _resolve_reveal_mode(entry)
 
         result = {

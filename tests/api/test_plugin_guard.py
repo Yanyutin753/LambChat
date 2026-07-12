@@ -72,14 +72,23 @@ def test_plugin_route_guard_rejects_disabled_agent_team_runtime() -> None:
 
 
 def test_agent_team_route_module_uses_router_level_plugin_guard() -> None:
-    source = (PROJECT_ROOT / "src/api/routes/team.py").read_text(encoding="utf-8")
+    source = (PROJECT_ROOT / "plugins/system/agent_team/backend/routes.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "dependencies=[Depends(plugin_route_guard(AGENT_TEAM_PLUGIN_ID))]" in source
     assert "ensure_plugin_route_available" not in source
 
 
+def _backend_module_source_path(manifest_path: Path, module: str) -> Path:
+    module_name = module.partition(":")[0]
+    if module_name.startswith("./"):
+        return manifest_path.parents[1] / module_name[2:]
+    return PROJECT_ROOT / Path(*module_name.split(".")).with_suffix(".py")
+
+
 def test_plugin_declared_backend_route_modules_have_runtime_guards() -> None:
-    route_modules: dict[str, set[str]] = {}
+    route_modules: dict[tuple[Path, str], set[str]] = {}
     for manifest_path in sorted(PROJECT_ROOT.glob("plugins/**/backend/plugin.json")):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         plugin_id = manifest.get("plugin_id")
@@ -87,12 +96,12 @@ def test_plugin_declared_backend_route_modules_have_runtime_guards() -> None:
             module = route.get("module")
             if not plugin_id or not module:
                 continue
-            route_modules.setdefault(module, set()).add(plugin_id)
+            route_modules.setdefault((manifest_path, module), set()).add(plugin_id)
 
     assert route_modules, "backend plugin route declarations should exist"
     missing: list[dict[str, str]] = []
-    for module, plugin_ids in route_modules.items():
-        source_path = PROJECT_ROOT / Path(*module.split(".")).with_suffix(".py")
+    for (manifest_path, module), plugin_ids in route_modules.items():
+        source_path = _backend_module_source_path(manifest_path, module)
         if not source_path.exists():
             missing.extend(
                 {"module": module, "plugin_id": plugin_id, "reason": "module_missing"}

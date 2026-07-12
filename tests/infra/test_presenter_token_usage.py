@@ -283,7 +283,5 @@ async def test_agent_workflow_tool_result_is_persisted_as_structured_failed_outl
     assert persisted_result["data"]["result"]["plugin_id"] == "workflow"
     assert persisted_result["data"]["result"]["status"] == "failed"
     assert persisted_result["data"]["result"]["interface"]["entry"]["tool"] == "workflow_run"
-    assert (
-        persisted_result["data"]["result"]["interface"]["debug"]["tool"] == "workflow_get_run"
-    )
+    assert persisted_result["data"]["result"]["interface"]["debug"]["tool"] == "workflow_get_run"
     assert persisted_result["data"]["result"]["next_action"]["tool"] == "workflow_get_run"

@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import type { BackendSession } from "../../../services/api/session.ts";
 import {
   getNextRecentChatsState,
@@ -19,17 +16,16 @@ function session(id: string): BackendSession {
 }
 
 test("mergeRecentChatSessions appends later pages without duplicating refreshed rows", () => {
-  assert.deepEqual(
+  expect(
     mergeRecentChatSessions(
       [session("newest"), session("overlap")],
       [session("overlap"), session("older")],
     ).map((item) => item.id),
-    ["newest", "overlap", "older"],
-  );
+  ).toEqual(["newest", "overlap", "older"]);
 });
 
 test("getNextRecentChatsState advances skip by the appended page size", () => {
-  assert.deepEqual(
+  expect(
     getNextRecentChatsState({
       previousSessions: [session("a"), session("b")],
       pageSessions: [session("c"), session("d")],
@@ -37,16 +33,15 @@ test("getNextRecentChatsState advances skip by the appended page size", () => {
       reset: false,
       hasMore: true,
     }),
-    {
-      sessions: [session("a"), session("b"), session("c"), session("d")],
-      skip: 4,
-      hasMore: true,
-    },
-  );
+  ).toEqual({
+    sessions: [session("a"), session("b"), session("c"), session("d")],
+    skip: 4,
+    hasMore: true,
+  });
 });
 
 test("getNextRecentChatsState replaces sessions on reset", () => {
-  assert.deepEqual(
+  expect(
     getNextRecentChatsState({
       previousSessions: [session("old")],
       pageSessions: [session("fresh")],
@@ -54,10 +49,9 @@ test("getNextRecentChatsState replaces sessions on reset", () => {
       reset: true,
       hasMore: false,
     }),
-    {
-      sessions: [session("fresh")],
-      skip: 1,
-      hasMore: false,
-    },
-  );
+  ).toEqual({
+    sessions: [session("fresh")],
+    skip: 1,
+    hasMore: false,
+  });
 });

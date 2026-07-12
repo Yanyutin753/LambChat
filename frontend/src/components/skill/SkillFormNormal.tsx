@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Maximize2, X, Plus, Save, Tag, Pencil } from "lucide-react";
+import { Maximize2, X, Plus, Save, Tag, Pencil, Upload } from "lucide-react";
 import { Toggle } from "./Toggle";
 import { Button, IconButton, Input, Textarea } from "../common";
 import { FileTabs } from "./FileTabs";
@@ -178,6 +178,17 @@ export function SkillFormNormal(a: SkillFormActions) {
                     size="sm"
                     className="h-9 w-9 rounded-xl text-stone-400 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
                     title={t("skills.form.addFile", "Add file")}
+                  />
+                  <IconButton
+                    aria-label={t(
+                      "skills.form.addBinaryFile",
+                      "Upload binary file",
+                    )}
+                    onClick={a.addBinaryFile}
+                    icon={<Upload size={15} />}
+                    size="sm"
+                    className="h-9 w-9 rounded-xl text-stone-400 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
+                    title={t("skills.form.addBinaryFile", "Upload binary file")}
                   />
                   <IconButton
                     aria-label={t("skills.form.editFullscreen", "Edit")}

@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   buildRevealArtifactTree,
   collectRevealArtifacts,
@@ -73,26 +70,25 @@ test("collects successful file and project reveal artifacts from current message
     },
   ]);
 
-  assert.equal(artifacts.length, 2);
-  assert.deepEqual(
+  expect(artifacts.length).toBe(2);
+  expect(
     artifacts.map((artifact) => ({
       kind: artifact.kind,
       name: artifact.name,
       previewKey: artifact.preview.previewKey,
     })),
-    [
-      {
-        kind: "file",
-        name: "report.pdf",
-        previewKey: "revealed/report.pdf",
-      },
-      {
-        kind: "project",
-        name: "site",
-        previewKey: "/workspace/site",
-      },
-    ],
-  );
+  ).toEqual([
+    {
+      kind: "file",
+      name: "report.pdf",
+      previewKey: "revealed/report.pdf",
+    },
+    {
+      kind: "project",
+      name: "site",
+      previewKey: "/workspace/site",
+    },
+  ]);
 });
 
 test("deduplicates repeated file reveal artifacts by source path and keeps the latest preview", () => {
@@ -131,15 +127,14 @@ test("deduplicates repeated file reveal artifacts by source path and keeps the l
     },
   ]);
 
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].kind, "file");
+  expect(artifacts.length).toBe(1);
+  expect(artifacts[0].kind).toBe("file");
   if (artifacts[0].kind !== "file") return;
 
-  assert.equal(
-    artifacts[0].preview.previewKey,
+  expect(artifacts[0].preview.previewKey).toBe(
     "revealed_files/latest_durian_01_main.png",
   );
-  assert.equal(artifacts[0].fileSize, 2048);
+  expect(artifacts[0].fileSize).toBe(2048);
 });
 
 test("collects artifact parts without requiring reveal tool parts", () => {
@@ -179,9 +174,9 @@ test("collects artifact parts without requiring reveal tool parts", () => {
     },
   ]);
 
-  assert.equal(artifacts.length, 1);
-  assert.equal(artifacts[0].kind, "file");
-  assert.equal(artifacts[0].name, "puppy.svg");
+  expect(artifacts.length).toBe(1);
+  expect(artifacts[0].kind).toBe("file");
+  expect(artifacts[0].name).toBe("puppy.svg");
 });
 
 test("builds stable nested artifact tree metadata", () => {
@@ -216,15 +211,15 @@ test("builds stable nested artifact tree metadata", () => {
     ),
   );
   const workspace = tree.children[0];
-  assert.equal(workspace.kind, "dir");
+  expect(workspace.kind).toBe("dir");
   if (workspace.kind !== "dir") return;
 
-  assert.equal(workspace.path, "workspace");
-  assert.equal(workspace.fileCount, 2);
-  assert.equal(workspace.dirCount, 3);
+  expect(workspace.path).toBe("workspace");
+  expect(workspace.fileCount).toBe(2);
+  expect(workspace.dirCount).toBe(3);
 
   const stats = getRevealArtifactStats(artifacts);
-  assert.deepEqual(stats, {
+  expect(stats).toEqual({
     fileCount: 2,
     projectCount: 0,
     totalCount: 2,

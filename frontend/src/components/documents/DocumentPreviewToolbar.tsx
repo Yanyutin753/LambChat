@@ -1,3 +1,5 @@
+import { useState, useCallback } from "react";
+import toast from "react-hot-toast";
 import { BackIcon } from "../common/BackIcon";
 import { FileIcon } from "../common/FileIcon";
 import { FloatingIconButton, ToolbarIconButton } from "../common";
@@ -12,6 +14,7 @@ import {
   Code2,
   PanelRight,
   Columns2,
+  Share2,
 } from "lucide-react";
 import { formatFileSize as formatFileSizeUtil } from "./utils";
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
@@ -82,6 +85,19 @@ export default function DocumentPreviewToolbar({
   handleFullscreenToggle,
   exitFullscreen,
 }: ToolbarProps) {
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const fileUrl = resolvedUrl || signedUrl || externalImageUrl;
+
+  const handleCopyLink = useCallback(() => {
+    if (!fileUrl) return;
+    navigator.clipboard.writeText(fileUrl).then(() => {
+      setLinkCopied(true);
+      toast.success(t("documents.linkCopied", "Link copied"));
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }, [fileUrl, t]);
+
   // Fullscreen: floating exit button — matches SkillFormFullscreen style
   if (isFullscreen) {
     return (
@@ -189,6 +205,24 @@ export default function DocumentPreviewToolbar({
               title={t("documents.download")}
               icon={<Download size={16} />}
             />
+            {fileUrl && (
+              <ToolbarIconButton
+                onClick={() => {
+                  handleCopyLink();
+                }}
+                title={t("documents.copyLink", "Copy link")}
+                icon={
+                  linkCopied ? (
+                    <Check
+                      size={16}
+                      className="text-green-500 dark:text-green-400"
+                    />
+                  ) : (
+                    <Share2 size={16} />
+                  )
+                }
+              />
+            )}
             {data?.content && !unsupportedPreviewFile && (
               <ToolbarIconButton
                 onClick={() => {

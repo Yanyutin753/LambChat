@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -9,9 +7,8 @@ const viteConfigSource = readFileSync(
 );
 
 test("vite dev proxy keeps only chat streams open for 24 hours", () => {
-  assert.match(
-    viteConfigSource,
+  expect(viteConfigSource).toMatch(
     /\^\/api\/chat\/sessions\/\[\^\/\]\+\/stream\$[\s\S]*timeout: 86400000,/,
   );
-  assert.match(viteConfigSource, /"\/api": \{[\s\S]*timeout: 300000,/);
+  expect(viteConfigSource).toMatch(/"\/api": \{[\s\S]*timeout: 300000,/);
 });

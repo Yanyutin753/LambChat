@@ -97,6 +97,7 @@ async def execute_feishu_agent(
     recommendation_input: str | None = None,
     team_id: str | None = None,
     active_goal: dict | None = None,
+    auto_mode: bool = False,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """执行 Agent 并生成事件流"""
     from src.agents.core.base import AgentFactory
@@ -126,6 +127,7 @@ async def execute_feishu_agent(
             recommendation_input=recommendation_input,
             team_id=team_id,
             active_goal=active_goal,
+            auto_mode=auto_mode,
             goal_started_at=started_at,
         ):
             yield event
@@ -334,6 +336,7 @@ def create_feishu_message_handler(
                 recommendation_input=None,
                 team_id=None,
                 active_goal=None,
+                auto_mode=False,
             ):
                 async for event in execute_feishu_agent(
                     session_id=session_id,
@@ -351,6 +354,7 @@ def create_feishu_message_handler(
                     recommendation_input=recommendation_input,
                     team_id=team_id,
                     active_goal=active_goal,
+                    auto_mode=auto_mode,
                 ):
                     yield event
 
@@ -373,6 +377,7 @@ def create_feishu_message_handler(
                 enabled_skills=enabled_skills,
                 persona_system_prompt=persona_system_prompt,
                 team_id=team_id if agent_to_use == "team" else None,
+                auto_mode=True,
             )
             collector.set_session_link(session_id, run_id)
             try:

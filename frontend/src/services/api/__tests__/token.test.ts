@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { getRedirectPath, isSafeRedirectPath } from "../token.ts";
 
 function installSessionStorage() {
@@ -33,11 +30,11 @@ function installSessionStorage() {
 }
 
 test("auth routes are not valid post-login redirect targets", () => {
-  assert.equal(isSafeRedirectPath("/auth/callback"), false);
-  assert.equal(isSafeRedirectPath("/auth/login"), false);
-  assert.equal(isSafeRedirectPath("/"), false);
-  assert.equal(isSafeRedirectPath("/chat"), true);
-  assert.equal(isSafeRedirectPath("/chat/session-1?panel=files"), true);
+  expect(isSafeRedirectPath("/auth/callback")).toBe(false);
+  expect(isSafeRedirectPath("/auth/login")).toBe(false);
+  expect(isSafeRedirectPath("/")).toBe(false);
+  expect(isSafeRedirectPath("/chat")).toBe(true);
+  expect(isSafeRedirectPath("/chat/session-1?panel=files")).toBe(true);
 });
 
 test("getRedirectPath discards stale OAuth callback redirects", () => {
@@ -45,8 +42,8 @@ test("getRedirectPath discards stale OAuth callback redirects", () => {
   try {
     sessionStorage.setItem("redirect_after_login", "/auth/callback");
 
-    assert.equal(getRedirectPath(), null);
-    assert.equal(sessionStorage.getItem("redirect_after_login"), null);
+    expect(getRedirectPath()).toBe(null);
+    expect(sessionStorage.getItem("redirect_after_login")).toBe(null);
   } finally {
     restore();
   }

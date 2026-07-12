@@ -12,7 +12,7 @@ from src.kernel.config import settings
 
 from .arq_payloads import TaskArqPayloadStore
 from .arq_settings import build_arq_redis_settings
-from .arq_worker import run_agent_task, run_workflow_task
+from .arq_worker import run_agent_task
 
 logger = get_logger(__name__)
 
@@ -53,7 +53,7 @@ class EmbeddedArqRuntime:
             return
 
         self._worker = self._worker_factory(
-            [run_agent_task, run_workflow_task],
+            [run_agent_task],
             queue_name=settings.ARQ_QUEUE_NAME,
             redis_settings=build_arq_redis_settings(settings),
             handle_signals=False,

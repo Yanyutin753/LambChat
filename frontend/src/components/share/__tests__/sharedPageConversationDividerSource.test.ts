@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -16,7 +14,7 @@ test("shared page keeps the conversation divider outside the message state branc
     "{messages.length === 0 ?",
   );
 
-  assert.notEqual(dividerIndex, -1);
-  assert.notEqual(messagesBranchIndex, -1);
-  assert.ok(dividerIndex < messagesBranchIndex);
+  expect(dividerIndex).not.toBe(-1);
+  expect(messagesBranchIndex).not.toBe(-1);
+  expect(dividerIndex < messagesBranchIndex).toBeTruthy();
 });

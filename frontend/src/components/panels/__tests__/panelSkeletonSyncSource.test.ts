@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,16 +17,15 @@ const skeletonIndexSource = readFileSync(
 );
 
 test("embedded skills list loading uses an embedded skeleton", () => {
-  assert.match(skillsListSource, /SkillsListSkeleton/);
-  assert.match(
-    skillsListSource,
+  expect(skillsListSource).toMatch(/SkillsListSkeleton/);
+  expect(skillsListSource).toMatch(
     /return embedded \? <SkillsListSkeleton \/> : <SkillsPanelSkeleton \/>/,
   );
 });
 
 test("memory panel initial loading uses a panel-specific skeleton", () => {
-  assert.match(memoryPanelSource, /import \{ MemoryPanelSkeleton \}/);
-  assert.match(memoryPanelSource, /<MemoryPanelSkeleton \/>/);
-  assert.doesNotMatch(memoryPanelSource, /<PanelLoadingState \/>/);
-  assert.match(skeletonIndexSource, /MemoryPanelSkeleton/);
+  expect(memoryPanelSource).toMatch(/import \{ MemoryPanelSkeleton \}/);
+  expect(memoryPanelSource).toMatch(/<MemoryPanelSkeleton \/>/);
+  expect(memoryPanelSource).not.toMatch(/<PanelLoadingState \/>/);
+  expect(skeletonIndexSource).toMatch(/MemoryPanelSkeleton/);
 });

@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync(
@@ -8,28 +6,28 @@ const source = readFileSync(
 );
 
 test("channel persona selector supports search-backed paginated loading", () => {
-  assert.match(source, /searchQuery/);
-  assert.match(source, /debouncedSearch/);
-  assert.match(source, /personaPresetApi\s*\.\s*list\(\{/);
-  assert.match(source, /q:\s*debouncedSearch\.trim\(\) \|\| undefined/);
-  assert.match(source, /skip:\s*nextSkip/);
-  assert.match(source, /limit:\s*PAGE_LIMIT/);
-  assert.match(source, /handleScroll/);
-  assert.match(source, /scrollHeight - scrollTop - clientHeight < 80/);
+  expect(source).toMatch(/searchQuery/);
+  expect(source).toMatch(/debouncedSearch/);
+  expect(source).toMatch(/personaPresetApi\s*\.\s*list\(\{/);
+  expect(source).toMatch(/q:\s*debouncedSearch\.trim\(\) \|\| undefined/);
+  expect(source).toMatch(/skip:\s*nextSkip/);
+  expect(source).toMatch(/limit:\s*PAGE_LIMIT/);
+  expect(source).toMatch(/handleScroll/);
+  expect(source).toMatch(/scrollHeight - scrollTop - clientHeight < 80/);
 });
 
 test("channel persona selector exposes a clear option", () => {
-  assert.match(source, /channel\.clearPersona/);
-  assert.match(source, /onChange\(null\)/);
+  expect(source).toMatch(/channel\.clearPersona/);
+  expect(source).toMatch(/onChange\(null\)/);
 });
 
 test("channel persona selector renders preset icons in trigger and options", () => {
-  assert.match(source, /PersonaAvatarIcon/);
-  assert.match(source, /PersonaAvatarImage/);
-  assert.match(source, /isPersonaImageAvatar/);
-  assert.match(source, /PersonaPresetIcon/);
-  assert.match(source, /setImageFailed/);
-  assert.match(source, /onError=\{\(\) => setImageFailed\(true\)\}/);
-  assert.match(source, /selected && <PersonaPresetIcon preset=\{selected\}/);
-  assert.match(source, /<PersonaPresetIcon preset=\{preset\}/);
+  expect(source).toMatch(/PersonaAvatarIcon/);
+  expect(source).toMatch(/PersonaAvatarImage/);
+  expect(source).toMatch(/isPersonaImageAvatar/);
+  expect(source).toMatch(/PersonaPresetIcon/);
+  expect(source).toMatch(/setImageFailed/);
+  expect(source).toMatch(/onError=\{\(\) => setImageFailed\(true\)\}/);
+  expect(source).toMatch(/selected && <PersonaPresetIcon preset=\{selected\}/);
+  expect(source).toMatch(/<PersonaPresetIcon preset=\{preset\}/);
 });

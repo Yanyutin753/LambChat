@@ -243,7 +243,7 @@ def test_internal_registry_includes_image_analysis_when_enabled(monkeypatch):
     monkeypatch.setattr(internal_registry.settings, "ENABLE_SCHEDULED_TASK", False)
     monkeypatch.setattr(internal_registry, "get_env_var_tools", lambda: [])
     monkeypatch.setattr(internal_registry, "get_persona_preset_tools", lambda: [])
-    monkeypatch.setattr(internal_registry, "get_team_tools", lambda: [])
+    monkeypatch.setattr(internal_registry, "_build_plugin_internal_tools", lambda: [])
 
     names = {tool.name for tool in internal_registry.build_internal_tools()}
 

@@ -543,6 +543,7 @@
     "addMoreFiles": "[TODO]chat.addMoreFiles",
     "assistant": "어시스턴트",
     "attachFile": "파일 첨부",
+    "attachments": "첨부파일",
     "cancelled": "취소됨",
     "commands": {
       "agent": "에이전트",
@@ -633,6 +634,7 @@
       "starterPrompts": "시작 프롬프트",
       "subagentProgress": "하위 에이전트 진행률",
       "summary": "요약",
+      "summaryDescription": "핵심 요점",
       "synthesizing": "{{count}}개 하위 에이전트의 결과를 종합하는 중...",
       "systemPrompt": "시스템 프롬프트",
       "table": "표",
@@ -779,6 +781,7 @@
   "common": {
     "about": "정보",
     "accessDenied": "접근이 거부되었습니다",
+    "add": "추가",
     "all": "전체",
     "assistant": "어시스턴트",
     "back": "뒤로",
@@ -882,6 +885,7 @@
     "copied": "복사됨",
     "copy": "복사",
     "copyCode": "코드 복사",
+    "copyLink": "링크 복사",
     "csv": "CSV",
     "csvDataFile": "CSV 데이터 파일",
     "daysAgo": "{{count}}일 전",
@@ -915,6 +919,7 @@
     "htmlDocument": "HTML 문서",
     "invalidExcalidrawFormat": "잘못된 Excalidraw 파일 형식",
     "lines": "{{count}}줄",
+    "linkCopied": "링크가 복사되었습니다",
     "list": "목록",
     "listView": "목록 보기",
     "loading": "로딩 중...",
@@ -1026,8 +1031,10 @@
   },
   "feedback": {
     "addComment": "댓글 추가",
+    "addImage": "이미지 추가 (최대 9장)",
     "allRatings": "전체 평점",
     "alreadySubmitted": "이 대화에 대한 피드백을 이미 제출했습니다",
+    "attachments": "첨부파일",
     "buttonLabel": "피드백",
     "comment": "코멘트",
     "commentLabel": "댓글 (선택사항)",
@@ -1040,6 +1047,7 @@
     "deleteSuccess": "피드백이 성공적으로 삭제되었습니다",
     "detailTitle": "세부정보",
     "filterByRating": "평점으로 필터",
+    "imageLimit": "최대 9장의 이미지를 첨부할 수 있습니다",
     "negative": "부정",
     "noFeedback": "아직 피드백이 없습니다",
     "noFeedbackHint": "사용자 피드백이 여기에 표시됩니다",
@@ -1053,7 +1061,10 @@
     "submitSuccess": "피드백이 성공적으로 제출되었습니다",
     "subtitle": "시스템에 대한 피드백",
     "title": "피드백",
-    "totalCount": "전체"
+    "totalCount": "전체",
+    "uploadFailed": "이미지 업로드 실패",
+    "uploading": "업로드 중...",
+    "viewDetail": "상세 보기"
   },
   "feishu": {
     "appId": "App ID",
@@ -1350,7 +1361,7 @@
     "confirmDelete": "\"{{name}}\"을(를) 삭제하시겠습니까?",
     "confirmDeleteMessage": "마켓플레이스에서 이 스킬을 영구적으로 삭제합니다. 이미 설치한 사용자에게는 영향을 주지 않습니다.",
     "confirmInstall": "스킬 설치",
-    "confirmInstallMessage": "이 스킬을 설치하시겠습니까?",
+    "confirmInstallMessage": "이 스킬을 설치하시겠습니까? 같은 이름의 로컬 수동 스킬이 있으면 마켓플레이스 버전으로 대체됩니다.",
     "confirmUpdate": "스킬 업데이트",
     "confirmUpdateMessage": "마켓플레이스에서 스킬을 다시 다운로드하여 로컬 변경 사항을 덮어씁니다. 계속하시겠습니까?",
     "createAndPublish": "스킬 게시",
@@ -1380,6 +1391,7 @@
     "noMatchingSkills": "필터 조건에 맞는 스킬이 없습니다",
     "noSkills": "마켓플레이스에 사용 가능한 스킬이 없습니다",
     "preview": "미리보기",
+    "closePreview": "미리보기 닫기",
     "previewCollapse": "클릭하여 접기",
     "previewExpand": "클릭하여 미리보기",
     "publishSuccess": "스킬 \"{{name}}\"이(가) 마켓플레이스에 공개되었습니다",
@@ -1450,9 +1462,9 @@
       "commandPlaceholder": "npx -y @anthropic/mcp-server-fetch",
       "createServer": "서버 생성",
       "dailyLimit": "일일 제한",
-      "enabled": "활성화",
       "disableInlineExposure": "필요 시 검색으로 전환",
       "enableInlineExposure": "함수로 직접 노출",
+      "enabled": "활성화",
       "envKeys": "환경 변수",
       "envKeysDescription": "이 MCP 서버 프로세스에 주입할 환경 변수를 선택하세요. 환경 변수 설정에서 미리 정의되어 있어야 합니다.",
       "envKeysPlaceholder": "환경 변수 선택...",
@@ -1583,35 +1595,6 @@
     "hideCode": "코드 숨기기",
     "showCode": "코드 보기"
   },
-  "workflowPlugin": {
-    "chat": {
-      "entry": "진입",
-      "exit": "출구",
-      "inputOverrideSet": "입력 재정의 설정됨",
-      "inputs": "입력",
-      "none": "없음",
-      "outputs": "출력",
-      "selectWorkflow": "워크플로"
-    },
-    "nav": {
-      "editorLabel": "워크플로 편집기",
-      "label": "워크플로",
-      "runLabel": "워크플로 실행"
-    },
-    "project": {
-      "defaultWorkflow": "기본 워크플로",
-      "defaultWorkflowVersion": "기본 워크플로 버전"
-    },
-    "scheduledTask": {
-      "workflow": "워크플로",
-      "workflowVersion": "워크플로 버전"
-    },
-    "session": {
-      "selectedWorkflow": "선택된 워크플로",
-      "selectedWorkflowVersion": "선택된 워크플로 버전",
-      "selectedWorkflowInput": "선택된 워크플로 입력"
-    }
-  },
   "nav": {
     "adminMarketplace": "관리자 마켓플레이스",
     "agents": "설정",
@@ -1637,7 +1620,8 @@
     "team": "팀 빌더",
     "usage": "콘솔",
     "userSettings": "사용자 관리",
-    "users": "사용자"
+    "users": "사용자",
+    "plugins": "Plugins"
   },
   "navDesc": {
     "agents": "AI 에이전트 설정 및 관리",
@@ -1653,7 +1637,8 @@
     "scheduledTasks": "자동화된 예약 작업 관리",
     "settings": "앱 및 시스템 설정",
     "skills": "스킬 관리 및 설정",
-    "users": "사용자 계정 및 접근 권한 관리"
+    "users": "사용자 계정 및 접근 권한 관리",
+    "plugins": "Inspect runtime-managed plugins"
   },
   "notification": {
     "active": "활성",
@@ -2103,14 +2088,6 @@
       "description": "Model Context Protocol 서버 연결을 관리하세요. 외부 도구, 데이터베이스 및 서비스를 연결하여 AI 에이전트 기능을 확장합니다.",
       "title": "MCP 서버 관리"
     },
-    "workflows": {
-      "description": "워크플로를 생성, 구성, 버전 관리, 실행 및 디버그합니다.",
-      "editorDescription": "명시적인 입력, 출력, 노드 및 실행 트레이스를 가진 워크플로 그래프를 편집합니다.",
-      "editorTitle": "워크플로 편집기",
-      "runDescription": "워크플로 실행 트레이스, 노드 이벤트, 출력, 오류 및 승인 상태를 확인합니다.",
-      "runTitle": "워크플로 실행",
-      "title": "워크플로"
-    },
     "memory": {
       "description": "AI 메모리 콘텐츠를 보고 관리하세요. 영구적인 컨텍스트와 지식 저장으로 대화 간 장기적인 AI 에이전트 이해를 실현합니다.",
       "title": "AI 메모리 공간"
@@ -2154,6 +2131,10 @@
     "users": {
       "description": "사용자 계정, 역할 및 액세스 권한을 관리하세요. 멀티테넌트 사용자 라이프사이클 및 보안 설정을 관리합니다.",
       "title": "사용자 관리"
+    },
+    "plugins": {
+      "description": "Inspect Plugin Runtime state, static contributions, resource ownership, and uninstall dry-run plans for built-in plugins.",
+      "title": "Plugin Runtime"
     }
   },
   "settingDesc": {
@@ -2223,6 +2204,7 @@
     "ENABLE_SKILLS": "스킬 기능 활성화",
     "EVENT_MERGE_BATCH_SIZE": "이벤트 병합 배치 크기",
     "EVENT_MERGE_CONCURRENCY": "이벤트 병합 동시성 수",
+    "EVENT_MERGE_IMMEDIATE_DEBOUNCE_SECONDS": "즉시 이벤트 병합 디바운스 시간(초)",
     "EVENT_MERGE_INTERVAL": "이벤트 병합 간격(초)",
     "EVENT_MERGE_MAX_EVENTS_PER_TRACE": "이벤트 병합 시 트레이스당 최대 이벤트 수",
     "EVENT_MERGE_TIMEOUT_SECONDS": "이벤트 병합 타임아웃(초)",
@@ -2350,6 +2332,9 @@
     "SANDBOX_GREP_TIMEOUT": "샌드박스 grep 명령 타임아웃(초)",
     "SANDBOX_MCP_REBUILD_CONCURRENCY": "샌드박스 내 MCP 서버 재구축 동시 실행 수",
     "SANDBOX_PLATFORM": "사용할 샌드박스 플랫폼",
+    "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY": "분할 저장된 trace 이벤트를 기존 events 배열에도 쓰기",
+    "SESSION_EVENT_CHUNK_SIZE": "각 trace event chunk 문서에 저장할 최대 이벤트 수",
+    "SESSION_EVENT_CHUNK_STORAGE_ENABLED": "새 trace 이벤트를 chunk 문서에 저장",
     "SESSION_EVENT_MONGO_BUFFER_MAX": "세션 이벤트 MongoDB 버퍼 최대 크기",
     "SESSION_EVENT_READ_DEFAULT_LIMIT": "세션 이벤트 읽기 시 기본 반환 이벤트 수",
     "SESSION_EVENT_REDIS_REPLAY_BATCH_SIZE": "Redis에서 세션 이벤트 재생 배치 크기",
@@ -2638,6 +2623,7 @@
     "filterDisabled": "사용 안 함",
     "filterEnabled": "사용 중",
     "form": {
+      "addBinaryFile": "바이너리 파일 업로드",
       "addFile": "파일 추가",
       "content": "내용 (Markdown 및 선택적 YAML frontmatter 지원)",
       "contentPlaceholder": "# 스킬 지침...",
@@ -3089,6 +3075,179 @@
       "enterPassword": "비밀번호를 입력해주세요",
       "enterUsername": "사용자 이름을 입력해주세요",
       "passwordMinLength": "비밀번호는 6자 이상이어야 합니다"
+    }
+  },
+  "pluginRuntime": {
+    "actions": {
+      "disable": "Disable",
+      "enable": "Enable",
+      "export": "Export",
+      "import": "Import",
+      "uninstall": "Uninstall"
+    },
+    "audit": {
+      "title": "State audit"
+    },
+    "acceptance": {
+      "missing": "Missing",
+      "missingCount": "Missing",
+      "passed": "Passed",
+      "passedCount": "Passed",
+      "title": "Acceptance Matrix",
+      "total": "Total"
+    },
+    "contributions": "Contributions",
+    "contributionPreview": {
+      "active": "Currently active entries",
+      "disablePolicy": "Disabling blocks executable entries; it does not remove owned data.",
+      "removedWhenDisabled": "Blocked when disabled",
+      "resources": "Resource dry-run actions",
+      "title": "Runtime impact preview",
+      "uninstallPolicy": "Uninstall requires a dry-run snapshot and is blocked for protected system preset plugins."
+    },
+    "dryRun": "Uninstall dry-run",
+    "dryRunExpires": "Expires",
+    "dryRunSnapshot": "Snapshot",
+    "dryRunValidation": "Validation",
+    "diagnostics": {
+      "title": "Diagnostics"
+    },
+    "emptyDescription": "Runtime-managed plugins will appear here after registration.",
+    "emptyTitle": "No plugins registered",
+    "fetchDetailsFailed": "Failed to load plugin details",
+    "fetchFailed": "Failed to load plugins",
+    "exportFailed": "Failed to export plugin",
+    "guardMatrix": {
+      "failureMode": "Failure mode",
+      "surfaces": {
+        "hot_install_guard": "Hot install and remote packages",
+        "lifecycle_hook_guard": "Lifecycle hooks",
+        "listener_guard": "Pub/Sub listeners",
+        "route_guard": "Plugin route registration",
+        "scheduler_guard": "Scheduler jobs",
+        "tool_guard": "Internal MCP tools",
+        "uninstall_guard": "Uninstall dry-run validation"
+      },
+      "title": "Runtime Guard Coverage"
+    },
+    "import": {
+      "dryRun": "Dry run",
+      "note": "Import accepts a server-local plugin folder or zip/tar package path. It validates and copies into plugins/installed, creates plugin-data, and does not hot-load code.",
+      "placeholder": "C:\\path\\to\\plugin_folder or C:\\path\\to\\plugin.zip",
+      "title": "Import local plugin package"
+    },
+    "importFailed": "Failed to import plugin",
+    "installTypes": {
+      "preinstalled": "Preinstalled",
+      "system_builtin": "System preset",
+      "user_installed": "User installed"
+    },
+    "feedbackMigration": {
+      "blocked": "Blocked",
+      "failed": "Failed",
+      "missing": "Missing gates",
+      "passed": "Passed",
+      "plugin": "Plugin",
+      "ready": "Ready for first step",
+      "satisfied": "Satisfied gates",
+      "title": "Feedback Migration Gates"
+    },
+    "updateStateFailed": "Failed to update plugin state",
+    "issues": "Issues",
+    "metrics": {
+      "contributions": "Contrib",
+      "dryRun": "Dry-run",
+      "frontend": "Frontend",
+      "resources": "Resources",
+      "routes": "Routes",
+      "settings": "Settings",
+      "uninstall": "Uninstall"
+    },
+    "ownership": {
+      "active": "Currently owned by Plugin Runtime",
+      "blocked": "Not active; enable the plugin before it owns entries",
+      "title": "Plugin Ownership Overview"
+    },
+    "resourceEntries": "resource entries",
+    "resources": "Resource ledger",
+    "uninstall": {
+      "confirm": "Uninstall this plugin? Runtime entries will be disabled and only resources allowed by the current dry-run snapshot can be processed.",
+      "protected": "This is a system preset plugin. It can be disabled, but it cannot be uninstalled."
+    },
+    "uninstallFailed": "Failed to uninstall plugin",
+    "settings": {
+      "disabledHint": "This plugin is disabled. Settings are saved here but do not affect runtime until the plugin is enabled.",
+      "empty": "No plugin settings",
+      "title": "Plugin settings",
+      "updateFailed": "Failed to update plugin setting"
+    },
+    "runtimeSideEffect": {
+      "action": "Action",
+      "status": "Status",
+      "title": "Runtime side effect"
+    },
+    "progress": {
+      "evidence": {
+        "phase_1_runtime_foundation": "Manifest validation, plugin state, guards, permissions, static registration, and controlled hook execution are covered.",
+        "phase_2_core_plugin_matrix": "Core routes remain stable while plugin-owned routes, tools, hooks, and frontend entries can be hidden by runtime state.",
+        "phase_2_resource_dry_run": "Plugin-owned resources and uninstall dry-run validation are represented without physical deletion.",
+        "phase_3_feedback_first_step": "Feedback migration gates are executable and ready for the first low-coupling plugin migration step."
+      },
+      "missing": "Missing",
+      "passed": "Passed",
+      "phases": {
+        "phase_1_runtime_foundation": "Phase 1: Runtime foundation",
+        "phase_2_core_plugin_matrix": "Phase 2: Core/plugin matrix",
+        "phase_2_resource_dry_run": "Phase 2: Resources and dry-run",
+        "phase_3_feedback_first_step": "Phase 3: Feedback first step"
+      },
+      "title": "Pluginization Progress"
+    },
+    "subtitle": "Runtime state, owned resources, and dry-run planning for static built-in plugins",
+    "summary": {
+      "hotInstall": "Hot install",
+      "mode": "Mode",
+      "plugins": "Plugins",
+      "uninstall": "Uninstall"
+    },
+    "title": "Plugin Runtime"
+  },
+  "pluginSettings": {
+    "audio_transcription": {
+      "API_KEY": {
+        "description": "OpenAI-compatible API key for audio transcription.",
+        "label": "API key"
+      },
+      "BASE_URL": {
+        "description": "Optional OpenAI-compatible API base URL.",
+        "label": "Base URL"
+      },
+      "MAX_DOWNLOAD_BYTES": {
+        "description": "Maximum remote audio download size before forwarding to transcription.",
+        "label": "Max download bytes"
+      },
+      "MODEL": {
+        "description": "Default transcription model.",
+        "label": "Model"
+      }
+    },
+    "image_generation": {
+      "API_KEY": {
+        "description": "OpenAI-compatible API key for image generation.",
+        "label": "API key"
+      },
+      "BASE_URL": {
+        "description": "OpenAI-compatible image API base URL.",
+        "label": "Base URL"
+      },
+      "MODEL": {
+        "description": "Default image generation model.",
+        "label": "Model"
+      },
+      "TIMEOUT": {
+        "description": "Image API request timeout in seconds.",
+        "label": "Timeout"
+      }
     }
   }
 }

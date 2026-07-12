@@ -446,6 +446,7 @@ class EventPresenterMixin:
         content: str,
         attachments: Optional[List[Dict[str, Any]]] = None,
         message_id: Optional[str] = None,
+        enabled_skills: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """输出用户消息"""
         resolved_message_id = message_id or f"{self.run_id}:user"
@@ -456,6 +457,8 @@ class EventPresenterMixin:
             "run_id": self.run_id,
         }
         data["attachments"] = _bounded_attachments(attachments)
+        if enabled_skills:
+            data["enabled_skills"] = enabled_skills
         return self._build_event("user:message", data)
 
     def present_sandbox_starting(self) -> Dict[str, Any]:

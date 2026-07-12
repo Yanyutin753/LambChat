@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   prepareMessagesForRunningRun,
   reconstructMessagesFromEvents,
@@ -26,9 +23,9 @@ test("reconstructMessagesFromEvents preserves backend user message ids", () => {
     { activeSubagentStack: [] },
   );
 
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0]?.id, "user-message-1");
-  assert.equal(messages[0]?.runId, "run-1");
+  expect(messages.length).toBe(1);
+  expect(messages[0]?.id).toBe("user-message-1");
+  expect(messages[0]?.runId).toBe("run-1");
 });
 
 test("prepareMessagesForRunningRun preserves the optimistic user message when running history has not persisted it yet", () => {
@@ -73,15 +70,14 @@ test("prepareMessagesForRunningRun preserves the optimistic user message when ru
     ],
   );
 
-  assert.deepEqual(
+  expect(
     result.messages.map((message) => [message.id, message.role, message.runId]),
-    [
-      ["user-previous", "user", "run-previous"],
-      ["assistant-previous", "assistant", "run-previous"],
-      ["optimistic-user-latest", "user", "run-latest"],
-      ["assistant-latest", "assistant", "run-latest"],
-    ],
-  );
+  ).toEqual([
+    ["user-previous", "user", "run-previous"],
+    ["assistant-previous", "assistant", "run-previous"],
+    ["optimistic-user-latest", "user", "run-latest"],
+    ["assistant-latest", "assistant", "run-latest"],
+  ]);
 });
 
 test("prepareMessagesForRunningRun does not duplicate the optimistic user message after history persists it", () => {
@@ -117,13 +113,12 @@ test("prepareMessagesForRunningRun does not duplicate the optimistic user messag
     ],
   );
 
-  assert.deepEqual(
+  expect(
     result.messages.map((message) => [message.id, message.role, message.runId]),
-    [
-      ["persisted-user-latest", "user", "run-latest"],
-      ["assistant-latest", "assistant", "run-latest"],
-    ],
-  );
+  ).toEqual([
+    ["persisted-user-latest", "user", "run-latest"],
+    ["assistant-latest", "assistant", "run-latest"],
+  ]);
 });
 
 test("reconstructMessagesFromEvents ignores goal update events as message content", () => {
@@ -155,8 +150,8 @@ test("reconstructMessagesFromEvents ignores goal update events as message conten
     { activeSubagentStack: [] },
   );
 
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0]?.role, "user");
+  expect(messages.length).toBe(1);
+  expect(messages[0]?.role).toBe("user");
 });
 
 test("reconstructMessagesFromEvents restores artifact result parts", () => {
@@ -189,9 +184,9 @@ test("reconstructMessagesFromEvents restores artifact result parts", () => {
     { activeSubagentStack: [] },
   );
 
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0]?.role, "assistant");
-  assert.equal(messages[0]?.parts?.[0]?.type, "artifact");
+  expect(messages.length).toBe(1);
+  expect(messages[0]?.role).toBe("assistant");
+  expect(messages[0]?.parts?.[0]?.type).toBe("artifact");
 });
 
 test("reconstructMessagesFromEvents does not create duplicate assistant ids for goal lifecycle events", () => {
@@ -233,10 +228,10 @@ test("reconstructMessagesFromEvents does not create duplicate assistant ids for 
     { activeSubagentStack: [] },
   );
 
-  assert.deepEqual(
-    messages.map((message) => message.id),
-    [`${runId}:user`, runId],
-  );
+  expect(messages.map((message) => message.id)).toEqual([
+    `${runId}:user`,
+    runId,
+  ]);
 });
 
 test("reconstructMessagesFromEvents ignores duplicate persisted user messages for the same run", () => {
@@ -288,10 +283,10 @@ test("reconstructMessagesFromEvents ignores duplicate persisted user messages fo
     { activeSubagentStack: [] },
   );
 
-  assert.deepEqual(
-    messages.map((message) => message.id),
-    [`${runId}:user`, runId],
-  );
+  expect(messages.map((message) => message.id)).toEqual([
+    `${runId}:user`,
+    runId,
+  ]);
 });
 
 test("reconstructMessagesFromEvents ignores duplicate user messages with different ids for the same run", () => {
@@ -343,13 +338,10 @@ test("reconstructMessagesFromEvents ignores duplicate user messages with differe
     { activeSubagentStack: [] },
   );
 
-  assert.deepEqual(
-    messages.map((message) => [message.id, message.role]),
-    [
-      ["user-message-a", "user"],
-      [runId, "assistant"],
-    ],
-  );
+  expect(messages.map((message) => [message.id, message.role])).toEqual([
+    ["user-message-a", "user"],
+    [runId, "assistant"],
+  ]);
 });
 
 test("reconstructMessagesFromEvents treats timezone-less backend timestamps as UTC", () => {
@@ -373,8 +365,7 @@ test("reconstructMessagesFromEvents treats timezone-less backend timestamps as U
       { activeSubagentStack: [] },
     );
 
-    assert.equal(
-      messages[0]?.timestamp.toISOString(),
+    expect(messages[0]?.timestamp.toISOString()).toBe(
       "2026-05-07T16:30:00.000Z",
     );
   } finally {
@@ -458,12 +449,12 @@ test("reconstructMessagesFromEvents keeps token usage after cancel on the cancel
     { activeSubagentStack: [] },
   );
 
-  assert.equal(messages.length, 2);
-  assert.equal(messages[0]?.role, "user");
-  assert.equal(messages[1]?.role, "assistant");
-  assert.equal(messages[1]?.cancelled, true);
-  assert.equal(messages[1]?.tokenUsage?.total_tokens, 15649);
-  assert.equal(messages[1]?.duration, 24927.353858947754);
+  expect(messages.length).toBe(2);
+  expect(messages[0]?.role).toBe("user");
+  expect(messages[1]?.role).toBe("assistant");
+  expect(messages[1]?.cancelled).toBe(true);
+  expect(messages[1]?.tokenUsage?.total_tokens).toBe(15649);
+  expect(messages[1]?.duration).toBe(24927.353858947754);
 });
 
 test("reconstructMessagesFromEvents keeps late run events after cancel on the cancelled assistant", () => {
@@ -514,12 +505,12 @@ test("reconstructMessagesFromEvents keeps late run events after cancel on the ca
     { activeSubagentStack: [] },
   );
 
-  assert.deepEqual(
-    messages.map((message) => message.id),
-    [`${runId}:user`, runId],
-  );
-  assert.equal(messages[1]?.cancelled, true);
-  assert.deepEqual(messages[1]?.parts?.map((part) => part.type), [
+  expect(messages.map((message) => message.id)).toEqual([
+    `${runId}:user`,
+    runId,
+  ]);
+  expect(messages[1]?.cancelled).toBe(true);
+  expect(messages[1]?.parts?.map((part) => part.type)).toEqual([
     "sandbox",
     "cancelled",
     "thinking",
@@ -575,43 +566,40 @@ test("reconstructMessagesFromEvents treats assistant-only run after cancel as re
     { activeSubagentStack: [] },
   );
 
-  assert.deepEqual(
-    messages.map((message) => [message.id, message.role, message.runId]),
-    [
+  expect(messages.map((message) => [message.id, message.role, message.runId])).toEqual([
       [`${cancelledRunId}:user`, "user", cancelledRunId],
       [retryRunId, "assistant", retryRunId],
-    ],
-  );
-  assert.equal(messages[1]?.content, "fresh answer");
-  assert.equal(messages[1]?.cancelled, undefined);
+    ]);
+  expect(messages[1]?.content).toBe("fresh answer");
+  expect(messages[1]?.cancelled).toBe(undefined);
 });
 
-test("reconstructMessagesFromEvents preserves workflow tool result outlet from persisted events", () => {
-  const runId = "run_workflow_tool_history";
-  const workflowOutlet = {
-    plugin_id: "workflow",
-    workflow_id: "wf-chat",
+test("reconstructMessagesFromEvents preserves plugin tool result outlet from persisted events", () => {
+  const runId = "run_plugin_tool_history";
+  const pluginOutlet = {
+    plugin_id: "review_center",
+    review_id: "review-chat",
     run_id: "run-debug-1",
-    version_id: "wfv-1",
+    version_id: "review-v1",
     status: "failed",
-    error: "workflow_run_not_found",
+    error: "review_run_not_found",
     interface: {
       entry: {
         type: "tool",
-        tool: "workflow_run",
+        tool: "review_run",
         argument: "input",
-        schema_tool: "workflow_get_schema",
+        schema_tool: "review_get_schema",
         schema_field: "input_schema",
       },
       exit: {
         type: "object",
         field: "output",
-        schema_tool: "workflow_get_schema",
+        schema_tool: "review_get_schema",
         schema_field: "output_schema",
       },
       debug: {
-        tool: "workflow_get_run",
-        workflow_id: "wf-chat",
+        tool: "review_get_run",
+        review_id: "review-chat",
         run_id: "run-debug-1",
         events_field: "events",
       },
@@ -619,8 +607,8 @@ test("reconstructMessagesFromEvents preserves workflow tool result outlet from p
     next_action: {
       type: "handle_terminal_error",
       field: "error",
-      reason: "workflow_run_failed",
-      tool: "workflow_get_run",
+      reason: "review_run_failed",
+      tool: "review_get_run",
     },
   };
 
@@ -632,7 +620,7 @@ test("reconstructMessagesFromEvents preserves workflow tool result outlet from p
         run_id: runId,
         timestamp: "2026-06-28T08:00:00.000Z",
         data: {
-          content: "inspect failed workflow",
+          content: "inspect failed plugin run",
           message_id: `${runId}:user`,
           attachments: [],
         },
@@ -643,9 +631,9 @@ test("reconstructMessagesFromEvents preserves workflow tool result outlet from p
         run_id: runId,
         timestamp: "2026-06-28T08:00:01.000Z",
         data: {
-          tool: "workflow_get_run",
-          tool_call_id: "tool-call-workflow-debug",
-          args: { workflow_id: "wf-chat", run_id: "run-debug-1" },
+          tool: "review_get_run",
+          tool_call_id: "tool-call-review-debug",
+          args: { review_id: "review-chat", run_id: "run-debug-1" },
         },
       },
       {
@@ -654,11 +642,11 @@ test("reconstructMessagesFromEvents preserves workflow tool result outlet from p
         run_id: runId,
         timestamp: "2026-06-28T08:00:02.000Z",
         data: {
-          tool: "workflow_get_run",
-          tool_call_id: "tool-call-workflow-debug",
-          result: workflowOutlet,
+          tool: "review_get_run",
+          tool_call_id: "tool-call-review-debug",
+          result: pluginOutlet,
           success: false,
-          error: "workflow_run_not_found",
+          error: "review_run_not_found",
         },
       },
       {
@@ -666,31 +654,28 @@ test("reconstructMessagesFromEvents preserves workflow tool result outlet from p
         event_type: "message:chunk",
         run_id: runId,
         timestamp: "2026-06-28T08:00:03.000Z",
-        data: { content: "Workflow debug lookup failed." },
+        data: { content: "Plugin debug lookup failed." },
       },
     ] satisfies HistoryEvent[],
     new Set<string>(),
     { activeSubagentStack: [] },
   );
 
-  assert.equal(messages.length, 2);
+  expect(messages.length).toBe(2);
   const assistant = messages[1];
-  assert.equal(assistant?.role, "assistant");
-  assert.equal(assistant?.content, "Workflow debug lookup failed.");
+  expect(assistant?.role).toBe("assistant");
+  expect(assistant?.content).toBe("Plugin debug lookup failed.");
   const toolPart = assistant?.parts?.find((part) => part.type === "tool");
-  assert.ok(toolPart);
-  assert.equal(toolPart.type, "tool");
-  assert.equal(toolPart.name, "workflow_get_run");
-  assert.equal(toolPart.success, false);
-  assert.equal(toolPart.error, "workflow_run_not_found");
-  assert.deepEqual(toolPart.result, workflowOutlet);
-  assert.deepEqual(assistant?.toolResults?.[0]?.result, workflowOutlet);
-  assert.equal(
-    (
+  expect(toolPart).toBeTruthy();
+  expect(toolPart.type).toBe("tool");
+  expect(toolPart.name).toBe("review_get_run");
+  expect(toolPart.success).toBe(false);
+  expect(toolPart.error).toBe("review_run_not_found");
+  expect(toolPart.result).toEqual(pluginOutlet);
+  expect(assistant?.toolResults?.[0]?.result).toEqual(pluginOutlet);
+  expect((
       assistant?.toolResults?.[0]?.result as {
         interface?: { debug?: { tool?: string } };
       }
-    ).interface?.debug?.tool,
-    "workflow_get_run",
-  );
+    ).interface?.debug?.tool).toBe("review_get_run");
 });

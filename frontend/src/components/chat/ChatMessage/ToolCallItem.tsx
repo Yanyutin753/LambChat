@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
 import type { CollapsibleStatus } from "../../common";
+import { ToolArgsDisplay } from "./ToolArgsDisplay";
 import { ToolResultContent } from "./items/McpBlockPreview";
 import { ToolDurationFooter } from "./items/ToolDurationFooter";
 import { CollapsibleSection } from "./SubagentBlocks";
@@ -114,7 +115,6 @@ export { AudioTranscribeItem } from "./items/AudioTranscribeItem";
 export { UploadUrlToSandboxItem } from "./items/UploadUrlToSandboxItem";
 export { TransferItem } from "./items/TransferItem";
 export { ScheduledTaskItem } from "./items/ScheduledTaskItem";
-export { WorkflowItem } from "./items/WorkflowItem";
 export { EnvVarItem } from "./items/EnvVarItem";
 export { PersonaItem } from "./items/PersonaItem";
 export { TeamItem } from "./items/TeamItem";
@@ -160,15 +160,12 @@ function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
 
   if (!data) return null;
   const hasArgs = Object.keys(data.args).length > 0;
-  const argsJson = JSON.stringify(data.args, null, 2);
 
   return (
     <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm">
       {hasArgs && (
         <CollapsibleSection title={t("chat.message.args")}>
-          <pre className="text-sm text-stone-600 dark:text-stone-300 overflow-x-auto overflow-y-auto min-w-0 font-mono">
-            {argsJson}
-          </pre>
+          <ToolArgsDisplay args={data.args} />
         </CollapsibleSection>
       )}
 
@@ -292,7 +289,6 @@ export function ToolCallItem({
   })();
 
   const hasArgs = Object.keys(displayArgs).length > 0;
-  const argsJson = JSON.stringify(displayArgs, null, 2);
 
   const status = deriveStatus({ isPending, cancelled, success, hasResult });
 
@@ -362,9 +358,7 @@ export function ToolCallItem({
     <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-96 overflow-y-auto min-w-0">
       {hasArgs && (
         <CollapsibleSection title={t("chat.message.args")}>
-          <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto max-h-40 overflow-y-auto min-w-0">
-            {argsJson}
-          </pre>
+          <ToolArgsDisplay args={displayArgs} compact />
         </CollapsibleSection>
       )}
 

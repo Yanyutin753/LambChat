@@ -207,6 +207,42 @@ async def test_upsert_usage_log_normalizes_token_numbers_and_metadata() -> None:
 
 
 @pytest.mark.asyncio
+async def test_upsert_usage_log_from_trace_metadata_uses_provided_usage_data() -> None:
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+
+    inserted = await storage.upsert_usage_log_from_trace_metadata(
+        {
+            "trace_id": "trace-1",
+            "session_id": "session-1",
+            "run_id": "run-1",
+            "user_id": "user-1",
+            "agent_id": "agent-1",
+            "started_at": "2026-06-14T00:00:00+00:00",
+            "completed_at": datetime(2026, 6, 14, 0, 1, tzinfo=timezone.utc),
+            "status": "completed",
+            "metadata": {"username": "Ada", "agent_name": "Fast Agent"},
+        },
+        {
+            "model": "openai/gpt-5",
+            "input_tokens": "10",
+            "output_tokens": 5.8,
+            "duration": "1.25",
+        },
+    )
+
+    assert inserted is True
+    doc = collection.update_calls[0][1]["$set"]
+    assert doc["trace_id"] == "trace-1"
+    assert doc["model"] == "openai/gpt-5"
+    assert doc["input_tokens"] == 10
+    assert doc["output_tokens"] == 5
+    assert doc["total_tokens"] == 15
+    assert doc["duration"] == 1.25
+
+
+@pytest.mark.asyncio
 async def test_list_usage_logs_builds_bounded_query_and_stats() -> None:
     collection = _FakeCollection()
     storage = UsageStorage()

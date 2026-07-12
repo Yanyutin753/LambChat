@@ -1,8 +1,5 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import test from "node:test";
-
 function readSource(path: string): string {
   return readFileSync(resolve(import.meta.dirname, path), "utf8");
 }
@@ -11,36 +8,31 @@ test("safe-area utility classes map to native inset variables", () => {
   const tokens = readSource("../styles/tokens.css");
   const utilities = readSource("../styles/utilities.css");
 
-  assert.match(tokens, /--app-safe-area-top-active:\s*max\(/);
-  assert.match(tokens, /--app-safe-area-bottom-active:\s*max\(/);
-  assert.match(
-    utilities,
+  expect(tokens).toMatch(/--app-safe-area-top-active:\s*max\(/);
+  expect(tokens).toMatch(/--app-safe-area-bottom-active:\s*max\(/);
+  expect(utilities).toMatch(
     /\.safe-area-top\s*\{[\s\S]*padding-top:\s*calc\(\s*var\(--app-safe-area-top-active,/,
   );
-  assert.match(
-    utilities,
+  expect(utilities).toMatch(
     /\.safe-area-bottom\s*\{[\s\S]*padding-bottom:\s*calc\(\s*var\(--app-safe-area-bottom-active,/,
   );
-  assert.match(utilities, /\.safe-area-y\s*\{/);
-  assert.match(utilities, /\.safe-area-viewport-padding\s*\{/);
-  assert.match(utilities, /\.safe-area-viewport-height\s*\{/);
+  expect(utilities).toMatch(/\.safe-area-y\s*\{/);
+  expect(utilities).toMatch(/\.safe-area-viewport-padding\s*\{/);
+  expect(utilities).toMatch(/\.safe-area-viewport-height\s*\{/);
 });
 
 test("the authenticated app shell reserves both status bar and home indicator areas", () => {
   const shell = readSource("../components/layout/AppContent/AppShell.tsx");
 
-  assert.match(
-    shell,
+  expect(shell).toMatch(
     /const appSafeAreaTop =\s*"var\(--app-safe-area-top-active,/,
   );
-  assert.match(
-    shell,
+  expect(shell).toMatch(
     /const appSafeAreaBottom =\s*"var\(--app-safe-area-bottom-active,/,
   );
-  assert.match(shell, /paddingTop:\s*appSafeAreaTop/);
-  assert.match(shell, /paddingBottom:\s*appSafeAreaBottom/);
-  assert.match(
-    shell,
+  expect(shell).toMatch(/paddingTop:\s*appSafeAreaTop/);
+  expect(shell).toMatch(/paddingBottom:\s*appSafeAreaBottom/);
+  expect(shell).toMatch(
     /height:\s*`calc\(var\(--app-viewport-height, 100dvh\) - \$\{appSafeAreaTop\} - \$\{appSafeAreaBottom\}\)`/,
   );
 });
@@ -52,22 +44,21 @@ test("public landing page header, mobile menu, and footer use safe-area spacing"
   );
   const footer = readSource("../components/landing/components/Footer.tsx");
 
-  assert.match(navbar, /className=\{`[^`]*\bsafe-area-top\b/);
-  assert.match(
-    mobileMenu,
+  expect(navbar).toMatch(/className=\{`[^`]*\bsafe-area-top\b/);
+  expect(mobileMenu).toMatch(
     /\btop-\[calc\(3\.5rem\+var\(--app-safe-area-top,0px\)\)\]/,
   );
-  assert.match(footer, /className="[^"]*\bsafe-area-bottom\b/);
+  expect(footer).toMatch(/className="[^"]*\bsafe-area-bottom\b/);
 });
 
 test("auth and shared public pages protect their fixed headers and bottom bars", () => {
   const auth = readSource("../components/auth/AuthPage.tsx");
   const shared = readSource("../components/share/SharedPage.tsx");
 
-  assert.match(auth, /className="[^"]*\bsafe-area-top\b/);
-  assert.match(auth, /className="[^"]*\bsafe-area-bottom\b/);
-  assert.match(shared, /className="[^"]*\bsafe-area-top\b/);
-  assert.match(shared, /className="[^"]*\bsafe-area-bottom\b/);
+  expect(auth).toMatch(/className="[^"]*\bsafe-area-top\b/);
+  expect(auth).toMatch(/className="[^"]*\bsafe-area-bottom\b/);
+  expect(shared).toMatch(/className="[^"]*\bsafe-area-top\b/);
+  expect(shared).toMatch(/className="[^"]*\bsafe-area-bottom\b/);
 });
 
 test("sidebars, fullscreen editors, and media viewers use vertical safe-area spacing", () => {
@@ -96,50 +87,45 @@ test("sidebars, fullscreen editors, and media viewers use vertical safe-area spa
     "../components/chat/ChatMessage/MermaidDiagram.tsx",
   );
 
-  assert.match(
-    components,
+  expect(components).toMatch(
     /\.editor-sidebar--sidebar\s*\{[\s\S]*top:\s*var\(--app-safe-area-top-active,/,
   );
-  assert.match(
-    components,
+  expect(components).toMatch(
     /\.editor-sidebar--sidebar\s*\{[\s\S]*bottom:\s*var\(\s*--app-safe-area-bottom-active,/,
   );
-  assert.match(
-    components,
+  expect(components).toMatch(
     /\.editor-sidebar--mobile\s*\{[\s\S]*bottom:\s*var\(\s*--app-safe-area-bottom-active,/,
   );
-  assert.match(
-    components,
+  expect(components).toMatch(
     /\.editor-sidebar-footer\s*\{[\s\S]*padding-bottom:\s*max\([\s\S]*var\(--app-safe-area-bottom-active,/,
   );
 
-  assert.match(sessionSidebar, /top:\s*"var\(--app-safe-area-top-active,/);
-  assert.match(
-    sessionSidebar,
+  expect(sessionSidebar).toMatch(/top:\s*"var\(--app-safe-area-top-active,/);
+  expect(sessionSidebar).toMatch(
     /paddingBottom:\s*"var\(--app-safe-area-bottom-active,/,
   );
 
-  assert.match(skillForm, /skill-form--fullscreen safe-area-viewport-padding/);
-  assert.match(
-    skillFullscreen,
+  expect(skillForm).toMatch(
+    /skill-form--fullscreen safe-area-viewport-padding/,
+  );
+  expect(skillFullscreen).toMatch(
     /top:\s*"calc\(1rem \+ var\(--app-safe-area-top-active,/,
   );
 
-  assert.match(viewerTopBar, /className=\{clsx\("safe-area-top\b/);
-  assert.match(imageViewer, /<ViewerTopBar[\s>]/);
-  assert.match(imageViewer, /className="safe-area-bottom\b/);
-  assert.match(videoViewer, /<ViewerTopBar[\s>]/);
-  assert.match(videoViewer, /className="safe-area-bottom\b/);
-  assert.match(excalidrawThumbnail, /safe-area-viewport-padding/);
-  assert.match(toolResultPanel, /safe-area-viewport-padding fixed inset-0/);
-  assert.match(excalidrawPreview, /<ViewerTopBar[\s>]/);
-  assert.match(excalidrawPreview, /className="safe-area-bottom\b/);
-  assert.match(
-    excalidrawDirectViewer,
+  expect(viewerTopBar).toMatch(/className=\{clsx\("safe-area-top\b/);
+  expect(imageViewer).toMatch(/<ViewerTopBar[\s>]/);
+  expect(imageViewer).not.toMatch(/safe-area-bottom/);
+  expect(videoViewer).toMatch(/<ViewerTopBar[\s>]/);
+  expect(videoViewer).toMatch(/className="safe-area-bottom\b/);
+  expect(excalidrawThumbnail).toMatch(/safe-area-viewport-padding/);
+  expect(toolResultPanel).toMatch(/safe-area-viewport-padding/);
+  expect(excalidrawPreview).toMatch(/<ViewerTopBar[\s>]/);
+  expect(excalidrawPreview).not.toMatch(/safe-area-bottom/);
+  expect(excalidrawDirectViewer).toMatch(
     /safe-area-viewport-padding fixed inset-0/,
   );
-  assert.match(mermaidViewer, /<ViewerTopBar[\s>]/);
-  assert.match(mermaidViewer, /className="safe-area-bottom\b/);
+  expect(mermaidViewer).toMatch(/<ViewerTopBar[\s>]/);
+  expect(mermaidViewer).not.toMatch(/safe-area-bottom/);
 });
 
 test("portal dialogs and sheets reserve safe-area spacing", () => {
@@ -164,9 +150,6 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
     "../components/panels/NotificationPanel.tsx",
     "../plugins/feedback/FeedbackPanel.tsx",
     "../components/layout/AppContent/ChatAppContent.tsx",
-    "../components/selectors/AgentModeSelector.tsx",
-    "../components/selectors/SkillSelector.tsx",
-    "../components/selectors/ToolSelector.tsx",
     "../components/chat/AgentOptionButton.tsx",
     "../components/layout/UserMenu.tsx",
     "../components/sidebar/ProjectMenu.tsx",
@@ -175,27 +158,20 @@ test("portal dialogs and sheets reserve safe-area spacing", () => {
   ];
 
   for (const path of safeViewportFiles) {
-    assert.match(
-      readSource(path),
-      /safe-area-viewport-padding/,
-      `${path} should use safe-area viewport padding`,
-    );
+    expect(readSource(path)).toMatch(/safe-area-viewport-padding/);
   }
 });
 
 test("profile mobile sheet relies on the portal viewport safe area only", () => {
   const profileModal = readSource("../components/profile/ProfileModal.tsx");
 
-  assert.match(
-    profileModal,
+  expect(profileModal).toMatch(
     /className="safe-area-viewport-padding fixed inset-0 z-\[300\] flex items-end/,
   );
-  assert.doesNotMatch(
-    profileModal,
+  expect(profileModal).not.toMatch(
     /renderFooter\(\s*"[^"]*\bsafe-area-bottom\b/,
   );
-  assert.doesNotMatch(
-    profileModal,
+  expect(profileModal).not.toMatch(
     /renderFooter\(\s*"[^"]*--safe-area-bottom-extra/,
   );
 });
@@ -207,10 +183,10 @@ test("standalone full-page fallback surfaces use safe-area spacing", () => {
   const errorBoundary = readSource("../components/common/ErrorBoundary.tsx");
   const welcome = readSource("../styles/welcome.css");
 
-  assert.match(oauth, /safe-area-viewport-padding/);
-  assert.match(protectedRoute, /safe-area-viewport-padding/);
-  assert.match(notFound, /safe-area-viewport-padding/);
-  assert.match(errorBoundary, /safe-area-viewport-padding/);
-  assert.match(welcome, /--app-safe-area-top-active/);
-  assert.match(welcome, /--app-safe-area-bottom-active/);
+  expect(oauth).toMatch(/safe-area-viewport-padding/);
+  expect(protectedRoute).toMatch(/safe-area-viewport-padding/);
+  expect(notFound).toMatch(/safe-area-viewport-padding/);
+  expect(errorBoundary).toMatch(/safe-area-viewport-padding/);
+  expect(welcome).toMatch(/--app-safe-area-top-active/);
+  expect(welcome).toMatch(/--app-safe-area-bottom-active/);
 });

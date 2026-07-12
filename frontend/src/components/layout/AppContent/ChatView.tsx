@@ -105,6 +105,10 @@ export function ChatView({
   activeGoal,
   goalsByRunId,
   onClearActiveGoal,
+  autoModeEnabled,
+  goalModeEnabled,
+  onToggleAutoMode,
+  onToggleGoalMode,
   attachments,
   onAttachmentsChange,
   externalNavigationToken,
@@ -454,6 +458,10 @@ export function ChatView({
     runtimePlugins,
     attachments,
     onAttachmentsChange,
+    autoModeEnabled,
+    goalModeEnabled,
+    onToggleAutoMode,
+    onToggleGoalMode,
   };
 
   return (
@@ -462,6 +470,15 @@ export function ChatView({
         ref={messagesContainerRef}
         className="relative flex-1 min-h-0 overflow-hidden"
       >
+        {/* Frosted glass fade mask — visual transition between messages and input */}
+        <div
+          className="pointer-events-none absolute bottom-0 left-0 right-0 z-10"
+          style={{
+            height: 48,
+            background:
+              "linear-gradient(to bottom, transparent, var(--theme-bg))",
+          }}
+        />
         {messages.length === 0 ? (
           isLoading ? (
             <ChatSkeleton count={8} />
@@ -549,11 +566,11 @@ export function ChatView({
             <SessionScheduledTasksButton
               sessionId={sessionId}
               refreshKey={scheduledTasksRefreshKey}
-              className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] active:scale-95 dark:bg-[var(--theme-bg-card)]/80 dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] sm:h-10 sm:w-10"
+              className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text active:scale-95 sm:h-10 sm:w-10"
             />
             <button
               onClick={scrollToTop}
-              className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] active:scale-95 dark:bg-[var(--theme-bg-card)]/80 dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] sm:h-10 sm:w-10"
+              className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10"
               style={{
                 opacity: isNearTop ? 0 : 1,
                 transform: isNearTop ? "translateY(6px)" : "translateY(0)",
@@ -575,7 +592,7 @@ export function ChatView({
             </button>
             <button
               onClick={scrollToBottom}
-              className={`group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] active:scale-95 dark:bg-[var(--theme-bg-card)]/80 dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] sm:h-10 sm:w-10 ${
+              className={`group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10 ${
                 hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
               }`}
               style={{

@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -13,7 +11,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 test("does not restore a chat route after the user already navigated away", () => {
-  assert.equal(
+  expect(
     getSessionRouteSyncAction({
       activeTab: "chat",
       pathname: "/skills",
@@ -21,12 +19,11 @@ test("does not restore a chat route after the user already navigated away", () =
       urlSessionId: undefined,
       externalNavigate: false,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("does not restore chat when render state is stale but browser path already left chat", () => {
-  assert.equal(
+  expect(
     getSessionRouteSyncAction({
       activeTab: "chat",
       pathname: "/chat/session-123",
@@ -35,12 +32,11 @@ test("does not restore chat when render state is stale but browser path already 
       urlSessionId: "session-123",
       externalNavigate: false,
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("updates the chat url when a new session is created from /chat", () => {
-  assert.deepEqual(
+  expect(
     getSessionRouteSyncAction({
       activeTab: "chat",
       pathname: "/chat",
@@ -48,23 +44,21 @@ test("updates the chat url when a new session is created from /chat", () => {
       urlSessionId: undefined,
       externalNavigate: false,
     }),
-    {
-      type: "replace-url",
-      path: "/chat/session-123",
-    },
-  );
+  ).toEqual({
+    type: "replace-url",
+    path: "/chat/session-123",
+  });
 });
 
 test("reads the target run id from chat url search params", () => {
-  assert.equal(
-    getTargetRunIdFromSearch("?run_id=run_20260531_abc&panel=chat"),
+  expect(getTargetRunIdFromSearch("?run_id=run_20260531_abc&panel=chat")).toBe(
     "run_20260531_abc",
   );
-  assert.equal(getTargetRunIdFromSearch("?run_id="), undefined);
+  expect(getTargetRunIdFromSearch("?run_id=")).toBe(undefined);
 });
 
 test("loads the target session when external navigation lands on chat from an empty state", () => {
-  assert.equal(
+  expect(
     shouldLoadSessionFromUrlChange({
       activeTab: "chat",
       sessionId: null,
@@ -73,12 +67,11 @@ test("loads the target session when external navigation lands on chat from an em
       isNewSession: false,
       isInternalNavigation: false,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("does not trigger a second url-change load while the initial url sync is still pending", () => {
-  assert.equal(
+  expect(
     shouldLoadSessionFromUrlChange({
       activeTab: "chat",
       sessionId: null,
@@ -88,22 +81,20 @@ test("does not trigger a second url-change load while the initial url sync is st
       isInternalNavigation: false,
       initialUrlSyncPending: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("clears external navigation state after the initial url sync finishes on chat", () => {
-  assert.deepEqual(
+  expect(
     getInitialUrlSyncCompletionAction({
       activeTab: "chat",
       pathname: "/chat/session-123",
       externalNavigate: true,
     }),
-    {
-      type: "clear-external-state",
-      path: "/chat/session-123",
-    },
-  );
+  ).toEqual({
+    type: "clear-external-state",
+    path: "/chat/session-123",
+  });
 });
 
 test("session selection does not issue page-level scroll resets", () => {
@@ -112,5 +103,5 @@ test("session selection does not issue page-level scroll resets", () => {
     "utf8",
   );
 
-  assert.doesNotMatch(source, /window\.scrollTo/);
+  expect(source).not.toMatch(/window\.scrollTo/);
 });

@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import { buildSkillFilesPayload } from "../SkillForm.utils.tsx";
 
 test("buildSkillFilesPayload skips unloaded lazy files while editing", () => {
@@ -15,7 +12,7 @@ test("buildSkillFilesPayload skips unloaded lazy files while editing", () => {
     loadedFilePaths: new Set(["SKILL.md", "docs/edited.md"]),
   });
 
-  assert.deepEqual(files, {
+  expect(files).toEqual({
     "SKILL.md": "---\nname: demo\n---\n",
     "docs/edited.md": "edited",
   });
@@ -32,7 +29,7 @@ test("buildSkillFilesPayload keeps empty content for loaded edited files", () =>
     loadedFilePaths: new Set(["SKILL.md", "docs/emptied.md"]),
   });
 
-  assert.equal(files["docs/emptied.md"], "");
+  expect(files["docs/emptied.md"]).toBe("");
 });
 
 test("buildSkillFilesPayload includes all files when creating", () => {
@@ -46,7 +43,7 @@ test("buildSkillFilesPayload includes all files when creating", () => {
     loadedFilePaths: new Set(["SKILL.md"]),
   });
 
-  assert.deepEqual(files, {
+  expect(files).toEqual({
     "SKILL.md": "---\nname: demo\n---\n",
     "docs/new.md": "new doc",
   });

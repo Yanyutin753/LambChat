@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -21,6 +21,7 @@ import { ShareDialog } from "../../share/ShareDialog";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
+import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import { authApi } from "../../../services/api";
 import { notificationApi } from "../../../services/api/notification";
 import { useSessionTitle } from "../../../hooks/useSessionTitle";
@@ -79,24 +80,27 @@ export function Header({
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [activeNotifCount, setActiveNotifCount] = useState(0);
+  const mobileMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuPanelRef = useRef<HTMLDivElement>(null);
 
-  const getMenuPosition = useCallback(() => {
-    const rect = mobileMenuBtnRef.current?.getBoundingClientRect();
-    if (!rect) return { top: 52, right: 12 };
-    return { top: rect.bottom + 4, right: window.innerWidth - rect.right };
-  }, []);
+  const menuPosition = useStickyDropdownPosition(
+    mobileMenuBtnRef,
+    mobileMenuOpen || langMenuOpen,
+    (rect) => ({
+      top: rect.bottom + 4,
+      right: window.innerWidth - rect.right,
+    }),
+  );
 
-  const refreshNotifCount = useCallback(() => {
+  const refreshNotifCount = () => {
     notificationApi
       .getActive()
       .then((items) => setActiveNotifCount(items.length));
-  }, []);
+  };
 
   useEffect(() => {
     refreshNotifCount();
-  }, [refreshNotifCount]);
-  const mobileMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const mobileMenuPanelRef = useRef<HTMLDivElement>(null);
+  }, []);
 
   // Close mobile menu on outside click
   useEffect(() => {
@@ -138,14 +142,14 @@ export function Header({
             <>
               <button
                 onClick={() => setMobileSidebarOpen(true)}
-                className={`flex h-8 w-8 items-center justify-center rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 sm:hidden transition-colors`}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 sm:hidden transition-colors`}
                 title={t("sidebar.expandSidebar")}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
-                  className="w-5 h-5 text-stone-600 dark:text-stone-300"
+                  className="w-5 h-5"
                 >
                   <path
                     fillRule="evenodd"
@@ -175,16 +179,16 @@ export function Header({
                   );
                   if (!project) return null;
                   return (
-                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-700/50 border border-stone-200 dark:border-stone-600/40">
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--color-background-muted)] border border-[var(--color-border)]">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
                         fill="currentColor"
-                        className="size-3 text-stone-400 dark:text-stone-500"
+                        className="size-3 text-[var(--color-text-tertiary)]"
                       >
                         <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
                       </svg>
-                      <span className="text-xs text-stone-500 dark:text-stone-400 truncate max-w-[120px]">
+                      <span className="text-xs text-[var(--color-text-secondary)] truncate max-w-[120px]">
                         {project.name}
                       </span>
                     </div>
@@ -195,13 +199,13 @@ export function Header({
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => navigate(-1)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-background-muted)] transition-colors"
                 title={t("common.back")}
               >
                 <ChevronLeft size={20} />
               </button>
               <div className="flex flex-col justify-center">
-                <span className="text-base font-bold text-stone-700 dark:text-stone-200 font-serif leading-tight">
+                <span className="text-base font-bold text-[var(--color-text-primary)] font-serif leading-tight">
                   {t(`nav.${activeTab}`, { defaultValue: activeTab })}
                 </span>
               </div>
@@ -219,7 +223,7 @@ export function Header({
             <button
               ref={mobileMenuBtnRef}
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-[var(--color-background-muted)] dark:text-stone-300 transition-colors"
               title={t("common.menu")}
             >
               <MoreHorizontal size={20} />
@@ -230,8 +234,7 @@ export function Header({
                   ref={mobileMenuPanelRef}
                   className="fixed z-[301] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
                   style={{
-                    top: getMenuPosition().top,
-                    right: getMenuPosition().right,
+                    ...menuPosition,
                     backgroundColor: "var(--theme-bg-card)",
                     borderColor: "var(--theme-border)",
                   }}
@@ -336,8 +339,7 @@ export function Header({
               <div
                 className="fixed z-[302] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
                 style={{
-                  top: getMenuPosition().top,
-                  right: getMenuPosition().right,
+                  ...menuPosition,
                   backgroundColor: "var(--theme-bg-card)",
                   borderColor: "var(--theme-border)",
                 }}
@@ -345,7 +347,7 @@ export function Header({
               >
                 <button
                   onClick={() => setLangMenuOpen(false)}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] transition-colors"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)] transition-colors"
                 >
                   <ChevronLeft size={16} className="shrink-0" />
                   <span>{t("common.language")}</span>
@@ -377,8 +379,8 @@ export function Header({
                         }}
                         className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
                           isActive
-                            ? "text-[var(--theme-text)] bg-[var(--theme-primary-light)]"
-                            : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+                            ? "text-[var(--theme-text)] bg-[var(--theme-bg-subtle)]"
+                            : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
                         }`}
                       >
                         <span className="truncate">{lang.name}</span>
@@ -425,7 +427,7 @@ function HeaderMenuItem({
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
     >
       {children}
     </button>

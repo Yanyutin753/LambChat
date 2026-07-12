@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import { groupSessionsByTime } from "../sessionHelpers.ts";
 import type { BackendSession } from "../../../services/api.ts";
 
@@ -69,7 +66,7 @@ test("groupSessionsByTime treats timezone-less backend timestamps as UTC", () =>
       ((key: string) => key) as never,
     );
 
-    assert.equal(groups[0]?.label, "sidebar.today");
+    expect(groups[0]?.label).toBe("sidebar.today");
   } finally {
     process.env.TZ = originalTimezone;
     globalThis.Date = NativeDate;

@@ -32,7 +32,7 @@ from src.infra.utils.datetime import utc_now
 
 ScheduledTaskService = _create.ScheduledTaskService
 PersonaPresetManager = _approval.PersonaPresetManager
-TeamManager = _approval.TeamManager
+get_agent_team_directory = _approval.get_agent_team_directory
 _build_task_preview = _helpers._build_task_preview
 _confirm_scheduled_task_creation = _approval._confirm_scheduled_task_creation
 _get_current_session_defaults = _helpers._get_current_session_defaults
@@ -55,7 +55,7 @@ _PATCH_TARGETS: dict[str, list[tuple[ModuleType, str]]] = {
         (_delete, "ScheduledTaskService"),
     ],
     "PersonaPresetManager": [(_approval, "PersonaPresetManager")],
-    "TeamManager": [(_approval, "TeamManager")],
+    "get_agent_team_directory": [(_approval, "get_agent_team_directory")],
     "utc_now": [(_create, "utc_now")],
     "_build_task_preview": [
         (_helpers, "_build_task_preview"),
@@ -126,7 +126,7 @@ __all__ = [
     "get_scheduled_task_tools",
     "ScheduledTaskService",
     "PersonaPresetManager",
-    "TeamManager",
+    "get_agent_team_directory",
     "utc_now",
     "_build_task_preview",
     "_confirm_scheduled_task_creation",

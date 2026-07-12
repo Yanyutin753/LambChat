@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   buildPluginAssetUrl,
   findPluginAssetSlot,
@@ -33,7 +31,7 @@ function runtimePlugin(
 test("plugin asset slot registry lists enabled runtime slots", () => {
   const entries = listPluginAssetSlots([runtimePlugin()]);
 
-  assert.deepEqual(entries, [
+  expect(entries).toEqual([
     {
       id: "advanced_file_viewers:file_viewer",
       pluginId: "advanced_file_viewers",
@@ -43,19 +41,15 @@ test("plugin asset slot registry lists enabled runtime slots", () => {
       mountPath: "/plugin-assets/advanced_file_viewers/",
     },
   ]);
-  assert.equal(hasPluginAssetSlot("file_viewer", [runtimePlugin()]), true);
-  assert.equal(findPluginAssetSlot("file_viewer", [runtimePlugin()])?.pluginId, "advanced_file_viewers");
+  expect(hasPluginAssetSlot("file_viewer", [runtimePlugin()])).toBe(true);
+  expect(findPluginAssetSlot("file_viewer", [runtimePlugin()])?.pluginId).toBe("advanced_file_viewers");
 });
 
 test("plugin asset slot registry filters disabled mismatched or unsupported bundles", () => {
-  assert.deepEqual(
-    listPluginAssetSlots([
+  expect(listPluginAssetSlots([
       runtimePlugin({ enabled: false, executable: false, status: "disabled" }),
-    ]),
-    [],
-  );
-  assert.deepEqual(
-    listPluginAssetSlots([
+    ])).toEqual([]);
+  expect(listPluginAssetSlots([
       runtimePlugin({
         package: {
           frontend_assets: {
@@ -67,11 +61,8 @@ test("plugin asset slot registry filters disabled mismatched or unsupported bund
           },
         },
       }),
-    ]),
-    [],
-  );
-  assert.deepEqual(
-    listPluginAssetSlots([
+    ])).toEqual([]);
+  expect(listPluginAssetSlots([
       runtimePlugin({
         package: {
           frontend_assets: {
@@ -83,23 +74,20 @@ test("plugin asset slot registry filters disabled mismatched or unsupported bund
           },
         },
       }),
-    ]),
-    [],
-  );
+    ])).toEqual([]);
 });
 
 test("plugin asset URLs are limited to declared safe relative assets", () => {
   const entry = listPluginAssetSlots([runtimePlugin()])[0];
 
-  assert.equal(buildPluginAssetUrl(entry, "viewer.js"), "/plugin-assets/advanced_file_viewers/viewer.js");
-  assert.equal(buildPluginAssetUrl(entry, "missing.js"), null);
-  assert.equal(buildPluginAssetUrl(entry, "../plugin.yaml"), null);
-  assert.equal(buildPluginAssetUrl(entry, "https://example.test/viewer.js"), null);
+  expect(buildPluginAssetUrl(entry, "viewer.js")).toBe("/plugin-assets/advanced_file_viewers/viewer.js");
+  expect(buildPluginAssetUrl(entry, "missing.js")).toBe(null);
+  expect(buildPluginAssetUrl(entry, "../plugin.yaml")).toBe(null);
+  expect(buildPluginAssetUrl(entry, "https://example.test/viewer.js")).toBe(null);
 });
 
 test("plugin asset slot registry rejects unsafe declared asset paths", () => {
-  assert.deepEqual(
-    listPluginAssetSlots([
+  expect(listPluginAssetSlots([
       runtimePlugin({
         package: {
           frontend_assets: {
@@ -111,7 +99,5 @@ test("plugin asset slot registry rejects unsafe declared asset paths", () => {
           },
         },
       }),
-    ]),
-    [],
-  );
+    ])).toEqual([]);
 });

@@ -121,7 +121,7 @@ async def test_cancelled_base_agent_emits_accumulated_token_usage(monkeypatch) -
             "model": "openai/gpt-4.1",
         }
     ]
-    assert [event["event"] for event in presenter.emitted_events] == ["token:usage", "done"]
+    assert [event["event"] for event in presenter.emitted_events] == ["token:usage"]
 
 
 @pytest.mark.asyncio
@@ -228,7 +228,7 @@ async def test_interrupted_inner_done_raises_after_persisting_terminal_events(
 
     with pytest.raises(TaskInterruptedError):
         await next_event
-    assert [event["event"] for event in presenter.emitted_events] == ["token:usage", "done"]
+    assert [event["event"] for event in presenter.emitted_events] == ["token:usage"]
 
 
 @pytest.mark.asyncio

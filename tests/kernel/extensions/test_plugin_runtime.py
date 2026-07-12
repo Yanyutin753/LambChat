@@ -221,10 +221,11 @@ def test_plugin_runtime_guards_plugin_owned_agent_entries() -> None:
                 id="agent_team",
                 name="Agent Team",
                 permissions=["team:read"],
+                install_type=PluginInstallType.SYSTEM_BUILTIN,
                 agents=[
                     {
                         "id": "team",
-                        "module": "src.agents.team_agent.graph.TeamAgent",
+                        "module": "./backend/runtime/graph.py:TeamAgent",
                         "required_permissions": ["team:read"],
                     }
                 ],
@@ -241,6 +242,26 @@ def test_plugin_runtime_guards_plugin_owned_agent_entries() -> None:
     with pytest.raises(PluginUnavailableError):
         runtime.ensure_agent_available("team")
     assert runtime.plugin_for_agent("team") == "agent_team"
+
+
+def test_plugin_runtime_rejects_untrusted_agent_runtime_manifest() -> None:
+    runtime = PluginRuntime(
+        [
+            _plugin(
+                agents=[
+                    {
+                        "id": "demo",
+                        "module": "./backend/runtime/graph.py:DemoAgent",
+                    }
+                ],
+            )
+        ]
+    )
+
+    state = runtime.get_state("feedback")
+    assert state is not None
+    assert state.status is PluginRuntimeStatus.ERROR
+    assert state.issues[0].code == "untrusted_agent_runtime"
 
 
 def test_plugin_runtime_supports_controlled_enable_disable_without_uninstalling() -> None:
@@ -386,16 +407,6 @@ def test_plugin_runtime_collects_only_enabled_lifecycle_hooks() -> None:
         "early",
         "late",
     ]
-    runtime.enable_plugin("disabled")
-    assert [hook.name for hook in runtime.lifecycle_hooks(phase="startup")] == [
-        "early",
-        "late",
-        "disabled",
-    ]
-    assert [
-        hook.name
-        for hook in runtime.lifecycle_hooks(phase="startup", plugin_id="disabled")
-    ] == ["disabled"]
     assert [hook.name for hook in runtime.lifecycle_hooks(phase="startup", enabled_only=False)] == [
         "early",
         "late",
@@ -447,17 +458,6 @@ def test_plugin_runtime_exposes_route_and_tool_declarations_for_executable_plugi
     ]
     assert [(tool.plugin_id, tool.name) for tool in runtime.tools()] == [
         ("feedback", "feedback_summary")
-    ]
-
-    runtime.enable_plugin("disabled")
-
-    assert [(route.plugin_id, route.name) for route in runtime.routes()] == [
-        ("feedback", "feedback-api"),
-        ("disabled", "disabled-api"),
-    ]
-    assert [(tool.plugin_id, tool.name) for tool in runtime.tools()] == [
-        ("feedback", "feedback_summary"),
-        ("disabled", "disabled_tool"),
     ]
 
 

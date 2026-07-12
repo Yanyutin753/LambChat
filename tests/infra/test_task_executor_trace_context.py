@@ -51,6 +51,8 @@ class _FakeDualWriter:
 
 
 class _FakePresenter:
+    emitted_user_messages: list[tuple[str, object, object]] = []
+
     def __init__(self, config) -> None:
         self.config = config
         self.trace_id = config.trace_id or "trace-run-level"
@@ -59,8 +61,8 @@ class _FakePresenter:
     async def _ensure_trace(self) -> None:
         return None
 
-    async def emit_user_message(self, message: str, attachments=None) -> None:
-        return None
+    async def emit_user_message(self, message: str, attachments=None, enabled_skills=None) -> None:
+        self.emitted_user_messages.append((message, attachments, enabled_skills))
 
     async def save_event(self, event) -> None:
         return None
@@ -73,6 +75,7 @@ class _FakePresenter:
 async def test_task_executor_sets_run_trace_into_trace_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _FakePresenter.emitted_user_messages = []
     executor = TaskExecutor(
         storage=SimpleNamespace(),
         run_info={},
@@ -142,6 +145,7 @@ async def test_task_executor_sets_run_trace_into_trace_context(
 async def test_task_executor_passes_resolved_agent_name_to_presenter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _FakePresenter.emitted_user_messages = []
     executor = TaskExecutor(
         storage=SimpleNamespace(),
         run_info={},

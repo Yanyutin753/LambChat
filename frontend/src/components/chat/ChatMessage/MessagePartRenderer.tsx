@@ -16,12 +16,8 @@ import {
   ExecuteItem,
   EvalItem,
   ImageGenerateItem,
-  ImageAnalyzeItem,
   AudioTranscribeItem,
-  UploadUrlToSandboxItem,
-  TransferItem,
   ScheduledTaskItem,
-  WorkflowItem,
   EnvVarItem,
   PersonaItem,
   TeamItem,
@@ -30,6 +26,9 @@ import {
   MemoryStoreItem,
   AskHumanItem,
   ToolSearchItem,
+  UploadUrlToSandboxItem,
+  ImageAnalyzeItem,
+  TransferItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { TodoBlock } from "./TodoBlock";
@@ -39,8 +38,13 @@ import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 import { createToolPartAnchorId } from "./messagePartAnchors";
 import {
   getToolRendererId,
+  getPluginMessageRenderer,
   type PluginRuntimeContributionStates,
 } from "../../../extensions/coreContributions";
+import {
+  PLUGIN_MESSAGE_RENDERERS,
+  PluginMessageUnavailable,
+} from "./pluginMessageRenderers";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
@@ -264,38 +268,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    // Detect internal MCP tools, use dedicated themed components
-    if (
-      coreToolRendererId === "image-generate" ||
-      part.name === "image_generate" ||
-      part.name === "image_edit_with_references"
-    ) {
-      return (
-        <ImageGenerateItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (part.name === "image_analyze") {
-      return (
-        <ImageAnalyzeItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (part.name === "upload_url_to_sandbox") {
+    if (coreToolRendererId === "upload-url-to-sandbox") {
       return (
         <UploadUrlToSandboxItem
           args={part.args}
@@ -308,7 +281,20 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (part.name === "transfer_file" || part.name === "transfer_path") {
+    if (coreToolRendererId === "image-analyze") {
+      return (
+        <ImageAnalyzeItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (coreToolRendererId === "transfer") {
       return (
         <TransferItem
           toolName={part.name}
@@ -322,7 +308,21 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (coreToolRendererId === "audio-transcribe" || part.name === "audio_transcribe") {
+    // Detect internal MCP tools, use dedicated themed components
+    if (coreToolRendererId === "image-generate") {
+      return (
+        <ImageGenerateItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (coreToolRendererId === "audio-transcribe") {
       return (
         <AudioTranscribeItem
           args={part.args}
@@ -335,17 +335,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      coreToolRendererId === "scheduled-task" ||
-      part.name === "scheduled_task_create" ||
-      part.name === "scheduled_task_list" ||
-      part.name === "scheduled_task_get" ||
-      part.name === "scheduled_task_update" ||
-      part.name === "scheduled_task_pause" ||
-      part.name === "scheduled_task_resume" ||
-      part.name === "scheduled_task_delete" ||
-      part.name === "scheduled_task_run"
-    ) {
+    if (coreToolRendererId === "scheduled-task") {
       return (
         <ScheduledTaskItem
           toolName={part.name}
@@ -359,13 +349,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      coreToolRendererId === "env-var" ||
-      part.name === "env_var_list" ||
-      part.name === "env_var_set" ||
-      part.name === "env_var_delete" ||
-      part.name === "env_var_delete_all"
-    ) {
+    if (coreToolRendererId === "env-var") {
       return (
         <EnvVarItem
           toolName={part.name}
@@ -379,12 +363,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      coreToolRendererId === "persona" ||
-      part.name === "save_persona_preset" ||
-      part.name === "create_persona_preset" ||
-      part.name === "update_persona_preset"
-    ) {
+    if (coreToolRendererId === "persona") {
       return (
         <PersonaItem
           args={part.args}
@@ -495,8 +474,20 @@ export function MessagePartRenderer({
     );
   }
 
-  if (part.type === "workflow") {
-    return <WorkflowItem part={part} />;
+  if (part.type === "plugin_message") {
+    const contribution = getPluginMessageRenderer(
+      part.plugin_id,
+      part.renderer,
+      runtimePlugins,
+    );
+    if (!contribution) {
+      return <PluginMessageUnavailable part={part} reason="not_declared" />;
+    }
+    const Renderer = PLUGIN_MESSAGE_RENDERERS[contribution.renderer];
+    if (!Renderer) {
+      return <PluginMessageUnavailable part={part} reason="not_registered" />;
+    }
+    return <Renderer part={part} contribution={contribution} />;
   }
 
   if (part.type === "thinking") {

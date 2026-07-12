@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 function source(path: string) {
@@ -71,20 +69,19 @@ test("remote paginated panel searches reset pagination in their change handlers"
       handler: "handleSkillSearchChange",
       reset: "setSkillPage(1);",
       value: "setSkillSearch(query);",
-      prop: /onChange=\{\(e\) => handleSkillSearchChange\(e\.target\.value\)\}/,
+      prop: /onValueChange=\{handleSkillSearchChange\}/,
       staleEffect:
-        /onChange=\{\(e\) => \{\s*setSkillSearch\(e\.target\.value\)/,
+        /onChange=\{\(e\) => handleSkillSearchChange\(e\.target\.value\)\}/,
     },
   ];
 
   for (const item of cases) {
     const file = source(item.path);
-    assert.match(file, new RegExp(`const ${item.handler} = useCallback`));
-    assert.match(
-      file,
+    expect(file).toMatch(new RegExp(`const ${item.handler} = useCallback`));
+    expect(file).toMatch(
       new RegExp(`${escapeRegExp(item.reset)}\\s*${escapeRegExp(item.value)}`),
     );
-    assert.match(file, item.prop);
-    assert.doesNotMatch(file, item.staleEffect);
+    expect(file).toMatch(item.prop);
+    expect(file).not.toMatch(item.staleEffect);
   }
 });

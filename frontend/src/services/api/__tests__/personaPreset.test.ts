@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   buildPersonaPresetListUrl,
   buildPersonaPresetPreferenceUrl,
@@ -8,15 +5,13 @@ import {
 } from "../personaPreset.ts";
 
 test("buildPersonaPresetPreferenceUrl encodes preset ids", () => {
-  assert.equal(
-    buildPersonaPresetPreferenceUrl("preset/1"),
+  expect(buildPersonaPresetPreferenceUrl("preset/1")).toBe(
     "/api/persona-presets/preset%2F1/preference",
   );
 });
 
 test("buildPersonaPresetListUrl keeps page-sized pagination params", () => {
-  assert.equal(
-    buildPersonaPresetListUrl({ skip: 12, limit: 12, q: "planner" }),
+  expect(buildPersonaPresetListUrl({ skip: 12, limit: 12, q: "planner" })).toBe(
     "/api/persona-presets/?q=planner&skip=12&limit=12",
   );
 });
@@ -57,10 +52,10 @@ test("personaPresetApi.list reuses in-flight and fresh identical list requests",
     ]);
     const third = await personaPresetApi.list(params);
 
-    assert.equal(fetchCount, 1);
-    assert.equal(first.total, 0);
-    assert.equal(second.total, 0);
-    assert.equal(third.total, 0);
+    expect(fetchCount).toBe(1);
+    expect(first.total).toBe(0);
+    expect(second.total).toBe(0);
+    expect(third.total).toBe(0);
   } finally {
     globalThis.fetch = previousFetch;
     globalThis.localStorage = previousLocalStorage;

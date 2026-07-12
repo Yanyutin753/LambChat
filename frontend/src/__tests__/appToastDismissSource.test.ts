@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -8,13 +6,12 @@ const appSource = readFileSync(resolve(import.meta.dirname, "../App.tsx"), {
 });
 
 test("global toaster gives default toasts a dismiss button without wrapping custom toasts", () => {
-  assert.match(appSource, /ToastBar/);
-  assert.match(appSource, /currentToast\.type === "custom"/);
-  assert.match(appSource, /toast\.dismiss\(currentToast\.id\)/);
-  assert.match(appSource, /aria-label=\{t\("common\.dismiss"/);
-  assert.match(appSource, /flex w-full items-center gap-3 text-left/);
-  assert.match(
-    appSource,
+  expect(appSource).toMatch(/ToastBar/);
+  expect(appSource).toMatch(/currentToast\.type === "custom"/);
+  expect(appSource).toMatch(/toast\.dismiss\(currentToast\.id\)/);
+  expect(appSource).toMatch(/aria-label=\{t\("common\.dismiss"/);
+  expect(appSource).toMatch(/flex w-full items-center gap-3 text-left/);
+  expect(appSource).toMatch(
     /top:\s*"calc\(56px \+ var\(--app-safe-area-top, 0px\)\)"/,
   );
 });

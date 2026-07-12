@@ -3,20 +3,21 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.kernel.schemas.team import TeamMemberResponse, TeamResponse
+from plugins.system.agent_team.backend.domain.schemas import TeamMemberResponse, TeamResponse
 
 
 def test_shared_content_response_includes_team_display_metadata() -> None:
     source = Path("src/api/routes/share.py").read_text(encoding="utf-8")
 
-    assert "from src.infra.team.storage import TeamStorage" in source
+    assert "plugins.system.agent_team" not in source
+    assert "get_agent_team_directory" in source
     assert "agent_uses_agent_team_options" in source
     assert "selected_agent_team_id_from_metadata" in source
     assert "agent_uses_agent_team_options(session.agent_id)" in source
     assert "async def _attach_shared_team_metadata" in source
-    assert "session.agent_id == \"team\"" not in source
+    assert 'session.agent_id == "team"' not in source
     assert 'session_info["team_id"] = team_id' in source
-    assert "await TeamStorage().get_team" in source
+    assert "await directory.get_team" in source
     assert 'session_info["team_name"] = team.name' in source
     assert "_resolve_shared_team_avatar" in source
     assert "await _attach_shared_team_metadata(session_info, session, share)" in source
@@ -48,13 +49,17 @@ async def test_shared_team_metadata_uses_default_member_avatar_when_team_avatar_
         default_member_id="member-1",
     )
 
-    class FakeTeamStorage:
+    class FakeTeamDirectory:
         async def get_team(self, team_id: str, *, owner_user_id: str):
             assert team_id == "team-1"
             assert owner_user_id == "user-1"
             return team
 
-    monkeypatch.setattr(share_route, "TeamStorage", FakeTeamStorage)
+    monkeypatch.setattr(
+        share_route,
+        "get_agent_team_directory",
+        lambda: FakeTeamDirectory(),
+    )
 
     session_info = {}
     session = SimpleNamespace(
@@ -84,13 +89,17 @@ async def test_shared_team_metadata_keeps_legacy_team_id_fallback(monkeypatch) -
         default_member_id=None,
     )
 
-    class FakeTeamStorage:
+    class FakeTeamDirectory:
         async def get_team(self, team_id: str, *, owner_user_id: str):
             assert team_id == "legacy-team"
             assert owner_user_id == "user-1"
             return team
 
-    monkeypatch.setattr(share_route, "TeamStorage", FakeTeamStorage)
+    monkeypatch.setattr(
+        share_route,
+        "get_agent_team_directory",
+        lambda: FakeTeamDirectory(),
+    )
 
     session_info = {}
     session = SimpleNamespace(

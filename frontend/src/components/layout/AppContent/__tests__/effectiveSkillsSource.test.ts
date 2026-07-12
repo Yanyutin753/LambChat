@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -13,10 +11,10 @@ function readSource(relativePath: string): string {
 test("chat skill selector receives session-effective skills and counts", () => {
   const source = readSource("ChatAppContent.tsx");
 
-  assert.match(source, /const effectiveSkills = useMemo\(/);
-  assert.match(source, /countEnabledSkills\(effectiveSkills\)/);
-  assert.match(source, /skills=\{effectiveSkills\}/);
-  assert.match(source, /enabledSkillsCount=\{effectiveEnabledSkillsCount\}/);
-  assert.match(source, /totalSkillsCount=\{effectiveSkills\.length\}/);
-  assert.doesNotMatch(source, /enabledSkillsCount=\{totalEnabledSkillCount\}/);
+  expect(source).toMatch(/const effectiveSkills = useMemo\(/);
+  expect(source).toMatch(/countEnabledSkills\(effectiveSkills\)/);
+  expect(source).toMatch(/skills=\{effectiveSkills\}/);
+  expect(source).toMatch(/enabledSkillsCount=\{effectiveEnabledSkillsCount\}/);
+  expect(source).toMatch(/totalSkillsCount=\{effectiveSkills\.length\}/);
+  expect(source).not.toMatch(/enabledSkillsCount=\{totalEnabledSkillCount\}/);
 });

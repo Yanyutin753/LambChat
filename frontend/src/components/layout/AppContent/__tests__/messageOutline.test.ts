@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 import type { Message } from "../../../../types";
 import {
   createHeadingAnchorId,
@@ -22,19 +19,16 @@ function createMessage(overrides: Partial<Message>): Message {
   };
 }
 
-test("shows the message outline only after more than three user messages", () => {
-  const withThreeUserMessages = [
-    createMessage({ id: "u1", role: "user", content: "One" }),
-    createMessage({ id: "u2", role: "user", content: "Two" }),
-    createMessage({ id: "u3", role: "user", content: "Three" }),
+test("shows the message outline as soon as there is at least one user message", () => {
+  const withNoUserMessages = [
+    createMessage({ id: "a1", role: "assistant", content: "Hello" }),
   ];
-  const withFourUserMessages = [
-    ...withThreeUserMessages,
-    createMessage({ id: "u4", role: "user", content: "Four" }),
+  const withOneUserMessage = [
+    createMessage({ id: "u1", role: "user", content: "One" }),
   ];
 
-  assert.equal(shouldShowMessageOutline(withThreeUserMessages), false);
-  assert.equal(shouldShowMessageOutline(withFourUserMessages), true);
+  expect(shouldShowMessageOutline(withNoUserMessages)).toBe(false);
+  expect(shouldShowMessageOutline(withOneUserMessage)).toBe(true);
 });
 
 test("extracts user summaries and assistant markdown headings in message order", () => {
@@ -71,7 +65,7 @@ test("extracts user summaries and assistant markdown headings in message order",
     }),
   ];
 
-  assert.deepEqual(extractMessageOutline(messages), [
+  expect(extractMessageOutline(messages)).toEqual([
     {
       id: "message:u1",
       anchorId: createMessageAnchorId("u1"),
@@ -80,6 +74,15 @@ test("extracts user summaries and assistant markdown headings in message order",
       level: 1,
       messageId: "u1",
       messageIndex: 0,
+    },
+    {
+      id: "assistant:a1",
+      anchorId: createMessageAnchorId("a1"),
+      kind: "assistant-message",
+      label: "# 总览",
+      level: 1,
+      messageId: "a1",
+      messageIndex: 1,
     },
     {
       id: "heading:a1:0:总览",
@@ -117,6 +120,15 @@ test("extracts user summaries and assistant markdown headings in message order",
       messageIndex: 2,
     },
     {
+      id: "assistant:a2",
+      anchorId: createMessageAnchorId("a2"),
+      kind: "assistant-message",
+      label: "### 执行步骤",
+      level: 1,
+      messageId: "a2",
+      messageIndex: 3,
+    },
+    {
       id: "heading:a2:1:执行步骤",
       anchorId: createHeadingAnchorId({
         messageId: "a2",
@@ -141,7 +153,16 @@ test("ignores headings inside fenced code blocks", () => {
     }),
   ];
 
-  assert.deepEqual(extractMessageOutline(messages), [
+  expect(extractMessageOutline(messages)).toEqual([
+    {
+      id: "assistant:a1",
+      anchorId: createMessageAnchorId("a1"),
+      kind: "assistant-message",
+      label: "## Real Heading",
+      level: 1,
+      messageId: "a1",
+      messageIndex: 0,
+    },
     {
       id: "heading:a1:0:Real Heading",
       anchorId: createHeadingAnchorId({
@@ -172,7 +193,7 @@ test("maps assistant heading anchors back to their message anchor for flow focus
     }),
   ]);
 
-  assert.equal(
+  expect(
     getOutlineFlowActiveAnchorId(
       outline,
       createHeadingAnchorId({
@@ -181,8 +202,7 @@ test("maps assistant heading anchors back to their message anchor for flow focus
         headingText: "细节",
       }),
     ),
-    createMessageAnchorId("a1"),
-  );
+  ).toBe(createMessageAnchorId("a1"));
 });
 
 test("maps the first visible message index to its outline anchor", () => {
@@ -192,13 +212,12 @@ test("maps the first visible message index to its outline anchor", () => {
     createMessage({ id: "u2", role: "user", content: "three" }),
   ];
 
-  assert.equal(
+  expect(
     getOutlineActiveAnchorIdForRange(messages, {
       startIndex: 1,
       endIndex: 2,
     }),
-    createMessageAnchorId("a1"),
-  );
+  ).toBe(createMessageAnchorId("a1"));
 });
 
 test("mobile message outline opens in a full-height viewport panel", () => {
@@ -207,9 +226,5 @@ test("mobile message outline opens in a full-height viewport panel", () => {
     "utf8",
   );
 
-  assert.match(
-    source,
-    /mobileFillViewport:\s*isMobile/,
-    "mobile outline should use the available viewport instead of a short bottom sheet",
-  );
+  expect(source).toMatch(/mobileFillViewport:\s*isMobile/);
 });

@@ -115,47 +115,15 @@ class TaskCancellation:
         except Exception as e:
             logger.warning(f"Failed to set interrupt signal: {e}")
 
-        # 3. 直接更新 MongoDB trace 状态为 error（确保 trace 状态被更新）
-        if run_info:
-            trace_id = run_info.get("trace_id")
-            if trace_id:
-                try:
-                    trace_storage = get_trace_storage()
-                    success = await trace_storage.complete_trace(
-                        trace_id,
-                        status="error",
-                        metadata={"cancel_reason": "Task cancelled by user"},
-                        ensure_token_usage=False,
-                    )
-                    logger.info(
-                        f"MongoDB trace status updated: trace_id={trace_id}, success={success}"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to update trace status: {e}")
+        task_to_cancel: asyncio.Task | None = None
+        async with self._lock:
+            if run_id in self._tasks:
+                task = self._tasks[run_id]
+                if not task.done():
+                    task_to_cancel = task
 
-        # 3.1 记录用户取消事件
         if user_id and run_info:
             session_id = run_info.get("session_id")
-            trace_id = run_info.get("trace_id")
-            if session_id and trace_id:
-                try:
-                    from src.infra.session.dual_writer import get_dual_writer
-
-                    dual_writer = get_dual_writer()
-                    await dual_writer.write_event(
-                        session_id=session_id,
-                        event_type="user:cancel",
-                        data={
-                            "user_id": user_id,
-                            "run_id": run_id,
-                            "timestamp": utc_now_iso(),
-                        },
-                        trace_id=trace_id,
-                        run_id=run_id,
-                    )
-                    logger.info(f"User cancel event recorded: user_id={user_id}, run_id={run_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to record user cancel event: {e}")
             if session_id:
                 try:
                     await SessionStorage().update(
@@ -170,6 +138,34 @@ class TaskCancellation:
                 except Exception as e:
                     logger.warning(f"Failed to persist cancel recovery metadata: {e}")
 
+        # If this process owns the task, run_task will persist terminal events
+        # in the right order. Only fall back here when no local task can do it.
+        if run_info and task_to_cancel is None:
+            trace_id = run_info.get("trace_id")
+            if trace_id:
+                try:
+                    if run_info.get("session_id"):
+                        try:
+                            from src.infra.session.dual_writer import get_dual_writer
+
+                            await get_dual_writer().flush_mongo_buffer()
+                        except Exception as flush_error:
+                            logger.warning(
+                                f"Failed to flush events before trace completion: {flush_error}"
+                            )
+                    trace_storage = get_trace_storage()
+                    success = await trace_storage.complete_trace(
+                        trace_id,
+                        status="error",
+                        metadata={"cancel_reason": "Task cancelled by user"},
+                        ensure_token_usage=False,
+                    )
+                    logger.info(
+                        f"MongoDB trace status updated: trace_id={trace_id}, success={success}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update trace status: {e}")
+
         # 4. 调用 agent.close(run_id) 取消 graph 执行
         if run_info:
             agent_id = run_info.get("agent_id")
@@ -182,13 +178,6 @@ class TaskCancellation:
                     logger.info(f"Agent.close({run_id}) called for agent={agent_id}")
                 except Exception as e:
                     logger.warning(f"Failed to call agent.close: {e}")
-
-        task_to_cancel: asyncio.Task | None = None
-        async with self._lock:
-            if run_id in self._tasks:
-                task = self._tasks[run_id]
-                if not task.done():
-                    task_to_cancel = task
 
         if task_to_cancel is not None:
             try:

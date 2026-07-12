@@ -2,6 +2,7 @@
 
 import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -83,7 +84,7 @@ def _unload_test_subjects():
     prefixes = (
         "src.agents.fast_agent",
         "src.agents.search_agent",
-        "src.agents.team_agent",
+        "plugins.system.agent_team.backend.runtime",
         "src.agents.core.persona",
         "src.infra.backend",
         "src.infra.llm",
@@ -105,6 +106,9 @@ def _mock_heavy_deps():
     _install_deepagents_mocks()
     _install_external_mocks()
     yield
+    from src.agents import set_plugin_runtime
+
+    set_plugin_runtime(None)
     _unload_test_subjects()
     _remove_mock_modules()
 
@@ -129,10 +133,20 @@ def test_search_agent_registered():
 
 
 def test_team_agent_registered():
-    from src.agents import discover_agents
+    from src.agents import discover_agents, set_plugin_runtime
+    from src.kernel.extensions import AGENT_TEAM_PLUGIN_ID, BUILTIN_PLUGIN_MANIFESTS, PluginRuntime
 
+    _AGENT_REGISTRY.pop("team", None)
+    manifest = next(
+        plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID
+    )
+    set_plugin_runtime(PluginRuntime([manifest]))
     discover_agents()
     assert "team" in _AGENT_REGISTRY
+
+
+def test_team_agent_source_directory_removed():
+    assert not Path("src/agents/team_agent").exists()
 
 
 # ---------------------------------------------------------------------------

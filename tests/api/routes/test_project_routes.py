@@ -143,9 +143,9 @@ async def test_project_plugin_options_filter_undeclared_metadata_values(
     )
     project_storage = _FakeProjectStorage(project)
     fake_runtime = SimpleNamespace(
-        get_state=lambda plugin_id: SimpleNamespace(manifest=manifest)
-        if plugin_id == "agent_team"
-        else None,
+        get_state=lambda plugin_id: (
+            SimpleNamespace(manifest=manifest) if plugin_id == "agent_team" else None
+        ),
         states=lambda: [SimpleNamespace(manifest=manifest)],
     )
     monkeypatch.setattr(project_route, "get_project_storage", lambda: project_storage)
@@ -197,9 +197,7 @@ async def test_project_plugin_options_include_project_scoped_plugin_settings(
         user=SimpleNamespace(sub="user-1"),
     )
 
-    assert response["plugin_options"] == {
-        "agent_team": {"DEFAULT_TEAM_ID": "team-from-settings"}
-    }
+    assert response["plugin_options"] == {"agent_team": {"DEFAULT_TEAM_ID": "team-from-settings"}}
 
 
 @pytest.mark.asyncio
@@ -248,9 +246,11 @@ async def test_project_plugin_options_keep_false_and_zero_values(
         updated_by="user-1",
     )
     monkeypatch.setattr(project_route, "get_project_storage", lambda: project_storage)
-    monkeypatch.setattr(project_route, "_get_plugin_runtime", lambda _request: SimpleNamespace(
-        states=lambda: [SimpleNamespace(manifest=manifest)]
-    ))
+    monkeypatch.setattr(
+        project_route,
+        "_get_plugin_runtime",
+        lambda _request: SimpleNamespace(states=lambda: [SimpleNamespace(manifest=manifest)]),
+    )
 
     response = await project_route.get_project_plugin_options(
         "project-1",
@@ -264,9 +264,7 @@ async def test_project_plugin_options_keep_false_and_zero_values(
         user=SimpleNamespace(sub="user-1"),
     )
 
-    assert response["plugin_options"] == {
-        "project_flags": {"LIMIT": 0, "SHOW_BADGE": False}
-    }
+    assert response["plugin_options"] == {"project_flags": {"LIMIT": 0, "SHOW_BADGE": False}}
 
 
 @pytest.mark.asyncio
@@ -342,9 +340,11 @@ async def test_project_plugin_option_update_drops_undeclared_metadata_values(
     project_storage = _FakeProjectStorage(project)
     settings_service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
     fake_runtime = SimpleNamespace(
-        get_state=lambda plugin_id: SimpleNamespace(executable=True, manifest=manifest)
-        if plugin_id == "agent_team"
-        else None,
+        get_state=lambda plugin_id: (
+            SimpleNamespace(executable=True, manifest=manifest)
+            if plugin_id == "agent_team"
+            else None
+        ),
         states=lambda: [SimpleNamespace(manifest=manifest)],
     )
     monkeypatch.setattr(project_route, "get_project_storage", lambda: project_storage)

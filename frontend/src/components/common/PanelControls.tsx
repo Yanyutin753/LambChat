@@ -1,13 +1,8 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Select } from "./ui";
 import type { SelectOption } from "./ui";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 
 function cx(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(" ");
@@ -94,7 +89,6 @@ export function FilterDropdown({
   const setIsOpen = onOpenChange ?? setInternalOpen;
 
   const triggerRef = useRef<HTMLDivElement>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -108,61 +102,35 @@ export function FilterDropdown({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isOpen, setIsOpen]);
 
-  // Position dropdown (portal-based, flips above when insufficient space below)
-  useLayoutEffect(() => {
-    if (!isOpen || !triggerRef.current) return;
-    let frame = 0;
-    const updateDropdownPosition = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const rect = triggerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-        const viewportHeight =
-          window.visualViewport?.height ?? window.innerHeight;
-        const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
-        const gutter = 16;
-        const width = Math.min(288, viewportWidth - gutter * 2);
-        const left = Math.max(
-          gutter,
-          Math.min(rect.left, viewportWidth - width - gutter),
-        );
-        const spaceBelow = viewportHeight - rect.bottom - gutter;
-        const spaceAbove = rect.top - viewportOffsetTop - gutter;
-        const preferBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove;
-
-        setDropdownStyle({
-          position: "fixed",
-          top: preferBelow ? rect.bottom + 4 : undefined,
-          bottom: preferBelow ? undefined : viewportHeight - rect.top + 4,
-          left,
-          width,
-          zIndex: 9999,
-        });
-      });
-    };
-
-    updateDropdownPosition();
-    window.addEventListener("resize", updateDropdownPosition);
-    window.addEventListener("scroll", updateDropdownPosition, true);
-    window.visualViewport?.addEventListener("resize", updateDropdownPosition);
-    window.visualViewport?.addEventListener("scroll", updateDropdownPosition);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("resize", updateDropdownPosition);
-      window.removeEventListener("scroll", updateDropdownPosition, true);
-      window.visualViewport?.removeEventListener(
-        "resize",
-        updateDropdownPosition,
+  // Position dropdown once on open, never recalculate
+  const dropdownStyle = useStickyDropdownPosition(
+    triggerRef,
+    isOpen,
+    (rect) => {
+      const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+      const viewportHeight =
+        window.visualViewport?.height ?? window.innerHeight;
+      const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
+      const gutter = 16;
+      const width = Math.min(288, viewportWidth - gutter * 2);
+      const left = Math.max(
+        gutter,
+        Math.min(rect.left, viewportWidth - width - gutter),
       );
-      window.visualViewport?.removeEventListener(
-        "scroll",
-        updateDropdownPosition,
-      );
-    };
-  }, [isOpen]);
+      const spaceBelow = viewportHeight - rect.bottom - gutter;
+      const spaceAbove = rect.top - viewportOffsetTop - gutter;
+      const preferBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove;
+
+      return {
+        position: "fixed",
+        top: preferBelow ? rect.bottom + 4 : undefined,
+        bottom: preferBelow ? undefined : viewportHeight - rect.top + 4,
+        left,
+        width,
+        zIndex: 9999,
+      };
+    },
+  );
 
   return (
     <div className="relative shrink-0" data-filter-menu ref={triggerRef}>

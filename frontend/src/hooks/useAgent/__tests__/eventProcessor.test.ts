@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import type { MessagePart } from "../../../types";
 import { processMessageEvent } from "../eventProcessor.ts";
 
@@ -43,11 +41,11 @@ test("merges streamed summary chunks inside a subagent by summary id", () => {
   );
 
   const subagent = second.parts[0];
-  assert.equal(subagent.type, "subagent");
+  expect(subagent.type).toBe("subagent");
   const summaries = subagent.parts?.filter((part) => part.type === "summary");
 
-  assert.equal(summaries?.length, 1);
-  assert.equal(summaries?.[0]?.content, "first second");
+  expect(summaries?.length).toBe(1);
+  expect(summaries?.[0]?.content).toBe("first second");
 });
 
 test("agent call uses provided team role display name", () => {
@@ -67,10 +65,10 @@ test("agent call uses provided team role display name", () => {
     "message-1",
   );
 
-  assert.equal(result.parts.length, 1);
+  expect(result.parts.length).toBe(1);
   const subagent = result.parts[0];
-  assert.equal(subagent.type, "subagent");
-  assert.equal(subagent.agent_name, "Researcher");
+  expect(subagent.type).toBe("subagent");
+  expect(subagent.agent_name).toBe("Researcher");
 });
 
 test("agent call preserves team role avatar url", () => {
@@ -92,8 +90,8 @@ test("agent call preserves team role avatar url", () => {
   );
 
   const subagent = result.parts[0];
-  assert.equal(subagent.type, "subagent");
-  assert.equal(subagent.agent_avatar, "https://cdn.example.com/designer.png");
+  expect(subagent.type).toBe("subagent");
+  expect(subagent.agent_avatar).toBe("https://cdn.example.com/designer.png");
 });
 
 test("adds recommended questions from recommendation events", () => {
@@ -115,11 +113,10 @@ test("adds recommended questions from recommendation events", () => {
     "message-1",
   );
 
-  assert.equal(result.parts.length, 1);
+  expect(result.parts.length).toBe(1);
   const recommendations = result.parts[0];
-  assert.equal(recommendations.type, "recommend_questions");
-  assert.deepEqual(
-    recommendations.questions.map((question) => question.content),
+  expect(recommendations.type).toBe("recommend_questions");
+  expect(recommendations.questions.map((question) => question.content)).toEqual(
     [
       "如何预防胫骨内侧压力综合征？",
       "赛前减量期具体怎么做？",
@@ -157,13 +154,64 @@ test("adds artifact result events as artifact parts without tool chrome", () => 
     "message-1",
   );
 
-  assert.equal(result.parts.length, 1);
+  expect(result.parts.length).toBe(1);
   const artifact = result.parts[0];
-  assert.equal(artifact.type, "artifact");
+  expect(artifact.type).toBe("artifact");
   if (artifact.type !== "artifact") return;
-  assert.equal(artifact.success, true);
-  assert.equal(artifact.artifact.kind, "file");
-  assert.equal(artifact.artifact.name, "report.pdf");
+  expect(artifact.success).toBe(true);
+  expect(artifact.artifact.kind).toBe("file");
+  expect(artifact.artifact.name).toBe("report.pdf");
+});
+
+test("adds generic plugin message events as plugin message parts", () => {
+  const result = processMessageEvent(
+    "plugin:message",
+    {
+      plugin_id: "automation_runner",
+      renderer: "automation_runner.RunCard",
+      id: "run-1",
+      title: "Run completed",
+      status: "completed",
+      payload: { run_id: "run-1", output: { answer: "done" } },
+      timestamp: "2026-07-08T12:00:00Z",
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(result.parts.length).toBe(1);
+  const pluginMessage = result.parts[0];
+  expect(pluginMessage.type).toBe("plugin_message");
+  if (pluginMessage.type !== "plugin_message") return;
+  expect(pluginMessage.plugin_id).toBe("automation_runner");
+  expect(pluginMessage.renderer).toBe("automation_runner.RunCard");
+  expect(pluginMessage.id).toBe("run-1");
+  expect(pluginMessage.status).toBe("completed");
+  expect(pluginMessage.payload).toEqual({
+    run_id: "run-1",
+    output: { answer: "done" },
+  });
+});
+
+test("ignores plugin message events without a plugin id or renderer", () => {
+  const result = processMessageEvent(
+    "plugin:message",
+    { plugin_id: "automation_runner", payload: { run_id: "run-1" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(result.parts.length).toBe(0);
 });
 
 test("complete event cancels unfinished todo items", () => {
@@ -190,11 +238,12 @@ test("complete event cancels unfinished todo items", () => {
   );
 
   const todo = result.parts[0];
-  assert.equal(todo.type, "todo");
-  assert.equal(todo.isStreaming, false);
-  assert.deepEqual(
-    todo.items.map((item) => item.status),
-    ["completed", "cancelled", "cancelled"],
-  );
-  assert.equal(todo.items[1].activeForm, undefined);
+  expect(todo.type).toBe("todo");
+  expect(todo.isStreaming).toBe(false);
+  expect(todo.items.map((item) => item.status)).toEqual([
+    "completed",
+    "cancelled",
+    "cancelled",
+  ]);
+  expect(todo.items[1].activeForm).toBe(undefined);
 });

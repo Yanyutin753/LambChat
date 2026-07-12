@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   APP_ROUTE_CONTRIBUTIONS,
   CORE_APP_ROUTES,
@@ -23,6 +21,7 @@ import {
   buildMentionProviderContributions,
   buildMessageActionContributions,
   buildPanelContributions,
+  buildPluginMessageRendererContributions,
   buildPluginAssetSlotContributions,
   buildPluginContributionPreview,
   buildProjectOptionContributions,
@@ -42,6 +41,7 @@ import {
   findCorePanelContribution,
   findPanelContribution,
   getCoreToolRendererId,
+  getPluginMessageRenderer,
   getToolRendererId,
   hasCoreToolRenderer,
   hasAgentCatalogEntryContribution,
@@ -49,6 +49,7 @@ import {
   hasFileViewerContribution,
   hasI18nNamespaceContribution,
   hasMessageActionContribution,
+  hasPluginMessageRenderer,
   hasPluginAssetSlotContribution,
   hasRuntimeManagedChannelConnector,
   hasSkillImporterContribution,
@@ -267,7 +268,7 @@ function enabledAgentTeamPlugin(): PluginRuntimeContributionState {
     agents: [
       {
         id: "team",
-        module: "src.agents.team_agent.graph.TeamAgent",
+        module: "./backend/runtime/graph.py:TeamAgent",
         name: "agents.team.name",
         description: "agents.team.description",
         icon: "Users",
@@ -446,112 +447,10 @@ function enabledAgentTeamPlugin(): PluginRuntimeContributionState {
   };
 }
 
-function enabledWorkflowPluginPlugin(): PluginRuntimeContributionState {
-  return {
-    plugin_id: "workflow",
-    enabled: true,
-    executable: true,
-    status: "enabled",
-    frontend: {
-      app_tabs: [
-        {
-          id: "workflow:workflows-tab",
-          tab: "workflows",
-          path: "/workflows",
-          label: "workflowPlugin.nav.label",
-          panel: "workflow:workflows-panel",
-          insert_after: "agent-team",
-          order: 700,
-          permissions: [Permission.WORKFLOW_READ],
-        },
-        {
-          id: "workflow:workflow-editor-tab",
-          tab: "workflows-editor",
-          path: "/workflows/:workflowId/editor",
-          label: "workflowPlugin.nav.editorLabel",
-          panel: "workflow:workflow-editor-panel",
-          insert_after: "workflows",
-          order: 701,
-          permissions: [Permission.WORKFLOW_READ],
-        },
-        {
-          id: "workflow:workflow-run-tab",
-          tab: "workflows-run",
-          path: "/workflows/:workflowId/runs/:runId",
-          label: "workflowPlugin.nav.runLabel",
-          panel: "workflow:workflow-run-panel",
-          insert_after: "workflows-editor",
-          order: 702,
-          permissions: [Permission.WORKFLOW_READ],
-        },
-      ],
-      app_panels: [
-        {
-          id: "workflow:workflows-panel",
-          tab: "workflows",
-          renderer: "workflow.WorkflowPanel",
-        },
-        {
-          id: "workflow:workflow-editor-panel",
-          tab: "workflows-editor",
-          renderer: "workflow.WorkflowPanel",
-        },
-        {
-          id: "workflow:workflow-run-panel",
-          tab: "workflows-run",
-          renderer: "workflow.WorkflowPanel",
-        },
-      ],
-      sidebar_items: [
-        {
-          id: "workflow:workflows-nav",
-          path: "/workflows",
-          label: "workflowPlugin.nav.label",
-          icon: "Workflow",
-          order: 30,
-          permissions: [Permission.WORKFLOW_READ],
-        },
-      ],
-      chat_input_options: [
-        {
-          id: "workflow:select-workflow",
-          slot: "enhance",
-          label: "workflowPlugin.chat.selectWorkflow",
-          icon: "Workflow",
-          panel: "workflow:workflow-picker",
-          selected_renderer: "workflow.SelectedWorkflowChip",
-          shortcut: "mod+w",
-          order: 30,
-          option_binding: {
-            plugin_id: "workflow",
-            key: "SELECTED_WORKFLOW_ID",
-            scope: "session",
-          },
-        },
-      ],
-      chat_input_panels: [
-        {
-          id: "workflow:workflow-picker",
-          renderer: "workflow.WorkflowPickerModal",
-          create_path: "/workflows?create=blank",
-          manage_path: "/workflows",
-          option_binding: {
-            plugin_id: "workflow",
-            key: "SELECTED_WORKFLOW_ID",
-            scope: "session",
-          },
-        },
-      ],
-    },
-  };
-}
-
 test("core app routes preserve legacy paths, SEO paths, and permissions", () => {
   const routes = new Map(CORE_APP_ROUTES.map((route) => [route.id, route]));
 
-  assert.deepEqual(
-    CORE_APP_ROUTES.map((route) => route.id),
-    [
+  expect(CORE_APP_ROUTES.map((route) => route.id)).toEqual([
       "skills",
       "marketplace",
       "plugins",
@@ -566,20 +465,19 @@ test("core app routes preserve legacy paths, SEO paths, and permissions", () => 
       "notifications",
       "memory",
       "scheduled-tasks",
-    ],
-  );
-  assert.equal(routes.get("channels")?.path, "/channels/:channelType?/:instanceId?");
-  assert.equal(routes.get("channels")?.seoPath, "/channels");
-  assert.deepEqual(routes.get("skills")?.permissions, [
+    ]);
+  expect(routes.get("channels")?.path).toBe("/channels/:channelType?/:instanceId?");
+  expect(routes.get("channels")?.seoPath).toBe("/channels");
+  expect(routes.get("skills")?.permissions).toEqual([
     Permission.SKILL_READ,
     Permission.MARKETPLACE_READ,
   ]);
-  assert.equal(routes.get("plugins")?.path, "/plugins");
-  assert.deepEqual(routes.get("plugins")?.permissions, [Permission.MARKETPLACE_READ]);
-  assert.equal(routes.get("team"), undefined);
-  assert.equal(routes.get("files")?.permissions, undefined);
-  assert.equal(routes.get("usage"), undefined);
-  assert.equal(routes.has("feedback"), false);
+  expect(routes.get("plugins")?.path).toBe("/plugins");
+  expect(routes.get("plugins")?.permissions).toEqual([Permission.MARKETPLACE_READ]);
+  expect(routes.get("team")).toBe(undefined);
+  expect(routes.get("files")?.permissions).toBe(undefined);
+  expect(routes.get("usage")).toBe(undefined);
+  expect(routes.has("feedback")).toBe(false);
 });
 
 test("default route snapshot is core-only and plugin pages require runtime declarations", () => {
@@ -592,29 +490,27 @@ test("default route snapshot is core-only and plugin pages require runtime decla
     ]).map((route) => [route.id, route]),
   );
 
-  assert.equal(appRoutes.get("feedback"), undefined);
-  assert.equal(appRoutes.get("team"), undefined);
-  assert.equal(appRoutes.get("usage"), undefined);
-  assert.equal(runtimeRoutes.get("feedback")?.path, "/feedback");
-  assert.deepEqual(runtimeRoutes.get("feedback")?.permissions, [
+  expect(appRoutes.get("feedback")).toBe(undefined);
+  expect(appRoutes.get("team")).toBe(undefined);
+  expect(appRoutes.get("usage")).toBe(undefined);
+  expect(runtimeRoutes.get("feedback")?.path).toBe("/feedback");
+  expect(runtimeRoutes.get("feedback")?.permissions).toEqual([
     Permission.FEEDBACK_READ,
   ]);
   const team = runtimeRoutes.get("agent-team");
-  assert.equal(team?.pluginId, "agent_team");
-  assert.equal(team?.path, "/agent-team");
-  assert.equal(team?.tab, "agent-team");
-  assert.equal(team?.insertAfterId, "agents");
-  assert.deepEqual(team?.permissions, [Permission.TEAM_READ]);
+  expect(team?.pluginId).toBe("agent_team");
+  expect(team?.path).toBe("/agent-team");
+  expect(team?.tab).toBe("agent-team");
+  expect(team?.insertAfterId).toBe("agents");
+  expect(team?.permissions).toEqual([Permission.TEAM_READ]);
   const usage = runtimeRoutes.get("usage");
-  assert.equal(usage?.pluginId, "usage_reports");
-  assert.equal(usage?.path, "/usage");
-  assert.equal(usage?.tab, "usage");
-  assert.equal(usage?.redirectTo, "/chat");
-  assert.equal(usage?.showNoPermissionToast, true);
-  assert.deepEqual(usage?.permissions, [Permission.USAGE_READ]);
-  assert.deepEqual(
-    APP_ROUTE_CONTRIBUTIONS.map((route) => route.id),
-    [
+  expect(usage?.pluginId).toBe("usage_reports");
+  expect(usage?.path).toBe("/usage");
+  expect(usage?.tab).toBe("usage");
+  expect(usage?.redirectTo).toBe("/chat");
+  expect(usage?.showNoPermissionToast).toBe(true);
+  expect(usage?.permissions).toEqual([Permission.USAGE_READ]);
+  expect(APP_ROUTE_CONTRIBUTIONS.map((route) => route.id)).toEqual([
       "skills",
       "marketplace",
       "plugins",
@@ -629,42 +525,41 @@ test("default route snapshot is core-only and plugin pages require runtime decla
       "notifications",
       "memory",
       "scheduled-tasks",
-    ],
-  );
+    ]);
 });
 
 test("core panel contributions mirror non-chat app tabs", () => {
   const routeTabs = CORE_APP_ROUTES.map((route) => route.tab);
   const panelTabs = CORE_PANEL_CONTRIBUTIONS.map((panel) => panel.tab);
 
-  assert.deepEqual(panelTabs, routeTabs);
-  assert.equal(findCoreAppRoute("chat"), undefined);
-  assert.equal(findCorePanelContribution("chat"), undefined);
+  expect(panelTabs).toEqual(routeTabs);
+  expect(findCoreAppRoute("chat")).toBe(undefined);
+  expect(findCorePanelContribution("chat")).toBe(undefined);
   for (const tab of routeTabs) {
-    assert.equal(findCoreAppRoute(tab)?.tab, tab);
-    assert.equal(findCorePanelContribution(tab)?.tab, tab);
+    expect(findCoreAppRoute(tab)?.tab).toBe(tab);
+    expect(findCorePanelContribution(tab)?.tab).toBe(tab);
   }
-  assert.equal(findCoreAppRoute("feedback"), undefined);
-  assert.equal(findCorePanelContribution("feedback"), undefined);
-  assert.equal(findCoreAppRoute("team"), undefined);
-  assert.equal(findCorePanelContribution("team"), undefined);
-  assert.equal(findCoreAppRoute("usage"), undefined);
-  assert.equal(findCorePanelContribution("usage"), undefined);
+  expect(findCoreAppRoute("feedback")).toBe(undefined);
+  expect(findCorePanelContribution("feedback")).toBe(undefined);
+  expect(findCoreAppRoute("team")).toBe(undefined);
+  expect(findCorePanelContribution("team")).toBe(undefined);
+  expect(findCoreAppRoute("usage")).toBe(undefined);
+  expect(findCorePanelContribution("usage")).toBe(undefined);
 });
 
 test("default panel contributions mirror core routes and exclude plugin panels", () => {
   const routeTabs = APP_ROUTE_CONTRIBUTIONS.map((route) => route.tab);
   const panelTabs = PANEL_CONTRIBUTIONS.map((panel) => panel.tab);
 
-  assert.deepEqual(panelTabs, routeTabs);
-  assert.equal(findAppRouteContribution("chat"), undefined);
-  assert.equal(findPanelContribution("chat"), undefined);
-  assert.equal(findAppRouteContribution("feedback"), undefined);
-  assert.equal(findPanelContribution("feedback"), undefined);
-  assert.equal(findAppRouteContribution("team"), undefined);
-  assert.equal(findPanelContribution("team"), undefined);
-  assert.equal(findAppRouteContribution("usage"), undefined);
-  assert.equal(findPanelContribution("usage"), undefined);
+  expect(panelTabs).toEqual(routeTabs);
+  expect(findAppRouteContribution("chat")).toBe(undefined);
+  expect(findPanelContribution("chat")).toBe(undefined);
+  expect(findAppRouteContribution("feedback")).toBe(undefined);
+  expect(findPanelContribution("feedback")).toBe(undefined);
+  expect(findAppRouteContribution("team")).toBe(undefined);
+  expect(findPanelContribution("team")).toBe(undefined);
+  expect(findAppRouteContribution("usage")).toBe(undefined);
+  expect(findPanelContribution("usage")).toBe(undefined);
 });
 
 test("structured plugin app tab and panel declarations drive runtime routes", () => {
@@ -677,55 +572,21 @@ test("structured plugin app tab and panel declarations drive runtime routes", ()
   const routes = new Map(buildAppRouteContributions(runtimePlugins).map((route) => [route.id, route]));
   const panels = new Map(buildPanelContributions(runtimePlugins).map((panel) => [panel.id, panel]));
 
-  assert.equal(routes.get("feedback")?.path, "/feedback");
-  assert.equal(routes.get("feedback")?.insertAfterId, "settings");
-  assert.equal(findAppRouteContribution("feedback", runtimePlugins)?.path, "/feedback");
-  assert.equal(panels.get("feedback")?.renderer, "feedback.FeedbackPanel");
-  assert.equal(findPanelContribution("feedback", runtimePlugins)?.renderer, "feedback.FeedbackPanel");
-  assert.equal(routes.get("agent-team")?.path, "/agent-team");
-  assert.equal(routes.get("agent-team")?.insertAfterId, "agents");
-  assert.equal(findAppRouteContribution("agent-team", runtimePlugins)?.path, "/agent-team");
-  assert.equal(panels.get("agent-team")?.renderer, "agent_team.TeamBuilderPanel");
-  assert.equal(findPanelContribution("agent-team", runtimePlugins)?.renderer, "agent_team.TeamBuilderPanel");
-  assert.equal(routes.get("usage")?.path, "/usage");
-  assert.equal(routes.get("usage")?.insertAfterId, "scheduled-tasks");
-  assert.equal(findAppRouteContribution("usage", runtimePlugins)?.path, "/usage");
-  assert.equal(panels.get("usage")?.renderer, "usage_reports.UsagePanel");
-  assert.equal(findPanelContribution("usage", runtimePlugins)?.renderer, "usage_reports.UsagePanel");
-});
-
-test("Workflow registers as an Agent Team peer with dedicated editor and run routes", () => {
-  const runtimePlugins: PluginRuntimeContributionState[] = [
-    enabledAgentTeamPlugin(),
-    enabledWorkflowPluginPlugin(),
-  ];
-
-  const routes = buildAppRouteContributions(runtimePlugins);
-  const routeIds = routes.map((route) => route.id);
-  const routeById = new Map(routes.map((route) => [route.id, route]));
-  const panels = new Map(buildPanelContributions(runtimePlugins).map((panel) => [panel.id, panel]));
-  const pluginNavItems = buildSidebarMoreNavContributions(runtimePlugins).filter(
-    (item) => item.pluginId === "agent_team" || item.pluginId === "workflow",
-  );
-
-  assert.equal(routeIds.indexOf("workflows"), routeIds.indexOf("agent-team") + 1);
-  assert.equal(routeIds.indexOf("workflows-editor"), routeIds.indexOf("workflows") + 1);
-  assert.equal(routeIds.indexOf("workflows-run"), routeIds.indexOf("workflows-editor") + 1);
-
-  assert.equal(routeById.get("workflows")?.pluginId, "workflow");
-  assert.equal(routeById.get("workflows")?.path, "/workflows");
-  assert.equal(routeById.get("workflows")?.insertAfterId, "agent-team");
-  assert.deepEqual(routeById.get("workflows")?.permissions, [Permission.WORKFLOW_READ]);
-  assert.equal(routeById.get("workflows-editor")?.path, "/workflows/:workflowId/editor");
-  assert.equal(routeById.get("workflows-editor")?.insertAfterId, "workflows");
-  assert.equal(routeById.get("workflows-run")?.path, "/workflows/:workflowId/runs/:runId");
-  assert.equal(routeById.get("workflows-run")?.insertAfterId, "workflows-editor");
-
-  assert.equal(panels.get("workflows")?.renderer, "workflow.WorkflowPanel");
-  assert.equal(panels.get("workflows-editor")?.renderer, "workflow.WorkflowPanel");
-  assert.equal(panels.get("workflows-run")?.renderer, "workflow.WorkflowPanel");
-  assert.deepEqual(pluginNavItems.map((item) => item.path), ["/agent-team", "/workflows"]);
-  assert.equal(pluginNavItems[1]?.labelKey, "workflowPlugin.nav.label");
+  expect(routes.get("feedback")?.path).toBe("/feedback");
+  expect(routes.get("feedback")?.insertAfterId).toBe("settings");
+  expect(findAppRouteContribution("feedback", runtimePlugins)?.path).toBe("/feedback");
+  expect(panels.get("feedback")?.renderer).toBe("feedback.FeedbackPanel");
+  expect(findPanelContribution("feedback", runtimePlugins)?.renderer).toBe("feedback.FeedbackPanel");
+  expect(routes.get("agent-team")?.path).toBe("/agent-team");
+  expect(routes.get("agent-team")?.insertAfterId).toBe("agents");
+  expect(findAppRouteContribution("agent-team", runtimePlugins)?.path).toBe("/agent-team");
+  expect(panels.get("agent-team")?.renderer).toBe("agent_team.TeamBuilderPanel");
+  expect(findPanelContribution("agent-team", runtimePlugins)?.renderer).toBe("agent_team.TeamBuilderPanel");
+  expect(routes.get("usage")?.path).toBe("/usage");
+  expect(routes.get("usage")?.insertAfterId).toBe("scheduled-tasks");
+  expect(findAppRouteContribution("usage", runtimePlugins)?.path).toBe("/usage");
+  expect(panels.get("usage")?.renderer).toBe("usage_reports.UsagePanel");
+  expect(findPanelContribution("usage", runtimePlugins)?.renderer).toBe("usage_reports.UsagePanel");
 });
 
 test("runtime route and panel lookup respects disabled plugin state", () => {
@@ -734,10 +595,10 @@ test("runtime route and panel lookup respects disabled plugin state", () => {
     disabledPlugin(enabledAgentTeamPlugin()),
   ];
 
-  assert.equal(findAppRouteContribution("feedback", disabledRuntimePlugins), undefined);
-  assert.equal(findPanelContribution("feedback", disabledRuntimePlugins), undefined);
-  assert.equal(findAppRouteContribution("team", disabledRuntimePlugins), undefined);
-  assert.equal(findPanelContribution("team", disabledRuntimePlugins), undefined);
+  expect(findAppRouteContribution("feedback", disabledRuntimePlugins)).toBe(undefined);
+  expect(findPanelContribution("feedback", disabledRuntimePlugins)).toBe(undefined);
+  expect(findAppRouteContribution("team", disabledRuntimePlugins)).toBe(undefined);
+  expect(findPanelContribution("team", disabledRuntimePlugins)).toBe(undefined);
 });
 
 test("structured plugin declarations do not require legacy route panel or nav ids", () => {
@@ -747,35 +608,26 @@ test("structured plugin declarations do not require legacy route panel or nav id
     enabledUsageReportsPlugin(),
   ];
 
-  assert.deepEqual(
-    runtimePlugins.map((plugin) => ({
+  expect(runtimePlugins.map((plugin) => ({
       pluginId: plugin.plugin_id,
       routes: plugin.frontend?.routes ?? [],
       panels: plugin.frontend?.panels ?? [],
       navItems: plugin.frontend?.nav_items ?? [],
-    })),
-    [
+    }))).toEqual([
       { pluginId: "feedback", routes: [], panels: [], navItems: [] },
       { pluginId: "agent_team", routes: [], panels: [], navItems: [] },
       { pluginId: "usage_reports", routes: [], panels: [], navItems: [] },
-    ],
-  );
-  assert.deepEqual(
-    buildAppRouteContributions(runtimePlugins)
+    ]);
+  expect(buildAppRouteContributions(runtimePlugins)
       .filter((route) => ["feedback", "agent-team", "usage"].includes(route.id))
-      .map((route) => `${route.id}:${route.path}`),
-    ["feedback:/feedback", "agent-team:/agent-team", "usage:/usage"],
-  );
-  assert.deepEqual(
-    buildPanelContributions(runtimePlugins)
+      .map((route) => `${route.id}:${route.path}`)).toEqual(["feedback:/feedback", "agent-team:/agent-team", "usage:/usage"]);
+  expect(buildPanelContributions(runtimePlugins)
       .filter((panel) => ["feedback", "agent-team", "usage"].includes(panel.id))
-      .map((panel) => `${panel.id}:${panel.renderer}`),
-    [
+      .map((panel) => `${panel.id}:${panel.renderer}`)).toEqual([
       "feedback:feedback.FeedbackPanel",
       "agent-team:agent_team.TeamBuilderPanel",
       "usage:usage_reports.UsagePanel",
-    ],
-  );
+    ]);
 });
 
 test("legacy route panel and nav ids no longer synthesize runtime plugin UI", () => {
@@ -815,28 +667,16 @@ test("legacy route panel and nav ids no longer synthesize runtime plugin UI", ()
     },
   ];
 
-  assert.equal(
-    buildAppRouteContributions(runtimePlugins).some((route) =>
+  expect(buildAppRouteContributions(runtimePlugins).some((route) =>
       ["feedback", "team", "usage"].includes(route.id),
-    ),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).some((panel) =>
+    )).toBe(false);
+  expect(buildPanelContributions(runtimePlugins).some((panel) =>
       ["feedback", "team", "usage"].includes(panel.id),
-    ),
-    false,
-  );
-  assert.equal(
-    buildUserMenuContributions(runtimePlugins).some((item) =>
+    )).toBe(false);
+  expect(buildUserMenuContributions(runtimePlugins).some((item) =>
       ["feedback", "usage"].includes(item.id),
-    ),
-    false,
-  );
-  assert.equal(
-    buildSidebarMoreNavContributions(runtimePlugins).some((item) => item.id === "team"),
-    false,
-  );
+    )).toBe(false);
+  expect(buildSidebarMoreNavContributions(runtimePlugins).some((item) => item.id === "team")).toBe(false);
 });
 
 test("runtime app tab declarations can add new plugin-owned pages", () => {
@@ -893,149 +733,125 @@ test("runtime app tab declarations can add new plugin-owned pages", () => {
     },
   ];
 
-  assert.equal(
-    buildAppRouteContributions(runtimePlugins).find((route) => route.id === "reviews")?.path,
-    "/reviews",
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "reviews")?.renderer,
-    "review_center.ReviewsPanel",
-  );
-  assert.equal(
-    buildSidebarMoreNavContributions(runtimePlugins).find((item) => item.path === "/reviews")?.pluginId,
-    "review_center",
-  );
-  assert.equal(
-    buildUserMenuContributions(runtimePlugins).find((item) => item.path === "/reviews")?.pluginId,
-    "review_center",
-  );
+  expect(buildAppRouteContributions(runtimePlugins).find((route) => route.id === "reviews")?.path).toBe("/reviews");
+  expect(buildPanelContributions(runtimePlugins).find((panel) => panel.id === "reviews")?.renderer).toBe("review_center.ReviewsPanel");
+  expect(buildSidebarMoreNavContributions(runtimePlugins).find((item) => item.path === "/reviews")?.pluginId).toBe("review_center");
+  expect(buildUserMenuContributions(runtimePlugins).find((item) => item.path === "/reviews")?.pluginId).toBe("review_center");
 });
 
 test("runtime app tab declarations can insert after another plugin route", () => {
   const runtimePlugins: PluginRuntimeContributionState[] = [
     enabledAgentTeamPlugin(),
-    enabledWorkflowPluginPlugin(),
+    {
+      plugin_id: "review_center",
+      enabled: true,
+      executable: true,
+      status: "enabled",
+      frontend: {
+        app_tabs: [
+          {
+            id: "review_center:reviews-tab",
+            tab: "reviews",
+            path: "/reviews",
+            label: "nav.reviews",
+            panel: "review_center:reviews-panel",
+            insert_after: "agent-team",
+            order: 430,
+          },
+          {
+            id: "review_center:review-detail-tab",
+            tab: "review-detail",
+            path: "/reviews/:reviewId",
+            label: "nav.reviewDetail",
+            panel: "review_center:review-detail-panel",
+            insert_after: "reviews",
+            order: 431,
+          },
+        ],
+        app_panels: [
+          {
+            id: "review_center:reviews-panel",
+            tab: "reviews",
+            renderer: "review_center.ReviewsPanel",
+          },
+          {
+            id: "review_center:review-detail-panel",
+            tab: "review-detail",
+            renderer: "review_center.ReviewDetailPanel",
+          },
+        ],
+        sidebar_items: [
+          {
+            id: "review_center:reviews-nav",
+            path: "/reviews",
+            label: "nav.reviews",
+            icon: "Star",
+            order: 30,
+          },
+        ],
+      },
+    },
   ];
 
   const routes = buildAppRouteContributions(runtimePlugins);
   const routeIds = routes.map((route) => route.id);
 
-  assert.equal(routes.find((route) => route.id === "workflows")?.path, "/workflows");
-  assert.equal(
-    routes.find((route) => route.id === "workflows-editor")?.path,
-    "/workflows/:workflowId/editor",
+  expect(routes.find((route) => route.id === "reviews")?.path).toBe("/reviews");
+  expect(routes.find((route) => route.id === "review-detail")?.path).toBe("/reviews/:reviewId");
+  expect(routeIds.indexOf("reviews")).toBe(routeIds.indexOf("agent-team") + 1);
+  expect(routeIds.indexOf("review-detail")).toBe(routeIds.indexOf("reviews") + 1);
+  expect(buildPanelContributions(runtimePlugins).find((panel) => panel.id === "reviews")?.renderer).toBe("review_center.ReviewsPanel");
+  expect(buildPanelContributions(runtimePlugins).find((panel) => panel.id === "review-detail")?.renderer).toBe("review_center.ReviewDetailPanel");
+  const reviewsNav = buildSidebarMoreNavContributions(runtimePlugins).find(
+    (item) => item.id === "reviews",
   );
-  assert.equal(
-    routes.find((route) => route.id === "workflows-run")?.path,
-    "/workflows/:workflowId/runs/:runId",
-  );
-  assert.equal(
-    routeIds.indexOf("workflows"),
-    routeIds.indexOf("agent-team") + 1,
-  );
-  assert.equal(
-    routeIds.indexOf("workflows-editor"),
-    routeIds.indexOf("workflows") + 1,
-  );
-  assert.equal(
-    routeIds.indexOf("workflows-run"),
-    routeIds.indexOf("workflows-editor") + 1,
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "workflows")?.renderer,
-    "workflow.WorkflowPanel",
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "workflows-editor")?.renderer,
-    "workflow.WorkflowPanel",
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).find((panel) => panel.id === "workflows-run")?.renderer,
-    "workflow.WorkflowPanel",
-  );
-  const workflowNav = buildSidebarMoreNavContributions(runtimePlugins).find(
-    (item) => item.id === "workflows",
-  );
-  assert.equal(workflowNav?.path, "/workflows");
-  assert.equal(workflowNav?.labelKey, "workflowPlugin.nav.label");
-  assert.deepEqual(workflowNav?.requiredAnyPermissions, [Permission.WORKFLOW_READ]);
+  expect(reviewsNav?.path).toBe("/reviews");
+  expect(reviewsNav?.labelKey).toBe("nav.reviews");
 });
 
-test("Workflow route panel and nav follow plugin runtime state", () => {
+test("plugin route panel and nav follow plugin runtime state", () => {
   const enabledRuntimePlugins: PluginRuntimeContributionState[] = [
     enabledAgentTeamPlugin(),
-    enabledWorkflowPluginPlugin(),
+    enabledUsageReportsPlugin(),
   ];
   const disabledRuntimePlugins: PluginRuntimeContributionState[] = [
     enabledAgentTeamPlugin(),
-    disabledPlugin(enabledWorkflowPluginPlugin()),
+    disabledPlugin(enabledUsageReportsPlugin()),
   ];
 
-  assert.deepEqual(
-    buildAppRouteContributions(enabledRuntimePlugins)
-      .filter((route) => route.pluginId === "workflow")
-      .map((route) => `${route.id}:${route.path}`),
-    [
-      "workflows:/workflows",
-      "workflows-editor:/workflows/:workflowId/editor",
-      "workflows-run:/workflows/:workflowId/runs/:runId",
-    ],
-  );
-  assert.deepEqual(
-    buildPanelContributions(enabledRuntimePlugins)
-      .filter((panel) => panel.pluginId === "workflow")
-      .map((panel) => `${panel.id}:${panel.renderer}`),
-    [
-      "workflows:workflow.WorkflowPanel",
-      "workflows-editor:workflow.WorkflowPanel",
-      "workflows-run:workflow.WorkflowPanel",
-    ],
-  );
-  assert.deepEqual(
-    buildSidebarMoreNavContributions(enabledRuntimePlugins)
-      .filter((item) => item.pluginId === "workflow")
-      .map((item) => `${item.id}:${item.path}:${item.labelKey}`),
-    ["workflows:/workflows:workflowPlugin.nav.label"],
-  );
-  assert.equal(
-    buildAppRouteContributions(disabledRuntimePlugins).some(
-      (route) => route.pluginId === "workflow",
-    ),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions(disabledRuntimePlugins).some(
-      (panel) => panel.pluginId === "workflow",
-    ),
-    false,
-  );
-  assert.equal(
-    buildSidebarMoreNavContributions(disabledRuntimePlugins).some(
-      (item) => item.pluginId === "workflow",
-    ),
-    false,
-  );
+  expect(buildAppRouteContributions(enabledRuntimePlugins)
+      .filter((route) => route.pluginId === "usage_reports")
+      .map((route) => `${route.id}:${route.path}`)).toEqual(["usage:/usage"]);
+  expect(buildPanelContributions(enabledRuntimePlugins)
+      .filter((panel) => panel.pluginId === "usage_reports")
+      .map((panel) => `${panel.id}:${panel.renderer}`)).toEqual(["usage:usage_reports.UsagePanel"]);
+  expect(buildSidebarMoreNavContributions(enabledRuntimePlugins)
+      .filter((item) => item.pluginId === "usage_reports")
+      .map((item) => `${item.id}:${item.path}:${item.labelKey}`)).toEqual(["usage:/usage:nav.usage"]);
+  expect(buildAppRouteContributions(disabledRuntimePlugins).some(
+      (route) => route.pluginId === "usage_reports",
+    )).toBe(false);
+  expect(buildPanelContributions(disabledRuntimePlugins).some(
+      (panel) => panel.pluginId === "usage_reports",
+    )).toBe(false);
+  expect(buildSidebarMoreNavContributions(disabledRuntimePlugins).some(
+      (item) => item.pluginId === "usage_reports",
+    )).toBe(false);
 });
 
-test("Workflow chat input picker contributes a session workflow binding", () => {
+test("plugin chat input picker contributes a session option binding", () => {
   const runtimePlugins: PluginRuntimeContributionState[] = [
-    enabledWorkflowPluginPlugin(),
+    enabledAgentTeamPlugin(),
   ];
 
-  assert.deepEqual(
-    buildChatInputOptionContributions(runtimePlugins, { agentId: "default" }).map(
+  expect(buildChatInputOptionContributions(runtimePlugins, { agentId: "team" }).map(
       (option) => `${option.id}:${option.optionBinding?.pluginId}.${option.optionBinding?.key}:${option.selectedRenderer}:${option.suppressesCorePersonaSelector}:${option.shortcut}`,
-    ),
-    ["workflow:select-workflow:workflow.SELECTED_WORKFLOW_ID:workflow.SelectedWorkflowChip:false:mod+w"],
-  );
-  assert.deepEqual(
-    buildChatInputPanelContributions(runtimePlugins, { agentId: "default" }).map(
+    )).toEqual(["agent_team:select-team:agent_team.SELECTED_TEAM_ID:agent_team.SelectedTeamChip:true:mod+t"]);
+  expect(buildChatInputPanelContributions(runtimePlugins, { agentId: "team" }).map(
       (panel) => `${panel.id}:${panel.optionBinding?.pluginId}.${panel.optionBinding?.key}:${panel.renderer}:${panel.createPath}:${panel.managePath}`,
-    ),
-    ["workflow:workflow-picker:workflow.SELECTED_WORKFLOW_ID:workflow.WorkflowPickerModal:/workflows?create=blank:/workflows"],
-  );
-  assert.deepEqual(buildChatInputOptionContributions([disabledPlugin(runtimePlugins[0])]), []);
-  assert.deepEqual(buildChatInputPanelContributions([disabledPlugin(runtimePlugins[0])]), []);
+    )).toEqual(["agent_team:team-picker:agent_team.SELECTED_TEAM_ID:agent_team.TeamPickerModal:/agent-team:/agent-team"]);
+  expect(buildChatInputOptionContributions([disabledPlugin(runtimePlugins[0])])).toEqual([]);
+  expect(buildChatInputPanelContributions([disabledPlugin(runtimePlugins[0])])).toEqual([]);
 });
 
 test("runtime app tab declarations cannot replace the core chat tab", () => {
@@ -1067,35 +883,23 @@ test("runtime app tab declarations cannot replace the core chat tab", () => {
     },
   ];
 
-  assert.equal(
-    buildAppRouteContributions(runtimePlugins).some((route) => route.path === "/plugin-chat"),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).some(
+  expect(buildAppRouteContributions(runtimePlugins).some((route) => route.path === "/plugin-chat")).toBe(false);
+  expect(buildPanelContributions(runtimePlugins).some(
       (panel) => panel.renderer === "bad_chat_plugin.ChatPanel",
-    ),
-    false,
-  );
+    )).toBe(false);
 });
 
 test("sidebar more menu keeps legacy order and visibility requirements", () => {
-  assert.deepEqual(
-    CORE_SIDEBAR_MORE_NAV.map((item) => item.id),
-    ["persona", "skills", "plugins", "mcp", "channels", "memory"],
-  );
-  assert.equal(CORE_SIDEBAR_MORE_NAV[0].path, "/persona");
-  assert.equal(CORE_SIDEBAR_MORE_NAV[0].labelKey, "personaPresets.title");
-  assert.equal(CORE_SIDEBAR_MORE_NAV.some((item) => item.id === "team"), false);
+  expect(CORE_SIDEBAR_MORE_NAV.map((item) => item.id)).toEqual(["persona", "skills", "plugins", "mcp", "channels", "memory"]);
+  expect(CORE_SIDEBAR_MORE_NAV[0].path).toBe("/persona");
+  expect(CORE_SIDEBAR_MORE_NAV[0].labelKey).toBe("personaPresets.title");
+  expect(CORE_SIDEBAR_MORE_NAV.some((item) => item.id === "team")).toBe(false);
   const runtimeTeamItem = buildSidebarMoreNavContributions([
     enabledAgentTeamPlugin(),
   ]).find((item) => item.id === "agent-team");
-  assert.deepEqual(runtimeTeamItem?.requiredAnyPermissions, [Permission.TEAM_READ]);
-  assert.equal(runtimeTeamItem?.pluginId, "agent_team");
-  assert.equal(
-    CORE_SIDEBAR_MORE_NAV[CORE_SIDEBAR_MORE_NAV.length - 1].requiresSetting,
-    "memory",
-  );
+  expect(runtimeTeamItem?.requiredAnyPermissions).toEqual([Permission.TEAM_READ]);
+  expect(runtimeTeamItem?.pluginId).toBe("agent_team");
+  expect(CORE_SIDEBAR_MORE_NAV[CORE_SIDEBAR_MORE_NAV.length - 1].requiresSetting).toBe("memory");
 });
 
 test("AgentTeam sidebar route panel and nav follow plugin runtime state", () => {
@@ -1106,48 +910,27 @@ test("AgentTeam sidebar route panel and nav follow plugin runtime state", () => 
     disabledPlugin(enabledAgentTeamPlugin()),
   ];
 
-  assert.equal(
-    buildAppRouteContributions(enabledRuntimePlugins).some(
+  expect(buildAppRouteContributions(enabledRuntimePlugins).some(
       (route) => route.id === "agent-team" && route.path === "/agent-team",
-    ),
-    true,
-  );
-  assert.equal(
-    buildPanelContributions(enabledRuntimePlugins).some(
+    )).toBe(true);
+  expect(buildPanelContributions(enabledRuntimePlugins).some(
       (panel) => panel.id === "agent-team",
-    ),
-    true,
-  );
-  assert.equal(
-    buildSidebarMoreNavContributions(enabledRuntimePlugins).some(
+    )).toBe(true);
+  expect(buildSidebarMoreNavContributions(enabledRuntimePlugins).some(
       (item) => item.id === "agent-team",
-    ),
-    true,
-  );
-  assert.equal(
-    buildSidebarMoreNavContributions(enabledRuntimePlugins).find(
+    )).toBe(true);
+  expect(buildSidebarMoreNavContributions(enabledRuntimePlugins).find(
       (item) => item.id === "agent-team",
-    )?.labelKey,
-    "nav.team",
-  );
-  assert.equal(
-    buildAppRouteContributions(disabledRuntimePlugins).some(
+    )?.labelKey).toBe("nav.team");
+  expect(buildAppRouteContributions(disabledRuntimePlugins).some(
       (route) => route.id === "agent-team",
-    ),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions(disabledRuntimePlugins).some(
+    )).toBe(false);
+  expect(buildPanelContributions(disabledRuntimePlugins).some(
       (panel) => panel.id === "agent-team",
-    ),
-    false,
-  );
-  assert.equal(
-    buildSidebarMoreNavContributions(disabledRuntimePlugins).some(
+    )).toBe(false);
+  expect(buildSidebarMoreNavContributions(disabledRuntimePlugins).some(
       (item) => item.id === "agent-team",
-    ),
-    false,
-  );
+    )).toBe(false);
 });
 
 test("AgentTeam chat input and mention contributions follow runtime state and agent context", () => {
@@ -1158,67 +941,37 @@ test("AgentTeam chat input and mention contributions follow runtime state and ag
     disabledPlugin(enabledAgentTeamPlugin()),
   ];
 
-  assert.deepEqual(
-    buildChatInputOptionContributions(enabledRuntimePlugins, { agentId: "team" }).map(
+  expect(buildChatInputOptionContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (option) => `${option.id}:${option.optionBinding?.pluginId}.${option.optionBinding?.key}:${option.selectedRenderer}:${option.suppressesCorePersonaSelector}:${option.shortcut}`,
-    ),
-    ["agent_team:select-team:agent_team.SELECTED_TEAM_ID:agent_team.SelectedTeamChip:true:mod+t"],
-  );
-  assert.deepEqual(
-    buildChatInputPanelContributions(enabledRuntimePlugins, { agentId: "team" }).map(
+    )).toEqual(["agent_team:select-team:agent_team.SELECTED_TEAM_ID:agent_team.SelectedTeamChip:true:mod+t"]);
+  expect(buildChatInputPanelContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (panel) => `${panel.id}:${panel.optionBinding?.pluginId}.${panel.optionBinding?.key}:${panel.renderer}:${panel.createPath}:${panel.managePath}`,
-    ),
-    ["agent_team:team-picker:agent_team.SELECTED_TEAM_ID:agent_team.TeamPickerModal:/agent-team:/agent-team"],
-  );
-  assert.deepEqual(
-    buildMentionProviderContributions(enabledRuntimePlugins, { agentId: "team" }).map(
+    )).toEqual(["agent_team:team-picker:agent_team.SELECTED_TEAM_ID:agent_team.TeamPickerModal:/agent-team:/agent-team"]);
+  expect(buildMentionProviderContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (provider) => `${provider.id}:${provider.provider}`,
-    ),
-    ["agent_team:team-mentions:agent_team.searchTeams"],
-  );
-  assert.deepEqual(
-    buildWelcomeSurfaceContributions(enabledRuntimePlugins, { agentId: "team" }).map(
+    )).toEqual(["agent_team:team-mentions:agent_team.searchTeams"]);
+  expect(buildWelcomeSurfaceContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (surface) => `${surface.id}:${surface.renderer}`,
-    ),
-    ["agent_team:team-welcome:agent_team.TeamWelcomeSurface"],
-  );
-  assert.deepEqual(
-    buildAssistantIdentityResolverContributions(enabledRuntimePlugins, { agentId: "team" }).map(
+    )).toEqual(["agent_team:team-welcome:agent_team.TeamWelcomeSurface"]);
+  expect(buildAssistantIdentityResolverContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (resolver) => `${resolver.id}:${resolver.resolver}`,
-    ),
-    ["agent_team:team-assistant-identity:agent_team.TeamAssistantIdentity"],
-  );
-  assert.equal(
-    findAssistantIdentityResolverContribution(
+    )).toEqual(["agent_team:team-assistant-identity:agent_team.TeamAssistantIdentity"]);
+  expect(findAssistantIdentityResolverContribution(
       "agent_team.TeamAssistantIdentity",
       enabledRuntimePlugins,
       { agentId: "team" },
-    )?.pluginId,
-    "agent_team",
-  );
-  assert.deepEqual(
-    buildAgentCatalogEntryContributions(enabledRuntimePlugins).map(
+    )?.pluginId).toBe("agent_team");
+  expect(buildAgentCatalogEntryContributions(enabledRuntimePlugins).map(
       (entry) => `${entry.id}:${entry.pluginId}:${entry.sortOrder}`,
-    ),
-    ["team:agent_team:15"],
-  );
-  assert.equal(
-    findAgentCatalogEntryContribution("team", enabledRuntimePlugins)?.pluginId,
-    "agent_team",
-  );
-  assert.equal(hasAgentCatalogEntryContribution("team", enabledRuntimePlugins), true);
-  assert.equal(hasAgentCatalogEntryContribution("team", disabledRuntimePlugins), false);
-  assert.deepEqual(buildAgentCatalogEntryContributions(disabledRuntimePlugins), []);
-  assert.deepEqual(
-    buildPluginContributionPreview("agent_team", enabledRuntimePlugins)
-      .removedWhenDisabled.agentCatalogEntries,
-    ["team"],
-  );
-  assert.deepEqual(
-    buildPluginContributionPreview("agent_team", enabledRuntimePlugins)
-      .removedWhenDisabled.assistantIdentityResolvers,
-    ["agent_team:team-assistant-identity"],
-  );
+    )).toEqual(["team:agent_team:15"]);
+  expect(findAgentCatalogEntryContribution("team", enabledRuntimePlugins)?.pluginId).toBe("agent_team");
+  expect(hasAgentCatalogEntryContribution("team", enabledRuntimePlugins)).toBe(true);
+  expect(hasAgentCatalogEntryContribution("team", disabledRuntimePlugins)).toBe(false);
+  expect(buildAgentCatalogEntryContributions(disabledRuntimePlugins)).toEqual([]);
+  expect(buildPluginContributionPreview("agent_team", enabledRuntimePlugins)
+      .removedWhenDisabled.agentCatalogEntries).toEqual(["team"]);
+  expect(buildPluginContributionPreview("agent_team", enabledRuntimePlugins)
+      .removedWhenDisabled.assistantIdentityResolvers).toEqual(["agent_team:team-assistant-identity"]);
   const agentTeamDisablePreview = buildPluginContributionPreview(
     "agent_team",
     enabledRuntimePlugins,
@@ -1233,103 +986,61 @@ test("AgentTeam chat input and mention contributions follow runtime state and ag
     enabledRuntimePlugins,
     { route: "/channels/feishu" },
   );
-  assert.deepEqual(agentTeamDisablePreview.removedWhenDisabled.projectOptions, [
+  expect(agentTeamDisablePreview.removedWhenDisabled.projectOptions).toEqual([
     "agent_team.DEFAULT_TEAM_ID",
   ]);
-  assert.deepEqual(agentTeamDisablePreviewForTeamAgent.removedWhenDisabled.sessionOptions, [
+  expect(agentTeamDisablePreviewForTeamAgent.removedWhenDisabled.sessionOptions).toEqual([
     "agent_team.SELECTED_TEAM_ID",
   ]);
-  assert.deepEqual(agentTeamDisablePreviewForFeishuChannel.removedWhenDisabled.channelOptions, [
+  expect(agentTeamDisablePreviewForFeishuChannel.removedWhenDisabled.channelOptions).toEqual([
     "agent_team.SELECTED_TEAM_ID",
   ]);
-  assert.deepEqual(agentTeamDisablePreviewForTeamAgent.removedWhenDisabled.scheduledTaskOptions, [
+  expect(agentTeamDisablePreviewForTeamAgent.removedWhenDisabled.scheduledTaskOptions).toEqual([
     "agent_team.SELECTED_TEAM_ID",
   ]);
-  assert.deepEqual(
-    buildAgentCategoryContributions(enabledRuntimePlugins).map(
+  expect(buildAgentCategoryContributions(enabledRuntimePlugins).map(
       (category) => `${category.id}:${category.label}`,
-    ),
-    ["agent_team:team-builder:agentTeam.category.teamBuilder"],
-  );
-  assert.deepEqual(
-    buildAgentCatalogEntryContributions(enabledRuntimePlugins).map(
+    )).toEqual(["agent_team:team-builder:agentTeam.category.teamBuilder"]);
+  expect(buildAgentCatalogEntryContributions(enabledRuntimePlugins).map(
       (agent) => `${agent.id}:${agent.category}`,
-    ),
-    ["team:agent_team:team-builder"],
-  );
-  assert.deepEqual(
-    buildProjectOptionContributions(enabledRuntimePlugins).map((option) => option.id),
-    ["agent_team.DEFAULT_TEAM_ID"],
-  );
-  assert.deepEqual(
-    buildSessionOptionContributions(enabledRuntimePlugins, { agentId: "team" }).map(
+    )).toEqual(["team:agent_team:team-builder"]);
+  expect(buildProjectOptionContributions(enabledRuntimePlugins).map((option) => option.id)).toEqual(["agent_team.DEFAULT_TEAM_ID"]);
+  expect(buildSessionOptionContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (option) => option.id,
-    ),
-    ["agent_team.SELECTED_TEAM_ID"],
-  );
-  assert.deepEqual(
-    buildChannelOptionContributions(enabledRuntimePlugins, { route: "/channels/feishu" }).map(
+    )).toEqual(["agent_team.SELECTED_TEAM_ID"]);
+  expect(buildChannelOptionContributions(enabledRuntimePlugins, { route: "/channels/feishu" }).map(
       (option) => `${option.id}:${option.area}`,
-    ),
-    ["agent_team.SELECTED_TEAM_ID:channel_option"],
-  );
-  assert.deepEqual(
-    buildScheduledTaskOptionContributions(enabledRuntimePlugins, { agentId: "team" }).map(
+    )).toEqual(["agent_team.SELECTED_TEAM_ID:channel_option"]);
+  expect(buildScheduledTaskOptionContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (option) => `${option.id}:${option.area}`,
-    ),
-    ["agent_team.SELECTED_TEAM_ID:scheduled_task_option"],
-  );
-  assert.deepEqual(
-    buildChatInputOptionContributions(enabledRuntimePlugins, { agentId: "default" }),
-    [],
-  );
-  assert.deepEqual(
-    buildSessionOptionContributions(enabledRuntimePlugins, { agentId: "default" }),
-    [],
-  );
-  assert.deepEqual(
-    buildChannelOptionContributions(enabledRuntimePlugins, { route: "/channels/slack" }),
-    [],
-  );
-  assert.deepEqual(
-    buildWelcomeSurfaceContributions(enabledRuntimePlugins, { agentId: "default" }),
-    [],
-  );
-  assert.deepEqual(
-    buildScheduledTaskOptionContributions(enabledRuntimePlugins, { agentId: "default" }),
-    [],
-  );
-  assert.deepEqual(buildChatInputOptionContributions(disabledRuntimePlugins, { agentId: "team" }), []);
-  assert.deepEqual(buildChatInputPanelContributions(disabledRuntimePlugins, { agentId: "team" }), []);
-  assert.deepEqual(buildMentionProviderContributions(disabledRuntimePlugins, { agentId: "team" }), []);
-  assert.deepEqual(buildWelcomeSurfaceContributions(disabledRuntimePlugins, { agentId: "team" }), []);
-  assert.deepEqual(buildAgentCategoryContributions(disabledRuntimePlugins), []);
-  assert.deepEqual(buildProjectOptionContributions(disabledRuntimePlugins), []);
-  assert.deepEqual(buildChannelOptionContributions(disabledRuntimePlugins, { route: "/channels/feishu" }), []);
-  assert.deepEqual(buildScheduledTaskOptionContributions(disabledRuntimePlugins, { agentId: "team" }), []);
-  assert.deepEqual(
-    buildProjectOptionContributions(disabledRuntimePlugins, undefined, { includeInactive: true }).map(
+    )).toEqual(["agent_team.SELECTED_TEAM_ID:scheduled_task_option"]);
+  expect(buildChatInputOptionContributions(enabledRuntimePlugins, { agentId: "default" })).toEqual([]);
+  expect(buildSessionOptionContributions(enabledRuntimePlugins, { agentId: "default" })).toEqual([]);
+  expect(buildChannelOptionContributions(enabledRuntimePlugins, { route: "/channels/slack" })).toEqual([]);
+  expect(buildWelcomeSurfaceContributions(enabledRuntimePlugins, { agentId: "default" })).toEqual([]);
+  expect(buildScheduledTaskOptionContributions(enabledRuntimePlugins, { agentId: "default" })).toEqual([]);
+  expect(buildChatInputOptionContributions(disabledRuntimePlugins, { agentId: "team" })).toEqual([]);
+  expect(buildChatInputPanelContributions(disabledRuntimePlugins, { agentId: "team" })).toEqual([]);
+  expect(buildMentionProviderContributions(disabledRuntimePlugins, { agentId: "team" })).toEqual([]);
+  expect(buildWelcomeSurfaceContributions(disabledRuntimePlugins, { agentId: "team" })).toEqual([]);
+  expect(buildAgentCategoryContributions(disabledRuntimePlugins)).toEqual([]);
+  expect(buildProjectOptionContributions(disabledRuntimePlugins)).toEqual([]);
+  expect(buildChannelOptionContributions(disabledRuntimePlugins, { route: "/channels/feishu" })).toEqual([]);
+  expect(buildScheduledTaskOptionContributions(disabledRuntimePlugins, { agentId: "team" })).toEqual([]);
+  expect(buildProjectOptionContributions(disabledRuntimePlugins, undefined, { includeInactive: true }).map(
       (option) => `${option.id}:${option.effective}:${option.pluginStatus}`,
-    ),
-    ["agent_team.DEFAULT_TEAM_ID:false:disabled"],
-  );
-  assert.deepEqual(buildSessionOptionContributions(disabledRuntimePlugins, { agentId: "team" }), []);
-  assert.deepEqual(
-    buildChannelOptionContributions(
+    )).toEqual(["agent_team.DEFAULT_TEAM_ID:false:disabled"]);
+  expect(buildSessionOptionContributions(disabledRuntimePlugins, { agentId: "team" })).toEqual([]);
+  expect(buildChannelOptionContributions(
       disabledRuntimePlugins,
       { route: "/channels/feishu" },
       { includeInactive: true },
-    ).map((option) => `${option.id}:${option.effective}:${option.pluginStatus}`),
-    ["agent_team.SELECTED_TEAM_ID:false:disabled"],
-  );
-  assert.deepEqual(
-    buildScheduledTaskOptionContributions(
+    ).map((option) => `${option.id}:${option.effective}:${option.pluginStatus}`)).toEqual(["agent_team.SELECTED_TEAM_ID:false:disabled"]);
+  expect(buildScheduledTaskOptionContributions(
       disabledRuntimePlugins,
       { agentId: "team" },
       { includeInactive: true },
-    ).map((option) => `${option.id}:${option.effective}:${option.pluginStatus}`),
-    ["agent_team.SELECTED_TEAM_ID:false:disabled"],
-  );
+    ).map((option) => `${option.id}:${option.effective}:${option.pluginStatus}`)).toEqual(["agent_team.SELECTED_TEAM_ID:false:disabled"]);
 });
 
 test("runtime plugin executability helpers centralize enabled and executable state", () => {
@@ -1340,121 +1051,61 @@ test("runtime plugin executability helpers centralize enabled and executable sta
     disabledPlugin(enabledAgentTeamPlugin()),
   ];
 
-  assert.equal(isRuntimePluginExecutable(enabledRuntimePlugins[0]), true);
-  assert.equal(
-    isRuntimePluginExecutableById(enabledRuntimePlugins, "agent_team"),
-    true,
-  );
-  assert.equal(
-    isRuntimePluginExecutableById(disabledRuntimePlugins, "agent_team"),
-    false,
-  );
-  assert.equal(isRuntimePluginExecutableById(undefined, "agent_team"), false);
+  expect(isRuntimePluginExecutable(enabledRuntimePlugins[0])).toBe(true);
+  expect(isRuntimePluginExecutableById(enabledRuntimePlugins, "agent_team")).toBe(true);
+  expect(isRuntimePluginExecutableById(disabledRuntimePlugins, "agent_team")).toBe(false);
+  expect(isRuntimePluginExecutableById(undefined, "agent_team")).toBe(false);
 });
 
 test("user menu contributions preserve groups and permission semantics", () => {
-  assert.deepEqual(
-    CORE_USER_MENU_ITEMS.map((item) => `${item.group}:${item.id}`),
-    [
+  expect(CORE_USER_MENU_ITEMS.map((item) => `${item.group}:${item.id}`)).toEqual([
       "admin:users",
       "admin:roles",
       "admin:agents",
       "system:notifications",
       "system:settings",
-    ],
-  );
-  assert.deepEqual(
-    CORE_USER_MENU_ITEMS.find((item) => item.id === "users")
-      ?.requiredAnyPermissions,
-    [Permission.USER_READ, Permission.USER_WRITE],
-  );
-  assert.deepEqual(
-    CORE_USER_MENU_ITEMS.find((item) => item.id === "agents")
-      ?.requiredAnyPermissions,
-    [Permission.AGENT_ADMIN, Permission.MODEL_ADMIN],
-  );
-  assert.equal(CORE_USER_MENU_ITEMS.some((item) => item.id === "feedback"), false);
-  assert.equal(CORE_USER_MENU_ITEMS.some((item) => item.id === "usage"), false);
+    ]);
+  expect(CORE_USER_MENU_ITEMS.find((item) => item.id === "users")
+      ?.requiredAnyPermissions).toEqual([Permission.USER_READ, Permission.USER_WRITE]);
+  expect(CORE_USER_MENU_ITEMS.find((item) => item.id === "agents")
+      ?.requiredAnyPermissions).toEqual([Permission.AGENT_ADMIN, Permission.MODEL_ADMIN]);
+  expect(CORE_USER_MENU_ITEMS.some((item) => item.id === "feedback")).toBe(false);
+  expect(CORE_USER_MENU_ITEMS.some((item) => item.id === "usage")).toBe(false);
 });
 
 test("default user menu is core-only and plugin menu items require runtime declarations", () => {
-  assert.deepEqual(
-    USER_MENU_CONTRIBUTIONS.map((item) => `${item.group}:${item.id}`),
-    [
+  expect(USER_MENU_CONTRIBUTIONS.map((item) => `${item.group}:${item.id}`)).toEqual([
       "admin:users",
       "admin:roles",
       "admin:agents",
       "system:notifications",
       "system:settings",
-    ],
-  );
-  assert.equal(USER_MENU_CONTRIBUTIONS.some((item) => item.id === "feedback"), false);
-  assert.equal(USER_MENU_CONTRIBUTIONS.some((item) => item.id === "usage"), false);
+    ]);
+  expect(USER_MENU_CONTRIBUTIONS.some((item) => item.id === "feedback")).toBe(false);
+  expect(USER_MENU_CONTRIBUTIONS.some((item) => item.id === "usage")).toBe(false);
   const runtimeMenuItems = buildUserMenuContributions([
     enabledFeedbackPlugin(),
     enabledUsageReportsPlugin(),
   ]);
-  assert.deepEqual(
-    runtimeMenuItems.find((item) => item.id === "feedback")?.requiredAnyPermissions,
-    [Permission.FEEDBACK_READ],
-  );
-  assert.equal(
-    runtimeMenuItems.find((item) => item.id === "usage")?.pluginId,
-    "usage_reports",
-  );
-  assert.deepEqual(
-    runtimeMenuItems.find((item) => item.id === "usage")?.requiredAnyPermissions,
-    [Permission.USAGE_READ],
-  );
+  expect(runtimeMenuItems.find((item) => item.id === "feedback")?.requiredAnyPermissions).toEqual([Permission.FEEDBACK_READ]);
+  expect(runtimeMenuItems.find((item) => item.id === "usage")?.pluginId).toBe("usage_reports");
+  expect(runtimeMenuItems.find((item) => item.id === "usage")?.requiredAnyPermissions).toEqual([Permission.USAGE_READ]);
 });
 
 test("runtime contribution builders fail closed for plugin UI when runtime state is unavailable", () => {
-  assert.equal(
-    buildAppRouteContributions().some((route) => route.id === "team"),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions().some((panel) => panel.id === "team"),
-    false,
-  );
-  assert.equal(
-    buildSidebarMoreNavContributions().some((item) => item.id === "team"),
-    false,
-  );
-  assert.equal(
-    buildAgentCategoryContributions().some(
+  expect(buildAppRouteContributions().some((route) => route.id === "team")).toBe(false);
+  expect(buildPanelContributions().some((panel) => panel.id === "team")).toBe(false);
+  expect(buildSidebarMoreNavContributions().some((item) => item.id === "team")).toBe(false);
+  expect(buildAgentCategoryContributions().some(
       (category) => category.id === "agent_team:team-builder",
-    ),
-    false,
-  );
-  assert.equal(
-    buildAgentCatalogEntryContributions().some((entry) => entry.id === "team"),
-    false,
-  );
-  assert.equal(
-    buildAppRouteContributions().some((route) => route.id === "feedback"),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions().some((panel) => panel.id === "feedback"),
-    false,
-  );
-  assert.equal(
-    buildUserMenuContributions().some((item) => item.id === "feedback"),
-    false,
-  );
-  assert.equal(
-    buildAppRouteContributions().some((route) => route.id === "usage"),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions().some((panel) => panel.id === "usage"),
-    false,
-  );
-  assert.equal(
-    buildUserMenuContributions().some((item) => item.id === "usage"),
-    false,
-  );
+    )).toBe(false);
+  expect(buildAgentCatalogEntryContributions().some((entry) => entry.id === "team")).toBe(false);
+  expect(buildAppRouteContributions().some((route) => route.id === "feedback")).toBe(false);
+  expect(buildPanelContributions().some((panel) => panel.id === "feedback")).toBe(false);
+  expect(buildUserMenuContributions().some((item) => item.id === "feedback")).toBe(false);
+  expect(buildAppRouteContributions().some((route) => route.id === "usage")).toBe(false);
+  expect(buildPanelContributions().some((panel) => panel.id === "usage")).toBe(false);
+  expect(buildUserMenuContributions().some((item) => item.id === "usage")).toBe(false);
 });
 
 test("runtime contribution filtering keeps enabled executable Feedback", () => {
@@ -1462,24 +1113,15 @@ test("runtime contribution filtering keeps enabled executable Feedback", () => {
     enabledFeedbackPlugin(),
   ];
 
-  assert.equal(
-    buildAppRouteContributions(runtimePlugins).some(
+  expect(buildAppRouteContributions(runtimePlugins).some(
       (route) => route.id === "feedback",
-    ),
-    true,
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).some(
+    )).toBe(true);
+  expect(buildPanelContributions(runtimePlugins).some(
       (panel) => panel.id === "feedback",
-    ),
-    true,
-  );
-  assert.equal(
-    buildUserMenuContributions(runtimePlugins).some(
+    )).toBe(true);
+  expect(buildUserMenuContributions(runtimePlugins).some(
       (item) => item.id === "feedback",
-    ),
-    true,
-  );
+    )).toBe(true);
 });
 
 test("runtime contribution filtering hides disabled Usage Reports by plugin id", () => {
@@ -1487,18 +1129,9 @@ test("runtime contribution filtering hides disabled Usage Reports by plugin id",
     disabledPlugin(enabledUsageReportsPlugin()),
   ];
 
-  assert.equal(
-    buildAppRouteContributions(runtimePlugins).some((route) => route.id === "usage"),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions(runtimePlugins).some((panel) => panel.id === "usage"),
-    false,
-  );
-  assert.equal(
-    buildUserMenuContributions(runtimePlugins).some((item) => item.id === "usage"),
-    false,
-  );
+  expect(buildAppRouteContributions(runtimePlugins).some((route) => route.id === "usage")).toBe(false);
+  expect(buildPanelContributions(runtimePlugins).some((panel) => panel.id === "usage")).toBe(false);
+  expect(buildUserMenuContributions(runtimePlugins).some((item) => item.id === "usage")).toBe(false);
 });
 
 test("runtime contribution filtering hides disabled or non-executable Feedback", () => {
@@ -1510,24 +1143,15 @@ test("runtime contribution filtering hides disabled or non-executable Feedback",
   ];
 
   for (const runtimePlugins of [disabledRuntimePlugins, blockedRuntimePlugins]) {
-    assert.equal(
-      buildAppRouteContributions(runtimePlugins).some(
+    expect(buildAppRouteContributions(runtimePlugins).some(
         (route) => route.id === "feedback",
-      ),
-      false,
-    );
-    assert.equal(
-      buildPanelContributions(runtimePlugins).some(
+      )).toBe(false);
+    expect(buildPanelContributions(runtimePlugins).some(
         (panel) => panel.id === "feedback",
-      ),
-      false,
-    );
-    assert.equal(
-      buildUserMenuContributions(runtimePlugins).some(
+      )).toBe(false);
+    expect(buildUserMenuContributions(runtimePlugins).some(
         (item) => item.id === "feedback",
-      ),
-      false,
-    );
+      )).toBe(false);
   }
 });
 
@@ -1537,18 +1161,18 @@ test("runtime contribution preview reports Feedback entries removed by disable s
   ];
   const preview = buildPluginContributionPreview("feedback", runtimePlugins);
 
-  assert.equal(preview.current.appRoutes.includes("/feedback"), true);
-  assert.equal(preview.current.panels.includes("feedback"), true);
-  assert.equal(preview.current.userMenuItems.includes("/feedback"), true);
-  assert.deepEqual(preview.removedWhenDisabled.appRoutes, ["/feedback"]);
-  assert.deepEqual(preview.removedWhenDisabled.panels, ["feedback"]);
-  assert.deepEqual(preview.removedWhenDisabled.userMenuItems, ["/feedback"]);
-  assert.deepEqual(preview.removedWhenDisabled.toolRenderers, []);
-  assert.deepEqual(preview.removedWhenDisabled.skillImporters, []);
-  assert.deepEqual(preview.removedWhenDisabled.messageActions, [
+  expect(preview.current.appRoutes.includes("/feedback")).toBe(true);
+  expect(preview.current.panels.includes("feedback")).toBe(true);
+  expect(preview.current.userMenuItems.includes("/feedback")).toBe(true);
+  expect(preview.removedWhenDisabled.appRoutes).toEqual(["/feedback"]);
+  expect(preview.removedWhenDisabled.panels).toEqual(["feedback"]);
+  expect(preview.removedWhenDisabled.userMenuItems).toEqual(["/feedback"]);
+  expect(preview.removedWhenDisabled.toolRenderers).toEqual([]);
+  expect(preview.removedWhenDisabled.skillImporters).toEqual([]);
+  expect(preview.removedWhenDisabled.messageActions).toEqual([
     "feedback:message-feedback",
   ]);
-  assert.equal(preview.simulatedDisabled.appRoutes.includes("/feedback"), false);
+  expect(preview.simulatedDisabled.appRoutes.includes("/feedback")).toBe(false);
 });
 
 test("runtime route panel and user menu contributions require explicit frontend declarations", () => {
@@ -1567,24 +1191,15 @@ test("runtime route panel and user menu contributions require explicit frontend 
     },
   ];
 
-  assert.equal(
-    buildAppRouteContributions(runtimePluginsWithoutFrontend).some(
+  expect(buildAppRouteContributions(runtimePluginsWithoutFrontend).some(
       (route) => route.id === "feedback" || route.id === "usage",
-    ),
-    false,
-  );
-  assert.equal(
-    buildPanelContributions(runtimePluginsWithoutFrontend).some(
+    )).toBe(false);
+  expect(buildPanelContributions(runtimePluginsWithoutFrontend).some(
       (panel) => panel.id === "feedback" || panel.id === "usage",
-    ),
-    false,
-  );
-  assert.equal(
-    buildUserMenuContributions(runtimePluginsWithoutFrontend).some(
+    )).toBe(false);
+  expect(buildUserMenuContributions(runtimePluginsWithoutFrontend).some(
       (item) => item.id === "feedback" || item.id === "usage",
-    ),
-    false,
-  );
+    )).toBe(false);
 });
 
 test("Feedback message action follows plugin runtime state", () => {
@@ -1624,53 +1239,41 @@ test("Feedback message action follows plugin runtime state", () => {
     },
   ];
 
-  assert.equal(hasMessageActionContribution("feedback"), false);
-  assert.equal(hasMessageActionContribution("feedback", enabledRuntimePlugins), true);
-  assert.equal(hasMessageActionContribution("feedback", disabledRuntimePlugins), false);
-  assert.equal(hasMessageActionContribution("feedback", blockedRuntimePlugins), false);
-  assert.deepEqual(
-    buildMessageActionContributions(enabledRuntimePlugins).map(
+  expect(hasMessageActionContribution("feedback")).toBe(false);
+  expect(hasMessageActionContribution("feedback", enabledRuntimePlugins)).toBe(true);
+  expect(hasMessageActionContribution("feedback", disabledRuntimePlugins)).toBe(false);
+  expect(hasMessageActionContribution("feedback", blockedRuntimePlugins)).toBe(false);
+  expect(buildMessageActionContributions(enabledRuntimePlugins).map(
       (action) => `${action.id}:${action.target}:${action.renderer}:${action.order}`,
-    ),
-    ["feedback:message-feedback:assistant_message:feedback.FeedbackButtons:20"],
-  );
-  assert.deepEqual(
-    buildMessageActionContributions(enabledRuntimePlugins, {
+    )).toEqual(["feedback:message-feedback:assistant_message:feedback.FeedbackButtons:20"]);
+  expect(buildMessageActionContributions(enabledRuntimePlugins, {
       target: "assistant_message",
-    }).map((action) => action.id),
-    ["feedback:message-feedback"],
-  );
-  assert.deepEqual(
-    buildMessageActionContributions(enabledRuntimePlugins, {
+    }).map((action) => action.id)).toEqual(["feedback:message-feedback"]);
+  expect(buildMessageActionContributions(enabledRuntimePlugins, {
       target: "user_message",
-    }).map((action) => action.id),
-    [],
-  );
-  assert.deepEqual(
-    buildMessageActionContributions(disabledRuntimePlugins).map((action) => action.id),
-    [],
-  );
+    }).map((action) => action.id)).toEqual([]);
+  expect(buildMessageActionContributions(disabledRuntimePlugins).map((action) => action.id)).toEqual([]);
 });
 
 test("message action target context isolates plugin-declared message slots", () => {
   const runtimePlugins: PluginRuntimeContributionState[] = [
     {
-      plugin_id: "workflow_runner",
+      plugin_id: "automation_runner",
       enabled: true,
       executable: true,
       status: "enabled",
       frontend: {
         message_actions: [
           {
-            id: "workflow_runner:retry-user-message",
+            id: "automation_runner:retry-user-message",
             target: "user_message",
-            renderer: "workflow_runner.RetryUserMessage",
+            renderer: "automation_runner.RetryUserMessage",
             order: 30,
           },
           {
-            id: "workflow_runner:inspect-tool-result",
+            id: "automation_runner:inspect-tool-result",
             target: "tool_result",
-            renderer: "workflow_runner.InspectToolResult",
+            renderer: "automation_runner.InspectToolResult",
             order: 20,
           },
         ],
@@ -1678,24 +1281,15 @@ test("message action target context isolates plugin-declared message slots", () 
     },
   ];
 
-  assert.deepEqual(
-    buildMessageActionContributions(runtimePlugins, {
+  expect(buildMessageActionContributions(runtimePlugins, {
       target: "assistant_message",
-    }),
-    [],
-  );
-  assert.deepEqual(
-    buildMessageActionContributions(runtimePlugins, { target: "user_message" }).map(
+    })).toEqual([]);
+  expect(buildMessageActionContributions(runtimePlugins, { target: "user_message" }).map(
       (action) => action.id,
-    ),
-    ["workflow_runner:retry-user-message"],
-  );
-  assert.deepEqual(
-    buildMessageActionContributions(runtimePlugins, { target: "tool_result" }).map(
+    )).toEqual(["automation_runner:retry-user-message"]);
+  expect(buildMessageActionContributions(runtimePlugins, { target: "tool_result" }).map(
       (action) => action.id,
-    ),
-    ["workflow_runner:inspect-tool-result"],
-  );
+    )).toEqual(["automation_runner:inspect-tool-result"]);
 });
 
 test("runtime message action contributions require explicit frontend declarations", () => {
@@ -1719,21 +1313,50 @@ test("runtime message action contributions require explicit frontend declaration
     },
   ];
 
-  assert.equal(
-    hasMessageActionContribution("feedback", runtimePluginsWithoutFrontend),
-    false,
-  );
-  assert.deepEqual(
-    buildMessageActionContributions(runtimePluginsWithoutFrontend).map(
+  expect(hasMessageActionContribution("feedback", runtimePluginsWithoutFrontend)).toBe(false);
+  expect(buildMessageActionContributions(runtimePluginsWithoutFrontend).map(
       (action) => action.id,
-    ),
-    [],
-  );
-  assert.equal(
-    hasMessageActionContribution("feedback", runtimePluginsWithLegacyString),
-    false,
-  );
-  assert.deepEqual(buildMessageActionContributions(runtimePluginsWithLegacyString), []);
+    )).toEqual([]);
+  expect(hasMessageActionContribution("feedback", runtimePluginsWithLegacyString)).toBe(false);
+  expect(buildMessageActionContributions(runtimePluginsWithLegacyString)).toEqual([]);
+});
+
+test("plugin message renderer contributions are runtime gated", () => {
+  const plugin: PluginRuntimeContributionState = {
+    plugin_id: "automation_runner",
+    enabled: true,
+    executable: true,
+    status: "enabled",
+    frontend: {
+      message_renderers: [
+        {
+          id: "automation_runner:run-card",
+          renderer: "automation_runner.RunCard",
+          message_types: ["run_result"],
+        },
+      ],
+    },
+  };
+
+  expect(buildPluginMessageRendererContributions([plugin])).toEqual([
+    {
+      id: "run-card",
+      pluginId: "automation_runner",
+      renderer: "automation_runner.RunCard",
+      messageTypes: ["run_result"],
+      area: "plugin_message_renderer",
+    },
+  ]);
+  expect(hasPluginMessageRenderer(
+      "automation_runner",
+      "automation_runner.RunCard",
+      [plugin],
+    )).toBe(true);
+  expect(getPluginMessageRenderer(
+      "automation_runner",
+      "automation_runner.RunCard",
+      [disabledPlugin(plugin)],
+    )).toBe(undefined);
 });
 
 test("runtime contribution preview reports Usage Reports entries removed by disable simulation", () => {
@@ -1742,18 +1365,16 @@ test("runtime contribution preview reports Usage Reports entries removed by disa
   ];
   const preview = buildPluginContributionPreview("usage_reports", runtimePlugins);
 
-  assert.equal(preview.current.appRoutes.includes("/usage"), true);
-  assert.equal(preview.current.panels.includes("usage"), true);
-  assert.equal(preview.current.userMenuItems.includes("/usage"), true);
-  assert.deepEqual(preview.removedWhenDisabled.appRoutes, ["/usage"]);
-  assert.deepEqual(preview.removedWhenDisabled.panels, ["usage"]);
-  assert.deepEqual(preview.removedWhenDisabled.userMenuItems, ["/usage"]);
+  expect(preview.current.appRoutes.includes("/usage")).toBe(true);
+  expect(preview.current.panels.includes("usage")).toBe(true);
+  expect(preview.current.userMenuItems.includes("/usage")).toBe(true);
+  expect(preview.removedWhenDisabled.appRoutes).toEqual(["/usage"]);
+  expect(preview.removedWhenDisabled.panels).toEqual(["usage"]);
+  expect(preview.removedWhenDisabled.userMenuItems).toEqual(["/usage"]);
 });
 
 test("settings sections preserve the legacy category order", () => {
-  assert.deepEqual(
-    CORE_SETTINGS_SECTIONS.map((section) => section.category),
-    [
+  expect(CORE_SETTINGS_SECTIONS.map((section) => section.category)).toEqual([
       "frontend",
       "agent",
       "llm",
@@ -1777,32 +1398,28 @@ test("settings sections preserve the legacy category order", () => {
       "tracing",
       "user",
       "oauth",
-    ],
-  );
-  assert.equal(
-    CORE_SETTINGS_SECTIONS.some(
+    ]);
+  expect(CORE_SETTINGS_SECTIONS.some(
       (section) => (section.category as string) === "audio_transcription",
-    ),
-    false,
-  );
+    )).toBe(false);
 });
 
 test("core tool renderer contributions map current dedicated tool cards", () => {
   const toolNames = CORE_TOOL_RENDERERS.flatMap((renderer) => renderer.toolNames);
 
-  assert.deepEqual(getCoreToolRendererId("scheduled_task_create"), "scheduled-task");
-  assert.deepEqual(getCoreToolRendererId("env_var_delete"), "env-var");
-  assert.equal(getCoreToolRendererId("create_agent_team"), undefined);
-  assert.deepEqual(getCoreToolRendererId("memory_delete"), "memory-store");
-  assert.equal(getCoreToolRendererId("image_generate"), undefined);
-  assert.equal(getCoreToolRendererId("audio_transcribe"), undefined);
-  assert.equal(hasCoreToolRenderer("ask_human"), true);
-  assert.equal(hasCoreToolRenderer("image_generate"), false);
-  assert.equal(hasCoreToolRenderer("audio_transcribe"), false);
-  assert.equal(hasCoreToolRenderer("create_agent_team"), false);
-  assert.equal(hasCoreToolRenderer("unknown_tool"), false);
-  assert.ok(toolNames.includes("read_file"));
-  assert.ok(toolNames.includes("search_tools"));
+  expect(getCoreToolRendererId("scheduled_task_create")).toEqual("scheduled-task");
+  expect(getCoreToolRendererId("env_var_delete")).toEqual("env-var");
+  expect(getCoreToolRendererId("create_agent_team")).toBe(undefined);
+  expect(getCoreToolRendererId("memory_delete")).toEqual("memory-store");
+  expect(getCoreToolRendererId("image_generate")).toBe(undefined);
+  expect(getCoreToolRendererId("audio_transcribe")).toBe(undefined);
+  expect(hasCoreToolRenderer("ask_human")).toBe(true);
+  expect(hasCoreToolRenderer("image_generate")).toBe(false);
+  expect(hasCoreToolRenderer("audio_transcribe")).toBe(false);
+  expect(hasCoreToolRenderer("create_agent_team")).toBe(false);
+  expect(hasCoreToolRenderer("unknown_tool")).toBe(false);
+  expect(toolNames.includes("read_file")).toBeTruthy();
+  expect(toolNames.includes("search_tools")).toBeTruthy();
 });
 
 test("plugin tool renderers follow plugin runtime state", () => {
@@ -1817,36 +1434,24 @@ test("plugin tool renderers follow plugin runtime state", () => {
     disabledPlugin(enabledToolPlugin("audio_transcription")),
   ];
 
-  assert.equal(getToolRendererId("create_agent_team"), undefined);
-  assert.equal(getToolRendererId("image_generate"), undefined);
-  assert.equal(getToolRendererId("audio_transcribe"), undefined);
-  assert.equal(
-    getToolRendererId("create_agent_team", enabledRuntimePlugins),
-    "agent-team",
-  );
-  assert.equal(
-    getToolRendererId("image_generate", enabledRuntimePlugins),
-    "image-generate",
-  );
-  assert.equal(
-    getToolRendererId("audio_transcribe", enabledRuntimePlugins),
-    "audio-transcribe",
-  );
-  assert.equal(getToolRendererId("create_agent_team", disabledRuntimePlugins), undefined);
-  assert.equal(getToolRendererId("image_generate", disabledRuntimePlugins), undefined);
-  assert.equal(getToolRendererId("audio_transcribe", disabledRuntimePlugins), undefined);
-  assert.equal(hasToolRenderer("image_generate", enabledRuntimePlugins), true);
-  assert.equal(hasToolRenderer("audio_transcribe", enabledRuntimePlugins), true);
-  assert.equal(hasToolRenderer("create_agent_team", enabledRuntimePlugins), true);
-  assert.equal(hasToolRenderer("create_agent_team", disabledRuntimePlugins), false);
-  assert.equal(hasToolRenderer("image_generate", disabledRuntimePlugins), false);
-  assert.equal(hasToolRenderer("audio_transcribe", disabledRuntimePlugins), false);
-  assert.deepEqual(
-    buildToolRendererContributions(disabledRuntimePlugins).map(
+  expect(getToolRendererId("create_agent_team")).toBe(undefined);
+  expect(getToolRendererId("image_generate")).toBe(undefined);
+  expect(getToolRendererId("audio_transcribe")).toBe(undefined);
+  expect(getToolRendererId("create_agent_team", enabledRuntimePlugins)).toBe("agent-team");
+  expect(getToolRendererId("image_generate", enabledRuntimePlugins)).toBe("image-generate");
+  expect(getToolRendererId("audio_transcribe", enabledRuntimePlugins)).toBe("audio-transcribe");
+  expect(getToolRendererId("create_agent_team", disabledRuntimePlugins)).toBe(undefined);
+  expect(getToolRendererId("image_generate", disabledRuntimePlugins)).toBe(undefined);
+  expect(getToolRendererId("audio_transcribe", disabledRuntimePlugins)).toBe(undefined);
+  expect(hasToolRenderer("image_generate", enabledRuntimePlugins)).toBe(true);
+  expect(hasToolRenderer("audio_transcribe", enabledRuntimePlugins)).toBe(true);
+  expect(hasToolRenderer("create_agent_team", enabledRuntimePlugins)).toBe(true);
+  expect(hasToolRenderer("create_agent_team", disabledRuntimePlugins)).toBe(false);
+  expect(hasToolRenderer("image_generate", disabledRuntimePlugins)).toBe(false);
+  expect(hasToolRenderer("audio_transcribe", disabledRuntimePlugins)).toBe(false);
+  expect(buildToolRendererContributions(disabledRuntimePlugins).map(
       (renderer) => renderer.id,
-    ),
-    CORE_TOOL_RENDERERS.map((renderer) => renderer.id),
-  );
+    )).toEqual(CORE_TOOL_RENDERERS.map((renderer) => renderer.id));
 });
 
 test("runtime contribution preview reports plugin tool renderers removed by disable", () => {
@@ -1855,9 +1460,9 @@ test("runtime contribution preview reports plugin tool renderers removed by disa
   ];
   const preview = buildPluginContributionPreview("image_generation", runtimePlugins);
 
-  assert.equal(preview.current.toolRenderers.includes("image-generate"), true);
-  assert.deepEqual(preview.removedWhenDisabled.toolRenderers, ["image-generate"]);
-  assert.equal(preview.simulatedDisabled.toolRenderers.includes("image-generate"), false);
+  expect(preview.current.toolRenderers.includes("image-generate")).toBe(true);
+  expect(preview.removedWhenDisabled.toolRenderers).toEqual(["image-generate"]);
+  expect(preview.simulatedDisabled.toolRenderers.includes("image-generate")).toBe(false);
 });
 
 test("runtime contribution preview reports audio transcription renderer removed by disable", () => {
@@ -1866,9 +1471,9 @@ test("runtime contribution preview reports audio transcription renderer removed 
   ];
   const preview = buildPluginContributionPreview("audio_transcription", runtimePlugins);
 
-  assert.equal(preview.current.toolRenderers.includes("audio-transcribe"), true);
-  assert.deepEqual(preview.removedWhenDisabled.toolRenderers, ["audio-transcribe"]);
-  assert.equal(preview.simulatedDisabled.toolRenderers.includes("audio-transcribe"), false);
+  expect(preview.current.toolRenderers.includes("audio-transcribe")).toBe(true);
+  expect(preview.removedWhenDisabled.toolRenderers).toEqual(["audio-transcribe"]);
+  expect(preview.simulatedDisabled.toolRenderers.includes("audio-transcribe")).toBe(false);
 });
 
 test("advanced file viewers follow plugin runtime state", () => {
@@ -1879,7 +1484,7 @@ test("advanced file viewers follow plugin runtime state", () => {
     disabledPlugin(enabledAdvancedFileViewersPlugin()),
   ];
 
-  assert.deepEqual(buildFileViewerContributions(enabledRuntimePlugins).map((viewer) => viewer.id), [
+  expect(buildFileViewerContributions(enabledRuntimePlugins).map((viewer) => viewer.id)).toEqual([
     "pdf",
     "ppt",
     "word",
@@ -1890,13 +1495,10 @@ test("advanced file viewers follow plugin runtime state", () => {
     "markdown",
     "code",
   ]);
-  assert.equal(hasFileViewerContribution("pdf"), false);
-  assert.equal(hasFileViewerContribution("pdf", enabledRuntimePlugins), true);
-  assert.equal(hasFileViewerContribution("pdf", disabledRuntimePlugins), false);
-  assert.deepEqual(
-    buildFileViewerContributions(disabledRuntimePlugins).map((viewer) => viewer.id),
-    [],
-  );
+  expect(hasFileViewerContribution("pdf")).toBe(false);
+  expect(hasFileViewerContribution("pdf", enabledRuntimePlugins)).toBe(true);
+  expect(hasFileViewerContribution("pdf", disabledRuntimePlugins)).toBe(false);
+  expect(buildFileViewerContributions(disabledRuntimePlugins).map((viewer) => viewer.id)).toEqual([]);
 });
 
 test("upload handler declarations are metadata-only runtime contributions", () => {
@@ -1919,7 +1521,7 @@ test("upload handler declarations are metadata-only runtime contributions", () =
     },
   ];
 
-  assert.deepEqual(buildUploadHandlerContributions(runtimePlugins), [
+  expect(buildUploadHandlerContributions(runtimePlugins)).toEqual([
     {
       id: "upload_demo:markdown-import",
       pluginId: "upload_demo",
@@ -1929,7 +1531,7 @@ test("upload handler declarations are metadata-only runtime contributions", () =
       area: "upload_handler",
     },
   ]);
-  assert.deepEqual(buildUploadHandlerContributions([disabledPlugin(runtimePlugins[0])]), []);
+  expect(buildUploadHandlerContributions([disabledPlugin(runtimePlugins[0])])).toEqual([]);
 });
 
 test("integration contributions can carry plugin-declared structured metadata", () => {
@@ -1987,18 +1589,18 @@ test("integration contributions can carry plugin-declared structured metadata", 
     },
   ];
 
-  assert.deepEqual(buildToolRendererContributions(runtimePlugins).at(-1), {
+  expect(buildToolRendererContributions(runtimePlugins).at(-1)).toEqual({
     id: "custom-image-card",
     toolNames: ["image_generation.custom_image"],
     area: "tool_renderer",
   });
-  assert.deepEqual(buildFileViewerContributions(runtimePlugins), [
+  expect(buildFileViewerContributions(runtimePlugins)).toEqual([
     { id: "diagram", extensions: ["drawio"], area: "file_viewer" },
   ]);
-  assert.deepEqual(buildSkillImporterContributions(runtimePlugins), [
+  expect(buildSkillImporterContributions(runtimePlugins)).toEqual([
     { id: "zip-import", source: "zip", area: "skill_importer" },
   ]);
-  assert.deepEqual(buildChannelConnectorContributions(runtimePlugins), [
+  expect(buildChannelConnectorContributions(runtimePlugins)).toEqual([
     {
       id: "feishu_connector:tenant",
       pluginId: "feishu_connector",
@@ -2018,8 +1620,8 @@ test("runtime contribution preview reports advanced file viewers removed by disa
     runtimePlugins,
   );
 
-  assert.equal(preview.current.fileViewers.includes("pdf"), true);
-  assert.deepEqual(preview.removedWhenDisabled.fileViewers, [
+  expect(preview.current.fileViewers.includes("pdf")).toBe(true);
+  expect(preview.removedWhenDisabled.fileViewers).toEqual([
     "pdf",
     "ppt",
     "word",
@@ -2030,7 +1632,7 @@ test("runtime contribution preview reports advanced file viewers removed by disa
     "markdown",
     "code",
   ]);
-  assert.equal(preview.simulatedDisabled.fileViewers.includes("pdf"), false);
+  expect(preview.simulatedDisabled.fileViewers.includes("pdf")).toBe(false);
 });
 
 test("runtime frontend contributions require explicit manifest declarations", () => {
@@ -2062,18 +1664,15 @@ test("runtime frontend contributions require explicit manifest declarations", ()
     },
   ];
 
-  assert.equal(getToolRendererId("image_generate", runtimePluginsWithoutFrontend), undefined);
-  assert.equal(hasFileViewerContribution("pdf", runtimePluginsWithoutFrontend), false);
-  assert.equal(
-    buildToolRendererContributions(runtimePluginsWithoutFrontend).some(
+  expect(getToolRendererId("image_generate", runtimePluginsWithoutFrontend)).toBe(undefined);
+  expect(hasFileViewerContribution("pdf", runtimePluginsWithoutFrontend)).toBe(false);
+  expect(buildToolRendererContributions(runtimePluginsWithoutFrontend).some(
       (renderer) => renderer.id === "image-generate",
-    ),
-    false,
-  );
-  assert.deepEqual(buildFileViewerContributions(runtimePluginsWithoutFrontend), []);
-  assert.deepEqual(buildSkillImporterContributions(runtimePluginsWithoutFrontend), []);
-  assert.deepEqual(buildChannelConnectorContributions(runtimePluginsWithoutFrontend), []);
-  assert.deepEqual(buildI18nNamespaceContributions(runtimePluginsWithoutFrontend), []);
+    )).toBe(false);
+  expect(buildFileViewerContributions(runtimePluginsWithoutFrontend)).toEqual([]);
+  expect(buildSkillImporterContributions(runtimePluginsWithoutFrontend)).toEqual([]);
+  expect(buildChannelConnectorContributions(runtimePluginsWithoutFrontend)).toEqual([]);
+  expect(buildI18nNamespaceContributions(runtimePluginsWithoutFrontend)).toEqual([]);
 });
 
 test("runtime integration contributions require structured metadata", () => {
@@ -2093,13 +1692,10 @@ test("runtime integration contributions require structured metadata", () => {
     },
   }));
 
-  assert.deepEqual(
-    buildToolRendererContributions(runtimePluginsWithLegacyStrings),
-    CORE_TOOL_RENDERERS,
-  );
-  assert.deepEqual(buildFileViewerContributions(runtimePluginsWithLegacyStrings), []);
-  assert.deepEqual(buildSkillImporterContributions(runtimePluginsWithLegacyStrings), []);
-  assert.deepEqual(buildChannelConnectorContributions(runtimePluginsWithLegacyStrings), []);
+  expect(buildToolRendererContributions(runtimePluginsWithLegacyStrings)).toEqual(CORE_TOOL_RENDERERS);
+  expect(buildFileViewerContributions(runtimePluginsWithLegacyStrings)).toEqual([]);
+  expect(buildSkillImporterContributions(runtimePluginsWithLegacyStrings)).toEqual([]);
+  expect(buildChannelConnectorContributions(runtimePluginsWithLegacyStrings)).toEqual([]);
 });
 
 test("plugin i18n namespaces follow runtime frontend metadata", () => {
@@ -2110,24 +1706,15 @@ test("plugin i18n namespaces follow runtime frontend metadata", () => {
   ];
   const disabledRuntimePlugins = runtimePlugins.map(disabledPlugin);
 
-  assert.equal(hasI18nNamespaceContribution("advanced_file_viewers:documents"), false);
-  assert.equal(
-    hasI18nNamespaceContribution("advanced_file_viewers:documents", runtimePlugins),
-    true,
-  );
-  assert.equal(
-    hasI18nNamespaceContribution("advanced_file_viewers:documents", disabledRuntimePlugins),
-    false,
-  );
-  assert.deepEqual(
-    buildI18nNamespaceContributions(runtimePlugins).map((item) => item.id),
-    [
+  expect(hasI18nNamespaceContribution("advanced_file_viewers:documents")).toBe(false);
+  expect(hasI18nNamespaceContribution("advanced_file_viewers:documents", runtimePlugins)).toBe(true);
+  expect(hasI18nNamespaceContribution("advanced_file_viewers:documents", disabledRuntimePlugins)).toBe(false);
+  expect(buildI18nNamespaceContributions(runtimePlugins).map((item) => item.id)).toEqual([
       "advanced_file_viewers:documents",
       "github_installer:skills",
       "feishu_connector:channels",
-    ],
-  );
-  assert.deepEqual(buildI18nNamespaceContributions(disabledRuntimePlugins), []);
+    ]);
+  expect(buildI18nNamespaceContributions(disabledRuntimePlugins)).toEqual([]);
 });
 
 test("runtime contribution preview reports i18n namespaces removed by disable", () => {
@@ -2140,13 +1727,13 @@ test("runtime contribution preview reports i18n namespaces removed by disable", 
     runtimePlugins,
   );
 
-  assert.deepEqual(preview.current.i18nNamespaces, [
+  expect(preview.current.i18nNamespaces).toEqual([
     "advanced_file_viewers:documents",
   ]);
-  assert.deepEqual(preview.removedWhenDisabled.i18nNamespaces, [
+  expect(preview.removedWhenDisabled.i18nNamespaces).toEqual([
     "advanced_file_viewers:documents",
   ]);
-  assert.deepEqual(preview.simulatedDisabled.i18nNamespaces, []);
+  expect(preview.simulatedDisabled.i18nNamespaces).toEqual([]);
 });
 
 test("frontend asset slot contributions come from runtime package metadata", () => {
@@ -2192,10 +1779,9 @@ test("frontend asset slot contributions come from runtime package metadata", () 
 
   const contributions = buildPluginAssetSlotContributions(enabledRuntimePlugins);
 
-  assert.equal(hasPluginAssetSlotContribution("file_viewer", enabledRuntimePlugins), true);
-  assert.equal(hasPluginAssetSlotContribution("file_viewer", disabledRuntimePlugins), false);
-  assert.deepEqual(
-    contributions.map((contribution) => ({
+  expect(hasPluginAssetSlotContribution("file_viewer", enabledRuntimePlugins)).toBe(true);
+  expect(hasPluginAssetSlotContribution("file_viewer", disabledRuntimePlugins)).toBe(false);
+  expect(contributions.map((contribution) => ({
       id: contribution.id,
       pluginId: contribution.pluginId,
       slot: contribution.slot,
@@ -2203,8 +1789,7 @@ test("frontend asset slot contributions come from runtime package metadata", () 
       assets: contribution.assets,
       mountPath: contribution.mountPath,
       area: contribution.area,
-    })),
-    [
+    }))).toEqual([
       {
         id: "advanced_file_viewers:file_viewer",
         pluginId: "advanced_file_viewers",
@@ -2214,10 +1799,9 @@ test("frontend asset slot contributions come from runtime package metadata", () 
         mountPath: "/plugin-assets/advanced_file_viewers/",
         area: "plugin_asset_slot",
       },
-    ],
-  );
-  assert.deepEqual(buildPluginAssetSlotContributions(disabledRuntimePlugins), []);
-  assert.deepEqual(buildPluginAssetSlotContributions(mismatchedRuntimePlugins), []);
+    ]);
+  expect(buildPluginAssetSlotContributions(disabledRuntimePlugins)).toEqual([]);
+  expect(buildPluginAssetSlotContributions(mismatchedRuntimePlugins)).toEqual([]);
 });
 
 test("runtime contribution preview reports frontend asset slots removed by disable", () => {
@@ -2244,13 +1828,13 @@ test("runtime contribution preview reports frontend asset slots removed by disab
     runtimePlugins,
   );
 
-  assert.deepEqual(preview.current.pluginAssetSlots, [
+  expect(preview.current.pluginAssetSlots).toEqual([
     "advanced_file_viewers:file_viewer",
   ]);
-  assert.deepEqual(preview.removedWhenDisabled.pluginAssetSlots, [
+  expect(preview.removedWhenDisabled.pluginAssetSlots).toEqual([
     "advanced_file_viewers:file_viewer",
   ]);
-  assert.deepEqual(preview.simulatedDisabled.pluginAssetSlots, []);
+  expect(preview.simulatedDisabled.pluginAssetSlots).toEqual([]);
 });
 
 test("GitHub skill importer follows plugin runtime state", () => {
@@ -2261,24 +1845,15 @@ test("GitHub skill importer follows plugin runtime state", () => {
     disabledPlugin(enabledGithubInstallerPlugin()),
   ];
 
-  assert.deepEqual(buildSkillImporterContributions(enabledRuntimePlugins).map((importer) => importer.id), [
+  expect(buildSkillImporterContributions(enabledRuntimePlugins).map((importer) => importer.id)).toEqual([
     "github-import",
   ]);
-  assert.equal(hasSkillImporterContribution("github-import"), false);
-  assert.equal(
-    hasSkillImporterContribution("github-import", enabledRuntimePlugins),
-    true,
-  );
-  assert.equal(
-    hasSkillImporterContribution("github-import", disabledRuntimePlugins),
-    false,
-  );
-  assert.deepEqual(
-    buildSkillImporterContributions(disabledRuntimePlugins).map(
+  expect(hasSkillImporterContribution("github-import")).toBe(false);
+  expect(hasSkillImporterContribution("github-import", enabledRuntimePlugins)).toBe(true);
+  expect(hasSkillImporterContribution("github-import", disabledRuntimePlugins)).toBe(false);
+  expect(buildSkillImporterContributions(disabledRuntimePlugins).map(
       (importer) => importer.id,
-    ),
-    [],
-  );
+    )).toEqual([]);
 });
 
 test("Feishu channel connector follows plugin runtime state", () => {
@@ -2289,37 +1864,19 @@ test("Feishu channel connector follows plugin runtime state", () => {
     disabledPlugin(enabledFeishuConnectorPlugin()),
   ];
 
-  assert.deepEqual(buildChannelConnectorContributions(enabledRuntimePlugins).map((connector) => connector.id), [
+  expect(buildChannelConnectorContributions(enabledRuntimePlugins).map((connector) => connector.id)).toEqual([
     "feishu_connector:feishu",
   ]);
-  assert.equal(
-    findChannelConnectorContribution("feishu", enabledRuntimePlugins)?.panelRenderer,
-    "feishu_connector.FeishuPanel",
-  );
-  assert.equal(hasChannelConnectorContribution("feishu"), false);
-  assert.equal(hasRuntimeManagedChannelConnector("feishu"), false);
-  assert.equal(
-    hasRuntimeManagedChannelConnector("feishu", enabledRuntimePlugins),
-    true,
-  );
-  assert.equal(
-    hasRuntimeManagedChannelConnector("feishu", disabledRuntimePlugins),
-    true,
-  );
-  assert.equal(
-    hasChannelConnectorContribution("feishu", enabledRuntimePlugins),
-    true,
-  );
-  assert.equal(
-    hasChannelConnectorContribution("feishu", disabledRuntimePlugins),
-    false,
-  );
-  assert.deepEqual(
-    buildChannelConnectorContributions(disabledRuntimePlugins).map(
+  expect(findChannelConnectorContribution("feishu", enabledRuntimePlugins)?.panelRenderer).toBe("feishu_connector.FeishuPanel");
+  expect(hasChannelConnectorContribution("feishu")).toBe(false);
+  expect(hasRuntimeManagedChannelConnector("feishu")).toBe(false);
+  expect(hasRuntimeManagedChannelConnector("feishu", enabledRuntimePlugins)).toBe(true);
+  expect(hasRuntimeManagedChannelConnector("feishu", disabledRuntimePlugins)).toBe(true);
+  expect(hasChannelConnectorContribution("feishu", enabledRuntimePlugins)).toBe(true);
+  expect(hasChannelConnectorContribution("feishu", disabledRuntimePlugins)).toBe(false);
+  expect(buildChannelConnectorContributions(disabledRuntimePlugins).map(
       (connector) => connector.id,
-    ),
-    [],
-  );
+    )).toEqual([]);
 });
 
 test("runtime contribution preview reports Feishu connector removed by disable", () => {
@@ -2328,14 +1885,11 @@ test("runtime contribution preview reports Feishu connector removed by disable",
   ];
   const preview = buildPluginContributionPreview("feishu_connector", runtimePlugins);
 
-  assert.equal(preview.current.channelConnectors.includes("feishu_connector:feishu"), true);
-  assert.deepEqual(preview.removedWhenDisabled.channelConnectors, [
+  expect(preview.current.channelConnectors.includes("feishu_connector:feishu")).toBe(true);
+  expect(preview.removedWhenDisabled.channelConnectors).toEqual([
     "feishu_connector:feishu",
   ]);
-  assert.equal(
-    preview.simulatedDisabled.channelConnectors.includes("feishu_connector:feishu"),
-    false,
-  );
+  expect(preview.simulatedDisabled.channelConnectors.includes("feishu_connector:feishu")).toBe(false);
 });
 
 test("runtime contribution preview reports GitHub skill importer removed by disable", () => {
@@ -2344,19 +1898,16 @@ test("runtime contribution preview reports GitHub skill importer removed by disa
   ];
   const preview = buildPluginContributionPreview("github_installer", runtimePlugins);
 
-  assert.equal(preview.current.skillImporters.includes("github-import"), true);
-  assert.deepEqual(preview.removedWhenDisabled.skillImporters, ["github-import"]);
-  assert.equal(
-    preview.simulatedDisabled.skillImporters.includes("github-import"),
-    false,
-  );
+  expect(preview.current.skillImporters.includes("github-import")).toBe(true);
+  expect(preview.removedWhenDisabled.skillImporters).toEqual(["github-import"]);
+  expect(preview.simulatedDisabled.skillImporters.includes("github-import")).toBe(false);
 });
 
 test("core route ids remain valid non-chat tab values", () => {
   const tabs: readonly TabType[] = APP_ROUTE_CONTRIBUTIONS.map((route) => route.tab);
 
-  assert.equal(tabs.includes("chat"), false);
-  assert.equal(new Set(tabs).size, tabs.length);
+  expect(tabs.includes("chat")).toBe(false);
+  expect(new Set(tabs).size).toBe(tabs.length);
 });
 
 test("core contribution module does not keep static built-in plugin UI fallback tables", async () => {
@@ -2366,9 +1917,9 @@ test("core contribution module does not keep static built-in plugin UI fallback 
     "utf8",
   );
 
-  assert.doesNotMatch(source, /BUILTIN_PLUGIN_/);
-  assert.match(source, /plugin\.frontend\?\.app_tabs/);
-  assert.match(source, /plugin\.frontend\?\.tool_renderers/);
-  assert.match(source, /plugin\.frontend\?\.file_viewers/);
-  assert.match(source, /plugin\.frontend\?\.message_actions/);
+  expect(source).not.toMatch(/BUILTIN_PLUGIN_/);
+  expect(source).toMatch(/plugin\.frontend\?\.app_tabs/);
+  expect(source).toMatch(/plugin\.frontend\?\.tool_renderers/);
+  expect(source).toMatch(/plugin\.frontend\?\.file_viewers/);
+  expect(source).toMatch(/plugin\.frontend\?\.message_actions/);
 });

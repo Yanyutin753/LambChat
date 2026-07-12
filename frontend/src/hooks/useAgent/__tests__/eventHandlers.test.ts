@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import type { Message } from "../../../types";
 import { handleStreamEvent } from "../eventHandlers.ts";
 import type { EventHandlerContext } from "../eventHandlers.ts";
@@ -82,7 +80,7 @@ test("skips SSE events older than loaded history", () => {
 
   handleStreamEvent(event, "assistant-1", "redis-event-1", eventTimestamp, ctx);
 
-  assert.equal(ctx.setMessagesCalls(), 0);
+  expect(ctx.setMessagesCalls()).toBe(0);
 });
 
 test("keeps distinct SSE events that share the same timestamp", () => {
@@ -122,8 +120,8 @@ test("keeps distinct SSE events that share the same timestamp", () => {
     ctx,
   );
 
-  assert.equal(ctx.setMessagesCalls(), 2);
-  assert.equal(ctx.messages()[0]?.content, "hello world");
+  expect(ctx.setMessagesCalls()).toBe(2);
+  expect(ctx.messages()[0]?.content).toBe("hello world");
 });
 
 test("creates a new streaming assistant for a running run after the latest user message", () => {
@@ -158,21 +156,20 @@ test("creates a new streaming assistant for a running run after the latest user 
     () => "assistant-latest",
   );
 
-  assert.equal(result.streamingMessageId, "assistant-latest");
-  assert.deepEqual(
+  expect(result.streamingMessageId).toBe("assistant-latest");
+  expect(
     result.messages.map((message) => [
       message.id,
       message.role,
       message.runId,
       message.isStreaming ?? false,
     ]),
-    [
-      ["user-previous", "user", "run-previous", false],
-      ["assistant-previous", "assistant", "run-previous", false],
-      ["user-latest", "user", "run-latest", false],
-      ["assistant-latest", "assistant", "run-latest", true],
-    ],
-  );
+  ).toEqual([
+    ["user-previous", "user", "run-previous", false],
+    ["assistant-previous", "assistant", "run-previous", false],
+    ["user-latest", "user", "run-latest", false],
+    ["assistant-latest", "assistant", "run-latest", true],
+  ]);
 });
 
 test("user cancel marks message cancelled without closing the SSE connection", () => {
@@ -201,13 +198,13 @@ test("user cancel marks message cancelled without closing the SSE connection", (
     ctx,
   );
 
-  assert.equal(ctx.messages()[0]?.cancelled, true);
-  assert.equal(ctx.messages()[0]?.isStreaming, false);
-  assert.deepEqual(ctx.messages()[0]?.parts?.map((part) => part.type), [
+  expect(ctx.messages()[0]?.cancelled).toBe(true);
+  expect(ctx.messages()[0]?.isStreaming).toBe(false);
+  expect(ctx.messages()[0]?.parts?.map((part) => part.type)).toEqual([
     "text",
     "cancelled",
   ]);
-  assert.deepEqual(ctx.connectionStatuses, []);
+  expect(ctx.connectionStatuses).toEqual([]);
 });
 
 test("adds recommended questions from SSE events to the streaming assistant", () => {
@@ -240,13 +237,12 @@ test("adds recommended questions from SSE events to the streaming assistant", ()
 
   const parts = ctx.messages()[0]?.parts ?? [];
   const recommendations = parts[1];
-  assert.equal(recommendations?.type, "recommend_questions");
-  assert.deepEqual(
+  expect(recommendations?.type).toBe("recommend_questions");
+  expect(
     recommendations.type === "recommend_questions"
       ? recommendations.questions.map((question) => question.content)
       : [],
-    ["如何预防胫骨内侧压力综合征？", "赛前减量期具体怎么做？"],
-  );
+  ).toEqual(["如何预防胫骨内侧压力综合征？", "赛前减量期具体怎么做？"]);
 });
 
 test("updates active goal runtime from lifecycle SSE events", () => {
@@ -266,7 +262,7 @@ test("updates active goal runtime from lifecycle SSE events", () => {
     ctx,
   );
 
-  assert.deepEqual(ctx.activeGoal(), {
+  expect(ctx.activeGoal()).toEqual({
     objective: "finish docs",
     rubric: "- docs done",
     started_at: "2026-05-30T08:00:00.000Z",
@@ -288,7 +284,7 @@ test("updates active goal runtime from lifecycle SSE events", () => {
     ctx,
   );
 
-  assert.deepEqual(ctx.activeGoal(), {
+  expect(ctx.activeGoal()).toEqual({
     objective: "finish docs",
     rubric: "- docs done",
     started_at: "2026-05-30T08:00:00.000Z",
@@ -373,10 +369,10 @@ test("dispatches refresh events for persona and team tool mutation results", () 
     globalThis.window = previousWindow;
   }
 
-  assert.deepEqual(personaEvents, [
+  expect(personaEvents).toEqual([
     { action: "created", presetId: "preset-1", presetName: "Planner" },
   ]);
-  assert.deepEqual(teamEvents, [
+  expect(teamEvents).toEqual([
     { action: "updated", teamId: "team-1", teamName: "Research Team" },
   ]);
 });
@@ -399,7 +395,7 @@ test("goal:end auto-clears the active goal after a short delay", () => {
     ctx,
   );
 
-  assert.ok(ctx.activeGoal() != null, "goal should be set after goal:start");
+  expect(ctx.activeGoal() != null).toBeTruthy();
 
   handleStreamEvent(
     {
@@ -417,5 +413,5 @@ test("goal:end auto-clears the active goal after a short delay", () => {
   );
 
   // Immediately after goal:end, the goal still has ended_at set
-  assert.equal(ctx.activeGoal()?.ended_at, "2026-05-30T08:00:05.000Z");
+  expect(ctx.activeGoal()?.ended_at).toBe("2026-05-30T08:00:05.000Z");
 });

@@ -2,10 +2,11 @@
  * Team selector for channel configuration.
  * Used when a channel is bound to the team agent.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, UsersRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import { teamApi } from "../../../services/api/team";
 import type { Team } from "../../../types/team";
 import { TeamAvatar } from "../../team/TeamAvatar";
@@ -31,7 +32,6 @@ export function ChannelTeamSelect({
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -78,9 +78,7 @@ export function ChannelTeamSelect({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  useLayoutEffect(() => {
-    if (!open || !ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
+  const dropdownStyle = useStickyDropdownPosition(ref, open, (rect) => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const w = Math.max(rect.width, 220);
@@ -88,16 +86,15 @@ export function ChannelTeamSelect({
     const spaceBelow = vh - rect.bottom - 16;
     const spaceAbove = rect.top - 16;
     const preferBelow = spaceBelow >= 220 || spaceBelow >= spaceAbove;
-
-    setDropdownStyle({
+    return {
       position: "fixed",
       top: preferBelow ? rect.bottom + 4 : undefined,
       bottom: preferBelow ? undefined : vh - rect.top + 4,
       left,
       width: w,
       zIndex: 9999,
-    });
-  }, [open]);
+    };
+  });
 
   const selectedTeam = useMemo(
     () => teams.find((team) => team.id === value) || null,

@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   closePersistentToolPanel,
   getPersistentToolPanelState,
@@ -26,8 +24,8 @@ test("keyed panel updates do not replace another open panel", () => {
     "summary:1",
   );
 
-  assert.equal(getPersistentToolPanelState()?.title, "Tool result");
-  assert.equal(getPersistentToolPanelState()?.children, "tool body");
+  expect(getPersistentToolPanelState()?.title).toBe("Tool result");
+  expect(getPersistentToolPanelState()?.children).toBe("tool body");
 
   closePersistentToolPanel();
 });
@@ -49,8 +47,8 @@ test("same-reference panel update does not notify listeners", () => {
 
   updatePersistentToolPanel((prev) => prev, "tool:1");
 
-  assert.equal(getPersistentToolPanelState(), before);
-  assert.equal(calls.length, 1);
+  expect(getPersistentToolPanelState()).toBe(before);
+  expect(calls.length).toBe(1);
 
   unsubscribe();
   closePersistentToolPanel();

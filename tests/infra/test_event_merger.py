@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from src.infra.session import event_merger as event_merger_module
@@ -84,6 +86,12 @@ def test_event_merger_limits_follow_runtime_settings(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(event_merger.settings, "EVENT_MERGE_TIMEOUT_SECONDS", 11, raising=False)
     monkeypatch.setattr(
         event_merger.settings,
+        "EVENT_MERGE_IMMEDIATE_DEBOUNCE_SECONDS",
+        0.25,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        event_merger.settings,
         "EVENT_MERGE_MAX_EVENTS_PER_TRACE",
         222,
         raising=False,
@@ -92,7 +100,68 @@ def test_event_merger_limits_follow_runtime_settings(monkeypatch: pytest.MonkeyP
     assert event_merger._get_merge_batch_size() == 17
     assert event_merger._get_merge_concurrency() == 3
     assert event_merger._get_merge_timeout() == 11
+    assert event_merger._get_immediate_merge_debounce_seconds() == 0.25
     assert event_merger._get_merge_max_events_per_trace() == 222
+
+
+def test_event_merger_handles_fifty_thousand_events_per_trace_by_default() -> None:
+    assert event_merger_module._get_merge_max_events_per_trace() == 50_000
+
+
+@pytest.mark.asyncio
+async def test_event_merger_schedule_merge_once_runs_background_merge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.infra.session.event_merger as event_merger
+
+    monkeypatch.setattr(
+        event_merger,
+        "_get_immediate_merge_debounce_seconds",
+        lambda: 0.01,
+    )
+    merge_calls = 0
+
+    async def fake_merge_once(self) -> None:
+        nonlocal merge_calls
+        merge_calls += 1
+
+    monkeypatch.setattr(EventMerger, "merge_once", fake_merge_once)
+
+    merger = EventMerger(trace_storage=None)
+    merger.schedule_merge_once()
+    merger.schedule_merge_once()
+
+    await asyncio.wait_for(merger._merge_once_task, timeout=1)
+
+    assert merge_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_event_merger_debounces_many_immediate_merge_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.infra.session.event_merger as event_merger
+
+    monkeypatch.setattr(
+        event_merger,
+        "_get_immediate_merge_debounce_seconds",
+        lambda: 0.05,
+    )
+    merge_calls = 0
+
+    async def fake_merge_once(self) -> None:
+        nonlocal merge_calls
+        merge_calls += 1
+
+    monkeypatch.setattr(EventMerger, "merge_once", fake_merge_once)
+
+    merger = EventMerger(trace_storage=None)
+    for _ in range(100):
+        merger.schedule_merge_once()
+
+    await asyncio.wait_for(merger._merge_once_task, timeout=1)
+
+    assert merge_calls == 1
 
 
 @pytest.mark.asyncio
@@ -263,6 +332,26 @@ async def test_event_merger_offloads_cpu_merge_work(
     assert results[0][2][0]["data"]["content"] == "ab"
 
 
+def test_event_merger_only_merges_contiguous_events_to_preserve_timeline() -> None:
+    merger = EventMerger(trace_storage=None)
+
+    events = [
+        {"event_type": "message:chunk", "data": {"content": "a", "text_id": "t1"}},
+        {"event_type": "tool:start", "data": {"name": "search"}},
+        {"event_type": "message:chunk", "data": {"content": "b", "text_id": "t1"}},
+        {"event_type": "message:chunk", "data": {"content": "c", "text_id": "t1"}},
+    ]
+
+    merged = merger._merge_events(events)
+
+    assert [event["event_type"] for event in merged] == [
+        "message:chunk",
+        "tool:start",
+        "message:chunk",
+    ]
+    assert [event["data"].get("content") for event in merged] == ["a", None, "bc"]
+
+
 @pytest.mark.asyncio
 async def test_event_merger_filters_out_giant_traces_before_loading_events(
     monkeypatch: pytest.MonkeyPatch,
@@ -310,4 +399,89 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
             {"event_count": {"$exists": False}},
         ],
     }
-    assert storage.collection.projection == {"trace_id": 1, "events": 1, "event_count": 1}
+    assert storage.collection.projection == {
+        "trace_id": 1,
+        "session_id": 1,
+        "run_id": 1,
+        "started_at": 1,
+        "event_count": 1,
+        "metadata": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_event_merger_reads_events_through_trace_storage_compat() -> None:
+    class _TraceStorage:
+        async def read_trace_events_compat(self, trace_id: str):
+            assert trace_id == "trace-1"
+            return [
+                {"event_type": "message:chunk", "data": {"content": "a"}},
+                {"event_type": "message:chunk", "data": {"content": "b"}},
+            ]
+
+    merger = EventMerger(_TraceStorage())
+
+    results = await merger._process_trace_merges_bounded(
+        [{"trace_id": "trace-1"}],
+        concurrency=1,
+    )
+
+    assert results[0][0] == "trace-1"
+    assert results[0][1][0]["data"]["content"] == "a"
+    assert results[0][2][0]["data"]["content"] == "ab"
+
+
+@pytest.mark.asyncio
+async def test_event_merger_rebuilds_chunks_when_chunk_storage_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        event_merger_module.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        True,
+        raising=False,
+    )
+
+    class _Collection:
+        def __init__(self) -> None:
+            self.operations = []
+
+        async def bulk_write(self, operations, ordered: bool = False):
+            del ordered
+            self.operations.extend(operations)
+            return type("_Result", (), {"modified_count": len(operations)})()
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.collection = _Collection()
+            self.replacements = []
+
+        async def replace_trace_events_with_chunks(self, trace_doc, events):
+            self.replacements.append((trace_doc, events))
+
+    storage = _TraceStorage()
+    merger = EventMerger(storage)
+
+    modified, merged, skipped, errors = await merger._merge_trace_batch(
+        storage.collection,
+        [
+            {
+                "trace_id": "trace-1",
+                "session_id": "session-1",
+                "run_id": "run-1",
+                "started_at": "started",
+                "events": [
+                    {"event_type": "message:chunk", "data": {"content": "a"}},
+                    {"event_type": "message:chunk", "data": {"content": "b"}},
+                ],
+            }
+        ],
+        concurrency=1,
+    )
+
+    assert (modified, merged, skipped, errors) == (1, 1, 0, 0)
+    assert storage.replacements[0][0]["trace_id"] == "trace-1"
+    assert storage.replacements[0][1][0]["data"]["content"] == "ab"
+    update_doc = storage.collection.operations[0]._doc
+    assert "events" not in update_doc["$set"]
+    assert update_doc["$set"]["metadata.merged"] is True

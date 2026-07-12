@@ -29,6 +29,7 @@ def test_subagent_workflow_allows_folder_reveal() -> None:
     assert "Project / Folder Reveal" in WORKFLOW_SECTION
     assert "ordinary folders with many files" in WORKFLOW_SECTION
     assert 'mode: "folder"' in WORKFLOW_SECTION
+    assert "Use reveal_file for single files" in WORKFLOW_SECTION
 
 
 def test_reveal_project_default_upload_concurrency_bounds_download_buffers() -> None:
@@ -325,6 +326,32 @@ async def test_reveal_project_keeps_project_mode_for_frontend_entry(
 
     assert result["mode"] == "project"
     assert result["entry"] == "/src/main.jsx"
+
+
+@pytest.mark.asyncio
+async def test_reveal_project_handles_single_html_file_path_as_static_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_path = "/workspace/daily-news-2025-07-05.html"
+    _install_common_patches(
+        monkeypatch,
+        files=[file_path],
+        contents={file_path: b"<!doctype html><title>News</title>"},
+    )
+
+    result = json.loads(
+        await reveal_project_tool.reveal_project.coroutine(
+            project_path=file_path,
+            runtime=_Runtime(object()),
+            template="static",
+        )
+    )
+
+    assert result["type"] == "project_reveal"
+    assert result["mode"] == "project"
+    assert result["entry"] == "/daily-news-2025-07-05.html"
+    assert "/daily-news-2025-07-05.html" in result["files"]
+    assert result["file_count"] == 1
 
 
 @pytest.mark.asyncio

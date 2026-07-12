@@ -1,12 +1,7 @@
 import { createPortal } from "react-dom";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 
 export interface SkillFilterOption<T extends string> {
   value: T;
@@ -43,11 +38,7 @@ function getViewportBounds() {
   };
 }
 
-function getDropdownPosition(
-  trigger: HTMLButtonElement,
-  width: number,
-): CSSProperties {
-  const rect = trigger.getBoundingClientRect();
+function getDropdownPosition(rect: DOMRect, width: number): CSSProperties {
   const viewport = getViewportBounds();
   const availableWidth = viewport.width - DROPDOWN_GUTTER * 2;
   const renderedWidth = Math.min(width, availableWidth);
@@ -90,42 +81,23 @@ export function SkillFilterDropdown<T extends string>({
   onClearFilters,
 }: SkillFilterDropdownProps<T>) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<CSSProperties | null>(
-    null,
-  );
   const hasActiveFilters = activeCount > 0;
+
+  const dropdownStyle = useStickyDropdownPosition(triggerRef, isOpen, (rect) =>
+    getDropdownPosition(rect, FILTER_DROPDOWN_WIDTH),
+  );
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const updatePosition = () => {
-      if (!triggerRef.current) return;
-      setDropdownStyle(
-        getDropdownPosition(triggerRef.current, FILTER_DROPDOWN_WIDTH),
-      );
-    };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onOpenChange(false);
     };
-
-    updatePosition();
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    window.visualViewport?.addEventListener("resize", updatePosition);
-    window.visualViewport?.addEventListener("scroll", updatePosition);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-      window.visualViewport?.removeEventListener("resize", updatePosition);
-      window.visualViewport?.removeEventListener("scroll", updatePosition);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onOpenChange]);
 
   const panel =
-    isOpen && dropdownStyle
+    isOpen && Object.keys(dropdownStyle).length > 0
       ? createPortal(
           <div
             className="fixed inset-0 z-[999]"

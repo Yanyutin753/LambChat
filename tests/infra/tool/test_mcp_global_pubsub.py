@@ -222,6 +222,57 @@ def test_global_mcp_cache_uses_configured_max_entries(
     assert "user-new" in mcp_global._global_entries
 
 
+@pytest.mark.asyncio
+async def test_global_mcp_does_not_cache_all_failed_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import mcp_client
+
+    class _FailedDiscoveryManager:
+        def __init__(self, **_kwargs) -> None:
+            self._initialized = False
+            self.failed_servers = {"server-a": "[ConnectionError] no route"}
+
+        async def initialize(self) -> None:
+            self._initialized = True
+
+        async def get_tools(self) -> list:
+            return []
+
+        def all_configured_servers_failed(self) -> bool:
+            return True
+
+    mark_calls: list[str] = []
+
+    async def fake_acquire_distributed_lock(_lock_key: str):
+        return True, "lock-value"
+
+    async def fake_release_distributed_lock(_lock_key: str, _lock_value: str) -> None:
+        return None
+
+    async def fake_renew_lock_until_stopped(*_args) -> None:
+        stop_event = _args[3]
+        await stop_event.wait()
+
+    async def fake_mark_init_done(user_id: str) -> None:
+        mark_calls.append(user_id)
+
+    mcp_global._global_entries.clear()
+    mcp_global._local_locks.clear()
+    monkeypatch.setattr(mcp_client, "MCPClientManager", _FailedDiscoveryManager)
+    monkeypatch.setattr(mcp_global, "acquire_distributed_lock", fake_acquire_distributed_lock)
+    monkeypatch.setattr(mcp_global, "release_distributed_lock", fake_release_distributed_lock)
+    monkeypatch.setattr(mcp_global, "_renew_lock_until_stopped", fake_renew_lock_until_stopped)
+    monkeypatch.setattr(mcp_global, "mark_init_done", fake_mark_init_done)
+
+    tools, manager = await mcp_global.get_global_mcp_tools("user-1")
+
+    assert tools == []
+    assert isinstance(manager, _FailedDiscoveryManager)
+    assert "user-1" not in mcp_global._global_entries
+    assert mark_calls == []
+
+
 def test_global_mcp_warmup_limit_setting_default() -> None:
     from src.kernel.config.base import Settings
     from src.kernel.config.definitions import SETTING_DEFINITIONS

@@ -436,7 +436,7 @@ function RoleFormModal({
             {permissionGroups.map((group) => (
               <div key={group.name} className="space-y-1.5">
                 {/* 组标题 */}
-                <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40">
+                <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]">
                   <Checkbox
                     size="sm"
                     checked={isGroupChecked(group.permissions)}
@@ -456,7 +456,7 @@ function RoleFormModal({
                   {group.permissions.map((permission) => (
                     <label
                       key={permission.value}
-                      className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40"
+                      className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-bg-subtle)]"
                     >
                       <Checkbox
                         size="sm"

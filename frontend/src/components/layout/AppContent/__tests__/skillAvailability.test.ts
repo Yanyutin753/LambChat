@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   buildEffectiveSkills,
   countEnabledSkills,
@@ -30,14 +27,11 @@ test("limits persona skills by whitelist and then applies disabled skills", () =
     disabledSkillNames: ["writer"],
   });
 
-  assert.deepEqual(
-    result.map((item) => [item.name, item.enabled]),
-    [
-      ["planner", true],
-      ["writer", false],
-    ],
-  );
-  assert.equal(countEnabledSkills(result), 1);
+  expect(result.map((item) => [item.name, item.enabled])).toEqual([
+    ["planner", true],
+    ["writer", false],
+  ]);
+  expect(countEnabledSkills(result)).toBe(1);
 });
 
 test("falls back to disabled-skills mode without a persona whitelist", () => {
@@ -47,12 +41,9 @@ test("falls back to disabled-skills mode without a persona whitelist", () => {
     disabledSkillNames: ["writer"],
   });
 
-  assert.deepEqual(
-    result.map((item) => [item.name, item.enabled]),
-    [
-      ["planner", true],
-      ["writer", false],
-    ],
-  );
-  assert.equal(countEnabledSkills(result), 1);
+  expect(result.map((item) => [item.name, item.enabled])).toEqual([
+    ["planner", true],
+    ["writer", false],
+  ]);
+  expect(countEnabledSkills(result)).toBe(1);
 });

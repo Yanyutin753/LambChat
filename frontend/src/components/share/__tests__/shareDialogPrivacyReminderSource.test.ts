@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,16 +17,15 @@ const zhLocale = readFileSync(
 );
 
 test("share dialog renders a privacy reminder before creating links", () => {
-  assert.match(shareDialogSource, /share\.privacyReminder/);
-  assert.match(shareDialogSource, /AlertTriangle/);
+  expect(shareDialogSource).toMatch(/share\.privacyReminder/);
+  expect(shareDialogSource).toMatch(/AlertTriangle/);
 });
 
 test("share privacy reminder is localized for open-source friendly copy", () => {
-  assert.match(enLocale, /"privacyReminder"/);
-  assert.match(
-    enLocale,
+  expect(enLocale).toMatch(/"privacyReminder"/);
+  expect(enLocale).toMatch(
     /remove personal information, secrets, contact details, account data/,
   );
-  assert.match(zhLocale, /"privacyReminder"/);
-  assert.match(zhLocale, /移除个人隐私、密钥、联系方式、账号信息/);
+  expect(zhLocale).toMatch(/"privacyReminder"/);
+  expect(zhLocale).toMatch(/移除个人隐私、密钥、联系方式、账号信息/);
 });

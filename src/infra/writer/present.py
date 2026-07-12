@@ -166,9 +166,12 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         content: str,
         attachments: Optional[List[Dict[str, Any]]] = None,
         message_id: Optional[str] = None,
+        enabled_skills: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """输出用户消息并保存"""
-        event = self.present_user_message(content, attachments, message_id=message_id)
+        event = self.present_user_message(
+            content, attachments, message_id=message_id, enabled_skills=enabled_skills
+        )
         await self.save_event(event)
         if self.config.session_id:
             try:

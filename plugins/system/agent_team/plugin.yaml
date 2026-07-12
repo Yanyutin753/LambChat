@@ -8,5 +8,6 @@ permissions:
   - team:read
   - team:write
   - team:delete
+  - mcp:read
 enabled_by_default: true
 data_template: plugin-data-template

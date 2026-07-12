@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 function readSource(path: string): string {
@@ -9,17 +7,17 @@ function readSource(path: string): string {
 test("revealed file API uses the configured API base", () => {
   const source = readSource("../revealedFile.ts");
 
-  assert.match(source, /import \{ API_BASE/);
-  assert.doesNotMatch(source, /authFetch<[^>]+>\("\/api\/files/);
-  assert.doesNotMatch(source, /authFetch<[^>]+>\(\s*`\/api\/files/);
+  expect(source).toMatch(/import \{ API_BASE/);
+  expect(source).not.toMatch(/authFetch<[^>]+>\("\/api\/files/);
+  expect(source).not.toMatch(/authFetch<[^>]+>\(\s*`\/api\/files/);
 });
 
 test("WebSocket notifications use the configured backend base", () => {
   const source = readSource("../../../hooks/useWebSocket.ts");
 
-  assert.match(source, /buildWebSocketUrl/);
-  assert.doesNotMatch(source, /window\.location\.host/);
-  assert.doesNotMatch(source, /`\$\{protocol\}\/\/\$\{host\}\/ws`/);
+  expect(source).toMatch(/buildWebSocketUrl/);
+  expect(source).not.toMatch(/window\.location\.host/);
+  expect(source).not.toMatch(/`\$\{protocol\}\/\/\$\{host\}\/ws`/);
 });
 
 test("hooks with backend requests do not hardcode same-origin API roots", () => {
@@ -31,49 +29,49 @@ test("hooks with backend requests do not hardcode same-origin API roots", () => 
     "../../../components/profile/tabs/ProfileToolsTab.tsx",
   );
 
-  assert.match(useAgent, /from "\.\.\/services\/api\/config"/);
-  assert.match(useMcp, /import \{ API_BASE/);
-  assert.match(useTools, /import \{ API_BASE/);
-  assert.match(useApprovals, /import \{ API_BASE/);
-  assert.match(profileTools, /import \{ API_BASE/);
-  assert.doesNotMatch(useAgent, /API_BASE,\n\s+type UseAgentOptions/);
-  assert.doesNotMatch(useMcp, /const API_BASE = "\/api/);
-  assert.doesNotMatch(useTools, /const API_BASE = "\/api/);
-  assert.doesNotMatch(useApprovals, /const API_BASE =/);
-  assert.doesNotMatch(profileTools, /const API_BASE = "\/api/);
-  assert.doesNotMatch(useMcp, /"\s*\/api\/admin\/mcp/);
-  assert.doesNotMatch(useTools, /"\s*\/api/);
-  assert.doesNotMatch(useApprovals, /"\s*\/human/);
-  assert.doesNotMatch(profileTools, /"\s*\/api/);
+  expect(useAgent).toMatch(/from "\.\.\/services\/api\/config"/);
+  expect(useMcp).toMatch(/import \{ API_BASE/);
+  expect(useTools).toMatch(/import \{ API_BASE/);
+  expect(useApprovals).toMatch(/import \{ API_BASE/);
+  expect(profileTools).toMatch(/import \{ API_BASE/);
+  expect(useAgent).not.toMatch(/API_BASE,\n\s+type UseAgentOptions/);
+  expect(useMcp).not.toMatch(/const API_BASE = "\/api/);
+  expect(useTools).not.toMatch(/const API_BASE = "\/api/);
+  expect(useApprovals).not.toMatch(/const API_BASE =/);
+  expect(profileTools).not.toMatch(/const API_BASE = "\/api/);
+  expect(useMcp).not.toMatch(/"\s*\/api\/admin\/mcp/);
+  expect(useTools).not.toMatch(/"\s*\/api/);
+  expect(useApprovals).not.toMatch(/"\s*\/human/);
+  expect(profileTools).not.toMatch(/"\s*\/api/);
 });
 
 test("streaming SSE uses the configured backend base in packaged apps", () => {
   const source = readSource("../../../hooks/useAgent/sseConnection.ts");
 
-  assert.match(source, /import \{ buildApiUrl \}/);
-  assert.match(
-    source,
+  expect(source).toMatch(/import \{ buildApiUrl \}/);
+  expect(source).toMatch(
     /buildApiUrl\(\s*`\/api\/chat\/sessions\/\$\{targetSessionId\}\/stream/,
   );
-  assert.doesNotMatch(source, /fetchEventSource\(\s*`\/api\/chat\/sessions/);
+  expect(source).not.toMatch(/fetchEventSource\(\s*`\/api\/chat\/sessions/);
 });
 
 test("upload attachment fallback URLs use the configured backend base", () => {
   const source = readSource("../../../hooks/useFileUpload.ts");
 
-  assert.match(source, /import \{ buildApiUrl \}/);
-  assert.match(source, /url:\s*buildApiUrl\(c\.url \|\| `\/api\/upload\/file/);
-  assert.match(source, /url:\s*buildApiUrl\(result\.url\)/);
-  assert.doesNotMatch(source, /url:\s*c\.url \|\| `\/api\/upload\/file/);
+  expect(source).toMatch(/import \{ buildApiUrl \}/);
+  expect(source).toMatch(
+    /url:\s*buildApiUrl\(c\.url \|\| `\/api\/upload\/file/,
+  );
+  expect(source).toMatch(/url:\s*buildApiUrl\(result\.url\)/);
+  expect(source).not.toMatch(/url:\s*c\.url \|\| `\/api\/upload\/file/);
 });
 
 test("signed upload URLs are resolved for packaged app document fetches", () => {
   const source = readSource("../upload.ts");
 
-  assert.match(source, /import \{[^}]*getFullUrl[^}]*\} from "\.\/config"/);
-  assert.match(source, /return getFullUrl\(result\.url\) \|\| result\.url/);
-  assert.match(
-    source,
+  expect(source).toMatch(/import \{[^}]*getFullUrl[^}]*\} from "\.\/config"/);
+  expect(source).toMatch(/return getFullUrl\(result\.url\) \|\| result\.url/);
+  expect(source).toMatch(
     /url:\s*item\.url \? getFullUrl\(item\.url\) \|\| item\.url : item\.url/,
   );
 });
@@ -86,10 +84,10 @@ test("attachment previews resolve backend-relative image URLs", () => {
     "../../../components/common/AttachmentCard.tsx",
   );
 
-  assert.match(attachmentPreview, /getFullUrl\(attachment\.url\)/);
-  assert.match(attachmentCard, /getFullUrl\(attachment\.url\)/);
-  assert.doesNotMatch(attachmentPreview, /src=\{attachment\.url\}/);
-  assert.doesNotMatch(attachmentCard, /src=\{attachment\.url\}/);
+  expect(attachmentPreview).toMatch(/getFullUrl\(attachment\.url\)/);
+  expect(attachmentCard).toMatch(/getFullUrl\(attachment\.url\)/);
+  expect(attachmentPreview).not.toMatch(/src=\{attachment\.url\}/);
+  expect(attachmentCard).not.toMatch(/src=\{attachment\.url\}/);
 });
 
 test("backend-provided avatar URLs are resolved before image rendering", () => {
@@ -108,7 +106,7 @@ test("backend-provided avatar URLs are resolved before image rendering", () => {
 
   for (const file of files) {
     const source = readSource(file);
-    assert.match(source, /getFullUrl\(/, file);
+    expect(source).toMatch(/getFullUrl\(/);
   }
 });
 
@@ -120,8 +118,8 @@ test("approval polling requests use the configured backend base", () => {
   );
 
   for (const source of [historyLoader, eventHandlers, approvalPanel]) {
-    assert.match(source, /import \{ buildApiUrl \}/);
-    assert.doesNotMatch(source, /authFetch<[^>]+>\(\s*`\/human\//);
+    expect(source).toMatch(/import \{ buildApiUrl \}/);
+    expect(source).not.toMatch(/authFetch<[^>]+>\(\s*`\/human\//);
   }
 });
 
@@ -130,15 +128,9 @@ test("API modules share the normalized API base configuration", () => {
   const feedbackCompatibility = readSource("../feedback.ts");
   const notification = readSource("../notification.ts");
 
-  assert.match(
-    feedback,
-    /import \{ API_BASE \} from "\.\.\/\.\.\/services\/api\/config"/,
-  );
-  assert.match(
-    feedbackCompatibility,
-    /export \{ feedbackApi \} from "\.\.\/\.\.\/plugins\/feedback\/api"/,
-  );
-  assert.match(notification, /import \{ API_BASE \} from "\.\/config"/);
-  assert.doesNotMatch(feedback, /import\.meta\.env\.VITE_API_BASE/);
-  assert.doesNotMatch(notification, /import\.meta\.env\.VITE_API_BASE/);
+  expect(feedback).toMatch(/import \{ API_BASE \} from "\.\.\/\.\.\/services\/api\/config"/);
+  expect(feedbackCompatibility).toMatch(/export \{ feedbackApi \} from "\.\.\/\.\.\/plugins\/feedback\/api"/);
+  expect(notification).toMatch(/import \{ API_BASE \} from "\.\/config"/);
+  expect(feedback).not.toMatch(/import\.meta\.env\.VITE_API_BASE/);
+  expect(notification).not.toMatch(/import\.meta\.env\.VITE_API_BASE/);
 });

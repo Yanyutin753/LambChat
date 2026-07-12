@@ -1,23 +1,11 @@
-import {
-  useState,
-  useRef,
-  useEffect,
-  memo,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useState, useRef, useEffect, memo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import {
   Wrench,
   Sparkles,
-  Bot,
-  Brain,
   Plus,
-  Image,
-  Video,
-  Music,
-  FileText,
   UserRound,
   UsersRound,
   ChevronDown,
@@ -25,13 +13,9 @@ import {
   Layers,
   Plug,
   Settings2,
-  ToggleLeft,
-  Workflow,
 } from "lucide-react";
-import { THINKING_LEVEL_COLOR } from "../chat/chatInputConstants";
 
-import type { AgentOption, FileCategory } from "../../types";
-import type { UploadLimits } from "../../hooks/useFileUpload";
+import type { FileCategory } from "../../types";
 import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
 
 export type FeaturePanel =
@@ -43,16 +27,8 @@ export type FeaturePanel =
   | (string & {})
   | null;
 
-const FILE_CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
-  image: Image,
-  video: Video,
-  audio: Music,
-  document: FileText,
-};
-
 const PLUGIN_OPTION_ICONS: Record<string, React.ElementType> = {
   UsersRound,
-  Workflow,
   Plug,
 };
 
@@ -68,16 +44,11 @@ interface FeatureMenuProps {
   pluginOptions?: readonly CoreChatInputOptionContribution[];
   hasAgentSelector: boolean;
   agentName?: string | null;
-  hasThinkingOption: boolean;
   thinkingLabel?: string;
   thinkingLevel?: string;
-  booleanAgentOptions?: Record<string, AgentOption>;
-  agentOptionValues?: Record<string, boolean | string | number>;
-  onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
   // File upload
   uploadCategories: FileCategory[];
-  uploadLimits?: UploadLimits | null;
-  onFileCategorySelect: (category: FileCategory) => void;
+  onUploadFiles: () => void;
 }
 
 function MenuGroup({
@@ -132,7 +103,6 @@ function MenuItem({
   active?: boolean;
   onClick: () => void;
 }) {
-  const color = THINKING_LEVEL_COLOR[badgeColor ?? ""];
   return (
     <button
       type="button"
@@ -143,17 +113,7 @@ function MenuItem({
       <span className="feature-menu-item-icon">{icon}</span>
       <span className="flex-1 text-left truncate">{label}</span>
       {badge && (
-        <span
-          className="feature-menu-item-badge"
-          style={
-            color
-              ? {
-                  color: color.text,
-                  background: color.bg,
-                }
-              : undefined
-          }
-        >
+        <span className="feature-menu-item-badge" data-badge-color={badgeColor}>
           {badge}
         </span>
       )}
@@ -171,22 +131,33 @@ export const FeatureMenu = memo(function FeatureMenu({
   hasPersonaSelector = false,
   personaName,
   pluginOptions = [],
-  hasAgentSelector,
-  agentName,
-  hasThinkingOption,
-  thinkingLabel,
-  thinkingLevel,
-  booleanAgentOptions,
-  agentOptionValues = {},
-  onToggleAgentOption,
   uploadCategories,
-  uploadLimits,
-  onFileCategorySelect,
+  onUploadFiles,
 }: FeatureMenuProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const dropdownStyle = useStickyDropdownPosition(
+    triggerRef,
+    isOpen,
+    (rect) => {
+      const vw = window.innerWidth;
+      const dropdownW = Math.min(
+        vw < 640 ? Math.min(240, vw - 40) : 320,
+        vw - 16,
+      );
+      const left = Math.max(8, Math.min(rect.left, vw - dropdownW - 8));
+      return {
+        position: "fixed",
+        bottom: window.innerHeight - rect.top + 8,
+        left,
+        width: dropdownW,
+        zIndex: 9999,
+      };
+    },
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -203,25 +174,10 @@ export const FeatureMenu = memo(function FeatureMenu({
     if (activePanel) setIsOpen(false);
   }, [activePanel]);
 
-  const getDropdownStyle = (): CSSProperties => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return { display: "none" };
-    const vw = window.innerWidth;
-    const dropdownW = Math.min(
-      vw < 640 ? Math.min(240, vw - 40) : 320,
-      vw - 16,
-    );
-    const left = Math.max(8, Math.min(rect.left, vw - dropdownW - 8));
-    return {
-      position: "fixed",
-      bottom: window.innerHeight - rect.top + 8,
-      left,
-      width: dropdownW,
-      zIndex: 9999,
-    };
+  const openDropdown = () => {
+    setIsOpen((prev) => !prev);
   };
 
-  const booleanOptionEntries = Object.entries(booleanAgentOptions ?? {});
   const uploadPluginOptions = pluginOptions.filter(
     (option) => option.slot === "upload",
   );
@@ -247,10 +203,9 @@ export const FeatureMenu = memo(function FeatureMenu({
     totalToolsCount > 0 ||
     totalSkillsCount > 0 ||
     hasPersonaSelector ||
-    pluginOptions.length > 0 ||
-    hasAgentSelector ||
-    hasThinkingOption ||
-    booleanOptionEntries.length > 0;
+    uploadPluginOptions.length > 0 ||
+    settingsPluginOptions.length > 0 ||
+    enhancePluginOptions.length > 0;
   if (!hasFeatureItems && uploadCategories.length === 0) return null;
 
   return (
@@ -261,11 +216,11 @@ export const FeatureMenu = memo(function FeatureMenu({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setIsOpen((prev) => !prev);
+          openDropdown();
         }}
         style={isOpen ? { position: "relative", zIndex: 10000 } : undefined}
         className="chat-tool-btn"
-        aria-label={t("chat.features", "功能")}
+        aria-label={t("chat.features", "Features")}
       >
         <Plus size={18} />
       </button>
@@ -276,43 +231,34 @@ export const FeatureMenu = memo(function FeatureMenu({
             ref={dropdownRef}
             className="feature-menu-dropdown"
             style={{
-              ...getDropdownStyle(),
+              ...dropdownStyle,
               background: "var(--theme-bg-card)",
               borderColor: "var(--theme-border)",
             }}
           >
             {(uploadCategories.length > 0 || uploadPluginOptions.length > 0) && (
               <MenuGroup
-                label={t("featureMenu.upload", "上传")}
+                label={t("featureMenu.upload", "Upload")}
                 icon={<Upload size={18} />}
                 defaultExpanded
               >
-                {uploadCategories.map((category) => {
-                  const Icon = FILE_CATEGORY_ICONS[category];
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => {
-                        onFileCategorySelect(category);
-                        setIsOpen(false);
-                      }}
-                      className="feature-menu-item"
-                    >
-                      <span className="feature-menu-item-icon">
-                        <Icon size={18} />
-                      </span>
-                      <span className="flex-1 text-left truncate">
-                        {t(`fileUpload.categories.${category}`)}
-                      </span>
-                      {uploadLimits && (
-                        <span className="feature-menu-item-badge">
-                          {uploadLimits[category]}MB
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                {uploadCategories.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUploadFiles();
+                      setIsOpen(false);
+                    }}
+                    className="feature-menu-item"
+                  >
+                    <span className="feature-menu-item-icon">
+                      <Upload size={18} />
+                    </span>
+                    <span className="flex-1 text-left truncate">
+                      {t("featureMenu.upload", "Upload")}
+                    </span>
+                  </button>
+                )}
                 {uploadPluginOptions.map(renderPluginOption)}
               </MenuGroup>
             )}
@@ -321,13 +267,13 @@ export const FeatureMenu = memo(function FeatureMenu({
               totalToolsCount > 0 ||
               totalSkillsCount > 0) && (
               <MenuGroup
-                label={t("featureMenu.enhance", "增强")}
+                label={t("featureMenu.enhance", "Enhance")}
                 icon={<Layers size={18} />}
               >
                 {hasPersonaSelector && (
                   <MenuItem
                     icon={<UserRound size={18} />}
-                    label={t("featureMenu.persona", "角色")}
+                    label={t("featureMenu.persona", "Persona")}
                     badge={personaName || undefined}
                     active={activePanel === "persona"}
                     onClick={() => onOpen("persona")}
@@ -346,7 +292,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                 {totalSkillsCount > 0 && (
                   <MenuItem
                     icon={<Sparkles size={18} />}
-                    label={t("skillSelector.title", "技能")}
+                    label={t("skillSelector.title", "Skills")}
                     badge={`${enabledSkillsCount}/${totalSkillsCount}`}
                     active={activePanel === "skills"}
                     onClick={() => onOpen("skills")}
@@ -354,53 +300,12 @@ export const FeatureMenu = memo(function FeatureMenu({
                 )}
               </MenuGroup>
             )}
-            {(hasAgentSelector ||
-              hasThinkingOption ||
-              settingsPluginOptions.length > 0 ||
-              booleanOptionEntries.length > 0) && (
+            {settingsPluginOptions.length > 0 && (
               <MenuGroup
-                label={t("featureMenu.settings", "设置")}
+                label={t("featureMenu.settings", "Settings")}
                 icon={<Settings2 size={18} />}
               >
-                {hasAgentSelector && (
-                  <MenuItem
-                    icon={<Bot size={18} />}
-                    label={t("agent.selectMode", "选择模式")}
-                    badge={agentName ? t(agentName) : undefined}
-                    active={activePanel === "agent"}
-                    onClick={() => onOpen("agent")}
-                  />
-                )}
-                {hasThinkingOption && (
-                  <MenuItem
-                    icon={<Brain size={18} />}
-                    label={t("chat.thinkingIntensity", "思考强度")}
-                    badge={thinkingLabel}
-                    badgeColor={thinkingLevel}
-                    active={activePanel === "thinking"}
-                    onClick={() => onOpen("thinking")}
-                  />
-                )}
                 {settingsPluginOptions.map(renderPluginOption)}
-                {booleanOptionEntries.map(([key, option]) => {
-                  const value = agentOptionValues[key] ?? option.default;
-                  const enabled = value === true;
-                  const label = option.label_key
-                    ? t(option.label_key)
-                    : option.label;
-                  return (
-                    <MenuItem
-                      key={key}
-                      icon={<ToggleLeft size={18} />}
-                      label={label}
-                      badge={
-                        enabled ? t("common.on", "On") : t("common.off", "Off")
-                      }
-                      active={enabled}
-                      onClick={() => onToggleAgentOption?.(key, !enabled)}
-                    />
-                  );
-                })}
               </MenuGroup>
             )}
           </div>,

@@ -6,8 +6,8 @@ resources:
     cleanup_strategy: keep
     metadata:
       storage: mongodb
-      manager: src.infra.team.manager.TeamManager
-      schema: src.kernel.schemas.team.TeamResponse
+      manager: plugins.system.agent_team.backend.domain.manager.TeamManager
+      schema: plugins.system.agent_team.backend.domain.schemas.TeamResponse
       data_policy: Disable/uninstall dry-run keeps user team definitions.
   - id: teams.owner_updated_lookup
     type: db_index

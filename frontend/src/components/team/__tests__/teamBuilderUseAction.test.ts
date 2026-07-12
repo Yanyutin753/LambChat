@@ -1,20 +1,16 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const wrapperSource = readFileSync(
   new URL("../TeamBuilderWrapper.tsx", import.meta.url),
   "utf8",
 );
 
 test("team cards expose a use action that opens chat in team mode", () => {
-  assert.match(wrapperSource, /Sparkles/);
-  assert.match(wrapperSource, /handleUseTeam/);
-  assert.match(
-    wrapperSource,
+  expect(wrapperSource).toMatch(/Sparkles/);
+  expect(wrapperSource).toMatch(/handleUseTeam/);
+  expect(wrapperSource).toMatch(
     /navigate\(`\/chat\?agent=team&team=\$\{encodeURIComponent\(team\.id\)\}`/,
   );
-  assert.match(wrapperSource, /title=\{t\("team\.use"/);
+  expect(wrapperSource).toMatch(/title=\{t\("team\.use"/);
 });
 
 test("team use action has locale entries", () => {
@@ -24,6 +20,6 @@ test("team use action has locale entries", () => {
       "utf8",
     ),
   );
-  assert.equal(zhLocale.team.use, "使用");
-  assert.match(zhLocale.team.useSuccess, /^已切换到团队/);
+  expect(zhLocale.team.use).toBe("使用");
+  expect(zhLocale.team.useSuccess).toMatch(/^已切换到团队/);
 });

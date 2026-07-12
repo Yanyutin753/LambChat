@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   buildFileCardPreview,
@@ -45,11 +43,11 @@ test("uses the first file in the session group as the navigation target", () => 
     createFile({ id: "older", file_name: "older.txt" }),
   ];
 
-  assert.equal(getSessionNavigationTarget(files)?.id, "latest");
+  expect(getSessionNavigationTarget(files)?.id).toBe("latest");
 });
 
 test("returns null when a session group has no files", () => {
-  assert.equal(getSessionNavigationTarget([]), null);
+  expect(getSessionNavigationTarget([])).toBe(null);
 });
 
 test("collects previewable images from visible session groups in render order", () => {
@@ -83,10 +81,7 @@ test("collects previewable images from visible session groups in render order", 
     { files: [document, second] },
   ]);
 
-  assert.deepEqual(
-    files.map((file) => file.id),
-    ["first", "second"],
-  );
+  expect(files.map((file) => file.id)).toEqual(["first", "second"]);
 });
 
 test("resolves previous and next image preview files with boundary states", () => {
@@ -96,21 +91,21 @@ test("resolves previous and next image preview files with boundary states", () =
     createFile({ id: "third", file_name: "third.png" }),
   ];
 
-  assert.deepEqual(getImagePreviewNavigation(files, "first"), {
+  expect(getImagePreviewNavigation(files, "first")).toEqual({
     current: files[0],
     previous: null,
     next: files[1],
     index: 0,
     total: 3,
   });
-  assert.deepEqual(getImagePreviewNavigation(files, "second"), {
+  expect(getImagePreviewNavigation(files, "second")).toEqual({
     current: files[1],
     previous: files[0],
     next: files[2],
     index: 1,
     total: 3,
   });
-  assert.deepEqual(getImagePreviewNavigation(files, "third"), {
+  expect(getImagePreviewNavigation(files, "third")).toEqual({
     current: files[2],
     previous: files[1],
     next: null,
@@ -128,11 +123,11 @@ test("builds a markdown card preview from existing revealed file metadata", () =
     }),
   );
 
-  assert.equal(preview.kind, "markdown");
-  assert.equal(preview.badge, "Markdown");
-  assert.equal(preview.title, "mermaid-sdlc");
-  assert.equal(preview.subtitle, "生成一个好看的mermaid");
-  assert.deepEqual(preview.lines.slice(0, 2), [
+  expect(preview.kind).toBe("markdown");
+  expect(preview.badge).toBe("Markdown");
+  expect(preview.title).toBe("mermaid-sdlc");
+  expect(preview.subtitle).toBe("生成一个好看的mermaid");
+  expect(preview.lines.slice(0, 2)).toEqual([
     "mermaid-sdlc",
     "生成一个好看的mermaid",
   ]);
@@ -155,10 +150,10 @@ test("builds a project card preview without fetching project files", () => {
     }),
   );
 
-  assert.equal(preview.kind, "project");
-  assert.equal(preview.badge, "REACT");
-  assert.equal(preview.subtitle, "12 files");
-  assert.deepEqual(preview.lines, [
+  expect(preview.kind).toBe("project");
+  expect(preview.badge).toBe("REACT");
+  expect(preview.subtitle).toBe("12 files");
+  expect(preview.lines).toEqual([
     "▸ Entry /src/main.tsx",
     "· 12 files indexed",
   ]);
@@ -167,8 +162,7 @@ test("builds a project card preview without fetching project files", () => {
 test("file library document previews fill the mobile viewport like chat previews", () => {
   const source = readSource("../RevealedFilesPanel.tsx");
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /<DocumentPreview[\s\S]*?\bmobileFillViewport\b[\s\S]*?\/>/,
   );
 });
@@ -176,34 +170,34 @@ test("file library document previews fill the mobile viewport like chat previews
 test("file library image previews wire gallery navigation into ImageViewer", () => {
   const source = readSource("../RevealedFilesPanel.tsx");
 
-  assert.match(source, /getPreviewableImageFiles/);
-  assert.match(source, /getImagePreviewNavigation/);
-  assert.match(source, /<ImageViewer[\s\S]*?\bonPrevious=/);
-  assert.match(source, /<ImageViewer[\s\S]*?\bonNext=/);
-  assert.match(source, /<ImageViewer[\s\S]*?\bhasPrevious=/);
-  assert.match(source, /<ImageViewer[\s\S]*?\bhasNext=/);
+  expect(source).toMatch(/getPreviewableImageFiles/);
+  expect(source).toMatch(/getImagePreviewNavigation/);
+  expect(source).toMatch(/<ImageViewer[\s\S]*?\bonPrevious=/);
+  expect(source).toMatch(/<ImageViewer[\s\S]*?\bonNext=/);
+  expect(source).toMatch(/<ImageViewer[\s\S]*?\bhasPrevious=/);
+  expect(source).toMatch(/<ImageViewer[\s\S]*?\bhasNext=/);
 });
 
 test("ImageViewer exposes previous and next controls with keyboard shortcuts", () => {
   const source = readSource("../../common/ImageViewer.tsx");
 
-  assert.match(source, /onPrevious\?:/);
-  assert.match(source, /onNext\?:/);
-  assert.match(source, /hasPrevious\?:/);
-  assert.match(source, /hasNext\?:/);
-  assert.match(source, /ArrowLeft/);
-  assert.match(source, /ArrowRight/);
-  assert.match(source, /ChevronLeft/);
-  assert.match(source, /ChevronRight/);
+  expect(source).toMatch(/onPrevious\?:/);
+  expect(source).toMatch(/onNext\?:/);
+  expect(source).toMatch(/hasPrevious\?:/);
+  expect(source).toMatch(/hasNext\?:/);
+  expect(source).toMatch(/ArrowLeft/);
+  expect(source).toMatch(/ArrowRight/);
+  expect(source).toMatch(/ChevronLeft/);
+  expect(source).toMatch(/ChevronRight/);
 });
 
 test("ImageViewer shows a loading affordance while switched images load", () => {
   const source = readSource("../../common/ImageViewer.tsx");
 
-  assert.match(source, /isImageLoading/);
-  assert.match(source, /setIsImageLoading\(true\)/);
-  assert.match(source, /onLoad=\{\(\) => setIsImageLoading\(false\)\}/);
-  assert.match(source, /onError=\{\(\) => setIsImageLoading\(false\)\}/);
-  assert.match(source, /imageViewer\.loading/);
-  assert.match(source, /animate-spin/);
+  expect(source).toMatch(/isImageLoading/);
+  expect(source).toMatch(/setIsImageLoading\(true\)/);
+  expect(source).toMatch(/onLoad=\{\(\) => setIsImageLoading\(false\)\}/);
+  expect(source).toMatch(/onError=\{\(\) => setIsImageLoading\(false\)\}/);
+  expect(source).toMatch(/skeleton-line/);
+  expect(source).toMatch(/opacity: isImageLoading \? 0\.45 : 1/);
 });

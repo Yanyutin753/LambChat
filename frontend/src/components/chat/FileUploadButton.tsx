@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 import { useFileUpload } from "../../hooks/useFileUpload";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
+import { getFileUploadDropdownStyle } from "./fileUploadDropdownStyle";
 import type { MessageAttachment, FileCategory } from "../../types";
 import { Permission } from "../../types";
 
@@ -133,16 +135,15 @@ export const FileUploadButton = memo(function FileUploadButton({
     e.target.value = "";
   };
 
-  const getDropdownStyle = (): React.CSSProperties => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return { display: "none" };
-    return {
-      position: "fixed",
-      bottom: window.innerHeight - rect.top + 8,
-      left: rect.left,
-      zIndex: 9999,
-    };
-  };
+  const dropdownStyle = useStickyDropdownPosition(
+    triggerRef,
+    showDropdown,
+    (rect) =>
+      getFileUploadDropdownStyle(rect, {
+        viewportWidth: window.visualViewport?.width ?? window.innerWidth,
+        viewportHeight: window.visualViewport?.height ?? window.innerHeight,
+      }),
+  );
 
   if (!canUpload) return null;
 
@@ -175,7 +176,7 @@ export const FileUploadButton = memo(function FileUploadButton({
             ref={dropdownRef}
             className="w-52 rounded-xl shadow-lg border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
             style={{
-              ...getDropdownStyle(),
+              ...dropdownStyle,
               background: "var(--theme-bg-card)",
               borderColor: "var(--theme-border)",
             }}
@@ -187,7 +188,7 @@ export const FileUploadButton = memo(function FileUploadButton({
                   key={category}
                   type="button"
                   onClick={() => handleCategorySelect(category)}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] transition-colors hover:bg-[var(--theme-primary-light)] active:bg-[var(--theme-primary-light)]"
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] transition-colors hover:bg-[var(--theme-bg-subtle)] active:bg-[var(--theme-bg-subtle)]"
                   style={{ color: "var(--theme-text)" }}
                 >
                   <div

@@ -6,16 +6,16 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from src.api import deps as api_deps
-from src.api.routes import team as team_route
-from src.kernel.extensions import AGENT_TEAM_PLUGIN_ID, PluginManifest, PluginRuntime
-from src.kernel.schemas.team import (
+from plugins.system.agent_team.backend import routes as team_route
+from plugins.system.agent_team.backend.domain.schemas import (
     TeamCreate,
     TeamListResponse,
     TeamPreferenceUpdate,
     TeamResponse,
     TeamVisibility,
 )
+from src.api import deps as api_deps
+from src.kernel.extensions import AGENT_TEAM_PLUGIN_ID, PluginManifest, PluginRuntime
 from src.kernel.schemas.user import TokenPayload
 
 

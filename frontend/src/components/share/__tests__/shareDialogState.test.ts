@@ -1,74 +1,66 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   shouldLoadRunsForShareType,
   shouldShowExistingSharesSkeleton,
 } from "../shareDialogState";
 
 test("does not load runs when dialog opens in full share mode", () => {
-  assert.equal(
+  expect(
     shouldLoadRunsForShareType({
       isOpen: true,
       shareType: "full",
       hasLoadedRuns: false,
       isLoadingRuns: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("loads runs after switching to partial share mode", () => {
-  assert.equal(
+  expect(
     shouldLoadRunsForShareType({
       isOpen: true,
       shareType: "partial",
       hasLoadedRuns: false,
       isLoadingRuns: false,
     }),
-    true,
-  );
+  ).toBe(true);
 });
 
 test("does not reload runs while an existing request is in flight", () => {
-  assert.equal(
+  expect(
     shouldLoadRunsForShareType({
       isOpen: true,
       shareType: "partial",
       hasLoadedRuns: false,
       isLoadingRuns: true,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not reload runs after they are already available", () => {
-  assert.equal(
+  expect(
     shouldLoadRunsForShareType({
       isOpen: true,
       shareType: "partial",
       hasLoadedRuns: true,
       isLoadingRuns: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("does not show existing shares skeleton on initial load", () => {
-  assert.equal(
+  expect(
     shouldShowExistingSharesSkeleton({
       isLoading: true,
       hasLoadedShares: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("can show existing shares skeleton after data has loaded once", () => {
-  assert.equal(
+  expect(
     shouldShowExistingSharesSkeleton({
       isLoading: true,
       hasLoadedShares: true,
     }),
-    true,
-  );
+  ).toBe(true);
 });

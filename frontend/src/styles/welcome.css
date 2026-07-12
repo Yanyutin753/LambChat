@@ -49,7 +49,7 @@
 }
 
 .welcome-refresh-btn:hover {
-  background-color: var(--theme-primary-light) !important;
+  background-color: var(--theme-bg-subtle) !important;
   color: var(--theme-text) !important;
 }
 
@@ -69,7 +69,7 @@
   background: linear-gradient(
     105deg,
     transparent 40%,
-    color-mix(in srgb, var(--theme-primary) 3%, transparent) 50%,
+    color-mix(in srgb, var(--theme-text) 3%, transparent) 50%,
     transparent 60%
   );
   transform: translateX(-100%);
@@ -83,22 +83,14 @@
 }
 
 .welcome-card:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 20%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
   background-color: var(--theme-bg) !important;
   box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-text) 4%, transparent);
 }
 
 .dark .welcome-card:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 24%,
-    var(--theme-border)
-  );
-  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--theme-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
+  box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
 }
 
 .welcome-card:active {
@@ -166,20 +158,16 @@
 }
 
 .welcome-persona-card:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 20%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
   box-shadow:
-    0 4px 12px -4px color-mix(in srgb, var(--theme-primary) 20%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
     0 1px 3px color-mix(in srgb, var(--theme-text) 6%, transparent);
 }
 
 .welcome-persona-avatar {
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--theme-primary) 8%, transparent),
-    0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 12%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 6%, transparent),
+    0 2px 8px -2px color-mix(in srgb, var(--theme-text-secondary) 10%, transparent);
   transition:
     box-shadow 0.3s ease,
     transform 0.3s ease;
@@ -187,8 +175,8 @@
 
 .welcome-persona-card:hover .welcome-persona-avatar {
   box-shadow:
-    0 0 0 1.5px color-mix(in srgb, var(--theme-primary) 16%, transparent),
-    0 4px 14px -2px color-mix(in srgb, var(--theme-primary) 22%, transparent);
+    0 0 0 1.5px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent),
+    0 4px 14px -2px color-mix(in srgb, var(--theme-text-secondary) 16%, transparent);
 }
 
 .welcome-persona-name-row {
@@ -229,7 +217,7 @@
   background: linear-gradient(
     100deg,
     color-mix(in srgb, var(--theme-border) 48%, transparent) 0%,
-    color-mix(in srgb, var(--theme-primary) 8%, var(--theme-border)) 45%,
+    color-mix(in srgb, var(--theme-text) 6%, var(--theme-border)) 45%,
     color-mix(in srgb, var(--theme-border) 48%, transparent) 90%
   );
   background-size: 220% 100%;
@@ -351,20 +339,20 @@
   background: linear-gradient(
     135deg,
     var(--theme-bg-card) 0%,
-    color-mix(in srgb, var(--theme-primary) 4%, var(--theme-bg-card)) 100%
+    color-mix(in srgb, var(--theme-text) 3%, var(--theme-bg-card)) 100%
   );
 }
 
 .dark .welcome-persona-avatar {
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--theme-primary) 10%, transparent),
-    0 2px 10px -2px color-mix(in srgb, var(--theme-primary) 16%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--theme-text-secondary) 8%, transparent),
+    0 2px 10px -2px color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
 }
 
 .dark .welcome-persona-card:hover .welcome-persona-avatar {
   box-shadow:
-    0 0 0 1.5px color-mix(in srgb, var(--theme-primary) 18%, transparent),
-    0 4px 16px -2px color-mix(in srgb, var(--theme-primary) 25%, transparent);
+    0 0 0 1.5px color-mix(in srgb, var(--theme-text-secondary) 14%, transparent),
+    0 4px 16px -2px color-mix(in srgb, var(--theme-text-secondary) 18%, transparent);
 }
 
 @media (max-width: 639px) {
@@ -437,7 +425,8 @@
     width: 2.375rem;
     height: 2.375rem;
     border-radius: 0.625rem;
-    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 18%, transparent);
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--theme-text-secondary)
+          12%, transparent);
   }
 
   .welcome-persona-info {

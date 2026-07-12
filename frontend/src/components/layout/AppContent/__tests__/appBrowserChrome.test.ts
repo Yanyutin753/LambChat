@@ -1,58 +1,50 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   getBrowserChromeNudgeScrollY,
   shouldNudgeBrowserChrome,
 } from "../appBrowserChrome.ts";
 
 test("nudges browser chrome only for direct mobile browser access", () => {
-  assert.equal(
+  expect(
     shouldNudgeBrowserChrome({
       isMobileDevice: true,
       isStandaloneDisplayMode: false,
       hasVisualViewport: true,
     }),
-    true,
-  );
-  assert.equal(
+  ).toBe(true);
+  expect(
     shouldNudgeBrowserChrome({
       isMobileDevice: true,
       isStandaloneDisplayMode: true,
       hasVisualViewport: true,
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldNudgeBrowserChrome({
       isMobileDevice: false,
       isStandaloneDisplayMode: false,
       hasVisualViewport: true,
     }),
-    false,
-  );
-  assert.equal(
+  ).toBe(false);
+  expect(
     shouldNudgeBrowserChrome({
       isMobileDevice: true,
       isStandaloneDisplayMode: false,
       hasVisualViewport: false,
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("scrolls one pixel only when the page has a scroll runway", () => {
-  assert.equal(
+  expect(
     getBrowserChromeNudgeScrollY({
       scrollHeight: 801,
       innerHeight: 800,
     }),
-    1,
-  );
-  assert.equal(
+  ).toBe(1);
+  expect(
     getBrowserChromeNudgeScrollY({
       scrollHeight: 800,
       innerHeight: 800,
     }),
-    0,
-  );
+  ).toBe(0);
 });

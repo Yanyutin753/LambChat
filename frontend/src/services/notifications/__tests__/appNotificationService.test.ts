@@ -1,13 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   createAppNotificationService,
   detectAppNotificationRuntime,
 } from "../appNotificationService.ts";
 
 test("detects Tauri before Capacitor so desktop app uses the Tauri adapter", () => {
-  assert.equal(
+  expect(
     detectAppNotificationRuntime({
       locationLike: { protocol: "capacitor:" },
       globalLike: {
@@ -18,12 +15,11 @@ test("detects Tauri before Capacitor so desktop app uses the Tauri adapter", () 
         __TAURI_INTERNALS__: {},
       },
     }),
-    "tauri",
-  );
+  ).toBe("tauri");
 });
 
 test("detects Capacitor Android for native Android builds", () => {
-  assert.equal(
+  expect(
     detectAppNotificationRuntime({
       locationLike: { protocol: "https:" },
       globalLike: {
@@ -33,18 +29,16 @@ test("detects Capacitor Android for native Android builds", () => {
         },
       },
     }),
-    "capacitor-android",
-  );
+  ).toBe("capacitor-android");
 });
 
 test("treats ordinary web runtimes as unsupported", () => {
-  assert.equal(
+  expect(
     detectAppNotificationRuntime({
       locationLike: { protocol: "https:", hostname: "chat.example.com" },
       globalLike: {},
     }),
-    "unsupported",
-  );
+  ).toBe("unsupported");
 });
 
 test("delivers a normalized payload through the selected native adapter", async () => {
@@ -72,8 +66,8 @@ test("delivers a normalized payload through the selected native adapter", async 
     importance: "high",
   });
 
-  assert.equal(result, "delivered");
-  assert.deepEqual(delivered, [
+  expect(result).toBe("delivered");
+  expect(delivered).toEqual([
     {
       type: "task",
       title: "Design Review",
@@ -101,23 +95,21 @@ test("deduplicates repeated notifications with the same dedupe key", async () =>
     },
   });
 
-  assert.equal(
+  expect(
     await service.notify({
       type: "message",
       title: "New reply",
       dedupeKey: "message:session-1:5",
     }),
-    "delivered",
-  );
-  assert.equal(
+  ).toBe("delivered");
+  expect(
     await service.notify({
       type: "message",
       title: "New reply",
       dedupeKey: "message:session-1:5",
     }),
-    "deduped",
-  );
-  assert.equal(count, 1);
+  ).toBe("deduped");
+  expect(count).toBe(1);
 });
 
 test("does not deliver app-only notifications on unsupported web runtimes", async () => {
@@ -126,14 +118,13 @@ test("does not deliver app-only notifications on unsupported web runtimes", asyn
     adapters: {},
   });
 
-  assert.equal(
+  expect(
     await service.notify({
       type: "announcement",
       title: "Maintenance",
       route: "/notifications",
     }),
-    "unsupported",
-  );
+  ).toBe("unsupported");
 });
 
 test("reports permission denial without calling the native adapter", async () => {
@@ -152,12 +143,11 @@ test("reports permission denial without calling the native adapter", async () =>
     },
   });
 
-  assert.equal(
+  expect(
     await service.notify({
       type: "auth",
       title: "Permission needed",
     }),
-    "permission-denied",
-  );
-  assert.equal(delivered, false);
+  ).toBe("permission-denied");
+  expect(delivered).toBe(false);
 });

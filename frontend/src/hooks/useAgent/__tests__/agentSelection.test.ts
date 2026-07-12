@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   resolveAvailableAgentId,
   resolvePersonaAgentId,
@@ -11,47 +9,38 @@ const agents = [
 ];
 
 test("falls back to the first available agent when the default agent is unavailable", () => {
-  assert.equal(resolveAvailableAgentId("", "default", agents), "search");
+  expect(resolveAvailableAgentId("", "default", agents)).toBe("search");
 });
 
 test("keeps the current agent when it is still available", () => {
-  assert.equal(resolveAvailableAgentId("fast", "search", agents), "fast");
+  expect(resolveAvailableAgentId("fast", "search", agents)).toBe("fast");
 });
 
 test("replaces an unavailable current agent with the first available agent", () => {
-  assert.equal(resolveAvailableAgentId("default", "default", agents), "search");
+  expect(resolveAvailableAgentId("default", "default", agents)).toBe("search");
 });
 
 test("persona mode keeps the current non-plugin agent", () => {
-  assert.equal(resolvePersonaAgentId("fast", "search", agents), "fast");
+  expect(resolvePersonaAgentId("fast", "search", agents)).toBe("fast");
 });
 
 test("persona mode switches an excluded plugin agent to the preferred non-plugin default", () => {
-  assert.equal(
-    resolvePersonaAgentId("team", "fast", [
+  expect(resolvePersonaAgentId("team", "fast", [
       { id: "team", name: "Team", description: "", version: "1.0.0" },
       ...agents,
-    ], ["team"]),
-    "fast",
-  );
+    ], ["team"])).toBe("fast");
 });
 
 test("persona mode switches an excluded plugin agent to the first non-plugin agent when needed", () => {
-  assert.equal(
-    resolvePersonaAgentId("team", "team", [
+  expect(resolvePersonaAgentId("team", "team", [
       { id: "team", name: "Team", description: "", version: "1.0.0" },
       ...agents,
-    ], ["team"]),
-    "search",
-  );
+    ], ["team"])).toBe("search");
 });
 
 test("persona mode can exclude any plugin-owned agent id", () => {
-  assert.equal(
-    resolvePersonaAgentId("workflow", "workflow", [
-      { id: "workflow", name: "Workflow", description: "", version: "1.0.0" },
+  expect(resolvePersonaAgentId("plugin_agent", "plugin_agent", [
+      { id: "plugin_agent", name: "Plugin Agent", description: "", version: "1.0.0" },
       ...agents,
-    ], ["workflow"]),
-    "search",
-  );
+    ], ["plugin_agent"])).toBe("search");
 });

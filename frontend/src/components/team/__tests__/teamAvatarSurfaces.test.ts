@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import test from "node:test";
-
 const teamAvatarUrl = new URL("../TeamAvatar.tsx", import.meta.url);
 const teamAvatarSource = existsSync(teamAvatarUrl)
   ? readFileSync(teamAvatarUrl, "utf8")
@@ -36,24 +33,21 @@ const selectedRendererSource = readFileSync(
 );
 
 test("team avatar component supports team, default-role, and generic fallback icons", () => {
-  assert.equal(existsSync(teamAvatarUrl), true);
-  assert.match(teamAvatarSource, /export function TeamAvatar/);
-  assert.match(teamAvatarSource, /team-avatar/);
-  assert.match(teamAvatarUtilsSource, /getTeamFallbackAvatar/);
-  assert.match(teamAvatarSource, /avatar \?\? fallbackAvatar/);
-  assert.match(teamAvatarSource, /PersonaAvatarImage/);
-  assert.match(teamAvatarSource, /PersonaAvatarIcon/);
-  assert.match(teamAvatarSource, /<Users/);
+  expect(existsSync(teamAvatarUrl)).toBe(true);
+  expect(teamAvatarSource).toMatch(/export function TeamAvatar/);
+  expect(teamAvatarSource).toMatch(/team-avatar/);
+  expect(teamAvatarUtilsSource).toMatch(/getTeamFallbackAvatar/);
+  expect(teamAvatarSource).toMatch(/avatar \?\? fallbackAvatar/);
+  expect(teamAvatarSource).toMatch(/PersonaAvatarImage/);
+  expect(teamAvatarSource).toMatch(/PersonaAvatarIcon/);
+  expect(teamAvatarSource).toMatch(/<Users/);
 });
 
 test("all team selection surfaces render team avatars consistently", () => {
-  assert.match(wrapperSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
-  assert.match(pickerSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
-  assert.doesNotMatch(welcomePageSource, /<TeamAvatar/);
-  assert.match(welcomeSurfaceRendererSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
-  assert.doesNotMatch(toolbarSource, /<TeamAvatar/);
-  assert.match(
-    selectedRendererSource,
-    /<TeamAvatar[\s\S]*avatar=\{selectedTeam\?\.avatar\}/,
-  );
+  expect(wrapperSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  expect(pickerSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  expect(welcomePageSource).not.toMatch(/<TeamAvatar/);
+  expect(welcomeSurfaceRendererSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  expect(toolbarSource).not.toMatch(/<TeamAvatar/);
+  expect(selectedRendererSource).toMatch(/<TeamAvatar[\s\S]*avatar=\{selectedTeam\?\.avatar\}/);
 });

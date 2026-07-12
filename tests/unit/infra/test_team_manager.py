@@ -6,15 +6,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.infra.team.manager import TeamManager
-from src.kernel.schemas.model import ModelConfig
-from src.kernel.schemas.team import (
+from plugins.system.agent_team.backend.domain.manager import TeamManager
+from plugins.system.agent_team.backend.domain.schemas import (
     TeamCreate,
     TeamMemberResponse,
     TeamPreferenceUpdate,
     TeamResponse,
     TeamVisibility,
 )
+from src.kernel.schemas.model import ModelConfig
 from src.kernel.schemas.user import TokenPayload
 
 

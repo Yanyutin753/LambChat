@@ -70,8 +70,9 @@
 
 .ppe-input:focus,
 .ppe-textarea:focus {
-  border-color: var(--theme-primary);
-  box-shadow: 0 0 0 2px var(--theme-primary-light);
+  border-color: var(--theme-text-secondary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--theme-text-secondary) 15%, transparent);
 }
 
 .ppe-input:hover:not(:focus),
@@ -155,12 +156,8 @@
 
 .ppe-starter-remove:hover,
 .ppe-starter-add:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 35%,
-    var(--theme-border)
-  );
-  background: var(--theme-primary-light);
+  border-color: color-mix(in srgb, var(--theme-text) 20%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
   color: var(--theme-text);
 }
 
@@ -187,7 +184,7 @@
   align-items: center;
   gap: 0.25rem;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-bg));
+  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
   padding: 0.1875rem 0.5625rem;
   font-size: 0.625rem;
   font-weight: 500;
@@ -237,7 +234,7 @@
   border-radius: 50%;
   overflow: hidden;
   border: 2px solid
-    color-mix(in srgb, var(--theme-primary) 20%, var(--theme-border));
+    color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
   background: var(--theme-bg);
   transition:
     border-color 0.2s ease,
@@ -245,9 +242,9 @@
 }
 
 .ppe-avatar-preview:hover {
-  border-color: var(--theme-primary);
+  border-color: var(--theme-text-secondary);
   box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--theme-primary) 12%, transparent);
+    color-mix(in srgb, var(--theme-text-secondary) 15%, transparent);
 }
 
 .ppe-avatar-img {
@@ -264,15 +261,15 @@
   height: 100%;
   color: var(--theme-text-secondary);
   cursor: pointer;
-  background: color-mix(in srgb, var(--theme-primary) 6%, var(--theme-bg));
+  background: color-mix(in srgb, var(--theme-text) 4%, var(--theme-bg));
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
 }
 
 .ppe-avatar-placeholder:hover {
-  background: color-mix(in srgb, var(--theme-primary) 12%, var(--theme-bg));
-  color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-text) 8%, var(--theme-bg));
+  color: var(--theme-text-secondary);
 }
 
 .ppe-avatar-remove {
@@ -325,15 +322,15 @@
   color: var(--theme-text-tertiary, var(--theme-text-secondary));
   border-radius: 1rem;
   border: none;
-  background: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-bg));
+  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .ppe-avatar-hint-btn:hover {
-  color: var(--theme-primary);
-  background: color-mix(in srgb, var(--theme-primary) 15%, var(--theme-bg));
+  color: var(--theme-text-secondary);
+  background: color-mix(in srgb, var(--theme-text) 10%, var(--theme-bg));
 }
 
 /* ===== Icon Picker Grid ===== */
@@ -426,14 +423,16 @@
 }
 
 .ppe-skill-trigger--open {
-  border-color: var(--theme-primary);
-  box-shadow: 0 0 0 2px var(--theme-primary-light);
-  background: color-mix(in srgb, var(--theme-primary) 3%, var(--theme-bg));
+  border-color: var(--theme-text-secondary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--theme-text-secondary) 15%, transparent);
+  background: color-mix(in srgb, var(--theme-text) 3%, var(--theme-bg));
 }
 
 .ppe-skill-trigger:focus {
-  border-color: var(--theme-primary);
-  box-shadow: 0 0 0 2px var(--theme-primary-light);
+  border-color: var(--theme-text-secondary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--theme-text-secondary) 15%, transparent);
   outline: none;
 }
 
@@ -487,9 +486,9 @@
   align-items: center;
   gap: 0.25rem;
   border-radius: 0.375rem;
-  background: color-mix(in srgb, var(--theme-primary) 10%, var(--theme-bg));
+  background: color-mix(in srgb, var(--theme-text) 8%, var(--theme-bg));
   border: 1px solid
-    color-mix(in srgb, var(--theme-primary) 12%, var(--theme-border));
+    color-mix(in srgb, var(--theme-text) 10%, var(--theme-border));
   padding: 0.1875rem 0.125rem 0.1875rem 0.5rem;
   font-size: 0.6875rem;
   font-weight: 500;
@@ -636,7 +635,7 @@
 .ppe-skill-search:focus {
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 18%,
+    var(--theme-text-secondary) 18%,
     var(--theme-border)
   );
   background: color-mix(
@@ -645,7 +644,7 @@
     var(--theme-bg-card)
   );
   box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--theme-primary) 12%, transparent);
+    color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
 }
 
 .ppe-skill-search::placeholder {
@@ -798,21 +797,13 @@
 }
 
 .ppe-skill-option--selected .ppe-skill-option__check-ring {
-  border-color: var(--theme-primary);
-  background: color-mix(
-    in srgb,
-    var(--theme-primary) 12%,
-    var(--theme-bg-card)
-  );
+  border-color: var(--theme-text-secondary);
+  background: color-mix(in srgb, var(--theme-text) 10%, var(--theme-bg-card));
 }
 
 .ppe-skill-option:not(.ppe-skill-option--selected):hover
   .ppe-skill-option__check-ring {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 30%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 20%, var(--theme-border));
 }
 
 .ppe-skill-option:not(.ppe-skill-option--selected):hover
@@ -847,40 +838,24 @@
 
 /* --- Keyboard navigation active state --- */
 .ppe-skill-option--active {
-  background: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-bg-card));
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 22%,
-    var(--theme-border)
-  );
+  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg-card));
+  border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
   box-shadow:
-    0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 10%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+    0 2px 8px -2px color-mix(in srgb, var(--theme-text) 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--theme-text) 5%, transparent);
 }
 
 .dark .ppe-skill-option--active {
-  background: color-mix(
-    in srgb,
-    var(--theme-primary) 12%,
-    var(--theme-bg-card)
-  );
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 28%,
-    var(--theme-border)
-  );
+  background: color-mix(in srgb, var(--theme-text) 8%, var(--theme-bg-card));
+  border-color: color-mix(in srgb, var(--theme-text) 20%, var(--theme-border));
   box-shadow:
-    0 2px 8px -2px color-mix(in srgb, var(--theme-primary) 15%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--theme-primary) 12%, transparent);
+    0 2px 8px -2px color-mix(in srgb, var(--theme-text) 12%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--theme-text) 8%, transparent);
 }
 
 .ppe-skill-option--active:not(.ppe-skill-option--selected)
   .ppe-skill-option__check-ring {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 35%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 20%, var(--theme-border));
 }
 
 .ppe-skill-option--active:not(.ppe-skill-option--selected)
@@ -894,8 +869,8 @@
 }
 
 .ppe-skill-option--selected.ppe-skill-option--active {
-  background: color-mix(in srgb, var(--theme-primary) 9%, var(--theme-bg-card));
-  border-color: color-mix(in srgb, var(--theme-primary) 26%, transparent);
+  background: color-mix(in srgb, var(--theme-text) 6%, var(--theme-bg-card));
+  border-color: color-mix(in srgb, var(--theme-text) 20%, transparent);
 }
 
 .ppe-skill-option:active {
@@ -924,13 +899,13 @@
 
 /* --- Selected state --- */
 .ppe-skill-option--selected {
-  background: color-mix(in srgb, var(--theme-primary) 5%, var(--theme-bg-card));
-  border-color: color-mix(in srgb, var(--theme-primary) 16%, transparent);
+  background: color-mix(in srgb, var(--theme-text) 3%, var(--theme-bg-card));
+  border-color: color-mix(in srgb, var(--theme-text) 12%, transparent);
 }
 
 .ppe-skill-option--selected:hover {
-  background: color-mix(in srgb, var(--theme-primary) 7%, transparent);
-  border-color: color-mix(in srgb, var(--theme-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--theme-text) 5%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 15%, transparent);
 }
 
 /* --- Icon ring --- */
@@ -957,20 +932,12 @@
 }
 
 .ppe-skill-option:hover .ppe-skill-option__icon-ring {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 25%,
-    var(--theme-border)
-  );
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--theme-primary) 6%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--theme-text) 5%, transparent);
 }
 
 .ppe-skill-option--selected .ppe-skill-option__icon-ring {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 32%,
-    var(--theme-border)
-  );
+  border-color: color-mix(in srgb, var(--theme-text) 20%, var(--theme-border));
   background: color-mix(
     in srgb,
     var(--theme-primary-light) 78%,
@@ -1086,8 +1053,8 @@
 
 .ppe-skill-option:not(.ppe-skill-option--selected)
   .ppe-skill-option__action:hover {
-  background: color-mix(in srgb, var(--theme-primary) 12%, transparent);
-  color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-text) 10%, transparent);
+  color: var(--theme-text-secondary);
 }
 
 /* ===== Panel Footer ===== */
@@ -1423,12 +1390,8 @@
 }
 
 .pps-card:hover .pps-card__avatar {
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 25%,
-    var(--theme-border)
-  );
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-text) 5%, transparent);
 }
 
 .pps-card__avatar-img {
@@ -1507,12 +1470,8 @@
 
 .pps-card__action--ghost:hover {
   color: var(--theme-text);
-  border-color: color-mix(
-    in srgb,
-    var(--theme-primary) 25%,
-    var(--theme-border)
-  );
-  background: var(--theme-primary-light);
+  border-color: color-mix(in srgb, var(--theme-text) 15%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-text) 5%, var(--theme-bg));
 }
 
 .pps-card__action:disabled {

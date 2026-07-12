@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+/** @vitest-environment jsdom */
 import { renderToStaticMarkup } from "react-dom/server";
 import { PasswordInput } from "../PasswordInput.tsx";
 
@@ -13,6 +12,6 @@ test("password visibility toggle is keyboard focusable and localizable", () => {
     />,
   );
 
-  assert.match(markup, /aria-label="显示密码"/);
-  assert.doesNotMatch(markup, /tabindex="-1"/i);
+  expect(markup).toMatch(/aria-label="显示密码"/);
+  expect(markup).not.toMatch(/tabindex="-1"/i);
 });

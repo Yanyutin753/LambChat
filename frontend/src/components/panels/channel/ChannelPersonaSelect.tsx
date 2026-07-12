@@ -2,17 +2,11 @@
  * Persona preset selector for channel configuration.
  * Channels can bind a persona so messages from that channel use the same role.
  */
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, UserRound, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import { personaPresetApi } from "../../../services/api/personaPreset";
 import type { PersonaPreset } from "../../../types/personaPreset";
 import {
@@ -67,7 +61,6 @@ export function ChannelPersonaSelect({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -148,9 +141,7 @@ export function ChannelPersonaSelect({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  useLayoutEffect(() => {
-    if (!open || !ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
+  const dropdownStyle = useStickyDropdownPosition(ref, open, (rect) => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const w = Math.max(rect.width, 220);
@@ -158,16 +149,15 @@ export function ChannelPersonaSelect({
     const spaceBelow = vh - rect.bottom - 16;
     const spaceAbove = rect.top - 16;
     const preferBelow = spaceBelow >= 260 || spaceBelow >= spaceAbove;
-
-    setDropdownStyle({
+    return {
       position: "fixed",
       top: preferBelow ? rect.bottom + 4 : undefined,
       bottom: preferBelow ? undefined : vh - rect.top + 4,
       left,
       width: w,
       zIndex: 9999,
-    });
-  }, [open]);
+    };
+  });
 
   const handleScroll = useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {

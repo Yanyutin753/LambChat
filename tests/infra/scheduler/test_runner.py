@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 import types
 from datetime import datetime, timezone
@@ -19,7 +18,6 @@ from src.kernel.extensions import (
     PluginRuntime,
     PluginUnavailableError,
     build_agent_team_plugin_manifest,
-    build_workflow_plugin_manifest,
 )
 from src.kernel.schemas.channel import ChannelType
 from src.kernel.schemas.scheduled_task import (
@@ -29,7 +27,6 @@ from src.kernel.schemas.scheduled_task import (
     ScheduledTaskStatus,
     TriggerType,
 )
-from src.plugins.workflow.chat_integration import workflow_result_interface
 
 
 def _make_task(**overrides: Any) -> ScheduledTask:
@@ -380,194 +377,6 @@ async def test_runner_sends_success_result_to_configured_channel(
     }
 
 
-@pytest.mark.asyncio
-async def test_runner_records_workflow_result_from_trace_events(
-    mock_storage: AsyncMock,
-    mock_lock: None,
-    mock_spawn_monitor: list[asyncio.Task],
-) -> None:
-    task = _make_task(
-        input_payload={
-            "message": "Run workflow",
-            "workflow_id": "wf-1",
-            "workflow_version_id": "wfv-1",
-            "workflow_input": {"topic": "nightly"},
-        },
-    )
-    mock_storage.get_task_for_execution = AsyncMock(return_value=task)
-    runner = ScheduledTaskRunner()
-    runner._execute_agent = AsyncMock(  # type: ignore[method-assign]
-        return_value={
-            "session_status": "completed",
-            "session_id": "session_1",
-            "trace_id": "trace_1",
-        }
-    )
-    workflow_result = {
-        "plugin_id": "workflow",
-        "workflow_id": "wf-1",
-        "version_id": "wfv-1",
-        "run_id": "wfr-1",
-        "status": "succeeded",
-        "output": {"answer": "Nightly report"},
-        "error": None,
-        "io_contract": {
-            "input_schema": {
-                "type": "object",
-                "required": ["topic"],
-                "properties": {"topic": {"type": "string"}},
-            },
-            "output_schema": {
-                "type": "object",
-                "required": ["answer"],
-                "properties": {"answer": {"type": "string"}},
-            },
-        },
-        "output_contract": {
-            "valid": True,
-            "schema_field": "output_schema",
-            "declared_fields": ["answer"],
-            "declared_field_paths": ["answer"],
-            "required_fields": ["answer"],
-            "required_field_paths": ["answer"],
-            "missing_required": [],
-            "type_mismatches": [],
-            "extra_fields": [],
-        },
-        "interface": workflow_result_interface(
-            workflow_id="wf-1",
-            version_id="wfv-1",
-            run_id="wfr-1",
-        ),
-        "next_action": {
-            "type": "use_output",
-            "field": "output",
-            "reason": "workflow_run_succeeded",
-        },
-    }
-    trace_storage = AsyncMock()
-    trace_storage.get_run_events = AsyncMock(
-        return_value=[
-            {"event_type": "message", "data": {"role": "assistant", "content": "Done"}},
-            {"event_type": "workflow:run", "data": workflow_result},
-        ]
-    )
-
-    with patch("src.infra.scheduler.runner.get_trace_storage", return_value=trace_storage):
-        result = await runner.run("task_1")
-
-    assert result["status"] == "submitted"
-    with patch("src.infra.scheduler.runner.get_trace_storage", return_value=trace_storage):
-        await _await_spawned(mock_spawn_monitor)
-
-    trace_storage.get_run_events.assert_awaited_once()
-    assert trace_storage.get_run_events.call_args.args == ("session_1", result["run_id"])
-    assert trace_storage.get_run_events.call_args.kwargs == {"event_types": ["workflow:run"]}
-    final_update = mock_storage.update_run.call_args_list[-1].args[1]
-    assert final_update["output_result"]["workflow_result"] == workflow_result
-    assert final_update["output_result"]["plugin_results"]["workflow"] == workflow_result
-    persisted_result = final_update["output_result"]["plugin_results"]["workflow"]
-    assert persisted_result["interface"] == workflow_result_interface(
-        workflow_id="wf-1",
-        version_id="wfv-1",
-        run_id="wfr-1",
-    )
-    assert persisted_result["io_contract"]["input_schema"]["required"] == ["topic"]
-    assert persisted_result["io_contract"]["output_schema"]["required"] == ["answer"]
-    assert persisted_result["output_contract"]["valid"] is True
-    assert persisted_result["next_action"] == {
-        "type": "use_output",
-        "field": "output",
-        "reason": "workflow_run_succeeded",
-    }
-
-
-@pytest.mark.asyncio
-async def test_runner_delivers_workflow_output_to_channel(
-    mock_storage: AsyncMock,
-    mock_lock: None,
-    mock_spawn_monitor: list[asyncio.Task],
-) -> None:
-    task = _make_task(
-        input_payload={
-            "message": "Run workflow",
-            "workflow_id": "wf-1",
-        },
-        delivery=ChannelDeliveryConfig(
-            enabled=True,
-            channel_type=ChannelType.FEISHU,
-            chat_id="oc_target",
-            channel_instance_id="bot_a",
-            send_on_success=True,
-        ),
-    )
-    mock_storage.get_task_for_execution = AsyncMock(return_value=task)
-    runner = ScheduledTaskRunner()
-    runner._execute_agent = AsyncMock(  # type: ignore[method-assign]
-        return_value={
-            "session_status": "completed",
-            "session_id": "session_1",
-            "trace_id": "trace_1",
-        }
-    )
-    trace_storage = AsyncMock()
-    trace_storage.get_run_events = AsyncMock(
-        side_effect=[
-            [
-                {
-                    "event_type": "workflow:run",
-                    "data": {
-                        "plugin_id": "workflow",
-                        "workflow_id": "wf-1",
-                        "run_id": "wfr-1",
-                        "status": "succeeded",
-                        "output": {"answer": "Workflow exit text"},
-                    },
-                }
-            ],
-            [
-                {"event_type": "message:chunk", "data": {"content": "Generic assistant summary"}},
-                {
-                    "event_type": "workflow:run",
-                    "data": {
-                        "plugin_id": "workflow",
-                        "workflow_id": "wf-1",
-                        "run_id": "wfr-1",
-                        "status": "succeeded",
-                        "output": {"answer": "Workflow exit text"},
-                    },
-                },
-            ],
-        ]
-    )
-    coordinator = AsyncMock()
-    coordinator.send_message = AsyncMock(return_value=True)
-
-    with (
-        patch("src.infra.scheduler.runner.get_trace_storage", return_value=trace_storage),
-        patch("src.infra.scheduler.runner.get_channel_coordinator", return_value=coordinator),
-    ):
-        result = await runner.run("task_1")
-
-    assert result["status"] == "submitted"
-    with (
-        patch("src.infra.scheduler.runner.get_trace_storage", return_value=trace_storage),
-        patch("src.infra.scheduler.runner.get_channel_coordinator", return_value=coordinator),
-    ):
-        await _await_spawned(mock_spawn_monitor)
-
-    coordinator.send_message.assert_awaited_once_with(
-        "user_1",
-        ChannelType.FEISHU,
-        "oc_target",
-        "Workflow exit text",
-        instance_id="bot_a",
-    )
-    final_update = mock_storage.update_run.call_args_list[-1].args[1]
-    assert final_update["output_result"]["delivery"]["status"] == "sent"
-    assert final_update["output_result"]["workflow_result"]["output"]["answer"] == "Workflow exit text"
-
-
 def test_extract_channel_delivery_text_uses_assistant_chunks_only() -> None:
     events = [
         {"event_type": "message", "data": {"role": "user", "content": "Do not send me"}},
@@ -578,295 +387,6 @@ def test_extract_channel_delivery_text_uses_assistant_chunks_only() -> None:
     text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
 
     assert text == "Hello world"
-
-
-def test_extract_channel_delivery_text_prefers_workflow_output() -> None:
-    events = [
-        {"event_type": "message:chunk", "data": {"content": "Generic "}},
-        {"event_type": "message:chunk", "data": {"content": "assistant summary"}},
-        {
-            "event_type": "workflow:run",
-            "data": {
-                "plugin_id": "workflow",
-                "workflow_id": "wf-1",
-                "run_id": "wfr-1",
-                "status": "succeeded",
-                "output": {"answer": "Workflow exit text"},
-            },
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
-
-    assert text == "Workflow exit text"
-
-
-def test_extract_channel_delivery_text_uses_workflow_output_schema() -> None:
-    events = [
-        {
-            "event_type": "workflow:run",
-            "data": {
-                "plugin_id": "workflow",
-                "workflow_id": "wf-1",
-                "run_id": "wfr-1",
-                "status": "succeeded",
-                "output": {
-                    "answer": "Generic answer",
-                    "report": "Schema-selected report",
-                },
-                "io_contract": {
-                    "output_schema": {
-                        "type": "object",
-                        "required": ["report"],
-                        "properties": {
-                            "answer": {"type": "string"},
-                            "report": {"type": "string"},
-                        },
-                    }
-                },
-            },
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
-
-    assert text == "Schema-selected report"
-
-
-def test_extract_channel_delivery_text_uses_nested_workflow_output_schema() -> None:
-    events = [
-        {
-            "event_type": "workflow:run",
-            "data": {
-                "plugin_id": "workflow",
-                "workflow_id": "wf-1",
-                "run_id": "wfr-1",
-                "status": "succeeded",
-                "output": {
-                    "answer": "Generic answer",
-                    "report": {"summary": "Nested schema summary"},
-                },
-                "io_contract": {
-                    "output_schema": {
-                        "type": "object",
-                        "required": ["report"],
-                        "properties": {
-                            "answer": {"type": "string"},
-                            "report": {
-                                "required": ["summary"],
-                                "properties": {
-                                    "summary": {"type": "string"},
-                                    "score": {"type": "number"},
-                                },
-                            },
-                        },
-                    }
-                },
-            },
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
-
-    assert text == "Nested schema summary"
-
-
-def test_extract_channel_delivery_text_reports_invalid_workflow_output_contract() -> None:
-    events = [
-        {
-            "event_type": "workflow:run",
-            "data": {
-                "plugin_id": "workflow",
-                "workflow_id": "wf-1",
-                "run_id": "wfr-1",
-                "status": "succeeded",
-                "output": {"answer": "Do not send as success"},
-                "output_contract": {
-                    "valid": False,
-                    "missing_required": ["summary"],
-                    "type_mismatches": [
-                        {"field": "answer", "expected": "object", "actual": "string"}
-                    ],
-                },
-            },
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=300)
-
-    assert text.startswith("Workflow output contract failed")
-    assert 'missing_required=["summary"]' in text
-    assert '"field": "answer"' in text
-    assert "Do not send as success" not in text
-
-
-def test_extract_channel_delivery_text_reports_paused_workflow_human_approval() -> None:
-    events = [
-        {"event_type": "message:chunk", "data": {"content": "Generic assistant fallback"}},
-        {
-            "event_type": "workflow:run",
-            "data": {
-                "plugin_id": "workflow",
-                "workflow_id": "wf-approval",
-                "run_id": "wfr-approval",
-                "status": "paused",
-                "output": {},
-                "next_action": {
-                    "type": "await_human_approval",
-                    "tool": "workflow_get_run",
-                    "reason": "workflow_run_paused_human_approval",
-                    "field": "pause.pending_approval",
-                    "approval": {
-                        "kind": "human_approval",
-                        "node_id": "approval",
-                        "title": "Manager approval",
-                        "assignee": "ops",
-                        "output_key": "approval",
-                    },
-                    "pending": {
-                        "method": "GET",
-                        "path": "/api/plugins/workflow/approvals/pending",
-                    },
-                    "resume": {
-                        "tool": "workflow_resume",
-                        "method": "POST",
-                        "path": "/api/plugins/workflow/workflows/wf-approval/runs/wfr-approval/resume",
-                    },
-                },
-            },
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=500)
-
-    assert text.startswith("Workflow paused for human approval")
-    assert "workflow_id=wf-approval" in text
-    assert "run_id=wfr-approval" in text
-    assert "approval=Manager approval" in text
-    assert "assignee=ops" in text
-    assert "pending=/api/plugins/workflow/approvals/pending" in text
-    assert "tool=workflow_resume" in text
-    assert "resume=/api/plugins/workflow/workflows/wf-approval/runs/wfr-approval/resume" in text
-    assert "Generic assistant fallback" not in text
-
-
-def test_extract_channel_delivery_text_reports_serialized_paused_workflow_human_approval() -> None:
-    events = [
-        {
-            "event_type": "workflow:run",
-            "data": json.dumps(
-                {
-                    "plugin_id": "workflow",
-                    "workflow_id": "wf-approval",
-                    "run_id": "wfr-approval",
-                    "status": "paused",
-                    "next_action": {
-                        "type": "await_human_approval",
-                        "approval": {"node_id": "approval"},
-                        "resume": {"tool": "workflow_resume"},
-                    },
-                }
-            ),
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=300)
-
-    assert text == (
-        "Workflow paused for human approval; workflow_id=wf-approval; "
-        "run_id=wfr-approval; approval=approval; tool=workflow_resume"
-    )
-
-
-def test_extract_channel_delivery_text_uses_array_item_workflow_output_schema() -> None:
-    events = [
-        {
-            "event_type": "workflow:run",
-            "data": {
-                "plugin_id": "workflow",
-                "workflow_id": "wf-1",
-                "run_id": "wfr-1",
-                "status": "succeeded",
-                "output": {
-                    "answer": "Generic answer",
-                    "items": [
-                        {"summary": ""},
-                        {"summary": "First non-empty item summary"},
-                    ],
-                },
-                "output_schema": {
-                    "type": "object",
-                    "required": ["items"],
-                    "properties": {
-                        "answer": {"type": "string"},
-                        "items": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "required": ["summary"],
-                                "properties": {"summary": {"type": "string"}},
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
-
-    assert text == "First non-empty item summary"
-
-
-def test_extract_channel_delivery_text_skips_non_text_required_workflow_output() -> None:
-    events = [
-        {
-            "event_type": "workflow:run",
-            "data": {
-                "plugin_id": "workflow",
-                "workflow_id": "wf-1",
-                "run_id": "wfr-1",
-                "status": "succeeded",
-                "output": {
-                    "count": 3,
-                    "summary": "Text summary",
-                },
-                "output_schema": {
-                    "type": "object",
-                    "required": ["count"],
-                    "properties": {
-                        "count": {"type": "integer"},
-                        "summary": {"type": "string"},
-                    },
-                },
-            },
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
-
-    assert text == "Text summary"
-
-
-def test_extract_channel_delivery_text_reads_serialized_workflow_output() -> None:
-    events = [
-        {
-            "event_type": "workflow:run",
-            "data": json.dumps(
-                {
-                    "plugin_id": "workflow",
-                    "workflow_id": "wf-1",
-                    "run_id": "wfr-1",
-                    "status": "succeeded",
-                    "output": {"summary": "Serialized workflow summary"},
-                }
-            ),
-        },
-    ]
-
-    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
-
-    assert text == "Serialized workflow summary"
 
 
 @pytest.mark.asyncio
@@ -992,6 +512,94 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
         "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_runs_scheduled_tasks_in_auto_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task(input_payload={"message": "Run the report"})
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            return TaskStatus.COMPLETED
+
+    class _FakeSessionManager:
+        async def update_session_metadata(
+            self,
+            session_id: str,
+            metadata: dict[str, Any],
+        ) -> None:
+            return None
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeTaskManager())
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: _FakeSessionManager())
+
+    await ScheduledTaskRunner()._execute_agent(task, run_id="run_1", session_id="session_1")
+
+    assert submitted["auto_mode"] is True
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_forwards_attachments_to_local_submit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attachments = [
+        {
+            "id": "att-1",
+            "key": "attachments/user-1/report.pdf",
+            "name": "report.pdf",
+            "type": "document",
+            "mime_type": "application/pdf",
+            "size": 12345,
+            "url": "/api/upload/file/attachments/user-1/report.pdf",
+        }
+    ]
+    task = _make_task(
+        input_payload={
+            "message": "Summarize the report",
+            "attachments": attachments,
+        }
+    )
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            return TaskStatus.COMPLETED
+
+    class _FakeSessionManager:
+        async def update_session_metadata(
+            self,
+            session_id: str,
+            metadata: dict[str, Any],
+        ) -> None:
+            return None
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeTaskManager())
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: _FakeSessionManager())
+
+    await ScheduledTaskRunner()._execute_agent(task, run_id="run_1", session_id="session_1")
+
+    assert submitted["attachments"] == attachments
 
 
 @pytest.mark.asyncio
@@ -1207,14 +815,14 @@ async def test_execute_agent_carries_generic_scheduled_task_plugin_options_to_se
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
-        permissions=["workflow_runner:read"],
+        permissions=["automation_runner:read"],
         settings=[
             {
-                "key": "SELECTED_WORKFLOW_ID",
+                "key": "SELECTED_AUTOMATION_ID",
                 "type": "string",
                 "scope": "scheduled_task",
             }
@@ -1222,7 +830,7 @@ async def test_execute_agent_carries_generic_scheduled_task_plugin_options_to_se
         frontend={
             "scheduled_task_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                     "legacy_payload_keys": ["workflow_id"],
@@ -1232,7 +840,7 @@ async def test_execute_agent_carries_generic_scheduled_task_plugin_options_to_se
     )
     task = _make_task(
         agent_id="fast",
-        input_payload={"message": "Run workflow", "workflow_id": "workflow-1"},
+        input_payload={"message": "Run workflow", "workflow_id": "automation-1"},
     )
     submitted: dict[str, Any] = {}
 
@@ -1271,74 +879,11 @@ async def test_execute_agent_carries_generic_scheduled_task_plugin_options_to_se
 
     assert submitted["team_id"] is None
     assert submitted["session_metadata"]["plugin_options"] == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"}
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}
     }
     assert submitted["updated_metadata"]["plugin_options"] == {
-        "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"}
+        "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"}
     }
-
-
-@pytest.mark.asyncio
-async def test_execute_agent_carries_workflow_scheduled_task_options_to_agent_stream(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    runtime = PluginRuntime([build_workflow_plugin_manifest()])
-    runtime.enable_plugin("workflow")
-    task = _make_task(
-        agent_id="fast",
-        input_payload={
-            "message": "Run the nightly workflow",
-            "workflow_id": "wf-1",
-            "workflow_version_id": "wfv-1",
-            "workflow_input": {"topic": "nightly", "count": 3},
-        },
-    )
-    submitted: dict[str, Any] = {}
-
-    class _FakeTaskManager:
-        async def submit(self, **kwargs: Any) -> tuple[str, str]:
-            submitted.update(kwargs)
-            return "run_1", "trace_1"
-
-        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
-            return TaskStatus.COMPLETED
-
-    class _FakeSessionManager:
-        async def update_session_metadata(
-            self,
-            session_id: str,
-            metadata: dict[str, Any],
-        ) -> None:
-            submitted["updated_metadata"] = metadata
-
-    fake_manager_module = types.ModuleType("src.infra.task.manager")
-    fake_manager_module.get_task_manager = lambda: _FakeTaskManager()
-    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
-    monkeypatch.setitem(sys.modules, "src.infra.task.manager", fake_manager_module)
-    monkeypatch.setattr(
-        "src.infra.task.concurrency.get_registered_executor",
-        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
-    )
-    monkeypatch.setattr(
-        "src.infra.session.manager.SessionManager",
-        lambda: _FakeSessionManager(),
-    )
-    runner = ScheduledTaskRunner()
-    runner.set_plugin_runtime(runtime)
-
-    await runner._execute_agent(task, run_id="run_1", session_id="session_1")
-
-    expected_options = {
-        "workflow": {
-            "WORKFLOW_ID": "wf-1",
-            "WORKFLOW_VERSION_ID": "wfv-1",
-            "WORKFLOW_INPUT_JSON": {"topic": "nightly", "count": 3},
-        }
-    }
-    assert submitted["team_id"] is None
-    assert submitted["plugin_options"] == expected_options
-    assert submitted["session_metadata"]["plugin_options"] == expected_options
-    assert submitted["updated_metadata"]["plugin_options"] == expected_options
 
 
 @pytest.mark.asyncio
@@ -1386,7 +931,23 @@ async def test_execute_agent_rejects_disabled_plugin_owned_team_agent(
 async def test_execute_agent_uses_arq_backend_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    task = _make_task(input_payload={"message": "Run distributed report"})
+    attachments = [
+        {
+            "id": "att-1",
+            "key": "attachments/user-1/report.pdf",
+            "name": "report.pdf",
+            "type": "document",
+            "mime_type": "application/pdf",
+            "size": 12345,
+            "url": "/api/upload/file/attachments/user-1/report.pdf",
+        }
+    ]
+    task = _make_task(
+        input_payload={
+            "message": "Run distributed report",
+            "attachments": attachments,
+        }
+    )
     submitted: dict[str, Any] = {}
 
     class _FakeTaskManager:
@@ -1440,6 +1001,7 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
     assert submitted["run_id"] == "run_1"
     assert submitted["session_id"] == "session_1"
     assert submitted["display_message"] == "Run distributed report"
+    assert submitted["attachments"] == attachments
     assert submitted["session_metadata"] == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",

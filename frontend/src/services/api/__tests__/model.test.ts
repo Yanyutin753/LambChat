@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import { modelApi } from "../model.ts";
 
 test("modelApi.list reuses in-flight and fresh identical list requests", async () => {
@@ -30,10 +27,10 @@ test("modelApi.list reuses in-flight and fresh identical list requests", async (
     ]);
     const third = await modelApi.list(true);
 
-    assert.equal(fetchCount, 1);
-    assert.deepEqual(first, { models: [] });
-    assert.deepEqual(second, { models: [] });
-    assert.deepEqual(third, { models: [] });
+    expect(fetchCount).toBe(1);
+    expect(first).toEqual({ models: [] });
+    expect(second).toEqual({ models: [] });
+    expect(third).toEqual({ models: [] });
   } finally {
     globalThis.fetch = previousFetch;
     globalThis.localStorage = previousLocalStorage;

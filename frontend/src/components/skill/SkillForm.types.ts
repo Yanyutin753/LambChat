@@ -45,6 +45,7 @@ export interface SkillFormActions {
   updateFileContent: (i: number, c: string) => void;
   removeFile: (i: number) => void;
   addFile: () => void;
+  addBinaryFile: () => void;
   removeTag: (tag: string) => void;
   loadFileContent: (index: number) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;

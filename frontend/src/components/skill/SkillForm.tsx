@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -37,7 +37,11 @@ export function SkillForm({
   const [binaryFiles, setBinaryFiles] = useState<
     Record<string, BinaryFileInfo>
   >({});
+  const [pendingBinaryFiles, setPendingBinaryFiles] = useState<
+    Record<string, File>
+  >({});
   const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null);
+  const binaryFileInputRef = useRef<HTMLInputElement>(null);
 
   // Track which file paths have been loaded
   const loadedFilePaths = useRef<Set<string>>(new Set());
@@ -64,6 +68,7 @@ export function SkillForm({
     loadedFilePaths.current = new Set();
     loadingPaths.current = new Set();
     setBinaryFiles({});
+    setPendingBinaryFiles({});
 
     if (skill?.filePaths && skill.filePaths.length > 0) {
       // Lazy mode: only paths, content loaded on demand
@@ -250,6 +255,7 @@ export function SkillForm({
       syncedSkillMarkdown: synced,
       isEditing,
       loadedFilePaths: loadedFilePaths.current,
+      pendingBinaryPaths,
     });
     const filePaths = files.map((file) => file.path.trim()).filter(Boolean);
 
@@ -264,12 +270,29 @@ export function SkillForm({
     };
 
     const success = await onSave(data);
-    if (success && !isEditing) {
-      setName("");
-      setDescription("");
-      setTagsInput("");
-      setEnabled(true);
-      setFiles([{ path: "SKILL.md", content: DEFAULT_CONTENT }]);
+    if (success) {
+      // Upload pending binary files after text save succeeds
+      const skillName = sanitizeSkillName(name.trim());
+      let allBinariesUploaded = true;
+      for (const [filePath, file] of Object.entries(pendingBinaryFiles)) {
+        try {
+          await skillApi.uploadBinaryFile(skillName, filePath, file);
+        } catch {
+          allBinariesUploaded = false;
+        }
+      }
+      if (allBinariesUploaded) {
+        setPendingBinaryFiles({});
+      }
+
+      if (!isEditing) {
+        setName("");
+        setDescription("");
+        setTagsInput("");
+        setEnabled(true);
+        setFiles([{ path: "SKILL.md", content: DEFAULT_CONTENT }]);
+        setPendingBinaryFiles({});
+      }
     }
   };
 
@@ -281,9 +304,23 @@ export function SkillForm({
 
   const removeFile = (index: number) => {
     if (files.length <= 1) return;
+    const removedPath = files[index]?.path ?? "";
     const next = files.filter((_, i) => i !== index);
     setFiles(next);
-    loadedFilePaths.current.delete(files[index]?.path ?? "");
+    loadedFilePaths.current.delete(removedPath);
+    // Clean up pending binary entry and revoke preview URL
+    setPendingBinaryFiles((prev) => {
+      const next = { ...prev };
+      delete next[removedPath];
+      return next;
+    });
+    setBinaryFiles((prev) => {
+      const next = { ...prev };
+      const info = next[removedPath];
+      if (info?.url.startsWith("blob:")) URL.revokeObjectURL(info.url);
+      delete next[removedPath];
+      return next;
+    });
     if (activeFileIndex >= next.length) setActiveFileIndex(next.length - 1);
   };
 
@@ -314,6 +351,61 @@ export function SkillForm({
         .join(", "),
     );
   };
+
+  // Derive the set of paths that are pending binary uploads
+  const pendingBinaryPaths = useMemo(
+    () => new Set(Object.keys(pendingBinaryFiles)),
+    [pendingBinaryFiles],
+  );
+
+  // Trigger the hidden file input for binary file selection
+  const addBinaryFile = useCallback(() => {
+    binaryFileInputRef.current?.click();
+  }, []);
+
+  // Handle file selection from the hidden input
+  const handleBinaryFileSelected = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = e.target.files;
+      if (!selectedFiles || selectedFiles.length === 0) return;
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const fileName = file.name;
+        const filePath = `assets/${fileName}`;
+
+        // Add to files array with placeholder content
+        setFiles((prev) => [
+          ...prev,
+          {
+            path: filePath,
+            content: `[Binary: ${file.type || "application/octet-stream"}, ${(
+              file.size / 1024
+            ).toFixed(1)}KB]`,
+          },
+        ]);
+        setActiveFileIndex(files.length + i);
+        loadedFilePaths.current.add(filePath);
+
+        // Track as pending binary upload
+        setPendingBinaryFiles((prev) => ({ ...prev, [filePath]: file }));
+
+        // Pre-populate binary preview metadata so BinaryFilePreview renders immediately
+        setBinaryFiles((prev) => ({
+          ...prev,
+          [filePath]: {
+            url: URL.createObjectURL(file),
+            mime_type: file.type || "application/octet-stream",
+            size: file.size,
+          },
+        }));
+      }
+
+      // Reset input so the same file can be re-selected
+      e.target.value = "";
+    },
+    [files.length],
+  );
 
   // When user clicks a file tab, load its content if not yet loaded
   const handleTabSelect = useCallback(
@@ -348,6 +440,7 @@ export function SkillForm({
     updateFileContent,
     removeFile,
     addFile,
+    addBinaryFile,
     removeTag,
     loadFileContent,
     handleSubmit,
@@ -364,6 +457,14 @@ export function SkillForm({
           : "skill-form flex flex-1 flex-col gap-4"
       }
     >
+      {/* Hidden file input for binary file uploads */}
+      <input
+        ref={binaryFileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleBinaryFileSelected}
+        multiple
+      />
       {isFullscreen ? (
         <SkillFormFullscreen {...formActions} />
       ) : (

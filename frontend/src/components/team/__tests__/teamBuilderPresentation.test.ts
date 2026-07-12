@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import test from "node:test";
-
 const wrapperSource = readFileSync(
   new URL("../TeamBuilderWrapper.tsx", import.meta.url),
   "utf8",
@@ -28,17 +25,14 @@ function assertCssDeclaration(
   property: string,
   value: string,
 ) {
-  assert.match(
-    cssBlock(selector) ?? "",
+  expect(cssBlock(selector) ?? "").toMatch(
     new RegExp(`${property}:\\s*${value};`),
-    `${selector} should declare ${property}: ${value}`,
   );
 }
 
 test("team selected member cards fill the team member picker width", () => {
   assertCssDeclaration(".team-form-selected__list", "width", "100%");
-  assert.match(
-    teamCss,
+  expect(teamCss).toMatch(
     /\.team-form-selected__list \.list-item-card\s*\{[\s\S]*?width:\s*100%;[\s\S]*?max-width:\s*none;/,
   );
 });
@@ -58,90 +52,85 @@ test("team toggle keeps the desktop switch dimensions", () => {
 });
 
 test("team builder list adopts shared panel and role-library presentation", () => {
-  assert.match(wrapperSource, /<PanelHeader/);
-  assert.match(wrapperSource, /<EditorSidebar/);
-  assert.match(wrapperSource, /editorOpen/);
-  assert.match(wrapperSource, /widthStorageKey="team-editor-sidebar-width"/);
-  assert.match(wrapperSource, /skill-theme-shell flex h-full min-h-0 flex-col/);
-  assert.match(wrapperSource, /skill-content-area flex-1 overflow-y-auto/);
-  assert.match(wrapperSource, /TEAM_PAGE_SIZE/);
-  assert.match(wrapperSource, /loadMoreRef/);
-  assert.match(wrapperSource, /IntersectionObserver/);
-  assert.match(wrapperSource, /className="team-card/);
-  assert.match(wrapperSource, /TeamAvatar/);
-  assert.match(wrapperSource, /getTeamFallbackAvatar/);
+  expect(wrapperSource).toMatch(/<PanelHeader/);
+  expect(wrapperSource).toMatch(/<EditorSidebar/);
+  expect(wrapperSource).toMatch(/editorOpen/);
+  expect(wrapperSource).toMatch(/widthStorageKey="team-editor-sidebar-width"/);
+  expect(wrapperSource).toMatch(
+    /skill-theme-shell flex h-full min-h-0 flex-col/,
+  );
+  expect(wrapperSource).toMatch(/skill-content-area flex-1 overflow-y-auto/);
+  expect(wrapperSource).toMatch(/TEAM_PAGE_SIZE/);
+  expect(wrapperSource).toMatch(/loadMoreRef/);
+  expect(wrapperSource).toMatch(/IntersectionObserver/);
+  expect(wrapperSource).toMatch(/className="team-card/);
+  expect(wrapperSource).toMatch(/TeamAvatar/);
+  expect(wrapperSource).toMatch(/getTeamFallbackAvatar/);
 });
 
 test("team builder relies on shared panel header mobile density", () => {
-  assert.match(wrapperSource, /<PanelHeader/);
-  assert.match(wrapperSource, /className="skill-panel-header"/);
-  assert.doesNotMatch(wrapperSource, /isHeaderCompact/);
-  assert.doesNotMatch(wrapperSource, /TEAM_HEADER_COMPACT_SCROLL_TOP/);
-  assert.doesNotMatch(wrapperSource, /handleContentScroll/);
-  assert.doesNotMatch(wrapperSource, /team-panel-header--compact/);
-  assert.doesNotMatch(wrapperSource, /onScroll=\{handleContentScroll\}/);
+  expect(wrapperSource).toMatch(/<PanelHeader/);
+  expect(wrapperSource).toMatch(/className="skill-panel-header"/);
+  expect(wrapperSource).not.toMatch(/isHeaderCompact/);
+  expect(wrapperSource).not.toMatch(/TEAM_HEADER_COMPACT_SCROLL_TOP/);
+  expect(wrapperSource).not.toMatch(/handleContentScroll/);
+  expect(wrapperSource).not.toMatch(/team-panel-header--compact/);
+  expect(wrapperSource).not.toMatch(/onScroll=\{handleContentScroll\}/);
 });
 
 test("team editor uses one sidebar form matching role editor patterns", () => {
-  assert.match(builderSource, /className="es-form"/);
-  assert.match(builderSource, /ppe-profile-section/);
-  assert.match(builderSource, /tmb-header/);
-  assert.match(builderSource, /team-role-picker-trigger/);
-  assert.match(builderSource, /team-role-picker-dropdown__list/);
-  assert.match(builderSource, /team-form-selected__list/);
-  assert.match(wrapperSource, /footerState/);
-  assert.match(wrapperSource, /<EditorSidebar/);
-  assert.doesNotMatch(builderSource, /activeMobilePane/);
-  assert.doesNotMatch(builderSource, /team-builder-mobile-switch/);
-  assert.doesNotMatch(builderSource, /data-mobile-pane/);
-  assert.doesNotMatch(builderSource, /team-editor-progress/);
-  assert.match(memberCardSource, /list-item-card/);
-  assert.match(memberCardSource, /team-member-card__avatar-btn/);
-  assert.match(builderSource, /teamAvatar/);
-  assert.match(builderSource, /ppe-icon-picker/);
-  assert.match(builderSource, /persona-avatars/);
-  assert.match(teamCss, /\.team-editor-form\s*\{/);
-  assert.match(teamCss, /\.team-form-role-option\s*\{/);
-  assert.match(teamCss, /\.team-form-selected__list\s*\{/);
-  assert.match(
-    teamCss,
+  expect(builderSource).toMatch(/className="es-form"/);
+  expect(builderSource).toMatch(/ppe-profile-section/);
+  expect(builderSource).toMatch(/tmb-header/);
+  expect(builderSource).toMatch(/team-role-picker-trigger/);
+  expect(builderSource).toMatch(/team-role-picker-dropdown__list/);
+  expect(builderSource).toMatch(/team-form-selected__list/);
+  expect(wrapperSource).toMatch(/footerState/);
+  expect(wrapperSource).toMatch(/<EditorSidebar/);
+  expect(builderSource).not.toMatch(/activeMobilePane/);
+  expect(builderSource).not.toMatch(/team-builder-mobile-switch/);
+  expect(builderSource).not.toMatch(/data-mobile-pane/);
+  expect(builderSource).not.toMatch(/team-editor-progress/);
+  expect(memberCardSource).toMatch(/list-item-card/);
+  expect(memberCardSource).toMatch(/team-member-card__avatar-btn/);
+  expect(builderSource).toMatch(/teamAvatar/);
+  expect(builderSource).toMatch(/ppe-icon-picker/);
+  expect(builderSource).toMatch(/persona-avatars/);
+  expect(teamCss).toMatch(/\.team-editor-form\s*\{/);
+  expect(teamCss).toMatch(/\.team-form-role-option\s*\{/);
+  expect(teamCss).toMatch(/\.team-form-selected__list\s*\{/);
+  expect(teamCss).toMatch(
     /\.team-form-selected__list \.list-item-card\s*\{[\s\S]*?width:\s*100%;/,
   );
-  assert.match(teamCss, /\.team-role-picker-dropdown\s*\{/);
+  expect(teamCss).toMatch(/\.team-role-picker-dropdown\s*\{/);
 });
 
 test("team editor defines dedicated tablet and mobile adaptations", () => {
-  assert.match(teamCss, /@media \(max-width:\s*1180px\)/);
-  assert.match(teamCss, /@media \(max-width:\s*760px\)/);
-  assert.match(builderSource, /ppe-profile-section/);
-  assert.match(teamCss, /\.tmb-header/);
-  assert.match(
-    teamCss,
+  expect(teamCss).toMatch(/@media \(max-width:\s*1180px\)/);
+  expect(teamCss).toMatch(/@media \(max-width:\s*760px\)/);
+  expect(builderSource).toMatch(/ppe-profile-section/);
+  expect(teamCss).toMatch(/\.tmb-header/);
+  expect(teamCss).toMatch(
     /@media \(max-width:\s*760px\) \{[\s\S]*?\.tmb-header\s*\{[\s\S]*?align-items:\s*stretch;/,
   );
-  assert.match(
-    teamCss,
+  expect(teamCss).toMatch(
     /@media \(max-width:\s*760px\) \{[\s\S]*?\.tmb-header__row\s*\{[\s\S]*?flex-wrap:\s*wrap;/,
   );
-  assert.match(
-    teamCss,
+  expect(teamCss).toMatch(
     /@media \(max-width:\s*760px\) \{[\s\S]*?\.team-editor-action-stack\s*\{[\s\S]*?min-width:\s*0;/,
   );
 });
 
 test("team styles allow long scrolling lists and compact mobile cards", () => {
-  assert.match(teamCss, /\.team-load-sentinel/);
-  assert.match(teamCss, /\.team-role-picker-dropdown__list/);
-  assert.match(
-    teamCss,
+  expect(teamCss).toMatch(/\.team-load-sentinel/);
+  expect(teamCss).toMatch(/\.team-role-picker-dropdown__list/);
+  expect(teamCss).toMatch(
     /\.team-role-picker-dropdown__list\s*\{[\s\S]*?overflow-y:\s*auto;/,
   );
-  assert.match(
-    teamCss,
+  expect(teamCss).toMatch(
     /@media \(max-width:\s*639px\) \{[\s\S]*?\.team-form-role-list\s*\{[\s\S]*?max-height:\s*16rem;/,
   );
-  assert.match(
-    teamCss,
+  expect(teamCss).toMatch(
     /@media \(max-width:\s*639px\) \{[\s\S]*?\.list-item-card__top\s*\{[\s\S]*?flex-wrap:\s*wrap;/,
   );
 });
@@ -157,8 +146,7 @@ test("team avatar image containers constrain absolute avatar images", () => {
     assertCssDeclaration(selector, "flex-shrink", "0");
   }
   for (const selector of [".team-picker-avatar", ".team-toolbar-avatar"]) {
-    assert.match(
-      teamCss,
+    expect(teamCss).toMatch(
       new RegExp(
         `${selector.replace(
           ".",
@@ -168,7 +156,6 @@ test("team avatar image containers constrain absolute avatar images", () => {
           "\\.",
         )} \\.scb__avatar-img`,
       ),
-      `${selector} avatar images should receive explicit image sizing rules`,
     );
   }
   assertCssDeclaration(".team-picker-avatar", "width", "2\\.5rem");
@@ -178,27 +165,24 @@ test("team avatar image containers constrain absolute avatar images", () => {
 });
 
 test("team editor exposes team sandbox selection instead of member agent modes", () => {
-  assert.match(builderSource, /runInSandbox/);
-  assert.match(builderSource, /run_in_sandbox:\s*runInSandbox/);
-  assert.match(builderSource, /team-sandbox-option/);
-  assert.match(builderSource, /team\.run_in_sandbox/);
-  assert.doesNotMatch(builderSource, /agentApi\s*\.\s*list\(\)/);
-  assert.doesNotMatch(builderSource, /handleAgentChange/);
-  assert.doesNotMatch(memberCardSource, /availableAgents/);
-  assert.doesNotMatch(memberCardSource, /onAgentChange/);
-  assert.doesNotMatch(memberCardSource, /followTeamMode/);
-  assert.doesNotMatch(memberCardSource, /value=\{member\.agent_id \?\? ""\}/);
-  assert.match(memberCardSource, /availableModels/);
-  assert.match(memberCardSource, /onModelChange/);
-  assert.match(memberCardSource, /team-member-card__model/);
-  assert.match(memberCardSource, /followSessionModel/);
-  assert.match(memberCardSource, /value=\{member\.model_id \?\? ""\}/);
-  assert.match(memberCardSource, /onModelChange\?\.\(v \|\| null\)/);
-  assert.match(teamCss, /\.team-member-card__model\s*\{/);
-  assert.match(
-    teamCss,
-    /\.team-member-card__model span\s*\{[\s\S]*?text-overflow:\s*ellipsis;/,
-  );
-  assert.match(teamCss, /\.team-sandbox-option\s*\{/);
-  assert.match(teamCss, /\.team-sandbox-option__title\s*\{/);
+  expect(builderSource).toMatch(/runInSandbox/);
+  expect(builderSource).toMatch(/run_in_sandbox:\s*runInSandbox/);
+  expect(builderSource).toMatch(/team-sandbox-option/);
+  expect(builderSource).toMatch(/team\.run_in_sandbox/);
+  expect(builderSource).not.toMatch(/agentApi\s*\.\s*list\(\)/);
+  expect(builderSource).not.toMatch(/handleAgentChange/);
+  expect(memberCardSource).not.toMatch(/availableAgents/);
+  expect(memberCardSource).not.toMatch(/onAgentChange/);
+  expect(memberCardSource).not.toMatch(/followTeamMode/);
+  expect(memberCardSource).not.toMatch(/value=\{member\.agent_id \?\? ""\}/);
+  expect(memberCardSource).toMatch(/availableModels/);
+  expect(memberCardSource).toMatch(/onModelChange/);
+  expect(memberCardSource).toMatch(/team-member-card__model/);
+  expect(memberCardSource).toMatch(/followSessionModel/);
+  expect(memberCardSource).toMatch(/value=\{member\.model_id \?\? ""\}/);
+  expect(memberCardSource).toMatch(/onModelChange\?\.\(v \|\| null\)/);
+  expect(teamCss).toMatch(/\.team-member-card__model\s*\{/);
+  expect(teamCss).toMatch(/\.team-member-card__model span\s*\{[\s\S]*?text-overflow:\s*ellipsis;/);
+  expect(teamCss).toMatch(/\.team-sandbox-option\s*\{/);
+  expect(teamCss).toMatch(/\.team-sandbox-option__title\s*\{/);
 });

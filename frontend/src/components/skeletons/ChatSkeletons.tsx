@@ -64,15 +64,15 @@ function UserMessageSkeleton({
   return (
     <div className="w-full px-4 sm:px-6 py-4 group">
       <div className="mx-auto flex max-w-4xl lg:max-w-5xl xl:max-w-6xl justify-end">
-        <div
-          className={`flex flex-col items-stretch max-w-[90%] ${msg.bubble}`}
-        >
+        <div className={`flex flex-col items-end max-w-[90%] ${msg.bubble}`}>
           <div
-            className="rounded-3xl w-full px-5 py-2 shadow-sm border"
+            className="w-full px-5 py-2.5 shadow-sm border transition-shadow duration-200"
             style={{
               background:
                 "linear-gradient(135deg, var(--theme-primary-light), var(--theme-bg))",
               borderColor: "var(--theme-border)",
+              borderRadius: "var(--radius-chat)",
+              boxShadow: "var(--shadow-low)",
             }}
           >
             <div className="leading-relaxed text-[15px] sm:text-base space-y-1.5">
@@ -93,8 +93,8 @@ function AssistantMessageSkeleton() {
     <div className="group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6 rounded-2xl">
       <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-6">
         {/* Avatar + name */}
-        <div className="mb-3 flex items-center gap-2">
-          <div className="skeleton-line size-6 rounded-full shrink-0" />
+        <div className="mb-3 flex flex-nowrap items-center gap-2">
+          <div className="skeleton-line size-5 sm:size-6 rounded-full shrink-0" />
           <SkeletonLine
             width="w-16 sm:w-20"
             className="!h-[18px] sm:!h-[20px]"
@@ -102,7 +102,7 @@ function AssistantMessageSkeleton() {
         </div>
         {/* Response content skeleton */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
-          <div className="space-y-3 my-2 pl-1">
+          <div className="space-y-3 my-2">
             <div className="skeleton-line w-full h-2 sm:h-[7px] rounded-full" />
             <div className="flex gap-2 sm:gap-3">
               <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />
@@ -124,26 +124,27 @@ function AssistantMessageSkeleton() {
 function ChatInputSkeleton() {
   return (
     <div className="shrink-0">
-      <div className="mx-auto w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-6 py-3">
-        <div
-          className="flex flex-col w-full rounded-3xl px-1 border"
-          style={{
-            backgroundColor: "var(--theme-bg-card)",
-            borderColor: "var(--theme-border)",
-          }}
-        >
-          {/* Textarea area */}
-          <div className="px-2.5 py-2 flex items-start gap-2">
-            <div className="skeleton-line h-3 w-3/5 rounded-full flex-1 mt-3 min-h-[30px]" />
-          </div>
-          {/* Toolbar */}
-          <div className="flex justify-between flex-nowrap pt-2 pb-2.5 px-2 mx-0.5">
-            <div className="flex items-center gap-1.5 self-end flex-1 min-w-0">
-              <div className="skeleton-line h-8 w-8 rounded-xl shrink-0" />
-              <div className="skeleton-line h-8 w-20 rounded-xl shrink-0" />
+      <div className="chat-input-shell sm:px-4 pb-3 sm:pb-5">
+        <div className="mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl px-2">
+          <div
+            className="flex flex-col w-full rounded-3xl px-1 border"
+            style={{
+              backgroundColor: "var(--theme-bg-card)",
+            }}
+          >
+            {/* Textarea area */}
+            <div className="px-2.5 py-2 flex items-start gap-2">
+              <div className="skeleton-line h-3 w-3/5 rounded-full flex-1 mt-3 min-h-[30px]" />
             </div>
-            <div className="self-end flex shrink-0">
-              <div className="skeleton-line size-8 rounded-full" />
+            {/* Toolbar — matches real ChatInputToolbar layout */}
+            <div className="flex max-w-full flex-nowrap justify-between gap-2 px-2 pb-3 pt-3 mx-0.5">
+              <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1 overflow-x-auto sm:gap-2">
+                <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
+                <div className="skeleton-line h-9 w-16 rounded-full shrink-0" />
+              </div>
+              <div className="flex shrink-0 items-center gap-3 self-end">
+                <div className="skeleton-line h-9 w-9 rounded-full shrink-0" />
+              </div>
             </div>
           </div>
         </div>
@@ -238,22 +239,20 @@ export function WelcomeSkeleton() {
           className="flex flex-col w-full rounded-3xl px-1 border"
           style={{
             backgroundColor: "var(--theme-bg-card)",
-            borderColor: "var(--theme-border)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
           }}
         >
           {/* Textarea area */}
           <div className="px-2.5 py-2 flex items-start gap-2">
             <div className="welcome-skeleton-line h-3 w-3/5 flex-1 mt-3 min-h-[30px]" />
           </div>
-          {/* Toolbar */}
-          <div className="flex justify-between flex-nowrap pt-3 pb-3 px-2 mx-0.5 max-w-full">
-            <div className="flex items-center gap-1 sm:gap-2 self-end flex-1 min-w-0">
-              <div className="welcome-skeleton-line h-8 w-8 rounded-xl shrink-0" />
-              <div className="welcome-skeleton-line h-8 w-20 sm:w-24 rounded-xl shrink-0" />
+          {/* Toolbar — matches real ChatInputToolbar layout */}
+          <div className="flex max-w-full flex-nowrap justify-between gap-2 px-2 pb-3 pt-3 mx-0.5">
+            <div className="flex min-h-10 min-w-0 flex-1 items-center gap-1 overflow-x-auto sm:gap-2">
+              <div className="welcome-skeleton-line h-9 w-9 rounded-full shrink-0" />
+              <div className="welcome-skeleton-line h-9 w-16 sm:w-20 rounded-full shrink-0" />
             </div>
-            <div className="self-end flex shrink-0">
-              <div className="welcome-skeleton-line size-8 rounded-full" />
+            <div className="flex shrink-0 items-center gap-3 self-end">
+              <div className="welcome-skeleton-line h-9 w-9 rounded-full shrink-0" />
             </div>
           </div>
         </div>

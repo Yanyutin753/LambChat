@@ -307,7 +307,7 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
             evidence="Feedback dry-run keeps user data, archives metadata, has no delete actions, and validates without blockers.",
         ),
         PluginMigrationGateEvidence(
-            gate_id="legacy_workflows_compatible",
+            gate_id="legacy_surface_compatible",
             category=PluginMigrationGateCategory.REGRESSION_COMPATIBILITY,
             passed=(
                 manifest.routers[0].prefix == "/api/feedback"

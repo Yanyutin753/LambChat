@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import {
   closeBlockPreview,
   getBlockPreview,
@@ -15,7 +13,7 @@ test("opening a preview updates the current block preview", () => {
     text: "hello",
   });
 
-  assert.deepEqual(getBlockPreview(), {
+  expect(getBlockPreview()).toEqual({
     type: "text",
     text: "hello",
   });
@@ -41,7 +39,7 @@ test("reopening the same preview payload does not notify listeners twice", () =>
     fileName: "file.txt",
   });
 
-  assert.equal(calls.length, 1);
+  expect(calls.length).toBe(1);
 
   unsubscribe();
   closeBlockPreview();

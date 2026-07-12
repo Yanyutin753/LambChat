@@ -1,5 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
 import type { Message } from "../../../types";
 import {
   createOptimisticMessagesForRetry,
@@ -17,14 +15,11 @@ test("normal optimistic send appends user and assistant messages", () => {
     })(),
   });
 
-  assert.deepEqual(
-    result.messages.map((message) => [message.id, message.role, message.content]),
-    [
+  expect(result.messages.map((message) => [message.id, message.role, message.content])).toEqual([
       ["user-1", "user", "hello"],
       ["assistant-1", "assistant", ""],
-    ],
-  );
-  assert.equal(result.assistantMessageId, "assistant-1");
+    ]);
+  expect(result.assistantMessageId).toBe("assistant-1");
 });
 
 test("retry optimistic send replaces the cancelled assistant without adding a user", () => {
@@ -52,16 +47,13 @@ test("retry optimistic send replaces the cancelled assistant without adding a us
     createId: () => "assistant-retry",
   });
 
-  assert.deepEqual(
-    result.messages.map((message) => [message.id, message.role, message.content]),
-    [
+  expect(result.messages.map((message) => [message.id, message.role, message.content])).toEqual([
       ["user-1", "user", "retry this prompt"],
       ["assistant-retry", "assistant", ""],
-    ],
-  );
-  assert.equal(result.messages.filter((message) => message.role === "user").length, 1);
-  assert.equal(result.messages[1]?.isStreaming, true);
-  assert.equal(result.messages[1]?.cancelled, undefined);
+    ]);
+  expect(result.messages.filter((message) => message.role === "user").length).toBe(1);
+  expect(result.messages[1]?.isStreaming).toBe(true);
+  expect(result.messages[1]?.cancelled).toBe(undefined);
 });
 
 test("retry optimistic send inserts after the target user when the assistant is missing", () => {
@@ -86,8 +78,5 @@ test("retry optimistic send inserts after the target user when the assistant is 
     createId: () => "assistant-retry",
   });
 
-  assert.deepEqual(
-    result.messages.map((message) => message.id),
-    ["user-1", "assistant-retry", "user-2"],
-  );
+  expect(result.messages.map((message) => message.id)).toEqual(["user-1", "assistant-retry", "user-2"]);
 });

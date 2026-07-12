@@ -91,9 +91,7 @@ def service() -> ScheduledTaskService:
     set_plugin_runtime(runtime)
     service = ScheduledTaskService()
     service.plugin_runtime = runtime
-    service.plugin_settings_service = PluginSettingsService(
-        storage=InMemoryPluginSettingsStorage()
-    )
+    service.plugin_settings_service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
     try:
         yield service
     finally:
@@ -204,12 +202,15 @@ async def test_create_task_filters_plugin_options_by_scheduled_task_manifest_sco
         "message": "team task",
         "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
     }
-    assert await service.plugin_settings_service.storage.get(
-        plugin_id="missing_plugin",
-        key="ANY",
-        scope="scheduled_task",
-        subject_id=task.id,
-    ) is None
+    assert (
+        await service.plugin_settings_service.storage.get(
+            plugin_id="missing_plugin",
+            key="ANY",
+            scope="scheduled_task",
+            subject_id=task.id,
+        )
+        is None
+    )
     mock_storage.create_task.assert_called_once()
     mock_scheduler.register_job.assert_called_once()
 
@@ -221,14 +222,14 @@ async def test_create_task_imports_legacy_payload_keys_from_plugin_manifest(
     mock_scheduler: MagicMock,
 ) -> None:
     manifest = PluginManifest(
-        id="workflow_runner",
+        id="automation_runner",
         name="Workflow Runner",
         version="1.0.0",
         api_version="v1",
-        permissions=["workflow_runner:read"],
+        permissions=["automation_runner:read"],
         settings=[
             {
-                "key": "SELECTED_WORKFLOW_ID",
+                "key": "SELECTED_AUTOMATION_ID",
                 "type": "string",
                 "scope": "scheduled_task",
             }
@@ -236,7 +237,7 @@ async def test_create_task_imports_legacy_payload_keys_from_plugin_manifest(
         frontend={
             "scheduled_task_options": [
                 {
-                    "key": "SELECTED_WORKFLOW_ID",
+                    "key": "SELECTED_AUTOMATION_ID",
                     "type": "string",
                     "label": "workflow.selected",
                     "legacy_payload_keys": ["workflow_id"],
@@ -246,26 +247,26 @@ async def test_create_task_imports_legacy_payload_keys_from_plugin_manifest(
     )
     service.plugin_runtime = PluginRuntime([manifest])
     request = _make_create_request(
-        input_payload={"message": "workflow task", "workflow_id": "workflow-1"},
+        input_payload={"message": "workflow task", "workflow_id": "automation-1"},
     )
 
     task = await service.create_task(request, owner_id="user_1")
 
     assert task.input_payload == {
         "message": "workflow task",
-        "workflow_id": "workflow-1",
+        "workflow_id": "automation-1",
         "plugin_options": {
-            "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"},
+            "automation_runner": {"SELECTED_AUTOMATION_ID": "automation-1"},
         },
     }
     record = await service.plugin_settings_service.storage.get(
-        plugin_id="workflow_runner",
-        key="SELECTED_WORKFLOW_ID",
+        plugin_id="automation_runner",
+        key="SELECTED_AUTOMATION_ID",
         scope="scheduled_task",
         subject_id=task.id,
     )
     assert record is not None
-    assert record.value == "workflow-1"
+    assert record.value == "automation-1"
     mock_scheduler.register_job.assert_called_once()
 
 
@@ -631,12 +632,15 @@ async def test_update_task_filters_plugin_options_by_scheduled_task_manifest_sco
 
     assert mock_storage.update_task.call_args.args[1]["input_payload"] == sanitized_payload
     assert result == updated
-    assert await service.plugin_settings_service.storage.get(
-        plugin_id="missing_plugin",
-        key="ANY",
-        scope="scheduled_task",
-        subject_id="task_1",
-    ) is None
+    assert (
+        await service.plugin_settings_service.storage.get(
+            plugin_id="missing_plugin",
+            key="ANY",
+            scope="scheduled_task",
+            subject_id="task_1",
+        )
+        is None
+    )
     mock_scheduler.register_job.assert_called_once()
 
 

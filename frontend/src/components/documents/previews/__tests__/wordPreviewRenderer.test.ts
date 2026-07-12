@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   createWordPreviewRendererOptions,
   renderDocxPreviewHtml,
@@ -9,7 +6,7 @@ import {
 test("disables altChunk rendering by default for DOCX previews", () => {
   const options = createWordPreviewRendererOptions();
 
-  assert.equal(options.renderAltChunks, false);
+  expect(options.renderAltChunks).toBe(false);
 });
 
 test("renders with docx-preview before using mammoth fallback", async () => {
@@ -27,11 +24,11 @@ test("renders with docx-preview before using mammoth fallback", async () => {
     styleContainer,
     renderAsync: async (input, output, styles, options) => {
       calls.push("docx-preview");
-      assert.equal(input, arrayBuffer);
-      assert.equal(output, container);
-      assert.equal(styles, styleContainer);
-      assert.ok(options);
-      assert.equal(options.renderAltChunks, false);
+      expect(input).toBe(arrayBuffer);
+      expect(output).toBe(container);
+      expect(styles).toBe(styleContainer);
+      expect(options).toBeTruthy();
+      expect(options.renderAltChunks).toBe(false);
       output.innerHTML = "<section>Rendered DOCX</section>";
     },
     convertToHtml: async () => {
@@ -40,9 +37,9 @@ test("renders with docx-preview before using mammoth fallback", async () => {
     },
   });
 
-  assert.deepEqual(calls, ["docx-preview"]);
-  assert.deepEqual(result, { kind: "docx-preview" });
-  assert.equal(container.innerHTML, "<section>Rendered DOCX</section>");
+  expect(calls).toEqual(["docx-preview"]);
+  expect(result).toEqual({ kind: "docx-preview" });
+  expect(container.innerHTML).toBe("<section>Rendered DOCX</section>");
 });
 
 test("falls back to mammoth when docx-preview cannot render", async () => {
@@ -68,7 +65,7 @@ test("falls back to mammoth when docx-preview cannot render", async () => {
     onDocxPreviewError: () => undefined,
   });
 
-  assert.deepEqual(calls, ["docx-preview", "mammoth"]);
-  assert.deepEqual(result, { kind: "html", html: "<p>Fallback</p>" });
-  assert.equal(container.innerHTML, "");
+  expect(calls).toEqual(["docx-preview", "mammoth"]);
+  expect(result).toEqual({ kind: "html", html: "<p>Fallback</p>" });
+  expect(container.innerHTML).toBe("");
 });

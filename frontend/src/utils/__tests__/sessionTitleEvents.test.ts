@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import {
   dispatchSessionTitleUpdated,
   getCachedSessionTitle,
@@ -19,10 +17,10 @@ test("dispatches generated session title updates to listeners", () => {
     target,
   );
 
-  assert.deepEqual(received, [
+  expect(received).toEqual([
     { sessionId: "session-1", title: "Generated title" },
   ]);
-  assert.equal(getCachedSessionTitle("session-1"), "Generated title");
+  expect(getCachedSessionTitle("session-1")).toBe("Generated title");
 
   cleanup();
   dispatchSessionTitleUpdated(
@@ -30,7 +28,7 @@ test("dispatches generated session title updates to listeners", () => {
     target,
   );
 
-  assert.deepEqual(received, [
+  expect(received).toEqual([
     { sessionId: "session-1", title: "Generated title" },
   ]);
 });

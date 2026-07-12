@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import { shouldHandleGlobalFileDrop } from "../globalFileDropGuards";
 
 function createEventTarget(
@@ -19,23 +16,21 @@ test("ignores global file drop when the event target opts out", () => {
     selector === "[data-disable-global-file-drop='true']" ? guardElement : null,
   );
 
-  assert.equal(
+  expect(
     shouldHandleGlobalFileDrop({
       target: guardElement,
       composedPath: () => [],
     }),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("handles global file drop for normal targets", () => {
   const regularElement = createEventTarget(() => null);
 
-  assert.equal(
+  expect(
     shouldHandleGlobalFileDrop({
       target: regularElement,
       composedPath: () => [],
     }),
-    true,
-  );
+  ).toBe(true);
 });

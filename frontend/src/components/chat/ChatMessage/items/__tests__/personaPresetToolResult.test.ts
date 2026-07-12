@@ -1,6 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-
 import {
   dispatchPersonaPresetRefreshFromToolResult,
   getPersonaPresetMutationDetail,
@@ -11,25 +8,23 @@ import {
 } from "../../../../../hooks/personaPresetEvents.ts";
 
 test("recognizes persona preset mutation payloads from tool results", () => {
-  assert.deepEqual(
+  expect(
     getPersonaPresetMutationDetail({
       action: "created",
       entity_type: "persona_preset",
       preset: { id: "preset-1", name: "Planner" },
       message: "Created",
     }),
-    { action: "created", presetId: "preset-1", presetName: "Planner" },
-  );
+  ).toEqual({ action: "created", presetId: "preset-1", presetName: "Planner" });
 });
 
 test("ignores non-persona tool results", () => {
-  assert.equal(
+  expect(
     getPersonaPresetMutationDetail({
       action: "created",
       entity_type: "other_entity",
     }),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("dispatches persona preset refresh events for matching tool results", () => {
@@ -51,8 +46,8 @@ test("dispatches persona preset refresh events for matching tool results", () =>
 
   unsubscribe();
 
-  assert.equal(dispatched, true);
-  assert.deepEqual(seen, [
+  expect(dispatched).toBe(true);
+  expect(seen).toEqual([
     { action: "updated", presetId: "preset-2", presetName: "Writer" },
   ]);
 });

@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
+import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 
 export interface SelectOption {
   value: string;
@@ -37,7 +38,24 @@ export function Select({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+
+  const dropdownStyle = useStickyDropdownPosition(ref, open, (rect) => {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const width = Math.max(rect.width, 160);
+    const left = Math.max(16, Math.min(rect.left, viewportWidth - width - 16));
+    const spaceBelow = viewportHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+    const preferBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove;
+    return {
+      position: "fixed",
+      top: preferBelow ? rect.bottom + 4 : undefined,
+      bottom: preferBelow ? undefined : viewportHeight - rect.top + 4,
+      left,
+      width,
+      zIndex: 9999,
+    };
+  });
 
   const selected = options.find((option) => option.value === value);
   const displayText = selected ? selected.label : placeholder;
@@ -58,28 +76,6 @@ export function Select({
 
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  useLayoutEffect(() => {
-    if (!open || !ref.current) return;
-
-    const rect = ref.current.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const width = Math.max(rect.width, 160);
-    const left = Math.max(16, Math.min(rect.left, viewportWidth - width - 16));
-    const spaceBelow = viewportHeight - rect.bottom - 16;
-    const spaceAbove = rect.top - 16;
-    const preferBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove;
-
-    setDropdownStyle({
-      position: "fixed",
-      top: preferBelow ? rect.bottom + 4 : undefined,
-      bottom: preferBelow ? undefined : viewportHeight - rect.top + 4,
-      left,
-      width,
-      zIndex: 9999,
-    });
   }, [open]);
 
   return (

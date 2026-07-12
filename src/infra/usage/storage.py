@@ -12,6 +12,7 @@ from src.infra.logging import get_logger
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import parse_iso
 from src.kernel.config import settings
+from src.kernel.extensions.agent_team_service import get_agent_team_directory
 
 logger = get_logger(__name__)
 
@@ -133,18 +134,11 @@ class UsageStorage:
     async def _resolve_team_name(self, team_id: str) -> str:
         if not team_id:
             return ""
+        directory = get_agent_team_directory()
+        if directory is None:
+            return ""
         try:
-            from bson import ObjectId
-
-            from src.infra.team.storage import TeamStorage
-
-            query_id: ObjectId | str
-            try:
-                query_id = ObjectId(team_id)
-            except Exception:
-                query_id = team_id
-            doc = await TeamStorage().collection.find_one({"_id": query_id}, {"_id": 0, "name": 1})
-            return _as_str((doc or {}).get("name"))
+            return await directory.get_team_name(team_id)
         except Exception as e:
             logger.debug("Failed to resolve team name for usage log %s: %s", team_id, e)
             return ""
@@ -172,9 +166,30 @@ class UsageStorage:
                 usage_event = event.get("data", {})
                 break
 
+        return await self.upsert_usage_log_from_trace_metadata(trace_doc, usage_event)
+
+    async def upsert_usage_log_from_trace_metadata(
+        self,
+        trace_doc: Dict[str, Any],
+        usage_data: Optional[Dict[str, Any]],
+    ) -> bool:
+        """
+        使用 trace 元数据和已解析的 token:usage 数据写入 usage_logs。
+
+        Args:
+            trace_doc: trace 元数据（不需要包含完整 events）
+            usage_data: 最后一条 token:usage 事件的 data；缺失时按 0 处理
+
+        Returns:
+            是否写入成功
+        """
+        trace_id = trace_doc.get("trace_id")
+        if not trace_id:
+            return False
+
         metadata = trace_doc.get("metadata", {}) or {}
         session_metadata = await self._get_session_metadata(str(trace_doc.get("session_id") or ""))
-        usage_data = usage_event or {}
+        usage_data = usage_data or {}
         input_tokens = _as_int(usage_data.get("input_tokens", 0))
         output_tokens = _as_int(usage_data.get("output_tokens", 0))
         total_tokens = _as_int(usage_data.get("total_tokens", 0))

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -43,6 +43,10 @@ import {
 } from "../scheduledTaskPayload";
 import { notifyScheduledTaskMutation } from "../../../stores/scheduledTaskMutationStore";
 import {
+  buildScheduledTaskSectionContributions,
+  type PluginRuntimeContributionStates,
+} from "../../../extensions/coreContributions";
+import {
   filterPluginOptionsByVisibleWhen,
   legacyPayloadKeysForPluginOption,
   pluginOptionFromMetadata,
@@ -57,6 +61,7 @@ import {
   findScheduledTaskOptionRenderer,
   useScheduledTaskOptionValueLabels,
 } from "./scheduledTaskOptionRenderers";
+import { renderScheduledTaskSectionContribution } from "./scheduledTaskSectionRenderers";
 
 function scheduledTaskPluginOptionStringValue(
   payload: Record<string, unknown> | undefined,
@@ -82,15 +87,17 @@ export function ScheduledTaskPanel({
   availableModels: providedAvailableModels,
   currentModelId,
   currentModelValue,
+  runtimePlugins,
 }: {
   agents?: AgentInfo[];
   currentAgent?: string;
   availableModels?: AvailableModel[] | null;
   currentModelId?: string;
   currentModelValue?: string;
+  runtimePlugins?: PluginRuntimeContributionStates;
 } = {}) {
   const { t } = useTranslation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, permissions } = useAuth();
   const { availableModels: settingsAvailableModels } = useSettingsContext();
   const canWrite = hasPermission(Permission.SCHEDULED_TASK_WRITE);
   const canDelete = hasPermission(Permission.SCHEDULED_TASK_DELETE);
@@ -110,6 +117,14 @@ export function ScheduledTaskPanel({
   const [personaPresets, setPersonaPresets] = useState<PersonaPreset[]>([]);
   const [apiDefaultAgentId, setApiDefaultAgentId] = useState("");
   const defaults = readScheduledTaskDefaults();
+  const scheduledTaskSections = useMemo(
+    () =>
+      buildScheduledTaskSectionContributions(runtimePlugins, {
+        scope: "scheduled_task",
+        permissions,
+      }),
+    [permissions, runtimePlugins],
+  );
   const { options: scheduledTaskPluginOptions } = useScheduledTaskPluginOptions(
     null,
     { includeInactive: true },
@@ -468,6 +483,12 @@ export function ScheduledTaskPanel({
               </PanelHeaderActions>
             }
           />
+
+          {scheduledTaskSections.map((section) => (
+            <Fragment key={section.id}>
+              {renderScheduledTaskSectionContribution(section)}
+            </Fragment>
+          ))}
 
           {/* Task List */}
           <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">

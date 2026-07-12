@@ -59,11 +59,14 @@ class Settings(BaseSettings):
 
     # Session Configuration (not in SETTING_DEFINITIONS)
     SESSION_MAX_MESSAGES: int = 20
-    SESSION_MAX_EVENTS_PER_TRACE: int = 10000  # 单个 trace 最多保留的事件数，防止内存爆炸
+    SESSION_MAX_EVENTS_PER_TRACE: int = 50000  # 单个 trace 最多保留的事件数，防止内存爆炸
     SESSION_EVENT_READ_DEFAULT_LIMIT: int = 1000
     SESSION_EVENT_MONGO_BUFFER_MAX: int = 10000
     SESSION_EVENT_TTL_CACHE_MAX: int = 5000
     SESSION_EVENT_REDIS_REPLAY_BATCH_SIZE: int = 500
+    SESSION_EVENT_CHUNK_STORAGE_ENABLED: bool = False
+    SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY: bool = False
+    SESSION_EVENT_CHUNK_SIZE: int = 5000
     FEISHU_UPLOAD_BYTES_MAX_SIZE: int = 20 * 1024 * 1024
 
     # ============================================
@@ -137,6 +140,7 @@ class Settings(BaseSettings):
     MONGODB_AUTH_SOURCE: str = "admin"
     MONGODB_SESSIONS_COLLECTION: str = "sessions"
     MONGODB_TRACES_COLLECTION: str = "traces"
+    MONGODB_TRACE_EVENT_CHUNKS_COLLECTION: str = "trace_event_chunks"
     MONGODB_USAGE_LOGS_COLLECTION: str = "usage_logs"
     MONGODB_STORE_BATCH_CONCURRENCY: int = 16
 
@@ -146,7 +150,8 @@ class Settings(BaseSettings):
     EVENT_MERGE_BATCH_SIZE: int = 100
     EVENT_MERGE_CONCURRENCY: int = 3
     EVENT_MERGE_TIMEOUT_SECONDS: float = 120.0
-    EVENT_MERGE_MAX_EVENTS_PER_TRACE: int = 5000
+    EVENT_MERGE_MAX_EVENTS_PER_TRACE: int = 50000
+    EVENT_MERGE_IMMEDIATE_DEBOUNCE_SECONDS: float = 2.0
 
     # Memory Monitoring Settings
     MEMORY_MONITOR_ENABLED: bool = True

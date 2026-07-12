@@ -113,4 +113,10 @@ export interface ChatInputProps {
   /** INTERNAL: panel state lifted from ChatInput for ChatView layout. */
   activePanel?: FeaturePanel;
   onActivePanelChange?: (panel: FeaturePanel) => void;
+
+  // Run mode
+  autoModeEnabled?: boolean;
+  goalModeEnabled?: boolean;
+  onToggleAutoMode?: (enabled: boolean) => void;
+  onToggleGoalMode?: (enabled: boolean) => void;
 }

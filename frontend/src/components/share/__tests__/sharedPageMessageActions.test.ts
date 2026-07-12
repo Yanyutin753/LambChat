@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -20,15 +18,15 @@ test("shared page hides feedback and share actions on chat messages", () => {
     "utf8",
   );
 
-  assert.match(sharedPageSource, /showFeedbackAndShareActions=\{false\}/);
-  assert.match(chatMessageSource, /showFeedbackAndShareActions\?: boolean/);
-  assert.match(chatMessageSource, /buildMessageActionContributions\(runtimePlugins, \{/);
-  assert.match(chatMessageSource, /target: "assistant_message"/);
-  assert.match(chatMessageSource, /MESSAGE_ACTION_RENDERERS/);
-  assert.doesNotMatch(chatMessageSource, /FeedbackButtons/);
-  assert.match(messageActionRenderersSource, /FeedbackButtons/);
-  assert.match(chatMessageSource, /isAuthenticated &&\s*sessionId &&/);
-  assert.doesNotMatch(chatMessageSource, /canUseFeedbackAction/);
+  expect(sharedPageSource).toMatch(/showFeedbackAndShareActions=\{false\}/);
+  expect(chatMessageSource).toMatch(/showFeedbackAndShareActions\?: boolean/);
+  expect(chatMessageSource).toMatch(/buildMessageActionContributions\(runtimePlugins, \{/);
+  expect(chatMessageSource).toMatch(/target: "assistant_message"/);
+  expect(chatMessageSource).toMatch(/MESSAGE_ACTION_RENDERERS/);
+  expect(chatMessageSource).not.toMatch(/FeedbackButtons/);
+  expect(messageActionRenderersSource).toMatch(/FeedbackButtons/);
+  expect(chatMessageSource).toMatch(/isAuthenticated &&\s*sessionId &&/);
+  expect(chatMessageSource).not.toMatch(/canUseFeedbackAction/);
 });
 
 test("shared page passes public plugin runtime state into chat messages", () => {
@@ -37,15 +35,12 @@ test("shared page passes public plugin runtime state into chat messages", () => 
     "utf8",
   );
 
-  assert.match(sharedPageSource, /useExtensionContributions/);
-  assert.match(sharedPageSource, /const EMPTY_RUNTIME_PLUGINS/);
-  assert.match(
-    sharedPageSource,
-    /extensionContributions\?\.plugins \?\? EMPTY_RUNTIME_PLUGINS/,
-  );
-  assert.match(sharedPageSource, /runtimePlugins=\{runtimePlugins\}/);
-  assert.doesNotMatch(sharedPageSource, /pluginRuntimeApi\.listContributions\(\)/);
-  assert.doesNotMatch(sharedPageSource, /setRuntimePlugins/);
+  expect(sharedPageSource).toMatch(/useExtensionContributions/);
+  expect(sharedPageSource).toMatch(/const EMPTY_RUNTIME_PLUGINS/);
+  expect(sharedPageSource).toMatch(/extensionContributions\?\.plugins \?\? EMPTY_RUNTIME_PLUGINS/);
+  expect(sharedPageSource).toMatch(/runtimePlugins=\{runtimePlugins\}/);
+  expect(sharedPageSource).not.toMatch(/pluginRuntimeApi\.listContributions\(\)/);
+  expect(sharedPageSource).not.toMatch(/setRuntimePlugins/);
 });
 
 test("shared page shows team identity for shared team sessions", () => {
@@ -58,18 +53,18 @@ test("shared page shows team identity for shared team sessions", () => {
     "utf8",
   );
 
-  assert.match(sharedPageSource, /resolveSharedAssistantIdentity/);
-  assert.match(sharedPageSource, /resolveSharedPluginAssistantIdentity/);
-  assert.match(sharedPageSource, /resolvePluginAssistantIdentitySnapshot/);
-  assert.match(sharedPageSource, /sharedAssistant/);
-  assert.match(sharedPageSource, /sharedPluginAssistant/);
-  assert.doesNotMatch(sharedPageSource, /session\.agent_id === "team"/);
-  assert.match(assistantIdentitySource, /buildAssistantIdentityResolverContributions/);
-  assert.match(assistantIdentitySource, /agent_team\.TeamAssistantIdentity/);
-  assert.doesNotMatch(sharedPageSource, /\{data\.session\.team_name\}/);
-  assert.match(sharedPageSource, /\{sharedPluginAssistant\.name\}/);
-  assert.match(sharedPageSource, /personaName=\{sharedAssistant\.name\}/);
-  assert.match(sharedPageSource, /personaAvatar=\{sharedAssistant\.avatar\}/);
+  expect(sharedPageSource).toMatch(/resolveSharedAssistantIdentity/);
+  expect(sharedPageSource).toMatch(/resolveSharedPluginAssistantIdentity/);
+  expect(sharedPageSource).toMatch(/resolvePluginAssistantIdentitySnapshot/);
+  expect(sharedPageSource).toMatch(/sharedAssistant/);
+  expect(sharedPageSource).toMatch(/sharedPluginAssistant/);
+  expect(sharedPageSource).not.toMatch(/session\.agent_id === "team"/);
+  expect(assistantIdentitySource).toMatch(/buildAssistantIdentityResolverContributions/);
+  expect(assistantIdentitySource).toMatch(/agent_team\.TeamAssistantIdentity/);
+  expect(sharedPageSource).not.toMatch(/\{data\.session\.team_name\}/);
+  expect(sharedPageSource).toMatch(/\{sharedPluginAssistant\.name\}/);
+  expect(sharedPageSource).toMatch(/personaName=\{sharedAssistant\.name\}/);
+  expect(sharedPageSource).toMatch(/personaAvatar=\{sharedAssistant\.avatar\}/);
 });
 
 test("share dialog supports editing existing shares without replacing the public link", () => {
@@ -82,10 +77,10 @@ test("share dialog supports editing existing shares without replacing the public
     "utf8",
   );
 
-  assert.match(shareApiSource, /async update\(/);
-  assert.match(shareApiSource, /method: "PATCH"/);
-  assert.match(shareDialogSource, /editingShare/);
-  assert.match(shareDialogSource, /handleEditShare/);
-  assert.match(shareDialogSource, /handleSaveShare/);
-  assert.match(shareDialogSource, /share\.saveShare/);
+  expect(shareApiSource).toMatch(/async update\(/);
+  expect(shareApiSource).toMatch(/method: "PATCH"/);
+  expect(shareDialogSource).toMatch(/editingShare/);
+  expect(shareDialogSource).toMatch(/handleEditShare/);
+  expect(shareDialogSource).toMatch(/handleSaveShare/);
+  expect(shareDialogSource).toMatch(/share\.saveShare/);
 });

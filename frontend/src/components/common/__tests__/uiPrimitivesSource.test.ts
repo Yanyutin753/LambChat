@@ -1,28 +1,17 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 function readSource(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
 function assertExports(source: string, name: string): void {
-  assert.match(
-    source,
+  expect(source).toMatch(
     new RegExp(`export \\{[\\s\\S]*\\b${name}\\b[\\s\\S]*\\} from`),
   );
 }
 
 function assertCssSelector(source: string, selector: string): void {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  assert.match(source, new RegExp(`${escaped}[\\s\\S]*?\\{`));
-}
-
-function cssBlock(source: string, selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = source.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
-  assert.ok(match, `Expected CSS block for ${selector}`);
-  return match[1];
+  expect(source).toMatch(new RegExp(`${escaped}[\\s\\S]*?\\{`));
 }
 
 test("common ui primitives are exposed from a single reusable entrypoint", () => {
@@ -42,8 +31,8 @@ test("common ui primitives are exposed from a single reusable entrypoint", () =>
     assertExports(commonIndex, name);
   }
 
-  assert.match(uiIndex, /export type \{ ButtonVariant, ButtonSize \}/);
-  assert.match(uiIndex, /export type \{ SelectOption \}/);
+  expect(uiIndex).toMatch(/export type \{ ButtonVariant, ButtonSize \}/);
+  expect(uiIndex).toMatch(/export type \{ SelectOption \}/);
 });
 
 test("common panel controls are exposed for consistent admin panel composition", () => {
@@ -54,9 +43,9 @@ test("common panel controls are exposed for consistent admin panel composition",
     assertExports(commonIndex, name);
   }
 
-  assert.match(panelControls, /import \{ Select \}/);
-  assert.match(panelControls, /panel-filter-select/);
-  assert.match(panelControls, /panel-footer-actions/);
+  expect(panelControls).toMatch(/import \{ Select \}/);
+  expect(panelControls).toMatch(/panel-filter-select/);
+  expect(panelControls).toMatch(/panel-footer-actions/);
 });
 
 test("toolbar icon button centralizes shared panel toolbar button behavior", () => {
@@ -72,20 +61,21 @@ test("toolbar icon button centralizes shared panel toolbar button behavior", () 
 
   assertExports(uiIndex, "ToolbarIconButton");
   assertExports(commonIndex, "ToolbarIconButton");
-  assert.match(
-    toolbarIconButton,
+  expect(toolbarIconButton).toMatch(
     /type ToolbarIconButtonVariant = "stone" \| "muted"/,
   );
-  assert.match(toolbarIconButton, /stopPropagation\(\)/);
-  assert.match(toolbarIconButton, /flex shrink-0 items-center justify-center/);
-  assert.match(toolbarIconButton, /size-8 rounded-lg/);
-  assert.match(toolbarIconButton, /size-8 rounded-xl/);
+  expect(toolbarIconButton).toMatch(/stopPropagation\(\)/);
+  expect(toolbarIconButton).toMatch(
+    /flex shrink-0 items-center justify-center/,
+  );
+  expect(toolbarIconButton).toMatch(/size-8 rounded-lg/);
+  expect(toolbarIconButton).toMatch(/size-8 rounded-xl/);
 
-  assert.match(documentToolbar, /import \{[\s\S]*ToolbarIconButton/);
-  assert.match(toolResultPanel, /import \{[\s\S]*ToolbarIconButton/);
-  assert.doesNotMatch(documentToolbar, /const toolbarBtnClass/);
-  assert.doesNotMatch(toolResultPanel, /const panelBtnClass/);
-  assert.doesNotMatch(toolResultPanel, /const panelCloseBtnClass/);
+  expect(documentToolbar).toMatch(/import \{[\s\S]*ToolbarIconButton/);
+  expect(toolResultPanel).toMatch(/import \{[\s\S]*ToolbarIconButton/);
+  expect(documentToolbar).not.toMatch(/const toolbarBtnClass/);
+  expect(toolResultPanel).not.toMatch(/const panelBtnClass/);
+  expect(toolResultPanel).not.toMatch(/const panelCloseBtnClass/);
 });
 
 test("floating icon button centralizes fullscreen overlay icon actions", () => {
@@ -99,27 +89,28 @@ test("floating icon button centralizes fullscreen overlay icon actions", () => {
 
   assertExports(uiIndex, "FloatingIconButton");
   assertExports(commonIndex, "FloatingIconButton");
-  assert.match(floatingIconButton, /fixed right-4 z-\[410\]/);
-  assert.match(floatingIconButton, /flex shrink-0 items-center justify-center/);
-  assert.match(floatingIconButton, /w-11 h-11 rounded-xl bg-black\/80/);
+  expect(floatingIconButton).toMatch(/fixed right-4 z-\[410\]/);
+  expect(floatingIconButton).toMatch(
+    /flex shrink-0 items-center justify-center/,
+  );
+  expect(floatingIconButton).toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
 
-  assert.match(documentToolbar, /import \{[\s\S]*FloatingIconButton/);
-  assert.match(skillFullscreen, /import \{ FloatingIconButton \}/);
-  assert.doesNotMatch(documentToolbar, /w-11 h-11 rounded-xl bg-black\/80/);
-  assert.doesNotMatch(skillFullscreen, /w-11 h-11 rounded-xl bg-black\/80/);
+  expect(documentToolbar).toMatch(/import \{[\s\S]*FloatingIconButton/);
+  expect(skillFullscreen).toMatch(/import \{ FloatingIconButton \}/);
+  expect(documentToolbar).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
+  expect(skillFullscreen).not.toMatch(/w-11 h-11 rounded-xl bg-black\/80/);
 });
 
 test("viewer toolbar uses a fixed-size reusable icon button for overlay controls", () => {
   const source = readSource("../ViewerToolbar.tsx");
 
-  assert.match(source, /function ViewerToolbarButton/);
-  assert.match(source, /flex shrink-0 items-center justify-center size-8/);
-  assert.match(source, /disabled:opacity-50 disabled:cursor-not-allowed/);
-  assert.match(source, /<ViewerToolbarButton[\s\S]*imageViewer\.rotateLeft/);
-  assert.match(source, /<ViewerToolbarButton[\s\S]*imageViewer\.zoomOut/);
-  assert.match(source, /<ViewerToolbarButton[\s\S]*imageViewer\.reset/);
-  assert.doesNotMatch(
-    source,
+  expect(source).toMatch(/function ViewerToolbarButton/);
+  expect(source).toMatch(/flex shrink-0 items-center justify-center size-8/);
+  expect(source).toMatch(/disabled:opacity-50 disabled:cursor-not-allowed/);
+  expect(source).toMatch(/<ViewerToolbarButton[\s\S]*imageViewer\.rotateLeft/);
+  expect(source).toMatch(/<ViewerToolbarButton[\s\S]*imageViewer\.zoomOut/);
+  expect(source).toMatch(/<ViewerToolbarButton[\s\S]*imageViewer\.reset/);
+  expect(source).not.toMatch(
     /<button[\s\S]*flex items-center justify-center size-8 rounded-lg hover:bg-white\/10/,
   );
 });
@@ -136,37 +127,36 @@ test("viewer top bar buttons keep overlay actions fixed and non-wrapping", () =>
   );
 
   assertExports(commonIndex, "ViewerTopBar");
-  assert.match(topBar, /safe-area-top bg-black/);
-  assert.match(topBar, /flex h-16 items-center justify-between px-3 sm:px-6/);
+  expect(topBar).toMatch(/safe-area-top bg-black/);
+  expect(topBar).toMatch(/flex h-16 items-center justify-between px-3 sm:px-6/);
   assertExports(commonIndex, "ViewerTopBarButton");
-  assert.match(source, /flex shrink-0/);
-  assert.match(source, /whitespace-nowrap/);
-  assert.match(source, /w-10 h-10/);
-  assert.match(source, /px-3 h-10/);
-  assert.match(source, /disabled:opacity-50 disabled:cursor-not-allowed/);
+  expect(source).toMatch(/flex shrink-0/);
+  expect(source).toMatch(/whitespace-nowrap/);
+  expect(source).toMatch(/w-10 h-10/);
+  expect(source).toMatch(/px-3 h-10/);
+  expect(source).toMatch(/disabled:opacity-50 disabled:cursor-not-allowed/);
 
-  assert.match(imageViewer, /import \{ ViewerTopBarButton \}/);
-  assert.match(videoViewer, /import \{ ViewerTopBarButton \}/);
-  assert.match(imageViewer, /import \{ ViewerTopBar \}/);
-  assert.match(videoViewer, /import \{ ViewerTopBar \}/);
-  assert.match(mermaidViewer, /import \{[\s\S]*ViewerTopBar/);
-  assert.match(excalidrawViewer, /import \{[\s\S]*ViewerTopBar/);
-  assert.match(imageViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
-  assert.match(videoViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
-  assert.match(mermaidViewer, /import \{[\s\S]*ViewerTopBarButton/);
-  assert.match(excalidrawViewer, /import \{[\s\S]*ViewerTopBarButton/);
-  assert.match(mermaidViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
-  assert.match(
-    mermaidViewer,
+  expect(imageViewer).toMatch(/import \{ ViewerTopBarButton \}/);
+  expect(videoViewer).toMatch(/import \{ ViewerTopBarButton \}/);
+  expect(imageViewer).toMatch(/import \{ ViewerTopBar \}/);
+  expect(videoViewer).toMatch(/import \{ ViewerTopBar \}/);
+  expect(mermaidViewer).toMatch(/import \{[\s\S]*ViewerTopBar/);
+  expect(excalidrawViewer).toMatch(/import \{[\s\S]*ViewerTopBar/);
+  expect(imageViewer).toMatch(/<ViewerTopBarButton[\s\S]*common\.close/);
+  expect(videoViewer).toMatch(/<ViewerTopBarButton[\s\S]*common\.close/);
+  expect(mermaidViewer).toMatch(/import \{[\s\S]*ViewerTopBarButton/);
+  expect(excalidrawViewer).toMatch(/import \{[\s\S]*ViewerTopBarButton/);
+  expect(mermaidViewer).toMatch(/<ViewerTopBarButton[\s\S]*common\.close/);
+  expect(mermaidViewer).toMatch(
     /<ViewerTopBarButton[\s\S]*imageViewer\.download/,
   );
-  assert.match(excalidrawViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
-  assert.match(
-    excalidrawViewer,
+  expect(excalidrawViewer).toMatch(/<ViewerTopBarButton[\s\S]*common\.close/);
+  expect(excalidrawViewer).toMatch(
     /<ViewerTopBarButton[\s\S]*documents\.download/,
   );
-  assert.doesNotMatch(
+  expect(
     [imageViewer, videoViewer, mermaidViewer, excalidrawViewer].join("\n"),
+  ).not.toMatch(
     /className=\{?btnCls\}?|className="flex items-center (?:justify-center w-10 h-10|gap-1\.5 rounded-lg px-3 h-10[^"]*text-white\/70)/,
   );
 });
@@ -178,17 +168,16 @@ test("image and video viewers share direct URL download behavior", () => {
   const videoViewer = readSource("../VideoViewer.tsx");
 
   assertExports(commonIndex, "downloadUrl");
-  assert.match(helper, /export function downloadUrl/);
-  assert.match(helper, /document\.createElement\("a"\)/);
-  assert.match(helper, /anchor\.download = fileName \?\? ""/);
-  assert.match(helper, /anchor\.click\(\)/);
+  expect(helper).toMatch(/export function downloadUrl/);
+  expect(helper).toMatch(/document\.createElement\("a"\)/);
+  expect(helper).toMatch(/anchor\.download = fileName \?\? ""/);
+  expect(helper).toMatch(/anchor\.click\(\)/);
 
-  assert.match(imageViewer, /import \{ downloadUrl \}/);
-  assert.match(videoViewer, /import \{ downloadUrl \}/);
-  assert.match(imageViewer, /onClick=\{\(\) => downloadUrl\(src\)\}/);
-  assert.match(videoViewer, /onClick=\{\(\) => downloadUrl\(src\)\}/);
-  assert.doesNotMatch(
-    [imageViewer, videoViewer].join("\n"),
+  expect(imageViewer).toMatch(/import \{ downloadUrl \}/);
+  expect(videoViewer).toMatch(/import \{ downloadUrl \}/);
+  expect(imageViewer).toMatch(/onClick=\{\(\) => downloadUrl\(src\)\}/);
+  expect(videoViewer).toMatch(/onClick=\{\(\) => downloadUrl\(src\)\}/);
+  expect([imageViewer, videoViewer].join("\n")).not.toMatch(
     /document\.createElement\("a"\)|\.download = ""/,
   );
 });
@@ -206,50 +195,48 @@ test("diagram viewers share blob download behavior", () => {
   );
 
   assertExports(commonIndex, "downloadBlob");
-  assert.match(helper, /export function downloadBlob/);
-  assert.match(helper, /URL\.createObjectURL\(blob\)/);
-  assert.match(helper, /downloadUrl\(url, fileName\)/);
-  assert.match(helper, /URL\.revokeObjectURL\(url\)/);
+  expect(helper).toMatch(/export function downloadBlob/);
+  expect(helper).toMatch(/URL\.createObjectURL\(blob\)/);
+  expect(helper).toMatch(/downloadUrl\(url, fileName\)/);
+  expect(helper).toMatch(/URL\.revokeObjectURL\(url\)/);
   assertExports(commonIndex, "ViewerDropdownMenuItem");
-  assert.match(
-    menuItem,
+  expect(menuItem).toMatch(
     /type ViewerDropdownMenuItemVariant = "stone" \| "dark"/,
   );
-  assert.match(menuItem, /whitespace-nowrap/);
+  expect(menuItem).toMatch(/whitespace-nowrap/);
 
-  assert.match(mermaidViewer, /import \{ downloadBlob \}/);
-  assert.match(mermaidViewer, /import \{[\s\S]*ViewerDropdownMenuItem/);
-  assert.match(documentMermaidViewer, /import \{ downloadBlob \}/);
-  assert.match(documentMermaidViewer, /import \{[\s\S]*ViewerDropdownMenuItem/);
-  assert.match(excalidrawViewer, /import \{ downloadBlob \}/);
-  assert.match(excalidrawViewer, /import \{[\s\S]*ViewerDropdownMenuItem/);
-  assert.match(mermaidViewer, /downloadBlob\([^)]*"diagram\.svg"/);
-  assert.match(mermaidViewer, /downloadBlob\([^)]*"diagram\.png"/);
-  assert.match(mermaidViewer, /downloadBlob\([^)]*"mermaid\.svg"/);
-  assert.match(mermaidViewer, /<ViewerDropdownMenuItem[\s\S]*SVG/);
-  assert.match(mermaidViewer, /<ViewerDropdownMenuItem[\s\S]*PNG/);
-  assert.match(documentMermaidViewer, /downloadBlob\([^)]*"diagram\.svg"/);
-  assert.match(documentMermaidViewer, /downloadBlob\([^)]*"diagram\.png"/);
-  assert.match(documentMermaidViewer, /<ViewerDropdownMenuItem[\s\S]*SVG/);
-  assert.match(documentMermaidViewer, /<ViewerDropdownMenuItem[\s\S]*PNG/);
-  assert.match(
-    excalidrawViewer,
+  expect(mermaidViewer).toMatch(/import \{ downloadBlob \}/);
+  expect(mermaidViewer).toMatch(/import \{[\s\S]*ViewerDropdownMenuItem/);
+  expect(documentMermaidViewer).toMatch(/import \{ downloadBlob \}/);
+  expect(documentMermaidViewer).toMatch(
+    /import \{[\s\S]*ViewerDropdownMenuItem/,
+  );
+  expect(excalidrawViewer).toMatch(/import \{ downloadBlob \}/);
+  expect(excalidrawViewer).toMatch(/import \{[\s\S]*ViewerDropdownMenuItem/);
+  expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.svg"/);
+  expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.png"/);
+  expect(mermaidViewer).toMatch(/downloadBlob\([^)]*"mermaid\.svg"/);
+  expect(mermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*SVG/);
+  expect(mermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*PNG/);
+  expect(documentMermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.svg"/);
+  expect(documentMermaidViewer).toMatch(/downloadBlob\([^)]*"diagram\.png"/);
+  expect(documentMermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*SVG/);
+  expect(documentMermaidViewer).toMatch(/<ViewerDropdownMenuItem[\s\S]*PNG/);
+  expect(excalidrawViewer).toMatch(
     /downloadBlob\([^)]*"excalidraw-diagram\.svg"/,
   );
-  assert.match(
-    excalidrawViewer,
+  expect(excalidrawViewer).toMatch(
     /downloadBlob\([^)]*"excalidraw-diagram\.png"/,
   );
-  assert.match(
-    excalidrawViewer,
+  expect(excalidrawViewer).toMatch(
     /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*SVG/,
   );
-  assert.match(
-    excalidrawViewer,
+  expect(excalidrawViewer).toMatch(
     /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*PNG/,
   );
-  assert.doesNotMatch(
+  expect(
     [mermaidViewer, documentMermaidViewer, excalidrawViewer].join("\n"),
+  ).not.toMatch(
     /const (?:pngUrl|url) = URL\.createObjectURL\(blob\)|URL\.revokeObjectURL\(pngUrl\)|w-full px-(?:3 py-2 text-left text-xs text-stone-700|4 py-2\.5 text-left text-sm text-white\/80)/,
   );
 });
@@ -264,14 +251,12 @@ test("overlay round icon button centralizes center-mode floating panel actions",
 
   assertExports(uiIndex, "OverlayRoundIconButton");
   assertExports(commonIndex, "OverlayRoundIconButton");
-  assert.match(source, /flex shrink-0 items-center justify-center/);
-  assert.match(source, /w-10 h-10 rounded-full bg-black\/70/);
-  assert.match(source, /hover:bg-black\/90 text-white shadow-lg/);
+  expect(source).toMatch(/flex shrink-0 items-center justify-center/);
+  expect(source).toMatch(/w-10 h-10 rounded-full bg-black\/70/);
+  expect(source).toMatch(/hover:bg-black\/90 text-white shadow-lg/);
 
-  assert.match(toolResultPanel, /import \{[\s\S]*OverlayRoundIconButton/);
-  assert.match(toolResultPanel, /<OverlayRoundIconButton[\s\S]*common\.back/);
-  assert.match(toolResultPanel, /<OverlayRoundIconButton[\s\S]*common\.close/);
-  assert.doesNotMatch(toolResultPanel, /rounded-full bg-black\/70/);
+  expect(toolResultPanel).toMatch(/import \{[\s\S]*ToolbarIconButton/);
+  expect(toolResultPanel).not.toMatch(/OverlayRoundIconButton/);
 });
 
 test("ui primitive styles share one visual system in components css", () => {
@@ -295,21 +280,22 @@ test("ui primitive styles share one visual system in components css", () => {
     assertCssSelector(css, selector);
   }
 
-  assert.match(css, /\.btn-primary\s*\{[\s\S]*?\.ui-button--primary/);
-  assert.match(css, /\.glass-input\.es-input\s*\{[\s\S]*?\.ui-input/);
+  expect(css).toMatch(/\.btn-primary\s*\{[\s\S]*?\.ui-button--primary/);
+  expect(css).toMatch(/\.glass-input\.es-input\s*\{[\s\S]*?\.ui-input/);
 
-  const buttonLabel = cssBlock(css, ".ui-button__label");
-  assert.match(buttonLabel, /display:\s*inline-flex/);
-  assert.match(buttonLabel, /white-space:\s*nowrap/);
+  // The standalone .ui-button__label block (not the nested .panel-filter-trigger variant)
+  const standaloneButtonLabel = css.match(/^\.ui-button__label\s*\{([^}]*)\}/m);
+  expect(standaloneButtonLabel).toBeTruthy();
+  expect(standaloneButtonLabel![1]).toMatch(/display:\s*inline-flex/);
+  expect(standaloneButtonLabel![1]).toMatch(/white-space:\s*nowrap/);
 });
 
 test("legacy GlassSelect delegates to the shared Select primitive", () => {
   const source = readSource("../GlassSelect.tsx");
 
-  assert.match(source, /import \{ Select \}/);
-  assert.match(source, /return \([\s\S]*<Select/);
-  assert.match(
-    source,
+  expect(source).toMatch(/import \{ Select \}/);
+  expect(source).toMatch(/return \([\s\S]*<Select/);
+  expect(source).toMatch(
     /placeholder=\{placeholder \?\? options\[0\]\?\.label \?\? ""\}/,
   );
 });
@@ -322,32 +308,30 @@ test("first migrated admin forms consume shared primitives instead of generic le
     readSource("../../mcp/MCPServerForm.tsx"),
   ].join("\n");
 
-  assert.match(migratedSources, /import \{ Button/);
-  assert.match(
-    migratedSources,
+  expect(migratedSources).toMatch(/import \{ Button/);
+  expect(migratedSources).toMatch(
     /import \{ Button, FormField, Input, Textarea \}/,
   );
-  assert.match(migratedSources, /<Button[\s>]/);
-  assert.match(migratedSources, /<Input[\s>]/);
-  assert.match(migratedSources, /<Textarea[\s>]/);
-  assert.match(migratedSources, /<FormField[\s>]/);
-  assert.doesNotMatch(
-    migratedSources,
+  expect(migratedSources).toMatch(/<Button[\s>]/);
+  expect(migratedSources).toMatch(/<Input[\s>]/);
+  expect(migratedSources).toMatch(/<Textarea[\s>]/);
+  expect(migratedSources).toMatch(/<FormField[\s>]/);
+  expect(migratedSources).not.toMatch(
     /className="btn-(primary|secondary)[^"]*"/,
   );
-  assert.doesNotMatch(migratedSources, /className="input-field[^"]*"/);
+  expect(migratedSources).not.toMatch(/className="input-field[^"]*"/);
 });
 
 test("mcp server form uses shared icon buttons for generic icon actions", () => {
   const source = readSource("../../mcp/MCPServerForm.tsx");
 
-  assert.match(source, /import \{ Button, IconButton, Input, Select \}/);
-  assert.match(source, /<Select[\s\S]*availableTransports/);
-  assert.match(source, /<Input[\s\S]*mcp\.form\.serverNamePlaceholder/);
-  assert.match(source, /<IconButton[\s\S]*removeHeader/);
-  assert.doesNotMatch(source, /className="btn-icon[^"]*"/);
-  assert.doesNotMatch(source, /GlassSelect/);
-  assert.doesNotMatch(source, /className="glass-input/);
+  expect(source).toMatch(/import \{ Button, IconButton, Input, Select \}/);
+  expect(source).toMatch(/<Select[\s\S]*availableTransports/);
+  expect(source).toMatch(/<Input[\s\S]*mcp\.form\.serverNamePlaceholder/);
+  expect(source).toMatch(/<IconButton[\s\S]*removeHeader/);
+  expect(source).not.toMatch(/className="btn-icon[^"]*"/);
+  expect(source).not.toMatch(/GlassSelect/);
+  expect(source).not.toMatch(/className="glass-input/);
 });
 
 test("custom admin pickers reuse shared picker trigger and input primitives", () => {
@@ -359,62 +343,66 @@ test("custom admin pickers reuse shared picker trigger and input primitives", ()
   );
   const source = [providerSelect, modelIconSelect].join("\n");
 
-  assert.match(source, /import \{[\s\S]*Input[\s\S]*PickerTrigger/);
-  assert.match(providerSelect, /<PickerTrigger[\s\S]*selected=\{!!selected\}/);
-  assert.match(modelIconSelect, /<PickerTrigger[\s\S]*selected=\{!!selected\}/);
-  assert.match(source, /<Input[\s\S]*searchRef/);
-  assert.doesNotMatch(source, /className="glass-input/);
-  assert.doesNotMatch(source, /<input[\s\S]*searchRef/);
+  expect(source).toMatch(/import \{[\s\S]*Input[\s\S]*PickerTrigger/);
+  expect(providerSelect).toMatch(
+    /<PickerTrigger[\s\S]*selected=\{!!selected\}/,
+  );
+  expect(modelIconSelect).toMatch(
+    /<PickerTrigger[\s\S]*selected=\{!!selected\}/,
+  );
+  expect(source).toMatch(/<PanelSearchInput[\s\S]*searchRef/);
+  expect(source).not.toMatch(/className="glass-input/);
+  expect(source).not.toMatch(/<input[\s\S]*searchRef/);
 });
 
 test("normal skill form uses shared primitives for generic form controls", () => {
   const source = readSource("../../skill/SkillFormNormal.tsx");
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /import \{[\s\S]*Button[\s\S]*IconButton[\s\S]*Input[\s\S]*Textarea/,
   );
-  assert.match(source, /<Input[\s\S]*skills\.form\.namePlaceholder/);
-  assert.match(source, /<Textarea[\s\S]*skills\.form\.descriptionPlaceholder/);
-  assert.match(source, /<Input[\s\S]*adminMarketplace\.tagsPlaceholder/);
-  assert.match(source, /<Input[\s\S]*skills\.form\.filePathPlaceholder/);
-  assert.match(source, /<IconButton[\s\S]*addFile/);
-  assert.match(source, /<IconButton[\s\S]*editFullscreen/);
-  assert.match(source, /icon=\{<Pencil size=\{15\} \/>/);
-  assert.match(source, /<IconButton[\s\S]*toggleFullscreen\(true\)/);
-  assert.match(source, /<Button[\s\S]*type="submit"/);
-  assert.doesNotMatch(
-    source,
+  expect(source).toMatch(/<Input[\s\S]*skills\.form\.namePlaceholder/);
+  expect(source).toMatch(
+    /<Textarea[\s\S]*skills\.form\.descriptionPlaceholder/,
+  );
+  expect(source).toMatch(/<Input[\s\S]*adminMarketplace\.tagsPlaceholder/);
+  expect(source).toMatch(/<Input[\s\S]*skills\.form\.filePathPlaceholder/);
+  expect(source).toMatch(/<IconButton[\s\S]*addFile/);
+  expect(source).toMatch(/<IconButton[\s\S]*editFullscreen/);
+  expect(source).toMatch(/icon=\{<Pencil size=\{15\} \/>/);
+  expect(source).toMatch(/<IconButton[\s\S]*toggleFullscreen\(true\)/);
+  expect(source).toMatch(/<Button[\s\S]*type="submit"/);
+  expect(source).not.toMatch(
     /<input[\s\S]*(a\.name|a\.tagsInput|updateFilePath)/,
   );
-  assert.doesNotMatch(source, /<textarea[\s\S]*a\.description/);
+  expect(source).not.toMatch(/<textarea[\s\S]*a\.description/);
 });
 
 test("profile password form uses shared primitives for generic controls", () => {
   const source = readSource("../../profile/tabs/ProfilePasswordTab.tsx");
 
-  assert.match(source, /import \{[\s\S]*Button[\s\S]*IconButton[\s\S]*Input/);
-  assert.match(source, /<Input[\s\S]*profile\.oldPassword/);
-  assert.match(source, /<Input[\s\S]*profile\.newPassword/);
-  assert.match(source, /<Input[\s\S]*profile\.confirmPassword/);
-  assert.match(source, /const visibilityToggle = \([\s\S]*<IconButton/);
-  assert.match(source, /trailingSlot=\{visibilityToggle\}/);
-  assert.match(source, /<Button[\s\S]*handlePasswordChange/);
-  assert.doesNotMatch(source, /<input[\s\S]*Password/);
-  assert.doesNotMatch(source, /LoadingSpinner/);
+  expect(source).toMatch(/import \{[\s\S]*Button[\s\S]*IconButton[\s\S]*Input/);
+  expect(source).toMatch(/<Input[\s\S]*profile\.oldPassword/);
+  expect(source).toMatch(/<Input[\s\S]*profile\.newPassword/);
+  expect(source).toMatch(/<Input[\s\S]*profile\.confirmPassword/);
+  expect(source).toMatch(/const visibilityToggle = \([\s\S]*<IconButton/);
+  expect(source).toMatch(/trailingSlot=\{visibilityToggle\}/);
+  expect(source).toMatch(/<Button[\s\S]*handlePasswordChange/);
+  expect(source).not.toMatch(/<input[\s\S]*Password/);
+  expect(source).not.toMatch(/LoadingSpinner/);
 });
 
 test("profile info editor uses shared primitives for generic controls", () => {
   const source = readSource("../../profile/tabs/ProfileInfoTab.tsx");
 
-  assert.match(source, /import \{[\s\S]*Button[\s\S]*IconButton[\s\S]*Input/);
-  assert.match(source, /<Input[\s\S]*profile\.usernamePlaceholder/);
-  assert.match(source, /<Button[\s\S]*handleAvatarDelete/);
-  assert.match(source, /<Button[\s\S]*handleUsernameUpdate/);
-  assert.match(source, /<IconButton[\s\S]*setIsEditingUsername\(true\)/);
-  assert.doesNotMatch(source, /<input\b[^>]*value=\{newUsername\}/);
-  assert.doesNotMatch(source, /<button[\s\S]*handleUsernameUpdate/);
-  assert.doesNotMatch(source, /<button[\s\S]*handleAvatarDelete/);
+  expect(source).toMatch(/import \{[\s\S]*Button[\s\S]*IconButton[\s\S]*Input/);
+  expect(source).toMatch(/<Input[\s\S]*profile\.usernamePlaceholder/);
+  expect(source).toMatch(/<Button[\s\S]*handleAvatarDelete/);
+  expect(source).toMatch(/<Button[\s\S]*handleUsernameUpdate/);
+  expect(source).toMatch(/<IconButton[\s\S]*setIsEditingUsername\(true\)/);
+  expect(source).not.toMatch(/<input\b[^>]*value=\{newUsername\}/);
+  expect(source).not.toMatch(/<button[\s\S]*handleUsernameUpdate/);
+  expect(source).not.toMatch(/<button[\s\S]*handleAvatarDelete/);
 });
 
 test("skills list actions use shared buttons for generic commands", () => {
@@ -423,37 +411,37 @@ test("skills list actions use shared buttons for generic commands", () => {
     readSource("../../panels/SkillsPanel/BatchActionBar.tsx"),
   ].join("\n");
 
-  assert.match(source, /import \{ Button, IconButton \}/);
-  assert.match(source, /<Button[\s>]/);
-  assert.match(source, /<IconButton[\s>]/);
-  assert.doesNotMatch(source, /className="btn-(primary|secondary|icon)[^"]*"/);
+  expect(source).toMatch(/import \{ Button, IconButton \}/);
+  expect(source).toMatch(/<Button[\s>]/);
+  expect(source).toMatch(/<IconButton[\s>]/);
+  expect(source).not.toMatch(/className="btn-(primary|secondary|icon)[^"]*"/);
 });
 
 test("marketplace panel generic actions use shared buttons", () => {
   const source = readSource("../../panels/MarketplacePanel.tsx");
 
-  assert.match(source, /import \{ Button, IconButton \}/);
-  assert.match(source, /<Button[\s>]/);
-  assert.match(source, /<IconButton[\s>]/);
-  assert.doesNotMatch(source, /className="btn-(primary|secondary|icon)[^"]*"/);
+  expect(source).toMatch(/import \{ Button, IconButton \}/);
+  expect(source).toMatch(/<Button[\s>]/);
+  expect(source).toMatch(/<IconButton[\s>]/);
+  expect(source).not.toMatch(/className="btn-(primary|secondary|icon)[^"]*"/);
 });
 
 test("small reusable panel controls use shared panel primitives where generic", () => {
   const memoryFilter = readSource("../../panels/MemoryPanel/MemoryFilter.tsx");
   const mcpServerCard = readSource("../../mcp/MCPServerCard.tsx");
 
-  assert.match(memoryFilter, /import \{ PanelFilterSelect \}/);
-  assert.match(memoryFilter, /<PanelFilterSelect[\s\S]*typeOnChange/);
-  assert.match(memoryFilter, /<PanelFilterSelect[\s\S]*sourceOnChange/);
-  assert.doesNotMatch(memoryFilter, /import \{ Button \}/);
-  assert.doesNotMatch(memoryFilter, /import \{ Select \}/);
-  assert.doesNotMatch(memoryFilter, /<Button[\s\S]*panel-filter-trigger/);
-  assert.doesNotMatch(memoryFilter, /className="btn-secondary[^"]*"/);
+  expect(memoryFilter).toMatch(/import \{ PanelFilterSelect \}/);
+  expect(memoryFilter).toMatch(/<PanelFilterSelect[\s\S]*typeOnChange/);
+  expect(memoryFilter).toMatch(/<PanelFilterSelect[\s\S]*sourceOnChange/);
+  expect(memoryFilter).not.toMatch(/import \{ Button \}/);
+  expect(memoryFilter).not.toMatch(/import \{ Select \}/);
+  expect(memoryFilter).not.toMatch(/<Button[\s\S]*panel-filter-trigger/);
+  expect(memoryFilter).not.toMatch(/className="btn-secondary[^"]*"/);
 
-  assert.match(mcpServerCard, /import \{ IconButton \}/);
-  assert.match(mcpServerCard, /<IconButton[\s\S]*onEdit\(server\)/);
-  assert.match(mcpServerCard, /<IconButton[\s\S]*onDelete\(server\.name/);
-  assert.doesNotMatch(mcpServerCard, /className="btn-icon[^"]*"/);
+  expect(mcpServerCard).toMatch(/import \{ IconButton \}/);
+  expect(mcpServerCard).toMatch(/<IconButton[\s\S]*onEdit\(server\)/);
+  expect(mcpServerCard).toMatch(/<IconButton[\s\S]*onDelete\(server\.name/);
+  expect(mcpServerCard).not.toMatch(/className="btn-icon[^"]*"/);
 });
 
 test("memory panel generic actions and editor fields use shared primitives", () => {
@@ -461,63 +449,59 @@ test("memory panel generic actions and editor fields use shared primitives", () 
   const memoryEditor = readSource("../../panels/MemoryPanel/MemoryEditor.tsx");
   const detailModal = readSource("../../panels/MemoryPanel/DetailModal.tsx");
 
-  assert.match(memoryPanel, /import \{ Button, IconButton \}/);
-  assert.match(memoryPanel, /<Button[\s\S]*setEditingMemory\(null\)/);
-  assert.match(memoryPanel, /<IconButton[\s\S]*setEditingMemory\(memory\)/);
-  assert.match(
-    memoryPanel,
+  expect(memoryPanel).toMatch(/import \{ Button, IconButton \}/);
+  expect(memoryPanel).toMatch(/<Button[\s\S]*setEditingMemory\(null\)/);
+  expect(memoryPanel).toMatch(/<IconButton[\s\S]*setEditingMemory\(memory\)/);
+  expect(memoryPanel).toMatch(
     /<IconButton[\s\S]*setDeleteId\(memory\.memory_id\)/,
   );
-  assert.doesNotMatch(
-    memoryPanel,
+  expect(memoryPanel).not.toMatch(
     /className="btn-(primary|secondary|icon)[^"]*"/,
   );
 
-  assert.match(memoryEditor, /PanelFooterActions/);
-  assert.match(
-    memoryEditor,
+  expect(memoryEditor).toMatch(/PanelFooterActions/);
+  expect(memoryEditor).toMatch(
     /import \{[\s\S]*Button[\s\S]*FormField[\s\S]*Input[\s\S]*PanelFooterActions[\s\S]*Textarea[\s\S]*\}/,
   );
-  assert.match(memoryEditor, /<FormField[\s\S]*memory\.titleLabel/);
-  assert.match(memoryEditor, /<Input[\s\S]*memory\.titlePlaceholder/);
-  assert.match(memoryEditor, /<Textarea[\s\S]*memory\.contentPlaceholder/);
-  assert.doesNotMatch(memoryEditor, /className="btn-(primary|secondary)[^"]*"/);
-  assert.doesNotMatch(memoryEditor, /className="glass-input/);
+  expect(memoryEditor).toMatch(/<FormField[\s\S]*memory\.titleLabel/);
+  expect(memoryEditor).toMatch(/<Input[\s\S]*memory\.titlePlaceholder/);
+  expect(memoryEditor).toMatch(/<Textarea[\s\S]*memory\.contentPlaceholder/);
+  expect(memoryEditor).not.toMatch(/className="btn-(primary|secondary)[^"]*"/);
+  expect(memoryEditor).not.toMatch(/className="glass-input/);
 
-  assert.match(detailModal, /import \{ Button, PanelFooterActions \}/);
-  assert.match(detailModal, /PanelFooterActions/);
-  assert.match(detailModal, /<Button[\s\S]*variant="danger"/);
-  assert.doesNotMatch(detailModal, /className="btn-(danger|secondary)[^"]*"/);
+  expect(detailModal).toMatch(/import \{ Button, PanelFooterActions \}/);
+  expect(detailModal).toMatch(/PanelFooterActions/);
+  expect(detailModal).toMatch(/<Button[\s\S]*variant="danger"/);
+  expect(detailModal).not.toMatch(/className="btn-(danger|secondary)[^"]*"/);
 });
 
 test("mcp panel generic shell actions use shared buttons", () => {
   const source = readSource("../../panels/MCPPanel.tsx");
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /import \{[\s\S]*Button[\s\S]*Checkbox[\s\S]*IconButton[\s\S]*PanelFooterActions[\s\S]*Textarea[\s\S]*\}/,
   );
-  assert.match(source, /PanelFooterActions/);
-  assert.match(source, /<Button[\s\S]*handleImportClick/);
-  assert.match(source, /<Button[\s\S]*handleCreate/);
-  assert.match(source, /<IconButton[\s\S]*clearError/);
-  assert.match(source, /<Checkbox[\s\S]*createAsSystem/);
-  assert.match(source, /<Checkbox[\s\S]*changeToSystem/);
-  assert.match(source, /<Checkbox[\s\S]*importOverwrite/);
-  assert.match(source, /<Textarea[\s\S]*importJson/);
-  assert.doesNotMatch(source, /className="btn-(primary|secondary|icon)[^"]*"/);
-  assert.doesNotMatch(source, /className="glass-input es-textarea/);
-  assert.doesNotMatch(source, /<input[\s\S]*type="checkbox"/);
+  expect(source).toMatch(/PanelFooterActions/);
+  expect(source).toMatch(/<Button[\s\S]*handleImportClick/);
+  expect(source).toMatch(/<Button[\s\S]*handleCreate/);
+  expect(source).toMatch(/<IconButton[\s\S]*clearError/);
+  expect(source).toMatch(/<Checkbox[\s\S]*createAsSystem/);
+  expect(source).toMatch(/<Checkbox[\s\S]*changeToSystem/);
+  expect(source).toMatch(/<Checkbox[\s\S]*importOverwrite/);
+  expect(source).toMatch(/<Textarea[\s\S]*importJson/);
+  expect(source).not.toMatch(/className="btn-(primary|secondary|icon)[^"]*"/);
+  expect(source).not.toMatch(/className="glass-input es-textarea/);
+  expect(source).not.toMatch(/<input[\s\S]*type="checkbox"/);
 });
 
 test("mcp tool expanded settings expose inline function policy toggle", () => {
   const source = readSource("../../mcp/MCPServerToolsSidebar.tsx");
 
-  assert.match(source, /server\.can_edit\s*&&\s*server\.is_system/);
-  assert.match(source, /mcp\.form\.inlineExposure/);
-  assert.match(source, /mcp\.form\.inlineExposureDescription/);
-  assert.match(source, /inline_exposure:\s*!\(tool\.inline_exposure/);
-  assert.match(source, /mcpApi\.updateToolPolicy[\s\S]*inline_exposure/);
+  expect(source).toMatch(/server\.can_edit\s*&&\s*server\.is_system/);
+  expect(source).toMatch(/mcp\.form\.inlineExposure/);
+  expect(source).toMatch(/mcp\.form\.inlineExposureDescription/);
+  expect(source).toMatch(/inline_exposure:\s*!\([\s\S]*?tool\.inline_exposure/);
+  expect(source).toMatch(/mcpApi\.updateToolPolicy[\s\S]*inline_exposure/);
 });
 
 test("core admin crud panels use shared panel controls for generic actions", () => {
@@ -529,42 +513,35 @@ test("core admin crud panels use shared panel controls for generic actions", () 
   ].join("\n");
   const feedbackCompatibility = readSource("../../panels/FeedbackPanel.tsx");
 
-  assert.match(sources, /PanelFilterSelect/);
-  assert.match(sources, /PanelFooterActions/);
-  assert.match(sources, /<Button[\s>]/);
-  assert.match(
-    feedbackCompatibility,
-    /export \{ FeedbackPanel \} from "\.\.\/\.\.\/plugins\/feedback\/FeedbackPanel"/,
-  );
-  assert.doesNotMatch(
-    sources,
-    /className="btn-(primary|secondary|danger|icon)[^"]*"/,
-  );
-  assert.doesNotMatch(sources, /<GlassSelect/);
+  expect(sources).toMatch(/PanelFilterSelect/);
+  expect(sources).toMatch(/PanelFooterActions/);
+  expect(sources).toMatch(/<Button[\s>]/);
+  expect(feedbackCompatibility).toMatch(/export \{ FeedbackPanel \} from "\.\.\/\.\.\/plugins\/feedback\/FeedbackPanel"/);
+  expect(sources).not.toMatch(/className="btn-(primary|secondary|danger|icon)[^"]*"/);
+  expect(sources).not.toMatch(/<GlassSelect/);
 });
 
 test("notification admin modal fields use shared field primitives", () => {
   const source = readSource("../../panels/NotificationPanel.tsx");
 
-  assert.match(source, /import \{[\s\S]*Input[\s\S]*Textarea/);
-  assert.match(source, /<Input[\s\S]*notification\.titleLabel/);
-  assert.match(source, /<Textarea[\s\S]*notification\.contentLabel/);
-  assert.match(source, /<Input[\s\S]*notification\.startTime/);
-  assert.match(source, /<Input[\s\S]*notification\.endTime/);
-  assert.doesNotMatch(source, /<input[\s\S]*titleI18n/);
-  assert.doesNotMatch(source, /<textarea[\s\S]*contentI18n/);
+  expect(source).toMatch(/import \{[\s\S]*Input[\s\S]*Textarea/);
+  expect(source).toMatch(/<Input[\s\S]*notification\.titleLabel/);
+  expect(source).toMatch(/<Textarea[\s\S]*notification\.contentLabel/);
+  expect(source).toMatch(/<Input[\s\S]*notification\.startTime/);
+  expect(source).toMatch(/<Input[\s\S]*notification\.endTime/);
+  expect(source).not.toMatch(/<input[\s\S]*titleI18n/);
+  expect(source).not.toMatch(/<textarea[\s\S]*contentI18n/);
 });
 
 test("roles admin form uses shared field primitives for generic fields", () => {
   const source = readSource("../../panels/RolesPanel.tsx");
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /import \{[\s\S]*Button[\s\S]*Input[\s\S]*PanelFooterActions[\s\S]*Textarea[\s\S]*\}/,
   );
-  assert.match(source, /<Input[\s\S]*roles\.roleNamePlaceholder/);
-  assert.match(source, /<Textarea[\s\S]*roles\.descriptionPlaceholder/);
-  assert.doesNotMatch(source, /className="glass-input/);
+  expect(source).toMatch(/<Input[\s\S]*roles\.roleNamePlaceholder/);
+  expect(source).toMatch(/<Textarea[\s\S]*roles\.descriptionPlaceholder/);
+  expect(source).not.toMatch(/className="glass-input/);
 });
 
 test("model admin modal footers use shared panel actions", () => {
@@ -573,9 +550,9 @@ test("model admin modal footers use shared panel actions", () => {
     readSource("../../panels/ModelPanel/tabs/BatchCreateModal.tsx"),
   ].join("\n");
 
-  assert.match(source, /PanelFooterActions/);
-  assert.match(source, /<Button[\s>]/);
-  assert.doesNotMatch(source, /className="btn-(primary|secondary)[^"]*"/);
+  expect(source).toMatch(/PanelFooterActions/);
+  expect(source).toMatch(/<Button[\s>]/);
+  expect(source).not.toMatch(/className="btn-(primary|secondary)[^"]*"/);
 });
 
 test("model admin modal form bodies use shared field primitives", () => {
@@ -587,14 +564,14 @@ test("model admin modal form bodies use shared field primitives", () => {
   );
   const source = [modelForm, batchCreate].join("\n");
 
-  assert.match(source, /import \{ Checkbox \}/);
-  assert.match(source, /import \{[\s\S]*Input[\s\S]*Select[\s\S]*Textarea/);
-  assert.match(modelForm, /<Select[\s\S]*formFallbackModel/);
-  assert.match(modelForm, /<Checkbox[\s\S]*checked=\{formSupportsVision\}/);
-  assert.match(batchCreate, /<Textarea[\s\S]*importJson/);
-  assert.doesNotMatch(source, /GlassSelect/);
-  assert.doesNotMatch(source, /className="glass-input/);
-  assert.doesNotMatch(source, /<input[\s\S]*type="checkbox"/);
+  expect(source).toMatch(/import \{ Checkbox \}/);
+  expect(source).toMatch(/import \{[\s\S]*Input[\s\S]*Select[\s\S]*Textarea/);
+  expect(modelForm).toMatch(/<Select[\s\S]*formFallbackModel/);
+  expect(modelForm).toMatch(/<Checkbox[\s\S]*checked=\{formSupportsVision\}/);
+  expect(batchCreate).toMatch(/<Textarea[\s\S]*importJson/);
+  expect(source).not.toMatch(/GlassSelect/);
+  expect(source).not.toMatch(/className="glass-input/);
+  expect(source).not.toMatch(/<input[\s\S]*type="checkbox"/);
 });
 
 test("agent and model admin shells use shared buttons for header commands", () => {
@@ -603,9 +580,9 @@ test("agent and model admin shells use shared buttons for header commands", () =
     readSource("../../panels/ModelPanel/ModelPanel.tsx"),
   ].join("\n");
 
-  assert.match(source, /import \{ Button \}/);
-  assert.match(source, /<Button[\s\S]*handleRefresh/);
-  assert.doesNotMatch(source, /className="btn-secondary[^"]*"/);
+  expect(source).toMatch(/import \{ Button \}/);
+  expect(source).toMatch(/<Button[\s\S]*handleRefresh/);
+  expect(source).not.toMatch(/className="btn-secondary[^"]*"/);
 });
 
 test("agent and model admin tab actions use shared buttons", () => {
@@ -616,83 +593,82 @@ test("agent and model admin tab actions use shared buttons", () => {
     readSource("../../panels/ModelPanel/tabs/RolesModelTab.tsx"),
   ].join("\n");
 
-  assert.match(sources, /import \{[\s\S]*Button[\s\S]*\}/);
-  assert.match(sources, /<Button[\s\S]*agentConfig\.addModel/);
-  assert.match(sources, /<Button[\s\S]*common\.save/);
-  assert.doesNotMatch(sources, /className="btn-(primary|secondary)[^"]*"/);
+  expect(sources).toMatch(/import \{[\s\S]*Button[\s\S]*\}/);
+  expect(sources).toMatch(/<Button[\s\S]*agentConfig\.addModel/);
+  expect(sources).toMatch(/<Button[\s\S]*common\.save/);
+  expect(sources).not.toMatch(/className="btn-(primary|secondary)[^"]*"/);
 });
 
 test("global agent editor fields use shared field primitives", () => {
   const source = readSource("../../panels/AgentPanel/tabs/GlobalAgentTab.tsx");
 
-  assert.match(source, /import \{[\s\S]*Input[\s\S]*Textarea[\s\S]*\}/);
-  assert.match(source, /<Input[\s\S]*sort_order/);
-  assert.match(source, /<Input[\s\S]*agentConfig\.displayName/);
-  assert.match(source, /<Textarea[\s\S]*agentConfig\.displayDescription/);
-  assert.doesNotMatch(source, /className="glass-input/);
+  expect(source).toMatch(/import \{[\s\S]*Input[\s\S]*Textarea[\s\S]*\}/);
+  expect(source).toMatch(/<Input[\s\S]*sort_order/);
+  expect(source).toMatch(/<Input[\s\S]*agentConfig\.displayName/);
+  expect(source).toMatch(/<Textarea[\s\S]*agentConfig\.displayDescription/);
+  expect(source).not.toMatch(/className="glass-input/);
 });
 
 test("roles agent assignments use the shared checkbox primitive", () => {
   const source = readSource("../../panels/AgentPanel/tabs/RolesAgentTab.tsx");
 
-  assert.match(source, /import \{ Checkbox \}/);
-  assert.match(source, /<Checkbox[\s\S]*checked=\{isSelected\}/);
-  assert.doesNotMatch(source, /<input[\s\S]*type="checkbox"/);
+  expect(source).toMatch(/import \{ Checkbox \}/);
+  expect(source).toMatch(/<Checkbox[\s\S]*checked=\{isSelected\}/);
+  expect(source).not.toMatch(/<input[\s\S]*type="checkbox"/);
 });
 
 test("channel panel generic controls use shared primitives", () => {
   const source = readSource("../../panels/ChannelPanel.tsx");
 
-  assert.match(source, /import \{[\s\S]*Button[\s\S]*Input[\s\S]*Select/);
-  assert.match(source, /<Select[\s\S]*field\.options/);
-  assert.match(source, /<Input[\s\S]*channel\.instanceNamePlaceholder/);
-  assert.match(source, /<Button[\s\S]*handleSave/);
-  assert.match(source, /<Button[\s\S]*handleDeleteClick/);
-  assert.doesNotMatch(source, /GlassSelect/);
-  assert.doesNotMatch(source, /className="[^"]*glass-input/);
-  assert.doesNotMatch(source, /className="btn-(primary|secondary|danger)/);
+  expect(source).toMatch(/import \{[\s\S]*Button[\s\S]*Input[\s\S]*Select/);
+  expect(source).toMatch(/<Select[\s\S]*field\.options/);
+  expect(source).toMatch(/<Input[\s\S]*channel\.instanceNamePlaceholder/);
+  expect(source).toMatch(/<Button[\s\S]*handleSave/);
+  expect(source).toMatch(/<Button[\s\S]*handleDeleteClick/);
+  expect(source).not.toMatch(/GlassSelect/);
+  expect(source).not.toMatch(/className="[^"]*glass-input/);
+  expect(source).not.toMatch(/className="btn-(primary|secondary|danger)/);
 });
 
 test("settings panel generic controls use shared primitives", () => {
   const source = readSource("../../panels/SettingsPanel.tsx");
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /import \{[\s\S]*Button[\s\S]*Input[\s\S]*Select[\s\S]*Textarea/,
   );
-  assert.match(source, /<Select[\s\S]*CATEGORY_ORDER/);
-  assert.match(source, /<Select[\s\S]*DEFAULT_AGENT/);
-  assert.match(source, /setting\.type === "text"[\s\S]*<Textarea/);
-  assert.match(source, /<Input[\s\S]*setting\.type === "number"/);
-  assert.match(source, /<Button[\s\S]*handleExport/);
-  assert.match(source, /<Button[\s\S]*handleSave\(setting\)/);
-  assert.doesNotMatch(source, /GlassSelect/);
-  assert.doesNotMatch(source, /className="btn-(primary|secondary|danger)/);
+  expect(source).toMatch(/<Select[\s\S]*CATEGORY_ORDER/);
+  expect(source).toMatch(/<Select[\s\S]*DEFAULT_AGENT/);
+  expect(source).toMatch(/setting\.type === "text"[\s\S]*<Textarea/);
+  expect(source).toMatch(/<Input[\s\S]*setting\.type === "number"/);
+  expect(source).toMatch(/<Button[\s\S]*handleExport/);
+  expect(source).toMatch(/<Button[\s\S]*handleSave\(setting\)/);
+  expect(source).not.toMatch(/GlassSelect/);
+  expect(source).not.toMatch(/className="btn-(primary|secondary|danger)/);
 });
 
 test("json schema editor uses shared primitives for generated controls", () => {
   const source = readSource("../../panels/JsonSchemaEditor.tsx");
 
-  assert.match(source, /import \{ Button, IconButton, Input, Select \}/);
-  assert.match(source, /<Select[\s\S]*field\.options/);
-  assert.match(source, /<Input[\s\S]*field\.placeholder/);
-  assert.match(source, /<IconButton[\s\S]*removeItem/);
-  assert.match(source, /<Button[\s\S]*JSON_SCHEMA_ADD_ITEM/);
-  assert.doesNotMatch(source, /GlassSelect/);
-  assert.doesNotMatch(source, /<input[\s\S]*field\.placeholder/);
+  expect(source).toMatch(/import \{ Button, IconButton, Input, Select \}/);
+  expect(source).toMatch(/<Select[\s\S]*field\.options/);
+  expect(source).toMatch(/<Input[\s\S]*field\.placeholder/);
+  expect(source).toMatch(/<IconButton[\s\S]*removeItem/);
+  expect(source).toMatch(/<Button[\s\S]*JSON_SCHEMA_ADD_ITEM/);
+  expect(source).not.toMatch(/GlassSelect/);
+  expect(source).not.toMatch(/<input[\s\S]*field\.placeholder/);
 });
 
 test("approval panel generated form fields use shared field primitives", () => {
   const source = readSource("../../panels/ApprovalPanel.tsx");
 
-  assert.match(source, /import \{[\s\S]*Input[\s\S]*Select[\s\S]*Textarea/);
-  assert.match(source, /case "text":[\s\S]*<Input/);
-  assert.match(source, /case "number":[\s\S]*<Input/);
-  assert.match(source, /case "textarea":[\s\S]*<Textarea/);
-  assert.match(source, /case "select":[\s\S]*<Select/);
-  assert.doesNotMatch(source, /GlassSelect/);
-  assert.doesNotMatch(source, /<input[\s\S]*approval-input/);
-  assert.doesNotMatch(source, /<textarea[\s\S]*approval-input/);
+  expect(source).toMatch(/import \{[\s\S]*Input[\s\S]*Select[\s\S]*Textarea/);
+  expect(source).toMatch(/case "text":[\s\S]*<Input/);
+  expect(source).toMatch(/case "number":[\s\S]*<Input/);
+  expect(source).toMatch(/case "textarea":[\s\S]*<Textarea/);
+  expect(source).toMatch(/case "select":[\s\S]*<Select/);
+  expect(source).not.toMatch(/GlassSelect/);
+  expect(source).not.toMatch(/<input[\s\S]*approval-input/);
+  expect(source).not.toMatch(/<textarea[\s\S]*approval-input/);
 });
 
 test("scheduled task form uses shared primitives for generic form controls", () => {
@@ -700,18 +676,20 @@ test("scheduled task form uses shared primitives for generic form controls", () 
     "../../panels/ScheduledTaskPanel/TaskFormModal.tsx",
   );
 
-  assert.match(
-    source,
+  expect(source).toMatch(
     /import \{[\s\S]*Button[\s\S]*Input[\s\S]*PanelFooterActions[\s\S]*Select[\s\S]*Textarea/,
   );
-  assert.match(source, /<PanelFooterActions/);
-  assert.match(source, /<Button[\s\S]*handleSave/);
-  assert.match(source, /<Input[\s\S]*scheduledTask\.namePlaceholder/);
-  assert.match(source, /<Textarea[\s\S]*scheduledTask\.descriptionPlaceholder/);
-  assert.match(source, /<Select[\s\S]*scheduledTask\.agentPlaceholder/);
-  assert.match(source, /<Select[\s\S]*scheduledTask\.modelPlaceholder/);
-  assert.doesNotMatch(source, /GlassSelect/);
-  assert.doesNotMatch(source, /className="btn-(primary|secondary)[^"]*"/);
-  assert.doesNotMatch(source, /<input[\s\S]*scheduled-task-input/);
-  assert.doesNotMatch(source, /<textarea[\s\S]*scheduled-task-input/);
+  expect(source).toMatch(/<PanelFooterActions/);
+  expect(source).toMatch(/<Button[\s\S]*handleSave/);
+  expect(source).toMatch(/<Input[\s\S]*scheduledTask\.namePlaceholder/);
+  expect(source).toMatch(
+    /<Textarea[\s\S]*scheduledTask\.descriptionPlaceholder/,
+  );
+  expect(source).toMatch(/const agentOptions =[\s\S]*scheduledTask\.agentPlaceholder/);
+  expect(source).toMatch(/<Select[\s\S]*options=\{agentOptions\}/);
+  expect(source).toMatch(/<Select[\s\S]*scheduledTask\.modelPlaceholder/);
+  expect(source).not.toMatch(/GlassSelect/);
+  expect(source).not.toMatch(/className="btn-(primary|secondary)[^"]*"/);
+  expect(source).not.toMatch(/<input[\s\S]*scheduled-task-input/);
+  expect(source).not.toMatch(/<textarea[\s\S]*scheduled-task-input/);
 });

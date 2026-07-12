@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Archive,
@@ -9,7 +9,6 @@ import {
   Database,
   Download,
   Eye,
-  Flag,
   GitBranch,
   ListChecks,
   PauseCircle,
@@ -28,6 +27,12 @@ import { PanelHeader } from "../common/PanelHeader";
 import { useAuth } from "../../hooks/useAuth";
 import { usePluginRuntime } from "../../hooks/usePluginRuntime";
 import { buildPluginRuntimeImpactSummary } from "./pluginRuntimeImpactSummary";
+import {
+  AcceptanceMatrixOverview,
+  GuardSurfaceMatrix,
+  MigrationProgressOverview,
+  PluginMetric,
+} from "./PluginRuntimeOverview";
 import {
   legacyFrontendContributionCount,
   pluginContributionGroups,
@@ -85,7 +90,7 @@ function PluginOwnershipOverview({ plugins }: { plugins: PluginRuntimePlugin[] }
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 text-sm font-semibold text-theme-text">
-                  {plugin.name ? t(plugin.name, plugin.name) : plugin.plugin_id}
+                  {plugin.name || plugin.plugin_id}
                 </div>
                 <span className={statusClassName(plugin.status)}>{plugin.status}</span>
               </div>
@@ -126,246 +131,6 @@ function sideEffectStatusClassName(status: string): string {
   }
   if (status === "failed") return "skill-status-pill tag-error";
   return "skill-meta-pill";
-}
-
-function PluginMetric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2">
-      <div className="text-[0.68rem] font-medium uppercase text-theme-text-secondary">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-theme-text">{value}</div>
-    </div>
-  );
-}
-
-function MigrationProgressOverview({
-  phases,
-  feedbackMigration,
-}: {
-  phases?: PluginRuntimeListResponse["runtime"]["phase_progress"];
-  feedbackMigration?: PluginRuntimeListResponse["runtime"]["feedback_migration"];
-}) {
-  const { t } = useTranslation();
-
-  if (!phases || phases.length === 0) return null;
-
-  const passedCount = phases.filter((phase) => phase.passed).length;
-
-  return (
-    <section className="mb-4 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-3 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase text-theme-text-secondary">
-          <Flag size={15} />
-          <span>{t("pluginRuntime.progress.title")}</span>
-        </div>
-        <span className="skill-status-pill skill-status-pill--active">
-          {passedCount}/{phases.length}
-        </span>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {phases.map((phase) => (
-          <div
-            key={phase.phase}
-            className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 text-sm font-semibold text-theme-text">
-                {t(`pluginRuntime.progress.phases.${phase.phase}`, phase.title)}
-              </div>
-              <span
-                className={
-                  phase.passed
-                    ? "skill-status-pill skill-status-pill--active"
-                    : "skill-status-pill tag-error"
-                }
-              >
-                {phase.passed
-                  ? t("pluginRuntime.progress.passed")
-                  : t("pluginRuntime.progress.missing")}
-              </span>
-            </div>
-            <div className="mt-2 text-xs leading-relaxed text-theme-text-secondary">
-              {t(`pluginRuntime.progress.evidence.${phase.phase}`, phase.evidence)}
-            </div>
-          </div>
-        ))}
-      </div>
-      {feedbackMigration && (
-        <div className="mt-4 rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg-subtle)] px-3 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-semibold text-theme-text">
-              {t("pluginRuntime.feedbackMigration.title")}
-            </div>
-            <span
-              className={
-                feedbackMigration.ready_for_first_migration_step
-                  ? "skill-status-pill skill-status-pill--active"
-                  : "skill-status-pill tag-error"
-              }
-            >
-              {feedbackMigration.ready_for_first_migration_step
-                ? t("pluginRuntime.feedbackMigration.ready")
-                : t("pluginRuntime.feedbackMigration.blocked")}
-            </span>
-          </div>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
-            <PluginMetric
-              label={t("pluginRuntime.feedbackMigration.satisfied")}
-              value={feedbackMigration.satisfied_gates.length}
-            />
-            <PluginMetric
-              label={t("pluginRuntime.feedbackMigration.missing")}
-              value={feedbackMigration.missing_gates.length}
-            />
-            <PluginMetric
-              label={t("pluginRuntime.feedbackMigration.plugin")}
-              value={feedbackMigration.plugin_id}
-            />
-          </div>
-          <div className="mt-3 grid gap-2 lg:grid-cols-2">
-            {feedbackMigration.gate_evidence.map((gate) => (
-              <div
-                key={gate.gate_id}
-                className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-theme-text">{gate.gate_id}</span>
-                  <span
-                    className={
-                      gate.passed
-                        ? "skill-status-pill skill-status-pill--active"
-                        : "skill-status-pill tag-error"
-                    }
-                  >
-                    {gate.passed
-                      ? t("pluginRuntime.feedbackMigration.passed")
-                      : t("pluginRuntime.feedbackMigration.failed")}
-                  </span>
-                </div>
-                <div className="mt-1 text-[0.72rem] text-theme-text-secondary">
-                  {gate.category}
-                </div>
-                <div className="mt-2 leading-relaxed text-theme-text-secondary">
-                  {gate.evidence}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function GuardSurfaceMatrix({
-  surfaces,
-}: {
-  surfaces: PluginRuntimeListResponse["runtime"]["guard_surfaces"];
-}) {
-  const { t } = useTranslation();
-
-  if (!surfaces || surfaces.length === 0) return null;
-
-  return (
-    <section className="mb-4 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-3 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-theme-text-secondary">
-        <ShieldCheck size={15} />
-        <span>{t("pluginRuntime.guardMatrix.title")}</span>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {surfaces.map((surface) => (
-          <div
-            key={surface.id}
-            className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 text-sm font-semibold text-theme-text">
-                {t(`pluginRuntime.guardMatrix.surfaces.${surface.id}`, surface.label)}
-              </div>
-              <span
-                className={
-                  surface.status === "enforced"
-                    ? "skill-status-pill skill-status-pill--active"
-                    : surface.status === "blocked"
-                      ? "skill-status-pill skill-status-pill--disabled"
-                      : "skill-meta-pill"
-                }
-              >
-                {surface.status}
-              </span>
-            </div>
-            <div className="mt-1 text-[0.72rem] text-theme-text-secondary">
-              {t("pluginRuntime.guardMatrix.failureMode")}: {surface.failure_mode}
-            </div>
-            <div className="mt-2 text-xs leading-relaxed text-theme-text-secondary">
-              {surface.evidence}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function AcceptanceMatrixOverview({
-  matrix,
-}: {
-  matrix?: PluginRuntimeListResponse["runtime"]["acceptance_matrix"];
-}) {
-  const { t } = useTranslation();
-
-  if (!matrix) return null;
-
-  const sectionLabels = Object.entries(matrix.sections).map(
-    ([section, count]) => `${section}: ${count}`,
-  );
-
-  return (
-    <section className="mb-4 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-3 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase text-theme-text-secondary">
-          <ListChecks size={15} />
-          <span>{t("pluginRuntime.acceptance.title")}</span>
-        </div>
-        <span
-          className={
-            matrix.passed
-              ? "skill-status-pill skill-status-pill--active"
-              : "skill-status-pill tag-error"
-          }
-        >
-          {matrix.passed ? t("pluginRuntime.acceptance.passed") : t("pluginRuntime.acceptance.missing")}
-        </span>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <PluginMetric
-          label={t("pluginRuntime.acceptance.total")}
-          value={matrix.total}
-        />
-        <PluginMetric
-          label={t("pluginRuntime.acceptance.passedCount")}
-          value={matrix.passed_count}
-        />
-        <PluginMetric
-          label={t("pluginRuntime.acceptance.missingCount")}
-          value={matrix.missing.length}
-        />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {sectionLabels.map((label) => (
-          <span key={label} className="skill-meta-pill max-w-full truncate">
-            {label}
-          </span>
-        ))}
-      </div>
-      {matrix.missing.length > 0 && (
-        <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
-          {matrix.missing.join(" / ")}
-        </div>
-      )}
-    </section>
-  );
 }
 
 function ContributionPreviewList({
@@ -472,10 +237,7 @@ function PluginSettingsSection({
 }) {
   const { t } = useTranslation();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const items = settings?.settings ?? [];
-  const settingsVersion = items
-    .map((item) => `${item.key}:${settingDisplayValue(item.value)}:${item.updated_at ?? ""}`)
-    .join("|");
+  const items = useMemo(() => settings?.settings ?? [], [settings?.settings]);
 
   useEffect(() => {
     const next: Record<string, string> = {};
@@ -483,7 +245,7 @@ function PluginSettingsSection({
       next[item.key] = settingDisplayValue(item.value);
     }
     setDrafts(next);
-  }, [settings?.plugin_id, settingsVersion]);
+  }, [items, settings?.plugin_id]);
 
   const groups = Array.from(new Set(items.map((item) => item.group || "general")));
 
@@ -1004,10 +766,6 @@ function PluginCard({
     plugin.resource_types.settings ??
     plugin.resource_types.plugin_settings ??
     0;
-  const pluginName = plugin.name ? t(plugin.name, plugin.name) : plugin.plugin_id;
-  const pluginDescription = plugin.description
-    ? t(plugin.description, plugin.description)
-    : "";
 
   return (
     <article className="overflow-hidden rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm transition-shadow hover:shadow-md">
@@ -1024,7 +782,7 @@ function PluginCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="max-w-[14rem] truncate text-sm font-semibold text-theme-text sm:max-w-[18rem]">
-                {pluginName}
+                {plugin.name || plugin.plugin_id}
               </h2>
               <span className={statusClassName(plugin.status)}>{plugin.status}</span>
               <span className="hidden text-[0.72rem] text-theme-text-secondary sm:inline">{plugin.plugin_id}</span>
@@ -1036,11 +794,6 @@ function PluginCard({
               <span>{t(`pluginRuntime.installTypes.${plugin.install_type}`, plugin.install_type)}</span>
               {plugin.state_updated_by && <span className="max-w-[7rem] truncate">{plugin.state_updated_by}</span>}
             </div>
-            {pluginDescription && (
-              <div className="mt-1 max-w-[24rem] truncate text-[0.72rem] text-theme-text-secondary">
-                {pluginDescription}
-              </div>
-            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-theme-text-secondary sm:justify-end">

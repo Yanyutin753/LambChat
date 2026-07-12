@@ -1,5 +1,3 @@
-import test from "node:test";
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -19,17 +17,13 @@ test("sitemap exposes public landing section routes for search sitelinks", () =>
   ]) {
     const url =
       path === "/" ? "https://lambchat.com/" : `https://lambchat.com${path}`;
-    assert.match(sitemap, new RegExp(`<loc>${url}</loc>`));
+    expect(sitemap).toMatch(new RegExp(`<loc>${url}</loc>`));
   }
 });
 
 test("sitemap prioritizes sitelink candidates over secondary interface routes", () => {
-  assert.doesNotMatch(
-    sitemap,
-    /<loc>https:\/\/lambchat\.com\/interface<\/loc>/,
-  );
-  assert.match(
-    sitemap,
+  expect(sitemap).not.toMatch(/<loc>https:\/\/lambchat\.com\/interface<\/loc>/);
+  expect(sitemap).toMatch(
     /<loc>https:\/\/lambchat\.com\/features<\/loc>[\s\S]*<priority>0\.9<\/priority>/,
   );
 });

@@ -45,6 +45,7 @@ export interface PluginRuntimeFrontend {
   sidebar_items: PluginRuntimeSidebarItem[];
   user_menu_items: PluginRuntimeUserMenuItem[];
   tool_renderers: Array<string | PluginRuntimeToolRenderer>;
+  message_renderers: PluginRuntimeMessageRenderer[];
   file_viewers: Array<string | PluginRuntimeFileViewer>;
   upload_handlers: Array<string | PluginRuntimeUploadHandler>;
   skill_importers: Array<string | PluginRuntimeSkillImporter>;
@@ -60,6 +61,7 @@ export interface PluginRuntimeFrontend {
   session_options: PluginRuntimeScopedOption[];
   channel_options: PluginRuntimeScopedOption[];
   scheduled_task_options: PluginRuntimeScopedOption[];
+  scheduled_task_sections?: PluginRuntimeScheduledTaskSection[];
   settings_sections: string[];
   i18n_namespaces: string[];
   required_permissions: string[];
@@ -68,6 +70,12 @@ export interface PluginRuntimeFrontend {
 export interface PluginRuntimeToolRenderer {
   id: string;
   tool_names: string[];
+}
+
+export interface PluginRuntimeMessageRenderer {
+  id: string;
+  renderer: string;
+  message_types?: string[];
 }
 
 export interface PluginRuntimeFileViewer {
@@ -126,6 +134,13 @@ export interface PluginRuntimeAppPanel {
   id: string;
   tab: string;
   renderer: string;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeScheduledTaskSection {
+  id: string;
+  renderer: string;
+  order?: number;
   visible_when?: PluginRuntimeVisibleWhen | null;
 }
 
@@ -301,7 +316,6 @@ export interface PluginPackageIntegrity {
 export interface PluginRuntimePlugin {
   plugin_id: string;
   name: string | null;
-  description?: string | null;
   version: string | null;
   api_version: string | null;
   status: string;

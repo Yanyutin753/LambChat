@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { useEffect, type CSSProperties } from "react";
 import { Users, Sparkles, User, Pin, Star } from "lucide-react";
+import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import type { ScopeFilter } from "./usePersonaPlaza";
 
 interface ScopeTab {
@@ -21,11 +22,7 @@ const ICON_MAP = {
 const DROPDOWN_GUTTER = 12;
 const SCOPE_DROPDOWN_WIDTH = 192;
 
-function getDropdownPosition(
-  trigger: HTMLButtonElement,
-  width: number,
-): CSSProperties {
-  const rect = trigger.getBoundingClientRect();
+function getDropdownPosition(rect: DOMRect, width: number): CSSProperties {
   const availableWidth = window.innerWidth - DROPDOWN_GUTTER * 2;
   const renderedWidth = Math.min(width, availableWidth);
   const left = Math.min(
@@ -70,12 +67,12 @@ export function PersonaScopeDropdown({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen || !scopeBtnRef.current) return null;
-
-  const dropdownStyle = getDropdownPosition(
-    scopeBtnRef.current,
-    SCOPE_DROPDOWN_WIDTH,
+  // Compute style before any early return — hooks must not be called conditionally
+  const dropdownStyle = useStickyDropdownPosition(scopeBtnRef, isOpen, (rect) =>
+    getDropdownPosition(rect, SCOPE_DROPDOWN_WIDTH),
   );
+
+  if (!isOpen) return null;
 
   return createPortal(
     <div

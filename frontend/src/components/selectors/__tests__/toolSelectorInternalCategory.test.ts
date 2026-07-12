@@ -1,7 +1,4 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
-
 const toolTypeSource = readFileSync(
   new URL("../../../types/tool.ts", import.meta.url),
   "utf8",
@@ -22,25 +19,19 @@ function readJson(url: URL) {
 }
 
 test("tool selector supports internal tools without MCP toggle semantics", () => {
-  assert.match(toolTypeSource, /\| "internal"/);
-  assert.match(selectorSource, /internal:\s*Workflow/);
-  assert.match(selectorSource, /const isToggleableCategory = cat === "mcp"/);
-  assert.match(
-    selectorSource,
-    /const isToggleableTool =\s*tool\.category === "mcp" && !tool\.system_disabled/,
-  );
-  assert.match(selectorSource, /disabled=\{!isToggleableCategory\}/);
-  assert.match(selectorSource, /disabled=\{!isToggleableTool\}/);
-  assert.match(
-    selectorSource,
-    /if \(isToggleableTool\) onToggleTool\(tool\.name\)/,
-  );
+  expect(toolTypeSource).toMatch(/\| "internal"/);
+  expect(selectorSource).toMatch(/internal:\s*Workflow/);
+  expect(selectorSource).toMatch(/const isToggleableCategory = cat === "mcp"/);
+  expect(selectorSource).toMatch(/const isToggleableTool =\s*tool\.category === "mcp" && !tool\.system_disabled/);
+  expect(selectorSource).toMatch(/disabled=\{!isToggleableCategory\}/);
+  expect(selectorSource).toMatch(/disabled=\{!isToggleableTool\}/);
+  expect(selectorSource).toMatch(/if \(isToggleableTool\) onToggleTool\(tool\.name\)/);
 
   for (const localeFile of localeFiles) {
     const locale = readJson(localeFile);
     const label = locale.tools?.categories?.internal;
-    assert.equal(typeof label, "string");
-    if (typeof label !== "string") assert.fail("internal label is missing");
-    assert.notEqual(label.trim(), "");
+    expect(typeof label).toBe("string");
+    if (typeof label !== "string") throw new Error("internal label is missing");
+    expect(label.trim()).not.toBe("");
   }
 });

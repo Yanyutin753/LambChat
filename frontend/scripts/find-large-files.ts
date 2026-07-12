@@ -7,14 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 const FRONTEND_SRC = path.join(PROJECT_ROOT, "frontend/src");
 const BACKEND_SRC = path.join(PROJECT_ROOT, "src");
+const PLUGIN_SRC = path.join(PROJECT_ROOT, "plugins");
 
-const LINE_THRESHOLD = 2000;
-const ALLOWED_LARGE_FILES = new Set([
-  "frontend/src/extensions/coreContributions.ts",
-  "frontend/src/plugins/workflow/WorkflowPanel.tsx",
-  "src/plugins/workflow/executor.py",
-  "src/plugins/workflow/service.py",
-]);
+const LINE_THRESHOLD = 1800;
 
 async function findLargeFiles(
   pattern: string,
@@ -30,7 +25,7 @@ async function findLargeFiles(
     const lines = content.split("\n").length;
 
     const rel = path.relative(PROJECT_ROOT, file).replaceAll(path.sep, "/");
-    if (lines > LINE_THRESHOLD && !ALLOWED_LARGE_FILES.has(rel)) {
+    if (lines > LINE_THRESHOLD) {
       results.push({ file: rel, lines });
     }
   }
@@ -68,7 +63,15 @@ async function main() {
     "Backend",
   );
 
-  const total = frontendResults.length + backendResults.length;
+  const pluginResults = await findLargeFiles(
+    "**/*.{py,ts,tsx,js,jsx}",
+    PLUGIN_SRC,
+    "Plugins",
+    ["**/.venv/**", "**/node_modules/**"],
+  );
+
+  const total =
+    frontendResults.length + backendResults.length + pluginResults.length;
   console.log("\n========================================");
   console.log(`Total: ${total} file(s)`);
   if (total > 0) {

@@ -111,24 +111,6 @@ class TaskPubSub:
                     except Exception as e:
                         logger.warning(f"Error in on_message callback: {e}")
 
-                # 更新 MongoDB trace 状态为 error（确保 trace 状态被更新）
-                if trace_id:
-                    try:
-                        from src.infra.session.trace_storage import get_trace_storage
-
-                        trace_storage = get_trace_storage()
-                        success = await trace_storage.complete_trace(
-                            trace_id,
-                            status="error",
-                            metadata={"cancel_reason": "Task cancelled via pub/sub"},
-                            ensure_token_usage=False,
-                        )
-                        logger.info(
-                            f"MongoDB trace status updated via pub/sub: trace_id={trace_id}, success={success}"
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to update trace status via pub/sub: {e}")
-
                 # 调用 agent.close(run_id) 取消 graph
                 if agent_id:
                     try:
@@ -143,12 +125,38 @@ class TaskPubSub:
                         logger.warning(f"Failed to call agent.close via pub/sub: {e}")
 
                 # 尝试本地取消 asyncio Task
+                task_to_cancel = None
                 async with self._lock:
                     if run_id in self._tasks:
                         task = self._tasks[run_id]
                         if not task.done():
-                            task.cancel()
-                            logger.info(f"Task cancelled via pub/sub: run_id={run_id}")
+                            task_to_cancel = task
+                if task_to_cancel is not None:
+                    task_to_cancel.cancel()
+                    logger.info(f"Task cancelled via pub/sub: run_id={run_id}")
+                elif trace_id:
+                    try:
+                        from src.infra.session.dual_writer import get_dual_writer
+                        from src.infra.session.trace_storage import get_trace_storage
+
+                        try:
+                            await get_dual_writer().flush_mongo_buffer()
+                        except Exception as flush_error:
+                            logger.warning(
+                                f"Failed to flush events before pub/sub trace completion: {flush_error}"
+                            )
+                        trace_storage = get_trace_storage()
+                        success = await trace_storage.complete_trace(
+                            trace_id,
+                            status="error",
+                            metadata={"cancel_reason": "Task cancelled via pub/sub"},
+                            ensure_token_usage=False,
+                        )
+                        logger.info(
+                            f"MongoDB trace status updated via pub/sub: trace_id={trace_id}, success={success}"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to update trace status via pub/sub: {e}")
         except json.JSONDecodeError:
             logger.warning(f"Invalid cancel message format: {message['data']}")
         except Exception as e:

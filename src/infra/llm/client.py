@@ -332,6 +332,8 @@ class LLMClient:
         model_id: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        temperature_explicit: bool = False,
+        max_tokens_explicit: bool = False,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
@@ -394,9 +396,9 @@ class LLMClient:
                     )
             if not api_base and db_model.api_base:
                 api_base = db_model.api_base
-            if db_model.temperature is not None:
+            if db_model.temperature is not None and not temperature_explicit:
                 temperature = db_model.temperature
-            if max_tokens is None and db_model.max_tokens is not None:
+            if not max_tokens_explicit and max_tokens is None and db_model.max_tokens is not None:
                 max_tokens = db_model.max_tokens
             if profile is None and db_model.profile:
                 profile = db_model.profile.model_dump()
@@ -421,9 +423,13 @@ class LLMClient:
                     set_cached_api_key(stored_model.value, stored_model.api_key)
                 if not api_base and stored_model.api_base:
                     api_base = stored_model.api_base
-                if stored_model.temperature is not None:
+                if stored_model.temperature is not None and not temperature_explicit:
                     temperature = stored_model.temperature
-                if max_tokens is None and stored_model.max_tokens is not None:
+                if (
+                    not max_tokens_explicit
+                    and max_tokens is None
+                    and stored_model.max_tokens is not None
+                ):
                     max_tokens = stored_model.max_tokens
                 if profile is None and stored_model.profile:
                     raw = stored_model.profile
@@ -482,9 +488,13 @@ class LLMClient:
                     provider = explicit_provider
                 if not api_base and model_cfg.get("api_base"):
                     api_base = model_cfg["api_base"]
-                if model_cfg.get("temperature") is not None:
+                if model_cfg.get("temperature") is not None and not temperature_explicit:
                     temperature = model_cfg["temperature"]
-                if max_tokens is None and model_cfg.get("max_tokens") is not None:
+                if (
+                    not max_tokens_explicit
+                    and max_tokens is None
+                    and model_cfg.get("max_tokens") is not None
+                ):
                     max_tokens = model_cfg["max_tokens"]
                 if profile is None and model_cfg.get("profile"):
                     profile = model_cfg["profile"]

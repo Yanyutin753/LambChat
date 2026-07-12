@@ -27,6 +27,11 @@ import type { AgentInfo } from "../../../types/agent";
 import type { AvailableModel } from "../../../contexts/SettingsContext";
 import type { PersonaPreset } from "../../../types/personaPreset";
 import { personaPresetApi } from "../../../services/api/personaPreset";
+import { getFullUrl, uploadApi } from "../../../services/api";
+import { useFileUpload } from "../../../hooks/useFileUpload";
+import { AttachmentCard } from "../../common/AttachmentCard";
+import { FileUploadButton } from "../../chat/FileUploadButton";
+import { openAttachmentPreview } from "../../chat/attachmentPreviewStore";
 import { useScheduledTaskPluginOptions } from "../../../hooks/useScheduledTaskPluginOptions";
 import {
   hasEffectiveCorePersonaSuppressingOption,
@@ -37,10 +42,13 @@ import {
   withPluginOption,
 } from "../../../extensions/pluginOptions";
 import type { PluginOptionsMetadata } from "../../../extensions/pluginOptions";
+import type { MessageAttachment } from "../../../types";
 import {
   buildScheduledTaskInputPayload,
   getAgentOptionsFromScheduledTaskPayload,
+  getScheduledTaskAttachments,
   getScheduledTaskPersonaPresetId,
+  withScheduledTaskAttachments,
 } from "../scheduledTaskPayload";
 import { getBrowserTimezone, toDateTimeLocalValue } from "./utils";
 import {
@@ -168,6 +176,9 @@ export function TaskFormModal({
   const [inputPayload, setInputPayload] = useState(
     task ? JSON.stringify(task.input_payload ?? {}, null, 2) : "{}",
   );
+  const [attachments, setAttachments] = useState<MessageAttachment[]>(
+    getScheduledTaskAttachments(task?.input_payload),
+  );
   const [enabled, setEnabled] = useState(task?.enabled ?? true);
   const [runOnStart, setRunOnStart] = useState(task?.run_on_start ?? false);
   const [maxRetries, setMaxRetries] = useState(String(task?.max_retries ?? 0));
@@ -176,6 +187,10 @@ export function TaskFormModal({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const { cancelUpload } = useFileUpload({
+    attachments,
+    onAttachmentsChange: setAttachments,
+  });
   const {
     options: scheduledTaskPluginOptions,
     isLoading: scheduledTaskPluginOptionsLoading,
@@ -255,6 +270,7 @@ export function TaskFormModal({
       return;
     }
     setJsonError(null);
+    payload = withScheduledTaskAttachments(payload, attachments);
 
     // Build trigger config
     let triggerConfig: Record<string, unknown>;
@@ -314,6 +330,12 @@ export function TaskFormModal({
   };
 
   const inputClass = "scheduled-task-input";
+  const handleRemoveAttachment = (attachment: MessageAttachment) => {
+    setAttachments((prev) => prev.filter((item) => item.id !== attachment.id));
+    if (attachment.key && !attachment.isUploading) {
+      uploadApi.deleteFile(attachment.key).catch(() => {});
+    }
+  };
   const agentOptions = [
     { value: "", label: t("scheduledTask.agentPlaceholder") },
     ...agents.map((agent) => ({
@@ -350,11 +372,6 @@ export function TaskFormModal({
     const inactive = option.effective === false;
     const disabled = inactive;
     const fieldId = `${option.plugin_id}.${option.key}`;
-    const pluginValues = scheduledTaskPluginOptionValues[option.plugin_id];
-    const scopedPluginValues =
-      pluginValues && typeof pluginValues === "object" && !Array.isArray(pluginValues)
-        ? (pluginValues as Record<string, unknown>)
-        : {};
     const inactiveNotice = inactive || disabled ? (
       <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         {t(
@@ -368,12 +385,9 @@ export function TaskFormModal({
     const rendered = renderScheduledTaskOptionField({
       option,
       value: currentValue,
-      pluginValues: scopedPluginValues,
       disabled,
       inactive,
       triggerClassName: inputClass,
-      onPluginValueChange: (key, nextValue) =>
-        setScheduledTaskPluginOptionValue(option.plugin_id, key, nextValue),
       onChange,
     });
 
@@ -702,6 +716,51 @@ export function TaskFormModal({
             />
             {jsonError && (
               <p className="mt-1 text-xs text-red-500">{jsonError}</p>
+            )}
+          </div>
+
+          <div className="scheduled-task-form-field">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label className="scheduled-task-label">
+                {t("chat.attachments")}
+              </label>
+              <FileUploadButton
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
+              />
+            </div>
+            {attachments.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto attachment-scroll pb-1">
+                {attachments.map((attachment) => {
+                  const isImage =
+                    attachment.mimeType?.startsWith("image/") &&
+                    Boolean(attachment.url);
+                  return (
+                    <AttachmentCard
+                      key={attachment.id}
+                      attachment={attachment}
+                      variant="editable"
+                      size="compact"
+                      isUploading={attachment.isUploading}
+                      onClick={() => {
+                        if (isImage && attachment.url) {
+                          window.open(
+                            getFullUrl(attachment.url) ?? attachment.url,
+                          );
+                        } else {
+                          openAttachmentPreview(attachment, "chat-input");
+                        }
+                      }}
+                      onRemove={() => handleRemoveAttachment(attachment)}
+                      onCancel={
+                        attachment.isUploading
+                          ? () => cancelUpload(attachment.id)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
             )}
           </div>
 

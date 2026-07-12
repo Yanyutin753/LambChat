@@ -1,6 +1,3 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
 import {
   getGoalForMessage,
   getVisibleActiveGoalForMessages,
@@ -26,56 +23,51 @@ function message(overrides: Partial<Message>): Message {
 }
 
 test("hides the active goal when the current conversation has no messages", () => {
-  assert.equal(getVisibleActiveGoalForMessages(goal, []), null);
+  expect(getVisibleActiveGoalForMessages(goal, [])).toBe(null);
 });
 
 test("keeps the active goal visible when a current message belongs to its run", () => {
-  assert.equal(
+  expect(
     getVisibleActiveGoalForMessages(goal, [
       message({ id: "user", role: "user", runId: "run-goal" }),
     ]),
-    goal,
-  );
+  ).toBe(goal);
 });
 
 test("hides the active goal when the latest message belongs to another run", () => {
-  assert.equal(
+  expect(
     getVisibleActiveGoalForMessages(goal, [
       message({ id: "goal-message", runId: "run-goal" }),
       message({ id: "ordinary", runId: "run-other" }),
     ]),
-    null,
-  );
+  ).toBe(null);
 });
 
 test("resolves the historical goal for a message by run id", () => {
-  assert.equal(
+  expect(
     getGoalForMessage(
       {
         "run-goal": goal,
       },
       message({ id: "goal-message", runId: "run-goal" }),
     ),
-    goal,
-  );
+  ).toBe(goal);
 });
 
 test("does not show goal details on messages from a different run", () => {
-  assert.equal(
+  expect(
     shouldShowGoalDetailsForMessage(
       goal,
       message({ id: "ordinary", runId: "run-other" }),
     ),
-    false,
-  );
+  ).toBe(false);
 });
 
 test("shows goal details on messages from the goal run", () => {
-  assert.equal(
+  expect(
     shouldShowGoalDetailsForMessage(
       goal,
       message({ id: "goal-message", runId: "run-goal" }),
     ),
-    true,
-  );
+  ).toBe(true);
 });
