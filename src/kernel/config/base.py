@@ -388,11 +388,11 @@ class Settings(BaseSettings):
     IMAGE_GENERATION_MODEL: str = "gpt-image-2"
     IMAGE_GENERATION_TIMEOUT: int = 120  # 生图 API read timeout（两次数据读取间最大空闲间隔）
     # 生图 HTTP 超时细粒度控制（秒）。带宽差时可调大 write/download 相关值。
-    IMAGE_API_CONNECT_TIMEOUT: float = 10.0  # TCP 连接建立超时
-    IMAGE_API_WRITE_TIMEOUT: float = 30.0  # 发送请求体超时（含上传参考图）
-    IMAGE_API_POOL_TIMEOUT: float = 5.0  # 从连接池获取连接的等待超时
-    IMAGE_DOWNLOAD_TIMEOUT: float = 60.0  # 下载参考图 read timeout
-    IMAGE_DOWNLOAD_WRITE_TIMEOUT: float = 30.0  # 下载参考图 write timeout
+    IMAGE_API_CONNECT_TIMEOUT: float = 15.0  # TCP 连接建立超时
+    IMAGE_API_WRITE_TIMEOUT: float = 120.0  # 发送请求体超时（含上传参考图）
+    IMAGE_API_POOL_TIMEOUT: float = 10.0  # 从连接池获取连接的等待超时
+    IMAGE_DOWNLOAD_TIMEOUT: float = 180.0  # 下载参考图 read timeout
+    IMAGE_DOWNLOAD_WRITE_TIMEOUT: float = 120.0  # 下载参考图 write timeout
     # 连接池大小
     IMAGE_API_MAX_CONNECTIONS: int = 20
     IMAGE_API_MAX_KEEPALIVE_CONNECTIONS: int = 5
