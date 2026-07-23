@@ -69,21 +69,32 @@ def _get_image_api_client() -> httpx.AsyncClient:
     global _image_api_client
     if _image_api_client is None or getattr(_image_api_client, "is_closed", False):
         read_timeout = float(getattr(settings, "IMAGE_GENERATION_TIMEOUT", 120) or 120)
+        connect_t = float(getattr(settings, "IMAGE_API_CONNECT_TIMEOUT", 10.0) or 10.0)
+        write_t = float(getattr(settings, "IMAGE_API_WRITE_TIMEOUT", 30.0) or 30.0)
+        pool_t = float(getattr(settings, "IMAGE_API_POOL_TIMEOUT", 5.0) or 5.0)
+        max_conn = int(getattr(settings, "IMAGE_API_MAX_CONNECTIONS", 20) or 20)
+        max_keepalive = int(getattr(settings, "IMAGE_API_MAX_KEEPALIVE_CONNECTIONS", 5) or 5)
         _image_api_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=10.0, read=read_timeout, write=30.0, pool=5.0),
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
+            timeout=httpx.Timeout(connect=connect_t, read=read_timeout, write=write_t, pool=pool_t),
+            limits=httpx.Limits(max_connections=max_conn, max_keepalive_connections=max_keepalive),
         )
     return _image_api_client
 
 
 def _get_download_client() -> httpx.AsyncClient:
-    """参考图下载复用 client（follow_redirects，读超时 60s）。"""
+    """参考图下载复用 client（follow_redirects）。"""
     global _download_client
     if _download_client is None or getattr(_download_client, "is_closed", False):
+        connect_t = float(getattr(settings, "IMAGE_API_CONNECT_TIMEOUT", 10.0) or 10.0)
+        read_t = float(getattr(settings, "IMAGE_DOWNLOAD_TIMEOUT", 60.0) or 60.0)
+        write_t = float(getattr(settings, "IMAGE_DOWNLOAD_WRITE_TIMEOUT", 30.0) or 30.0)
+        pool_t = float(getattr(settings, "IMAGE_API_POOL_TIMEOUT", 5.0) or 5.0)
+        max_conn = int(getattr(settings, "IMAGE_API_MAX_CONNECTIONS", 20) or 20)
+        max_keepalive = int(getattr(settings, "IMAGE_API_MAX_KEEPALIVE_CONNECTIONS", 5) or 5)
         _download_client = httpx.AsyncClient(
             follow_redirects=True,
-            timeout=httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=5.0),
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
+            timeout=httpx.Timeout(connect=connect_t, read=read_t, write=write_t, pool=pool_t),
+            limits=httpx.Limits(max_connections=max_conn, max_keepalive_connections=max_keepalive),
         )
     return _download_client
 
