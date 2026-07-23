@@ -163,7 +163,16 @@ def decrypt_value(value: Any) -> Any:
             decrypted_bytes = fernet.decrypt(encrypted_bytes)
             return json.loads(decrypted_bytes.decode("utf-8"))
         except Exception:
-            # 新密钥失败，尝试旧密钥（SHA256）向后兼容
+            # 新密钥失败：若管理员已开启硬过期开关（MCP_ENCRYPTION_DISABLE_LEGACY=true），
+            # 说明迁移完成，直接拒绝旧密钥回退，强制重新保存配置。
+            disable_legacy = bool(getattr(settings, "MCP_ENCRYPTION_DISABLE_LEGACY", False))
+            if disable_legacy:
+                logger.error(
+                    "旧密钥回退已被禁用（MCP_ENCRYPTION_DISABLE_LEGACY=true），"
+                    "请重新保存该配置以迁移到 PBKDF2 加密",
+                )
+                raise DecryptionError("旧密钥回退已禁用，请重新保存该配置以使用新加密")
+            # 旧密钥（SHA256）向后兼容回退
             try:
                 fernet_legacy = _get_fernet_legacy()
                 decrypted_bytes = fernet_legacy.decrypt(encrypted_bytes)
@@ -175,11 +184,38 @@ def decrypt_value(value: Any) -> Any:
                 return json.loads(decrypted_bytes.decode("utf-8"))
             except Exception as e:
                 # 两种密钥都失败
-                logger.error(f"解密失败（尝试了新旧密钥）: {e}")
+                logger.error("解密失败（尝试了新旧密钥）: %s", e)
                 raise DecryptionError(f"解密失败: {e}") from e
 
     # 明文格式（向后兼容）
     return value
+
+
+def is_legacy_encrypted(value: Any) -> bool:
+    """判断 value 是否仍用旧 SHA256 密钥加密（新密钥解不开、旧密钥能解）。
+
+    供迁移脚本精确识别待迁移记录，避免对已迁移或明文数据做无谓重写。
+    两种密钥都解不开时返回 False（异常数据，交由调用方处理）。
+    """
+    if not isinstance(value, dict) or ENCRYPTED_MARKER not in value:
+        return False
+    encrypted_str = value.get(ENCRYPTED_MARKER)
+    if not encrypted_str:
+        return False
+    try:
+        encrypted_bytes = base64.b64decode(encrypted_str.encode("utf-8"))
+    except Exception:
+        return False
+    try:
+        _get_fernet().decrypt(encrypted_bytes)
+        return False  # 新密钥能解 → 已迁移
+    except Exception:
+        pass
+    try:
+        _get_fernet_legacy().decrypt(encrypted_bytes)
+        return True  # 旧密钥能解 → 待迁移
+    except Exception:
+        return False  # 都解不开 → 异常数据
 
 
 def encrypt_server_secrets(server: dict[str, Any]) -> dict[str, Any]:

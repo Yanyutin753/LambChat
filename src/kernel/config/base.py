@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     MCP_EFFECTIVE_CONFIG_MAX_SERVERS: int = 100
     MCP_EFFECTIVE_CONFIG_MAX_TOOLS: int = 200
     MCP_ENCRYPTION_SALT: Optional[str] = None  # 默认随机生成，确保加密一致性
+    MCP_ENCRYPTION_DISABLE_LEGACY: bool = (
+        False  # True=禁用旧 SHA256 密钥回退解密；迁移完成后由管理员手动开启
+    )
     DEEPAGENT_DEFAULT_MAX_INPUT_TOKENS: int = 64000
 
     # Session Settings
@@ -263,6 +266,22 @@ class Settings(BaseSettings):
 
     # Frontend Settings
     FRONTEND_DEV_URL: str = ""
+    # CORS 允许的来源白名单。allow_credentials=True 下 "*" 不安全，必须显式白名单。
+    # 生产环境通过环境变量覆盖（JSON 数组，如 ALLOWED_ORIGINS='["https://app.example.com"]'）。
+    # 默认覆盖本地开发 + Tauri/Capacitor 原生客户端。
+    ALLOWED_ORIGINS: list = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001",
+            "http://localhost:5173",
+            "tauri://localhost",
+            "https://tauri.localhost",
+            "capacitor://localhost",
+            "http://localhost",
+        ]
+    )
     DEFAULT_AGENT: str = "fast"
     DEFAULT_MODEL_ID: str = ""
     WELCOME_SUGGESTIONS: list = Field(

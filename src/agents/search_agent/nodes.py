@@ -432,8 +432,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 session_id,
                 context.deferred_manager.discovered_names,
             )
-        except Exception:
-            pass  # 非关键路径，失败静默
+        except Exception as e:
+            logger.warning("持久化已发现工具失败 (search_agent): %s", e, exc_info=True)
 
     output_text = event_processor.output_text
     event_processor.clear()

@@ -498,6 +498,18 @@ async def lifespan(app: FastAPI):
     # 后台预加载模型列表；请求路径仍有 memory -> Redis -> DB 懒加载兜底。
     _schedule_models_cache_warmup(app)
 
+    # 后台迁移旧 SHA256 加密数据到 PBKDF2（不阻塞启动，失败仅告警）
+    from src.infra.mcp.migration import migrate_legacy_encryption
+
+    async def _migrate_legacy_encryption() -> None:
+        try:
+            await asyncio.sleep(10)  # 启动后稍延迟，避免与初始化争抢资源
+            await migrate_legacy_encryption()
+        except Exception as e:
+            logger.warning("旧加密数据迁移任务失败: %s", e)
+
+    app.state.legacy_encryption_migration_task = asyncio.create_task(_migrate_legacy_encryption())
+
     # 初始化 SessionStorage 搜索索引，并异步回填历史会话
     from src.infra.session.backfill import SessionSearchBackfillWorker
 
@@ -670,13 +682,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS 中间件
+    # CORS 中间件 — allow_credentials=True 下禁止 "*"，必须显式白名单
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Accept"],
     )
 
     # 自定义中间件 (顺序：后添加的先执行)

@@ -6,6 +6,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from src.kernel.config import settings
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """
@@ -75,10 +77,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _cors_response(request: Request, status_code: int, content: dict) -> JSONResponse:
-        """Build a JSONResponse with CORS headers so browsers don't block it."""
+        """Build a JSONResponse with CORS headers so browsers don't block it.
+
+        Only echoes the Origin when it is in the allowlist — never reflects
+        arbitrary origins, since this response carries credential headers.
+        """
         origin = request.headers.get("origin", "")
         response = JSONResponse(status_code=status_code, content=content)
-        if origin:
+        allowed = getattr(settings, "ALLOWED_ORIGINS", []) or []
+        if origin and origin in allowed:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Vary"] = "Origin"

@@ -885,8 +885,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 session_id,
                 context.deferred_manager.discovered_names,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("持久化已发现工具失败 (team_agent): %s", e, exc_info=True)
 
     output_text = event_processor.output_text
     event_processor.clear()

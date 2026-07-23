@@ -58,8 +58,8 @@ async def websocket_endpoint(
         logger.warning(f"[WebSocket] IP {client_ip} blocked, TTL={ttl}s")
         try:
             await websocket.close(code=4003, reason=f"Too many failures. Retry in {ttl}s")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[WebSocket] 关闭连接失败 (rate limit): %s", e)
         return
 
     # 认证方式（按优先级）:
@@ -111,8 +111,8 @@ async def websocket_endpoint(
         reason = "Blocked due to too many failed attempts" if should_block else "Unauthorized"
         try:
             await websocket.close(code=4001, reason=reason)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[WebSocket] 关闭连接失败 (auth failed): %s", e)
         return
 
     manager = get_connection_manager()

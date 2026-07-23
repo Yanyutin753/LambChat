@@ -3,11 +3,16 @@ services:
     image: redis:alpine
     container_name: lambchat-redis
     restart: always
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   mongodb:
     image: mongo:8.2.5
@@ -15,9 +20,14 @@ services:
     restart: always
     command: mongod --wiredTigerCacheSizeGB 0.5
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   lambchat:
     container_name: lambchat
@@ -33,9 +43,9 @@ services:
       - "8000:8000"
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       mongodb:
-        condition: service_started
+        condition: service_healthy
     environment:
       - TZ=Asia/Shanghai
       - HOST=0.0.0.0

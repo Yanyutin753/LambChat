@@ -6,7 +6,10 @@ from starlette.requests import Request
 from src.infra.async_utils import run_blocking_io
 from src.infra.auth.jwt import verify_token
 from src.infra.backend.context import clear_user_context, set_user_context
+from src.infra.logging import get_logger
 from src.infra.logging.context import TraceContext
+
+logger = get_logger(__name__)
 
 
 class UserContextMiddleware(BaseHTTPMiddleware):
@@ -29,8 +32,9 @@ class UserContextMiddleware(BaseHTTPMiddleware):
                 payload = await run_blocking_io(verify_token, token)
                 request.state.auth_payload = payload
                 user_id = str(payload.sub) if payload.sub else None
-            except Exception:
-                pass  # Token invalid, user_id stays None
+            except Exception as e:
+                # 令牌无效/过期是常态（debug）；user_id 留 None 不阻塞请求
+                logger.debug("从令牌提取 user_id 失败: %s", e)
 
         try:
             if user_id:

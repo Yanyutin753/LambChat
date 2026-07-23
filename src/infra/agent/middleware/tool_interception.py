@@ -419,8 +419,8 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     if responses and responses[0].content:
                         file_bytes = responses[0].content
                     del responses
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("从沙箱后端下载文件失败 (adownload_files) %s: %s", file_path, e)
 
             if file_bytes is None and hasattr(backend, "download_files"):
                 try:
@@ -428,8 +428,8 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
                     if responses and responses[0].content:
                         file_bytes = responses[0].content
                     del responses
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("从沙箱后端下载文件失败 (download_files) %s: %s", file_path, e)
 
             if file_bytes is None:
                 return None

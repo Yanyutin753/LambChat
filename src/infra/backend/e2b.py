@@ -303,8 +303,8 @@ class E2BBackend(BaseSandbox):
 
                 if entry.type == FileType.DIR:
                     return True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("E2B FileType 判定失败: %s", e)
         return False
 
     def ls_info(self, path: str) -> list[FileInfo]:
@@ -550,8 +550,8 @@ class E2BBackend(BaseSandbox):
                             _match_glob(sub_entries, full_path, depth + 1)
                             if len(result) >= SANDBOX_GLOB_MAX_MATCHES:
                                 return
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("E2B glob 递归遍历子目录失败 %s: %s", full_path, e)
 
             _match_glob(entries, search_path, 0)
             return result
