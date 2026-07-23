@@ -12,15 +12,21 @@ interface TextareaLike {
   };
   scrollHeight: number;
   scrollTop: number;
+  clientHeight: number;
 }
 
 export function resizeTextareaForContent(
   textarea: TextareaLike,
   maxHeightPx = DEFAULT_TEXTAREA_MAX_HEIGHT_PX,
 ): void {
+  const prevScrollTop = textarea.scrollTop;
+  const wasAtBottom =
+    prevScrollTop + textarea.clientHeight >= textarea.scrollHeight - 1;
   textarea.style.height = "auto";
   textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeightPx)}px`;
-  textarea.scrollTop = textarea.scrollHeight;
+  // 仅在原本就在底部（追加输入场景）时才滚到底，让最新内容可见；
+  // 编辑中间内容时保持原滚动位置，避免视口被强制拉到末尾导致光标“看起来跳转”。
+  textarea.scrollTop = wasAtBottom ? textarea.scrollHeight : prevScrollTop;
 }
 
 export function getTextareaMaxHeightPx({
