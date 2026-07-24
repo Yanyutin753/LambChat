@@ -405,6 +405,4 @@ pnpm run docs:build
 
 <br>
 
-<sub>Powered by <a href="https://linux.do/">LINUX DO</a> — A New Ideal Community</sub>
-
 </div>
