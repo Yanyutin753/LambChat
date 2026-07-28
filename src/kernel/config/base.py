@@ -230,7 +230,7 @@ class Settings(BaseSettings):
     # LangSmith Tracing Settings
     LANGSMITH_TRACING: bool = False
     LANGSMITH_API_KEY: Optional[str] = None
-    LANGSMITH_PROJECT: str = "lamb-agent"
+    LANGSMITH_PROJECT: str = "lambchat"
     LANGSMITH_API_URL: str = "https://api.smith.langchain.com"
     LANGSMITH_SAMPLE_RATE: float = 1.0
 

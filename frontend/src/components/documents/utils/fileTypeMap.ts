@@ -26,7 +26,6 @@ import {
   Film,
   Presentation,
   BookOpen,
-  StickyNote,
   File,
   DraftingCompass,
 } from "lucide-react";
@@ -442,7 +441,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
   {
     ext: ["h", "hpp"],
     ...STYLES.code.purple,
-    label: "Header",
+    label: "fileType.header",
     category: "code",
   },
   { ext: "cs", ...STYLES.code.purple, label: "C#", category: "code" },
@@ -545,7 +544,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
     icon: Lock,
     color: "text-yellow-600 dark:text-yellow-400",
     bg: "bg-yellow-100 dark:bg-yellow-900/40",
-    label: "Env",
+    label: "fileType.env",
     category: "config",
   },
   {
@@ -553,7 +552,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
     icon: FileCog,
     color: "text-stone-600 dark:text-stone-400",
     bg: "bg-stone-100 dark:bg-stone-900/40",
-    label: "Config",
+    label: "fileType.config",
     category: "config",
   },
 
@@ -618,18 +617,18 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
   },
   {
     ext: "txt",
-    icon: StickyNote,
-    color: "text-stone-600 dark:text-stone-400",
-    bg: "bg-stone-100 dark:bg-stone-900/40",
-    label: "Text",
+    icon: FileText,
+    color: "text-sky-600 dark:text-sky-400",
+    bg: "bg-sky-100 dark:bg-sky-900/40",
+    label: "fileType.text",
     category: "document",
   },
   {
     ext: "log",
-    icon: StickyNote,
-    color: "text-stone-600 dark:text-stone-400",
-    bg: "bg-stone-100 dark:bg-stone-900/40",
-    label: "Log",
+    icon: FileText,
+    color: "text-slate-600 dark:text-slate-400",
+    bg: "bg-slate-100 dark:bg-slate-900/40",
+    label: "fileType.log",
     category: "document",
   },
 
@@ -759,7 +758,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
     icon: Blocks,
     color: "text-blue-600 dark:text-blue-400",
     bg: "bg-blue-100 dark:bg-blue-900/40",
-    label: "Executable",
+    label: "fileType.executable",
     category: "other",
   },
   {
@@ -767,7 +766,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
     icon: Blocks,
     color: "text-red-600 dark:text-red-400",
     bg: "bg-red-100 dark:bg-red-900/40",
-    label: "Package",
+    label: "fileType.package",
     category: "other",
   },
   {
@@ -775,7 +774,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
     icon: Blocks,
     color: "text-stone-600 dark:text-stone-400",
     bg: "bg-stone-100 dark:bg-stone-900/40",
-    label: "App",
+    label: "fileType.app",
     category: "other",
   },
   {
@@ -791,7 +790,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
     icon: Blocks,
     color: "text-cyan-600 dark:text-cyan-400",
     bg: "bg-cyan-100 dark:bg-cyan-900/40",
-    label: "Shared Lib",
+    label: "fileType.sharedLib",
     category: "other",
   },
 
@@ -835,7 +834,7 @@ const FILE_TYPE_CONFIGS: ExtConfig[] = [
     icon: TestTube,
     color: "text-emerald-600 dark:text-emerald-400",
     bg: "bg-emerald-100 dark:bg-emerald-900/40",
-    label: "Test",
+    label: "fileType.test",
     category: "code",
   },
 
@@ -963,6 +962,6 @@ export const DEFAULT_FILE_TYPE: FileTypeInfo = {
   icon: File,
   color: "text-stone-500 dark:text-stone-400",
   bg: "bg-stone-100 dark:bg-stone-800",
-  label: "File",
+  label: "fileType.file",
   category: "other",
 };

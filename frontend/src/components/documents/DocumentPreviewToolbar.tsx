@@ -146,7 +146,7 @@ export default function DocumentPreviewToolbar({
               ? t("documents.chars", { count: displaySize })
               : fileSize
                 ? formatFileSizeUtil(fileSize)
-                : fileInfo.label}
+                : t(fileInfo.label, fileInfo.label)}
           </span>
         </div>
       </div>

@@ -37,7 +37,7 @@ test("applies all persisted user metadata preferences to local storage and event
   });
 
   expect(localStorage.getItem("language")).toBe("zh");
-  expect(localStorage.getItem("lamb-agent-theme")).toBe("dark");
+  expect(localStorage.getItem("lambchat-theme")).toBe("dark");
   expect(localStorage.getItem("newlineModifier")).toBe("ctrl");
   expect(localStorage.getItem("defaultThinkingLevel")).toBe("high");
   expect(localStorage.getItem("lamb-sidebar-collapsed")).toBe("true");

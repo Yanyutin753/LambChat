@@ -6,7 +6,7 @@ import {
 test("getInitialThemePreference prefers persisted theme over system preference", () => {
   const env = {
     localStorage: {
-      getItem: (key: string) => (key === "lamb-agent-theme" ? "light" : null),
+      getItem: (key: string) => (key === "lambchat-theme" ? "light" : null),
     },
     matchMedia: () => ({ matches: true }),
   };

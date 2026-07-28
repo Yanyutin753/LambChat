@@ -137,7 +137,7 @@ export function ProfileModal({
       }`}
     >
       <a
-        href="https://github.com/clivia/LambChat"
+        href="https://github.com/Yanyutin753/LambChat"
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
@@ -152,7 +152,7 @@ export function ProfileModal({
         )}
       </a>
       <a
-        href="https://github.com/clivia/LambChat"
+        href="https://github.com/Yanyutin753/LambChat"
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}

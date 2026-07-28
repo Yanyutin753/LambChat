@@ -166,6 +166,7 @@ function formatCount(count: number | undefined, t?: TFunction): string {
 
 function normalizeStoredPreview(
   file: RevealedFileItem,
+  t?: TFunction,
 ): FileCardPreview | null {
   const stored = file.card_preview;
   if (!stored) return null;
@@ -176,7 +177,7 @@ function normalizeStoredPreview(
   const subtitle =
     compactLine(stored.subtitle) ||
     compactLine(file.description) ||
-    fileInfo.label;
+    (t ? t(fileInfo.label, fileInfo.label) : fileInfo.label);
   const textLines =
     Array.isArray(stored.lines) && stored.lines.length > 0
       ? stored.lines
@@ -315,20 +316,21 @@ export function buildFileCardPreview(
   file: RevealedFileItem,
   t?: TFunction,
 ): FileCardPreview {
-  const stored = normalizeStoredPreview(file);
+  const stored = normalizeStoredPreview(file, t);
   if (stored) return stored;
 
   const fileInfo = getFileTypeInfo(file.file_name, file.mime_type || undefined);
   const colorName = extractColorName(fileInfo.color);
   const ext = getExt(file.file_name);
   const title = stripExtension(file.file_name);
+  const label = t ? t(fileInfo.label, fileInfo.label) : fileInfo.label;
   const description = compactLine(file.description);
 
   if (file.file_type === "image" && file.url) {
     return {
       kind: "image",
       title,
-      subtitle: description || fileInfo.label,
+      subtitle: description || label,
       badge: ext || "Image",
       lines: [],
       colorName,
@@ -340,7 +342,7 @@ export function buildFileCardPreview(
     return {
       kind: "excalidraw" as const,
       title,
-      subtitle: description || fileInfo.label,
+      subtitle: description || label,
       badge: ext || "Excalidraw",
       lines: [],
       colorName,
@@ -440,12 +442,12 @@ export function buildFileCardPreview(
   return {
     kind: file.file_type === "document" ? "document" : "fallback",
     title,
-    subtitle: description || fileInfo.label,
-    badge: ext || fileInfo.label.toUpperCase(),
+    subtitle: description || label,
+    badge: ext || label.toUpperCase(),
     lines: normalizeLines([
       description,
       file.file_size > 0 ? formatFileSize(file.file_size) : "",
-      file.mime_type || fileInfo.label,
+      file.mime_type || label,
     ]),
     colorName,
   };

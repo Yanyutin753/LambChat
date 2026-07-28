@@ -416,29 +416,37 @@ async def chat_stream(
     session_id = request.session_id or str(uuid.uuid4())
     validate_team_agent_request(agent_id, request)
 
-    # 如果用户传入了 session_id，验证所有权
-    existing_metadata: dict = {}
-    if request.session_id:
+    # 并行执行无数据依赖的 I/O 操作：session 查询 / persona 解析 / model 权限验证
+    if request.agent_options is None:
+        request.agent_options = {}
+
+    async def _fetch_session() -> dict:
+        if not request.session_id:
+            return {}
         session_manager = SessionManager()
         existing_session = await session_manager.get_session(session_id)
-        if existing_session:
-            verify_session_ownership(existing_session, user)
-            existing_metadata = existing_session.metadata or {}
+        if not existing_session:
+            return {}
+        verify_session_ownership(existing_session, user)
+        return existing_session.metadata or {}
+
+    try:
+        existing_metadata, _, _ = await asyncio.gather(
+            _fetch_session(),
+            resolve_persona_request(request, user),
+            validate_agent_model_access(request.agent_options, user),
+        )
+    except HTTPException:
+        raise
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="角色预设不存在")
+    except AuthorizationError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     active_goal_data = active_goal.model_dump() if active_goal else None
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
-
-    try:
-        await resolve_persona_request(request, user)
-        if request.agent_options is None:
-            request.agent_options = {}
-        await validate_agent_model_access(request.agent_options, user)
-    except NotFoundError:
-        raise HTTPException(status_code=404, detail="角色预设不存在")
-    except AuthorizationError as e:
-        raise HTTPException(status_code=403, detail=str(e))
 
     formatted_message = format_user_message_with_timestamp(
         agent_message,

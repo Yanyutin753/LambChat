@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
 } from "react";
 import { useSwipeToClose } from "./useSwipeToClose";
+import { notifyRightPanelWidthChanged } from "./rightPanelWidthEvents";
 
 export interface SidebarPanelOptions {
   open: boolean;
@@ -94,6 +95,7 @@ export function useSidebarPanel({
   useEffect(() => {
     document.documentElement.style.setProperty(widthCssVar, `${sidebarWidth}%`);
     localStorage.setItem(widthStorageKey, String(sidebarWidth));
+    notifyRightPanelWidthChanged();
   }, [sidebarWidth, widthCssVar, widthStorageKey]);
 
   // Layout compression + body scroll lock
@@ -205,6 +207,7 @@ export function useSidebarPanel({
         root.style.setProperty(widthCssVar, `${val}%`);
         setSidebarWidth(val);
         localStorage.setItem(widthStorageKey, String(val));
+        notifyRightPanelWidthChanged();
         justResized.current = true;
         setTimeout(() => {
           justResized.current = false;

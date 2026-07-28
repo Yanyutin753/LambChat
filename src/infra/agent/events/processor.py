@@ -166,9 +166,9 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self.checkpoint_to_agent.clear()
         self.thinking_ids.clear()
         self._agent_context_cache.clear()
-        self._chunk_buffer.clear()
-        self._summary_chunk_buffer.clear()
-        self._thinking_chunk_buffer.clear()
+        self._chunk_buffer.reset()
+        self._summary_chunk_buffer.reset()
+        self._thinking_chunk_buffer.reset()
         self._started_tool_call_ids.clear()
 
     async def process_event(self, event: StreamEvent) -> None:

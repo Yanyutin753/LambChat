@@ -2,7 +2,7 @@
 
 # 默认目标
 help:
-	@echo "LambAgent - Makefile 快捷命令"
+	@echo "LambChat - Makefile 快捷命令"
 	@echo ""
 	@echo "安装依赖:"
 	@echo "  make install-pnpm     - 检查并安装 pnpm"

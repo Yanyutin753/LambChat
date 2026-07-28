@@ -16,6 +16,16 @@ export interface MessageAttachment {
   uploadProgress?: number;
   /** Whether upload is in progress */
   isUploading?: boolean;
+  /**
+   * Client-only: original text when this attachment was created from long-text conversion.
+   * Must be stripped before API submit.
+   */
+  localOriginalText?: string;
+  /**
+   * Client-only: marks an attachment created by long-text auto conversion.
+   * Must be stripped before API submit.
+   */
+  fromLongText?: boolean;
 }
 
 // Upload state for tracking progress

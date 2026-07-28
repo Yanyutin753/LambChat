@@ -545,6 +545,7 @@
     "attachFile": "附件",
     "attachments": "附件",
     "cancelled": "已取消",
+    "collapseComposer": "收起",
     "commands": {
       "agent": "智能体",
       "persona": "人设",
@@ -555,6 +556,9 @@
     "dropFilesHere": "拖放文件到此处上传",
     "enterToSend": "发送",
     "errorPrefix": "错误：{{error}}",
+    "expandComposer": "展开编辑",
+    "expandedComposerHint": "适合编辑长提示词。Esc 收起，发送快捷键保持不变。",
+    "expandedComposerTitle": "展开编辑",
     "featureMenu": {
       "enhance": "增强",
       "persona": "角色",
@@ -590,6 +594,8 @@
       "artifactsSubtitleMixed": "{{files}} 个文件 · {{projects}} 个项目",
       "artifactsSubtitleProjects": "{{count}} 个项目",
       "askHumanApproved": "已确认",
+      "askHumanOtherLabel": "其他意见",
+      "askHumanOtherPlaceholder": "除上述选项外，您还有其他想法或建议吗？",
       "askHumanRejected": "已拒绝",
       "askHumanTimeout": "已超时",
       "askHumanTimeoutHint": "超时：{{seconds}}秒",
@@ -651,8 +657,6 @@
       "toolAskHuman": "询问用户",
       "toolAskHumanFieldCount": "{{count}} 个字段",
       "toolAskHumanListSeparator": "、",
-      "askHumanOtherLabel": "其他意见",
-      "askHumanOtherPlaceholder": "除上述选项外，您还有其他想法或建议吗？",
       "toolAudioTranscribe": "转录",
       "toolCalls": "工具调用",
       "toolCreateTeam": "创建团队",
@@ -772,6 +776,7 @@
     "send": "发送消息",
     "sendHintCtrl": "Enter 换行 · Ctrl+Enter 发送",
     "sendHintShift": "Enter 发送 · Shift+Enter 换行",
+    "sendLongTextAsText": "仍以文本发送",
     "shiftEnterNewLine": "换行",
     "skillCreated": "技能已创建",
     "skillUpdated": "技能已更新",
@@ -1851,9 +1856,9 @@
     "mobileNotificationDesc": "通过 Service Worker 在手机后台接收通知",
     "modelIntro": "模型介绍",
     "newPassword": "新密码",
-    "newlineCtrl": "Ctrl + ↵ (Enter 发送)",
-    "newlineModifier": "换行快捷键",
-    "newlineShift": "Shift + ↵ (Enter 发送)",
+    "newlineCtrl": "Ctrl + ↵ 发送",
+    "newlineModifier": "发送快捷键",
+    "newlineShift": "Shift + ↵ 发送",
     "noModels": "暂无可用模型",
     "notSupported": "不支持",
     "notificationDeniedHint": "请点击\"重试\"按钮，或在浏览器设置中手动启用",
@@ -3096,5 +3101,18 @@
       "enterUsername": "请输入用户名",
       "passwordMinLength": "密码至少需要6个字符"
     }
+  },
+  "fileType": {
+    "file": "文件",
+    "text": "文本",
+    "header": "头文件",
+    "config": "配置",
+    "env": "环境变量",
+    "log": "日志",
+    "test": "测试",
+    "executable": "可执行文件",
+    "package": "安装包",
+    "app": "应用",
+    "sharedLib": "动态库"
   }
 }

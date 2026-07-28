@@ -1,5 +1,9 @@
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import {
+  getSendShortcutDisplay,
+  readSendModifier,
+} from "../../hooks/sendModifier";
 
 export function ShortcutRow({
   label,
@@ -102,16 +106,9 @@ export function ShortcutDialog({
           </div>
           <ShortcutRow
             label={t("shortcut.send", "发送消息")}
-            keys={["Enter"]}
+            {...getSendShortcutDisplay(readSendModifier())}
           />
-          <ShortcutRow
-            label={t("shortcut.newline", "换行")}
-            keys={
-              localStorage.getItem("newlineModifier") === "ctrl"
-                ? ["Ctrl", "Enter"]
-                : ["Shift", "Enter"]
-            }
-          />
+          <ShortcutRow label={t("shortcut.newline", "换行")} keys={["Enter"]} />
           <ShortcutRow
             label={t("shortcut.historyUp", "上一条历史")}
             keys={["↑"]}

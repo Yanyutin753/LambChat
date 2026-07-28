@@ -10,8 +10,11 @@ import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useA
 import { SkeletonLine } from "../../skeletons";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import type { AgentInfo } from "../../../types";
-
-const NEWLINE_MODIFIER_KEY = "newlineModifier";
+import {
+  parseSendModifier,
+  SEND_MODIFIER_STORAGE_KEY,
+  type SendModifier,
+} from "../../../hooks/sendModifier";
 
 const LANGUAGES = [
   { code: "en", nativeName: "English" },
@@ -21,12 +24,11 @@ const LANGUAGES = [
   { code: "ru", nativeName: "Русский" },
 ];
 
-type NewlineModifier = "shift" | "ctrl";
 type ThinkingLevel = "off" | "low" | "medium" | "high" | "max";
 
-const NEWLINE_OPTIONS: { key: NewlineModifier; labelKey: string }[] = [
-  { key: "shift", labelKey: "profile.newlineShift" },
+const NEWLINE_OPTIONS: { key: SendModifier; labelKey: string }[] = [
   { key: "ctrl", labelKey: "profile.newlineCtrl" },
+  { key: "shift", labelKey: "profile.newlineShift" },
 ];
 
 const THEME_OPTIONS: { key: "light" | "dark"; labelKey: string }[] = [
@@ -151,12 +153,9 @@ export function ProfilePreferencesTab() {
   const toggle = (key: string) =>
     setOpenDropdown((prev) => (prev === key ? null : key));
 
-  // Newline modifier
-  const [newlineModifier, setNewlineModifier] = useState<NewlineModifier>(
-    () => {
-      const stored = localStorage.getItem(NEWLINE_MODIFIER_KEY);
-      return stored === "ctrl" ? "ctrl" : "shift";
-    },
+  // Send modifier (Enter = newline; modifier + Enter = send)
+  const [newlineModifier, setNewlineModifier] = useState<SendModifier>(() =>
+    parseSendModifier(localStorage.getItem(SEND_MODIFIER_STORAGE_KEY)),
   );
   const [defaultThinkingLevel, setDefaultThinkingLevel] =
     useState<ThinkingLevel>(() => {
@@ -227,9 +226,9 @@ export function ProfilePreferencesTab() {
     setOpenDropdown(null);
   };
 
-  const handleNewlineChange = (modifier: NewlineModifier) => {
+  const handleNewlineChange = (modifier: SendModifier) => {
     setNewlineModifier(modifier);
-    localStorage.setItem(NEWLINE_MODIFIER_KEY, modifier);
+    localStorage.setItem(SEND_MODIFIER_STORAGE_KEY, modifier);
     authApi.updateMetadata({ newlineModifier: modifier }).catch(() => {});
     setOpenDropdown(null);
   };
@@ -289,6 +288,19 @@ export function ProfilePreferencesTab() {
   const renderAgentLabel = (key: string) => {
     const agent = agents.find((a) => a.id === key);
     return agent ? resolveAgentDisplayName(agent, i18n.language, t) : key;
+  };
+
+  // Show ⌘ instead of Ctrl on Apple platforms for the ctrl send modifier
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad|iPod/.test(
+      navigator.platform || navigator.userAgent || "",
+    );
+  const renderNewlineLabel = (key: SendModifier) => {
+    const opt = NEWLINE_OPTIONS.find((o) => o.key === key);
+    if (!opt) return key;
+    const label = t(opt.labelKey);
+    return isMac && key === "ctrl" ? label.replace("Ctrl", "⌘") : label;
   };
 
   return (
@@ -370,6 +382,7 @@ export function ProfilePreferencesTab() {
           open={openDropdown === "newline"}
           onToggle={() => toggle("newline")}
           onSelect={handleNewlineChange}
+          renderLabel={renderNewlineLabel}
         />
       </div>
     </div>

@@ -43,6 +43,7 @@ import {
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
+import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
 import { planGoalSubmission } from "./useAgent/goalCommands";
 import { translateBackendError } from "../utils/backendErrors";
@@ -626,26 +627,31 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const requestTeamId = currentAgent === "team" ? selectedTeamId : null;
         const goalForRun = goalPlan.goal;
 
-        const submitData = (await sessionApi.submitChat(
-          currentAgent,
-          content,
-          sessionId ?? undefined,
-          fullAgentOptions,
-          attachments,
-          pendingProjectIdRef.current ?? undefined,
-          disabledSkills,
-          disabledMcpTools,
-          personaPresetId,
-          enabledSkills,
-          requestTeamId,
-          goalForRun,
-        )) as {
-          session_id: string;
-          run_id: string;
-          trace_id: string;
-          status: string;
-          queue_position?: number;
-        };
+        // Prefetch/refresh access token in parallel with submit so SSE connect
+        // rarely waits on a serial token refresh after POST returns.
+        const [submitData] = await Promise.all([
+          sessionApi.submitChat(
+            currentAgent,
+            content,
+            sessionId ?? undefined,
+            fullAgentOptions,
+            attachments,
+            pendingProjectIdRef.current ?? undefined,
+            disabledSkills,
+            disabledMcpTools,
+            personaPresetId,
+            enabledSkills,
+            requestTeamId,
+            goalForRun,
+          ) as Promise<{
+            session_id: string;
+            run_id: string;
+            trace_id: string;
+            status: string;
+            queue_position?: number;
+          }>,
+          getValidAccessToken().catch(() => null),
+        ]);
 
         const newSessionId = submitData.session_id;
         const newRunId = submitData.run_id;

@@ -219,10 +219,7 @@ async def test_finalize_flushes_pending_summary_chunk() -> None:
         chat_stream("summarized intent", "summary-1", {"lc_source": "summarization"})
     )
 
-    assert presenter.emitted == []
-
-    await processor.finalize()
-
+    # First chunk flushes immediately (first-chunk optimization).
     assert presenter.emitted == [
         {
             "event": "summary",
@@ -234,6 +231,10 @@ async def test_finalize_flushes_pending_summary_chunk() -> None:
             },
         }
     ]
+
+    # finalize is idempotent when buffer is already empty.
+    await processor.finalize()
+    assert len(presenter.emitted) == 1
 
 
 @pytest.mark.asyncio
@@ -288,10 +289,7 @@ async def test_reasoning_content_chunk_flushes_as_thinking_event() -> None:
 
     await processor.process_event(reasoning_stream("step by step"))
 
-    assert presenter.emitted == []
-
-    await processor.flush()
-
+    # First chunk flushes immediately (first-chunk optimization).
     assert presenter.emitted == [
         {
             "event": "thinking",
@@ -304,29 +302,40 @@ async def test_reasoning_content_chunk_flushes_as_thinking_event() -> None:
         }
     ]
 
+    # flush is idempotent when buffer is already empty.
+    await processor.flush()
+    assert len(presenter.emitted) == 1
+
 
 @pytest.mark.asyncio
 async def test_reasoning_content_chunks_are_grouped_until_threshold() -> None:
     presenter = FakePresenter()
     processor = AgentEventProcessor(presenter)
 
+    # First chunk flushes immediately (first-chunk optimization).
     await processor.process_event(reasoning_stream("a" * 100))
+    assert len(presenter.emitted) == 1
+    assert presenter.emitted[0]["data"]["content"] == "a" * 100
+
+    # Second chunk hasn't reached threshold yet (99 < 200).
     await processor.process_event(reasoning_stream("b" * 99))
-    assert presenter.emitted == []
+    # Still only the first flush emitted.
+    assert len(presenter.emitted) == 1
 
-    await processor.process_event(reasoning_stream("c"))
+    # Third chunk pushes past the 200-char threshold (99 + 101 = 200).
+    await processor.process_event(reasoning_stream("c" * 101))
 
-    assert presenter.emitted == [
-        {
-            "event": "thinking",
-            "data": {
-                "content": ("a" * 100) + ("b" * 99) + "c",
-                "thinking_id": "chunk-r",
-                "depth": 0,
-                "agent_id": None,
-            },
-        }
-    ]
+    assert len(presenter.emitted) == 2
+    # Second flush contains the buffered "b"*99 + "c"*101.
+    assert presenter.emitted[1] == {
+        "event": "thinking",
+        "data": {
+            "content": ("b" * 99) + ("c" * 101),
+            "thinking_id": "chunk-r",
+            "depth": 0,
+            "agent_id": None,
+        },
+    }
 
 
 @pytest.mark.asyncio
@@ -693,8 +702,13 @@ async def test_task_start_uses_registered_subagent_avatar() -> None:
 def test_text_chunk_buffer_consume_ready_flushes_previous_key_without_losing_current() -> None:
     buffer = TextChunkBuffer(flush_size=10)
 
-    assert buffer.append("hello", (0, None, "chunk-1")) is False
-    assert buffer.consume_ready((0, None, "chunk-2")) == ("hello", (0, None, "chunk-1"))
+    # First chunk flushes immediately (first-chunk optimization).
+    assert buffer.append("hello", (0, None, "chunk-1")) is True
+    flushed = buffer.consume()
+    assert flushed == ("hello", (0, None, "chunk-1"))
+    # Buffer is now empty; consume_ready on a different key returns None.
+    assert buffer.consume_ready((0, None, "chunk-2")) is None
+    # Second chunk: has_flushed is still True, length 5 < flush_size 10 → no flush.
     assert buffer.append("world", (0, None, "chunk-2")) is False
     assert buffer.consume() == ("world", (0, None, "chunk-2"))
 

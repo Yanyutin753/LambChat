@@ -126,3 +126,45 @@ test("builds the checkpoint fork url", () => {
     "/api/sessions/session-1/checkpoints/checkpoint-1/fork",
   );
 });
+
+test("strips client-only long text fields from submit attachments", () => {
+  expect(
+    buildSubmitChatBody({
+      message: "hello",
+      attachments: [
+        {
+          id: "att-1",
+          key: "k1",
+          name: "long.txt",
+          type: "document",
+          mimeType: "text/plain",
+          size: 4,
+          url: "/api/upload/file/k1",
+          fromLongText: true,
+          localOriginalText: "secret",
+          isUploading: false,
+          uploadProgress: 100,
+        },
+      ],
+    }),
+  ).toEqual({
+    message: "hello",
+    session_id: undefined,
+    agent_options: undefined,
+    attachments: [
+      {
+        id: "att-1",
+        key: "k1",
+        name: "long.txt",
+        type: "document",
+        mimeType: "text/plain",
+        size: 4,
+        url: "/api/upload/file/k1",
+      },
+    ],
+    disabled_skills: undefined,
+    enabled_skills: undefined,
+    persona_preset_id: undefined,
+    disabled_mcp_tools: undefined,
+  });
+});
