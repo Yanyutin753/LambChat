@@ -558,6 +558,7 @@
     "errorPrefix": "Ошибка: {{error}}",
     "expandComposer": "Развернуть редактор",
     "expandedComposerHint": "Удобно для длинных подсказок. Esc свернёт окно; горячие клавиши отправки те же.",
+    "expandedComposerHintMobile": "Удобно для длинных подсказок. Смахните вниз или нажмите закрыть, чтобы свернуть.",
     "expandedComposerTitle": "Расширенный редактор",
     "featureMenu": {
       "enhance": "Улучшения",

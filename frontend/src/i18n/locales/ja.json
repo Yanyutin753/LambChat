@@ -558,6 +558,7 @@
     "errorPrefix": "エラー：{{error}}",
     "expandComposer": "エディタを展開",
     "expandedComposerHint": "長いプロンプトの編集に最適。Esc で閉じ、送信ショートカットはそのままです。",
+    "expandedComposerHintMobile": "長いプロンプトの編集に最適。下にスワイプするか閉じるで戻ります。",
     "expandedComposerTitle": "展開エディタ",
     "featureMenu": {
       "enhance": "拡張",

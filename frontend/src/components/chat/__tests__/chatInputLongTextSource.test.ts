@@ -34,6 +34,26 @@ test("expanded composer supports Esc collapse", () => {
   expect(expandedSource).toMatch(/useBodyScrollLock/);
 });
 
+test("expanded composer uses mobile bottom sheet layout", () => {
+  expect(expandedSource).toMatch(/items-end sm:items-center/);
+  expect(expandedSource).toMatch(/rounded-t-2xl/);
+  expect(expandedSource).toMatch(/animate-slide-up-sheet/);
+  expect(expandedSource).toMatch(/useSwipeToClose/);
+  expect(expandedSource).toMatch(/dragHandleRef/);
+});
+
+test("expanded composer exposes collapse and send actions", () => {
+  expect(expandedSource).toMatch(/onSend\?:/);
+  expect(expandedSource).toMatch(/canSubmit/);
+  expect(expandedSource).toMatch(/isLoading/);
+  expect(expandedSource).toMatch(/chat\.send/);
+  expect(expandedSource).toMatch(/chat\.collapseComposer/);
+  expect(expandedSource).toMatch(/ArrowUp/);
+  expect(chatInputSource).toMatch(/canSubmit=\{canSubmit\}/);
+  expect(chatInputSource).toMatch(/isLoading=\{isLoading\}/);
+  expect(chatInputSource).toMatch(/onSend=\{handleSubmit\}/);
+});
+
 test("attachment cards expose restore-as-text for long text uploads", () => {
   expect(attachmentsSource).toMatch(/onRestoreLongText/);
   expect(attachmentsSource).toMatch(/canRestoreLongTextAttachment/);

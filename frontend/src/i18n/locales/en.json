@@ -558,6 +558,7 @@
     "errorPrefix": "Error: {{error}}",
     "expandComposer": "Expand editor",
     "expandedComposerHint": "Best for long prompts. Press Esc to collapse; send shortcuts stay the same.",
+    "expandedComposerHintMobile": "Best for long prompts. Swipe down or tap close to collapse.",
     "expandedComposerTitle": "Expanded editor",
     "featureMenu": {
       "enhance": "Enhance",

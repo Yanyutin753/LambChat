@@ -588,6 +588,11 @@ export const ChatInput = memo(function ChatInput({
   const hasUploadingAttachment = attachments.some((a) => a.isUploading);
   const canSubmit =
     hasContent && canSend && !isLoading && !hasUploadingAttachment;
+  const composerPlaceholder = !canSend
+    ? t("chat.noPermission")
+    : mentionMode === "team"
+      ? t("chat.teamPlaceholder")
+      : t("chat.placeholder");
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -749,13 +754,7 @@ export const ChatInput = memo(function ChatInput({
                 onFocus={scheduleTextareaResize}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                placeholder={
-                  canSend
-                    ? mentionMode === "team"
-                      ? t("chat.teamPlaceholder")
-                      : t("chat.placeholder")
-                    : t("chat.noPermission")
-                }
+                placeholder={composerPlaceholder}
                 disabled={disabled || !canSend}
                 className={`bg-transparent outline-none w-full pt-[10px] resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[40px] sm:min-h-[44px] ${
                   showExpandButton ? "pr-8" : "pr-1"
@@ -976,19 +975,18 @@ export const ChatInput = memo(function ChatInput({
         open={composerExpanded}
         value={input}
         disabled={disabled || !canSend}
-        placeholder={
-          canSend
-            ? mentionMode === "team"
-              ? t("chat.teamPlaceholder")
-              : t("chat.placeholder")
-            : t("chat.noPermission")
-        }
+        canSubmit={canSubmit}
+        isLoading={isLoading}
+        hasUploadingAttachment={hasUploadingAttachment}
+        placeholder={composerPlaceholder}
         onChange={(next) => {
           if (maybeConvertInput(next)) return;
           setInput(next);
           setCursorPosition(next.length);
         }}
         onCollapse={() => setComposerExpanded(false)}
+        onSend={handleSubmit}
+        onStop={() => setStopConfirmOpen(true)}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
       />

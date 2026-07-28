@@ -558,6 +558,7 @@
     "errorPrefix": "오류: {{error}}",
     "expandComposer": "편집기 확장",
     "expandedComposerHint": "긴 프롬프트 편집에 적합합니다. Esc로 접고, 전송 단축키는 그대로입니다.",
+    "expandedComposerHintMobile": "긴 프롬프트 편집에 적합합니다. 아래로 스와이프하거나 닫기를 눌러 접습니다.",
     "expandedComposerTitle": "확장 편집기",
     "featureMenu": {
       "enhance": "강화",

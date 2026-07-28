@@ -558,6 +558,7 @@
     "errorPrefix": "错误：{{error}}",
     "expandComposer": "展开编辑",
     "expandedComposerHint": "适合编辑长提示词。Esc 收起，发送快捷键保持不变。",
+    "expandedComposerHintMobile": "适合编辑长提示词。下拉或点收起可返回。",
     "expandedComposerTitle": "展开编辑",
     "featureMenu": {
       "enhance": "增强",
