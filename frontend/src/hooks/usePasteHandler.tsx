@@ -14,7 +14,7 @@ export interface UsePasteHandlerOptions {
   validateCount: (count: number) => boolean;
   scheduleTextareaResize: () => void;
   /** Convert oversized pasted text into a long-text attachment. */
-  onLongTextPaste?: (text: string) => boolean;
+  onLongTextPaste?: (text: string, preserveText?: string) => boolean;
 }
 
 export function usePasteHandler({
@@ -67,7 +67,12 @@ export function usePasteHandler({
         const markdownText = turndown.turndown(tempDiv);
 
         if (markdownText.length > PASTE_TEXT_THRESHOLD) {
-          if (onLongTextPaste?.(markdownText)) return;
+          const textarea = textareaRef.current;
+          const before = textarea
+            ? input.substring(0, textarea.selectionStart)
+            : input;
+          const after = textarea ? input.substring(textarea.selectionEnd) : "";
+          if (onLongTextPaste?.(markdownText, before + after)) return;
         }
 
         insertText(markdownText);
@@ -77,11 +82,16 @@ export function usePasteHandler({
       const plainText = clipboardData.getData("text/plain");
       if (plainText && plainText.length > PASTE_TEXT_THRESHOLD) {
         e.preventDefault();
-        if (onLongTextPaste?.(plainText)) return;
+        const textarea = textareaRef.current;
+        const before = textarea
+          ? input.substring(0, textarea.selectionStart)
+          : input;
+        const after = textarea ? input.substring(textarea.selectionEnd) : "";
+        if (onLongTextPaste?.(plainText, before + after)) return;
         insertText(plainText);
       }
     },
-    [uploadFiles, validateCount, onLongTextPaste, insertText],
+    [uploadFiles, validateCount, onLongTextPaste, insertText, input, textareaRef],
   );
 
   return { handlePaste };

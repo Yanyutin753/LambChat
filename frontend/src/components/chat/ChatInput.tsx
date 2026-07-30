@@ -193,10 +193,10 @@ export const ChatInput = memo(function ChatInput({
   });
 
   const handleLongTextPaste = useCallback(
-    (text: string) => {
+    (text: string, preserveText?: string) => {
       // Expanded composer keeps long prompts editable as plain text.
       if (composerExpanded) return false;
-      return convertTextToAttachment(text);
+      return convertTextToAttachment(text, preserveText);
     },
     [composerExpanded, convertTextToAttachment],
   );

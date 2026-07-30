@@ -48,7 +48,7 @@ export function useLongTextConversion({
   }, [t]);
 
   const convertTextToAttachment = useCallback(
-    (text: string) => {
+    (text: string, preserveText?: string) => {
       if (!shouldConvertLongText(text)) return false;
       if (!validateCount(1)) return false;
       if (convertingRef.current) return false;
@@ -57,8 +57,9 @@ export function useLongTextConversion({
       const file = createLongTextFile(text, buildLongTextFileName());
       uploadFiles([file], "document", buildLongTextClientMeta(text));
       setAllowOversizedText(false);
-      // Keep composer empty; long text lives only on the attachment card.
-      setInput("");
+      // Long text lives only on the attachment card; preserve any text the
+      // user had already typed outside the pasted segment.
+      setInput(preserveText ?? "");
       scheduleTextareaResize?.();
       showConvertedToast();
 
