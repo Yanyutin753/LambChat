@@ -143,6 +143,11 @@ class Settings(BaseSettings):
     MONGODB_TRACE_EVENT_CHUNKS_COLLECTION: str = "trace_event_chunks"
     MONGODB_USAGE_LOGS_COLLECTION: str = "usage_logs"
     MONGODB_STORE_BATCH_CONCURRENCY: int = 16
+    # Checkpointer independent MongoDB connection pool (physically isolated from
+    # the motor business pool so checkpoint writes cannot starve business ops).
+    # Defaults align with CHECKPOINT_PG_POOL_*.
+    CHECKPOINT_MONGO_POOL_MIN_SIZE: int = 2
+    CHECKPOINT_MONGO_POOL_MAX_SIZE: int = 10
 
     # Event Merger Settings
     ENABLE_EVENT_MERGER: bool = True  # 是否启用事件合并
