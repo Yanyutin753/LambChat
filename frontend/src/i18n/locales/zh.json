@@ -2175,6 +2175,8 @@
     "AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES": "音频转写最大下载大小（字节）",
     "AUDIO_TRANSCRIPTION_MODEL": "audio_transcribe 工具使用的默认转写模型，例如 gpt-4o-mini-transcribe 或 FunAudioLLM/SenseVoiceSmall。",
     "CHECKPOINT_BACKEND": "检查点存储后端。使用 'postgres' 避免 MongoDB 的 16MB 文档大小限制（长对话时）。",
+    "CHECKPOINT_MONGO_POOL_MAX_SIZE": "MongoDB 检查点独立连接池最大大小（与业务连接池物理隔离）。",
+    "CHECKPOINT_MONGO_POOL_MIN_SIZE": "MongoDB 检查点独立连接池最小大小（与业务连接池物理隔离）。",
     "CHECKPOINT_PG_DB": "检查点存储的 PostgreSQL 数据库。留空使用 POSTGRES_DB。",
     "CHECKPOINT_PG_HOST": "检查点存储的 PostgreSQL 主机。留空使用 POSTGRES_HOST。",
     "CHECKPOINT_PG_PASSWORD": "检查点存储的 PostgreSQL 密码。留空使用 POSTGRES_PASSWORD。",

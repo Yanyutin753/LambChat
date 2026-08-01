@@ -42,6 +42,33 @@ async def test_refresh_checkpoint_setting_resets_runtime_state(
     assert reset_calls == ["reset"]
 
 
+@pytest.mark.asyncio
+async def test_refresh_mongo_pool_size_resets_runtime_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Changing the mongo pool size must rebuild the independent client."""
+    reset_calls: list[str] = []
+
+    async def _fake_reset_runtime_state() -> None:
+        reset_calls.append("reset")
+
+    monkeypatch.setattr(
+        config_service, "_settings_service", _FakeSettingsService(7)
+    )
+    monkeypatch.setattr(
+        config_service.settings, "CHECKPOINT_MONGO_POOL_MAX_SIZE", 10
+    )
+    monkeypatch.setattr(
+        "src.infra.storage.checkpoint.reset_checkpointer_runtime_state",
+        _fake_reset_runtime_state,
+    )
+
+    await config_service.refresh_settings("CHECKPOINT_MONGO_POOL_MAX_SIZE")
+
+    assert config_service.settings.CHECKPOINT_MONGO_POOL_MAX_SIZE == 7
+    assert reset_calls == ["reset"]
+
+
 def test_checkpoint_settings_require_restart() -> None:
     from src.infra.settings.service import SettingsService
 
@@ -54,6 +81,20 @@ def test_checkpoint_settings_require_restart() -> None:
         "CHECKPOINT_PG_DB",
         "CHECKPOINT_PG_POOL_MIN_SIZE",
         "CHECKPOINT_PG_POOL_MAX_SIZE",
+        # Mongo pool sizes mirror the PG pool config: change requests a restart.
+        "CHECKPOINT_MONGO_POOL_MIN_SIZE",
+        "CHECKPOINT_MONGO_POOL_MAX_SIZE",
     ]
 
     assert all(SettingsService.requires_restart(key) for key in checkpoint_settings)
+
+
+def test_mongo_pool_size_definitions_exposed_in_ui() -> None:
+    """Pool sizes must be visible in settings UI, grouped under Checkpoint."""
+    from src.kernel.config.definitions import SETTING_DEFINITIONS
+    from src.kernel.schemas.setting import SettingCategory
+
+    for key in ("CHECKPOINT_MONGO_POOL_MIN_SIZE", "CHECKPOINT_MONGO_POOL_MAX_SIZE"):
+        definition = SETTING_DEFINITIONS[key]
+        assert definition["category"] is SettingCategory.CHECKPOINT
+        assert definition["frontend_visible"] is True
