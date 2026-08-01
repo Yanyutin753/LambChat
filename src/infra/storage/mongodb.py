@@ -28,38 +28,43 @@ MONGODB_STORAGE_KEYS_LIMIT = 1000
 APPROVAL_RESPONSE_CHANNEL = "approval:response"
 
 
+def build_mongo_connection_string() -> str:
+    """Construct a MongoDB connection string from current settings.
+
+    Shared by the motor async client and the synchronous checkpointer client so
+    both resolve identical credentials / ``authSource`` / scheme handling. Pure
+    function over ``settings`` — no IO — so it composes with any caller.
+    """
+    from urllib.parse import quote_plus
+
+    base_url = settings.MONGODB_URL
+    username = settings.MONGODB_USERNAME
+    password = settings.MONGODB_PASSWORD
+    auth_source = settings.MONGODB_AUTH_SOURCE
+
+    if not (username and password):
+        return base_url
+
+    if base_url.startswith("mongodb://"):
+        scheme, rest = "mongodb://", base_url[len("mongodb://") :]
+    elif base_url.startswith("mongodb+srv://"):
+        scheme, rest = "mongodb+srv://", base_url[len("mongodb+srv://") :]
+    else:
+        # Unknown scheme: don't risk injecting creds into a string we don't understand.
+        return base_url
+
+    encoded_user = quote_plus(username)
+    encoded_pass = quote_plus(password)
+    return f"{scheme}{encoded_user}:{encoded_pass}@{rest}?authSource={auth_source}"
+
+
 @lru_cache
 def get_mongo_client() -> "AsyncIOMotorClient":
     """获取 MongoDB 客户端（单例）- 使用 Motor 异步客户端"""
     try:
-        from urllib.parse import quote_plus
-
         from motor.motor_asyncio import AsyncIOMotorClient
 
-        base_url = settings.MONGODB_URL
-        username = settings.MONGODB_USERNAME
-        password = settings.MONGODB_PASSWORD
-        auth_source = settings.MONGODB_AUTH_SOURCE
-
-        if username and password:
-            if base_url.startswith("mongodb://"):
-                rest = base_url[len("mongodb://") :]
-                encoded_user = quote_plus(username)
-                encoded_pass = quote_plus(password)
-                connection_string = (
-                    f"mongodb://{encoded_user}:{encoded_pass}@{rest}?authSource={auth_source}"
-                )
-            elif base_url.startswith("mongodb+srv://"):
-                rest = base_url[len("mongodb+srv://") :]
-                encoded_user = quote_plus(username)
-                encoded_pass = quote_plus(password)
-                connection_string = (
-                    f"mongodb+srv://{encoded_user}:{encoded_pass}@{rest}?authSource={auth_source}"
-                )
-            else:
-                connection_string = base_url
-        else:
-            connection_string = base_url
+        connection_string = build_mongo_connection_string()
 
         client: AsyncIOMotorClient = AsyncIOMotorClient(
             connection_string,
