@@ -157,6 +157,19 @@ class RoleStorage:
             self._collection = db["roles"]
         return self._collection
 
+    async def ensure_indexes(self) -> None:
+        """Create a unique index on role name (get_by_name is a RBAC hot path)."""
+        try:
+            await self.collection.create_index(
+                [("name", 1)],
+                name="role_name_unique_idx",
+                unique=True,
+                background=True,
+            )
+            logger.info("Role storage indexes ensured")
+        except Exception as e:
+            logger.error(f"Failed to create role storage indexes: {e}")
+
     async def create(self, role_data: RoleCreate) -> Role:
         """
         创建角色

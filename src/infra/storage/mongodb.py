@@ -68,8 +68,8 @@ def get_mongo_client() -> "AsyncIOMotorClient":
 
         client: AsyncIOMotorClient = AsyncIOMotorClient(
             connection_string,
-            maxPoolSize=20,
-            minPoolSize=2,
+            maxPoolSize=settings.MONGODB_POOL_MAX_SIZE,
+            minPoolSize=settings.MONGODB_POOL_MIN_SIZE,
             connectTimeoutMS=5000,
             serverSelectionTimeoutMS=10000,
             tz_aware=True,

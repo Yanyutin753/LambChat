@@ -64,6 +64,26 @@ class PersonaPresetStorage:
             self._collection = db["persona_presets"]
         return self._collection
 
+    async def ensure_indexes(self) -> None:
+        """Create indexes covering both branches of _build_visible_query $or."""
+        from src.infra.logging import get_logger
+
+        logger = get_logger(__name__)
+        try:
+            await self.collection.create_index(
+                [("scope", 1), ("owner_user_id", 1)],
+                name="persona_scope_owner_idx",
+                background=True,
+            )
+            await self.collection.create_index(
+                [("scope", 1), ("status", 1), ("visibility", 1)],
+                name="persona_scope_status_visibility_idx",
+                background=True,
+            )
+            logger.info("Persona preset storage indexes ensured")
+        except Exception as e:
+            logger.error(f"Failed to create persona preset storage indexes: {e}")
+
     @property
     def user_collection(self):
         if self._user_collection is None:

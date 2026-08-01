@@ -2177,6 +2177,8 @@
     "CHECKPOINT_BACKEND": "Checkpoint storage backend. Use 'postgres' to avoid MongoDB's 16MB document size limit on long conversations.",
     "CHECKPOINT_MONGO_POOL_MAX_SIZE": "Maximum size of the MongoDB checkpointer's dedicated connection pool (isolated from the business connection pool).",
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": "Minimum size of the MongoDB checkpointer's dedicated connection pool (isolated from the business connection pool).",
+    "MONGODB_POOL_MAX_SIZE": "Maximum size of the motor business connection pool (shared across all MongoDB-backed storages).",
+    "MONGODB_POOL_MIN_SIZE": "Minimum size of the motor business connection pool (shared across all MongoDB-backed storages).",
     "CHECKPOINT_PG_DB": "PostgreSQL database for checkpoint storage. Leave empty to use POSTGRES_DB.",
     "CHECKPOINT_PG_HOST": "PostgreSQL host for checkpoint storage. Leave empty to use POSTGRES_HOST.",
     "CHECKPOINT_PG_PASSWORD": "PostgreSQL password for checkpoint storage. Leave empty to use POSTGRES_PASSWORD.",

@@ -2177,6 +2177,8 @@
     "CHECKPOINT_BACKEND": "检查点存储后端。使用 'postgres' 避免 MongoDB 的 16MB 文档大小限制（长对话时）。",
     "CHECKPOINT_MONGO_POOL_MAX_SIZE": "MongoDB 检查点独立连接池最大大小（与业务连接池物理隔离）。",
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": "MongoDB 检查点独立连接池最小大小（与业务连接池物理隔离）。",
+    "MONGODB_POOL_MAX_SIZE": "motor 业务连接池最大大小（被所有 MongoDB 存储共享）。",
+    "MONGODB_POOL_MIN_SIZE": "motor 业务连接池最小大小（被所有 MongoDB 存储共享）。",
     "CHECKPOINT_PG_DB": "检查点存储的 PostgreSQL 数据库。留空使用 POSTGRES_DB。",
     "CHECKPOINT_PG_HOST": "检查点存储的 PostgreSQL 主机。留空使用 POSTGRES_HOST。",
     "CHECKPOINT_PG_PASSWORD": "检查点存储的 PostgreSQL 密码。留空使用 POSTGRES_PASSWORD。",

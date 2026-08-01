@@ -388,6 +388,36 @@ def _startup_index_initializers():
         await get_usage_storage().ensure_indexes()
         logger.info("UsageStorage indexes initialized")
 
+    async def _init_team_storage() -> None:
+        from src.infra.team.storage import TeamStorage
+
+        await TeamStorage().ensure_indexes()
+        logger.info("TeamStorage indexes initialized")
+
+    async def _init_project_storage() -> None:
+        from src.infra.folder.storage import ProjectStorage
+
+        await ProjectStorage().ensure_indexes()
+        logger.info("ProjectStorage indexes initialized")
+
+    async def _init_persona_preset_storage() -> None:
+        from src.infra.persona_preset.storage import PersonaPresetStorage
+
+        await PersonaPresetStorage().ensure_indexes()
+        logger.info("PersonaPresetStorage indexes initialized")
+
+    async def _init_role_storage() -> None:
+        from src.infra.role.storage import RoleStorage
+
+        await RoleStorage().ensure_indexes()
+        logger.info("RoleStorage indexes initialized")
+
+    async def _init_mcp_storage() -> None:
+        from src.infra.mcp.storage import MCPStorage
+
+        await MCPStorage().ensure_indexes()
+        logger.info("MCPStorage indexes initialized")
+
     return [
         ("agent_config_storage", _init_agent_config_storage),
         ("model_storage", _init_model_storage),
@@ -400,6 +430,11 @@ def _startup_index_initializers():
         ("push_subscription_storage", _init_push_subscription_storage),
         ("user_storage", _init_user_storage),
         ("usage_storage", _init_usage_storage),
+        ("team_storage", _init_team_storage),
+        ("project_storage", _init_project_storage),
+        ("persona_preset_storage", _init_persona_preset_storage),
+        ("role_storage", _init_role_storage),
+        ("mcp_storage", _init_mcp_storage),
     ]
 
 

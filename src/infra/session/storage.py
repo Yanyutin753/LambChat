@@ -369,7 +369,6 @@ class SessionStorage:
         limit = min(max(int(limit or 1), 1), SESSION_LIST_LOOKUP_LIMIT)
         query: dict[str, Any] = {}
         query["metadata.hidden_from_conversation_list"] = {"$ne": True}
-        query["session_id"] = {"$not": {"$regex": "^sch_"}}
         if user_id is not None:
             # 严格匹配用户ID，空字符串也会被当作过滤条件
             query["user_id"] = user_id

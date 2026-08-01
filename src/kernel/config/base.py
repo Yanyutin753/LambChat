@@ -143,6 +143,11 @@ class Settings(BaseSettings):
     MONGODB_TRACE_EVENT_CHUNKS_COLLECTION: str = "trace_event_chunks"
     MONGODB_USAGE_LOGS_COLLECTION: str = "usage_logs"
     MONGODB_STORE_BATCH_CONCURRENCY: int = 16
+    # Motor business connection pool (shared across all MongoDB-backed storages).
+    # Change requires restart: the lru_cache singleton plus per-storage collection
+    # refs mean a hot rebuild would leave stale refs pointing at a closed client.
+    MONGODB_POOL_MIN_SIZE: int = 2
+    MONGODB_POOL_MAX_SIZE: int = 20
     # Checkpointer independent MongoDB connection pool (physically isolated from
     # the motor business pool so checkpoint writes cannot starve business ops).
     # Defaults align with CHECKPOINT_PG_POOL_*.

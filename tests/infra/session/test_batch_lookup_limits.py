@@ -124,7 +124,6 @@ async def test_list_sessions_none_project_excludes_scheduled_task_sessions(
     assert total == 0
     expected_query = {
         "metadata.hidden_from_conversation_list": {"$ne": True},
-        "session_id": {"$not": {"$regex": "^sch_"}},
         "user_id": "user",
         "is_active": True,
         "metadata.project_id": None,
@@ -135,7 +134,7 @@ async def test_list_sessions_none_project_excludes_scheduled_task_sessions(
 
 
 @pytest.mark.asyncio
-async def test_list_sessions_excludes_scheduled_task_session_prefix(
+async def test_list_sessions_excludes_hidden_sessions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     collection = _RecordingListCollection()
@@ -153,7 +152,6 @@ async def test_list_sessions_excludes_scheduled_task_session_prefix(
     assert total == 0
     expected_query = {
         "metadata.hidden_from_conversation_list": {"$ne": True},
-        "session_id": {"$not": {"$regex": "^sch_"}},
         "user_id": "user",
         "is_active": True,
     }

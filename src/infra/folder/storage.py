@@ -35,6 +35,21 @@ class ProjectStorage:
             self._collection = db[self.PROJECT_COLLECTION]
         return self._collection
 
+    async def ensure_indexes(self) -> None:
+        """Create indexes for the projects collection."""
+        from src.infra.logging import get_logger
+
+        logger = get_logger(__name__)
+        try:
+            await self.collection.create_index(
+                [("user_id", 1), ("type", 1)],
+                name="project_user_type_idx",
+                background=True,
+            )
+            logger.info("Project storage indexes ensured")
+        except Exception as e:
+            logger.error(f"Failed to create project storage indexes: {e}")
+
     async def create(self, project_data: ProjectCreate, user_id: str) -> Project:
         """Create a new project."""
         now = utc_now()

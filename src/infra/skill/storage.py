@@ -63,6 +63,15 @@ class SkillStorage:
             unique=True,
             background=True,
         )
+        # Support {user_id, file_path} queries (list_user_skills / count /
+        # get_all_user_skill_names) which lack skill_name and cannot use the
+        # unique index above (P1-6). Non-unique: same user has shared file_path
+        # across skills (e.g. SKILL.md).
+        await files.create_index(
+            [("user_id", 1), ("file_path", 1)],
+            name="user_file_path_idx",
+            background=True,
+        )
 
     # ==========================================
     # 文件操作
