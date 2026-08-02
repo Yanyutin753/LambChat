@@ -124,35 +124,19 @@ class MCPStorage(StorageOperations):
         """Create unique indexes across the five MCP collections."""
         try:
             await self._get_system_collection().create_index(
-                [("name", 1)],
-                name="mcp_system_name_unique_idx",
-                unique=True,
-                background=True,
-            )
+                [("name", 1)], name="mcp_system_name_unique_idx", unique=True, background=True)
             await self._get_user_collection().create_index(
-                [("user_id", 1), ("name", 1)],
-                name="mcp_user_server_unique_idx",
-                unique=True,
-                background=True,
-            )
+                [("user_id", 1), ("name", 1)], name="mcp_user_server_unique_idx",
+                unique=True, background=True)
             await self._get_preferences_collection().create_index(
-                [("user_id", 1), ("server_name", 1)],
-                name="mcp_user_pref_unique_idx",
-                unique=True,
-                background=True,
-            )
+                [("user_id", 1), ("server_name", 1)], name="mcp_user_pref_unique_idx",
+                unique=True, background=True)
             await self._get_tool_preferences_collection().create_index(
-                [("user_id", 1), ("tool_name", 1)],
-                name="mcp_tool_pref_unique_idx",
-                unique=True,
-                background=True,
-            )
+                [("user_id", 1), ("tool_name", 1)], name="mcp_tool_pref_unique_idx",
+                unique=True, background=True)
             await self._get_tool_policies_collection().create_index(
-                [("server_name", 1), ("tool_name", 1)],
-                name="mcp_tool_policy_unique_idx",
-                unique=True,
-                background=True,
-            )
+                [("server_name", 1), ("tool_name", 1)], name="mcp_tool_policy_unique_idx",
+                unique=True, background=True)
             logger.info("MCP storage indexes ensured")
         except Exception as e:
             logger.error(f"Failed to create MCP storage indexes: {e}")

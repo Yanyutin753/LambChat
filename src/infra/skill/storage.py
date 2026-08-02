@@ -59,19 +59,9 @@ class SkillStorage:
         """创建索引"""
         files = self._get_files_collection()
         await files.create_index(
-            [("skill_name", 1), ("user_id", 1), ("file_path", 1)],
-            unique=True,
-            background=True,
-        )
-        # Support {user_id, file_path} queries (list_user_skills / count /
-        # get_all_user_skill_names) which lack skill_name and cannot use the
-        # unique index above (P1-6). Non-unique: same user has shared file_path
-        # across skills (e.g. SKILL.md).
-        await files.create_index(
-            [("user_id", 1), ("file_path", 1)],
-            name="user_file_path_idx",
-            background=True,
-        )
+            [("skill_name", 1), ("user_id", 1), ("file_path", 1)], unique=True, background=True)
+        await files.create_index(  # P1-6: {user_id, file_path} 查询缺 skill_name 无法用上面的唯一索引
+            [("user_id", 1), ("file_path", 1)], name="user_file_path_idx", background=True)
 
     # ==========================================
     # 文件操作
@@ -721,7 +711,6 @@ class SkillStorage:
 
         collection = self._get_files_collection()
 
-        # 去重
         seen: set[tuple[str, str]] = set()
         or_clauses = []
         for skill_name, user_id in skill_keys:
@@ -732,13 +721,11 @@ class SkillStorage:
                 if len(or_clauses) >= SKILL_BATCH_FILE_LOOKUP_LIMIT:
                     break
 
-        # 预置空 dict，保证空 skill 也返回键
         result: dict[tuple[str, str], dict[str, str]] = {
             (clause["skill_name"], clause["user_id"]): {} for clause in or_clauses
         }
 
-        # 单次查询：$or 汇总所有目标 skill。必须 .sort 否则 natural order 不确定，
-        # 每个 skill 实际拿到哪些文件将随机。
+        # 单次 $or 查询；必须 .sort 否则 natural order 不确定、文件选取随机。
         cursor = (
             collection.find({"$or": or_clauses, "file_path": {"$ne": "__meta__"}})
             .sort([("skill_name", 1), ("user_id", 1)])
@@ -749,8 +736,7 @@ class SkillStorage:
             bucket = result.get(key)
             if bucket is None:
                 continue
-            # 每组先到先得，累积到上限后跳过，避免单个 heavy skill 占满结果窗口
-            # 从而饿死后序 skill。
+            # 每组先到先得，到上限跳过，避免 heavy skill 占满窗口饿死后序。
             if len(bucket) >= SKILL_FILES_PER_SKILL_LIMIT:
                 continue
             bucket[normalize_skill_file_path(doc["file_path"])] = doc["content"]
