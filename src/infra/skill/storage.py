@@ -57,11 +57,9 @@ class SkillStorage:
 
     async def ensure_indexes(self) -> None:
         """创建索引"""
-        files = self._get_files_collection()
-        await files.create_index(
-            [("skill_name", 1), ("user_id", 1), ("file_path", 1)], unique=True, background=True)
-        await files.create_index(  # P1-6: {user_id, file_path} 查询缺 skill_name 无法用上面的唯一索引
-            [("user_id", 1), ("file_path", 1)], name="user_file_path_idx", background=True)
+        from src.infra.skill.indexes import ensure_skill_indexes
+
+        await ensure_skill_indexes(self)
 
     # ==========================================
     # 文件操作
