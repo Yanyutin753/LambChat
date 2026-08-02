@@ -11,6 +11,8 @@
 import asyncio
 from typing import Any, Optional
 
+from pymongo import UpdateOne
+
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.mcp.encryption import decrypt_value, encrypt_value
@@ -209,7 +211,6 @@ class EnvVarStorage:
         _validate_env_var_bulk_value_size(variables)
 
         now = utc_now_iso()
-        count = 0
 
         # 检查数量上限
         current_count = await self._coll.count_documents({"user_id": user_id})
@@ -226,9 +227,13 @@ class EnvVarStorage:
                 f"Would exceed maximum {MAX_ENV_VARS_PER_USER} environment variables per user"
             )
 
-        for key, value in variables.items():
-            encrypted = await self._encrypt_value(value)
-            await self._coll.update_one(
+        items = list(variables.items())
+        # Encrypt sequentially (do NOT gather) to preserve ordering with the
+        # original per-key loop and keep the encryption offload points stable.
+        encrypted_values = [await self._encrypt_value(value) for _, value in items]
+
+        operations = [
+            UpdateOne(
                 {"user_id": user_id, "key": key},
                 {
                     "$set": {
@@ -241,9 +246,13 @@ class EnvVarStorage:
                 },
                 upsert=True,
             )
-            count += 1
+            for (key, _), encrypted in zip(items, encrypted_values)
+        ]
 
-        return count
+        if operations:
+            await self._coll.bulk_write(operations, ordered=True)
+
+        return len(operations)
 
     async def delete_var(self, user_id: str, key: str) -> bool:
         """删除单个环境变量"""

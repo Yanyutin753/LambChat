@@ -732,18 +732,28 @@ class SkillStorage:
                 if len(or_clauses) >= SKILL_BATCH_FILE_LOOKUP_LIMIT:
                     break
 
-        result: dict[tuple[str, str], dict[str, str]] = {}
-        for clause in or_clauses:
-            key = (clause["skill_name"], clause["user_id"])
-            result[key] = {}
-            cursor = collection.find(
-                {
-                    **clause,
-                    "file_path": {"$ne": "__meta__"},
-                }
-            ).limit(SKILL_FILES_PER_SKILL_LIMIT)
-            async for doc in cursor:
-                result[key][normalize_skill_file_path(doc["file_path"])] = doc["content"]
+        # 预置空 dict，保证空 skill 也返回键
+        result: dict[tuple[str, str], dict[str, str]] = {
+            (clause["skill_name"], clause["user_id"]): {} for clause in or_clauses
+        }
+
+        # 单次查询：$or 汇总所有目标 skill。必须 .sort 否则 natural order 不确定，
+        # 每个 skill 实际拿到哪些文件将随机。
+        cursor = (
+            collection.find({"$or": or_clauses, "file_path": {"$ne": "__meta__"}})
+            .sort([("skill_name", 1), ("user_id", 1)])
+            .limit(len(or_clauses) * SKILL_FILES_PER_SKILL_LIMIT)
+        )
+        async for doc in cursor:
+            key = (doc["skill_name"], doc["user_id"])
+            bucket = result.get(key)
+            if bucket is None:
+                continue
+            # 每组先到先得，累积到上限后跳过，避免单个 heavy skill 占满结果窗口
+            # 从而饿死后序 skill。
+            if len(bucket) >= SKILL_FILES_PER_SKILL_LIMIT:
+                continue
+            bucket[normalize_skill_file_path(doc["file_path"])] = doc["content"]
 
         return result
 

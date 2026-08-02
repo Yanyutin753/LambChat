@@ -538,9 +538,12 @@ class RevealedFileStorage:
         ).to_list(length=len(session_ids))
         name_map: Dict[str, Optional[str]] = {s["session_id"]: s.get("name") for s in sessions}
 
-        # Group files by session
-        files_by_session: Dict[str, list] = {sid: [] for sid in session_ids}
-        for sid in session_ids:
+        # Group files by session. Issue per-session queries concurrently with
+        # asyncio.gather (NOT a single $in + global sort + client bucketing):
+        # a single hot session can otherwise fill the grouped to_list window and
+        # starve low-activity sessions (see the warning above). Each session gets
+        # its own bounded find + sort + limit + serialize.
+        async def _fetch_session_files(sid: str) -> list:
             file_query = {**file_query_base, "session_id": sid}
             cursor = (
                 self.collection.find(file_query)
@@ -548,15 +551,17 @@ class RevealedFileStorage:
                 .limit(REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX)
             )
             raw_files = await cursor.to_list(length=REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX)
-            for item in raw_files:
-                files_by_session[sid].append(
-                    self._serialize_item(
-                        {
-                            **item,
-                            "session_name": name_map.get(sid),
-                        }
-                    )
-                )
+            return [
+                self._serialize_item({**item, "session_name": name_map.get(sid)})
+                for item in raw_files
+            ]
+
+        files_by_session: Dict[str, list] = dict(
+            zip(
+                session_ids,
+                await asyncio.gather(*[_fetch_session_files(sid) for sid in session_ids]),
+            )
+        )
 
         count_map = {r["_id"]: r["file_count"] for r in session_results}
         sessions_list = []

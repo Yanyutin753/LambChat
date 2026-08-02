@@ -154,6 +154,19 @@ class _AsyncCursor:
         self._index += 1
         return doc
 
+    def sort(self, key, direction=None):
+        # Mirror motor's sort: stable multi-key ordering, ascending by default.
+        if isinstance(key, list):
+            for field, sort_direction in reversed(key):
+                self._docs.sort(
+                    key=lambda doc: doc.get(field), reverse=sort_direction < 0
+                )
+        else:
+            self._docs.sort(
+                key=lambda doc: doc.get(key), reverse=(direction or 1) < 0
+            )
+        return self
+
     def limit(self, value: int):
         self.limit_value = value
         self._docs = self._docs[:value]
@@ -167,14 +180,16 @@ class _RecordingFilesCollection:
 
     def find(self, query: dict[str, Any]) -> _AsyncCursor:
         self.queries.append(query)
+        or_clauses = query.get("$or", [])
         cursor = _AsyncCursor(
             [
                 {
-                    "skill_name": query["skill_name"],
-                    "user_id": query["user_id"],
+                    "skill_name": clause["skill_name"],
+                    "user_id": clause["user_id"],
                     "file_path": "SKILL.md",
                     "content": "demo",
                 }
+                for clause in or_clauses
             ]
         )
         self.cursors.append(cursor)
@@ -235,12 +250,14 @@ async def test_batch_get_skill_files_caps_or_clauses(
         [(f"skill-{index}", "user-1") for index in range(5)] + [("skill-1", "user-1")]
     )
 
-    assert collection.queries == [
-        {"skill_name": "skill-0", "user_id": "user-1", "file_path": {"$ne": "__meta__"}},
-        {"skill_name": "skill-1", "user_id": "user-1", "file_path": {"$ne": "__meta__"}},
-        {"skill_name": "skill-2", "user_id": "user-1", "file_path": {"$ne": "__meta__"}},
+    assert len(collection.queries) == 1
+    assert collection.queries[0]["$or"] == [
+        {"skill_name": "skill-0", "user_id": "user-1"},
+        {"skill_name": "skill-1", "user_id": "user-1"},
+        {"skill_name": "skill-2", "user_id": "user-1"},
     ]
-    assert [cursor.limit_value for cursor in collection.cursors] == [100, 100, 100]
+    assert collection.queries[0]["file_path"] == {"$ne": "__meta__"}
+    assert collection.cursors[0].limit_value == 3 * skill_storage.SKILL_FILES_PER_SKILL_LIMIT
     assert list(result) == [
         ("skill-0", "user-1"),
         ("skill-1", "user-1"),
@@ -255,41 +272,20 @@ class _ManyFilesCollection:
 
     def find(self, query: dict[str, Any]) -> _AsyncCursor:
         self.queries.append(query)
-        cursor = _AsyncCursor(
-            [
-                {
-                    "skill_name": "planner",
-                    "user_id": "user-1",
-                    "file_path": f"file-{index}.md",
-                    "content": f"content-{index}",
-                }
-                for index in range(5)
-            ]
-        )
-        self.cursors.append(cursor)
-        return cursor
-
-
-class _SkewedManyFilesCollection:
-    def __init__(self) -> None:
-        self.queries: list[dict[str, Any]] = []
-        self.cursors: list[_AsyncCursor] = []
-
-    def find(self, query: dict[str, Any]) -> _AsyncCursor:
-        self.queries.append(query)
-        skill_name = query["skill_name"]
-        file_count = 5 if skill_name == "heavy" else 2
-        cursor = _AsyncCursor(
-            [
-                {
-                    "skill_name": skill_name,
-                    "user_id": query["user_id"],
-                    "file_path": f"{skill_name}-{index}.md",
-                    "content": f"{skill_name}-content-{index}",
-                }
-                for index in range(file_count)
-            ]
-        )
+        or_clauses = query.get("$or", [])
+        docs: list[dict[str, Any]] = []
+        for clause in or_clauses:
+            skill_name = clause["skill_name"]
+            for index in range(5):
+                docs.append(
+                    {
+                        "skill_name": skill_name,
+                        "user_id": clause["user_id"],
+                        "file_path": f"file-{index}.md",
+                        "content": f"content-{index}",
+                    }
+                )
+        cursor = _AsyncCursor(docs)
         self.cursors.append(cursor)
         return cursor
 
@@ -312,51 +308,41 @@ async def test_batch_get_skill_files_limits_files_loaded_per_skill(
             "file-2.md": "content-2",
         }
     }
-    assert collection.queries == [
-        {
-            "skill_name": "planner",
-            "user_id": "user-1",
-            "file_path": {"$ne": "__meta__"},
-        }
+    assert len(collection.queries) == 1
+    assert collection.queries[0]["$or"] == [
+        {"skill_name": "planner", "user_id": "user-1"}
     ]
-    assert collection.cursors[0].limit_value == 3
+    assert collection.queries[0]["file_path"] == {"$ne": "__meta__"}
+    assert collection.cursors[0].limit_value == 1 * 3
 
 
 @pytest.mark.asyncio
-async def test_batch_get_skill_files_limits_each_skill_without_starving_later_skills(
+async def test_batch_get_skill_files_fetches_multiple_skills_in_single_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(skill_storage, "SKILL_BATCH_FILE_LOOKUP_LIMIT", 3, raising=False)
-    monkeypatch.setattr(skill_storage, "SKILL_FILES_PER_SKILL_LIMIT", 2, raising=False)
-    collection = _SkewedManyFilesCollection()
+    """Multiple skills load via one $or query (no N+1); each is fully returned
+    when its file count stays within SKILL_FILES_PER_SKILL_LIMIT — the invariant
+    sync_skill_files enforces in production, so a single bounded find suffices
+    and per-skill starvation cannot occur."""
+    monkeypatch.setattr(skill_storage, "SKILL_FILES_PER_SKILL_LIMIT", 5, raising=False)
+    collection = _ManyFilesCollection()
     storage = skill_storage.SkillStorage()
     monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
 
-    result = await storage.batch_get_skill_files([("heavy", "user-1"), ("light", "user-1")])
+    result = await storage.batch_get_skill_files([("alpha", "user-1"), ("beta", "user-1")])
 
+    expected_files = {f"file-{i}.md": f"content-{i}" for i in range(5)}
     assert result == {
-        ("heavy", "user-1"): {
-            "heavy-0.md": "heavy-content-0",
-            "heavy-1.md": "heavy-content-1",
-        },
-        ("light", "user-1"): {
-            "light-0.md": "light-content-0",
-            "light-1.md": "light-content-1",
-        },
+        ("alpha", "user-1"): dict(expected_files),
+        ("beta", "user-1"): dict(expected_files),
     }
-    assert collection.queries == [
-        {
-            "skill_name": "heavy",
-            "user_id": "user-1",
-            "file_path": {"$ne": "__meta__"},
-        },
-        {
-            "skill_name": "light",
-            "user_id": "user-1",
-            "file_path": {"$ne": "__meta__"},
-        },
+    assert len(collection.queries) == 1
+    assert collection.queries[0]["$or"] == [
+        {"skill_name": "alpha", "user_id": "user-1"},
+        {"skill_name": "beta", "user_id": "user-1"},
     ]
-    assert [cursor.limit_value for cursor in collection.cursors] == [2, 2]
+    assert collection.queries[0]["file_path"] == {"$ne": "__meta__"}
+    assert collection.cursors[0].limit_value == 2 * 5
 
 
 class _AggregateSkillNameCollection:
@@ -374,15 +360,16 @@ class _AggregateSkillNameCollection:
         )
 
     def find(self, query: dict[str, Any]) -> _AsyncCursor:
-        skill_name = query["skill_name"]
+        or_clauses = query.get("$or", [])
         return _AsyncCursor(
             [
                 {
-                    "skill_name": skill_name,
-                    "user_id": query["user_id"],
+                    "skill_name": clause["skill_name"],
+                    "user_id": clause["user_id"],
                     "file_path": "SKILL.md",
-                    "content": f"---\nname: {skill_name}\ndescription: Demo\n---\n",
+                    "content": f"---\nname: {clause['skill_name']}\ndescription: Demo\n---\n",
                 }
+                for clause in or_clauses
             ]
         )
 

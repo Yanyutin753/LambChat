@@ -38,6 +38,8 @@ class _FakeCollection:
         self.count_calls = 0
         self.find_calls = 0
         self.update_calls = 0
+        self.bulk_write_calls: list[list] = []
+        self.bulk_write_ordered: list[bool] = []
 
     def find(self, *_args):
         self.find_calls += 1
@@ -56,6 +58,10 @@ class _FakeCollection:
 
     async def update_one(self, *_args, **_kwargs):
         self.update_calls += 1
+
+    async def bulk_write(self, operations, ordered: bool = False):
+        self.bulk_write_calls.append(list(operations))
+        self.bulk_write_ordered.append(ordered)
 
 
 class _FakeMongoClient:
@@ -229,7 +235,9 @@ async def test_set_vars_bulk_limits_existing_key_scan(
 
     assert updated == 1
     assert storage._coll.cursor.limit_value == MAX_ENV_VARS_PER_USER
-    assert storage._coll.update_calls == 1
+    assert storage._coll.update_calls == 0
+    assert len(storage._coll.bulk_write_calls) == 1
+    assert len(storage._coll.bulk_write_calls[0]) == 1
 
 
 @pytest.mark.asyncio
@@ -248,7 +256,40 @@ async def test_set_vars_bulk_offloads_each_encryption(monkeypatch: pytest.Monkey
 
     assert updated == 2
     assert calls == [envvar_storage.encrypt_value, envvar_storage.encrypt_value]
-    assert storage._coll.update_calls == 2
+    assert storage._coll.update_calls == 0
+    assert len(storage._coll.bulk_write_calls) == 1
+    assert len(storage._coll.bulk_write_calls[0]) == 2
+
+
+@pytest.mark.asyncio
+async def test_set_vars_bulk_uses_single_ordered_bulk_write_with_upsert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = EnvVarStorage()
+    storage._collection = _FakeCollection([])
+
+    async def _fake_encrypt(value: str) -> dict[str, str]:
+        return {"v": value}
+
+    monkeypatch.setattr(storage, "_encrypt_value", _fake_encrypt)
+
+    variables = {"A": "one", "B": "two", "C": "three"}
+
+    updated = await storage.set_vars_bulk("user-1", variables)
+
+    assert updated == len(variables)
+    assert storage._coll.update_calls == 0
+    assert len(storage._coll.bulk_write_calls) == 1
+    assert storage._coll.bulk_write_ordered == [True]
+    operations = storage._coll.bulk_write_calls[0]
+    assert len(operations) == len(variables)
+    for operation, key in zip(operations, variables.keys()):
+        assert operation._filter == {"user_id": "user-1", "key": key}
+        assert operation._upsert is True
+        update_doc = operation._doc
+        assert "created_at" in update_doc["$setOnInsert"]
+        assert "value" in update_doc["$set"]
+        assert "updated_at" in update_doc["$set"]
 
 
 @pytest.mark.asyncio

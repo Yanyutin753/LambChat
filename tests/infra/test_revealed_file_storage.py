@@ -565,10 +565,19 @@ async def test_list_files_grouped_caps_files_per_session(
         REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
         REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
     ]
+    # Each session triggers its own bounded find (no single $in query).
+    assert len(storage.collection.find_cursors) == len(session_ids)
     assert [cursor._limit for cursor in storage.collection.find_cursors] == [
         REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
         REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
     ]
+    # Per-session isolation: every doc fetched by a given cursor belongs to one session.
+    session_ids_by_cursor = [
+        {doc["session_id"] for doc in cursor._docs}
+        for cursor in storage.collection.find_cursors
+    ]
+    assert all(len(ids) == 1 for ids in session_ids_by_cursor)
+    assert {next(iter(ids)) for ids in session_ids_by_cursor} == set(session_ids)
 
 
 @pytest.mark.asyncio
