@@ -590,6 +590,7 @@
     "mermaidDiagram": "Mermaid Diagram",
     "message": {
       "allFiles": "All files",
+      "downloadAll": "Download all",
       "args": "Args",
       "artifactsSubtitleFiles": "{{count}} files",
       "artifactsSubtitleMixed": "{{files}} files · {{projects}} projects",

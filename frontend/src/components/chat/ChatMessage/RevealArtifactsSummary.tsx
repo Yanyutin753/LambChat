@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useMemo, useState } from "react";
-import { FolderTree, Code2, ChevronRight, Download, Copy } from "lucide-react";
+import { FolderTree, Code2, ChevronRight, Download, Copy, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import type { MessagePart } from "../../../types";
@@ -18,6 +18,7 @@ import {
 } from "./revealArtifacts";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { copyToClipboard } from "../../../utils/clipboard";
+import { exportProjectZip } from "../../../utils/exportProjectZip";
 
 function FolderIcon({
   size = 36,
@@ -79,6 +80,23 @@ function getTreeDirSize(node: RevealArtifactTreeDir): number {
     }
     return sum + getTreeDirSize(child);
   }, 0);
+}
+
+function collectSubtreeFiles(
+  node: RevealArtifactTreeDir,
+): { path: string; url?: string }[] {
+  const out: { path: string; url?: string }[] = [];
+  for (const child of node.children) {
+    if (child.kind === "file") {
+      out.push({
+        path: child.artifact.path,
+        url: child.artifact.preview.signedUrl,
+      });
+    } else {
+      out.push(...collectSubtreeFiles(child));
+    }
+  }
+  return out;
 }
 
 function getFileIcon(name: string) {
@@ -180,7 +198,9 @@ function TreeDirRow({
   ) => boolean;
   onOpenImagePreview?: (artifact: RevealArtifact & { kind: "file" }) => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const dirSize = expanded ? getTreeDirSize(node) : 0;
 
   return (
@@ -188,7 +208,7 @@ function TreeDirRow({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors"
+        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors group"
       >
         <FolderIcon size={36} className="shrink-0" />
         <div className="flex-1 min-w-0 text-left">
@@ -201,6 +221,32 @@ function TreeDirRow({
             </div>
           )}
         </div>
+        <span
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (isDownloading) return;
+            const collected = collectSubtreeFiles(node);
+            if (collected.length === 0) return;
+            const binaryFiles: Record<string, string> = {};
+            for (const f of collected) {
+              if (f.url) binaryFiles[f.path] = f.url;
+            }
+            try {
+              setIsDownloading(true);
+              await exportProjectZip({}, node.name, binaryFiles);
+            } finally {
+              setIsDownloading(false);
+            }
+          }}
+          title={t("project.exportZip")}
+          className="shrink-0 p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 opacity-0 group-hover:opacity-100 transition-all"
+        >
+          {isDownloading ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : (
+            <Download size={18} />
+          )}
+        </span>
         <ChevronRight
           size={18}
           className={clsx(
@@ -376,6 +422,7 @@ export function RevealArtifactsSummary({
   const [activeImagePreviewId, setActiveImagePreviewId] = useState<
     string | null
   >(null);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const fileTree = useMemo(
     () =>
@@ -430,6 +477,28 @@ export function RevealArtifactsSummary({
     }
   }, [nextImageItem]);
 
+  const handleDownloadAll = async () => {
+    if (isDownloadingAll) return;
+    const fileArtifacts = artifacts.filter(
+      (a): a is RevealArtifact & { kind: "file" } => a.kind === "file",
+    );
+    if (fileArtifacts.length === 0) return;
+    const binaryFiles: Record<string, string> = {};
+    for (const a of fileArtifacts) {
+      if (a.preview.signedUrl) binaryFiles[a.path] = a.preview.signedUrl;
+    }
+    try {
+      setIsDownloadingAll(true);
+      await exportProjectZip(
+        {},
+        t("chat.message.allFiles", "全部文件"),
+        binaryFiles,
+      );
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
   if (isStreaming || artifacts.length === 0) {
     return null;
   }
@@ -449,9 +518,27 @@ export function RevealArtifactsSummary({
               <span className="text-[11px] font-medium text-[var(--theme-text-secondary)]">
                 {subtitle}
               </span>
-              <span className="shrink-0 rounded-md bg-[var(--theme-primary)]/10 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[var(--theme-primary)]">
-                {stats.totalCount}
-              </span>
+              <div className="flex items-center gap-2">
+                {stats.fileCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadAll}
+                    disabled={isDownloadingAll}
+                    className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] transition-colors disabled:opacity-50"
+                    title={t("chat.message.downloadAll", "下载全部")}
+                  >
+                    {isDownloadingAll ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Download size={12} />
+                    )}
+                    {t("chat.message.downloadAll", "下载全部")}
+                  </button>
+                )}
+                <span className="shrink-0 rounded-md bg-[var(--theme-primary)]/10 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[var(--theme-primary)]">
+                  {stats.totalCount}
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-1.5">
