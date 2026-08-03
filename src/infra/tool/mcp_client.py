@@ -35,6 +35,26 @@ MCP_RETRY_DELAY = 1.0  # 秒
 MCP_TOOL_TIMEOUT = 300  # 单次工具调用超时（秒）
 MCP_CONFIG_FILE_MAX_BYTES = 1024 * 1024
 
+
+def _normalize_json_array_args(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Coerce JSON-array-string arguments back to real lists.
+
+    Some callers/LLMs serialize list arguments as a JSON array literal string
+    (e.g. ``urls='["https://..."]'``), which remote MCP servers reject as an
+    invalid value. Parse such values back to a list (issue #198).
+    """
+    normalized: dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if isinstance(value, str) and value.lstrip().startswith("["):
+            try:
+                parsed = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                parsed = None
+            if isinstance(parsed, list):
+                value = parsed
+        normalized[key] = value
+    return normalized
+
 # 与 deepagents backend 冲突的工具名（需要过滤掉）
 CONFLICTING_TOOL_NAMES = frozenset(
     [
@@ -137,6 +157,12 @@ class MCPToolWithRetry(BaseTool):
             "reset",
             "refused",
             "unavailable",
+            # MCP streamable-http transport failures: the SSE GET stream drops
+            # mid-run and the subsequent tool POST fails. Retry so the client
+            # re-establishes the session (issue #198).
+            "streamable http",
+            "posting to endpoint",
+            "stream disconnected",
         ]
 
         # 可重试的异常类型
@@ -193,6 +219,10 @@ class MCPToolWithRetry(BaseTool):
             )
             if not quota_result.allowed:
                 return await quota_error_json_async(self._server_name or self.name, quota_result)
+
+        # Coerce JSON-array-string args back to lists before delegating, so
+        # remote MCP servers receive properly typed values (issue #198).
+        kwargs = _normalize_json_array_args(kwargs)
 
         last_error: Exception | None = None
         for attempt in range(self._max_retries):

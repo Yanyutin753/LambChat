@@ -158,6 +158,27 @@ async def _confirm_scheduled_task_creation(
     from src.infra.logging.context import TraceContext
 
     ctx = TraceContext.get_request_context()
+
+    # Unattended contexts (scheduled-task sessions use the "sch_" prefix) have
+    # no interactive user to confirm. Waiting would always time out after the
+    # full timeout — and MCPToolWithRetry then amplifies that to ~3x. Fail fast
+    # with a clear message instead of blocking (issue #197).
+    if ctx.session_id and ctx.session_id.startswith("sch_"):
+        logger.info(
+            "[ScheduledTask] skipping HITL confirmation in unattended session %s",
+            ctx.session_id,
+        )
+        return {
+            "approved": False,
+            "status": "unattended",
+            "approval_id": None,
+            "message": (
+                "scheduled_task_create requires interactive confirmation, which is "
+                "not available in an unattended (scheduled-task) context. Create "
+                "the task from an interactive chat session instead."
+            ),
+        }
+
     approval_message = _format_approval_message(preview)
     approval = await create_approval(
         message=approval_message,
