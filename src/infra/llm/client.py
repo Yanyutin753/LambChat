@@ -118,6 +118,7 @@ def _make_cache_key(
         thinking_key,
         profile_key,
         max_retries,
+        settings.LLM_REQUEST_TIMEOUT,
     )
 
 
@@ -257,6 +258,7 @@ class LLMClient:
                 "effort": effort,
                 "base_url": api_base or None,
                 "max_retries": settings.LLM_MAX_RETRIES,
+                "timeout": settings.LLM_REQUEST_TIMEOUT,
             }
             if api_key:
                 anthropic_kwargs["api_key"] = SecretStr(api_key)
@@ -278,6 +280,7 @@ class LLMClient:
                 "base_url": api_base or None,
                 "thinking_level": thinking_level,
                 "max_retries": settings.LLM_MAX_RETRIES,
+                "timeout": settings.LLM_REQUEST_TIMEOUT,
             }
             if api_key:
                 google_kwargs["google_api_key"] = SecretStr(api_key)
@@ -292,6 +295,7 @@ class LLMClient:
             "api_key": api_key or "sk-placeholder",
             "base_url": api_base or None,
             "max_retries": settings.LLM_MAX_RETRIES,
+            "timeout": settings.LLM_REQUEST_TIMEOUT,
         }
         # OpenAI 协议: 传递 reasoning_effort 给推理模型
         # 仅 OpenAI 官方模型 (provider="openai") 支持 reasoning_effort 参数。

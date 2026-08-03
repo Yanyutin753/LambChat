@@ -38,6 +38,10 @@ def _is_retryable_error(exc: Exception) -> bool:
     if isinstance(exc, ValueError) and "No generations found in stream" in str(exc):
         return True
 
+    # asyncio.TimeoutError from wait_for / explicit request timeouts
+    if isinstance(exc, asyncio.TimeoutError):
+        return True
+
     # httpx transient network errors (peer closed, incomplete chunked read, etc.)
     try:
         import httpx
@@ -221,7 +225,18 @@ class ModelFallbackMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         try:
-            response = await handler(request)
+            # Hang safety net: when the primary model never returns and never
+            # raises (e.g. a third-party SSE proxy stall), the provider SDK's own
+            # timeout may not fire for mid-stream stalls. wait_for guarantees we
+            # fall back instead of blocking the whole request forever.
+            response = await asyncio.wait_for(
+                handler(request),
+                timeout=settings.LLM_REQUEST_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            return await self._invoke_fallback(
+                request, handler, f"timeout after {settings.LLM_REQUEST_TIMEOUT}s"
+            )
         except Exception as exc:
             return await self._invoke_fallback(request, handler, str(exc))
 

@@ -83,3 +83,34 @@ async def test_fallback_model_is_created_with_same_thinking_config(monkeypatch) 
 
     assert result is fallback_model
     assert calls == [{"model": "openai/fallback-model", "thinking": thinking}]
+
+
+async def test_fallback_runs_when_primary_hangs_without_returning(monkeypatch) -> None:
+    """A primary model that never returns and never raises must still trigger
+    fallback via wait_for, instead of blocking the request forever (the gemini
+    third-party-proxy hang)."""
+    import asyncio
+
+    primary_model = object()
+    fallback_model = object()
+    middleware = ModelFallbackMiddleware(fallback_model="openai/fallback-model")
+    middleware._fallback_llm = fallback_model
+    monkeypatch.setattr("src.kernel.config.settings.LLM_REQUEST_TIMEOUT", 0.05)
+
+    async def handler(request):
+        if request.model is primary_model:
+            await asyncio.sleep(10)  # simulate a hung stream
+        return AIMessage(content="fallback answer")
+
+    result = await middleware.awrap_model_call(_Request(primary_model), handler)
+
+    assert result.content == "fallback answer"
+
+
+def test_is_retryable_error_recognizes_asyncio_timeout() -> None:
+    """A bare asyncio.TimeoutError (e.g. from wait_for) must be retryable."""
+    import asyncio
+
+    from src.infra.agent.middleware.retry import _is_retryable_error
+
+    assert _is_retryable_error(asyncio.TimeoutError()) is True
