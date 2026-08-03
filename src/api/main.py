@@ -70,6 +70,14 @@ from src.kernel.config import initialize_settings, settings
 
 # Suppress SyntaxWarning from oss2 SDK (invalid escape sequence in their source)
 warnings.filterwarnings("ignore", message=".*invalid escape sequence.*", category=SyntaxWarning)
+# Suppress deepagents deprecation noise from historical v1 store items with
+# list[str] content (still read via a backward-compat path; new writes use str).
+# Do NOT upgrade deepagents to 0.7.0 — that removes the compat path and breaks
+# reads of legacy data (issue #200).
+warnings.filterwarnings(
+    "ignore",
+    message=r".*Store item with `list\[str\]` content is deprecated.*",
+)
 
 logger = get_logger(__name__)
 
