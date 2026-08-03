@@ -307,6 +307,28 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
     return None
 
 
+async def _probe_download_error(backend: Any, file_path: str) -> Optional[str]:
+    """Probe the backend's structured download error for a path (issue #196).
+
+    Called after a download yields no content to tell a directory from a
+    missing file, so the caller can give the agent an actionable hint. This
+    re-issues ``download_files`` (cheap, read-only) only to read the structured
+    ``error`` field — it does not duplicate the content fetch.
+    """
+    try:
+        if hasattr(backend, "adownload_files"):
+            responses = await backend.adownload_files([file_path])
+        elif hasattr(backend, "download_files"):
+            responses = await run_blocking_io(backend.download_files, [file_path])
+        else:
+            return None
+        if responses:
+            return responses[0].error
+    except Exception as e:
+        logger.debug("[reveal_file] probe error for %s: %s", file_path, e)
+    return None
+
+
 async def _read_file_from_filesystem(file_path: str) -> Optional[bytes]:
     """非沙箱模式下的兜底：直接从本地文件系统读取文件内容"""
     try:
@@ -731,6 +753,27 @@ async def reveal_file(
             use_filesystem_stream = await run_blocking_io(_is_file_path, file_path)
 
         if file_content is None and not use_filesystem_stream:
+            # Distinguish a directory from a missing file so the agent can stop
+            # retrying / switch to reveal_project (issue #196). Sandbox only —
+            # the local filesystem fallback path doesn't classify directories.
+            if _is_sandbox_backend(backend):
+                probe_error = await _probe_download_error(backend, file_path)
+                if probe_error == "is_directory":
+                    logger.warning(
+                        "[reveal_file] Path is a directory, not a file: %s",
+                        file_path,
+                    )
+                    return await _json_dumps_result(
+                        {
+                            "type": "file_reveal",
+                            "file": {
+                                "path": file_path,
+                                "description": description or "",
+                                "error": "path_is_directory",
+                                "hint": "Path is a directory. Use reveal_project(project_path=...) for directories instead of reveal_file.",
+                            },
+                        }
+                    )
             logger.error(f"Failed to read file {file_path} from backend")
             missing_file_result = {
                 "type": "file_reveal",

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 
 class _FakeSkillStorage:
     def __init__(self) -> None:
@@ -242,3 +244,26 @@ def test_e2b_download_files_classifies_directory_error() -> None:
 
     assert responses[0].error == "is_directory"
     assert responses[0].content is None
+
+
+@pytest.mark.asyncio
+async def test_probe_download_error_reads_structured_error() -> None:
+    """_probe_download_error surfaces the structured download error so
+    reveal_file can tell a directory from a missing file (issue #196)."""
+    from src.infra.tool.reveal_file_tool import _probe_download_error
+
+    class _Resp:
+        def __init__(self, error):
+            self.error = error
+            self.content = None
+
+    class _Backend:
+        def __init__(self, error):
+            self._error = error
+
+        async def adownload_files(self, paths):
+            return [_Resp(self._error)]
+
+    assert await _probe_download_error(_Backend("is_directory"), "/d") == "is_directory"
+    assert await _probe_download_error(_Backend("file_not_found"), "/d") == "file_not_found"
+    assert await _probe_download_error(_Backend(None), "/d") is None
