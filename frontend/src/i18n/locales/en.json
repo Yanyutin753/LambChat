@@ -1917,6 +1917,7 @@
     "exitFullscreen": "Exit fullscreen",
     "expand": "Expand",
     "exportZip": "Export ZIP",
+    "downloadFolder": "Download folder as ZIP",
     "fileCount": "{{count}} files",
     "fullscreen": "Fullscreen",
     "fullscreenHint": "Press Esc to exit fullscreen",

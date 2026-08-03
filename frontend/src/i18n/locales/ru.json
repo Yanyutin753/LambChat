@@ -1917,6 +1917,7 @@
     "exitFullscreen": "Выйти из полноэкранного режима",
     "expand": "Развернуть",
     "exportZip": "Экспорт ZIP",
+    "downloadFolder": "Скачать папку как ZIP",
     "fileCount": "{{count}} файлов",
     "fullscreen": "Полный экран",
     "fullscreenHint": "Нажмите Esc для выхода из полноэкранного режима",

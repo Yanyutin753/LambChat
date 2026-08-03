@@ -1917,6 +1917,7 @@
     "exitFullscreen": "全画面を終了",
     "expand": "展開",
     "exportZip": "ZIPエクスポート",
+    "downloadFolder": "フォルダを ZIP でダウンロード",
     "fileCount": "{{count}}ファイル",
     "fullscreen": "全画面",
     "fullscreenHint": "Esc を押して全画面を終了",
