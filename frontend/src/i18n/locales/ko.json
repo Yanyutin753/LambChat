@@ -1917,6 +1917,7 @@
     "exitFullscreen": "전체 화면 종료",
     "expand": "펼치기",
     "exportZip": "ZIP 내보내기",
+    "downloadFolder": "폴더를 ZIP으로 다운로드",
     "fileCount": "{{count}}개 파일",
     "fullscreen": "전체 화면",
     "fullscreenHint": "Esc를 눌러 전체 화면 종료",
