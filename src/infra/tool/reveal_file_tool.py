@@ -267,6 +267,10 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
 
     沙箱（DaytonaBackend）和非沙箱（StateBackend/StoreBackend）均支持 download_files，
     返回原始字节，不包含行号等格式化内容。
+
+    Note: the underlying ``error`` (e.g. ``is_directory``) is logged but not
+    propagated; see issue #196 — surfacing it to callers needs a wider refactor
+    of all call sites + their test mocks.
     """
     logger.info(f"[reveal_file] Attempting to download: {file_path}")
 

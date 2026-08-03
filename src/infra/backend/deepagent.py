@@ -240,6 +240,12 @@ def create_sandbox_backend_factory(
         return CompositeBackend(
             default=sandbox_backend,
             routes=routes,
+            # Anchor offloaded artifacts (conversation history, large tool
+            # results) at the sandbox work_dir. The CompositeBackend default of
+            # '/' is not writable by the non-root sandbox user, which made the
+            # summarization middleware offload fail with an empty exit-code-1
+            # error (issue #195).
+            artifacts_root=getattr(sandbox_backend, "work_dir", "/home/user"),
         )
 
     return backend_factory

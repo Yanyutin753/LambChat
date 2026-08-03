@@ -175,3 +175,70 @@ def test_e2b_read_skips_large_file_before_text_read(monkeypatch) -> None:
 
     assert "too large" in str(result)
     assert files_api.read_calls == []
+
+
+def test_sandbox_backend_factory_anchors_artifacts_at_work_dir(monkeypatch) -> None:
+    """The E2B sandbox CompositeBackend must use work_dir as artifacts_root.
+
+    Regression test for issue #195: artifacts_root defaulted to '/', so the
+    summarization middleware offloaded history to /conversation_history and hit
+    a PermissionError on the non-root sandbox (exit code 1, empty error).
+    """
+    from src.infra.backend.deepagent import create_sandbox_backend_factory
+    from src.infra.backend.e2b import E2BBackend
+
+    monkeypatch.setattr(
+        "src.infra.backend.skills_store.create_skills_backend",
+        lambda **_kw: SimpleNamespace(),
+    )
+
+    backend = E2BBackend(sandbox=_FakeE2BSandbox(_FakeFilesAPI({})))
+    composite = create_sandbox_backend_factory(backend, "asst-1", "user-1")(object())
+
+    assert composite.artifacts_root == backend.work_dir
+    assert composite.artifacts_root != "/"
+
+
+def test_e2b_execute_surfaces_command_stderr_on_failure() -> None:
+    """execute() must surface stderr/stdout from a failed command instead of an
+    empty error string (issue #195 diagnostics)."""
+    from src.infra.backend.e2b import E2BBackend
+
+    class _CmdError(Exception):
+        def __init__(self, message: str, stderr: str, stdout: str = "") -> None:
+            super().__init__(message)
+            self.stderr = stderr
+            self.stdout = stdout
+
+    class _Commands:
+        def run(self, **_kwargs):
+            raise _CmdError("Command exited with code 1", stderr="PermissionError: /")
+
+    sandbox = SimpleNamespace(sandbox_id="e2b-test", commands=_Commands())
+    backend = E2BBackend(sandbox=sandbox)
+
+    result = backend.execute("echo hi")
+
+    assert result.exit_code == -1
+    assert "PermissionError" in result.output
+
+
+def test_e2b_download_files_classifies_directory_error() -> None:
+    """download_files must surface 'is_directory' instead of 'file_not_found'
+    when the path is a directory (issue #196), matching upload_files behavior."""
+    from src.infra.backend.e2b import E2BBackend
+
+    class _FilesAPI:
+        def list(self, path):
+            return []
+
+        def read(self, path, format="bytes"):
+            raise Exception("path /home/user/project is a directory")
+
+    sandbox = SimpleNamespace(sandbox_id="e2b-test", files=_FilesAPI())
+    backend = E2BBackend(sandbox=sandbox)
+
+    responses = backend.download_files(["/home/user/project"])
+
+    assert responses[0].error == "is_directory"
+    assert responses[0].content is None

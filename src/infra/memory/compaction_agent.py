@@ -521,11 +521,33 @@ class MemoryCompactionAgent:
         return filled_title[:25], filled_summary[:100], clean_tags
 
     async def _get_compaction_model(self) -> Any:
-        """Get the model used only for memory compaction."""
-        from src.infra.llm.client import LLMClient
+        """Get the model used only for memory compaction.
 
-        model_id = getattr(settings, "NATIVE_MEMORY_COMPACTION_MODEL_ID", "") or None
-        return await LLMClient.get_model(model_id=model_id, temperature=0.1)
+        The configured ``NATIVE_MEMORY_COMPACTION_MODEL_ID`` is resolved through
+        ``resolve_model_reference`` so a stale or missing id degrades to the
+        default model instead of raising ``model_not_found``. A lingering
+        ``AuthorizationError`` from the client is also caught as a last-resort
+        fallback — background compaction must never hard-fail on model
+        resolution (issue #194).
+        """
+        from src.infra.llm.client import LLMClient
+        from src.infra.llm.models_service import resolve_model_reference
+        from src.kernel.exceptions import AuthorizationError
+
+        reference = getattr(settings, "NATIVE_MEMORY_COMPACTION_MODEL_ID", "")
+        model_id, _model_value = await resolve_model_reference(reference)
+        kwargs: dict[str, Any] = {"temperature": 0.1}
+        if model_id:
+            kwargs["model_id"] = model_id
+        try:
+            return await LLMClient.get_model(**kwargs)
+        except AuthorizationError as e:
+            logger.warning(
+                "[MemoryCompactionAgent] configured compaction model unavailable, "
+                "falling back to default model: %s",
+                e,
+            )
+            return await LLMClient.get_model(temperature=0.1)
 
     @staticmethod
     async def _build_inventory(backend: Any, user_id: str) -> list[dict[str, Any]]:

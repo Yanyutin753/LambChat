@@ -750,12 +750,102 @@ async def test_compaction_model_uses_admin_model_config_id(monkeypatch):
         "NATIVE_MEMORY_COMPACTION_MODEL_ID",
         "model-config-123",
     )
+
+    async def _resolve_valid(reference):  # noqa: ARG001
+        return "model-config-123", None
+
+    monkeypatch.setattr(
+        "src.infra.llm.models_service.resolve_model_reference",
+        _resolve_valid,
+    )
     monkeypatch.setattr(LLMClient, "get_model", fake_get_model)
 
     model = await MemoryCompactionAgent()._get_compaction_model()
 
     assert model == "configured-compaction-model"
     assert calls == [{"model_id": "model-config-123", "temperature": 0.1}]
+
+
+@pytest.mark.asyncio
+async def test_compaction_model_falls_back_when_configured_id_stale(monkeypatch):
+    """A stale/missing compaction model id degrades to the default model.
+
+    Regression test for issue #194: previously the raw id was forwarded
+    straight to ``LLMClient.get_model`` and raised ``model_not_found``,
+    breaking every background + scheduled compaction run.
+    """
+    from src.infra.llm.client import LLMClient
+    from src.infra.memory import compaction_agent as compaction_module
+
+    calls: list[dict] = []
+
+    async def fake_get_model(**kwargs):
+        calls.append(kwargs)
+        return "default-model"
+
+    monkeypatch.setattr(
+        compaction_module.settings,
+        "NATIVE_MEMORY_COMPACTION_MODEL_ID",
+        "stale-uuid",
+    )
+
+    async def _resolve_stale(reference):  # noqa: ARG001
+        # ID not present in available models → resolve degrades to a value,
+        # which for an id-style config is meaningless and must not be used.
+        return None, reference
+
+    monkeypatch.setattr(
+        "src.infra.llm.models_service.resolve_model_reference",
+        _resolve_stale,
+    )
+    monkeypatch.setattr(LLMClient, "get_model", fake_get_model)
+
+    model = await MemoryCompactionAgent()._get_compaction_model()
+
+    assert model == "default-model"
+    # Stale id must not be forwarded as model_id (raises model_not_found) nor
+    # as model (builds an unusable client); the default model is used instead.
+    assert calls == [{"temperature": 0.1}]
+
+
+@pytest.mark.asyncio
+async def test_compaction_model_falls_back_on_authorization_error(monkeypatch, caplog):
+    """An AuthorizationError from the client triggers default-model fallback + warn."""
+    from src.infra.llm.client import LLMClient
+    from src.infra.memory import compaction_agent as compaction_module
+    from src.kernel.exceptions import AuthorizationError
+
+    calls: list[dict] = []
+
+    async def fake_get_model(**kwargs):
+        calls.append(kwargs)
+        if kwargs.get("model_id"):
+            raise AuthorizationError("model_not_found")
+        return "default-model"
+
+    monkeypatch.setattr(
+        compaction_module.settings,
+        "NATIVE_MEMORY_COMPACTION_MODEL_ID",
+        "model-config-123",
+    )
+
+    async def _resolve_valid(reference):  # noqa: ARG001
+        return "model-config-123", None
+
+    monkeypatch.setattr(
+        "src.infra.llm.models_service.resolve_model_reference",
+        _resolve_valid,
+    )
+    monkeypatch.setattr(LLMClient, "get_model", fake_get_model)
+
+    with caplog.at_level("WARNING"):
+        model = await MemoryCompactionAgent()._get_compaction_model()
+
+    assert model == "default-model"
+    assert len(calls) == 2
+    assert calls[0] == {"model_id": "model-config-123", "temperature": 0.1}
+    assert calls[1] == {"temperature": 0.1}
+    assert any("falling back to default" in rec.getMessage() for rec in caplog.records)
 
 
 @pytest.mark.asyncio

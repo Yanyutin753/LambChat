@@ -160,7 +160,11 @@ class _E2BMixin:
             )
             e2b_backend = E2BBackend(sandbox=cast("E2BSandbox", sandbox))
             skills_backend = create_skills_backend(user_id=user_id)
-            composite = CompositeBackend(default=e2b_backend, routes={"/skills/": skills_backend})
+            composite = CompositeBackend(
+                default=e2b_backend,
+                routes={"/skills/": skills_backend},
+                artifacts_root=work_dir,
+            )
             return composite, work_dir, adapter.get_sandbox_id(sandbox), sandbox
 
         backend, work_dir, sandbox_id, provider_obj = await run_blocking_io(_sync_create)
@@ -186,9 +190,11 @@ class _E2BMixin:
     def _build_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:
         from src.infra.backend.e2b import E2BBackend
 
+        e2b_backend = E2BBackend(sandbox=cast("E2BSandbox", provider_obj))
         return CompositeBackend(
-            default=E2BBackend(sandbox=cast("E2BSandbox", provider_obj)),
+            default=e2b_backend,
             routes={"/skills/": create_skills_backend(user_id=user_id)},
+            artifacts_root=e2b_backend.work_dir,
         )
 
     async def _stop_e2b(self, user_id: str) -> bool:

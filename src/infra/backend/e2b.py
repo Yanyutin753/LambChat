@@ -147,7 +147,13 @@ class E2BBackend(BaseSandbox):
         parent = os.path.dirname(file_path)
         if not parent:
             return
-        self.execute(f"mkdir -p {shlex.quote(parent)}")
+        result = self.execute(f"mkdir -p {shlex.quote(parent)}")
+        if result.exit_code != 0:
+            logger.warning(
+                "Failed to ensure parent directory %s: %s",
+                parent,
+                (result.output or "")[:200],
+            )
 
     # =========================================================================
     # Command execution
@@ -178,9 +184,18 @@ class E2BBackend(BaseSandbox):
                     exit_code=-1,
                     truncated=False,
                 )
-            logger.error(f"Command failed: {e}")
+            # Surface the full captured output from SDK command exceptions so
+            # failures stay diagnosable. Previously only str(e) was used, which
+            # for preflight failures produced an empty "error: " in the logs
+            # (issue #195 diagnostics).
+            detail = error_msg
+            for attr in ("stderr", "stdout"):
+                val = getattr(e, attr, None)
+                if val:
+                    detail = f"{detail} | {attr}: {val}" if detail else val
+            logger.error(f"Command failed: {detail}")
             return ExecuteResponse(
-                output=f"Command failed: {e}",
+                output=f"Command failed: {detail}",
                 exit_code=-1,
                 truncated=False,
             )
@@ -634,9 +649,16 @@ class E2BBackend(BaseSandbox):
                     FileDownloadResponse(path=path, content=bytes(content), error=None)
                 )
             except Exception as e:
+                error_str = str(e).lower()
+                if "permission" in error_str:
+                    error_type = "permission_denied"
+                elif "directory" in error_str or "is a dir" in error_str:
+                    error_type = "is_directory"
+                else:
+                    error_type = "file_not_found"
                 logger.error(f"Failed to download {path}: {e}")
                 responses.append(
-                    FileDownloadResponse(path=path, content=None, error="file_not_found")
+                    FileDownloadResponse(path=path, content=None, error=error_type)
                 )
         return responses
 
