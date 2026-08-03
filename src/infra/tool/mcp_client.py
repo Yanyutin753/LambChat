@@ -55,6 +55,7 @@ def _normalize_json_array_args(kwargs: dict[str, Any]) -> dict[str, Any]:
         normalized[key] = value
     return normalized
 
+
 # 与 deepagents backend 冲突的工具名（需要过滤掉）
 CONFLICTING_TOOL_NAMES = frozenset(
     [

@@ -526,8 +526,7 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
             state = self._get_connection_state()
             if state == ConnectionState.CONNECTED:
                 logger.debug(
-                    "Feishu connection alive for user %s "
-                    "(SDK keep-alive + auto-reconnect active)",
+                    "Feishu connection alive for user %s (SDK keep-alive + auto-reconnect active)",
                     self.config.user_id,
                 )
 

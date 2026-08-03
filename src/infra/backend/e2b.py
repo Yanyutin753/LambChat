@@ -657,9 +657,7 @@ class E2BBackend(BaseSandbox):
                 else:
                     error_type = "file_not_found"
                 logger.error(f"Failed to download {path}: {e}")
-                responses.append(
-                    FileDownloadResponse(path=path, content=None, error=error_type)
-                )
+                responses.append(FileDownloadResponse(path=path, content=None, error=error_type))
         return responses
 
     def _file_size(self, path: str) -> int | None:
