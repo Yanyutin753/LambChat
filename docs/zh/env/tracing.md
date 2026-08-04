@@ -6,7 +6,7 @@ LangSmith 链路追踪设置，用于可观测性和调试。
 |--------|--------|------|------|
 | `LANGSMITH_TRACING` | `false` | 否 | 启用 LangSmith 链路追踪。 |
 | `LANGSMITH_API_KEY` | _(空)_ | 是 | LangSmith API 密钥。 |
-| `LANGSMITH_PROJECT` | `lamb-agent` | 否 | LangSmith 项目名称。 |
+| `LANGSMITH_PROJECT` | `lambchat` | 否 | LangSmith 项目名称。 |
 | `LANGSMITH_API_URL` | `https://api.smith.langchain.com` | 否 | LangSmith API 端点。 |
 | `LANGSMITH_SAMPLE_RATE` | `1.0` | 否 | 追踪采样率（0.0 到 1.0）。 |
 

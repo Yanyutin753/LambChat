@@ -1,7 +1,9 @@
 import { useCallback } from "react";
-import { getFullUrl, uploadApi } from "../../services/api";
+import { uploadApi } from "../../services/api";
 import { AttachmentCard } from "../common/AttachmentCard";
+import { getFullUrl } from "../../services/api";
 import { openAttachmentPreview } from "./attachmentPreviewStore";
+import { canRestoreLongTextAttachment } from "./longTextConversion";
 import type { MessageAttachment } from "../../types";
 
 interface ChatInputAttachmentsProps {
@@ -17,6 +19,8 @@ interface ChatInputAttachmentsProps {
   maxFiles?: number;
   /** Optional: callback to open file picker */
   onAddMore?: () => void;
+  /** Restore a long-text attachment back into the composer input. */
+  onRestoreLongText?: (attachment: MessageAttachment) => void;
 }
 
 export function ChatInputAttachments({
@@ -24,6 +28,7 @@ export function ChatInputAttachments({
   onAttachmentsChange,
   onCancelUpload,
   onImageViewerOpen,
+  onRestoreLongText,
 }: ChatInputAttachmentsProps) {
   const handleRemove = useCallback(
     (attachment: MessageAttachment) => {
@@ -63,6 +68,11 @@ export function ChatInputAttachments({
             onCancel={
               attachment.isUploading
                 ? () => onCancelUpload(attachment.id)
+                : undefined
+            }
+            onSendAsText={
+              onRestoreLongText && canRestoreLongTextAttachment(attachment)
+                ? () => onRestoreLongText(attachment)
                 : undefined
             }
           />

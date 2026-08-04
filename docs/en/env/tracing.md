@@ -6,7 +6,7 @@ LangSmith tracing settings for observability and debugging.
 |----------|---------|-----------|-------------|
 | `LANGSMITH_TRACING` | `false` | No | Enable LangSmith tracing. |
 | `LANGSMITH_API_KEY` | _(empty)_ | Yes | LangSmith API key. |
-| `LANGSMITH_PROJECT` | `lamb-agent` | No | LangSmith project name. |
+| `LANGSMITH_PROJECT` | `lambchat` | No | LangSmith project name. |
 | `LANGSMITH_API_URL` | `https://api.smith.langchain.com` | No | LangSmith API endpoint. |
 | `LANGSMITH_SAMPLE_RATE` | `1.0` | No | Tracing sample rate (0.0 to 1.0). |
 

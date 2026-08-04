@@ -7,7 +7,7 @@ import { PANEL_ROW_SKELETON_COUNT } from "./PanelSkeletonHelpers";
 export function SidebarSkeleton() {
   const collapsed = (() => {
     const saved = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
-    return saved !== null ? saved === "true" : true;
+    return saved !== null ? saved === "true" : false;
   })();
 
   if (collapsed) {

@@ -1,7 +1,4 @@
 import { useCallback } from "react";
-import toast from "react-hot-toast";
-import { FileText } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import {
   turndown,
   cleanPastedHtml,
@@ -16,6 +13,8 @@ export interface UsePasteHandlerOptions {
   uploadFiles: (files: FileList | File[], category?: FileCategory) => void;
   validateCount: (count: number) => boolean;
   scheduleTextareaResize: () => void;
+  /** Convert oversized pasted text into a long-text attachment. */
+  onLongTextPaste?: (text: string, preserveText?: string) => boolean;
 }
 
 export function usePasteHandler({
@@ -25,41 +24,26 @@ export function usePasteHandler({
   uploadFiles,
   validateCount,
   scheduleTextareaResize,
+  onLongTextPaste,
 }: UsePasteHandlerOptions) {
-  const { t } = useTranslation();
-
-  const textAsFile = useCallback(
-    (text: string, mimeType: string, ext: string) => {
-      if (!validateCount(1)) return;
-      const now = new Date();
-      const ts = [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, "0"),
-        String(now.getDate()).padStart(2, "0"),
-        String(now.getHours()).padStart(2, "0"),
-        String(now.getMinutes()).padStart(2, "0"),
-        String(now.getSeconds()).padStart(2, "0"),
-      ].join("");
-      const name = `clipboard-${ts}.${ext}`;
-      const file = new File([text], name, { type: mimeType });
-      uploadFiles([file], "document");
-      toast.custom(() => (
-        <div
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
-          style={{
-            background:
-              "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
-            border:
-              "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
-            color: "var(--theme-primary)",
-          }}
-        >
-          <FileText size={16} className="shrink-0" />
-          <span>{t("chat.textAutoUploaded", "长文本已自动转为文件上传")}</span>
-        </div>
-      ));
+  const insertText = useCallback(
+    (text: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        setInput(input + text);
+        return;
+      }
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newValue = input.substring(0, start) + text + input.substring(end);
+      setInput(newValue);
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + text.length;
+        textarea.focus();
+        scheduleTextareaResize();
+      }, 0);
     },
-    [validateCount, uploadFiles, t],
+    [textareaRef, input, setInput, scheduleTextareaResize],
   );
 
   const handlePaste = useCallback(
@@ -83,42 +67,31 @@ export function usePasteHandler({
         const markdownText = turndown.turndown(tempDiv);
 
         if (markdownText.length > PASTE_TEXT_THRESHOLD) {
-          textAsFile(markdownText, "text/markdown", "md");
-          return;
+          const textarea = textareaRef.current;
+          const before = textarea
+            ? input.substring(0, textarea.selectionStart)
+            : input;
+          const after = textarea ? input.substring(textarea.selectionEnd) : "";
+          if (onLongTextPaste?.(markdownText, before + after)) return;
         }
 
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const newValue =
-            input.substring(0, start) + markdownText + input.substring(end);
-          setInput(newValue);
-          setTimeout(() => {
-            textarea.selectionStart = textarea.selectionEnd =
-              start + markdownText.length;
-            textarea.focus();
-            scheduleTextareaResize();
-          }, 0);
-        }
+        insertText(markdownText);
         return;
       }
 
       const plainText = clipboardData.getData("text/plain");
       if (plainText && plainText.length > PASTE_TEXT_THRESHOLD) {
         e.preventDefault();
-        textAsFile(plainText, "text/plain", "txt");
+        const textarea = textareaRef.current;
+        const before = textarea
+          ? input.substring(0, textarea.selectionStart)
+          : input;
+        const after = textarea ? input.substring(textarea.selectionEnd) : "";
+        if (onLongTextPaste?.(plainText, before + after)) return;
+        insertText(plainText);
       }
     },
-    [
-      textareaRef,
-      input,
-      setInput,
-      uploadFiles,
-      validateCount,
-      textAsFile,
-      scheduleTextareaResize,
-    ],
+    [uploadFiles, validateCount, onLongTextPaste, insertText, input, textareaRef],
   );
 
   return { handlePaste };

@@ -1,11 +1,12 @@
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../components/layout/AppContent/useAgentOptions";
+import { SEND_MODIFIER_STORAGE_KEY } from "./sendModifier";
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "lamb-sidebar-collapsed";
 export const PROJECTS_COLLAPSED_STORAGE_KEY = "lamb-projects-collapsed";
 export const CHATS_COLLAPSED_STORAGE_KEY = "lamb-chats-collapsed";
 export const SCHEDULED_TASKS_COLLAPSED_STORAGE_KEY =
   "lamb-scheduled-tasks-collapsed";
-export const NEWLINE_MODIFIER_STORAGE_KEY = "newlineModifier";
+export const NEWLINE_MODIFIER_STORAGE_KEY = SEND_MODIFIER_STORAGE_KEY;
 export const DEFAULT_MODEL_ID_STORAGE_KEY = "defaultModelId";
 export const DEFAULT_MODEL_STORAGE_KEY = "defaultModel";
 
@@ -51,7 +52,7 @@ export function applyUserMetadataPreferences({
 
   const theme = stringValue(metadata.theme);
   if (theme) {
-    localStorage.setItem("lamb-agent-theme", theme);
+    localStorage.setItem("lambchat-theme", theme);
     dispatchEvent(new CustomEvent("theme:external-change", { detail: theme }));
   }
 

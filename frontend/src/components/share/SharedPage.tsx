@@ -150,7 +150,7 @@ function SharedPageLanguageToggle() {
 function useSharedPageTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("lamb-agent-theme");
+      const stored = localStorage.getItem("lambchat-theme");
       if (stored === "light" || stored === "dark") {
         return stored;
       }
@@ -168,7 +168,7 @@ function useSharedPageTheme() {
     } else {
       root.classList.remove("dark");
     }
-    localStorage.setItem("lamb-agent-theme", theme);
+    localStorage.setItem("lambchat-theme", theme);
   }, [theme]);
 
   const toggleTheme = () => {

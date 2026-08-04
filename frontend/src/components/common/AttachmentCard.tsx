@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Type } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import type { MessageAttachment } from "../../types";
@@ -50,6 +50,8 @@ export interface AttachmentCardProps {
   size?: "default" | "compact";
   /** Whether upload is in progress */
   isUploading?: boolean;
+  /** Restore long-text attachment back to composer input */
+  onSendAsText?: () => void;
 }
 
 export const AttachmentCard = memo(function AttachmentCard({
@@ -60,6 +62,7 @@ export const AttachmentCard = memo(function AttachmentCard({
   variant = "preview",
   size = "default",
   isUploading = false,
+  onSendAsText,
 }: AttachmentCardProps) {
   const { t } = useTranslation();
   const {
@@ -68,6 +71,7 @@ export const AttachmentCard = memo(function AttachmentCard({
     iconColor,
     label,
   } = getAttachmentIconInfo(attachment.mimeType, attachment.name);
+  const displayLabel = t(label, label);
   const attachmentUrl = attachment.url
     ? getFullUrl(attachment.url) ?? attachment.url
     : "";
@@ -138,58 +142,82 @@ export const AttachmentCard = memo(function AttachmentCard({
           )}
         </div>
 
-        {/* 文件信息 */}
+        {/* 文件信息：文件名 + 大小/操作左右布局 */}
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate max-w-[120px] sm:max-w-[160px] leading-tight">
+          <span className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate leading-tight">
             {attachment.name}
           </span>
-          <span className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
-            {isUploading
-              ? `${attachment.uploadProgress ?? 0}%`
-              : formatFileSize(attachment.size)}
-          </span>
-        </div>
+          <div className="mt-0.5 flex items-center justify-between gap-2 min-w-0">
+            <span className="text-xs text-stone-400 dark:text-stone-500 truncate">
+              {isUploading
+                ? `${attachment.uploadProgress ?? 0}%`
+                : formatFileSize(attachment.size)}
+            </span>
 
-        {/* 删除/取消按钮 */}
-        {variant === "editable" &&
-          (isUploading && onCancel ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCancel();
-              }}
-              className={clsx(
-                "shrink-0 size-6 rounded-full flex items-center justify-center",
-                "bg-red-100/80 dark:bg-red-900/30",
-                "text-red-500 dark:text-red-400",
-                "opacity-100",
-                "transition-all duration-200",
-                "hover:bg-red-200 dark:hover:bg-red-900/50",
-              )}
-              title={t("fileUpload.cancelUpload")}
-            >
-              <X size={12} />
-            </button>
-          ) : (
-            onRemove && (
-              <button
-                type="button"
-                onClick={handleRemove}
-                className={clsx(
-                  "shrink-0 size-6 rounded-full flex items-center justify-center",
-                  "bg-stone-100/80 dark:bg-stone-700/80",
-                  "text-stone-400 dark:text-stone-500",
-                  "opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
-                  "transition-all duration-200",
-                  "hover:bg-red-100 dark:hover:bg-red-900/30",
-                  "hover:text-red-500 dark:hover:text-red-400",
+            {/* 仍以文本发送 / 删除/取消 */}
+            {variant === "editable" && (
+              <div className="flex items-center gap-1 shrink-0">
+                {onSendAsText && !isUploading && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSendAsText();
+                    }}
+                    className={clsx(
+                      "h-5 px-1.5 rounded-md flex items-center gap-1",
+                      "text-stone-400 dark:text-stone-500",
+                      "transition-all duration-200 text-[10px] font-medium",
+                      "hover:bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)]",
+                      "hover:text-[var(--theme-primary)]",
+                    )}
+                    title={t("chat.sendLongTextAsText", "仍以文本发送")}
+                  >
+                    <Type size={12} strokeWidth={2.25} />
+                    <span className="hidden sm:inline">
+                      {t("chat.sendLongTextAsText", "仍以文本发送")}
+                    </span>
+                  </button>
                 )}
-              >
-                <X size={12} />
-              </button>
-            )
-          ))}
+                {isUploading && onCancel ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancel();
+                    }}
+                    className={clsx(
+                      "size-5 rounded-md flex items-center justify-center",
+                      "text-red-500 dark:text-red-400",
+                      "opacity-100",
+                      "transition-all duration-200",
+                      "hover:bg-red-100/80 dark:hover:bg-red-900/40",
+                    )}
+                    title={t("fileUpload.cancelUpload")}
+                  >
+                    <X size={12} />
+                  </button>
+                ) : (
+                  onRemove && (
+                    <button
+                      type="button"
+                      onClick={handleRemove}
+                      className={clsx(
+                        "size-5 rounded-md flex items-center justify-center",
+                        "text-stone-400 dark:text-stone-500",
+                        "transition-all duration-200",
+                        "hover:bg-red-100/80 dark:hover:bg-red-900/40",
+                        "hover:text-red-500 dark:hover:text-red-400",
+                      )}
+                    >
+                      <X size={12} />
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -263,7 +291,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           {attachment.name}
         </div>
         <div className="flex items-center justify-between mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-stone-400 dark:text-stone-500">
-          <span className="capitalize truncate">{label}</span>
+          <span className="capitalize truncate">{displayLabel}</span>
           <span className="shrink-0 ml-2">
             {isUploading
               ? t("fileUpload.uploading")

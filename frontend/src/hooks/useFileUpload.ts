@@ -144,7 +144,14 @@ export function useFileUpload({
 
   /** Upload a single file with progress tracking */
   const uploadFile = useCallback(
-    (file: File, category?: FileCategory) => {
+    (
+      file: File,
+      category?: FileCategory,
+      clientMeta?: Pick<
+        MessageAttachment,
+        "fromLongText" | "localOriginalText"
+      >,
+    ) => {
       const fileCategory = category || getFileCategory(file);
 
       // Compress images before upload
@@ -169,6 +176,7 @@ export function useFileUpload({
           url: "",
           uploadProgress: 0,
           isUploading: true,
+          ...clientMeta,
         };
 
         onAttachmentsChange((prev) => [...prev, tempAttachment]);
@@ -208,6 +216,7 @@ export function useFileUpload({
                 mimeType: c.mimeType ?? processedFile.type,
                 size: c.size ?? processedFile.size,
                 url: buildApiUrl(c.url || `/api/upload/file/${c.key ?? ""}`),
+                ...clientMeta,
               };
               onAttachmentsChange((prev: MessageAttachment[]) =>
                 prev.map((a) =>
@@ -253,6 +262,7 @@ export function useFileUpload({
                 mimeType: result.mimeType,
                 size: result.size,
                 url: buildApiUrl(result.url),
+                ...clientMeta,
               };
               onAttachmentsChange((prev: MessageAttachment[]) =>
                 prev.map((a) => (a.id === tempId ? finalAttachment : a)),
@@ -287,7 +297,14 @@ export function useFileUpload({
 
   /** Validate and upload multiple files */
   const uploadFiles = useCallback(
-    (files: FileList | File[], category?: FileCategory) => {
+    (
+      files: FileList | File[],
+      category?: FileCategory,
+      clientMeta?: Pick<
+        MessageAttachment,
+        "fromLongText" | "localOriginalText"
+      >,
+    ) => {
       const fileArray = Array.from(files);
       if (fileArray.length === 0) return;
 
@@ -296,7 +313,7 @@ export function useFileUpload({
       for (const file of fileArray) {
         const fileCategory = category || getFileCategory(file);
         if (!validateSize(file, fileCategory)) continue;
-        uploadFile(file, fileCategory);
+        uploadFile(file, fileCategory, clientMeta);
       }
     },
     [validateCount, validateSize, uploadFile],

@@ -75,7 +75,7 @@ Add updater plugin configuration:
     "updater": {
       "pubkey": "<public key content>",
       "endpoints": [
-        "https://github.com/clivia/LambChat/releases/latest/download/latest.json"
+        "https://github.com/Yanyutin753/LambChat/releases/latest/download/latest.json"
       ]
     }
   }

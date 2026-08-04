@@ -132,6 +132,27 @@ function downloadFile(
   URL.revokeObjectURL(href);
 }
 
+function collectSubtreeFiles(
+  node: TreeNode,
+  files: Record<string, string>,
+): { textFiles: Record<string, string>; binFiles: Record<string, string> } {
+  const textFiles: Record<string, string> = {};
+  const binFiles: Record<string, string> = {};
+  const walk = (n: TreeNode) => {
+    if (!n.isDir) {
+      if (n.isBinary && n.url) {
+        binFiles[n.path] = n.url;
+      } else if (files[n.path] != null) {
+        textFiles[n.path] = files[n.path];
+      }
+      return;
+    }
+    n.children.forEach(walk);
+  };
+  walk(node);
+  return { textFiles, binFiles };
+}
+
 function FileTreeNode({
   node,
   files,
@@ -148,16 +169,23 @@ function FileTreeNode({
   onFileClick?: (node: TreeNode) => void;
 }) {
   const { t } = useTranslation();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const { textFiles, binFiles } = useMemo(
+    () => collectSubtreeFiles(node, files),
+    [node, files],
+  );
   if (node.isDir) {
     const expanded = expandedDirs.has(node.path);
     const dirSize = expanded
       ? node.children.reduce((sum, c) => sum + (c.size || 0), 0)
       : 0;
+    const hasFiles =
+      Object.keys(textFiles).length + Object.keys(binFiles).length > 0;
     return (
       <div>
         <button
           onClick={() => toggleDir(node.path)}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors group"
         >
           <FolderIcon size={36} className="shrink-0" />
           <div className="flex-1 min-w-0 text-left">
@@ -170,6 +198,27 @@ function FileTreeNode({
               </div>
             )}
           </div>
+          {hasFiles && (
+            <span
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (isDownloading) return;
+                try {
+                  setIsDownloading(true);
+                  await exportProjectZip(textFiles, node.name, binFiles);
+                } finally {
+                  setIsDownloading(false);
+                }
+              }}
+              title={t("project.downloadFolder")}
+              className={clsx(
+                "shrink-0 p-1.5 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle opacity-0 group-hover:opacity-100 transition-all",
+                isDownloading && "opacity-50 pointer-events-none",
+              )}
+            >
+              <Download size={18} />
+            </span>
+          )}
           <ChevronRight
             size={18}
             className={clsx(

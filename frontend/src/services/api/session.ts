@@ -7,6 +7,7 @@ import type {
   RunSummary,
   MessageAttachment,
 } from "../../types";
+import { stripLocalAttachmentFields } from "../../components/chat/longTextConversion";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 
@@ -100,7 +101,7 @@ export function buildSubmitChatBody({
     message,
     session_id: sessionId,
     agent_options: agentOptions,
-    attachments,
+    attachments: stripLocalAttachmentFields(attachments),
     disabled_skills: disabledSkills,
     enabled_skills: enabledSkills,
     persona_preset_id: personaPresetId || undefined,

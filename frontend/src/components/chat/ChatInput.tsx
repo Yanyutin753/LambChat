@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import toast from "react-hot-toast";
-import { Ban, Plus } from "lucide-react";
+import { Ban, Maximize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
 import { ImageViewer } from "../common";
@@ -15,6 +15,7 @@ import { useInputHistory } from "../../hooks/useInputHistory";
 import { useTextareaResize } from "../../hooks/useTextareaResize";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
 import { useChatInputKeyboard } from "../../hooks/useChatInputKeyboard";
+import { useLongTextConversion } from "../../hooks/useLongTextConversion";
 import { useAuth } from "../../hooks/useAuth";
 import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
@@ -24,7 +25,9 @@ import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
-import { SkillChip } from "./SkillChip";
+import { ChatInputExpandedComposer } from "./ChatInputExpandedComposer";
+import { ChatInputRunSkillsBar } from "./ChatInputRunSkillsBar";
+import { resolveThinkingPresentation } from "./chatInputThinking";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
@@ -144,6 +147,7 @@ export const ChatInput = memo(function ChatInput({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
+  const [composerExpanded, setComposerExpanded] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -169,7 +173,33 @@ export const ChatInput = memo(function ChatInput({
 
   const { history, pushHistory, navigateUp, navigateDown } = useInputHistory();
 
-  const { scheduleTextareaResize } = useTextareaResize(textareaRef, input);
+  const { scheduleTextareaResize, showExpandButton } = useTextareaResize(
+    textareaRef,
+    input,
+  );
+
+  const {
+    convertTextToAttachment,
+    maybeConvertInput,
+    restoreLongTextAttachment,
+    prepareSubmit,
+  } = useLongTextConversion({
+    setInput,
+    setAttachments,
+    uploadFiles,
+    validateCount,
+    scheduleTextareaResize,
+    expanded: composerExpanded,
+  });
+
+  const handleLongTextPaste = useCallback(
+    (text: string, preserveText?: string) => {
+      // Expanded composer keeps long prompts editable as plain text.
+      if (composerExpanded) return false;
+      return convertTextToAttachment(text, preserveText);
+    },
+    [composerExpanded, convertTextToAttachment],
+  );
 
   const { handlePaste } = usePasteHandler({
     textareaRef,
@@ -178,6 +208,7 @@ export const ChatInput = memo(function ChatInput({
     uploadFiles,
     validateCount,
     scheduleTextareaResize,
+    onLongTextPaste: handleLongTextPaste,
   });
 
   const mentionMode = currentAgent === "team" ? "team" : "persona";
@@ -493,16 +524,25 @@ export const ChatInput = memo(function ChatInput({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSend) return;
-    if (input.trim() && canSubmit) {
+    if (canSubmit) {
       const trimmed = input.trim();
       const runOptions = runEnabledSkillNames
         ? { enabledSkills: runEnabledSkillNames }
         : undefined;
-      onSend(trimmed, agentOptionValues, attachments, runOptions);
-      pushHistory(trimmed);
+      const prepared = prepareSubmit(trimmed, attachments);
+      onSend(
+        prepared.message,
+        agentOptionValues,
+        prepared.attachments,
+        runOptions,
+      );
+      if (trimmed) {
+        pushHistory(trimmed);
+      }
       setInput("");
       setRunEnabledSkillNames(null);
       setAttachments([]);
+      setComposerExpanded(false);
       requestAnimationFrame(() => {
         if (textareaRef.current) {
           textareaRef.current.style.height = "auto";
@@ -544,10 +584,15 @@ export const ChatInput = memo(function ChatInput({
     },
   );
 
-  const hasContent = !!input.trim() && !disabled;
+  const hasContent = (!!input.trim() || attachments.length > 0) && !disabled;
   const hasUploadingAttachment = attachments.some((a) => a.isUploading);
   const canSubmit =
     hasContent && canSend && !isLoading && !hasUploadingAttachment;
+  const composerPlaceholder = !canSend
+    ? t("chat.noPermission")
+    : mentionMode === "team"
+      ? t("chat.teamPlaceholder")
+      : t("chat.placeholder");
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -568,32 +613,8 @@ export const ChatInput = memo(function ChatInput({
     uploadFiles(files);
   };
 
-  const thinkingLabel = agentOptions
-    ? Object.entries(agentOptions)
-        .filter(([, opt]) => opt.options && opt.options.length > 0)
-        .map(([, opt]) => {
-          const val =
-            agentOptionValues[
-              Object.keys(agentOptions).find((k) => agentOptions[k] === opt)!
-            ] ?? opt.default;
-          const selected = opt.options?.find((o) => o.value === val);
-          return selected?.label_key
-            ? t(selected.label_key)
-            : selected?.label || String(val);
-        })[0]
-    : undefined;
-
-  const thinkingLevel = agentOptions
-    ? Object.entries(agentOptions)
-        .filter(([, opt]) => opt.options && opt.options.length > 0)
-        .map(([, opt]) => {
-          const val =
-            agentOptionValues[
-              Object.keys(agentOptions).find((k) => agentOptions[k] === opt)!
-            ] ?? opt.default;
-          return String(val);
-        })[0]
-    : undefined;
+  const { label: thinkingLabel, level: thinkingLevel } =
+    resolveThinkingPresentation(agentOptions, agentOptionValues, t);
 
   const runSkillNameSet = useMemo(() => {
     const initialNames =
@@ -696,76 +717,33 @@ export const ChatInput = memo(function ChatInput({
             onCancelUpload={cancelUpload}
             onImageViewerOpen={(url) => setImageViewerSrc(url)}
             maxFiles={uploadLimits?.maxFiles}
+            onRestoreLongText={restoreLongTextAttachment}
           />
 
           <div className="px-2.5 pt-1">
-            {runEnabledSkillNames && runEnabledSkillNames.length > 0 && (
-              <div
-                className="group flex flex-wrap items-center gap-2.5 px-2.5 py-2.5 mb-px"
-                style={{
-                  borderBottom:
-                    "1px solid color-mix(in srgb, var(--theme-border) 50%, transparent)",
+            {runEnabledSkillNames && (
+              <ChatInputRunSkillsBar
+                skillNames={runEnabledSkillNames}
+                availableSkills={availableRunSkills}
+                onOpenSelector={() => setRunSkillSelectorOpen(true)}
+                onRemoveSkill={(skillName) => {
+                  updateRunSkillSelection((current) => {
+                    current.delete(skillName);
+                    return current;
+                  });
                 }}
-              >
-                <div
-                  className="skill-chip-row min-w-0 flex-1"
-                  style={{ gap: "0.75rem" }}
-                >
-                  {runEnabledSkillNames.map((skillName) => {
-                    const skill = availableRunSkills.find(
-                      (s) => s.name === skillName,
-                    );
-                    return (
-                      <span key={skillName} className="group">
-                        <SkillChip
-                          name={skillName}
-                          tags={skill?.tags ?? []}
-                          onClick={() => setRunSkillSelectorOpen(true)}
-                          onRemove={() => {
-                            updateRunSkillSelection((current) => {
-                              current.delete(skillName);
-                              return current;
-                            });
-                          }}
-                        />
-                      </span>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => setRunSkillSelectorOpen(true)}
-                    className="skill-chip"
-                    aria-label={t("common.add", "Add")}
-                    title={t("common.add", "Add")}
-                    style={{
-                      opacity: 0.4,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Plus
-                      size={14}
-                      style={{ color: "var(--theme-text-secondary)" }}
-                    />
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 transition-colors opacity-0 group-hover:opacity-100 ml-1"
-                  style={{ color: "var(--theme-text-tertiary)" }}
-                  onClick={() => setRunEnabledSkillNames(null)}
-                  title={t("common.clear", "Clear")}
-                >
-                  <Ban size={12} />
-                </button>
-              </div>
+                onClear={() => setRunEnabledSkillNames(null)}
+              />
             )}
             <div className="relative">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => {
-                  setInput(e.target.value);
+                  const next = e.target.value;
                   setCursorPosition(e.target.selectionStart);
+                  if (maybeConvertInput(next)) return;
+                  setInput(next);
                 }}
                 onClick={(e) => {
                   setCursorPosition(e.currentTarget.selectionStart);
@@ -776,21 +754,30 @@ export const ChatInput = memo(function ChatInput({
                 onFocus={scheduleTextareaResize}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                placeholder={
-                  canSend
-                    ? mentionMode === "team"
-                      ? t("chat.teamPlaceholder")
-                      : t("chat.placeholder")
-                    : t("chat.noPermission")
-                }
+                placeholder={composerPlaceholder}
                 disabled={disabled || !canSend}
-                className="bg-transparent outline-none w-full pt-[10px] resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[40px] sm:min-h-[44px]"
+                className={`bg-transparent outline-none w-full pt-[10px] resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[40px] sm:min-h-[44px] ${
+                  showExpandButton ? "pr-8" : "pr-1"
+                }`}
                 style={{
                   color: "var(--theme-text)",
                   paddingLeft: 4,
                 }}
                 rows={1}
               />
+              {showExpandButton && (
+                <button
+                  type="button"
+                  onClick={() => setComposerExpanded(true)}
+                  className="absolute right-1 top-2 inline-flex size-6 items-center justify-center rounded-md opacity-60 transition hover:opacity-100"
+                  style={{ color: "var(--theme-text-secondary)" }}
+                  title={t("chat.expandComposer", "展开编辑")}
+                  aria-label={t("chat.expandComposer", "展开编辑")}
+                  disabled={disabled || !canSend}
+                >
+                  <Maximize2 size={14} />
+                </button>
+              )}
             </div>
           </div>
           <SlashDropdownMenu
@@ -982,6 +969,26 @@ export const ChatInput = memo(function ChatInput({
         isOpen={contactAdminOpen}
         onClose={() => setContactAdminOpen(false)}
         reason="noPermission"
+      />
+
+      <ChatInputExpandedComposer
+        open={composerExpanded}
+        value={input}
+        disabled={disabled || !canSend}
+        canSubmit={canSubmit}
+        isLoading={isLoading}
+        hasUploadingAttachment={hasUploadingAttachment}
+        placeholder={composerPlaceholder}
+        onChange={(next) => {
+          if (maybeConvertInput(next)) return;
+          setInput(next);
+          setCursorPosition(next.length);
+        }}
+        onCollapse={() => setComposerExpanded(false)}
+        onSend={handleSubmit}
+        onStop={() => setStopConfirmOpen(true)}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
       />
     </div>
   );

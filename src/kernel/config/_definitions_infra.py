@@ -145,7 +145,7 @@ INFRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.TRACING,
         "subcategory": "langsmith",
         "description": "settingDesc.LANGSMITH_PROJECT",
-        "default": "lamb-agent",
+        "default": "lambchat",
         "depends_on": "LANGSMITH_TRACING",
     },
     "LANGSMITH_API_URL": {

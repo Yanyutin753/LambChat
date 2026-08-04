@@ -62,7 +62,7 @@ class LangSmithTracer:
                 name=name,
                 run_type=run_type,  # type: ignore[arg-type]
                 inputs={},
-                project_name=os.getenv("LANGSMITH_PROJECT", "lamb-agent"),
+                project_name=os.getenv("LANGSMITH_PROJECT", "lambchat"),
             )
             yield None
             # Note: For proper tracing, use @traceable decorator instead

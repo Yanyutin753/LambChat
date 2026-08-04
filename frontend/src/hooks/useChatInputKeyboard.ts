@@ -1,6 +1,7 @@
 import type { SlashDropdownItem } from "../components/chat/chatInputSlashCommands";
 import type { PersonaPreset } from "../types";
 import type { Team } from "../types/team";
+import { isSendEnterKey } from "./sendModifier";
 
 interface SlashDropdownState {
   open: boolean;
@@ -99,11 +100,12 @@ export function useChatInputKeyboard(
       }
     }
 
-    const newlineModifier = localStorage.getItem("newlineModifier") || "shift";
-
     if (e.key === "Enter") {
-      const needsModifier = newlineModifier === "ctrl" ? e.ctrlKey : e.shiftKey;
-      if (needsModifier) return;
+      // Avoid submitting while an IME composition session is active.
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+
+      // plain Enter = newline; modifier (ctrl/meta or shift) sends
+      if (!isSendEnterKey(e)) return;
 
       e.preventDefault();
       if (input.isLoading) {
