@@ -178,7 +178,11 @@ function useSharedPageTheme() {
   return { theme, toggleTheme };
 }
 
-export function SharedPage() {
+export function SharedPage({
+  initialData,
+}: {
+  initialData?: SharedContentResponse;
+} = {}) {
   const { shareId } = useParams<{ shareId: string }>();
   const { t } = useTranslation();
   const { theme, toggleTheme } = useSharedPageTheme();
@@ -224,6 +228,12 @@ export function SharedPage() {
   }, []);
 
   useEffect(() => {
+    if (initialData) {
+      setData(initialData);
+      setIsLoading(false);
+      return;
+    }
+
     if (!shareId) {
       setError(t("share.invalidLink"));
       setIsLoading(false);
@@ -235,6 +245,11 @@ export function SharedPage() {
       setError(null);
       try {
         const response = await shareApi.getSharedContent(shareId);
+        // 项目分享由 SharedProjectPage 渲染；这里优雅降级
+        if (response.share_scope === "project") {
+          setError("not_found");
+          return;
+        }
         setData(response);
       } catch (err) {
         console.error("Failed to load shared content:", err);
@@ -258,7 +273,7 @@ export function SharedPage() {
     };
 
     loadSharedContent();
-  }, [shareId, t]);
+  }, [shareId, t, initialData]);
 
   // Reconstruct messages from events using the same logic as the main chat
   const messages = useMemo(() => {

@@ -177,6 +177,17 @@ async def delete_project(
 
         get_logger(__name__).warning(f"Failed to clear channel config project_id: {e}")
 
+    # Delete live (full) project shares; keep partial (snapshot) shares whose
+    # content is frozen and self-contained even after the project is gone.
+    try:
+        from src.infra.share.storage import ShareStorage
+
+        await ShareStorage().delete_project_live_shares(project_id)
+    except Exception as e:
+        from src.infra.logging import get_logger
+
+        get_logger(__name__).warning(f"Failed to clean up project shares: {e}")
+
     # Delete the project
     success = await storage.delete(project_id, user.sub)
     if not success:

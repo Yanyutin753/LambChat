@@ -2,9 +2,40 @@ from src.infra.share.seo import (
     build_public_route_seo,
     build_shared_page_error_seo,
     build_shared_page_seo,
+    build_shared_project_seo,
     inject_public_route_seo_into_html,
     inject_share_seo_into_html,
 )
+
+
+def test_build_shared_project_seo_uses_project_name_and_session_count() -> None:
+    seo = build_shared_project_seo(
+        base_url="https://lambchat.com",
+        share_id="projShare1",
+        project={"name": "市场调研项目", "icon": "📊"},
+        sessions=[{"id": "s1"}, {"id": "s2"}, {"id": "s3"}],
+        owner={"username": "alice"},
+    )
+
+    assert seo.title == "市场调研项目 - LambChat Shared Project"
+    assert seo.canonical_url == "https://lambchat.com/shared/projShare1"
+    assert seo.preview_title == "市场调研项目"
+    assert "3 conversation(s)" in seo.description
+    assert seo.author_name == "alice"
+    assert seo.robots == "noindex, follow, max-image-preview:large"
+
+
+def test_build_shared_project_seo_handles_empty_project_name() -> None:
+    seo = build_shared_project_seo(
+        base_url="https://lambchat.com",
+        share_id="projShare2",
+        project={},
+        sessions=[],
+        owner=None,
+    )
+
+    assert seo.preview_title == "Shared project"
+    assert seo.author_name == ""
 
 
 def test_build_shared_page_seo_uses_share_specific_metadata() -> None:

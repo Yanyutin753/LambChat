@@ -48,6 +48,7 @@ interface ProjectItemProps {
   onMoveSession: (sessionId: string, projectId: string | null) => void;
   onToggleFavorite?: (sessionId: string) => void;
   onShareSession?: (sessionId: string) => void;
+  onShareProject?: (projectId: string) => void;
   onRenameProject: (projectId: string, name: string) => void;
   onDeleteProject: (projectId: string) => void;
   onUpdateIcon?: (projectId: string, icon: string) => void;
@@ -76,6 +77,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       onMoveSession,
       onToggleFavorite,
       onShareSession,
+      onShareProject,
       onRenameProject,
       onDeleteProject,
       draggingSessionId,
@@ -467,6 +469,11 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
             onClose={() => setIsMenuOpen(false)}
             onRename={handleStartEdit}
             onDelete={() => onDeleteProject(project.id)}
+            onShare={
+              onShareProject
+                ? () => onShareProject(project.id)
+                : undefined
+            }
             onNewSessionInProject={
               onNewSessionInProject
                 ? () => onNewSessionInProject(project.id)

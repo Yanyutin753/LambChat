@@ -62,6 +62,7 @@ from src.infra.share.seo import (
     build_public_route_seo,
     build_shared_page_error_seo,
     build_shared_page_seo,
+    build_shared_project_seo,
     inject_public_route_seo_into_html,
     inject_share_seo_into_html,
 )
@@ -806,15 +807,27 @@ def create_app() -> FastAPI:
                 rendered = inject_share_seo_into_html(html_doc, seo)
                 return HTMLResponse(content=rendered, status_code=exc.status_code)
 
-            seo = build_shared_page_seo(
-                base_url=base_url,
-                share_id=share_id,
-                session=shared_content.session,
-                owner=shared_content.owner.model_dump(),
-                events=shared_content.events,
-                app_name=settings.APP_NAME,
-                indexable=False,
-            )
+            if hasattr(shared_content, "sessions"):
+                # 项目维度分享：渲染项目卡（项目名 + 会话数）
+                seo = build_shared_project_seo(
+                    base_url=base_url,
+                    share_id=share_id,
+                    project=shared_content.project.model_dump(),
+                    sessions=shared_content.sessions,
+                    owner=shared_content.owner.model_dump(),
+                    app_name=settings.APP_NAME,
+                    indexable=False,
+                )
+            else:
+                seo = build_shared_page_seo(
+                    base_url=base_url,
+                    share_id=share_id,
+                    session=shared_content.session,
+                    owner=shared_content.owner.model_dump(),
+                    events=shared_content.events,
+                    app_name=settings.APP_NAME,
+                    indexable=False,
+                )
             rendered = inject_share_seo_into_html(html_doc, seo)
             return HTMLResponse(content=rendered)
 
