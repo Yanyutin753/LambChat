@@ -108,9 +108,7 @@ def test_validate_payload_project_partial_enforces_limit() -> None:
 
 
 def test_validate_payload_project_full_ok() -> None:
-    data = ShareCreate(
-        share_scope=ShareScope.PROJECT, project_id="p1", share_type=ShareType.FULL
-    )
+    data = ShareCreate(share_scope=ShareScope.PROJECT, project_id="p1", share_type=ShareType.FULL)
     # should not raise
     share_route._validate_share_payload(data)
 
@@ -317,8 +315,7 @@ def _project_share(
         share_type=share_type,
         session_ids=session_ids,
         project_id="p1",
-        project_snapshot=project_snapshot
-        or ProjectSnapshot(id="p1", name="项目A", icon="💬"),
+        project_snapshot=project_snapshot or ProjectSnapshot(id="p1", name="项目A", icon="💬"),
         visibility=visibility,
     )
 
@@ -332,12 +329,8 @@ async def test_get_shared_content_project_returns_manifest(monkeypatch) -> None:
             return share
 
     sessions = {
-        "s1": SimpleNamespace(
-            id="s1", name="会话1", agent_id="fast", metadata={}, updated_at=None
-        ),
-        "s2": SimpleNamespace(
-            id="s2", name="会话2", agent_id="fast", metadata={}, updated_at=None
-        ),
+        "s1": SimpleNamespace(id="s1", name="会话1", agent_id="fast", metadata={}, updated_at=None),
+        "s2": SimpleNamespace(id="s2", name="会话2", agent_id="fast", metadata={}, updated_at=None),
     }
 
     class _Manager:
@@ -375,7 +368,9 @@ async def test_get_shared_content_project_full_uses_live_members(monkeypatch) ->
     class _Manager:
         async def get_sessions(self, ids):
             return {
-                sid: SimpleNamespace(id=sid, name=sid, agent_id="fast", metadata={}, updated_at=None)
+                sid: SimpleNamespace(
+                    id=sid, name=sid, agent_id="fast", metadata={}, updated_at=None
+                )
                 for sid in ids
             }
 
@@ -522,3 +517,45 @@ async def test_subsession_returns_events_for_member(monkeypatch) -> None:
     resp = await share_route.get_shared_session_in_project("sharetoken", "s1")
     assert resp.share_scope == ShareScope.SESSION
     assert resp.events[0]["event_type"] == "assistant:message"
+
+
+# ---------------------------------------------------------------------------
+# project manifest pagination (has_more / session_skip / session_limit)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_shared_content_project_paginates(monkeypatch) -> None:
+    """项目 manifest 支持分页：has_more 在未取完时为 True，取完为 False。"""
+    share = _project_share(share_type=ShareType.PARTIAL, session_ids=["s1", "s2", "s3"])
+
+    class _Storage:
+        async def get_by_share_id(self, _sid):
+            return share
+
+    sessions = {
+        sid: SimpleNamespace(id=sid, name=sid, agent_id="fast", metadata={}, updated_at=None)
+        for sid in ["s1", "s2", "s3"]
+    }
+
+    class _Manager:
+        async def get_sessions(self, ids):
+            return {sid: sessions[sid] for sid in ids if sid in sessions}
+
+    class _UserStorage:
+        async def get_by_id(self, _uid):
+            return SimpleNamespace(username="alice", avatar_url=None)
+
+    monkeypatch.setattr(share_route, "ShareStorage", lambda: _Storage())
+    monkeypatch.setattr(share_route, "SessionManager", lambda: _Manager())
+    monkeypatch.setattr(share_route, "UserStorage", lambda: _UserStorage())
+
+    page1 = await share_route.get_shared_content("sharetoken", session_limit=2, session_skip=0)
+    assert page1.share_scope == ShareScope.PROJECT
+    assert len(page1.sessions) == 2
+    assert page1.sessions_total == 3
+    assert page1.has_more is True
+
+    page2 = await share_route.get_shared_content("sharetoken", session_limit=2, session_skip=2)
+    assert len(page2.sessions) == 1
+    assert page2.has_more is False

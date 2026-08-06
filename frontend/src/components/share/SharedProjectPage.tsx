@@ -5,7 +5,14 @@
  * Click a session to expand and view its messages, reusing ChatMessage.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -33,6 +40,9 @@ import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoade
 const ChatMessage = lazy(() =>
   import("../chat/ChatMessage").then((m) => ({ default: m.ChatMessage })),
 );
+
+// 项目分享 manifest 单次分页大小（后端上限 SHARE_PROJECT_SESSIONS_LIMIT = 50）
+const SESSION_PAGE_SIZE = 50;
 
 // Theme management for shared pages (independent of main app context)
 function useSharedPageTheme() {
@@ -95,9 +105,40 @@ export function SharedProjectPage({
   const [error, setError] = useState<string | null>(null);
 
   // 展开的子会话：sessionId -> 内容
-  const [expanded, setExpanded] = useState<Record<string, SharedContentResponse>>(
-    {},
-  );
+  const [expanded, setExpanded] = useState<
+    Record<string, SharedContentResponse>
+  >({});
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const hasMore = manifest
+    ? manifest.has_more ?? manifest.sessions.length < manifest.sessions_total
+    : false;
+
+  const loadMore = useCallback(async () => {
+    if (!shareId || !manifest || loadingMore || !hasMore) return;
+    const skip = manifest.sessions.length;
+    setLoadingMore(true);
+    try {
+      const page = await shareApi.getSharedContent(shareId, {
+        sessionSkip: skip,
+        sessionLimit: SESSION_PAGE_SIZE,
+      });
+      if (!("sessions" in page)) return;
+      setManifest((prev) =>
+        prev
+          ? {
+              ...prev,
+              sessions: [...prev.sessions, ...page.sessions],
+              has_more: page.has_more,
+            }
+          : prev,
+      );
+    } catch {
+      // 单页加载失败不打断整体，用户可重试
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [shareId, manifest, loadingMore, hasMore]);
 
   useEffect(() => {
     if (initialManifest) {
@@ -111,7 +152,9 @@ export function SharedProjectPage({
       setIsLoading(true);
       setError(null);
       try {
-        const data = await shareApi.getSharedContent(shareId);
+        const data = await shareApi.getSharedContent(shareId, {
+          sessionLimit: SESSION_PAGE_SIZE,
+        });
         if (cancelled) return;
         if (!("sessions" in data)) {
           setError("not_project");
@@ -191,21 +234,14 @@ export function SharedProjectPage({
       {/* Header */}
       <header className="safe-area-top sticky top-0 z-40 border-b border-theme-border bg-[color-mix(in_srgb,var(--theme-bg-card)_82%,transparent)] backdrop-blur">
         <div className="max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-          <BrandWordmark
-            decorative
-            className="h-7 w-auto text-theme-text"
-          />
+          <BrandWordmark decorative className="h-7 w-auto text-theme-text" />
           <button
             type="button"
             onClick={toggleTheme}
             className="p-2 rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text transition-colors"
             aria-label="Toggle theme"
           >
-            {theme === "light" ? (
-              <Moon size={18} />
-            ) : (
-              <Sun size={18} />
-            )}
+            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>
       </header>
@@ -271,7 +307,8 @@ export function SharedProjectPage({
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block font-medium truncate">
-                        {session.name || t("share.untitledSession", "未命名会话")}
+                        {session.name ||
+                          t("share.untitledSession", "未命名会话")}
                       </span>
                       <span className="block text-xs text-theme-text-secondary truncate">
                         {session.agent_name}
@@ -297,6 +334,22 @@ export function SharedProjectPage({
               );
             })}
           </ul>
+
+          {hasMore ? (
+            <div className="flex justify-center pt-4">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-2 rounded-lg border border-theme-border bg-theme-bg-card px-4 py-2 text-sm font-medium text-theme-text hover:bg-theme-bg-subtle transition-colors disabled:opacity-60"
+              >
+                {loadingMore ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                {t("share.loadMore", "加载更多")}
+              </button>
+            </div>
+          ) : null}
 
           {manifest.sessions.length === 0 ? (
             <div className="text-center py-16 text-theme-text-secondary">

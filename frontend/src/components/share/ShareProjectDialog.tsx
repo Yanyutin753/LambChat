@@ -83,9 +83,9 @@ export function ShareProjectDialog({
     setIsLoadingSessions(true);
     try {
       const res = await sessionApi.list({ project_id: projectId, limit: 200 });
-      const raw = (Array.isArray(res) ? res : res.sessions ?? []) as unknown as Array<
-        Record<string, unknown>
-      >;
+      const raw = (Array.isArray(res)
+        ? res
+        : res.sessions ?? []) as unknown as Array<Record<string, unknown>>;
       const opts: ProjectSessionOption[] = raw.map((item) => {
         const meta = (item.metadata ?? {}) as Record<string, unknown>;
         return {
@@ -93,7 +93,13 @@ export function ShareProjectDialog({
             (item.session_id as string | undefined) ??
             (item.id as string | undefined) ??
             "",
-          name: typeof meta.name === "string" ? meta.name : "",
+          // 会话名优先级与 getSessionTitle 一致:顶层 name → metadata.title
+          name:
+            typeof item.name === "string"
+              ? item.name
+              : typeof meta.title === "string"
+                ? meta.title
+                : "",
           updated_at: item.updated_at as string | undefined,
         };
       });
@@ -194,7 +200,10 @@ export function ShareProjectDialog({
             {/* Mobile drag handle */}
             <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-9 h-1 bg-stone-300 dark:bg-stone-600 rounded-full" />
             <div className="flex items-center gap-2 pt-2 sm:pt-0">
-              <Share2 size={20} className="text-stone-500 dark:text-stone-400" />
+              <Share2
+                size={20}
+                className="text-stone-500 dark:text-stone-400"
+              />
               <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
                 {t("share.project", "分享项目")}
               </h3>
@@ -302,7 +311,9 @@ export function ShareProjectDialog({
                         }`}
                       >
                         <Checkbox
-                          checked={selectedSessionIds.includes(session.session_id)}
+                          checked={selectedSessionIds.includes(
+                            session.session_id,
+                          )}
                           size="sm"
                           onChange={() => toggleSession(session.session_id)}
                         />
@@ -413,9 +424,11 @@ export function ShareProjectDialog({
                           /shared/{share.share_id}
                         </span>
                         <span className="text-xs text-stone-400 dark:text-stone-500">
-                          ({share.share_type === "full"
+                          (
+                          {share.share_type === "full"
                             ? t("share.fullProject", "完整项目")
-                            : t("share.partialSessions", "部分会话")})
+                            : t("share.partialSessions", "部分会话")}
+                          )
                         </span>
                       </div>
                       <div className="flex items-center gap-1">

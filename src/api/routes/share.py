@@ -117,9 +117,7 @@ async def _validate_project_share(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
     if share_data.share_type == ShareType.PARTIAL:
-        actual_ids = set(
-            await SessionStorage().list_ids_by_project(project_id, user.sub)
-        )
+        actual_ids = set(await SessionStorage().list_ids_by_project(project_id, user.sub))
         requested = set(share_data.session_ids or [])
         if not requested:
             raise HTTPException(
@@ -254,21 +252,15 @@ async def _build_session_content(
     """
     if session is None:
         if not share.session_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="原会话已不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="原会话已不存在")
         session = await SessionManager().get_session(share.session_id)
         if not session:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="原会话已不存在"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="原会话已不存在")
 
     dual_writer = get_dual_writer()
 
     partial_run_ids = (
-        _bounded_partial_run_ids(share.run_ids)
-        if share.share_type == ShareType.PARTIAL
-        else None
+        _bounded_partial_run_ids(share.run_ids) if share.share_type == ShareType.PARTIAL else None
     )
     read_events_kwargs: dict[str, Any] = {"completed_only": True}
     if event_limit is not None:
@@ -311,9 +303,7 @@ async def _build_project_manifest(
 ) -> SharedProjectContentResponse:
     """构建项目分享的 manifest（项目信息 + 子会话摘要，不含完整事件）。"""
     if not share.project_snapshot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在或已过期"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在或已过期")
 
     session_limit = min(max(int(session_limit), 1), SHARE_PROJECT_SESSIONS_LIMIT)
     session_skip = max(int(session_skip), 0)
@@ -321,9 +311,7 @@ async def _build_project_manifest(
     if share.share_type == ShareType.PARTIAL:
         member_ids = list(share.session_ids or [])
     else:  # FULL 实时
-        member_ids = await SessionStorage().list_ids_by_project(
-            share.project_id, share.owner_id
-        )
+        member_ids = await SessionStorage().list_ids_by_project(share.project_id, share.owner_id)
     sessions_total = len(member_ids)
 
     page_ids = member_ids[session_skip : session_skip + session_limit]
@@ -342,6 +330,8 @@ async def _build_project_manifest(
         avatar_url=owner.avatar_url if owner else None,
     )
 
+    has_more = session_skip + len(page_ids) < sessions_total
+
     return SharedProjectContentResponse(
         share_type=share.share_type,
         project=share.project_snapshot,
@@ -349,6 +339,7 @@ async def _build_project_manifest(
         owner=owner_info,
         visibility=share.visibility,
         sessions_total=sessions_total,
+        has_more=has_more,
     )
 
 
@@ -356,9 +347,7 @@ async def _resolve_project_member_ids(share) -> set[str]:
     """项目分享可见的会话集合（partial=快照 / full=实时成员）。"""
     if share.share_type == ShareType.PARTIAL:
         return set(share.session_ids or [])
-    return set(
-        await SessionStorage().list_ids_by_project(share.project_id, share.owner_id)
-    )
+    return set(await SessionStorage().list_ids_by_project(share.project_id, share.owner_id))
 
 
 def _build_share_response(shared_session) -> SharedSessionResponse:
@@ -474,9 +463,7 @@ async def update_share(
         if not share.project_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在")
         next_session_ids = (
-            share_data.session_ids
-            if share_data.session_ids is not None
-            else share.session_ids
+            share_data.session_ids if share_data.session_ids is not None else share.session_ids
         )
         if next_share_type == ShareType.PARTIAL:
             if not next_session_ids:
@@ -518,9 +505,7 @@ async def update_share(
                 detail="只能分享自己的会话",
             )
 
-        next_run_ids = (
-            share_data.run_ids if share_data.run_ids is not None else share.run_ids
-        )
+        next_run_ids = share_data.run_ids if share_data.run_ids is not None else share.run_ids
         normalized_update = ShareUpdate(
             share_type=next_share_type,
             run_ids=next_run_ids,
@@ -540,9 +525,7 @@ async def update_share(
         session_ids=next_session_ids,
     )
     if not updated_share:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新失败"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新失败")
 
     return _build_share_response(updated_share)
 
@@ -627,9 +610,7 @@ async def delete_share(
 
     success = await storage.delete(share_id, user.sub)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="删除失败"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="删除失败")
 
     return {"status": "deleted"}
 

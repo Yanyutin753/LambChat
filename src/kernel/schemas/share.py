@@ -190,3 +190,4 @@ class SharedProjectContentResponse(BaseModel):
     events_limited: bool = False
     events_limit: Optional[int] = None
     sessions_total: int = 0
+    has_more: bool = False  # manifest 是否还有更多会话可分页加载

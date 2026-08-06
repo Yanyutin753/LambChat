@@ -11,9 +11,9 @@ from src.kernel.config import settings
 from src.kernel.schemas.share import (
     ProjectSnapshot,
     ShareCreate,
-    ShareScope,
     SharedSession,
     SharedSessionListItem,
+    ShareScope,
     ShareType,
     ShareVisibility,
 )
@@ -78,16 +78,12 @@ class ShareStorage:
             share_id=normalized["share_id"],
             session_id=normalized.get("session_id"),
             owner_id=normalized["owner_id"],
-            share_scope=ShareScope(
-                normalized.get("share_scope") or ShareScope.SESSION.value
-            ),
+            share_scope=ShareScope(normalized.get("share_scope") or ShareScope.SESSION.value),
             share_type=ShareType(normalized.get("share_type") or ShareType.FULL.value),
             run_ids=normalized.get("run_ids"),
             session_ids=normalized.get("session_ids"),
             project_id=normalized.get("project_id"),
-            project_snapshot=self._resolve_project_snapshot(
-                normalized.get("project_snapshot")
-            ),
+            project_snapshot=self._resolve_project_snapshot(normalized.get("project_snapshot")),
             visibility=ShareVisibility(
                 normalized.get("visibility") or ShareVisibility.PUBLIC.value
             ),
@@ -102,9 +98,7 @@ class ShareStorage:
             id=str(share_dict["_id"]),
             share_id=share_dict["share_id"],
             session_id=share_dict.get("session_id"),
-            share_scope=ShareScope(
-                share_dict.get("share_scope") or ShareScope.SESSION.value
-            ),
+            share_scope=ShareScope(share_dict.get("share_scope") or ShareScope.SESSION.value),
             project_id=share_dict.get("project_id"),
             project_name=snapshot.name if snapshot else None,
             share_type=ShareType(share_dict["share_type"]),
@@ -133,9 +127,7 @@ class ShareStorage:
             "run_ids": share_data.run_ids,
             "session_ids": share_data.session_ids,
             "project_id": share_data.project_id,
-            "project_snapshot": (
-                project_snapshot.model_dump() if project_snapshot else None
-            ),
+            "project_snapshot": (project_snapshot.model_dump() if project_snapshot else None),
             "visibility": share_data.visibility.value,
             "created_at": now,
             "updated_at": now,
@@ -154,9 +146,7 @@ class ShareStorage:
             run_ids=share_dict["run_ids"],
             session_ids=share_dict["session_ids"],
             project_id=share_dict["project_id"],
-            project_snapshot=self._resolve_project_snapshot(
-                share_dict["project_snapshot"]
-            ),
+            project_snapshot=self._resolve_project_snapshot(share_dict["project_snapshot"]),
             visibility=ShareVisibility(share_dict["visibility"]),
             created_at=share_dict["created_at"],
             updated_at=share_dict["updated_at"],

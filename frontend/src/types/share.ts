@@ -117,7 +117,10 @@ export interface SharedProjectContentResponse {
   events_limited?: boolean;
   events_limit?: number;
   sessions_total: number;
+  has_more?: boolean;
 }
 
 /** 统一公开读返回：会话内容或项目 manifest，按 share_scope 区分。 */
-export type SharedContent = SharedContentResponse | SharedProjectContentResponse;
+export type SharedContent =
+  | SharedContentResponse
+  | SharedProjectContentResponse;

@@ -204,20 +204,43 @@ class SessionStorage:
         return self._build_session(session_dict)
 
     async def get_by_session_ids(self, session_ids: list[str]) -> Dict[str, Session]:
-        """通过 session_id 列表批量获取会话，返回 {session_id: Session} 映射"""
+        """通过 session_id 列表批量获取会话，返回 {session_id: Session} 映射。
+
+        部分会话文档没有 ``session_id`` 字段，其规范 id 为 ``str(_id)``
+        （见 ``_build_session`` / ``list_ids_by_project``）。这里与单文档查询
+        （``update`` 等）保持一致：先按 ``session_id`` 匹配，再按 ``_id`` 回查，
+        否则会漏掉这类会话（项目分享 manifest 因此曾静默丢失成员）。
+        """
         if not session_ids:
             return {}
         await self.ensure_indexes_if_needed()
-        unique_ids = []
-        seen_ids = set()
+        unique_ids: list[str] = []
+        object_ids: list[ObjectId] = []
+        seen_ids: set[str] = set()
         for session_id in session_ids:
             if session_id in seen_ids:
                 continue
             seen_ids.add(session_id)
             unique_ids.append(session_id)
+            # 没有 session_id 字段的会话以 str(_id) 作为规范 id，需要用 _id 回查
+            try:
+                object_ids.append(ObjectId(session_id))
+            except Exception:
+                pass
             if len(unique_ids) >= SESSION_BATCH_LOOKUP_LIMIT:
                 break
-        cursor = self.collection.find({"session_id": {"$in": unique_ids}})
+
+        if object_ids:
+            query: dict[str, Any] = {
+                "$or": [
+                    {"session_id": {"$in": unique_ids}},
+                    {"_id": {"$in": object_ids}},
+                ]
+            }
+        else:
+            query = {"session_id": {"$in": unique_ids}}
+
+        cursor = self.collection.find(query)
         result: Dict[str, Session] = {}
         async for doc in cursor:
             session = self._build_session(doc)
@@ -570,10 +593,12 @@ class SessionStorage:
     async def list_ids_by_project(self, project_id: str, user_id: str) -> list[str]:
         """List session identifiers for all sessions in a project."""
         await self.ensure_indexes_if_needed()
+        # 按 updated_at 倒序、_id 倒序稳定排序，保证项目分享分页顺序确定
+        # （user_project_updated_idx 索引覆盖 user_id + project_id + updated_at）
         cursor = self.collection.find(
             {"user_id": user_id, "metadata.project_id": project_id},
             {"session_id": 1, "_id": 1},
-        )
+        ).sort([("updated_at", -1), ("_id", -1)])
         session_ids: list[str] = []
         async for doc in cursor:
             session_ids.append(doc.get("session_id") or str(doc["_id"]))
