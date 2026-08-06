@@ -30,6 +30,7 @@ import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { copyToClipboard } from "../../utils/clipboard";
 import { getFullUrl } from "../../services/api/config";
+import { resolveSessionTitle } from "./shareProjectDialogState";
 
 interface ProjectSessionOption {
   session_id: string;
@@ -87,19 +88,13 @@ export function ShareProjectDialog({
         ? res
         : res.sessions ?? []) as unknown as Array<Record<string, unknown>>;
       const opts: ProjectSessionOption[] = raw.map((item) => {
-        const meta = (item.metadata ?? {}) as Record<string, unknown>;
         return {
           session_id:
             (item.session_id as string | undefined) ??
             (item.id as string | undefined) ??
             "",
           // 会话名优先级与 getSessionTitle 一致:顶层 name → metadata.title
-          name:
-            typeof item.name === "string"
-              ? item.name
-              : typeof meta.title === "string"
-                ? meta.title
-                : "",
+          name: resolveSessionTitle(item),
           updated_at: item.updated_at as string | undefined,
         };
       });

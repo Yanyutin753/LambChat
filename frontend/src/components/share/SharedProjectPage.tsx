@@ -36,6 +36,7 @@ import { APP_NAME, GITHUB_URL } from "../../constants";
 import { BrandWordmark } from "../common/BrandWordmark";
 import { formatDate } from "../../utils/datetime";
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
+import { computeProjectHasMore } from "./sharedProjectPageState";
 
 const ChatMessage = lazy(() =>
   import("../chat/ChatMessage").then((m) => ({ default: m.ChatMessage })),
@@ -110,9 +111,7 @@ export function SharedProjectPage({
   >({});
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const hasMore = manifest
-    ? manifest.has_more ?? manifest.sessions.length < manifest.sessions_total
-    : false;
+  const hasMore = computeProjectHasMore(manifest);
 
   const loadMore = useCallback(async () => {
     if (!shareId || !manifest || loadingMore || !hasMore) return;
