@@ -82,7 +82,7 @@ export function ShareProjectDialog({
   const loadSessions = useCallback(async () => {
     setIsLoadingSessions(true);
     try {
-      const res = await sessionApi.list({ project_id: projectId, limit: 200 });
+      const res = await sessionApi.list({ project_id: projectId, limit: 100 });
       const raw = (Array.isArray(res)
         ? res
         : res.sessions ?? []) as unknown as Array<Record<string, unknown>>;
