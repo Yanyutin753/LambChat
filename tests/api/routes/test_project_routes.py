@@ -193,9 +193,7 @@ async def test_delete_project_cleans_up_live_project_shares(
 
     monkeypatch.setattr(project_route, "get_project_storage", lambda: project_storage)
     monkeypatch.setattr(project_route, "SessionStorage", lambda: session_storage)
-    monkeypatch.setattr(
-        "src.infra.share.storage.ShareStorage", lambda: share_storage
-    )
+    monkeypatch.setattr("src.infra.share.storage.ShareStorage", lambda: share_storage)
     monkeypatch.setattr(
         "src.infra.revealed_file.storage.get_revealed_file_storage",
         lambda: _FakeRevealedStorage(),

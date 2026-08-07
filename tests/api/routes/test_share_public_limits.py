@@ -7,7 +7,13 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import share as share_route
-from src.kernel.schemas.share import ShareCreate, ShareType, ShareUpdate, ShareVisibility
+from src.kernel.schemas.share import (
+    ShareCreate,
+    ShareScope,
+    ShareType,
+    ShareUpdate,
+    ShareVisibility,
+)
 from src.kernel.types import Permission
 
 
@@ -18,6 +24,9 @@ class _FakeShareStorage:
             share_id="share-1",
             session_id="session-1",
             owner_id="owner-1",
+            share_scope=ShareScope.SESSION,
+            project_id=None,
+            session_ids=None,
             share_type=ShareType.FULL,
             visibility=ShareVisibility.PUBLIC,
             run_ids=None,
@@ -31,6 +40,9 @@ class _FakeLargePartialShareStorage:
             share_id="share-large",
             session_id="session-1",
             owner_id="owner-1",
+            share_scope=ShareScope.SESSION,
+            project_id=None,
+            session_ids=None,
             share_type=ShareType.PARTIAL,
             visibility=ShareVisibility.PUBLIC,
             run_ids=[
@@ -110,6 +122,9 @@ class _FakeUpdateShareStorage:
             share_id="stable-share",
             session_id="owned-session",
             owner_id="owner-1",
+            share_scope=ShareScope.SESSION,
+            project_id=None,
+            session_ids=None,
             share_type=ShareType.FULL,
             visibility=ShareVisibility.PUBLIC,
             run_ids=None,
@@ -123,6 +138,9 @@ class _FakeUpdateShareStorage:
             share_id="stable-share",
             session_id="owned-session",
             owner_id="owner-1",
+            share_scope=ShareScope.SESSION,
+            project_id=None,
+            session_ids=None,
             share_type=ShareType.PARTIAL,
             visibility=ShareVisibility.AUTHENTICATED,
             run_ids=["run-1"],
@@ -186,6 +204,7 @@ async def test_update_share_edits_existing_share_without_changing_url(
         "share_type": ShareType.PARTIAL,
         "run_ids": ["run-1"],
         "visibility": ShareVisibility.AUTHENTICATED,
+        "session_ids": None,
     }
 
 

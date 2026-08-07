@@ -90,7 +90,8 @@ export const shareApi = {
     }
     const params = new URLSearchParams();
     if (opts?.sessionSkip) params.set("session_skip", String(opts.sessionSkip));
-    if (opts?.sessionLimit) params.set("session_limit", String(opts.sessionLimit));
+    if (opts?.sessionLimit)
+      params.set("session_limit", String(opts.sessionLimit));
     if (opts?.eventLimit) params.set("event_limit", String(opts.eventLimit));
     const query = params.toString() ? `?${params.toString()}` : "";
     return authFetch<SharedContent>(

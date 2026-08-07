@@ -277,8 +277,7 @@ def build_shared_project_seo(
 
     if session_count:
         description = (
-            f"Shared project '{preview_title}' with {session_count} "
-            f"conversation(s) on {app_name}."
+            f"Shared project '{preview_title}' with {session_count} conversation(s) on {app_name}."
         )
     else:
         description = f"Shared project '{preview_title}' on {app_name}."

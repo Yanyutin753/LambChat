@@ -470,9 +470,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
             onRename={handleStartEdit}
             onDelete={() => onDeleteProject(project.id)}
             onShare={
-              onShareProject
-                ? () => onShareProject(project.id)
-                : undefined
+              onShareProject ? () => onShareProject(project.id) : undefined
             }
             onNewSessionInProject={
               onNewSessionInProject

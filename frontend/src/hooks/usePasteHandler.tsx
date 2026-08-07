@@ -91,7 +91,14 @@ export function usePasteHandler({
         insertText(plainText);
       }
     },
-    [uploadFiles, validateCount, onLongTextPaste, insertText, input, textareaRef],
+    [
+      uploadFiles,
+      validateCount,
+      onLongTextPaste,
+      insertText,
+      input,
+      textareaRef,
+    ],
   );
 
   return { handlePaste };
