@@ -11,7 +11,6 @@ from typing import Any, Dict
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
-from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
@@ -39,6 +38,7 @@ from src.agents.core.subagent_prompts import (
     get_memory_guide,
 )
 from src.agents.core.thinking import build_thinking_config
+from src.agents.core.todo_middleware import create_todo_middleware
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT as SEARCH_DEFAULT_SYSTEM_PROMPT,
@@ -523,7 +523,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     ) -> list:
         """Build the middleware stack for a single subagent."""
         mw = [
-            TodoListMiddleware(),
+            create_todo_middleware(),
             *create_retry_middleware(fallback_model=fallback_model, thinking=thinking_config),
             ToolResultBinaryMiddleware(base_url=subagent_base_url),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
@@ -810,7 +810,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
-    user_middleware.append(TodoListMiddleware())
+    user_middleware.append(create_todo_middleware())
 
     user_middleware.append(PromptCachingMiddleware())
 
