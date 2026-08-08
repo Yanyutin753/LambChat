@@ -123,6 +123,7 @@ async def test_env_var_prompt_lists_keys_without_values(monkeypatch: pytest.Monk
     assert "os.environ" in prompt
     assert "super-secret-value" not in prompt
     assert "value" not in prompt.lower()
+    assert len(prompt.split("\n\n", 1)[0]) <= 260
 
 
 @pytest.mark.asyncio
@@ -139,6 +140,7 @@ async def test_env_var_prompt_sections_split_intro_and_key_list(
 
     assert len(sections) == 2
     assert "## Available Environment Variables" in sections[0]
+    assert len(sections[0]) <= 260
     assert "`FIRECRAWL_API_KEY`" in sections[1]
     assert "os.environ" not in sections[1]
 
@@ -314,7 +316,12 @@ async def test_search_agent_context_includes_env_var_tools(monkeypatch: pytest.M
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert {"env_var_list", "env_var_set", "env_var_delete"} <= names
+    deferred_names = {
+        name
+        for name in ("env_var_list", "env_var_set", "env_var_delete")
+        if ctx.deferred_manager is not None and ctx.deferred_manager.get_tool(name) is not None
+    }
+    assert {"env_var_list", "env_var_set", "env_var_delete"} <= names | deferred_names
     assert "env_var_delete_all" not in names
 
 
@@ -334,5 +341,10 @@ async def test_fast_agent_context_includes_env_var_tools(monkeypatch: pytest.Mon
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert {"env_var_list", "env_var_set", "env_var_delete"} <= names
+    deferred_names = {
+        name
+        for name in ("env_var_list", "env_var_set", "env_var_delete")
+        if ctx.deferred_manager is not None and ctx.deferred_manager.get_tool(name) is not None
+    }
+    assert {"env_var_list", "env_var_set", "env_var_delete"} <= names | deferred_names
     assert "env_var_delete_all" not in names

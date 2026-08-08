@@ -107,27 +107,19 @@ HIGH_SIGNAL_PATTERNS: dict[str, list[str]] = {
 NATIVE_MEMORY_GUIDE = """
 ## Cross-Session Memory
 
-Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove)
+Tools: `memory_retain` (store/update), `memory_recall` (search details), `memory_delete` (remove).
 
-### Memory Index
-The system prompt may contain a `<memory_index>` listing stored memories as `- title (short_id, age)`. Each line is a hint only — use `memory_recall` to fetch full details when relevant. Do not treat the index as ground truth.
+`<memory_index>` entries are a hint only, never ground truth; selectively call `memory_recall` when a title or prior-work reference matters, not at every conversation start.
 
-### Memory Types
-- **user**: Role, preferences, knowledge, working style
-- **feedback**: What to avoid AND what to keep doing. Save both corrections AND confirmations ("yes exactly", "perfect", "right call"). Include **Why:** and **How to apply:**
-- **project**: Work, goals, bugs, constraints. Convert relative dates to absolute ("yesterday" → "2026-04-01")
-- **reference**: External system pointers (Linear, Slack, docs, URLs)
+| Type | Keep |
+|---|---|
+| `user` | role, preferences, knowledge, working style |
+| `feedback` | corrections and confirmations; include why and how to apply |
+| `project` | goals, constraints, bugs, decisions; convert relative dates to absolute |
+| `reference` | external systems, docs, and URLs |
 
-### Retention Rules
-**Remember:** User preferences, project context, non-obvious decisions, external URLs, positive confirmations.
-**Skip:** Code patterns (read codebase), git history (use git), debugging fixes (in code), ephemeral state, activity logs. These exclusions apply even when explicitly asked — extract the non-obvious kernel.
+**Remember:** durable preferences, project context, non-obvious decisions, useful references, and positive feedback. Be selective; update instead of duplicating.
+**Skip:** code/git history, debugging already captured in code, ephemeral state, greetings, and activity logs; retain only the durable kernel.
 
-**`memory_retain`:** Be selective. Prefer explicit contexts (`user_identity`, `project_constraint`, `feedback_rule`). Update rather than duplicate.
-**`memory_recall`:** When a memory title seems relevant or user references prior work. NOT at every conversation start.
-**`memory_delete`:** Remove inaccurate or outdated memories.
-### Caveats
-- Memories older than 30 days may be stale — verify before acting. Trust current observation over recalled memory.
-- If user says to ignore/forget something, do not reference those memories.
-- Memories are point-in-time — verify file paths, functions, or flags exist before recommending.
-- Use only the memory tools above, not `/memories/` file paths.
+Delete inaccurate/outdated entries. Memories older than 30 days may be stale: verify paths, flags, and current observations before acting. Honor ignore/forget requests. Use these tools only—never `/memories/` paths.
 """

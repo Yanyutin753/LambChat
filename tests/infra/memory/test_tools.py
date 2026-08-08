@@ -29,6 +29,30 @@ def test_native_memory_guide_does_not_advertise_consolidation_tool():
     assert "memory_consolidate" not in NATIVE_MEMORY_GUIDE
 
 
+def test_native_memory_guide_preserves_compact_behavior_contract() -> None:
+    from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
+
+    required = (
+        "memory_retain",
+        "memory_recall",
+        "memory_delete",
+        "hint only",
+        "user",
+        "feedback",
+        "project",
+        "reference",
+        "Remember",
+        "Skip",
+        "selective",
+        "30 days",
+        "stale",
+        "/memories/",
+    )
+
+    assert all(marker.lower() in NATIVE_MEMORY_GUIDE.lower() for marker in required)
+    assert len(NATIVE_MEMORY_GUIDE) <= 1300
+
+
 @pytest.mark.asyncio
 async def test_memory_recall_offloads_result_json(monkeypatch):
     from src.infra.memory import tools as memory_tools
