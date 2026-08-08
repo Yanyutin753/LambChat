@@ -5,8 +5,6 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
-import deepagents.backends.protocol as deepagents_protocol
-import deepagents.backends.utils as deepagents_utils
 import pytest
 
 from src.kernel.config import settings
@@ -21,19 +19,6 @@ def _load_module_from_path(module_name: str, relative_path: str):
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
-
-
-for _missing_name in ("GlobResult", "LsResult", "ReadResult", "WriteResult"):
-    if not hasattr(deepagents_protocol, _missing_name):
-        setattr(deepagents_protocol, _missing_name, dict)
-
-for _missing_name in (
-    "create_file_data",
-    "format_content_with_line_numbers",
-    "slice_read_response",
-):
-    if not hasattr(deepagents_utils, _missing_name):
-        setattr(deepagents_utils, _missing_name, lambda *args, **kwargs: "")
 
 
 daytona_module = _load_module_from_path(
@@ -190,9 +175,11 @@ def test_daytona_backend_grep_uses_configured_timeout(monkeypatch: pytest.Monkey
     sandbox = _FakeDaytonaSandbox(SimpleNamespace(result="/tmp/app.py:3:needle", exit_code=0))
     backend = DaytonaBackend(sandbox=sandbox, timeout=180)
 
-    matches = backend.grep_raw("needle", path="/tmp", glob="*.py")
+    result = backend.grep("needle", path="/tmp", glob="*.py")
 
-    assert matches == [{"path": "/tmp/app.py", "line": 3, "text": "needle"}]
+    assert result.matches == [{"path": "/tmp/app.py", "line": 3, "text": "needle"}]
+    assert result.error is None
+    assert result.truncated is False
     assert sandbox.process.calls[0][1]["timeout"] == 30
 
 
@@ -274,11 +261,12 @@ async def test_daytona_backend_async_grep_returns_timeout_error(
     )
     backend = DaytonaBackend(sandbox=sandbox, timeout=180)
 
-    result = await backend.agrep_raw("needle", path="/tmp")
+    result = await backend.agrep("needle", path="/tmp")
 
-    assert (
-        result == "Error: grep timed out after 30s. Try a more specific pattern or a narrower path."
+    assert result.error == (
+        "Error: grep timed out after 30s. Try a more specific pattern or a narrower path."
     )
+    assert result.matches is None
     assert sandbox.process.calls[0][1]["timeout"] == 30
 
 
@@ -289,9 +277,11 @@ def test_e2b_backend_grep_uses_configured_timeout(monkeypatch: pytest.MonkeyPatc
     )
     backend = E2BBackend(sandbox=sandbox, timeout=180)
 
-    matches = backend.grep_raw("needle", path="/tmp", glob="*.py")
+    result = backend.grep("needle", path="/tmp", glob="*.py")
 
-    assert matches == [{"path": "/tmp/app.py", "line": 3, "text": "needle"}]
+    assert result.matches == [{"path": "/tmp/app.py", "line": 3, "text": "needle"}]
+    assert result.error is None
+    assert result.truncated is False
     assert sandbox.commands.calls[0]["timeout"] == 30
 
 
@@ -366,9 +356,10 @@ async def test_e2b_backend_async_grep_returns_timeout_error(
     )
     backend = E2BBackend(sandbox=sandbox, timeout=180)
 
-    result = await backend.agrep_raw("needle", path="/tmp")
+    result = await backend.agrep("needle", path="/tmp")
 
-    assert (
-        result == "Error: grep timed out after 30s. Try a more specific pattern or a narrower path."
+    assert result.error == (
+        "Error: grep timed out after 30s. Try a more specific pattern or a narrower path."
     )
+    assert result.matches is None
     assert sandbox.commands.calls[0]["timeout"] == 30

@@ -4,8 +4,6 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
-import deepagents.backends.protocol as deepagents_protocol
-
 
 def _load_module_from_path(module_name: str, relative_path: str):
     path = Path(__file__).parents[3] / relative_path
@@ -15,11 +13,6 @@ def _load_module_from_path(module_name: str, relative_path: str):
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
-
-
-for _missing_name in ("GlobResult", "LsResult", "ReadResult", "WriteResult"):
-    if not hasattr(deepagents_protocol, _missing_name):
-        setattr(deepagents_protocol, _missing_name, dict)
 
 
 e2b_module = _load_module_from_path("test_e2b_backend_glob_module", "src/infra/backend/e2b.py")
@@ -81,7 +74,7 @@ def test_e2b_glob_prefers_rg_or_find_command_search() -> None:
 
     assert files_api.calls == []
     assert "rg --files" in commands_api.calls[0]["cmd"]
-    assert result["matches"] == [
+    assert result.matches == [
         {"path": "/home/user/hello.py"},
         {"path": "/home/user/project/hello.py"},
         {"path": "/home/user/project/lib/hello.py"},
@@ -110,7 +103,7 @@ def test_e2b_glob_find_fallback_matches_recursive_glob_segments() -> None:
 
     result = backend.glob("src/**/tests/*.py", path="/")
 
-    assert result["matches"] == [
+    assert result.matches == [
         {"path": "/home/user/src/tests/root.py"},
         {"path": "/home/user/src/pkg/tests/nested.py"},
         {"path": "/home/user/src/pkg/deep/tests/deep.py"},
@@ -134,7 +127,7 @@ def test_e2b_glob_scopes_root_search_to_work_dir() -> None:
     result = backend.glob("*.py", path="/")
 
     assert files_api.calls[0] == "/home/user"
-    assert result["matches"] == [{"path": "/home/user/project/app.py", "size": 42}]
+    assert result.matches == [{"path": "/home/user/project/app.py", "size": 42}]
 
 
 def test_e2b_glob_skips_sys_dev_proc_dirs() -> None:
@@ -152,7 +145,7 @@ def test_e2b_glob_skips_sys_dev_proc_dirs() -> None:
 
     result = backend.glob("*", path="/")
 
-    assert [m["path"] for m in result["matches"]] == ["/home/user/normal.txt"]
+    assert [m["path"] for m in result.matches or []] == ["/home/user/normal.txt"]
 
 
 def test_e2b_glob_skips_symlink_dirs() -> None:
@@ -183,7 +176,7 @@ def test_e2b_glob_skips_symlink_dirs() -> None:
 
         result = backend.glob("*", path="/")
 
-        matched_paths = [m["path"] for m in result["matches"]]
+        matched_paths = [m["path"] for m in result.matches or []]
         assert "/home/user/link_dir" not in matched_paths
         assert "/home/user/real_dir/inner.py" in matched_paths
     finally:
@@ -207,7 +200,7 @@ def test_e2b_glob_no_infinite_loop_on_visited_paths() -> None:
     result = backend.glob("*", path="/")
 
     assert len(files_api.calls) < 20  # would blow up without visited guard
-    assert any(m["path"] == "/home/user/a/file.txt" for m in result["matches"])
+    assert any(m["path"] == "/home/user/a/file.txt" for m in result.matches or [])
 
 
 def test_e2b_glob_caps_result_count(monkeypatch) -> None:
@@ -228,5 +221,6 @@ def test_e2b_glob_caps_result_count(monkeypatch) -> None:
 
     result = backend.glob("*", path="/")
 
-    assert len(result["matches"]) == 25
-    assert result["matches"][-1]["path"] == "/home/user/file-24.txt"
+    assert len(result.matches or []) == 25
+    assert result.matches[-1]["path"] == "/home/user/file-24.txt"
+    assert result.truncated is True

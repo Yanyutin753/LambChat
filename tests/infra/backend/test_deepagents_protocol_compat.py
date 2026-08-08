@@ -136,14 +136,14 @@ def test_e2b_backend_supports_current_deepagents_protocol() -> None:
     )
     backend = E2BBackend(sandbox=_FakeE2BSandbox(files_api))
 
-    entries = backend.ls_info("/home/user")
-    assert entries == [
+    listed = backend.ls("/home/user")
+    assert listed.entries == [
         {"path": "/home/user/project", "is_dir": True, "size": 0},
         {"path": "/home/user/readme.md", "size": 12},
     ]
 
-    matches = backend.glob_info("*.py", path="/")
-    assert matches == [{"path": "/home/user/project/app.py", "size": 42}]
+    globbed = backend.glob("*.py", path="/")
+    assert globbed.matches == [{"path": "/home/user/project/app.py", "size": 42}]
 
 
 def test_e2b_backend_read_slices_file_data_for_offset_reads() -> None:
@@ -160,8 +160,10 @@ def test_e2b_backend_read_slices_file_data_for_offset_reads() -> None:
     result = backend.read("/home/user/readme.md", offset=1, limit=2)
 
     assert result.file_data["content"] == "beta\ngamma\n"
-    assert "2\tbeta" in str(result)
-    assert "3\tgamma" in str(result)
+    assert result.start_line == 2
+    assert result.end_line == 3
+    assert result.next_offset == 3
+    assert result.total_lines == 4
 
 
 def test_e2b_download_files_skips_large_file_before_reading(monkeypatch) -> None:

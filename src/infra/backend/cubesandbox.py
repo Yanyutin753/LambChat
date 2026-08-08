@@ -5,7 +5,9 @@ from __future__ import annotations
 import base64
 import os
 import shlex
-from typing import Any, cast
+from typing import Any
+
+from deepagents.backends.utils import create_file_data, slice_read_response
 
 from src.infra.backend.e2b import (
     SANDBOX_BATCH_FILES_LIMIT,
@@ -13,18 +15,14 @@ from src.infra.backend.e2b import (
     SANDBOX_READ_MAX_BYTES,
     SANDBOX_UPLOAD_MAX_BYTES,
     E2BBackend,
-    _slice_text_content,
-    _slice_text_read,
 )
 from src.infra.backend.protocol_compat import (
     FileDownloadResponse,
-    FileInfo,
     FileUploadResponse,
     LsResult,
     ReadResult,
     WriteResult,
     file_download_response,
-    is_read_result,
 )
 from src.infra.logging import get_logger
 from src.kernel.config import settings
@@ -87,7 +85,7 @@ class CubeSandboxBackend(E2BBackend):
         self.execute(f"mkdir -p {shlex.quote(parent)}")
         self._ensured_parent_dirs.add(parent)
 
-    def ls_info(self, path: str) -> list[FileInfo]:
+    def ls(self, path: str) -> LsResult:
         path = self._resolve_path(path)
         quoted = shlex.quote(path)
         command = (
@@ -112,22 +110,14 @@ class CubeSandboxBackend(E2BBackend):
         )
         result = self.execute(command)
         if result.exit_code != 0:
-            return []
+            return LsResult(error=result.output or f"Could not list {path}")
         try:
             import json
 
-            return json.loads(result.output or "[]")
+            return LsResult(entries=json.loads(result.output or "[]"))
         except Exception as e:
             logger.warning("Failed to parse CubeSandbox ls output for %s: %s", path, e)
-            return []
-
-    async def als_info(self, path: str) -> list[FileInfo]:
-        from src.infra.async_utils import run_blocking_io
-
-        return await run_blocking_io(self.ls_info, path)
-
-    def ls(self, path: str) -> LsResult:
-        return LsResult(entries=self.ls_info(path))
+            return LsResult(error=str(e))
 
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:  # type: ignore[override]
         file_path = self._resolve_path(file_path)
@@ -145,26 +135,9 @@ class CubeSandboxBackend(E2BBackend):
                 try:
                     content = content.decode("utf-8")
                 except UnicodeDecodeError:
-                    data_uri = (
-                        "data:application/octet-stream;base64,"
-                        + base64.standard_b64encode(content).decode()
-                    )
-                    return ReadResult(
-                        file_data={"content": data_uri, "encoding": "data_uri"},
-                        rendered_content=data_uri,
-                    )
-            sliced_content = _slice_text_content(str(content), offset, limit)
-            if is_read_result(sliced_content):
-                return sliced_content  # type: ignore[return-value]
-            rendered = _slice_text_read(str(content), offset, limit)
-            if is_read_result(rendered):
-                return rendered  # type: ignore[return-value]
-            text_content = cast(str, sliced_content)
-            rendered_content = cast(str, rendered)
-            return ReadResult(
-                file_data={"content": text_content, "encoding": "utf-8"},
-                rendered_content=rendered_content,
-            )
+                    encoded = base64.standard_b64encode(content).decode()
+                    return ReadResult(file_data=create_file_data(encoded, encoding="base64"))
+            return slice_read_response(create_file_data(str(content)), offset, limit)
         except Exception as e:
             logger.warning("CubeSandbox files.read(%s) failed: %s", file_path, e)
             return ReadResult(error=str(e))

@@ -24,7 +24,7 @@ from deepagents.backends.protocol import (
     ExecuteResponse,
     FileDownloadResponse,
     FileUploadResponse,
-    GrepMatch,
+    GrepResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
 
@@ -172,29 +172,43 @@ class DaytonaBackend(BaseSandbox):
                 truncated=False,
             )
 
-    def grep_raw(
+    def grep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
         """Search file contents with a shorter default timeout than generic execute()."""
         timeout = get_sandbox_grep_timeout(settings)
         result = self.execute(build_grep_command(pattern, path, glob), timeout=timeout)
-        return parse_grep_response(result, timeout)
+        parsed = parse_grep_response(result, timeout)
+        if isinstance(parsed, str):
+            return GrepResult(error=parsed)
+        truncated = max_count is not None and len(parsed) > max_count
+        matches = parsed[:max_count] if max_count is not None else parsed
+        return GrepResult(matches=matches, truncated=truncated)
 
-    async def agrep_raw(
+    async def agrep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
         """Async grep variant with client-side timeout protection."""
         timeout = get_sandbox_grep_timeout(settings)
         result = await self.aexecute(build_grep_command(pattern, path, glob), timeout=timeout)
-        return parse_grep_response(result, timeout)
+        parsed = parse_grep_response(result, timeout)
+        if isinstance(parsed, str):
+            return GrepResult(error=parsed)
+        truncated = max_count is not None and len(parsed) > max_count
+        matches = parsed[:max_count] if max_count is not None else parsed
+        return GrepResult(matches=matches, truncated=truncated)
 
-    def _glob_info_via_command(self, pattern: str, search_path: str) -> list[FileInfo] | None:
+    def _glob_via_command(self, pattern: str, search_path: str) -> GlobResult | None:
         quoted_path = shlex.quote(search_path)
         quoted_pattern = shlex.quote(pattern)
         max_matches = SANDBOX_GLOB_MAX_MATCHES
@@ -256,23 +270,21 @@ class DaytonaBackend(BaseSandbox):
             matches.append(info)
             if len(matches) >= SANDBOX_GLOB_MAX_MATCHES:
                 break
-        return matches
-
-    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        search_path = self.work_dir if path == "/" else path
-        command_matches = self._glob_info_via_command(pattern, search_path)
-        if command_matches is not None:
-            return command_matches
-        return super().glob_info(pattern, path)
-
-    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        return await run_blocking_io(self.glob_info, pattern, path)
+        return GlobResult(
+            matches=matches,
+            truncated=len(matches) >= SANDBOX_GLOB_MAX_MATCHES,
+        )
 
     def glob(self, pattern: str, path: str | None = None) -> GlobResult:
-        return GlobResult(matches=self.glob_info(pattern, path or "/"))
+        requested_path = path or "/"
+        search_path = self.work_dir if requested_path == "/" else requested_path
+        command_result = self._glob_via_command(pattern, search_path)
+        if command_result is not None:
+            return command_result
+        return BaseSandbox.glob(self, pattern, requested_path)
 
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
-        return GlobResult(matches=await self.aglob_info(pattern, path or "/"))
+        return await run_blocking_io(self.glob, pattern, path)
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         """Download files from the sandbox.

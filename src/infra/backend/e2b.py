@@ -15,13 +15,10 @@ import asyncio
 import base64
 import os
 import shlex
-from typing import TYPE_CHECKING, Any, Callable, Literal, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from deepagents.backends.sandbox import BaseSandbox
-from deepagents.backends.utils import (
-    create_file_data,
-    format_content_with_line_numbers,
-)
+from deepagents.backends.utils import create_file_data, slice_read_response
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.backend.protocol_compat import (
@@ -31,13 +28,12 @@ from src.infra.backend.protocol_compat import (
     FileUploadResponse,
     GlobResult,
     GrepMatch,
+    GrepResult,
     LsResult,
     ReadResult,
     WriteResult,
     file_download_response,
     file_upload_response,
-    is_read_result,
-    read_result_to_string,
 )
 from src.infra.logging import get_logger
 from src.infra.sandbox_grep import (
@@ -62,38 +58,12 @@ SANDBOX_GLOB_MAX_MATCHES = 1000
 SANDBOX_GLOB_TIMEOUT_SECONDS = 15
 
 
-def _slice_file_data(content: str, offset: int, limit: int):
-    try:
-        from deepagents.backends.utils import slice_read_response
-
-        return slice_read_response(create_file_data(content), offset, limit)
-    except ImportError:
-        lines = content.splitlines(keepends=True)
-        if offset >= len(lines):
-            return ReadResult(
-                error=f"Line offset {offset} exceeds file length ({len(lines)} lines)"
-            )
-        return "".join(lines[offset : offset + limit]) if limit >= 0 else "".join(lines[offset:])
-
-
-def _slice_text_read(content: str, offset: int, limit: int) -> str | ReadResult:
-    if not content:
-        return ""
-    sliced = _slice_file_data(content, offset, limit)
-    if is_read_result(sliced):
-        error = getattr(sliced, "error", None)
-        return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
-    return format_content_with_line_numbers(sliced, start_line=offset + 1)  # type: ignore[arg-type]
-
-
-def _slice_text_content(content: str, offset: int, limit: int) -> str | ReadResult:
-    if not content:
-        return ""
-    sliced = _slice_file_data(content, offset, limit)
-    if is_read_result(sliced):
-        error = getattr(sliced, "error", None)
-        return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
-    return cast(str, sliced)
+def _grep_result(parsed: list[GrepMatch] | str, max_count: int | None) -> GrepResult:
+    if isinstance(parsed, str):
+        return GrepResult(error=parsed)
+    truncated = max_count is not None and len(parsed) > max_count
+    matches = parsed[:max_count] if max_count is not None else parsed
+    return GrepResult(matches=matches, truncated=truncated)
 
 
 class E2BBackend(BaseSandbox):
@@ -215,27 +185,31 @@ class E2BBackend(BaseSandbox):
                 truncated=False,
             )
 
-    def grep_raw(
+    def grep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
         """Search file contents with a shorter default timeout than generic execute()."""
         timeout = get_sandbox_grep_timeout(settings)
         result = self.execute(build_grep_command(pattern, path, glob), timeout=timeout)
-        return parse_grep_response(result, timeout)
+        return _grep_result(parse_grep_response(result, timeout), max_count)
 
-    async def agrep_raw(
+    async def agrep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
         """Async grep variant that preserves backend-specific timeout handling."""
         timeout = get_sandbox_grep_timeout(settings)
         result = await self.aexecute(build_grep_command(pattern, path, glob), timeout=timeout)
-        return parse_grep_response(result, timeout)
+        return _grep_result(parse_grep_response(result, timeout), max_count)
 
     def execute_with_callbacks(
         self,
@@ -322,7 +296,7 @@ class E2BBackend(BaseSandbox):
                 logger.debug("E2B FileType 判定失败: %s", e)
         return False
 
-    def ls_info(self, path: str) -> list[FileInfo]:
+    def ls(self, path: str) -> LsResult:
         """使用 E2B 原生 files.list() 列出目录"""
         path = self._resolve_path(path)
         try:
@@ -335,21 +309,13 @@ class E2BBackend(BaseSandbox):
                 if hasattr(entry, "size"):
                     info["size"] = entry.size
                 result.append(info)
-            return result
+            return LsResult(entries=result)
         except Exception as e:
             logger.warning(f"E2B files.list({path}) failed: {e}, falling back to execute()")
-            # 直接调用 BaseSandbox.ls 避免 super().ls_info -> self.ls -> self.ls_info 的无限递归
-            ls_result = BaseSandbox.ls(self, path)
-            return ls_result.entries or []
-
-    async def als_info(self, path: str) -> list[FileInfo]:
-        return await run_blocking_io(self.ls_info, path)
-
-    def ls(self, path: str) -> LsResult:
-        return LsResult(entries=self.ls_info(path))
+            return BaseSandbox.ls(self, path)
 
     async def als(self, path: str) -> LsResult:
-        return LsResult(entries=await self.als_info(path))
+        return await run_blocking_io(self.ls, path)
 
     # magic bytes → MIME
     _MAGIC: list[tuple[bytes, str]] = [
@@ -374,19 +340,16 @@ class E2BBackend(BaseSandbox):
                 return mt
         return "application/octet-stream"
 
-    def _read_as_data_uri(self, file_path: str, raw: bytes) -> ReadResult:
-        """将二进制数据包装为 data URI 返回"""
-        mime = self._guess_mime_type(file_path, raw)
-        data_uri = f"data:{mime};base64,{base64.standard_b64encode(raw).decode()}"
-        return ReadResult(
-            file_data={"content": data_uri, "encoding": "data_uri"},
-            rendered_content=data_uri,
-        )
+    @staticmethod
+    def _read_as_base64(raw: bytes) -> ReadResult:
+        """Return binary data using the v0.7 FileData base64 contract."""
+        encoded = base64.standard_b64encode(raw).decode()
+        return ReadResult(file_data=create_file_data(encoded, encoding="base64"))
 
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:  # type: ignore[override]
         """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断
 
-        自动检测二进制文件，返回 data URI 而非裸 base64。
+        自动检测二进制文件，并按 v0.7 FileData 约定返回 base64 内容。
         """
         file_path = self._resolve_path(file_path)
         try:
@@ -404,7 +367,7 @@ class E2BBackend(BaseSandbox):
             # 二进制检测：null bytes 或高比例不可打印字符
             if "\x00" in content:
                 raw = self._sandbox.files.read(path=file_path, format="bytes")
-                return self._read_as_data_uri(file_path, bytes(raw))
+                return self._read_as_base64(bytes(raw))
 
             # 长文本且几乎全是 base64 字符 → 可能是裸 base64 的二进制文件
             stripped = content.strip()
@@ -413,18 +376,9 @@ class E2BBackend(BaseSandbox):
                 non_text = sum(1 for c in sample if ord(c) < 32 and c not in "\t\n\r")
                 if non_text / len(sample) > 0.3:
                     raw = self._sandbox.files.read(path=file_path, format="bytes")
-                    return self._read_as_data_uri(file_path, bytes(raw))
+                    return self._read_as_base64(bytes(raw))
 
-            sliced_content = _slice_text_content(content, offset, limit)
-            if is_read_result(sliced_content):
-                return sliced_content  # type: ignore[return-value]
-            rendered = _slice_text_read(content, offset, limit)
-            if is_read_result(rendered):
-                return rendered  # type: ignore[return-value]
-            return ReadResult(
-                file_data={"content": cast(str, sliced_content), "encoding": "utf-8"},
-                rendered_content=cast(str, rendered),
-            )
+            return slice_read_response(create_file_data(content), offset, limit)
         except Exception as e:
             logger.warning(f"E2B files.read({file_path}) failed: {e}, falling back to execute()")
             return ReadResult(error=str(e))
@@ -448,7 +402,7 @@ class E2BBackend(BaseSandbox):
             logger.error(f"E2B files.write({file_path}) failed: {e}")
             return WriteResult(path=file_path, error=error)
 
-    def _glob_info_via_command(self, pattern: str, search_path: str) -> list[FileInfo] | None:
+    def _glob_via_command(self, pattern: str, search_path: str) -> GlobResult | None:
         """Prefer shell tools for glob search; return None when command search is unavailable."""
         quoted_path = shlex.quote(search_path)
         quoted_pattern = shlex.quote(pattern)
@@ -511,9 +465,12 @@ class E2BBackend(BaseSandbox):
             matches.append(info)
             if len(matches) >= SANDBOX_GLOB_MAX_MATCHES:
                 break
-        return matches
+        return GlobResult(
+            matches=matches,
+            truncated=len(matches) >= SANDBOX_GLOB_MAX_MATCHES,
+        )
 
-    def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
+    def glob(self, pattern: str, path: str | None = None, *, _max_depth: int = 10) -> GlobResult:
         """优先使用 rg/find 搜索匹配 glob 模式的文件
 
         命令搜索通常比逐级调用 E2B files.list() 更快；命令不可用时 fallback 到原生 API。
@@ -522,10 +479,11 @@ class E2BBackend(BaseSandbox):
         try:
             import fnmatch
 
-            search_path = self._resolve_path(path)
-            command_matches = self._glob_info_via_command(pattern, search_path)
-            if command_matches is not None:
-                return command_matches
+            requested_path = path or "/"
+            search_path = self._resolve_path(requested_path)
+            command_result = self._glob_via_command(pattern, search_path)
+            if command_result is not None:
+                return command_result
 
             entries = self._sandbox.files.list(path=search_path)
             result: list[FileInfo] = []
@@ -569,19 +527,16 @@ class E2BBackend(BaseSandbox):
                             logger.debug("E2B glob 递归遍历子目录失败 %s: %s", full_path, e)
 
             _match_glob(entries, search_path, 0)
-            return result
+            return GlobResult(
+                matches=result,
+                truncated=len(result) >= SANDBOX_GLOB_MAX_MATCHES,
+            )
         except Exception as e:
             logger.warning(f"E2B glob({pattern}) failed: {e}, falling back to execute()")
-            return super().glob_info(pattern, path)
-
-    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        return await run_blocking_io(self.glob_info, pattern, path)
-
-    def glob(self, pattern: str, path: str | None = None, *, _max_depth: int = 10) -> GlobResult:
-        return GlobResult(matches=self.glob_info(pattern, path or "/", _max_depth=_max_depth))
+            return BaseSandbox.glob(self, pattern, requested_path)
 
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
-        return GlobResult(matches=await self.aglob_info(pattern, path or "/"))
+        return await run_blocking_io(self.glob, pattern, path)
 
     # =========================================================================
     # File upload / download (already native, no change needed to logic)

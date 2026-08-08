@@ -68,6 +68,22 @@ def test_cubesandbox_backend_reads_and_writes_files() -> None:
     assert read_result.file_data["content"] == "hello cube"
 
 
+def test_cubesandbox_backend_read_returns_v07_pagination_metadata() -> None:
+    from src.infra.backend.cubesandbox import CubeSandboxBackend
+
+    sandbox = _FakeCubeSandbox()
+    sandbox.files.contents["/home/user/session-a/note.txt"] = "alpha\nbeta\ngamma\n"
+    backend = CubeSandboxBackend(sandbox=sandbox, work_dir="/home/user/session-a")
+
+    result = backend.read("note.txt", offset=1, limit=1)
+
+    assert result.file_data["content"] == "beta\n"
+    assert result.start_line == 2
+    assert result.end_line == 2
+    assert result.next_offset == 2
+    assert result.total_lines == 3
+
+
 def test_cubesandbox_backend_uses_cube_timeout(monkeypatch) -> None:
     from src.infra.backend.cubesandbox import CubeSandboxBackend
 

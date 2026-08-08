@@ -4,8 +4,6 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
-import deepagents.backends.protocol as deepagents_protocol
-
 
 def _load_module_from_path(module_name: str, relative_path: str):
     path = Path(__file__).parents[3] / relative_path
@@ -15,11 +13,6 @@ def _load_module_from_path(module_name: str, relative_path: str):
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
-
-
-for _missing_name in ("GlobResult", "LsResult", "ReadResult", "WriteResult"):
-    if not hasattr(deepagents_protocol, _missing_name):
-        setattr(deepagents_protocol, _missing_name, dict)
 
 
 daytona_module = _load_module_from_path(
@@ -65,11 +58,11 @@ def test_daytona_glob_prefers_rg_or_find_command_search() -> None:
     )
     backend = DaytonaBackend(sandbox=_FakeDaytonaSandbox(process))
 
-    matches = backend.glob_info("**/hello.py", path="/")
+    result = backend.glob("**/hello.py", path="/")
 
     command = process.calls[0][0]
     assert "rg --files" in command
-    assert matches == [
+    assert result.matches == [
         {"path": "/workspace/hello.py"},
         {"path": "/workspace/project/hello.py"},
         {"path": "/workspace/project/lib/hello.py"},
@@ -94,9 +87,9 @@ def test_daytona_glob_find_fallback_matches_recursive_glob_segments() -> None:
     )
     backend = DaytonaBackend(sandbox=_FakeDaytonaSandbox(process))
 
-    matches = backend.glob_info("src/**/tests/*.py", path="/")
+    result = backend.glob("src/**/tests/*.py", path="/")
 
-    assert matches == [
+    assert result.matches == [
         {"path": "/workspace/src/tests/root.py"},
         {"path": "/workspace/src/pkg/tests/nested.py"},
         {"path": "/workspace/src/pkg/deep/tests/deep.py"},
