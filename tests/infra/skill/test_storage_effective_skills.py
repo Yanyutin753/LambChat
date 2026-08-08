@@ -158,13 +158,9 @@ class _AsyncCursor:
         # Mirror motor's sort: stable multi-key ordering, ascending by default.
         if isinstance(key, list):
             for field, sort_direction in reversed(key):
-                self._docs.sort(
-                    key=lambda doc: doc.get(field), reverse=sort_direction < 0
-                )
+                self._docs.sort(key=lambda doc: doc.get(field), reverse=sort_direction < 0)
         else:
-            self._docs.sort(
-                key=lambda doc: doc.get(key), reverse=(direction or 1) < 0
-            )
+            self._docs.sort(key=lambda doc: doc.get(key), reverse=(direction or 1) < 0)
         return self
 
     def limit(self, value: int):
@@ -309,9 +305,7 @@ async def test_batch_get_skill_files_limits_files_loaded_per_skill(
         }
     }
     assert len(collection.queries) == 1
-    assert collection.queries[0]["$or"] == [
-        {"skill_name": "planner", "user_id": "user-1"}
-    ]
+    assert collection.queries[0]["$or"] == [{"skill_name": "planner", "user_id": "user-1"}]
     assert collection.queries[0]["file_path"] == {"$ne": "__meta__"}
     assert collection.cursors[0].limit_value == 1 * 3
 
@@ -343,6 +337,48 @@ async def test_batch_get_skill_files_fetches_multiple_skills_in_single_query(
     ]
     assert collection.queries[0]["file_path"] == {"$ne": "__meta__"}
     assert collection.cursors[0].limit_value == 2 * 5
+
+
+@pytest.mark.asyncio
+async def test_batch_get_skill_files_does_not_starve_later_skill_when_one_exceeds_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(skill_storage, "SKILL_FILES_PER_SKILL_LIMIT", 3, raising=False)
+    collection = _ManyFilesCollection()
+    storage = skill_storage.SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+
+    result = await storage.batch_get_skill_files([("alpha", "user-1"), ("beta", "user-1")])
+
+    expected_files = {f"file-{i}.md": f"content-{i}" for i in range(3)}
+    assert result == {
+        ("alpha", "user-1"): dict(expected_files),
+        ("beta", "user-1"): dict(expected_files),
+    }
+
+
+@pytest.mark.asyncio
+async def test_batch_get_skill_files_selects_files_deterministically_by_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _UnorderedFilesCollection(_ManyFilesCollection):
+        def find(self, query: dict[str, Any]) -> _AsyncCursor:
+            cursor = super().find(query)
+            cursor._docs.reverse()
+            return cursor
+
+    monkeypatch.setattr(skill_storage, "SKILL_FILES_PER_SKILL_LIMIT", 3, raising=False)
+    collection = _UnorderedFilesCollection()
+    storage = skill_storage.SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+
+    result = await storage.batch_get_skill_files([("planner", "user-1")])
+
+    assert list(result[("planner", "user-1")]) == [
+        "file-0.md",
+        "file-1.md",
+        "file-2.md",
+    ]
 
 
 class _AggregateSkillNameCollection:

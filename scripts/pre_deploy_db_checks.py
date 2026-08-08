@@ -89,7 +89,9 @@ async def backfill_hidden(db: Any, apply: bool) -> int:
     if not apply:
         print("Dry run — pass --apply to set metadata.hidden_from_conversation_list=True.")
         return count
-    result = await sessions.update_many(query, {"$set": {"metadata.hidden_from_conversation_list": True}})
+    result = await sessions.update_many(
+        query, {"$set": {"metadata.hidden_from_conversation_list": True}}
+    )
     print(f"Backfilled {result.modified_count} session(s).")
     return result.modified_count
 

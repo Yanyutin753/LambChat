@@ -179,6 +179,7 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints") -> BaseCheckpoi
     if _mongo_checkpointer is not None:
         return _mongo_checkpointer
 
+    client: Any = None
     try:
         from datetime import timezone
 
@@ -188,7 +189,7 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints") -> BaseCheckpoi
         from src.infra.storage.mongodb import build_mongo_connection_string
 
         connection_string = build_mongo_connection_string()
-        client: MongoClient = MongoClient(
+        client = MongoClient(
             connection_string,
             maxPoolSize=settings.CHECKPOINT_MONGO_POOL_MAX_SIZE,
             minPoolSize=settings.CHECKPOINT_MONGO_POOL_MIN_SIZE,
@@ -217,6 +218,11 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints") -> BaseCheckpoi
         logger.warning(f"MongoDB checkpointer not available: {e}")
         return None
     except Exception as e:
+        if client is not None:
+            try:
+                client.close()
+            except Exception as close_error:
+                logger.warning(f"Error closing failed MongoDB checkpointer client: {close_error}")
         logger.warning(f"Failed to create MongoDB checkpointer: {e}")
         return None
 

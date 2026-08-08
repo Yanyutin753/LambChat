@@ -19,6 +19,7 @@ from src.infra.skill.storage_helpers import (
     SKILL_FILES_PER_SKILL_LIMIT,
     SKILL_MD_SCAN_LIMIT,
     SKILL_METADATA_LIST_LIMIT,
+    batch_get_skill_files_from_collection,
     normalize_skill_file_path,
     normalize_skill_files,
     normalize_skill_name_list,
@@ -708,38 +709,12 @@ class SkillStorage:
             return {}
 
         collection = self._get_files_collection()
-
-        seen: set[tuple[str, str]] = set()
-        or_clauses = []
-        for skill_name, user_id in skill_keys:
-            key = (skill_name, user_id)
-            if key not in seen:
-                seen.add(key)
-                or_clauses.append({"skill_name": skill_name, "user_id": user_id})
-                if len(or_clauses) >= SKILL_BATCH_FILE_LOOKUP_LIMIT:
-                    break
-
-        result: dict[tuple[str, str], dict[str, str]] = {
-            (clause["skill_name"], clause["user_id"]): {} for clause in or_clauses
-        }
-
-        # 单次 $or 查询；必须 .sort 否则 natural order 不确定、文件选取随机。
-        cursor = (
-            collection.find({"$or": or_clauses, "file_path": {"$ne": "__meta__"}})
-            .sort([("skill_name", 1), ("user_id", 1)])
-            .limit(len(or_clauses) * SKILL_FILES_PER_SKILL_LIMIT)
+        return await batch_get_skill_files_from_collection(
+            collection,
+            skill_keys,
+            batch_limit=SKILL_BATCH_FILE_LOOKUP_LIMIT,
+            files_per_skill_limit=SKILL_FILES_PER_SKILL_LIMIT,
         )
-        async for doc in cursor:
-            key = (doc["skill_name"], doc["user_id"])
-            bucket = result.get(key)
-            if bucket is None:
-                continue
-            # 每组先到先得，到上限跳过，避免 heavy skill 占满窗口饿死后序。
-            if len(bucket) >= SKILL_FILES_PER_SKILL_LIMIT:
-                continue
-            bucket[normalize_skill_file_path(doc["file_path"])] = doc["content"]
-
-        return result
 
     # ==========================================
     # Skill 元数据操作（存储在 __meta__ 文档中）

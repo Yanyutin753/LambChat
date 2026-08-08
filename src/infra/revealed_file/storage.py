@@ -13,6 +13,7 @@ from src.kernel.config import settings
 logger = get_logger(__name__)
 REVEALED_FILE_PAGE_LIMIT_MAX = 50
 REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX = 10
+REVEALED_FILE_GROUP_FETCH_CONCURRENCY = 8
 REVEALED_FILE_SESSION_LIST_LIMIT = 100
 
 
@@ -556,12 +557,19 @@ class RevealedFileStorage:
                 for item in raw_files
             ]
 
-        files_by_session: Dict[str, list] = dict(
-            zip(
-                session_ids,
-                await asyncio.gather(*[_fetch_session_files(sid) for sid in session_ids]),
-            )
-        )
+        fetched_files: list[list] = [[] for _ in session_ids]
+        next_index = 0
+
+        async def _worker() -> None:
+            nonlocal next_index
+            while next_index < len(session_ids):
+                index = next_index
+                next_index += 1
+                fetched_files[index] = await _fetch_session_files(session_ids[index])
+
+        worker_count = min(REVEALED_FILE_GROUP_FETCH_CONCURRENCY, len(session_ids))
+        await asyncio.gather(*(_worker() for _ in range(worker_count)))
+        files_by_session: Dict[str, list] = dict(zip(session_ids, fetched_files))
 
         count_map = {r["_id"]: r["file_count"] for r in session_results}
         sessions_list = []

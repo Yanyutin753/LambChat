@@ -38,8 +38,7 @@ def test_plain_url_with_credentials(monkeypatch):
     )
 
     expected = (
-        f"mongodb://{quote_plus('u@ser')}:{quote_plus('p@ss/word')}@host:27017/db"
-        f"?authSource=mydb"
+        f"mongodb://{quote_plus('u@ser')}:{quote_plus('p@ss/word')}@host:27017/db?authSource=mydb"
     )
     assert mongodb.build_mongo_connection_string() == expected
 

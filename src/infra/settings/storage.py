@@ -13,6 +13,31 @@ from src.kernel.config import (
 )
 from src.kernel.schemas.setting import SettingItem
 
+_MONGODB_POOL_SIZE_SETTINGS = {
+    "MONGODB_POOL_MIN_SIZE": ("min", "MONGODB_POOL_MAX_SIZE"),
+    "MONGODB_POOL_MAX_SIZE": ("max", "MONGODB_POOL_MIN_SIZE"),
+    "CHECKPOINT_MONGO_POOL_MIN_SIZE": ("min", "CHECKPOINT_MONGO_POOL_MAX_SIZE"),
+    "CHECKPOINT_MONGO_POOL_MAX_SIZE": ("max", "CHECKPOINT_MONGO_POOL_MIN_SIZE"),
+}
+
+
+def _validate_mongodb_pool_size(key: str, value: Any) -> None:
+    pool_setting = _MONGODB_POOL_SIZE_SETTINGS.get(key)
+    if pool_setting is None:
+        return
+    kind, paired_key = pool_setting
+    if type(value) is not int:
+        raise ValueError(f"Setting {key} pool size must be an integer")
+    if (kind == "min" and value < 0) or (kind == "max" and value < 1):
+        lower_bound = 0 if kind == "min" else 1
+        raise ValueError(f"Setting {key} pool size must be at least {lower_bound}")
+
+    paired_value = getattr(settings, paired_key)
+    if kind == "min" and value > paired_value:
+        raise ValueError(f"Setting {key} must not exceed {paired_key} ({paired_value})")
+    if kind == "max" and value < paired_value:
+        raise ValueError(f"Setting {key} must be at least {paired_key} ({paired_value})")
+
 
 class SettingsStorage:
     """Settings storage using MongoDB"""
@@ -155,6 +180,8 @@ class SettingsStorage:
         # Don't allow setting masked values
         if value == "********":
             raise ValueError("Cannot set masked value")
+
+        _validate_mongodb_pool_size(key, value)
 
         # Type validation
         expected_type = definition["type"]

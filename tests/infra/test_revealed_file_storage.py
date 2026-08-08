@@ -1,8 +1,10 @@
+import asyncio
 from datetime import datetime, timezone
 
 import pytest
 
 from src.infra.revealed_file.storage import (
+    REVEALED_FILE_GROUP_FETCH_CONCURRENCY,
     REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
     REVEALED_FILE_SESSION_LIST_LIMIT,
     RevealedFileStorage,
@@ -573,11 +575,79 @@ async def test_list_files_grouped_caps_files_per_session(
     ]
     # Per-session isolation: every doc fetched by a given cursor belongs to one session.
     session_ids_by_cursor = [
-        {doc["session_id"] for doc in cursor._docs}
-        for cursor in storage.collection.find_cursors
+        {doc["session_id"] for doc in cursor._docs} for cursor in storage.collection.find_cursors
     ]
     assert all(len(ids) == 1 for ids in session_ids_by_cursor)
     assert {next(iter(ids)) for ids in session_ids_by_cursor} == set(session_ids)
+
+
+@pytest.mark.asyncio
+async def test_list_files_grouped_bounds_parallel_session_queries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _TrackingCursor(_FakeCursor):
+        def __init__(self, docs, tracker):
+            super().__init__(docs)
+            self._tracker = tracker
+
+        async def to_list(self, length=None):
+            self._tracker["active"] += 1
+            self._tracker["maximum"] = max(self._tracker["maximum"], self._tracker["active"])
+            await asyncio.sleep(0.01)
+            try:
+                return await super().to_list(length)
+            finally:
+                self._tracker["active"] -= 1
+
+    class _TrackingCollection(_FakeCollection):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.tracker = {"active": 0, "maximum": 0}
+
+        def find(self, query, projection=None):
+            matched = [
+                _apply_projection(doc, projection)
+                for doc in self.docs
+                if _matches_query(doc, query)
+            ]
+            cursor = _TrackingCursor(matched, self.tracker)
+            self.find_cursors.append(cursor)
+            return cursor
+
+    now = datetime.now(timezone.utc)
+    session_ids = [f"session-{index}" for index in range(20)]
+    storage = RevealedFileStorage()
+    storage._collection = _TrackingCollection(
+        docs=[
+            {
+                "_id": f"{session_id}-file",
+                "user_id": "user-1",
+                "session_id": session_id,
+                "file_name": "file.txt",
+                "file_type": "document",
+                "source": "reveal_file",
+                "file_key": f"revealed_files/{session_id}/file.txt",
+                "created_at": now,
+            }
+            for session_id in session_ids
+        ],
+        session_results=[
+            {"_id": session_id, "file_count": 1, "latest_file_at": now}
+            for session_id in session_ids
+        ],
+        count_result=[{"total": len(session_ids)}],
+    )
+    storage.ensure_indexes_if_needed = _no_op_async
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(
+            [{"session_id": session_id, "name": session_id} for session_id in session_ids]
+        ),
+    )
+
+    await storage.list_files_grouped_by_session("user-1", limit=len(session_ids))
+
+    assert storage.collection.tracker["maximum"] <= REVEALED_FILE_GROUP_FETCH_CONCURRENCY
 
 
 @pytest.mark.asyncio

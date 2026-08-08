@@ -41,14 +41,55 @@ async def test_mcp_storage_ensures_unique_indexes_across_five_collections() -> N
         ([("name", 1)], {"name": "mcp_system_name_unique_idx", "unique": True, "background": True}),
     ]
     assert user.created_indexes == [
-        ([("user_id", 1), ("name", 1)], {"name": "mcp_user_server_unique_idx", "unique": True, "background": True}),
+        (
+            [("user_id", 1), ("name", 1)],
+            {"name": "mcp_user_server_unique_idx", "unique": True, "background": True},
+        ),
     ]
     assert preferences.created_indexes == [
-        ([("user_id", 1), ("server_name", 1)], {"name": "mcp_user_pref_unique_idx", "unique": True, "background": True}),
+        (
+            [("user_id", 1), ("server_name", 1)],
+            {"name": "mcp_user_pref_unique_idx", "unique": True, "background": True},
+        ),
     ]
     assert tool_preferences.created_indexes == [
-        ([("user_id", 1), ("tool_name", 1)], {"name": "mcp_tool_pref_unique_idx", "unique": True, "background": True}),
+        (
+            [("user_id", 1), ("tool_name", 1)],
+            {"name": "mcp_tool_pref_unique_idx", "unique": True, "background": True},
+        ),
     ]
     assert tool_policies.created_indexes == [
-        ([("server_name", 1), ("tool_name", 1)], {"name": "mcp_tool_policy_unique_idx", "unique": True, "background": True}),
+        (
+            [("server_name", 1), ("tool_name", 1)],
+            {"name": "mcp_tool_policy_unique_idx", "unique": True, "background": True},
+        ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_mcp_storage_continues_index_creation_after_one_collection_fails() -> None:
+    class _FailingCollection(_FakeCollection):
+        async def create_index(self, keys, **kwargs):
+            raise RuntimeError("duplicate system server names")
+
+    system = _FailingCollection()
+    user = _FakeCollection()
+    preferences = _FakeCollection()
+    tool_preferences = _FakeCollection()
+    tool_policies = _FakeCollection()
+
+    from src.infra.mcp.storage import MCPStorage
+
+    storage = MCPStorage()
+    storage._system_collection = system
+    storage._user_collection = user
+    storage._preferences_collection = preferences
+    storage._tool_preferences_collection = tool_preferences
+    storage._tool_policies_collection = tool_policies
+
+    await storage.ensure_indexes()
+
+    assert len(user.created_indexes) == 1
+    assert len(preferences.created_indexes) == 1
+    assert len(tool_preferences.created_indexes) == 1
+    assert len(tool_policies.created_indexes) == 1

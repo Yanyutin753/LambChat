@@ -62,6 +62,60 @@ async def test_settings_storage_close_clears_local_client_reference() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("MONGODB_POOL_MIN_SIZE", -1),
+        ("MONGODB_POOL_MAX_SIZE", 0),
+        ("CHECKPOINT_MONGO_POOL_MIN_SIZE", 1.5),
+        ("CHECKPOINT_MONGO_POOL_MAX_SIZE", True),
+    ],
+)
+async def test_set_rejects_invalid_mongodb_pool_sizes_before_persisting(
+    key: str,
+    value: object,
+) -> None:
+    from src.infra.settings.storage import SettingsStorage
+
+    class _MustNotWriteCollection:
+        async def update_one(self, *_args, **_kwargs):
+            raise AssertionError("invalid pool setting must not be persisted")
+
+    storage = SettingsStorage()
+    storage._collection = _MustNotWriteCollection()
+
+    with pytest.raises(ValueError, match="pool size"):
+        await storage.set(key, value, "admin-1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("MONGODB_POOL_MIN_SIZE", 21),
+        ("MONGODB_POOL_MAX_SIZE", 1),
+        ("CHECKPOINT_MONGO_POOL_MIN_SIZE", 11),
+        ("CHECKPOINT_MONGO_POOL_MAX_SIZE", 1),
+    ],
+)
+async def test_set_rejects_inverted_mongodb_pool_ranges(
+    key: str,
+    value: int,
+) -> None:
+    from src.infra.settings.storage import SettingsStorage
+
+    class _MustNotWriteCollection:
+        async def update_one(self, *_args, **_kwargs):
+            raise AssertionError("invalid pool setting must not be persisted")
+
+    storage = SettingsStorage()
+    storage._collection = _MustNotWriteCollection()
+
+    with pytest.raises(ValueError, match="must not exceed|must be at least"):
+        await storage.set(key, value, "admin-1")
+
+
+@pytest.mark.asyncio
 async def test_settings_service_get_offloads_env_json_parsing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

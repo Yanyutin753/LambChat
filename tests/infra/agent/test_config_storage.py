@@ -399,6 +399,4 @@ async def test_set_catalog_config_uses_single_bulk_write() -> None:
         assert operation._filter == {"agent_id": agent.id}
         assert operation._upsert is True
     # delete_many keeps only registered agent ids.
-    assert collection.delete_many_calls == [
-        {"agent_id": {"$nin": [agent.id for agent in agents]}}
-    ]
+    assert collection.delete_many_calls == [{"agent_id": {"$nin": [agent.id for agent in agents]}}]

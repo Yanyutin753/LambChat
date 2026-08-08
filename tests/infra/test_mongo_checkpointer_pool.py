@@ -67,12 +67,8 @@ def test_mongo_checkpointer_creates_independent_client_with_pool_settings(
     _install_fake_mongo(monkeypatch, capture)
     _install_fake_saver(monkeypatch, capture)
     monkeypatch.setattr(mongodb_mod.settings, "MONGODB_URL", "mongodb://localhost:27017")
-    monkeypatch.setattr(
-        mongodb_mod.settings, "CHECKPOINT_MONGO_POOL_MIN_SIZE", 3
-    )
-    monkeypatch.setattr(
-        mongodb_mod.settings, "CHECKPOINT_MONGO_POOL_MAX_SIZE", 12
-    )
+    monkeypatch.setattr(mongodb_mod.settings, "CHECKPOINT_MONGO_POOL_MIN_SIZE", 3)
+    monkeypatch.setattr(mongodb_mod.settings, "CHECKPOINT_MONGO_POOL_MAX_SIZE", 12)
 
     cp = checkpoint_mod.get_mongo_checkpointer()
 
@@ -132,6 +128,24 @@ def test_close_mongo_checkpointer_debounces_when_never_created(
     assert capture.get("clients", []) == []
 
 
+def test_mongo_checkpointer_closes_independent_client_when_saver_creation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    capture: dict = {}
+    _install_fake_mongo(monkeypatch, capture)
+    monkeypatch.setattr(mongodb_mod.settings, "MONGODB_URL", "mongodb://localhost:27017")
+
+    class _FailingSaver:
+        def __init__(self, client, *, db_name, checkpoint_collection_name) -> None:
+            raise RuntimeError("index setup failed")
+
+    monkeypatch.setattr("langgraph.checkpoint.mongodb.MongoDBSaver", _FailingSaver)
+
+    assert checkpoint_mod.get_mongo_checkpointer() is None
+    assert capture["close_count"] == 1
+    assert checkpoint_mod._mongo_checkpoint_client is None
+
+
 def test_mongo_checkpointer_diagnostics_reports_independent_client_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -144,7 +158,4 @@ def test_mongo_checkpointer_diagnostics_reports_independent_client_active(
 
     checkpoint_mod.get_mongo_checkpointer()
 
-    assert (
-        checkpoint_mod.get_checkpointer_diagnostics()["mongo_checkpoint_client_active"]
-        is True
-    )
+    assert checkpoint_mod.get_checkpointer_diagnostics()["mongo_checkpoint_client_active"] is True

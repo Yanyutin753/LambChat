@@ -43,21 +43,17 @@ async def test_refresh_checkpoint_setting_resets_runtime_state(
 
 
 @pytest.mark.asyncio
-async def test_refresh_mongo_pool_size_resets_runtime_state(
+async def test_refresh_mongo_pool_size_does_not_close_restart_only_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Changing the mongo pool size must rebuild the independent client."""
+    """Pool-size edits must not invalidate checkpointers cached by compiled agents."""
     reset_calls: list[str] = []
 
     async def _fake_reset_runtime_state() -> None:
         reset_calls.append("reset")
 
-    monkeypatch.setattr(
-        config_service, "_settings_service", _FakeSettingsService(7)
-    )
-    monkeypatch.setattr(
-        config_service.settings, "CHECKPOINT_MONGO_POOL_MAX_SIZE", 10
-    )
+    monkeypatch.setattr(config_service, "_settings_service", _FakeSettingsService(7))
+    monkeypatch.setattr(config_service.settings, "CHECKPOINT_MONGO_POOL_MAX_SIZE", 10)
     monkeypatch.setattr(
         "src.infra.storage.checkpoint.reset_checkpointer_runtime_state",
         _fake_reset_runtime_state,
@@ -66,7 +62,7 @@ async def test_refresh_mongo_pool_size_resets_runtime_state(
     await config_service.refresh_settings("CHECKPOINT_MONGO_POOL_MAX_SIZE")
 
     assert config_service.settings.CHECKPOINT_MONGO_POOL_MAX_SIZE == 7
-    assert reset_calls == ["reset"]
+    assert reset_calls == []
 
 
 def test_checkpoint_settings_require_restart() -> None:

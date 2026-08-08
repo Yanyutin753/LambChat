@@ -69,20 +69,22 @@ class PersonaPresetStorage:
         from src.infra.logging import get_logger
 
         logger = get_logger(__name__)
-        try:
-            await self.collection.create_index(
+        index_specs = [
+            (
                 [("scope", 1), ("owner_user_id", 1)],
-                name="persona_scope_owner_idx",
-                background=True,
-            )
-            await self.collection.create_index(
+                "persona_scope_owner_idx",
+            ),
+            (
                 [("scope", 1), ("status", 1), ("visibility", 1)],
-                name="persona_scope_status_visibility_idx",
-                background=True,
-            )
-            logger.info("Persona preset storage indexes ensured")
-        except Exception as e:
-            logger.error(f"Failed to create persona preset storage indexes: {e}")
+                "persona_scope_status_visibility_idx",
+            ),
+        ]
+        for keys, name in index_specs:
+            try:
+                await self.collection.create_index(keys, name=name, background=True)
+            except Exception as e:
+                logger.error(f"Failed to create persona preset storage index {name}: {e}")
+        logger.info("Persona preset storage index initialization finished")
 
     @property
     def user_collection(self):
