@@ -5,6 +5,7 @@ import weakref
 from types import SimpleNamespace
 
 import pytest
+from deepagents.backends.protocol import GlobResult, LsResult
 
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.tool import reveal_project_tool
@@ -476,13 +477,12 @@ async def test_reveal_project_cleanup_tasks_are_bounded(
 async def test_list_project_files_via_glob_caps_materialized_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class _FakeGlobResult:
-        matches = [{"path": f"/workspace/huge/file-{index}.txt"} for index in range(1000)]
-
     class _FakeBackend:
         async def aglob(self, _pattern: str, *, path: str):
             assert path == "/workspace/huge"
-            return _FakeGlobResult()
+            return GlobResult(
+                matches=[{"path": f"/workspace/huge/file-{index}.txt"} for index in range(1000)]
+            )
 
     monkeypatch.setattr(reveal_project_tool, "MAX_PROJECT_FILES", 25, raising=False)
 
@@ -493,6 +493,22 @@ async def test_list_project_files_via_glob_caps_materialized_paths(
 
     assert len(files) == 25
     assert files[-1] == "/workspace/huge/file-24.txt"
+
+
+@pytest.mark.asyncio
+async def test_list_project_files_raises_when_glob_and_ls_return_errors() -> None:
+    class _FailedBackend:
+        async def aglob(self, _pattern: str, *, path: str) -> GlobResult:
+            return GlobResult(error=f"glob failed for {path}")
+
+        def glob(self, _pattern: str, path: str) -> GlobResult:
+            return GlobResult(error=f"sync glob failed for {path}")
+
+        async def als(self, path: str) -> LsResult:
+            return LsResult(error=f"ls failed for {path}")
+
+    with pytest.raises(RuntimeError, match="could not list project files"):
+        await reveal_project_tool._list_project_files(_FailedBackend(), "/workspace/project")
 
 
 @pytest.mark.asyncio

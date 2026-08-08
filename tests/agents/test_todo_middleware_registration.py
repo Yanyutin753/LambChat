@@ -3,8 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from langchain.agents.middleware import TodoListMiddleware
 
 AGENTS_ROOT = Path(__file__).resolve().parents[2] / "src" / "agents"
+
+
+def test_todo_middleware_exposes_write_tool_and_todos_state_channel() -> None:
+    middleware = TodoListMiddleware()
+
+    assert [tool.name for tool in middleware.tools] == ["write_todos"]
+    assert "todos" in middleware.state_schema.__annotations__
 
 
 @pytest.mark.parametrize("agent_name", ["fast_agent", "search_agent", "team_agent"])

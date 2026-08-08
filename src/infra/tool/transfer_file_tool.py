@@ -456,18 +456,22 @@ async def _list_dir_files(
             return
         visited_dirs.add(current_dir)
 
-        try:
-            if hasattr(backend, "als"):
+        if hasattr(backend, "als"):
+            try:
                 result = await backend.als(current_dir)
-                entries = result.entries or []
-            elif hasattr(backend, "ls"):
+            except Exception as e:
+                raise RuntimeError(f"ls failed for {current_dir}: {e}") from e
+        elif hasattr(backend, "ls"):
+            try:
                 result = await run_blocking_io(backend.ls, current_dir)
-                entries = result.entries or []
-            else:
-                return
-        except Exception as e:
-            logger.warning(f"[transfer_path] ls failed for {current_dir}: {e}")
-            return
+            except Exception as e:
+                raise RuntimeError(f"ls failed for {current_dir}: {e}") from e
+        else:
+            raise RuntimeError("backend does not provide the v0.7 ls API")
+
+        if getattr(result, "error", None):
+            raise RuntimeError(f"ls failed for {current_dir}: {result.error}")
+        entries = result.entries or []
 
         for entry in entries:
             if limit is not None and len(all_files) > limit:
@@ -567,7 +571,11 @@ async def transfer_path(
     target_base = f"{target_prefix}{dir_name}"
 
     # 3. 列出源目录下所有文件
-    file_paths = await _list_dir_files(backend, source_dir, limit=MAX_BATCH_FILES)
+    try:
+        file_paths = await _list_dir_files(backend, source_dir, limit=MAX_BATCH_FILES)
+    except RuntimeError as exc:
+        logger.warning("[transfer_path] %s", exc)
+        return await _json_dumps_result({"success": False, "error": str(exc)})
 
     if not file_paths:
         return await _json_dumps_result(

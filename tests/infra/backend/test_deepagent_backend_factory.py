@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import pytest
 from deepagents.backends import CompositeBackend
 from deepagents.backends.protocol import (
     BackendProtocol,
     DeleteResult,
+    EditResult,
+    FileDownloadResponse,
+    FileUploadResponse,
     GlobResult,
     GrepResult,
     LsResult,
+    WriteResult,
 )
 
 from src.infra.backend.deepagent import (
@@ -69,6 +74,7 @@ class _RecordingBackend(BackendProtocol):
     def __init__(self) -> None:
         self.grep_calls: list[tuple[str, str | None, str | None, int | None]] = []
         self.delete_calls: list[str] = []
+        self.edit_calls: list[str] = []
 
     def ls(self, path: str) -> LsResult:
         return LsResult(entries=[{"path": f"{path.rstrip('/')}/report.md"}])
@@ -93,6 +99,36 @@ class _RecordingBackend(BackendProtocol):
     def delete(self, file_path: str) -> DeleteResult:
         self.delete_calls.append(file_path)
         return DeleteResult(path=file_path)
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        del content
+        return WriteResult(path=file_path)
+
+    def edit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        del old_string, new_string, replace_all
+        self.edit_calls.append(file_path)
+        return EditResult(path=file_path, occurrences=1)
+
+    async def aedit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        return self.edit(file_path, old_string, new_string, replace_all)
+
+    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        return [FileUploadResponse(path=path) for path, _content in files]
+
+    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        return [FileDownloadResponse(path=path, content=b"data") for path in paths]
 
 
 def test_workflow_backend_remaps_v0_7_structured_results() -> None:
@@ -131,3 +167,22 @@ def test_workflow_backend_preserves_structured_errors() -> None:
 
     assert backend.ls("/workflow/session-1").error == "list failed"
     assert backend.delete("/workflow/session-1/report.md").error == "delete failed"
+
+
+@pytest.mark.asyncio
+async def test_workflow_backend_remaps_mutation_and_transfer_result_paths() -> None:
+    recording = _RecordingBackend()
+    backend = WorkflowScopedBackend(recording, "/workflow/session-1")
+
+    written = backend.write("/workflow/session-1/report.md", "hello")
+    edited = backend.edit("/workflow/session-1/report.md", "old", "new")
+    async_edited = await backend.aedit("/workflow/session-1/report.md", "new", "final")
+    uploaded = backend.upload_files([("/workflow/session-1/upload.txt", b"data")])
+    downloaded = backend.download_files(["/workflow/session-1/download.txt"])
+
+    assert written.path == "/workflow/session-1/report.md"
+    assert edited.path == "/workflow/session-1/report.md"
+    assert async_edited.path == "/workflow/session-1/report.md"
+    assert recording.edit_calls == ["/report.md", "/report.md"]
+    assert uploaded[0].path == "/workflow/session-1/upload.txt"
+    assert downloaded[0].path == "/workflow/session-1/download.txt"

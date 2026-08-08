@@ -193,8 +193,7 @@ def _extract_file_urls_from_text(text: str) -> list[str]:
 async def _list_backend_files(backend: Any, workspace: str) -> list[Any]:
     result = await backend.aglob("**/*", path=workspace)
     if result.error:
-        logger.debug("Artifact workspace glob failed for %s: %s", workspace, result.error)
-        return []
+        raise RuntimeError(f"Artifact workspace glob failed for {workspace}: {result.error}")
     return result.matches or []
 
 

@@ -165,15 +165,13 @@ class WorkflowScopedBackend(BackendProtocol):
 
     def write(self, file_path: str, content: str) -> WriteResult:
         result = self._backend.write(self._strip_path(file_path), content)
-        if getattr(result, "path", None):
-            result.path = self._prefix_path(str(result.path))
-        return result
+        path = self._prefix_path(result.path) if result.path is not None else None
+        return WriteResult(error=result.error, path=path)
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
         result = await self._backend.awrite(self._strip_path(file_path), content)
-        if getattr(result, "path", None):
-            result.path = self._prefix_path(str(result.path))
-        return result
+        path = self._prefix_path(result.path) if result.path is not None else None
+        return WriteResult(error=result.error, path=path)
 
     def edit(
         self,
@@ -182,7 +180,11 @@ class WorkflowScopedBackend(BackendProtocol):
         new_string: str,
         replace_all: bool = False,
     ) -> EditResult:
-        return self._backend.edit(self._strip_path(file_path), old_string, new_string, replace_all)
+        result = self._backend.edit(
+            self._strip_path(file_path), old_string, new_string, replace_all
+        )
+        path = self._prefix_path(result.path) if result.path is not None else None
+        return EditResult(error=result.error, path=path, occurrences=result.occurrences)
 
     async def aedit(
         self,
@@ -191,12 +193,14 @@ class WorkflowScopedBackend(BackendProtocol):
         new_string: str,
         replace_all: bool = False,
     ) -> EditResult:
-        return await self._backend.aedit(
+        result = await self._backend.aedit(
             self._strip_path(file_path),
             old_string,
             new_string,
             replace_all,
         )
+        path = self._prefix_path(result.path) if result.path is not None else None
+        return EditResult(error=result.error, path=path, occurrences=result.occurrences)
 
     def delete(self, file_path: str) -> DeleteResult:
         result = self._backend.delete(self._strip_path(file_path))
@@ -211,20 +215,44 @@ class WorkflowScopedBackend(BackendProtocol):
         return DeleteResult(path=self._prefix_path(result.path))
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        return self._backend.upload_files(
+        results = self._backend.upload_files(
             [(self._strip_path(path), content) for path, content in files]
         )
+        return [
+            FileUploadResponse(path=self._prefix_path(result.path), error=result.error)
+            for result in results
+        ]
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        return await self._backend.aupload_files(
+        results = await self._backend.aupload_files(
             [(self._strip_path(path), content) for path, content in files]
         )
+        return [
+            FileUploadResponse(path=self._prefix_path(result.path), error=result.error)
+            for result in results
+        ]
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        return self._backend.download_files([self._strip_path(path) for path in paths])
+        results = self._backend.download_files([self._strip_path(path) for path in paths])
+        return [
+            FileDownloadResponse(
+                path=self._prefix_path(result.path),
+                content=result.content,
+                error=result.error,
+            )
+            for result in results
+        ]
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        return await self._backend.adownload_files([self._strip_path(path) for path in paths])
+        results = await self._backend.adownload_files([self._strip_path(path) for path in paths])
+        return [
+            FileDownloadResponse(
+                path=self._prefix_path(result.path),
+                content=result.content,
+                error=result.error,
+            )
+            for result in results
+        ]
 
 
 def _create_routes(

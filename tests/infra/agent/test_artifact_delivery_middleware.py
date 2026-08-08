@@ -39,6 +39,21 @@ class FakeDownloadBackend:
         ]
 
 
+@pytest.mark.asyncio
+async def test_artifact_snapshot_is_unavailable_when_glob_returns_error() -> None:
+    class _FailedGlobBackend:
+        async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
+            del pattern, path
+            return GlobResult(error="sandbox unavailable")
+
+    middleware = ArtifactDeliveryMiddleware(workspace_path="/workspace")
+    runtime = SimpleNamespace(config={"configurable": {"backend": _FailedGlobBackend()}})
+
+    snapshot = await middleware._snapshot_workspace(runtime)
+
+    assert snapshot is None
+
+
 class WriteFileChatModel(BaseChatModel):
     calls: ClassVar[int] = 0
 

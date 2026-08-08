@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from deepagents.backends.protocol import LsResult
 
 from src.infra.tool import transfer_file_tool
 
@@ -9,6 +10,24 @@ from src.infra.tool import transfer_file_tool
 class _Runtime:
     def __init__(self, backend: object) -> None:
         self.config = {"configurable": {"backend": backend}}
+
+
+@pytest.mark.asyncio
+async def test_transfer_path_reports_structured_ls_error_as_failure() -> None:
+    class _FailedBackend:
+        async def als(self, path: str) -> LsResult:
+            return LsResult(error=f"storage unavailable for {path}")
+
+    result = json.loads(
+        await transfer_file_tool.transfer_path.coroutine(
+            source_dir="/workspace/project",
+            target_prefix="/tmp/",
+            runtime=_Runtime(_FailedBackend()),
+        )
+    )
+
+    assert result["success"] is False
+    assert "storage unavailable" in result["error"]
 
 
 @pytest.mark.asyncio

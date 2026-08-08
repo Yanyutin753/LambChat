@@ -221,35 +221,52 @@ async def _list_project_files_via_glob(backend: Any, project_path: str) -> list[
     """使用 glob 递归列出项目文件（适用于非沙箱 backend，效率高于逐级 ls）"""
     pattern = "**/*"
 
+    errors: list[str] = []
+
     if hasattr(backend, "aglob"):
         try:
             result = await backend.aglob(pattern, path=project_path)
-            entries = result.matches or []
-            aglob_files: list[str] = []
-            for entry in entries:
-                file_path = (
-                    entry.get("path") if isinstance(entry, dict) else getattr(entry, "path", None)
-                )
-                if _append_capped(aglob_files, file_path):
-                    break
-            return aglob_files
+            if result.error:
+                errors.append(str(result.error))
+            else:
+                entries = result.matches or []
+                aglob_files: list[str] = []
+                for entry in entries:
+                    file_path = (
+                        entry.get("path")
+                        if isinstance(entry, dict)
+                        else getattr(entry, "path", None)
+                    )
+                    if _append_capped(aglob_files, file_path):
+                        break
+                return aglob_files
         except Exception as e:
             logger.debug(f"aglob failed for {project_path}: {e}")
+            errors.append(str(e))
 
     if hasattr(backend, "glob"):
         try:
             result = await run_blocking_io(backend.glob, pattern, project_path)
-            entries = result.matches or []
-            sync_glob_files: list[str] = []
-            for entry in entries:
-                file_path = (
-                    entry.get("path") if isinstance(entry, dict) else getattr(entry, "path", None)
-                )
-                if _append_capped(sync_glob_files, file_path):
-                    break
-            return sync_glob_files
+            if result.error:
+                errors.append(str(result.error))
+            else:
+                entries = result.matches or []
+                sync_glob_files: list[str] = []
+                for entry in entries:
+                    file_path = (
+                        entry.get("path")
+                        if isinstance(entry, dict)
+                        else getattr(entry, "path", None)
+                    )
+                    if _append_capped(sync_glob_files, file_path):
+                        break
+                return sync_glob_files
         except Exception as e:
             logger.debug(f"glob failed for {project_path}: {e}")
+            errors.append(str(e))
+
+    if errors:
+        raise RuntimeError("; ".join(errors))
 
     return []
 
@@ -273,6 +290,10 @@ async def _list_project_files_via_backend_api(
         if hasattr(backend, "als"):
             try:
                 result = await backend.als(current)
+                if getattr(result, "error", None):
+                    logger.debug("als failed for %s: %s", current, result.error)
+                    had_errors = True
+                    continue
                 entries = result.entries or []
             except Exception as e:
                 logger.debug(f"als failed for {current}: {e}")
@@ -281,6 +302,10 @@ async def _list_project_files_via_backend_api(
         elif hasattr(backend, "ls"):
             try:
                 result = await run_blocking_io(backend.ls, current)
+                if getattr(result, "error", None):
+                    logger.debug("ls failed for %s: %s", current, result.error)
+                    had_errors = True
+                    continue
                 entries = result.entries or []
             except Exception as e:
                 logger.debug(f"ls failed for {current}: {e}")
@@ -346,7 +371,13 @@ async def _list_project_files(backend: Any, project_path: str) -> list[str]:
         return sorted(files)
     else:
         # 非沙箱模式：glob 高效递归
-        glob_files = await _list_project_files_via_glob(backend, project_path)
+        glob_error: RuntimeError | None = None
+        try:
+            glob_files = await _list_project_files_via_glob(backend, project_path)
+        except RuntimeError as exc:
+            logger.debug("glob listing failed for %s: %s", project_path, exc)
+            glob_error = exc
+            glob_files = []
 
         if glob_files:
             logger.debug(
@@ -355,7 +386,11 @@ async def _list_project_files(backend: Any, project_path: str) -> list[str]:
             return sorted(glob_files)
 
         # glob 不可用时回退到递归 ls
-        api_files, _ = await _list_project_files_via_backend_api(backend, project_path)
+        api_files, api_had_errors = await _list_project_files_via_backend_api(backend, project_path)
+        if not api_files and glob_error is not None and api_had_errors:
+            raise RuntimeError(
+                f"could not list project files in {project_path}: {glob_error}"
+            ) from glob_error
         logger.debug(
             f"_list_project_files({project_path}) [non-sandbox]: ls_fallback={len(api_files)}"
         )
