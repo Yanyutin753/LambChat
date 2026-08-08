@@ -177,12 +177,11 @@ def _format_tools_list_sections(data: Any) -> tuple[tuple[str, ...], int]:
         return (), 0
 
     intro = (
-        "## Sandbox Tools (NOT MCP — DO NOT call directly)\n\n"
-        "Use `execute` with `mcporter`; `search_tools` does not search this inventory. "
-        "Therefore, before the first `mcporter call`, you must inspect its parameters via `execute`: "
-        "run `mcporter list`, then `mcporter list <service> --schema`, then "
-        "`mcporter call server.tool <args>`. "
-        "Manage servers with `sandbox_mcp_add`, `sandbox_mcp_update`, or `sandbox_mcp_remove`."
+        "## Sandbox Tools (use through `execute`)\n\n"
+        "These are not direct/MCP tools and `search_tools` cannot load them. Before "
+        "the first call, run `mcporter list` and `mcporter list <service> --schema`; "
+        "then run `mcporter call server.tool <args>`. Manage servers with "
+        "`sandbox_mcp_add`, `sandbox_mcp_update`, or `sandbox_mcp_remove`."
     )
     entries: list[tuple[str, str]] = []
 

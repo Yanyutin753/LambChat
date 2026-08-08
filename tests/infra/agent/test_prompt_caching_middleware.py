@@ -573,6 +573,10 @@ async def test_tool_search_middleware_skips_duplicate_search_guide_when_already_
     assert "## MCP Tools (Deferred)" in system_text
 
 
+def test_deferred_search_guide_has_compact_budget() -> None:
+    assert len(DEFERRED_TOOL_SEARCH_GUIDE) <= 300
+
+
 def test_deferred_prompt_does_not_repeat_loaded_tool_names() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[

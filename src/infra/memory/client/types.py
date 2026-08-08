@@ -107,19 +107,19 @@ HIGH_SIGNAL_PATTERNS: dict[str, list[str]] = {
 NATIVE_MEMORY_GUIDE = """
 ## Cross-Session Memory
 
-Tools: `memory_retain` (store/update), `memory_recall` (search details), `memory_delete` (remove).
+Tools: `memory_retain` (store/update), `memory_recall` (search), `memory_delete` (remove). Use only these tools, never `/memories/` paths.
 
-`<memory_index>` entries are a hint only, never ground truth; selectively call `memory_recall` when a title or prior-work reference matters, not at every conversation start.
+`<memory_index>` entries are hint only, not ground truth. Recall selectively when prior context matters.
 
 | Type | Keep |
 |---|---|
 | `user` | role, preferences, knowledge, working style |
-| `feedback` | corrections and confirmations; include why and how to apply |
-| `project` | goals, constraints, bugs, decisions; convert relative dates to absolute |
+| `feedback` | corrections, confirmations, why, and application |
+| `project` | goals, constraints, bugs, decisions; use absolute dates |
 | `reference` | external systems, docs, and URLs |
 
-**Remember:** durable preferences, project context, non-obvious decisions, useful references, and positive feedback. Be selective; update instead of duplicating.
-**Skip:** code/git history, debugging already captured in code, ephemeral state, greetings, and activity logs; retain only the durable kernel.
+**Remember:** durable preferences, project context, non-obvious decisions, useful references, and positive feedback; update instead of duplicating.
+**Skip:** greetings, ephemeral state, activity logs, code/git history, and debugging already captured in code.
 
-Delete inaccurate/outdated entries. Memories older than 30 days may be stale: verify paths, flags, and current observations before acting. Honor ignore/forget requests. Use these tools only—never `/memories/` paths.
+Delete inaccurate entries and honor ignore/forget requests. Content older than 30 days may be stale; verify current paths, flags, and observations.
 """

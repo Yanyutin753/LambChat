@@ -20,12 +20,9 @@ logger = get_logger(__name__)
 
 DEFERRED_TOOL_SEARCH_GUIDE = (
     "## Tool Search Guide\n\n"
-    "Deferred MCP and system tools are available but their schemas are not loaded. "
-    "If one of these tools would help with the current request, call `search_tools` "
-    "first to load its full parameter schema, then use that tool normally. "
-    "`search_tools` searches the deferred inventories below; it does NOT search sandbox tools. "
-    "Sandbox tools are NOT MCP tools — use `execute` with `mcporter` commands "
-    "to discover and call them."
+    "Deferred MCP/system tool schemas are not loaded. If a listed tool helps, "
+    "call `search_tools` once, then call the loaded tool directly. `search_tools` "
+    "does not search sandbox tools; follow their injected `mcporter` guide."
 )
 
 

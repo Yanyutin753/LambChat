@@ -44,8 +44,8 @@ async def build_env_var_prompt_sections(
         intro_lines = [
             "## Available Environment Variables",
             "",
-            "Configured sandbox names only; contents remain secret. Use `$FIRECRAWL_API_KEY` "
-            'or `os.environ.get("FIRECRAWL_API_KEY")`; never print or reveal contents.',
+            'Names only; values are secret. Reference `$KEY` or `os.environ.get("KEY")`; '
+            "never print or reveal values.",
         ]
         key_lines = [f"- `{key}`" for key in keys]
         prompt_sections = ("\n".join(intro_lines), "\n".join(key_lines))

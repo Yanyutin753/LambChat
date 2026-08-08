@@ -119,11 +119,10 @@ async def test_env_var_prompt_lists_keys_without_values(monkeypatch: pytest.Monk
 
     assert "## Available Environment Variables" in prompt
     assert "`FIRECRAWL_API_KEY`" in prompt
-    assert "$FIRECRAWL_API_KEY" in prompt
+    assert "$KEY" in prompt
     assert "os.environ" in prompt
     assert "super-secret-value" not in prompt
-    assert "value" not in prompt.lower()
-    assert len(prompt.split("\n\n", 1)[0]) <= 260
+    assert len(prompt.split("\n\n", 1)[0]) <= 200
 
 
 @pytest.mark.asyncio
@@ -140,7 +139,7 @@ async def test_env_var_prompt_sections_split_intro_and_key_list(
 
     assert len(sections) == 2
     assert "## Available Environment Variables" in sections[0]
-    assert len(sections[0]) <= 260
+    assert len(sections[0]) <= 200
     assert "`FIRECRAWL_API_KEY`" in sections[1]
     assert "os.environ" not in sections[1]
 

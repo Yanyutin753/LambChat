@@ -95,8 +95,8 @@ def test_deferred_prompt_excludes_sandbox_mcp_from_search_tools() -> None:
     prompt = manager.get_deferred_stubs_string()
 
     assert "search_tools" in prompt
-    assert "does NOT search sandbox tools" in prompt
-    assert "use `execute` with `mcporter`" in prompt
+    assert "does not search sandbox tools" in prompt.lower()
+    assert "`mcporter` guide" in prompt
 
 
 def test_deferred_prompt_tells_model_to_search_before_using_tool() -> None:
@@ -113,9 +113,8 @@ def test_deferred_prompt_tells_model_to_search_before_using_tool() -> None:
 
     prompt = manager.get_deferred_stubs_string()
 
-    assert "If one of these tools would help" in prompt
-    assert "call `search_tools` first" in prompt
-    assert "then use that tool normally" in prompt
+    assert "call `search_tools` once" in prompt
+    assert "call the loaded tool directly" in prompt
 
 
 def test_search_tools_description_uses_server_tool_exact_name_format() -> None:
@@ -162,7 +161,7 @@ def test_sandbox_mcp_prompt_tells_model_to_use_mcporter_not_search_tools() -> No
     )
 
     assert total == 1
-    assert "NOT MCP" in prompt
+    assert "not direct/MCP" in prompt
     assert "execute" in prompt
     assert "mcporter call" in prompt
 
@@ -193,6 +192,7 @@ def test_sandbox_mcp_prompt_sections_split_intro_and_tool_listing() -> None:
     assert total == 1
     assert len(sections) == 2
     assert "Sandbox Tools" in sections[0]
+    assert len(sections[0]) <= 330
     assert "`playwright.screenshot`" in sections[1]
 
 
@@ -283,8 +283,8 @@ def test_sandbox_mcp_prompt_requires_service_specific_schema_inspection_before_f
     )
 
     assert total == 1
-    assert "before the first `mcporter call`" in prompt
-    assert "must inspect its parameters via `execute`" in prompt
+    assert "before the first call" in prompt.lower()
+    assert "use through `execute`" in prompt
     assert "`mcporter list <service> --schema`" in prompt
     assert "`mcporter list`" in prompt
 

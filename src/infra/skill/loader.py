@@ -125,8 +125,7 @@ def format_skills_prompt(skills: list[dict]) -> str:
 Available Skills ({len(ordered)}):
 {inventory}
 
-Use `search_skills` by name or capability, then read the returned `/skills/<name>/SKILL.md` with `read_file` before applying it. Main instructions must use the exact filename `SKILL.md`.
-`/skills/` is virtual storage: use `ls`, `read_file`, `write_file`, or `edit_file`, never shell filesystem commands. If a Skill includes executable scripts, transfer them out of `/skills/` into the sandbox workspace first. Use `transfer_file` or `transfer_path` to move skill files into the workspace before executing them.
+Use `search_skills`, then read `/skills/<name>/SKILL.md` before applying a Skill. `/skills/` is virtual; use file tools, not shell. Transfer executable files to the workspace with `transfer_file` or `transfer_path` before running them.
 """
 
 

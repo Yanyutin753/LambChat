@@ -50,7 +50,7 @@ def test_native_memory_guide_preserves_compact_behavior_contract() -> None:
     )
 
     assert all(marker.lower() in NATIVE_MEMORY_GUIDE.lower() for marker in required)
-    assert len(NATIVE_MEMORY_GUIDE) <= 1300
+    assert len(NATIVE_MEMORY_GUIDE) <= 960
 
 
 @pytest.mark.asyncio
