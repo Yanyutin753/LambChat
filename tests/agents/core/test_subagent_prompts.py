@@ -156,9 +156,8 @@ def test_dynamic_prompt_middleware_order_is_canonical() -> None:
         env = source.rfind("EnvVarPromptMiddleware")
         memory = source.rfind("MemoryIndexMiddleware")
         deferred = source.rfind("ToolSearchMiddleware")
-        sandbox = source.rfind("SandboxMCPMiddleware")
         cache = source.rfind("PromptCachingMiddleware")
-        assert -1 < env < memory < deferred < sandbox < cache
+        assert -1 < env < memory < deferred < cache
 
 
 def test_static_prompt_order_places_goal_and_mode_before_runtime() -> None:

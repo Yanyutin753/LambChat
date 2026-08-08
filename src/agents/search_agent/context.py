@@ -309,14 +309,10 @@ class SearchAgentContext:
 
         # 沙箱专属工具
         if settings.ENABLE_SANDBOX:
-            from src.infra.tool.sandbox_mcp_tool import get_sandbox_mcp_tools
             from src.infra.tool.upload_url_tool import get_upload_url_tool
 
             self.tools.append(get_upload_url_tool())
             logger.info("[SearchAgentContext] Added upload_url_to_sandbox tool (sandbox mode)")
-
-            self.tools.extend(get_sandbox_mcp_tools())
-            logger.info("[SearchAgentContext] Added sandbox_mcp tools (sandbox mode)")
 
         # MCP 工具延迟加载（不在 setup 时初始化）
         logger.info("[SearchAgentContext] MCP tools will be lazy loaded on first use")

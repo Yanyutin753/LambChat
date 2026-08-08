@@ -13,7 +13,6 @@ from deepagents.backends import CompositeBackend
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.logging import get_logger
-from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp as _ensure_sandbox_mcp
 
 if TYPE_CHECKING:
     from e2b import Sandbox as E2BSandbox
@@ -27,12 +26,6 @@ def run_blocking_io(*args, **kwargs):
     from src.infra.sandbox import session_manager
 
     return getattr(session_manager, "run_blocking_io", _run_blocking_io)(*args, **kwargs)
-
-
-def ensure_sandbox_mcp(*args, **kwargs):
-    from src.infra.sandbox import session_manager
-
-    return getattr(session_manager, "ensure_sandbox_mcp", _ensure_sandbox_mcp)(*args, **kwargs)
 
 
 class _E2BMixin:
@@ -99,7 +92,6 @@ class _E2BMixin:
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
-                        await ensure_sandbox_mcp(scoped_backend, user_id)
                         return scoped_backend, work_dir
                 except Exception as e:
                     logger.warning(f"[E2B] Cache hit but sandbox {sandbox_id} unhealthy: {e}")
@@ -129,7 +121,6 @@ class _E2BMixin:
                         await self._save_binding(
                             user_id, metadata_sandbox_id, info.get("state", "running")
                         )
-                        await ensure_sandbox_mcp(backend, user_id)
                         base_work_dir = await run_blocking_io(
                             self._e2b_adapter.get_work_dir,
                             provider_obj,
@@ -137,7 +128,6 @@ class _E2BMixin:
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
-                        await ensure_sandbox_mcp(scoped_backend, user_id)
                         return scoped_backend, work_dir
                     except Exception as e:
                         logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
@@ -184,7 +174,6 @@ class _E2BMixin:
         scoped_work_dir = self._session_work_dir(work_dir, session_id)
         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, scoped_work_dir)
         await self._ensure_work_dir(scoped_backend, scoped_work_dir)
-        await ensure_sandbox_mcp(scoped_backend, user_id)
         return scoped_backend, scoped_work_dir
 
     def _build_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:

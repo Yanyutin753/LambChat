@@ -51,9 +51,7 @@ from src.infra.agent.middleware import (
     EnvVarPromptMiddleware,
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
-    MCPQuotaMiddleware,
     PromptCachingMiddleware,
-    SandboxMCPMiddleware,
     SectionPromptMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
@@ -218,7 +216,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         mw = [
             create_todo_middleware(),
             *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
-            MCPQuotaMiddleware(user_id=context.user_id),
             ToolResultBinaryMiddleware(base_url=search_base_url),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
             SubagentActivityMiddleware(backend=backend),
@@ -282,7 +279,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
-    user_middleware.append(MCPQuotaMiddleware(user_id=context.user_id))
     user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
     user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     if image_url_to_base64:
@@ -323,11 +319,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             )
         )
         logger.info("[SearchAgent] Tool search middleware enabled (deferred MCP loading)")
-    if sandbox_backend:
-        user_middleware.append(
-            SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
-        )
-
     user_middleware.extend(create_code_interpreter_middleware(agent_options))
     rubric_middleware = create_goal_rubric_middleware(
         model=llm,

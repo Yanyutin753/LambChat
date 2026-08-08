@@ -31,7 +31,7 @@ class PromptCachingMiddleware(AgentMiddleware):
     Problem
     -------
     deepagents' built-in ``AnthropicPromptCachingMiddleware`` runs **before** user
-    middleware (AppPrompt, MemoryIndex, SandboxMCP, ToolSearch).  It tags the *then*
+    middleware (AppPrompt, MemoryIndex, ToolSearch).  It tags the *then*
     last system-message content block with ``cache_control``, but user middleware
     subsequently appends more blocks (skills, memory, MCP tools, deferred stubs).
     The original cache breakpoint ends up in the middle of the final system message,

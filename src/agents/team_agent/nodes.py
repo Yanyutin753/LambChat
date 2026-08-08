@@ -64,7 +64,6 @@ from src.infra.agent.middleware import (
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
     PromptCachingMiddleware,
-    SandboxMCPMiddleware,
     SectionPromptMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
@@ -793,11 +792,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
             )
         )
-    if sandbox_backend:
-        user_middleware.append(
-            SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
-        )
-
     rubric_middleware = create_goal_rubric_middleware(
         model=llm,
         goal=active_goal,

@@ -64,7 +64,6 @@ class ToolSearchTool(BaseTool):
     name: str = "search_tools"
     description: str = (
         "Loads callable schemas for deferred MCP and system tools listed in the prompt. "
-        "It does NOT search sandbox tools; use `execute` with `mcporter` for those. "
         "Search by capability, require a term with `+term`, or fetch exact names with "
         "`select:github:create_issue`. Use exact tool names as shown."
     )

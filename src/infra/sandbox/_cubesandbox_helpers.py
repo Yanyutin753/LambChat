@@ -13,7 +13,6 @@ from deepagents.backends import CompositeBackend
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.logging import get_logger
-from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp as _ensure_sandbox_mcp
 
 if TYPE_CHECKING:
     from cubesandbox import Sandbox as CubeSandbox
@@ -27,12 +26,6 @@ def run_blocking_io(*args, **kwargs):
     from src.infra.sandbox import session_manager
 
     return getattr(session_manager, "run_blocking_io", _run_blocking_io)(*args, **kwargs)
-
-
-def ensure_sandbox_mcp(*args, **kwargs):
-    from src.infra.sandbox import session_manager
-
-    return getattr(session_manager, "ensure_sandbox_mcp", _ensure_sandbox_mcp)(*args, **kwargs)
 
 
 class _CubeSandboxMixin:
@@ -100,7 +93,6 @@ class _CubeSandboxMixin:
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_cube_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
-                        await ensure_sandbox_mcp(scoped_backend, user_id)
                         self._schedule_duplicate_cubesandbox_cleanup(
                             user_id, keep_sandbox_id=sandbox_id
                         )
@@ -142,7 +134,6 @@ class _CubeSandboxMixin:
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_cube_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
-                        await ensure_sandbox_mcp(scoped_backend, user_id)
                         self._schedule_duplicate_cubesandbox_cleanup(
                             user_id, keep_sandbox_id=metadata_sandbox_id
                         )
@@ -204,7 +195,6 @@ class _CubeSandboxMixin:
                 work_dir = self._session_work_dir(base_work_dir, session_id)
                 scoped_backend = self._scope_cube_backend(provider_obj, user_id, work_dir)
                 await self._ensure_work_dir(scoped_backend, work_dir)
-                await ensure_sandbox_mcp(scoped_backend, user_id)
                 await self._cleanup_duplicate_cubesandboxes(user_id, keep_sandbox_id=sandbox_id)
                 logger.info(
                     f"[CubeSandbox] Reused existing sandbox {sandbox_id} for user {user_id} "
@@ -305,7 +295,6 @@ class _CubeSandboxMixin:
         scoped_work_dir = self._session_work_dir(work_dir, session_id)
         scoped_backend = self._scope_cube_backend(provider_obj, user_id, scoped_work_dir)
         await self._ensure_work_dir(scoped_backend, scoped_work_dir)
-        await ensure_sandbox_mcp(scoped_backend, user_id)
         return scoped_backend, scoped_work_dir
 
     def _build_cube_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:

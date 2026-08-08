@@ -1,10 +1,9 @@
-"""System prompt injection middleware — memory, sandbox MCP, env vars, sections."""
+"""System prompt injection middleware — memory, env vars, and static sections."""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -102,38 +101,6 @@ async def _build_memory_index_for_user(user_id: str) -> str:
     except Exception:
         logger.warning("[Memory] Failed to build memory index for user %s", user_id, exc_info=True)
         return ""
-
-
-class SandboxMCPMiddleware(AgentMiddleware):
-    """Injects sandbox tool descriptions into the system prompt at request time.
-
-    By injecting via middleware (instead of baking into the base system prompt string),
-    the sandbox tools end up at the TAIL of the final system message — after
-    deepagent's BASE_AGENT_PROMPT and all other middleware injections (memory, subagent,
-    summarization, etc.).  This maximizes KV cache hit rates because changes to sandbox tools
-    only invalidate the tail of the cache, not the stable prefix.
-
-    ``build_sandbox_mcp_prompt`` has its own per-user 30-minute cache, so repeated
-    ``awrap_model_call`` invocations within a session are essentially free.
-    """
-
-    def __init__(self, *, backend: Any, user_id: str) -> None:
-        super().__init__()
-        self._backend = backend
-        self._user_id = user_id
-
-    async def awrap_model_call(
-        self,
-        request: ModelRequest[ContextT],
-        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
-    ) -> ModelResponse[ResponseT]:
-        from src.infra.tool.sandbox_mcp_prompt import build_sandbox_mcp_prompt_sections
-
-        prompt_sections = await build_sandbox_mcp_prompt_sections(self._backend, self._user_id)
-        if prompt_sections:
-            new_system_message = _append_system_text_blocks(request.system_message, prompt_sections)
-            request = request.override(system_message=new_system_message)
-        return await handler(request)
 
 
 class EnvVarPromptMiddleware(AgentMiddleware):

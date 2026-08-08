@@ -16,7 +16,6 @@ from src.infra.envvar.storage import EnvVarStorage
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_user_id_from_runtime
 from src.infra.tool.cache_pubsub import publish_tool_cache_invalidation
 from src.infra.tool.env_var_prompt import invalidate_env_var_prompt_cache
-from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp
 
 if TYPE_CHECKING:
     from langchain.tools import ToolRuntime
@@ -46,8 +45,6 @@ def _get_user_id(runtime: ToolRuntime) -> str | None:
 async def _sync_envvar_change(user_id: str, backend: Any | None) -> None:
     invalidate_env_var_prompt_cache(user_id)
     await publish_tool_cache_invalidation("env_var_prompt", user_id=user_id)
-    if backend is not None:
-        await ensure_sandbox_mcp(backend, user_id, force_rebuild=True)
 
 
 def _validate_key(key: str) -> str | None:
@@ -90,8 +87,7 @@ async def env_var_set(
     runtime: Annotated[ToolRuntime, InjectedToolArg],
 ) -> str:
     """Create or update one encrypted environment variable for the current user.
-    Use this when configuring sandbox MCP env_keys. The saved value is never
-    returned; responses contain only a masked value."""
+    The saved value is never returned; responses contain only a masked value."""
     user_id = _get_user_id(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})

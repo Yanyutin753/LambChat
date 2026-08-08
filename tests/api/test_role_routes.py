@@ -8,8 +8,10 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api import deps as api_deps
 from src.api.routes import role as role_route
+from src.kernel.schemas.permission import PERMISSION_GROUPS_CONFIG, PERMISSION_METADATA
 from src.kernel.schemas.role import Role
 from src.kernel.schemas.user import TokenPayload
+from src.kernel.types import Permission
 
 
 def _fake_user() -> TokenPayload:
@@ -18,6 +20,14 @@ def _fake_user() -> TokenPayload:
         username="tester",
         roles=["user"],
         permissions=[],
+    )
+
+
+def test_permission_catalog_does_not_expose_sandbox_mcp_write() -> None:
+    assert "mcp:write_sandbox" not in {permission.value for permission in Permission}
+    assert "mcp:write_sandbox" not in PERMISSION_METADATA
+    assert all(
+        "mcp:write_sandbox" not in group["permissions"] for group in PERMISSION_GROUPS_CONFIG
     )
 
 

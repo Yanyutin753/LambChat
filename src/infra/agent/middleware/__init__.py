@@ -8,7 +8,6 @@ from src.infra.agent.middleware.prompt_caching import PromptCachingMiddleware
 from src.infra.agent.middleware.prompt_injection import (
     EnvVarPromptMiddleware,
     MemoryIndexMiddleware,
-    SandboxMCPMiddleware,
     SectionPromptMiddleware,
 )
 from src.infra.agent.middleware.retry import (
@@ -20,7 +19,6 @@ from src.infra.agent.middleware.retry import (
 from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
 from src.infra.agent.middleware.subagent_result_handoff import SubagentResultHandoffMiddleware
 from src.infra.agent.middleware.tool_interception import (
-    MCPQuotaMiddleware,
     ToolResultBinaryMiddleware,
     ToolSearchMiddleware,
 )
@@ -33,11 +31,9 @@ __all__ = [
     "EnvVarPromptMiddleware",
     "ImageUrlToBase64Middleware",
     "MainAgentContextMiddleware",
-    "MCPQuotaMiddleware",
     "MemoryIndexMiddleware",
     "ModelFallbackMiddleware",
     "PromptCachingMiddleware",
-    "SandboxMCPMiddleware",
     "SectionPromptMiddleware",
     "SubagentActivityMiddleware",
     "SubagentResultHandoffMiddleware",

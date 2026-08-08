@@ -58,14 +58,6 @@ SANDBOX_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 30,
         "depends_on": "ENABLE_SANDBOX",
     },
-    "SANDBOX_MCP_REBUILD_CONCURRENCY": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.SANDBOX,
-        "subcategory": "general",
-        "description": "settingDesc.SANDBOX_MCP_REBUILD_CONCURRENCY",
-        "default": 4,
-        "depends_on": "ENABLE_SANDBOX",
-    },
     "DAYTONA_IMAGE": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,

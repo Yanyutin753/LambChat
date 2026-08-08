@@ -51,7 +51,6 @@ class Permission(str, Enum):
     MCP_READ = "mcp:read"
     MCP_WRITE_SSE = "mcp:write_sse"
     MCP_WRITE_HTTP = "mcp:write_http"
-    MCP_WRITE_SANDBOX = "mcp:write_sandbox"
     MCP_DELETE = "mcp:delete"
     MCP_ADMIN = "mcp:admin"
 

@@ -13,7 +13,6 @@ from src.infra.tool.cache_pubsub import (
     publish_tool_cache_invalidation,
 )
 from src.infra.tool.env_var_prompt import _env_var_prompt_cache
-from src.infra.tool.sandbox_mcp_prompt import _sandbox_mcp_prompt_cache
 
 
 class _FakeHub:
@@ -83,27 +82,6 @@ async def test_tool_cache_pubsub_invalidates_foreign_env_var_prompt_cache() -> N
     )
 
     assert "user-1" not in _env_var_prompt_cache
-
-
-@pytest.mark.asyncio
-async def test_tool_cache_pubsub_invalidates_foreign_sandbox_prompt_cache() -> None:
-    _sandbox_mcp_prompt_cache["user-1"] = (("section",), 1, 123.0)
-    pubsub = ToolCachePubSub()
-    pubsub._instance_id = "instance-a"
-
-    await pubsub._handle_message(
-        {
-            "data": json.dumps(
-                {
-                    "instance_id": "instance-b",
-                    "cache": "sandbox_mcp_prompt",
-                    "user_id": "user-1",
-                }
-            )
-        }
-    )
-
-    assert "user-1" not in _sandbox_mcp_prompt_cache
 
 
 @pytest.mark.asyncio

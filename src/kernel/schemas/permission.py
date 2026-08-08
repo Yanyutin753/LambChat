@@ -123,10 +123,6 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "创建HTTP类型MCP",
         "description": "创建HTTP/streamable_http传输类型的MCP服务",
     },
-    Permission.MCP_WRITE_SANDBOX.value: {
-        "label": "创建Sandbox类型MCP",
-        "description": "创建Sandbox传输类型的MCP服务（在沙箱内运行）",
-    },
     Permission.MCP_DELETE.value: {
         "label": "删除MCP配置",
         "description": "删除MCP服务配置",
@@ -336,7 +332,6 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.MCP_READ.value,
             Permission.MCP_WRITE_SSE.value,
             Permission.MCP_WRITE_HTTP.value,
-            Permission.MCP_WRITE_SANDBOX.value,
             Permission.MCP_DELETE.value,
             Permission.MCP_ADMIN.value,
         ],

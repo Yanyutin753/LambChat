@@ -233,33 +233,22 @@ async def test_env_var_set_delegates_to_storage_and_masks_response(
 
 
 @pytest.mark.asyncio
-async def test_env_var_set_invalidates_prompt_and_syncs_current_sandbox(
+async def test_env_var_set_invalidates_prompt_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.infra.tool import env_var_tool
 
     storage = _FakeEnvVarStorage()
-    sync_calls: list[tuple[object, str, bool]] = []
     invalidated: list[str] = []
     backend = object()
 
-    async def fake_sync(
-        current_backend: object,
-        user_id: str,
-        *,
-        force_rebuild: bool = False,
-    ) -> None:
-        sync_calls.append((current_backend, user_id, force_rebuild))
-
     monkeypatch.setattr(env_var_tool, "EnvVarStorage", lambda: storage)
-    monkeypatch.setattr(env_var_tool, "ensure_sandbox_mcp", fake_sync)
     monkeypatch.setattr(env_var_tool, "invalidate_env_var_prompt_cache", invalidated.append)
 
     await env_var_tool.env_var_set.coroutine(
         "FIRECRAWL_API_KEY", "secret", runtime=_Runtime("user-1", backend=backend)
     )
 
-    assert sync_calls == [(backend, "user-1", True)]
     assert invalidated == ["user-1"]
 
 

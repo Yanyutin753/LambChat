@@ -11,7 +11,6 @@ from src.infra.logging import get_logger
 from src.infra.pubsub_hub import get_pubsub_hub
 from src.infra.storage.redis import get_redis_client
 from src.infra.tool.env_var_prompt import invalidate_env_var_prompt_cache
-from src.infra.tool.sandbox_mcp_prompt import invalidate_sandbox_mcp_prompt_cache
 
 logger = get_logger(__name__)
 
@@ -67,8 +66,6 @@ class ToolCachePubSub:
 
             if cache == "env_var_prompt":
                 invalidate_env_var_prompt_cache(user_id)
-            elif cache == "sandbox_mcp_prompt":
-                invalidate_sandbox_mcp_prompt_cache(user_id)
             else:
                 logger.debug("Ignoring unknown tool cache invalidation key: %s", cache)
                 return

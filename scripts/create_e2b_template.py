@@ -190,10 +190,9 @@ def build_template(template_builder: Any | None = None) -> Any:
     # 安装 Playwright Chromium 浏览器
     template = template.run_cmd("playwright install chromium --with-deps")
 
-    # 安装 mcporter（用于沙箱内 MCP 服务器管理）+ opencli（网站转 CLI 工具）
+    # 安装 opencli（网站转 CLI 工具）
     # 基础模板 code-interpreter-v1 已自带 Node.js 20 + npm，无需额外安装
-    template = template.run_cmd("sudo npm install -g mcporter @jackwener/opencli")
-    template = template.run_cmd("mkdir -p ~/.mcporter")
+    template = template.run_cmd("sudo npm install -g @jackwener/opencli")
     return template
 
 

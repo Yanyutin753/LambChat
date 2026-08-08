@@ -9,7 +9,6 @@ from src.agents.core.todo_middleware import create_todo_middleware
 from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
 from src.infra.skill.loader import format_skills_prompt
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE
-from src.infra.tool.sandbox_mcp_prompt import _format_tools_list_sections
 
 
 def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
@@ -18,19 +17,6 @@ def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
         {"name": "ant", "description": "Enterprise interface design."},
         {"name": "publisher", "description": "Publish social content."},
     ]
-    sandbox_sections, total = _format_tools_list_sections(
-        {
-            "servers": [
-                {
-                    "name": "demo",
-                    "status": "ok",
-                    "tools": [{"name": "run", "description": "Run demo"}],
-                }
-            ]
-        }
-    )
-    assert total == 1
-
     blocks = (
         SANDBOX_STORAGE_POLICY,
         SANDBOX_RUNTIME_POLICY.format(work_dir="/home/user/sessions/example"),
@@ -40,7 +26,6 @@ def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
         format_skills_prompt(skills),
         NATIVE_MEMORY_GUIDE,
         DEFERRED_TOOL_SEARCH_GUIDE,
-        sandbox_sections[0],
         create_todo_middleware().system_prompt,
     )
 

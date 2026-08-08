@@ -173,9 +173,6 @@ async def test_e2b_reconnects_legacy_binding_without_creating_new_sandbox(
         del kwargs
         return func(*args)
 
-    async def fake_ensure_sandbox_mcp(*_args, **_kwargs) -> None:
-        return None
-
     async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
         return None
 
@@ -185,7 +182,6 @@ async def test_e2b_reconnects_legacy_binding_without_creating_new_sandbox(
     )
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
-    monkeypatch.setattr(sandbox_module, "ensure_sandbox_mcp", fake_ensure_sandbox_mcp)
     monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
     monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
 
@@ -216,16 +212,12 @@ async def test_e2b_cache_hit_runs_sync_sdk_calls_in_blocking_executor(
     async def fake_save_binding(*_args, **_kwargs) -> None:
         return None
 
-    async def fake_ensure_sandbox_mcp(*_args, **_kwargs) -> None:
-        return None
-
     async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
         return None
 
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
-    monkeypatch.setattr(sandbox_module, "ensure_sandbox_mcp", fake_ensure_sandbox_mcp)
     monkeypatch.setattr(sandbox_module.settings, "E2B_TIMEOUT", 123)
 
     _backend, work_dir = await manager._get_or_create_e2b("session-1", "user-1")
@@ -255,16 +247,12 @@ async def test_cubesandbox_cache_hit_uses_cube_adapter(
     async def fake_save_binding(*_args, **_kwargs) -> None:
         return None
 
-    async def fake_ensure_sandbox_mcp(*_args, **_kwargs) -> None:
-        return None
-
     async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
         return None
 
     monkeypatch.setattr(sandbox_module, "run_blocking_io", fake_run_blocking_io)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
-    monkeypatch.setattr(sandbox_module, "ensure_sandbox_mcp", fake_ensure_sandbox_mcp)
     monkeypatch.setattr(sandbox_module.settings, "CUBE_TIMEOUT", 456, raising=False)
 
     _backend, work_dir = await manager._get_or_create_cubesandbox("session-1", "user-1")
@@ -304,9 +292,6 @@ async def test_cubesandbox_reuses_running_sandbox_found_by_user_metadata(
     async def fake_save_binding(*_args, **_kwargs) -> None:
         return None
 
-    async def fake_ensure_sandbox_mcp(*_args, **_kwargs) -> None:
-        return None
-
     async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
         return None
 
@@ -314,7 +299,6 @@ async def test_cubesandbox_reuses_running_sandbox_found_by_user_metadata(
     monkeypatch.setattr(manager, "_get_binding", fake_get_binding)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
-    monkeypatch.setattr(sandbox_module, "ensure_sandbox_mcp", fake_ensure_sandbox_mcp)
     monkeypatch.setattr(
         adapter,
         "get_sandbox",
@@ -356,9 +340,6 @@ async def test_cubesandbox_create_cleans_other_user_sandboxes(
     async def fake_get_user_env_vars(_user_id: str) -> dict[str, str]:
         return {}
 
-    async def fake_ensure_sandbox_mcp(*_args, **_kwargs) -> None:
-        return None
-
     async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
         return None
 
@@ -366,7 +347,6 @@ async def test_cubesandbox_create_cleans_other_user_sandboxes(
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_get_user_env_vars", fake_get_user_env_vars)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
-    monkeypatch.setattr(sandbox_module, "ensure_sandbox_mcp", fake_ensure_sandbox_mcp)
     monkeypatch.setattr(
         adapter,
         "list_user_sandboxes",
@@ -405,9 +385,6 @@ async def test_cubesandbox_reconnect_cleans_other_user_sandboxes(
     async def fake_save_binding(*_args, **_kwargs) -> None:
         return None
 
-    async def fake_ensure_sandbox_mcp(*_args, **_kwargs) -> None:
-        return None
-
     async def fake_ensure_work_dir(*_args, **_kwargs) -> None:
         return None
 
@@ -415,7 +392,6 @@ async def test_cubesandbox_reconnect_cleans_other_user_sandboxes(
     monkeypatch.setattr(manager, "_get_binding", fake_get_binding)
     monkeypatch.setattr(manager, "_save_binding", fake_save_binding)
     monkeypatch.setattr(manager, "_ensure_work_dir", fake_ensure_work_dir)
-    monkeypatch.setattr(sandbox_module, "ensure_sandbox_mcp", fake_ensure_sandbox_mcp)
     monkeypatch.setattr(
         adapter,
         "get_sandbox",

@@ -14,7 +14,6 @@ from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.backend.daytona import DaytonaBackend
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.logging import get_logger
-from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp as _ensure_sandbox_mcp
 
 from ._adapters import (
     DEFAULT_DAYTONA_TIMEOUT,
@@ -33,12 +32,6 @@ def run_blocking_io(*args, **kwargs):
     from src.infra.sandbox import session_manager
 
     return getattr(session_manager, "run_blocking_io", _run_blocking_io)(*args, **kwargs)
-
-
-def ensure_sandbox_mcp(*args, **kwargs):
-    from src.infra.sandbox import session_manager
-
-    return getattr(session_manager, "ensure_sandbox_mcp", _ensure_sandbox_mcp)(*args, **kwargs)
 
 
 class _DaytonaMixin:
@@ -257,7 +250,6 @@ class _DaytonaMixin:
         scoped_work_dir = self._session_work_dir(work_dir, session_id)
         scoped_backend = self._scope_daytona_backend(backend, user_id, scoped_work_dir)
         await self._ensure_work_dir(scoped_backend, scoped_work_dir)
-        await ensure_sandbox_mcp(scoped_backend, user_id)
         return scoped_backend, scoped_work_dir
 
     async def _get_user_env_vars(self, user_id: str) -> dict[str, str]:
