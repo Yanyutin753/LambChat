@@ -18,6 +18,12 @@ Current session workspace: `{work_dir}`
 
 Use this absolute, session-scoped path for shell/file output and uploads. Do not persist it in durable documents unless requested."""
 
+LAZY_SANDBOX_RUNTIME_POLICY = """## Sandbox Runtime
+
+Public file-tool workspace: `{work_dir}`
+
+Use this absolute, session-scoped root with file tools and uploads. For shell commands, use relative paths or `$LAMBCHAT_WORKSPACE`; do not use `{work_dir}` literally because the provider resolves the public alias when the sandbox starts. Do not persist either path in durable documents unless requested."""
+
 WORKSPACE_POLICY = """### Workspace Boundaries
 Check whether a target exists before creating it. Modify an existing project only when requested or relevant; otherwise use a named directory in the current session workspace."""
 

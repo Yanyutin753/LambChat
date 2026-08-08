@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from src.infra.backend.lazy_sandbox import LazySandboxBackend
 from src.infra.sandbox import session_manager as sandbox_module
 
 
@@ -13,6 +14,7 @@ class _FakeE2BAdapter:
     def __init__(self) -> None:
         self.method_calls: list[str] = []
         self.connected: list[str] = []
+        self.created = type("FakeE2BSandbox", (), {"sandbox_id": "created-e2b-sandbox"})()
 
     def sandbox_is_running(self, _provider_obj) -> bool:
         self.method_calls.append("sandbox_is_running")
@@ -39,7 +41,7 @@ class _FakeE2BAdapter:
 
     def create_sandbox(self, user_id=None, envs=None):
         self.method_calls.append("create_sandbox")
-        return object(), "/home/user"
+        return self.created, "/home/user"
 
 
 class _FakeCubeAdapter(_FakeE2BAdapter):
@@ -47,7 +49,7 @@ class _FakeCubeAdapter(_FakeE2BAdapter):
         super().__init__()
         self.connected: list[str] = []
         self.killed: list[str] = []
-        self.created = object()
+        self.created = type("FakeCubeSandbox", (), {"sandbox_id": "created-sandbox"})()
 
     def get_sandbox(self, sandbox_id: str):
         self.method_calls.append("get_sandbox")
@@ -103,6 +105,202 @@ class _MemoryBindingCollection:
                 target = target.setdefault(part, {})
             target[parts[-1]] = value
         return None
+
+
+class _RecordingPresenter:
+    def __init__(self) -> None:
+        self.attempts: list[str] = []
+
+    async def emit_sandbox_starting(self) -> None:
+        self.attempts.append("starting")
+
+    async def emit_sandbox_ready(self, sandbox_id: str, work_dir: str) -> None:
+        del sandbox_id, work_dir
+        self.attempts.append("ready")
+
+    async def emit_sandbox_error(self, error: str) -> None:
+        del error
+        self.attempts.append("error")
+
+
+async def _cancel_lazy_creation_and_finish_manager(
+    manager: sandbox_module.SessionSandboxManager,
+    *,
+    create_entered: asyncio.Event,
+    release_create: asyncio.Event,
+) -> _RecordingPresenter:
+    presenter = _RecordingPresenter()
+    backend = LazySandboxBackend(
+        session_id="session-1",
+        user_id="user-1",
+        presenter=presenter,
+        manager_factory=lambda: manager,
+    )
+    operation = asyncio.create_task(backend.aresolve_path("report.txt"))
+    await create_entered.wait()
+
+    operation.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await operation
+    release_create.set()
+
+    initialization_task = backend._initialization_task  # noqa: SLF001
+    assert initialization_task is not None
+    await initialization_task
+    with pytest.raises(RuntimeError, match="Lazy sandbox is closed"):
+        await backend.aresolve_path("later.txt")
+    return presenter
+
+
+@pytest.mark.asyncio
+async def test_cancelled_lazy_e2b_create_completes_manager_binding_and_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_entered = asyncio.Event()
+    release_create = asyncio.Event()
+    collection = _MemoryBindingCollection()
+    adapter = _FakeE2BAdapter()
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = adapter
+    manager._cube_adapter = None
+    manager._collection = collection
+
+    async def gated_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        if func.__name__ == "_sync_create":
+            create_entered.set()
+            await release_create.wait()
+        return func(*args)
+
+    async def no_user_env_vars(_user_id: str) -> dict[str, str]:
+        return {}
+
+    async def no_async_side_effect(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", gated_run_blocking_io)
+    monkeypatch.setattr(manager, "_get_user_env_vars", no_user_env_vars)
+    monkeypatch.setattr(manager, "_ensure_work_dir", no_async_side_effect)
+    monkeypatch.setattr(
+        "src.infra.sandbox._e2b_helpers.sync_sandbox_env_vars",
+        no_async_side_effect,
+    )
+
+    presenter = await _cancel_lazy_creation_and_finish_manager(
+        manager,
+        create_entered=create_entered,
+        release_create=release_create,
+    )
+
+    assert manager._cache["user-1"][0] == "created-e2b-sandbox"
+    assert collection.doc is not None
+    assert collection.doc["sandboxes"]["e2b"]["sandbox_id"] == "created-e2b-sandbox"
+    assert presenter.attempts == ["starting"]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_lazy_cubesandbox_create_completes_manager_binding_and_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_entered = asyncio.Event()
+    release_create = asyncio.Event()
+    collection = _MemoryBindingCollection()
+    adapter = _FakeCubeAdapter()
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = None
+    manager._cube_adapter = adapter
+    manager._collection = collection
+
+    async def gated_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        if func.__name__ == "_sync_create":
+            create_entered.set()
+            await release_create.wait()
+        return func(*args)
+
+    async def no_user_env_vars(_user_id: str) -> dict[str, str]:
+        return {}
+
+    async def no_async_side_effect(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "cubesandbox")
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", gated_run_blocking_io)
+    monkeypatch.setattr(manager, "_get_user_env_vars", no_user_env_vars)
+    monkeypatch.setattr(manager, "_ensure_work_dir", no_async_side_effect)
+    monkeypatch.setattr(
+        "src.infra.sandbox._cubesandbox_helpers.sync_sandbox_env_vars",
+        no_async_side_effect,
+    )
+
+    presenter = await _cancel_lazy_creation_and_finish_manager(
+        manager,
+        create_entered=create_entered,
+        release_create=release_create,
+    )
+
+    assert manager._cache["user-1"][0] == "created-sandbox"
+    assert collection.doc is not None
+    assert collection.doc["sandboxes"]["cubesandbox"]["sandbox_id"] == "created-sandbox"
+    assert presenter.attempts == ["starting"]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_lazy_daytona_create_completes_manager_binding_and_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DaytonaSandbox:
+        id = "created-daytona-sandbox"
+
+        def get_work_dir(self) -> str:
+            return "/home/daytona"
+
+    class _DaytonaClient:
+        def create(self, _params) -> _DaytonaSandbox:
+            return _DaytonaSandbox()
+
+    create_entered = asyncio.Event()
+    release_create = asyncio.Event()
+    collection = _MemoryBindingCollection()
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = None
+    manager._cube_adapter = None
+    manager._daytona_client = _DaytonaClient()
+    manager._collection = collection
+
+    async def gated_run_blocking_io(func, *args, **kwargs):
+        del kwargs
+        if func.__name__ == "_sync_create":
+            create_entered.set()
+            await release_create.wait()
+        return func(*args)
+
+    async def no_user_env_vars(_user_id: str) -> dict[str, str]:
+        return {}
+
+    async def no_async_side_effect(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "daytona")
+    monkeypatch.setattr(sandbox_module, "run_blocking_io", gated_run_blocking_io)
+    monkeypatch.setattr(manager, "_get_user_env_vars", no_user_env_vars)
+    monkeypatch.setattr(manager, "_ensure_work_dir", no_async_side_effect)
+    monkeypatch.setattr(
+        "src.infra.sandbox._daytona_helpers.sync_sandbox_env_vars",
+        no_async_side_effect,
+    )
+
+    presenter = await _cancel_lazy_creation_and_finish_manager(
+        manager,
+        create_entered=create_entered,
+        release_create=release_create,
+    )
+
+    assert manager._cache["user-1"][0] == "created-daytona-sandbox"
+    assert collection.doc is not None
+    assert collection.doc["sandboxes"]["daytona"]["sandbox_id"] == "created-daytona-sandbox"
+    assert presenter.attempts == ["starting"]
 
 
 @pytest.mark.asyncio

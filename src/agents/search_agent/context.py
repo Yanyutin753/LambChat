@@ -21,6 +21,7 @@ from src.infra.tool.transfer_file_tool import get_transfer_file_tool, get_transf
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
+    from src.infra.backend import LazySandboxBackend
     from src.infra.tool.deferred_manager import DeferredToolManager
     from src.infra.tool.mcp_client import MCPClientManager
 
@@ -62,6 +63,11 @@ class SearchAgentContext:
         self.skill_files: Dict[str, Any] = {}
         self.deferred_manager: Optional["DeferredToolManager"] = None
         self._deferred_system_tools: List[Any] = []
+        self.run_sandbox: Optional["LazySandboxBackend"] = None
+
+    def set_run_sandbox(self, sandbox: "LazySandboxBackend") -> None:
+        """Register the run-scoped sandbox owned by this context."""
+        self.run_sandbox = sandbox
 
     def _append_unique_tools(self, tools: List[Any], *, reserved: set[str] | None = None) -> None:
         existing = {getattr(tool, "name", "") for tool in self.tools}
@@ -355,6 +361,10 @@ class SearchAgentContext:
         注意：MCP 管理器是全局单例，不在这里关闭。
         如果需要清理全局缓存，使用 invalidate_global_cache()。
         """
+        sandbox = self.run_sandbox
+        self.run_sandbox = None
+        if sandbox is not None:
+            await sandbox.aclose()
+
         # MCP 管理器是全局单例，不在这里关闭
         # 如果需要清理，使用 src.infra.tool.mcp_global.invalidate_global_cache()
-        pass
