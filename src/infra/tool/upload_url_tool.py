@@ -94,10 +94,9 @@ async def _execute_sandbox_download(backend, url: str, file_path: str) -> tuple[
         return False, "backend does not support execute"
 
     exit_code = getattr(result, "exit_code", 0)
-    output = getattr(result, "output", "")
     if exit_code == 0:
-        return True, str(output or "")
-    return False, str(output or f"exit_code={exit_code}")
+        return True, "success"
+    return False, f"exit_code={exit_code}"
 
 
 @tool
@@ -131,20 +130,19 @@ async def upload_url_to_sandbox(
 
     if hasattr(backend, "aexecute") or hasattr(backend, "execute"):
         try:
-            ok, output = await _execute_sandbox_download(backend, url, file_path)
+            ok, status = await _execute_sandbox_download(backend, url, file_path)
             if ok:
                 logger.info(
-                    "[upload_url_to_sandbox] Sandbox downloaded %s -> %s (%s)",
+                    "[upload_url_to_sandbox] Sandbox downloaded %s -> %s",
                     url,
                     file_path,
-                    output.strip(),
                 )
                 return await _json_dumps_result(
                     {"success": True, "path": file_path, "source": "sandbox"}
                 )
-            logger.warning("[upload_url_to_sandbox] Sandbox download failed: %s", output)
-        except Exception as e:
-            logger.warning("[upload_url_to_sandbox] Sandbox download failed: %s", e)
+            logger.warning("[upload_url_to_sandbox] Sandbox download failed (%s)", status)
+        except Exception:
+            logger.warning("[upload_url_to_sandbox] Sandbox download failed (execution_error)")
 
     # 下载文件
     content: bytes

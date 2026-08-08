@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -166,6 +167,107 @@ async def test_upload_url_to_sandbox_uses_direct_backend_async_path_resolver() -
     assert len(backend.commands) == 1
     assert "/remote/session-1/input.txt" in backend.commands[0]
     assert public_path not in backend.commands[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("failure_kind", "expected_category"),
+    [("nonzero_exit", "exit_code=17"), ("exception", "execution_error")],
+)
+async def test_upload_url_to_sandbox_redacts_provider_path_from_failure_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    failure_kind: str,
+    expected_category: str,
+) -> None:
+    actual_path = "/remote/session-1/input.txt"
+    public_path = "/workspace/session-1/input.txt"
+
+    class _FailingSandbox(_RecordingSandbox):
+        def __init__(self) -> None:
+            super().__init__(work_dir="/remote/session-1")
+            self.uploaded: list[tuple[str, bytes]] = []
+
+        async def aresolve_path(self, path: str) -> str:
+            return actual_path
+
+        async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+            del command, timeout
+            if failure_kind == "exception":
+                raise RuntimeError(f"provider failed at {actual_path}")
+            return ExecuteResponse(output=f"could not write {actual_path}", exit_code=17)
+
+        async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+            self.uploaded.extend(files)
+            return [FileUploadResponse(path=path) for path, _content in files]
+
+    class _FakeResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"fallback"
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            return _FakeResponse()
+
+    monkeypatch.setattr(upload_url_tool.httpx, "AsyncClient", lambda **_kwargs: _FakeHttpClient())
+    backend = _FailingSandbox()
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="https://files.example.com/input.txt",
+            file_path=public_path,
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result == {"success": True, "path": public_path, "size": 8}
+    assert backend.uploaded == [(public_path, b"fallback")]
+    assert expected_category in caplog.text
+    assert actual_path not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_redacts_provider_path_from_success_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    actual_path = "/remote/session-1/input.txt"
+    public_path = "/workspace/session-1/input.txt"
+
+    class _SuccessfulSandbox(_RecordingSandbox):
+        async def aresolve_path(self, path: str) -> str:
+            return actual_path
+
+        async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+            del command, timeout
+            return ExecuteResponse(output=f"downloaded to {actual_path}", exit_code=0)
+
+    caplog.set_level(logging.INFO)
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="https://files.example.com/input.txt",
+            file_path=public_path,
+            runtime=_Runtime(_SuccessfulSandbox(work_dir="/remote/session-1")),
+        )
+    )
+
+    assert result == {"success": True, "path": public_path, "source": "sandbox"}
+    assert actual_path not in caplog.text
 
 
 @pytest.mark.asyncio
