@@ -153,7 +153,7 @@ async def _cancel_lazy_creation_and_finish_manager(
 
 
 @pytest.mark.asyncio
-async def test_cancelled_lazy_e2b_waiter_allows_manager_to_bind_and_cache_creation(
+async def test_cancelled_lazy_e2b_create_completes_manager_binding_and_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     create_entered = asyncio.Event()
@@ -200,7 +200,7 @@ async def test_cancelled_lazy_e2b_waiter_allows_manager_to_bind_and_cache_creati
 
 
 @pytest.mark.asyncio
-async def test_cancelled_lazy_cubesandbox_waiter_allows_manager_to_bind_and_cache_creation(
+async def test_cancelled_lazy_cubesandbox_create_completes_manager_binding_and_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     create_entered = asyncio.Event()
@@ -247,7 +247,7 @@ async def test_cancelled_lazy_cubesandbox_waiter_allows_manager_to_bind_and_cach
 
 
 @pytest.mark.asyncio
-async def test_cancelled_lazy_daytona_waiter_allows_manager_to_bind_and_cache_creation(
+async def test_cancelled_lazy_daytona_create_completes_manager_binding_and_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _DaytonaSandbox:
