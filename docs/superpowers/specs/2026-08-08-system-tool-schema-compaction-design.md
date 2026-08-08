@@ -26,7 +26,7 @@ Add a model-call middleware that produces compact model-facing tool definitions 
 
 This central boundary is preferable to editing each source because the current system tools originate from deepagents, LangChain, and LambChat. It also survives dependency upgrades while allowing non-system MCP definitions to pass through untouched.
 
-The middleware must run after dynamic tool injection has added the system `search_tools` definition and any discovered MCP tools, and before prompt-cache annotations are applied. It selects tools by an explicit system-tool registry, compacting `search_tools` while preserving discovered MCP definitions exactly. All three LambChat agent variants and their subagent stacks must use the same factory or registration helper so behavior cannot drift between fast, search, and team agents.
+The middleware must run after dynamic tool injection has added the system `search_tools` definition and any discovered MCP tools, and before prompt-cache annotations are applied. It selects tools through an explicit system-tool registry that verifies both name and provenance, compacting `search_tools` while preserving discovered MCP definitions exactly. All three LambChat agent variants and their subagent stacks must use the same factory or registration helper so behavior cannot drift between fast, search, and team agents.
 
 ## Compaction Rules
 
@@ -42,19 +42,13 @@ Each of the 21 tools gets a concise description that retains:
 
 Parameter descriptions are shortened when their type, default, enum, bounds, or property name already communicates the same information. Long examples and duplicated `Args` or `Returns` sections are removed when their information remains encoded in the JSON Schema.
 
-The following closed string domains become enums in the model-facing schema:
-
-| Tool | Parameter | Values |
-|------|-----------|--------|
-| `task` | `subagent_type` | `general-purpose`, `codebase-investigator`, `implementation-worker`, `verification-runner`, `researcher` |
-
 Existing enums such as `grep.output_mode`, `write_todos.todos[].status`, `ask_human.fields[].type`, and `reveal_project.template` remain enums.
 
-Paths, commands, file content, search queries, labels, memory content, tags, memory types, and memory context remain open strings because their valid domains are not closed.
+No new enum is introduced in this change. In particular, `task.subagent_type` remains a string because team agents add valid `team-*` values dynamically. Paths, commands, file content, search queries, labels, memory content, tags, memory types, and memory context also remain open strings because their valid domains are not closed.
 
 ### Pass-through rules for non-system tools
 
-Only names in the explicit system-tool registry are eligible for compaction. Unknown and ordinary MCP tools pass through by object identity, including all descriptions, schema metadata, and existing cache annotations.
+Only tools that match an explicit system-tool registry entry are eligible for compaction. An entry verifies the exact name plus trusted provenance, such as the defining callable's module, a LambChat tool class or factory, and the expected input-property signature. A matching name alone is insufficient. Unknown tools, dictionary definitions with no verifiable provenance, and ordinary MCP tools pass through by object identity, including all descriptions, schema metadata, and existing cache annotations.
 
 Within a curated system-tool definition, the shared structural normalizer may:
 
@@ -70,7 +64,7 @@ The normalizer must not infer an enum from arbitrary prose, truncate a descripti
 
 1. Agent construction registers the original `BaseTool` objects and normal middleware.
 2. Deferred-tool middleware injects `search_tools` and any discovered tools into the current `ModelRequest`.
-3. Schema-compaction middleware checks each request tool against the explicit system-tool registry.
+3. Schema-compaction middleware checks each request tool's name, provenance, and input signature against the explicit system-tool registry.
 4. Registered system tools receive a curated override and safe structural normalization; all other tools pass through unchanged.
 5. Prompt-caching middleware annotates the compact definitions.
 6. The model receives compact schemas and emits the same tool names and argument objects.
@@ -86,7 +80,7 @@ For every compacted definition:
 - Every input property is retained.
 - Required properties are unchanged.
 - Defaults, primitive types, nullability, formats, bounds, and `additionalProperties` are unchanged.
-- Existing enums are unchanged; new enums are limited to the approved table above.
+- Existing enums are unchanged and no new enum is added.
 - Runtime tool objects and their accepted arguments are unchanged.
 - Cache-control metadata already present on tool definitions is preserved.
 - Unknown schema constructs in curated tools are copied through rather than dropped.
@@ -116,7 +110,7 @@ The existing prompt-policy and tool-routing tests remain part of regression veri
 
 A deterministic report helper will serialize system-tool definitions with compact JSON separators and count tokens with the repository's existing `tiktoken` dependency using `o200k_base`.
 
-Tests will use a checked-in representative snapshot of the 21 supplied system-tool definitions or an equivalent deterministic fixture. They will report both per-tool and total counts. The acceptance threshold is 4,188 tokens or fewer for the complete fixture, compared with the recorded 6,981-token baseline. The three excluded external MCP tools are not counted because their schemas remain unchanged.
+Tests will use a checked-in representative snapshot of the 21 supplied system-tool definitions or an equivalent deterministic fixture. Before measuring compact output, the fixture test must assert the exact 21-name set listed in Scope and reproduce the 6,981-token source baseline. It will then report both per-tool and total compact counts. The acceptance threshold is 4,188 tokens or fewer for the complete fixture. The three excluded external MCP tools are not counted because their schemas remain unchanged.
 
 Token accounting is a comparison metric rather than a claim that every provider applies identical wrapper overhead. Both sides use the same serialization and tokenizer so the reduction remains meaningful.
 
@@ -125,7 +119,7 @@ Token accounting is a comparison metric rather than a claim that every provider 
 Implementation follows red-green-refactor:
 
 1. Add failing tests for schema invariants and non-mutation.
-2. Add failing tests for the approved enum refinements.
+2. Add failing tests proving existing enums are preserved and dynamic `task.subagent_type` values remain valid model-facing strings.
 3. Add failing semantic-marker tests for the curated descriptions.
 4. Add failing middleware tests proving the dynamically injected system `search_tools` definition is compacted, ordinary MCP tools pass through by identity, and runtime tools remain original.
 5. Add the failing 21-tool token-budget test.
@@ -146,5 +140,6 @@ No runtime feature flag is required initially because fallback is local and pres
 - Automatically deferring more built-in tools.
 - Replacing MCP server schemas at their source.
 - Compacting or refining enums for `web_search_prime`, `search_doc`, `get_repo_structure`, or future ordinary MCP tools.
+- Closing the dynamic `task.subagent_type` string into a fixed enum.
 - Adding live-model quality evaluation infrastructure.
 - Editing unrelated memory-indexing work already present in the checkout.
