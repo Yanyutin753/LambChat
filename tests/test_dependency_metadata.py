@@ -25,10 +25,11 @@ def test_project_dependencies_do_not_reference_local_paths() -> None:
     assert local_dependencies == []
 
 
-def test_deepagents_stays_below_legacy_store_removal() -> None:
-    """Legacy list[str] store items require deepagents' pre-0.7 reader."""
+def test_deepagents_targets_supported_v0_7_line() -> None:
+    """Deepagents stays on the explicitly migrated v0.7 release line."""
     pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text())
 
     dependencies = pyproject["project"]["dependencies"]
+    deepagents = next(item for item in dependencies if item.startswith("deepagents"))
 
-    assert "deepagents>=0.6.5,<0.7" in dependencies
+    assert deepagents == "deepagents>=0.7.5,<0.8"

@@ -1054,7 +1054,7 @@ wheels = [
 
 [[package]]
 name = "deepagents"
-version = "0.6.12"
+version = "0.7.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain" },
@@ -1062,11 +1062,12 @@ dependencies = [
     { name = "langchain-core" },
     { name = "langchain-google-genai" },
     { name = "langsmith" },
+    { name = "packaging" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/db/a6acdc72a9e90c3f07ed10de35c951734a02d4facb693bb59684ad368801/deepagents-0.6.12.tar.gz", hash = "sha256:1f281c0bc5a63132f62e2ee345c1dc593b23188da6e23016401f6879fbe54b5f", size = 211364, upload-time = "2026-06-25T17:26:52.775Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/83/2f/7b010aaf7f39e9da9ce8dc574902126220cac6c41205bf122e3a27b7fcec/deepagents-0.7.5.tar.gz", hash = "sha256:ed44e956ed8e4ccd57203b9925c530707cdb815ffb56fe8ceb9b5b63d45a20c1", size = 273937, upload-time = "2026-08-06T14:05:36.317Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/49/af7219b3c13520fee047bb807cfaefba17f8e4584c551d946773589a4f08/deepagents-0.6.12-py3-none-any.whl", hash = "sha256:28b8fa0119ca0a689e3e18e288c4634e4046062acfc87a1cb34289d3af3a1c88", size = 236120, upload-time = "2026-06-25T17:26:51.736Z" },
+    { url = "https://files.pythonhosted.org/packages/df/c9/d4778dd09aaeb03b9653bb2be8591f3b7179ec5757a467f46e97627bccca/deepagents-0.7.5-py3-none-any.whl", hash = "sha256:a1be73d150929c5e826d67a05af6277748f25e4b53ae530b3fb1454df9e3ca95", size = 300778, upload-time = "2026-08-06T14:05:35.121Z" },
 ]
 
 [[package]]
@@ -1868,7 +1869,7 @@ requires-dist = [
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cubesandbox", specifier = ">=0.5.0" },
     { name = "daytona", specifier = ">=0.153.0" },
-    { name = "deepagents", specifier = ">=0.6.5,<0.7" },
+    { name = "deepagents", specifier = ">=0.7.5,<0.8" },
     { name = "deepagents-backends", specifier = ">=0.2.0" },
     { name = "e2b", specifier = ">=2.15.3" },
     { name = "email-validator", specifier = ">=2.3.0" },
