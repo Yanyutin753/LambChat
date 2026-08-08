@@ -46,8 +46,13 @@ _PERSONA_HEADING = "## Persona"
 # Tasks, etc.) because those are valuable behavioral guardrails that don't
 # conflict with persona roles.
 #
-# Using a bare provider key ("anthropic") covers all Anthropic models.
+# Runtime provider keys come from the concrete LangChain model classes rather
+# than LambChat's configured provider slugs. These three keys cover every
+# model class constructed by LLMClient.
 # ---------------------------------------------------------------------------
+_HARNESS_PROFILE_PROVIDERS = ("anthropic", "openai", "google_genai")
+
+
 def _build_behavior_guide() -> str:
     """Build response-style and persistence guidance without workflow duplication."""
     scheduled_task_section = ""
@@ -71,7 +76,9 @@ _BEHAVIOR_GUIDE = _build_behavior_guide()
 
 if _HarnessProfile is not None and _register_harness_profile is not None:
     # Register on import — this is idempotent (additive merge).
-    _register_harness_profile("anthropic", _HarnessProfile(base_system_prompt=_BEHAVIOR_GUIDE))
+    _profile = _HarnessProfile(base_system_prompt=_BEHAVIOR_GUIDE)
+    for _provider in _HARNESS_PROFILE_PROVIDERS:
+        _register_harness_profile(_provider, _profile)
 
 
 def split_persona_prompt(system_prompt: str) -> tuple[str, str]:

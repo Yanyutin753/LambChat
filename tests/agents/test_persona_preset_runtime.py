@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import pytest
+from deepagents.profiles.harness.harness_profiles import _harness_profile_for_model
 
 from src.agents.core.persona import (
+    _BEHAVIOR_GUIDE,
     build_persona_prompt_section,
     build_persona_prompt_sections,
 )
 from src.agents.search_agent.context import SearchAgentContext
 from src.api.routes.chat import build_conversation_config, resolve_persona_request
+from src.infra.llm.client import LLMClient
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.user import TokenPayload
@@ -227,6 +230,30 @@ def test_persona_prompt_section_is_deterministic() -> None:
     assert build_persona_prompt_sections("Planner\n\nPlan first.") == [
         "## Persona\n\nPlanner\n\nPlan first."
     ]
+
+
+@pytest.mark.parametrize(
+    ("provider", "model_name"),
+    [
+        ("anthropic", "claude-sonnet-4-5"),
+        ("openai", "deepseek-v4-flash"),
+        ("google", "gemini-2.5-flash"),
+    ],
+)
+def test_lambchat_harness_profile_covers_runtime_model_providers(
+    provider: str,
+    model_name: str,
+) -> None:
+    model = LLMClient._create_model(
+        provider,
+        model_name,
+        temperature=0.7,
+        api_key="sk-test",
+    )
+
+    profile = _harness_profile_for_model(model, None)
+
+    assert profile.base_system_prompt == _BEHAVIOR_GUIDE
 
 
 def test_search_context_filters_skills_and_files_by_whitelist_and_disabled_list() -> None:
