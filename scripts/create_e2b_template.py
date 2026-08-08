@@ -12,12 +12,19 @@
 构建完成后，在 .env 中设置 E2B_TEMPLATE=lambchat-prod 即可使用。
 """
 
+import argparse
+import asyncio
+import json
 import os
 import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
-# 导入 settings
+from e2b import Template, default_build_logger
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from src.kernel.config import settings
 
 # ============== 配置区域 ==============
 # 自定义模板名称
@@ -163,23 +170,9 @@ MEMORY_MB = 4096
 # ======================================
 
 
-def main():
-    from e2b import default_build_logger
-    from e2b_code_interpreter import Template
-
-    e2b_api_key = settings.E2B_API_KEY
-    if not e2b_api_key:
-        print("Error: E2B_API_KEY is not set in settings.")
-        sys.exit(1)
-
-    print(f"Creating E2B template: {TEMPLATE_ALIAS}")
-    print(f"Pip packages: {len(EXTRA_PIP_PACKAGES)}")
-    print(f"System packages: {len(SYSTEM_PACKAGES)}")
-    print(f"Resources: {CPU_COUNT} vCPU, {MEMORY_MB}MB RAM")
-
-    # 定义模板
-    template = Template().from_template("code-interpreter-v1")
-
+def build_template(template_builder: Any | None = None) -> Any:
+    """Create the E2B template definition without performing a remote build."""
+    template = (template_builder or Template()).from_template("code-interpreter-v1")
     # 安装系统依赖
     if SYSTEM_PACKAGES:
         apt_cmd = (
@@ -200,26 +193,99 @@ def main():
     # 基础模板 code-interpreter-v1 已自带 Node.js 20 + npm，无需额外安装
     template = template.run_cmd("sudo npm install -g mcporter @jackwener/opencli")
     template = template.run_cmd("mkdir -p ~/.mcporter")
+    return template
+
+
+def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def build_candidate(
+    candidate_tag: str,
+    api_key: str,
+    *,
+    manifest_dir: Path = Path("workspace/e2b-rollouts"),
+    template_api: Any = Template,
+    template_builder: Any | None = None,
+    build_logger: Any | None = None,
+) -> Path:
+    """Build a uniquely tagged candidate and persist only non-secret identifiers."""
+    if not candidate_tag.startswith("candidate-"):
+        raise ValueError("candidate tag must start with 'candidate-'")
+    if not api_key:
+        raise ValueError("E2B_API_KEY is not configured")
+
+    build_info = template_api.build(
+        build_template(template_builder),
+        TEMPLATE_ALIAS,
+        tags=[candidate_tag],
+        cpu_count=CPU_COUNT,
+        memory_mb=MEMORY_MB,
+        api_key=api_key,
+        on_build_logs=build_logger or default_build_logger(),
+    )
+    build_id = str(build_info.build_id)
+    manifest = {
+        "rollout_id": str(uuid.uuid4()),
+        "candidate_tag": candidate_tag,
+        "template_name": TEMPLATE_ALIAS,
+        "template_id": str(build_info.template_id),
+        "build_id": build_id,
+        "immutable_ref": f"{TEMPLATE_ALIAS}:{build_id}",
+        "built_at": datetime.now(timezone.utc).isoformat(),
+    }
+    manifest_path = manifest_dir / f"{candidate_tag}.json"
+    _write_manifest(manifest_path, manifest)
+    return manifest_path
+
+
+async def resolve_e2b_api_key(settings_service: Any | None = None) -> str:
+    """Resolve the build credential through the database-first settings service."""
+    if settings_service is None:
+        from src.infra.settings.service import SettingsService
+
+        settings_service = SettingsService.get_instance()
+    value = await settings_service.get_raw("E2B_API_KEY")
+    return str(value or "")
+
+
+def _candidate_tag() -> str:
+    return datetime.now(timezone.utc).strftime("candidate-%Y%m%d%H%M%S")
+
+
+async def async_main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=["build"], nargs="?", default="build")
+    args = parser.parse_args(argv)
+    if args.command != "build":
+        parser.error("unsupported command")
+
+    e2b_api_key = await resolve_e2b_api_key()
+    if not e2b_api_key:
+        print("Error: E2B_API_KEY is not configured.", file=sys.stderr)
+        return 1
 
     print("\nBuilding template (this may take a few minutes)...\n")
-
     try:
-        Template.build(
-            template,
-            alias=TEMPLATE_ALIAS,
-            cpu_count=CPU_COUNT,
-            memory_mb=MEMORY_MB,
-            api_key=e2b_api_key,
-            on_build_logs=default_build_logger(),
-        )
-        print(f"\nTemplate '{TEMPLATE_ALIAS}' built successfully!")
-        print(f"Set E2B_TEMPLATE={TEMPLATE_ALIAS} in your .env to use it.")
+        manifest_path = build_candidate(_candidate_tag(), e2b_api_key)
+        print(f"Candidate manifest: {manifest_path}")
     except KeyboardInterrupt:
-        print("\n\nBuild cancelled by user.")
-        sys.exit(1)
+        print("\n\nBuild cancelled by user.", file=sys.stderr)
+        return 1
     except Exception as e:
-        print(f"\n\nError building template: {e}")
-        sys.exit(1)
+        print(f"\n\nError building template: {type(e).__name__}: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def main() -> None:
+    raise SystemExit(asyncio.run(async_main()))
 
 
 if __name__ == "__main__":
