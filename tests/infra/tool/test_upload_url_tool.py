@@ -4,13 +4,60 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from deepagents.backends import CompositeBackend
+from deepagents.backends.protocol import ExecuteResponse, FileDownloadResponse, FileUploadResponse
+from deepagents.backends.sandbox import BaseSandbox
 
+from src.infra.backend.lazy_sandbox import LazySandboxBackend
 from src.infra.tool import upload_url_tool
 
 
 class _Runtime:
     def __init__(self, backend: object, base_url: str = "https://app.example.com") -> None:
         self.config = {"configurable": {"backend": backend, "base_url": base_url}}
+
+
+class _RecordingSandbox(BaseSandbox):
+    def __init__(self, *, work_dir: str) -> None:
+        self.work_dir = work_dir
+        self.commands: list[str] = []
+
+    @property
+    def id(self) -> str:
+        return "sandbox-1"
+
+    def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+        del timeout
+        self.commands.append(command)
+        return ExecuteResponse(output="", exit_code=0)
+
+    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        return [FileUploadResponse(path=path) for path, _content in files]
+
+    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        return [FileDownloadResponse(path=path, content=b"") for path in paths]
+
+
+class _Presenter:
+    async def emit_sandbox_starting(self) -> None:
+        return None
+
+    async def emit_sandbox_ready(self, sandbox_id: str, work_dir: str) -> None:
+        return None
+
+    async def emit_sandbox_error(self, error: str) -> None:
+        return None
+
+
+class _Manager:
+    def __init__(self, provider: BaseSandbox, *, actual_work_dir: str) -> None:
+        self.provider = provider
+        self.actual_work_dir = actual_work_dir
+        self.calls: list[tuple[str, str]] = []
+
+    async def get_or_create(self, *, session_id: str, user_id: str):
+        self.calls.append((session_id, user_id))
+        return CompositeBackend(default=self.provider, routes={}), self.actual_work_dir
 
 
 class _BlockingOnlySpooledFile:
@@ -66,6 +113,59 @@ async def test_upload_url_to_sandbox_offloads_invalid_path_result_json(
     assert result["success"] is False
     assert "absolute path" in result["error"]
     assert json.dumps in calls
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_resolves_lazy_public_path_before_download() -> None:
+    actual_work_dir = "/remote/session-1"
+    provider = _RecordingSandbox(work_dir=actual_work_dir)
+    manager = _Manager(provider, actual_work_dir=actual_work_dir)
+    lazy = LazySandboxBackend(
+        session_id="session-1",
+        user_id="user-1",
+        presenter=_Presenter(),
+        manager_factory=lambda: manager,
+    )
+    runtime_backend = CompositeBackend(default=lazy, routes={})
+    public_path = "/workspace/session-1/input.txt"
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="https://files.example.com/input.txt",
+            file_path=public_path,
+            runtime=_Runtime(runtime_backend),
+        )
+    )
+
+    assert result == {"success": True, "path": public_path, "source": "sandbox"}
+    assert manager.calls == [("session-1", "user-1")]
+    assert len(provider.commands) == 1
+    assert f"{actual_work_dir}/input.txt" in provider.commands[0]
+    assert public_path not in provider.commands[0]
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_uses_direct_backend_async_path_resolver() -> None:
+    class _ResolvingBackend(_RecordingSandbox):
+        async def aresolve_path(self, path: str) -> str:
+            assert path == "/workspace/session-1/input.txt"
+            return "/remote/session-1/input.txt"
+
+    backend = _ResolvingBackend(work_dir="/remote/session-1")
+    public_path = "/workspace/session-1/input.txt"
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="https://files.example.com/input.txt",
+            file_path=public_path,
+            runtime=_Runtime(backend),
+        )
+    )
+
+    assert result == {"success": True, "path": public_path, "source": "sandbox"}
+    assert len(backend.commands) == 1
+    assert "/remote/session-1/input.txt" in backend.commands[0]
+    assert public_path not in backend.commands[0]
 
 
 @pytest.mark.asyncio

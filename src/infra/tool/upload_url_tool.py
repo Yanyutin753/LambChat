@@ -79,6 +79,12 @@ except Exception:
 
 
 async def _execute_sandbox_download(backend, url: str, file_path: str) -> tuple[bool, str]:
+    resolver = getattr(backend, "aresolve_path", None)
+    if not callable(resolver):
+        resolver = getattr(getattr(backend, "default", None), "aresolve_path", None)
+    if callable(resolver):
+        file_path = await resolver(file_path)
+
     command = _sandbox_download_command(url, file_path)
     if hasattr(backend, "aexecute"):
         result = await backend.aexecute(command)
