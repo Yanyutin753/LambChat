@@ -59,10 +59,35 @@ class _ListCollection:
     def __init__(self, docs: list[dict[str, Any]]) -> None:
         self.find_queries: list[dict[str, Any]] = []
         self.cursor = _ListCursor(docs)
+        self.deleted_queries: list[dict[str, Any]] = []
+        self.updated_queries: list[dict[str, Any]] = []
+        self.inserted_docs: list[dict[str, Any]] = []
 
     def find(self, query: dict[str, Any]):
         self.find_queries.append(query)
         return self.cursor
+
+    async def find_one(self, query: dict[str, Any]):
+        return next(
+            (
+                doc
+                for doc in self.cursor.docs
+                if all(doc.get(key) == value for key, value in query.items())
+            ),
+            None,
+        )
+
+    async def delete_one(self, query: dict[str, Any]):
+        self.deleted_queries.append(query)
+        return SimpleNamespace(deleted_count=1)
+
+    async def update_one(self, query: dict[str, Any], _update: dict[str, Any]):
+        self.updated_queries.append(query)
+        return SimpleNamespace(modified_count=1)
+
+    async def insert_one(self, doc: dict[str, Any]):
+        self.inserted_docs.append(doc)
+        return SimpleNamespace(inserted_id="doc-1")
 
 
 class _DisabledToolsCollection:
@@ -94,8 +119,6 @@ def _mcp_doc(name: str = "server-1", user_id: str = "user-1") -> dict[str, Any]:
         "enabled": True,
         "url": "https://example.com/mcp",
         "headers": {"__encrypted__": "secret"},
-        "command": None,
-        "env_keys": [],
         "user_id": user_id,
         "is_system": False,
         "disabled_tools": [],
@@ -192,19 +215,72 @@ async def test_create_user_server_offloads_secret_encryption(
 
 
 @pytest.mark.asyncio
-async def test_get_sandbox_servers_applies_system_storage_limit() -> None:
-    from src.infra.mcp.storage import MCP_SERVER_LIST_LIMIT
-
-    collection = _RecordingCollection()
+async def test_list_system_servers_omits_legacy_sandbox_documents() -> None:
+    legacy = _mcp_doc(user_id="system")
+    legacy["transport"] = "sandbox"
+    legacy["headers"] = None
+    collection = _ListCollection([legacy])
     storage = MCPStorage()
     storage._system_collection = collection  # type: ignore[assignment]
-    storage._user_collection = _RecordingCollection()  # type: ignore[assignment]
 
-    servers = await storage.get_sandbox_servers("user-1")
+    servers = await storage.list_system_servers()
 
     assert servers == []
-    assert collection.find_queries == [{"transport": "sandbox", "enabled": True}]
-    assert collection.cursor.limit_calls == [MCP_SERVER_LIST_LIMIT]
+    assert collection.find_queries == [{}]
+
+
+@pytest.mark.asyncio
+async def test_legacy_system_server_is_hidden_but_reserves_its_name() -> None:
+    legacy = _mcp_doc(user_id="system")
+    legacy.update({"transport": "sandbox", "headers": None})
+    collection = _ListCollection([legacy])
+    storage = MCPStorage()
+    storage._system_collection = collection  # type: ignore[assignment]
+
+    assert await storage.get_system_server("server-1") is None
+    assert await storage.system_server_name_exists("server-1") is True
+
+
+@pytest.mark.asyncio
+async def test_legacy_system_server_cannot_be_deleted_or_toggled() -> None:
+    legacy = _mcp_doc(user_id="system")
+    legacy.update({"transport": "sandbox", "headers": None})
+    collection = _ListCollection([legacy])
+    storage = MCPStorage()
+    storage._system_collection = collection  # type: ignore[assignment]
+
+    assert await storage.delete_system_server("server-1") is False
+    assert await storage.toggle_system_server("server-1") is None
+    assert collection.deleted_queries == []
+    assert collection.updated_queries == []
+
+
+@pytest.mark.asyncio
+async def test_import_skips_hidden_legacy_name_even_with_overwrite() -> None:
+    legacy = _mcp_doc()
+    legacy.update({"transport": "sandbox", "headers": None})
+    collection = _ListCollection([legacy])
+    storage = MCPStorage()
+    storage._user_collection = collection  # type: ignore[assignment]
+
+    from src.kernel.schemas.mcp import MCPImportRequest
+
+    result = await storage.import_servers(
+        MCPImportRequest(
+            servers={
+                "server-1": {
+                    "transport": "streamable_http",
+                    "url": "https://replacement.example/mcp",
+                }
+            },
+            overwrite=True,
+        ),
+        "user-1",
+    )
+
+    assert result == (0, 1, [])
+    assert collection.inserted_docs == []
+    assert collection.updated_queries == []
 
 
 @pytest.mark.asyncio
@@ -350,8 +426,6 @@ def _server() -> SimpleNamespace:
         transport=SimpleNamespace(value="sse"),
         url="https://example.com/mcp",
         headers=None,
-        command=None,
-        env_keys=[],
         is_system=True,
         allowed_roles=[],
     )

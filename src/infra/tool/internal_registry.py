@@ -88,12 +88,10 @@ def build_internal_server_response() -> MCPServerResponse:
     """Build the virtual server row for the /mcp UI."""
     return MCPServerResponse(
         name=INTERNAL_MCP_SERVER_NAME,
-        transport=MCPTransport.SANDBOX,
+        transport=MCPTransport.STREAMABLE_HTTP,
         enabled=True,
         url=None,
         headers=None,
-        command=None,
-        env_keys=None,
         is_system=True,
         is_internal=True,
         can_edit=True,

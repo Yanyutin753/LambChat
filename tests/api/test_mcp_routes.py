@@ -3,10 +3,16 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
 
 from src.api import deps as api_deps
 from src.api.routes import mcp as mcp_route
-from src.kernel.schemas.mcp import MCPServerResponse, MCPToolInfo, MCPTransport
+from src.kernel.schemas.mcp import (
+    MCPServerCreate,
+    MCPServerResponse,
+    MCPToolInfo,
+    MCPTransport,
+)
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -33,8 +39,26 @@ def _fake_mcp_import_user() -> TokenPayload:
         sub="user-1",
         username="tester",
         roles=["user"],
-        permissions=["mcp:read", "mcp:write_sse"],
+        permissions=["mcp:read", "mcp:write_sse", "mcp:write_http"],
     )
+
+
+def test_mcp_schema_rejects_sandbox_transport() -> None:
+    with pytest.raises(ValidationError):
+        MCPServerCreate.model_validate(
+            {
+                "name": "legacy",
+                "transport": "sandbox",
+                "enabled": True,
+            }
+        )
+
+
+def test_mcp_schemas_do_not_expose_sandbox_command_fields() -> None:
+    assert "command" not in MCPServerCreate.model_fields
+    assert "env_keys" not in MCPServerCreate.model_fields
+    assert "command" not in MCPServerResponse.model_fields
+    assert "env_keys" not in MCPServerResponse.model_fields
 
 
 @pytest.mark.asyncio
@@ -52,8 +76,6 @@ async def test_list_mcp_servers_returns_paginated_response() -> None:
                     enabled=True,
                     url=f"https://example.com/{i}",
                     headers=None,
-                    command=None,
-                    env_keys=None,
                     is_system=False,
                     can_edit=True,
                     allowed_roles=[],
@@ -172,8 +194,48 @@ async def test_import_mcp_servers_rejects_oversized_payload_before_storage(
 
 
 @pytest.mark.asyncio
+async def test_import_mcp_servers_reports_sandbox_error_and_imports_http_entry() -> None:
+    class _FakeStorage:
+        async def import_servers(self, data, user_id: str, is_admin: bool):
+            assert user_id == "user-1"
+            assert is_admin is False
+            assert set(data.get_servers()) == {"legacy", "http-server"}
+            return 1, 0, ["Invalid transport 'sandbox' for server 'legacy'"]
+
+    app = FastAPI()
+    app.include_router(mcp_route.router, prefix="/api/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_mcp_import_user
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
+
+    payload = {
+        "servers": {
+            "legacy": {"transport": "sandbox", "command": "legacy-command"},
+            "http-server": {
+                "transport": "streamable_http",
+                "url": "https://example.com/mcp",
+            },
+        }
+    }
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/api/mcp/import", json=payload)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Imported 1 server(s)",
+        "imported_count": 1,
+        "skipped_count": 0,
+        "errors": ["Invalid transport 'sandbox' for server 'legacy'"],
+    }
+
+
+@pytest.mark.asyncio
 async def test_admin_toggle_tool_returns_bad_request_for_disabled_tool_overflow() -> None:
     class _FakeStorage:
+        async def get_system_server(self, _name: str):
+            return object()
+
         async def set_system_tool_disabled(self, *_args, **_kwargs):
             raise ValueError("Too many disabled tools: maximum 100 allowed.")
 
@@ -191,6 +253,31 @@ async def test_admin_toggle_tool_returns_bad_request_for_disabled_tool_overflow(
 
     assert response.status_code == 400
     assert "maximum 100" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_toggle_tool_returns_not_found_for_hidden_legacy_server() -> None:
+    class _FakeStorage:
+        async def get_system_server(self, name: str):
+            assert name == "legacy"
+            return None
+
+        async def set_system_tool_disabled(self, *_args, **_kwargs):
+            raise AssertionError("hidden legacy server must not be mutated")
+
+    app = FastAPI()
+    app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.patch(
+            "/api/admin/mcp/legacy/tools/tool-1",
+            json={"enabled": False},
+        )
+
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

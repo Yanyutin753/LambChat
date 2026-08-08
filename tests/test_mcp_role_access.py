@@ -82,8 +82,6 @@ class _FakeMCPStorage(StorageOperations):
             enabled=doc.get("enabled", True),
             url=doc.get("url"),
             headers=doc.get("headers"),
-            command=doc.get("command"),
-            env_keys=doc.get("env_keys"),
             is_system=is_system,
             can_edit=can_edit,
             allowed_roles=doc.get("allowed_roles", []),
@@ -100,6 +98,14 @@ class _FakeMCPStorage(StorageOperations):
 
     async def get_user_server(self, name: str, user_id: str) -> None:
         return None
+
+    async def system_server_name_exists(self, name: str) -> bool:
+        return any(doc.get("name") == name for doc in self._system_docs)
+
+    async def user_server_name_exists(self, name: str, user_id: str) -> bool:
+        return any(
+            doc.get("name") == name and doc.get("user_id") == user_id for doc in self._user_docs
+        )
 
     async def create_system_server(
         self,
@@ -126,13 +132,13 @@ async def test_missing_user_roles_do_not_bypass_system_mcp_role_restrictions() -
         [
             {
                 "name": "open-server",
-                "transport": "sandbox",
+                "transport": "sse",
                 "enabled": True,
                 "allowed_roles": [],
             },
             {
                 "name": "restricted-server",
-                "transport": "sandbox",
+                "transport": "sse",
                 "enabled": True,
                 "allowed_roles": ["developer"],
             },
@@ -141,11 +147,9 @@ async def test_missing_user_roles_do_not_bypass_system_mcp_role_restrictions() -
 
     visible_servers = await storage.get_visible_servers("user-1", user_roles=None)
     effective_config = await storage.get_effective_config("user-1", user_roles=None)
-    sandbox_servers = await storage.get_sandbox_servers("user-1", user_roles=None)
 
     assert [server.name for server in visible_servers] == ["open-server"]
     assert list(effective_config["mcpServers"]) == ["open-server"]
-    assert [server["name"] for server in sandbox_servers] == ["open-server"]
 
 
 @pytest.mark.asyncio
@@ -154,7 +158,7 @@ async def test_matching_user_role_can_access_restricted_system_mcp_servers() -> 
         [
             {
                 "name": "restricted-server",
-                "transport": "sandbox",
+                "transport": "sse",
                 "enabled": True,
                 "allowed_roles": ["developer"],
             },
@@ -163,11 +167,29 @@ async def test_matching_user_role_can_access_restricted_system_mcp_servers() -> 
 
     visible_servers = await storage.get_visible_servers("user-1", user_roles=["developer"])
     effective_config = await storage.get_effective_config("user-1", user_roles=["developer"])
-    sandbox_servers = await storage.get_sandbox_servers("user-1", user_roles=["developer"])
 
     assert [server.name for server in visible_servers] == ["restricted-server"]
     assert list(effective_config["mcpServers"]) == ["restricted-server"]
-    assert [server["name"] for server in sandbox_servers] == ["restricted-server"]
+
+
+@pytest.mark.asyncio
+async def test_legacy_sandbox_servers_are_hidden_from_runtime_reads() -> None:
+    storage = _FakeMCPStorage(
+        [
+            {
+                "name": "legacy",
+                "transport": "sandbox",
+                "enabled": True,
+                "allowed_roles": [],
+            }
+        ]
+    )
+
+    visible_servers = await storage.get_visible_servers("user-1")
+    effective_config = await storage.get_effective_config("user-1")
+
+    assert visible_servers == []
+    assert effective_config == {"mcpServers": {}}
 
 
 @pytest.mark.asyncio

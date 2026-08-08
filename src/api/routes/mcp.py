@@ -26,6 +26,7 @@ from src.kernel.schemas.mcp import (
     MCPToolPolicyUpdate,
     MCPToolToggleRequest,
     MCPToolToggleResponse,
+    MCPTransport,
 )
 from src.kernel.schemas.user import TokenPayload
 
@@ -81,7 +82,6 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
     - mcp:admin: can create any transport type
     - mcp:write_sse: can create SSE transport
     - mcp:write_http: can create streamable_http transport
-    - mcp:write_sandbox: can create sandbox transport
     """
     if _is_admin(user):
         return True
@@ -92,9 +92,6 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
         return "mcp:write_sse" in permissions
     elif transport == "streamable_http":
         return "mcp:write_http" in permissions
-    elif transport == "sandbox":
-        return "mcp:write_sandbox" in permissions
-
     return False
 
 
@@ -141,13 +138,11 @@ async def create_server(
         )
 
     # Check if name already exists in user's servers
-    existing = await storage.get_user_server(data.name, user.sub)
-    if existing:
+    if await storage.user_server_name_exists(data.name, user.sub):
         raise HTTPException(status_code=400, detail=f"Server '{data.name}' already exists")
 
     # Also check system servers (users can't override with same name unless admin)
-    system_existing = await storage.get_system_server(data.name)
-    if system_existing:
+    if await storage.system_server_name_exists(data.name):
         raise HTTPException(
             status_code=400,
             detail=f"Server '{data.name}' already exists as a system server",
@@ -160,8 +155,6 @@ async def create_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
-        command=server.command,
-        env_keys=server.env_keys,
         is_system=False,
         can_edit=True,
         created_at=server.created_at,
@@ -186,6 +179,8 @@ async def import_servers(
 
     for server_name, server_config in servers.items():
         transport = server_config.get("transport", "streamable_http")
+        if transport not in {item.value for item in MCPTransport}:
+            continue
         if not _has_permission_for_transport(user, transport):
             raise HTTPException(
                 status_code=403,
@@ -245,8 +240,6 @@ async def get_server(
             enabled=server.enabled,
             url=server.url,
             headers=server.headers,
-            command=server.command,
-            env_keys=server.env_keys,
             is_system=False,
             can_edit=True,
             created_at=server.created_at,
@@ -261,7 +254,7 @@ async def get_server(
             if not set(user.roles).intersection(system_server.allowed_roles):
                 raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
 
-        # Only the creator can see sensitive fields (url, headers, command, env_keys)
+        # Only the creator can see sensitive fields (url and headers)
         is_creator = (system_server.created_by or system_server.updated_by) == user.sub
         return MCPServerResponse(
             name=system_server.name,
@@ -269,8 +262,6 @@ async def get_server(
             enabled=system_server.enabled,
             url=system_server.url if is_creator else None,
             headers=system_server.headers if is_creator else None,
-            command=system_server.command if is_creator else None,
-            env_keys=system_server.env_keys if is_creator else None,
             is_system=True,
             can_edit=False,  # System servers are managed through admin routes
             allowed_roles=system_server.allowed_roles,
@@ -309,8 +300,6 @@ async def update_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
-        command=server.command,
-        env_keys=server.env_keys,
         is_system=False,
         can_edit=True,
         created_at=server.created_at,
@@ -521,8 +510,7 @@ async def admin_create_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Create a new system MCP server (admin only)"""
-    existing = await storage.get_system_server(data.name)
-    if existing:
+    if await storage.system_server_name_exists(data.name):
         raise HTTPException(status_code=400, detail=f"System server '{data.name}' already exists")
 
     server = await storage.create_system_server(data, user.sub)
@@ -532,8 +520,6 @@ async def admin_create_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
-        command=server.command,
-        env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
         allowed_roles=server.allowed_roles,
@@ -617,8 +603,6 @@ async def admin_get_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
-        command=server.command,
-        env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
         allowed_roles=server.allowed_roles,
@@ -646,8 +630,6 @@ async def admin_update_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
-        command=server.command,
-        env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
         allowed_roles=server.allowed_roles,
@@ -712,6 +694,9 @@ async def admin_toggle_tool(
             updated_by=user.sub,
         )
     else:
+        server = await storage.get_system_server(name)
+        if not server:
+            raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
         try:
             await storage.set_system_tool_disabled(name, tool_name, not data.enabled)
         except ValueError as e:
@@ -789,8 +774,6 @@ async def promote_server(
             enabled=server.enabled,
             url=server.url,
             headers=server.headers,
-            command=server.command,
-            env_keys=server.env_keys,
             is_system=True,
             can_edit=True,
             allowed_roles=server.allowed_roles,
@@ -837,8 +820,6 @@ async def demote_server(
             enabled=server.enabled,
             url=server.url,
             headers=server.headers,
-            command=server.command,
-            env_keys=server.env_keys,
             is_system=False,
             can_edit=True,
             created_at=server.created_at,

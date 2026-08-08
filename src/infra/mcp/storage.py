@@ -25,7 +25,11 @@ from src.infra.mcp.storage_helpers import (
     _apply_disabled_tool_update,
     _normalize_disabled_tools,
 )
-from src.infra.mcp.storage_operations import StorageOperations, _can_access_system_server
+from src.infra.mcp.storage_operations import (
+    StorageOperations,
+    _can_access_system_server,
+    _is_legacy_sandbox_server,
+)
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import to_iso, utc_now_iso
 from src.kernel.config import settings
@@ -135,6 +139,8 @@ class MCPStorage(StorageOperations):
         collection = self._get_system_collection()
         servers = []
         async for doc in collection.find({}).limit(MCP_SERVER_LIST_LIMIT):
+            if _is_legacy_sandbox_server(doc):
+                continue
             servers.append(await self._doc_to_system_server_async(doc))
         return servers
 
@@ -142,9 +148,13 @@ class MCPStorage(StorageOperations):
         """Get a system MCP server by name"""
         collection = self._get_system_collection()
         doc = await collection.find_one({"name": name})
-        if doc:
+        if doc and not _is_legacy_sandbox_server(doc):
             return await self._doc_to_system_server_async(doc)
         return None
+
+    async def system_server_name_exists(self, name: str) -> bool:
+        """Check raw name reservation without exposing legacy server data."""
+        return await self._get_system_collection().find_one({"name": name}) is not None
 
     async def create_system_server(self, server, admin_user_id: str) -> SystemMCPServer:
         """Create a system MCP server (admin only)"""
@@ -157,8 +167,6 @@ class MCPStorage(StorageOperations):
             "enabled": server.enabled,
             "url": server.url,
             "headers": server.headers,
-            "command": server.command,
-            "env_keys": server.env_keys,
             "is_system": True,
             "allowed_roles": getattr(server, "allowed_roles", []),
             "role_quotas": {
@@ -188,7 +196,7 @@ class MCPStorage(StorageOperations):
         collection = self._get_system_collection()
 
         doc = await collection.find_one({"name": name})
-        if not doc:
+        if not doc or _is_legacy_sandbox_server(doc):
             return None
 
         update_data: dict[str, Any] = {
@@ -208,10 +216,6 @@ class MCPStorage(StorageOperations):
                 if updates.headers
                 else updates.headers
             )
-        if updates.command is not None:
-            update_data["command"] = updates.command
-        if updates.env_keys is not None:
-            update_data["env_keys"] = updates.env_keys
         if updates.allowed_roles is not None:
             update_data["allowed_roles"] = updates.allowed_roles
         if updates.role_quotas is not None:
@@ -230,6 +234,9 @@ class MCPStorage(StorageOperations):
     async def delete_system_server(self, name: str) -> bool:
         """Delete a system MCP server (admin only)"""
         collection = self._get_system_collection()
+        doc = await collection.find_one({"name": name})
+        if not doc or _is_legacy_sandbox_server(doc):
+            return False
         result = await collection.delete_one({"name": name})
 
         # Invalidate all caches since system server affects all users
@@ -247,6 +254,8 @@ class MCPStorage(StorageOperations):
         collection = self._get_user_collection()
         servers = []
         async for doc in collection.find({"user_id": user_id}).limit(MCP_SERVER_LIST_LIMIT):
+            if _is_legacy_sandbox_server(doc):
+                continue
             servers.append(await self._doc_to_user_server_async(doc))
         return servers
 
@@ -254,9 +263,14 @@ class MCPStorage(StorageOperations):
         """Get a user's MCP server by name"""
         collection = self._get_user_collection()
         doc = await collection.find_one({"name": name, "user_id": user_id})
-        if doc:
+        if doc and not _is_legacy_sandbox_server(doc):
             return await self._doc_to_user_server_async(doc)
         return None
+
+    async def user_server_name_exists(self, name: str, user_id: str) -> bool:
+        """Check raw name reservation without exposing legacy server data."""
+        query = {"name": name, "user_id": user_id}
+        return await self._get_user_collection().find_one(query) is not None
 
     async def create_user_server(self, server, user_id: str) -> UserMCPServer:
         """Create a user MCP server"""
@@ -269,8 +283,6 @@ class MCPStorage(StorageOperations):
             "enabled": server.enabled,
             "url": server.url,
             "headers": server.headers,
-            "command": server.command,
-            "env_keys": server.env_keys,
             "user_id": user_id,
             "is_system": False,
             "created_at": now,
@@ -292,7 +304,7 @@ class MCPStorage(StorageOperations):
         collection = self._get_user_collection()
 
         doc = await collection.find_one({"name": name, "user_id": user_id})
-        if not doc:
+        if not doc or _is_legacy_sandbox_server(doc):
             return None
 
         update_data: dict[str, Any] = {"updated_at": utc_now_iso()}
@@ -309,10 +321,6 @@ class MCPStorage(StorageOperations):
                 if updates.headers
                 else updates.headers
             )
-        if updates.command is not None:
-            update_data["command"] = updates.command
-        if updates.env_keys is not None:
-            update_data["env_keys"] = updates.env_keys
 
         await collection.update_one({"name": name, "user_id": user_id}, {"$set": update_data})
 
@@ -325,6 +333,9 @@ class MCPStorage(StorageOperations):
     async def delete_user_server(self, name: str, user_id: str) -> bool:
         """Delete a user MCP server"""
         collection = self._get_user_collection()
+        doc = await collection.find_one({"name": name, "user_id": user_id})
+        if not doc or _is_legacy_sandbox_server(doc):
+            return False
         result = await collection.delete_one({"name": name, "user_id": user_id})
 
         # Invalidate cache for this user
@@ -497,10 +508,6 @@ class MCPStorage(StorageOperations):
             result["url"] = server.url
         if server.headers:
             result["headers"] = server.headers
-        if server.command:
-            result["command"] = server.command
-        if server.env_keys:
-            result["env_keys"] = server.env_keys
         return result
 
     async def get_tool_preferences(self, user_id: str) -> dict[str, bool]:
@@ -797,8 +804,6 @@ class MCPStorage(StorageOperations):
             enabled=doc.get("enabled", True),
             url=doc.get("url"),
             headers=doc.get("headers"),
-            command=doc.get("command"),
-            env_keys=doc.get("env_keys"),
             is_system=True,
             disabled_tools=_normalize_disabled_tools(doc.get("disabled_tools", [])),
             allowed_roles=doc.get("allowed_roles", []),
@@ -828,8 +833,6 @@ class MCPStorage(StorageOperations):
             enabled=doc.get("enabled", True),
             url=doc.get("url"),
             headers=doc.get("headers"),
-            command=doc.get("command"),
-            env_keys=doc.get("env_keys"),
             user_id=doc["user_id"],
             is_system=False,
             disabled_tools=_normalize_disabled_tools(doc.get("disabled_tools", [])),
@@ -873,7 +876,7 @@ class MCPStorage(StorageOperations):
             doc: MongoDB document.
             is_system: Whether this is a system-level server.
             can_edit: Whether the requesting user can edit this server.
-            hide_sensitive: If True, omit url/headers/command/env_keys from the
+            hide_sensitive: If True, omit url/headers from the
                 response entirely (used when non-admins view system servers).
         """
         # Deep copy to avoid modifying original
@@ -885,7 +888,7 @@ class MCPStorage(StorageOperations):
 
         if hide_sensitive:
             # Non-admin viewing a system server: strip all connection details
-            for field in ("url", "headers", "command", "env_keys", "env"):
+            for field in ("url", "headers", "env"):
                 doc_copy.pop(field, None)
         else:
             # Mask sensitive fields (after decrypt, mask for display)
@@ -909,8 +912,6 @@ class MCPStorage(StorageOperations):
             enabled=doc_copy.get("enabled", True),
             url=doc_copy.get("url"),
             headers=doc_copy.get("headers"),
-            command=doc_copy.get("command"),
-            env_keys=doc_copy.get("env_keys"),
             is_system=is_system,
             can_edit=can_edit,
             allowed_roles=doc_copy.get("allowed_roles", []),
@@ -937,11 +938,6 @@ class MCPStorage(StorageOperations):
             result["url"] = doc["url"]
         if doc.get("headers"):
             result["headers"] = doc["headers"]
-        # Sandbox transport fields
-        if doc.get("command"):
-            result["command"] = doc["command"]
-        if doc.get("env_keys"):
-            result["env_keys"] = doc["env_keys"]
         if doc.get("role_quotas"):
             result["role_quotas"] = doc["role_quotas"]
 

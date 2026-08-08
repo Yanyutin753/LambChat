@@ -48,6 +48,11 @@ def _can_access_system_server(
     return bool(set(user_roles or []).intersection(allowed_roles))
 
 
+def _is_legacy_sandbox_server(doc: dict[str, Any] | None) -> bool:
+    """Return whether a stored document belongs to the removed Sandbox MCP transport."""
+    return bool(doc) and doc.get("transport") == "sandbox"
+
+
 def _get_effective_config_max_servers() -> int:
     value = getattr(settings, "MCP_EFFECTIVE_CONFIG_MAX_SERVERS", 100)
     try:
@@ -127,8 +132,7 @@ class StorageOperations:
             return None
 
         # Check if system server with same name exists
-        existing_system = await self.get_system_server(name)
-        if existing_system:
+        if await self.system_server_name_exists(name):
             return None  # Conflict
 
         # Create system server
@@ -140,8 +144,6 @@ class StorageOperations:
             "enabled": user_server.enabled,
             "url": user_server.url,
             "headers": user_server.headers,
-            "command": user_server.command,
-            "env_keys": user_server.env_keys,
             "is_system": True,
             "role_quotas": {},
             "created_at": user_server.created_at or now,
@@ -181,8 +183,7 @@ class StorageOperations:
             return None
 
         # Check if user server with same name exists
-        existing_user = await self.get_user_server(name, target_user_id)
-        if existing_user:
+        if await self.user_server_name_exists(name, target_user_id):
             return None  # Conflict
 
         # Create user server
@@ -194,8 +195,6 @@ class StorageOperations:
             "enabled": system_server.enabled,
             "url": system_server.url,
             "headers": system_server.headers,
-            "command": system_server.command,
-            "env_keys": system_server.env_keys,
             "user_id": target_user_id,
             "is_system": False,
             "created_at": system_server.created_at or now,
@@ -215,59 +214,6 @@ class StorageOperations:
         await self._invalidate_user_cache(target_user_id)
 
         return await _doc_to_user_server(self, doc)
-
-    # ==========================================
-    # Combined Operations (for runtime)
-    # ==========================================
-
-    async def get_sandbox_servers(  # type: ignore[misc]
-        self: "MCPStorage",
-        user_id: str,
-        user_roles: list[str] | None = None,
-        is_admin: bool = False,
-    ) -> list[dict[str, Any]]:
-        """Get all enabled sandbox-transport MCP servers for a user (system + user).
-
-        Used during sandbox rebuild to re-register mcporter configs.
-        Returns list of config dicts with name, command, env_keys.
-        """
-        servers = []
-
-        # System sandbox servers
-        system_collection = self._get_system_collection()
-        system_cursor = _limit_cursor(
-            system_collection.find({"transport": "sandbox", "enabled": True}),
-            _server_list_limit(),
-        )
-        async for doc in system_cursor:
-            # Role-based access control
-            allowed_roles = doc.get("allowed_roles", [])
-            if not _can_access_system_server(allowed_roles, user_roles, is_admin=is_admin):
-                continue
-            servers.append(
-                {
-                    "name": doc.get("name", ""),
-                    "command": doc.get("command", ""),
-                    "env_keys": doc.get("env_keys", []),
-                }
-            )
-
-        # User sandbox servers
-        user_collection = self._get_user_collection()
-        user_cursor = _limit_cursor(
-            user_collection.find({"user_id": user_id, "transport": "sandbox", "enabled": True}),
-            _server_list_limit(),
-        )
-        async for doc in user_cursor:
-            servers.append(
-                {
-                    "name": doc.get("name", ""),
-                    "command": doc.get("command", ""),
-                    "env_keys": doc.get("env_keys", []),
-                }
-            )
-
-        return servers
 
     async def get_effective_config(  # type: ignore[misc]
         self: "MCPStorage",
@@ -294,6 +240,8 @@ class StorageOperations:
         system_docs: list[tuple[str, dict[str, Any]]] = []
         system_cursor = _limit_cursor(system_collection.find({}), _server_list_limit())
         async for doc in system_cursor:
+            if _is_legacy_sandbox_server(doc):
+                continue
             server_name = doc["name"]
 
             # Role-based access control: filter servers by allowed_roles
@@ -342,6 +290,8 @@ class StorageOperations:
             _server_list_limit(),
         )
         async for doc in user_cursor:
+            if _is_legacy_sandbox_server(doc):
+                continue
             if (
                 doc["name"] not in system_servers
                 and len(system_servers) + len(user_servers) >= max_servers
@@ -373,7 +323,7 @@ class StorageOperations:
         System servers with allowed_roles are filtered — only visible to users with
         a matching role (admins always see everything).
         For system servers, only the creator (created_by) can see sensitive fields
-        (url, headers, command, env_keys) and edit the server.
+        (url and headers) and edit the server.
         """
         servers = []
         max_servers = max(0, int(limit)) if limit is not None else None
@@ -385,6 +335,8 @@ class StorageOperations:
         system_collection = self._get_system_collection()
         system_cursor = _limit_cursor(system_collection.find({}), _server_list_limit())
         async for doc in system_cursor:
+            if _is_legacy_sandbox_server(doc):
+                continue
             # Role-based access control: admins always see everything
             if not is_admin:
                 allowed_roles = doc.get("allowed_roles", [])
@@ -415,6 +367,8 @@ class StorageOperations:
             _server_list_limit(),
         )
         async for doc in user_cursor:
+            if _is_legacy_sandbox_server(doc):
+                continue
             server = await _doc_to_response(self, doc, is_system=False, can_edit=True)
             servers.append(server)
             if max_servers is not None and len(servers) >= max_servers:
@@ -432,12 +386,12 @@ class StorageOperations:
         """Return whether a user can access a user-owned or system MCP server."""
         user_collection = self._get_user_collection()
         user_doc = await user_collection.find_one({"name": name, "user_id": user_id})
-        if user_doc:
+        if user_doc and not _is_legacy_sandbox_server(user_doc):
             return True
 
         system_collection = self._get_system_collection()
         system_doc = await system_collection.find_one({"name": name})
-        if not system_doc:
+        if not system_doc or _is_legacy_sandbox_server(system_doc):
             return False
 
         return _can_access_system_server(
@@ -463,7 +417,7 @@ class StorageOperations:
         user_collection = self._get_user_collection()
         user_doc = await user_collection.find_one({"name": name, "user_id": user_id})
 
-        if user_doc:
+        if user_doc and not _is_legacy_sandbox_server(user_doc):
             # Toggle user-created server
             new_enabled = not user_doc.get("enabled", True)
             await user_collection.update_one(
@@ -487,7 +441,7 @@ class StorageOperations:
         system_collection = self._get_system_collection()
         system_doc = await system_collection.find_one({"name": name})
 
-        if system_doc:
+        if system_doc and not _is_legacy_sandbox_server(system_doc):
             if not _can_access_system_server(
                 system_doc.get("allowed_roles", []),
                 user_roles,
@@ -523,7 +477,7 @@ class StorageOperations:
         system_collection = self._get_system_collection()
         system_doc = await system_collection.find_one({"name": name})
 
-        if system_doc:
+        if system_doc and not _is_legacy_sandbox_server(system_doc):
             new_enabled = not system_doc.get("enabled", True)
             await system_collection.update_one(
                 {"name": name},
@@ -585,8 +539,6 @@ class StorageOperations:
                     enabled=config.get("enabled", True),
                     url=config.get("url"),
                     headers=config.get("headers"),
-                    command=config.get("command"),
-                    env_keys=config.get("env_keys"),
                     allowed_roles=config.get("allowed_roles", []) if is_admin else [],
                     role_quotas=config.get("role_quotas", {}) if is_admin else {},
                 )
@@ -595,8 +547,14 @@ class StorageOperations:
                 existing: Optional[SystemMCPServer] | Optional[UserMCPServer] = None
                 if is_admin:
                     existing = await self.get_system_server(name)
+                    name_reserved = await self.system_server_name_exists(name)
                 else:
                     existing = await self.get_user_server(name, user_id)
+                    name_reserved = await self.user_server_name_exists(name, user_id)
+
+                if name_reserved and existing is None:
+                    skipped += 1
+                    continue
 
                 if existing and not import_data.overwrite:
                     skipped += 1
@@ -612,8 +570,6 @@ class StorageOperations:
                                 enabled=server.enabled,
                                 url=server.url,
                                 headers=server.headers,
-                                command=server.command,
-                                env_keys=server.env_keys,
                                 allowed_roles=server.allowed_roles,
                                 role_quotas=server.role_quotas,
                             ),
@@ -630,8 +586,6 @@ class StorageOperations:
                                 enabled=server.enabled,
                                 url=server.url,
                                 headers=server.headers,
-                                command=server.command,
-                                env_keys=server.env_keys,
                             ),
                             user_id,
                         )
@@ -657,6 +611,8 @@ class StorageOperations:
 
         cursor = _limit_cursor(user_collection.find({"user_id": user_id}), _server_list_limit())
         async for doc in cursor:
+            if _is_legacy_sandbox_server(doc):
+                continue
             servers[doc["name"]] = await _doc_to_config_dict(self, doc)
 
         return {"mcpServers": servers}
@@ -668,6 +624,8 @@ class StorageOperations:
 
         cursor = _limit_cursor(system_collection.find({}), _server_list_limit())
         async for doc in cursor:
+            if _is_legacy_sandbox_server(doc):
+                continue
             config = await _doc_to_config_dict(self, doc)
             if doc.get("allowed_roles"):
                 config["allowed_roles"] = doc["allowed_roles"]

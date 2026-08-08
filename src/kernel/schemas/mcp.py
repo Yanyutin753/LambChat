@@ -13,7 +13,6 @@ class MCPTransport(str, Enum):
 
     SSE = "sse"
     STREAMABLE_HTTP = "streamable_http"
-    SANDBOX = "sandbox"
 
 
 class MCPServerBase(BaseModel):
@@ -26,12 +25,6 @@ class MCPServerBase(BaseModel):
     # http configuration
     url: Optional[str] = Field(None, description="URL for http transport")
     headers: Optional[dict[str, str]] = Field(None, description="HTTP headers")
-
-    # sandbox configuration
-    command: Optional[str] = Field(None, description="stdio command for sandbox transport")
-    env_keys: Optional[list[str]] = Field(
-        None, description="Environment variable keys to inject into sandbox MCP"
-    )
 
 
 class MCPRoleQuota(BaseModel):
@@ -104,8 +97,6 @@ class MCPServerUpdate(BaseModel):
     enabled: Optional[bool] = None
     url: Optional[str] = None
     headers: Optional[dict[str, str]] = None
-    command: Optional[str] = None
-    env_keys: Optional[list[str]] = None
     allowed_roles: Optional[list[str]] = None
     role_quotas: Optional[dict[str, MCPRoleQuota]] = None
 
