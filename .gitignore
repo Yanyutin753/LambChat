@@ -104,6 +104,7 @@ k8s/lambchat.yaml
 
 # Superpowers (external project, not part of this repo)
 .superpowers/
+.worktrees/
 
 # Personal logs & audits (not for sync)
 log_and_audit/
