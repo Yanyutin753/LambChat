@@ -1,3 +1,4 @@
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any, ClassVar, Sequence
@@ -23,6 +24,34 @@ class FakeFileSnapshotBackend:
     async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
         self.calls.append((pattern, path))
         return GlobResult(matches=self._snapshots.pop(0))
+
+
+class RecordingPresenter:
+    def __init__(self) -> None:
+        self.events: list[dict[str, Any]] = []
+
+    async def emit(self, event: dict[str, Any]) -> None:
+        self.events.append(event)
+
+    def present_artifact_result(
+        self,
+        artifact,
+        *,
+        success=True,
+        error=None,
+        depth=0,
+        agent_id=None,
+    ):
+        return {
+            "event": "artifact:result",
+            "data": {
+                "artifact": artifact,
+                "success": success,
+                "error": error,
+                "depth": depth,
+                "agent_id": agent_id,
+            },
+        }
 
 
 class FakeDownloadBackend:
@@ -539,15 +568,15 @@ async def test_artifact_delivery_emits_artifact_when_write_file_finishes() -> No
         handler,
     )
 
-    assert [call["file_path"] for call in reveal_calls] == ["/workspace/cute_dog.svg"]
-    assert [event["event"] for event in emitted] == ["artifact:result"]
+    assert reveal_calls == []
+    assert emitted == []
 
     update = await middleware.aafter_agent({"messages": []}, runtime)
 
     assert [call["file_path"] for call in reveal_calls] == ["/workspace/cute_dog.svg"]
     assert [event["event"] for event in emitted] == ["artifact:result"]
     assert emitted[0]["data"]["artifact"]["path"] == "/workspace/cute_dog.svg"
-    assert update is None
+    assert update == {"messages": []}
 
 
 @pytest.mark.asyncio
@@ -615,6 +644,76 @@ async def test_artifact_delivery_emits_failed_artifact_when_internal_reveal_retu
     assert emitted[0]["data"]["success"] is False
     assert emitted[0]["data"]["error"] == "file_not_found_or_empty"
     assert emitted[0]["data"]["artifact"]["path"] == "/workspace/missing.pdf"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "tool_args", "content", "expected_path"),
+    [
+        (
+            "write_file",
+            {"file_path": "/workspace/report.md", "content": "# Report"},
+            "ok",
+            "/workspace/report.md",
+        ),
+        (
+            "edit_file",
+            {
+                "path": "/workspace/report.md",
+                "old_string": "a",
+                "new_string": "b",
+            },
+            "updated",
+            "/workspace/report.md",
+        ),
+        (
+            "upload_url_to_sandbox",
+            {"url": "https://cdn.example.com/input.png"},
+            json.dumps({"success": True, "path": "/workspace/input.png"}),
+            "/workspace/input.png",
+        ),
+    ],
+)
+async def test_direct_artifact_tools_return_before_background_reveal(
+    tool_name: str,
+    tool_args: dict[str, str],
+    content: str,
+    expected_path: str,
+) -> None:
+    reveal_started = asyncio.Event()
+    release_reveal = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def blocked_reveal(**kwargs):
+        assert kwargs["file_path"] == expected_path
+        reveal_started.set()
+        await release_reveal.wait()
+        return json.dumps({"_meta": {"path": expected_path}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=blocked_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def handler(_request):
+        return ToolMessage(content=content, tool_call_id="tool-1", name=tool_name)
+
+    result = await asyncio.wait_for(
+        middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={"name": tool_name, "id": "tool-1", "args": tool_args},
+                runtime=runtime,
+            ),
+            handler,
+        ),
+        timeout=1.0,
+    )
+
+    assert result.content == content
+    await asyncio.wait_for(reveal_started.wait(), timeout=1.0)
+    assert presenter.events == []
+
+    release_reveal.set()
+    await middleware.aafter_agent({"messages": []}, runtime)
+    assert [event["event"] for event in presenter.events] == ["artifact:result"]
 
 
 @pytest.mark.asyncio

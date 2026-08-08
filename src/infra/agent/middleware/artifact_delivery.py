@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -21,6 +22,8 @@ RevealTool = Callable[..., Awaitable[str]]
 
 logger = logging.getLogger(__name__)
 _EXECUTE_SNAPSHOT_MAX_CHANGED_FILES = 20
+_ARTIFACT_DELIVERY_CONCURRENCY = 4
+_ARTIFACT_BACKGROUND_DRAIN_TIMEOUT = 3.0
 _FILE_URL_PATTERN = re.compile(r"https?://[^\s<>\]\"']+", re.IGNORECASE)
 _AUTO_DELIVERABLE_URL_EXTENSIONS = frozenset(
     {
@@ -250,6 +253,11 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         self._reveal_file = reveal_file
         self._reveal_project = reveal_project
         self._workspace_path = workspace_path.rstrip("/") if workspace_path else None
+        self._background_tasks: set[asyncio.Task[Any]] = set()
+        self._delivery_tasks: dict[str, asyncio.Task[Any]] = {}
+        self._artifact_generations: dict[str, int] = {}
+        self._delivery_semaphore = asyncio.Semaphore(_ARTIFACT_DELIVERY_CONCURRENCY)
+        self._background_closed = False
 
     async def awrap_tool_call(
         self,
@@ -274,7 +282,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
                 before_snapshot,
                 result,
             )
-            await self._deliver_staged_artifacts(staged, request.runtime)
+            self._deliver_staged_artifacts(staged, request.runtime)
             return result
 
         if tool_name in {"reveal_file", "reveal_project"}:
@@ -282,21 +290,26 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             return result
 
         staged = self._auto_stage_from_tool_result(tool_name, tool_args, result)
-        await self._deliver_staged_artifacts(staged, request.runtime)
+        self._deliver_staged_artifacts(staged, request.runtime)
         return result
 
     async def aafter_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
         self._auto_stage_external_urls_from_state(state)
-        pending = [artifact for artifact in self._artifacts.values() if not artifact.revealed]
-        if not pending:
-            return None
-
-        for artifact in pending:
-            delivered = await self._deliver_artifact(artifact, runtime)
-            if delivered:
-                artifact.revealed = True
-
-        return {"messages": []}
+        artifact_count_before_drain = len(self._artifacts)
+        had_pending_artifacts = False
+        for artifact in self._artifacts.values():
+            if not artifact.revealed:
+                had_pending_artifacts = True
+                self._schedule_artifact_delivery(
+                    artifact,
+                    runtime,
+                    allow_without_presenter=True,
+                )
+        await self._drain_background_tasks()
+        found_artifacts_during_drain = len(self._artifacts) > artifact_count_before_drain
+        if had_pending_artifacts or found_artifacts_during_drain:
+            return {"messages": []}
+        return None
 
     def _auto_stage_external_urls_from_state(self, state: Any) -> None:
         messages = state.get("messages") if isinstance(state, dict) else None
@@ -411,6 +424,9 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             priority=priority,
         )
         self._artifacts[normalized_path] = artifact
+        self._artifact_generations[normalized_path] = (
+            self._artifact_generations.get(normalized_path, 0) + 1
+        )
         return artifact
 
     async def _auto_stage_execute_changes(
@@ -505,6 +521,94 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         except Exception:
             return None
 
+    def _track_background_task(
+        self,
+        awaitable: Awaitable[Any],
+        *,
+        name: str,
+    ) -> asyncio.Task[Any] | None:
+        if self._background_closed:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+            return None
+
+        task = asyncio.create_task(awaitable, name=f"artifact:{name}")
+        self._background_tasks.add(task)
+
+        def on_done(done_task: asyncio.Task[Any]) -> None:
+            self._background_tasks.discard(done_task)
+            if done_task.cancelled():
+                return
+            try:
+                done_task.result()
+            except Exception:
+                logger.warning("Artifact background task failed: %s", name, exc_info=True)
+
+        task.add_done_callback(on_done)
+        return task
+
+    def _schedule_artifact_delivery(
+        self,
+        artifact: StagedArtifact,
+        runtime: Any,
+        *,
+        allow_without_presenter: bool = False,
+    ) -> None:
+        if self._get_presenter(runtime) is None and not allow_without_presenter:
+            return
+        normalized = _normalize_path(artifact.path)
+        active = self._delivery_tasks.get(normalized)
+        if active is not None and not active.done():
+            return
+        task = self._track_background_task(
+            self._deliver_latest_artifact(normalized, runtime),
+            name=f"deliver:{normalized}",
+        )
+        if task is not None:
+            self._delivery_tasks[normalized] = task
+
+    async def _deliver_latest_artifact(self, normalized: str, runtime: Any) -> None:
+        current_task = asyncio.current_task()
+        try:
+            while True:
+                artifact = self._artifacts.get(normalized)
+                if artifact is None or artifact.revealed:
+                    return
+                generation = self._artifact_generations.get(normalized, 0)
+                async with self._delivery_semaphore:
+                    delivered = await self._deliver_artifact(artifact, runtime)
+                if generation != self._artifact_generations.get(normalized, 0):
+                    continue
+                if delivered:
+                    artifact.revealed = True
+                return
+        finally:
+            if self._delivery_tasks.get(normalized) is current_task:
+                self._delivery_tasks.pop(normalized, None)
+
+    async def _drain_background_tasks(self) -> None:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _ARTIFACT_BACKGROUND_DRAIN_TIMEOUT
+        while self._background_tasks:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            done, _ = await asyncio.wait(list(self._background_tasks), timeout=remaining)
+            self._background_tasks.difference_update(done)
+
+        self._background_closed = True
+        pending = list(self._background_tasks)
+        for task in pending:
+            task.cancel()
+        if pending:
+            logger.warning(
+                "Cancelling %s artifact background task(s) after %.1fs drain timeout",
+                len(pending),
+                _ARTIFACT_BACKGROUND_DRAIN_TIMEOUT,
+            )
+            await asyncio.gather(*pending, return_exceptions=True)
+
     async def _deliver_artifact(self, artifact: StagedArtifact, runtime: Any) -> bool:
         is_project = artifact.kind in {"project", "folder"}
         tool_name = "reveal_project" if is_project else "reveal_file"
@@ -548,19 +652,15 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
 
         return await self._emit_artifact_result(runtime, delivered, status=status, error=error)
 
-    async def _deliver_staged_artifacts(
+    def _deliver_staged_artifacts(
         self,
         artifacts: list[StagedArtifact],
         runtime: Any,
     ) -> None:
-        if self._get_presenter(runtime) is None:
-            return
         for artifact in artifacts:
             if artifact.revealed:
                 continue
-            delivered = await self._deliver_artifact(artifact, runtime)
-            if delivered:
-                artifact.revealed = True
+            self._schedule_artifact_delivery(artifact, runtime)
 
     async def _call_reveal_tool(self, tool_name: str, args: dict[str, Any], runtime: Any) -> str:
         delivery_runtime = self._runtime_with_delivery_source(runtime, "artifact_auto")
