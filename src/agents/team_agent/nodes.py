@@ -72,8 +72,8 @@ from src.infra.agent.middleware import (
     create_retry_middleware,
 )
 from src.infra.backend import (
-    create_persistent_backend_factory,
-    create_sandbox_backend_factory,
+    create_persistent_backend,
+    create_sandbox_backend,
 )
 from src.infra.goal import (
     build_goal_input,
@@ -420,7 +420,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     if not settings.ENABLE_SANDBOX:
         session_id = state.get("session_id", str(uuid.uuid4()))
-        backend_factory = create_persistent_backend_factory(
+        backend = create_persistent_backend(
             assistant_id=assistant_id,
             user_id=context.user_id,
             session_id=session_id,
@@ -452,7 +452,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             except Exception as e:
                 logger.warning(f"Failed to emit sandbox:ready event: {e}")
 
-            backend_factory = create_sandbox_backend_factory(
+            backend = create_sandbox_backend(
                 sandbox_backend.default,
                 assistant_id,
                 user_id=context.user_id,
@@ -471,7 +471,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 logger.warning(f"Failed to emit sandbox:error event: {emit_err}")
             raise
 
-    backend = backend_factory(None) if callable(backend_factory) else backend_factory
     backend_init_time = time.time() - backend_start
     logger.debug(f"[TeamAgent] Backend init: {backend_init_time * 1000:.3f}ms")
 

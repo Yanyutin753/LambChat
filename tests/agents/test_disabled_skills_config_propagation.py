@@ -123,7 +123,7 @@ async def test_fast_agent_node_propagates_disabled_skills_to_inner_config(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
     presenter = object()
@@ -158,13 +158,10 @@ async def test_fast_agent_node_passes_backend_instance_to_deepagents(
 
     backend_instance = object()
 
-    def backend_factory(_runtime):
-        return backend_instance
-
     monkeypatch.setattr(
         fast_nodes,
-        "create_persistent_backend_factory",
-        lambda **_kwargs: backend_factory,
+        "create_persistent_backend",
+        lambda **_kwargs: backend_instance,
     )
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
@@ -197,7 +194,7 @@ async def test_fast_agent_subagent_middleware_retags_prompt_cache_last(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
     monkeypatch.setattr(fast_nodes, "PromptCachingMiddleware", lambda: "prompt-cache")
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
@@ -229,7 +226,7 @@ async def test_fast_agent_subagent_tool_search_uses_isolated_manager(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
     captured_managers = _patch_tool_search_middleware(monkeypatch)
 
     deferred_manager = _FakeDeferredManager()
@@ -262,7 +259,7 @@ async def test_fast_agent_node_returns_output_text_before_final_processor_cleanu
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
     _FakeEventProcessor.next_output_text = "vision answer"
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
@@ -293,7 +290,7 @@ async def test_fast_agent_node_reads_existing_state_messages_for_recommendations
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
     _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
     monkeypatch.setattr(fast_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
 
     import src.agents.core.recommendations as recommendations
@@ -334,7 +331,7 @@ async def test_fast_agent_node_passes_existing_state_messages_to_concurrent_reco
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
     _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
     monkeypatch.setattr(fast_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
     _FakeEventProcessor.next_output_text = "assistant answer"
     calls = []
@@ -384,7 +381,7 @@ async def test_fast_agent_node_continues_when_recommendation_scheduling_fails(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, fast_nodes, fake_graph)
-    monkeypatch.setattr(fast_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
     monkeypatch.setattr(fast_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
     _FakeEventProcessor.next_output_text = "assistant answer"
 
@@ -462,11 +459,8 @@ async def test_search_agent_node_passes_backend_instance_to_deepagents(
 
     backend_instance = object()
 
-    def backend_factory(_runtime):
-        return backend_instance
-
     async def fake_create_backend_and_prompt(**_kwargs):
-        return backend_factory, "system prompt", object(), None, None
+        return backend_instance, "system prompt", object(), None, None
 
     monkeypatch.setattr(search_nodes, "_create_backend_and_prompt", fake_create_backend_and_prompt)
 
@@ -655,7 +649,7 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     _patch_common(monkeypatch, team_nodes, fake_graph)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SKILLS", True)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     team = TeamResponse(
         id="team-1",
@@ -757,7 +751,7 @@ async def test_team_agent_node_adds_code_interpreter_middleware_when_enabled(
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     async def fake_resolve_runtime_team(**_kwargs):
         return None
@@ -810,7 +804,7 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
     _patch_common(monkeypatch, team_nodes, fake_graph)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SKILLS", True)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     team = TeamResponse(
         id="team-1",

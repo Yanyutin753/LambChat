@@ -11,9 +11,9 @@ from .context import (
     set_user_context,
 )
 from .deepagent import (
-    create_memory_backend_factory,
-    create_persistent_backend_factory,
-    create_sandbox_backend_factory,
+    create_memory_backend,
+    create_persistent_backend,
+    create_sandbox_backend,
 )
 
 if TYPE_CHECKING:
@@ -26,9 +26,9 @@ __all__ = [
     "get_session_id",
     "clear_user_context",
     # DeepAgent Backend
-    "create_memory_backend_factory",
-    "create_persistent_backend_factory",
-    "create_sandbox_backend_factory",
+    "create_memory_backend",
+    "create_persistent_backend",
+    "create_sandbox_backend",
     # Skills Store Backend
     "SkillsStoreBackend",
     "create_skills_backend",

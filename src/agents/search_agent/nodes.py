@@ -61,8 +61,8 @@ from src.infra.agent.middleware import (
     create_retry_middleware,
 )
 from src.infra.backend import (
-    create_persistent_backend_factory,
-    create_sandbox_backend_factory,
+    create_persistent_backend,
+    create_sandbox_backend,
 )
 from src.infra.goal import (
     build_goal_input,
@@ -145,10 +145,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     assistant_id = f"assistant-{tenant_id}"
     logger.info(f"tenant_id: {tenant_id}")
 
-    # 创建 Backend 工厂和获取系统提示
+    # 创建 Backend 和获取系统提示
     backend_start = time.time()
     (
-        backend_factory,
+        backend,
         system_prompt,
         store,
         sandbox_backend,
@@ -161,7 +161,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     )
     backend_init_time = time.time() - backend_start
     logger.debug(f"[Agent] Backend init: {backend_init_time * 1000:.3f}ms")
-    backend = backend_factory(None) if callable(backend_factory) else backend_factory
 
     # 构建 persona + skills 提示（使用预加载的 skills，避免重复数据库查询）
     persona_sections = build_persona_prompt_sections(configurable.get("persona_system_prompt"))
@@ -451,9 +450,9 @@ async def _create_backend_and_prompt(
     assistant_id: str,
 ) -> tuple[Any, str, Any, Any, str | None]:
     """
-    创建 Backend 工厂函数和系统提示
+    创建 Backend 实例和系统提示
 
-    根据是否启用沙箱模式，返回相应的 Backend 工厂和系统提示。
+    根据是否启用沙箱模式，返回相应的 Backend 实例和系统提示。
     skills 和 memory_guide 的注入由 SectionPromptMiddleware 在请求时完成（KV cache 友好）。
 
     Args:
@@ -463,7 +462,7 @@ async def _create_backend_and_prompt(
         assistant_id: 助手 ID
 
     Returns:
-        (backend_factory, system_prompt, store, sandbox_backend, sandbox_work_dir) 元组。
+        (backend, system_prompt, store, sandbox_backend, sandbox_work_dir) 元组。
         sandbox_backend 在沙箱模式下为 CompositeBackend 实例，否则为 None。
     """
     # 创建 store（优先 PostgreSQL → MongoDB fallback）
@@ -475,13 +474,13 @@ async def _create_backend_and_prompt(
     if not settings.ENABLE_SANDBOX:
         # 非沙箱模式：使用持久化 backend（PostgreSQL 或 MongoDB，由 store 决定）
         logger.info(f"Sandbox disabled, using PersistentBackend for assistant: {assistant_id}")
-        backend_factory = create_persistent_backend_factory(
+        backend = create_persistent_backend(
             assistant_id,
             user_id=user_id,
             session_id=state.get("session_id", str(uuid.uuid4())),
         )
         prompt = DEFAULT_SYSTEM_PROMPT
-        return backend_factory, prompt, store, None, None
+        return backend, prompt, store, None, None
 
     # 沙箱模式
     if not context.user_id:
@@ -516,7 +515,7 @@ async def _create_backend_and_prompt(
         logger.info(f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}")
 
         return (
-            create_sandbox_backend_factory(sandbox_backend.default, assistant_id, user_id=user_id),
+            create_sandbox_backend(sandbox_backend.default, assistant_id, user_id=user_id),
             SANDBOX_SYSTEM_PROMPT,
             store,
             sandbox_backend,

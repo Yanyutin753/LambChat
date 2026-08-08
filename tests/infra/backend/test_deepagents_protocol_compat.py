@@ -202,14 +202,14 @@ def test_e2b_read_skips_large_file_before_text_read(monkeypatch) -> None:
     assert files_api.read_calls == []
 
 
-def test_sandbox_backend_factory_anchors_artifacts_at_work_dir(monkeypatch) -> None:
+def test_sandbox_backend_anchors_artifacts_at_work_dir(monkeypatch) -> None:
     """The E2B sandbox CompositeBackend must use work_dir as artifacts_root.
 
     Regression test for issue #195: artifacts_root defaulted to '/', so the
     summarization middleware offloaded history to /conversation_history and hit
     a PermissionError on the non-root sandbox (exit code 1, empty error).
     """
-    from src.infra.backend.deepagent import create_sandbox_backend_factory
+    from src.infra.backend.deepagent import create_sandbox_backend
     from src.infra.backend.e2b import E2BBackend
 
     monkeypatch.setattr(
@@ -218,7 +218,7 @@ def test_sandbox_backend_factory_anchors_artifacts_at_work_dir(monkeypatch) -> N
     )
 
     backend = E2BBackend(sandbox=_FakeE2BSandbox(_FakeFilesAPI({})))
-    composite = create_sandbox_backend_factory(backend, "asst-1", "user-1")(object())
+    composite = create_sandbox_backend(backend, "asst-1", "user-1")
 
     assert composite.artifacts_root == backend.work_dir
     assert composite.artifacts_root != "/"

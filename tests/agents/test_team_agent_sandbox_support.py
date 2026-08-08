@@ -106,12 +106,9 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
     _patch_common(monkeypatch, team_nodes, fake_graph)
 
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", True)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     sandbox_backend = object()
-
-    def sandbox_factory(_runtime):
-        return sandbox_backend
 
     async def fake_get_or_create(**_kwargs):
         return SimpleNamespace(default=sandbox_backend), "/home/user"
@@ -120,8 +117,8 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
 
     monkeypatch.setattr(
         team_nodes,
-        "create_sandbox_backend_factory",
-        lambda sandbox_backend, assistant_id, user_id=None: sandbox_factory,
+        "create_sandbox_backend",
+        lambda sandbox_backend, assistant_id, user_id=None: sandbox_backend,
     )
     monkeypatch.setattr(team_nodes, "get_session_sandbox_manager", lambda: sandbox_manager)
 
@@ -197,13 +194,10 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
 
     persistent_backend = object()
 
-    def persistent_factory(_runtime):
-        return persistent_backend
-
     monkeypatch.setattr(
         team_nodes,
-        "create_persistent_backend_factory",
-        lambda **_kwargs: persistent_factory,
+        "create_persistent_backend",
+        lambda **_kwargs: persistent_backend,
     )
     monkeypatch.setattr(
         team_nodes,
@@ -253,7 +247,7 @@ async def test_team_agent_node_rejects_invalid_team_id(
     monkeypatch.setattr(team_manager_module, "get_team_manager", lambda: _TeamManager())
     monkeypatch.setattr(
         team_nodes,
-        "create_persistent_backend_factory",
+        "create_persistent_backend",
         lambda **_kwargs: object(),
     )
 
@@ -304,7 +298,7 @@ async def _run_team_node_with_members(
 
     monkeypatch.setattr(persona_manager, "get_persona_preset_manager", lambda: _PresetManager())
     monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
-    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     context = TeamAgentContext(session_id="session-1", user_id="user-1")
     config = {
@@ -646,7 +640,7 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
         "schedule_recommend_questions",
         lambda *_args, **_kwargs: None,
     )
-    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+    monkeypatch.setattr(team_nodes, "create_persistent_backend", lambda **_kwargs: object())
 
     context = TeamAgentContext(session_id="session-1", user_id="user-1")
     config = {

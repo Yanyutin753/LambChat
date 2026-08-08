@@ -1,25 +1,38 @@
 from __future__ import annotations
 
-from src.infra.backend.deepagent import create_persistent_backend_factory
+from deepagents.backends import CompositeBackend
+from deepagents.backends.protocol import (
+    BackendProtocol,
+    DeleteResult,
+    GlobResult,
+    GrepResult,
+    LsResult,
+)
+
+from src.infra.backend.deepagent import (
+    WorkflowScopedBackend,
+    create_persistent_backend,
+)
 
 
-def _namespace_for(factory):
-    backend = factory(None)
+def _namespace_for(backend: CompositeBackend) -> tuple[str, ...]:
     return backend.default._backend._namespace(None)
 
 
-def test_persistent_backend_filesystem_namespace_is_scoped_by_session_id() -> None:
-    first = create_persistent_backend_factory(
+def test_persistent_backend_is_concrete_and_scoped_by_session_id() -> None:
+    first = create_persistent_backend(
         assistant_id="assistant-user-1",
         user_id="user-1",
         session_id="session-1",
     )
-    second = create_persistent_backend_factory(
+    second = create_persistent_backend(
         assistant_id="assistant-user-1",
         user_id="user-1",
         session_id="session-2",
     )
 
+    assert isinstance(first, CompositeBackend)
+    assert not callable(first)
     assert _namespace_for(first) == ("assistant-user-1", "workflow", "session-1")
     assert _namespace_for(second) == ("assistant-user-1", "workflow", "session-2")
 
@@ -36,12 +49,11 @@ class _FakeStore:
 
 
 def test_persistent_backend_exposes_session_workflow_as_initial_path() -> None:
-    factory = create_persistent_backend_factory(
+    backend = create_persistent_backend(
         assistant_id="assistant-user-1",
         user_id="user-1",
         session_id="session-1",
     )
-    backend = factory(None)
     backend.default._backend._store = _FakeStore()
 
     result = backend.write("/workflow/session-1/report.md", "hello")
@@ -51,3 +63,71 @@ def test_persistent_backend_exposes_session_workflow_as_initial_path() -> None:
         ("assistant-user-1", "workflow", "session-1"),
         "/report.md",
     )
+
+
+class _RecordingBackend(BackendProtocol):
+    def __init__(self) -> None:
+        self.grep_calls: list[tuple[str, str | None, str | None, int | None]] = []
+        self.delete_calls: list[str] = []
+
+    def ls(self, path: str) -> LsResult:
+        return LsResult(entries=[{"path": f"{path.rstrip('/')}/report.md"}])
+
+    def grep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        self.grep_calls.append((pattern, path, glob, max_count))
+        return GrepResult(
+            matches=[{"path": "/src/app.py", "line": 3, "text": "needle"}],
+            truncated=True,
+        )
+
+    def glob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return GlobResult(matches=[{"path": "/src/app.py"}], truncated=True)
+
+    def delete(self, file_path: str) -> DeleteResult:
+        self.delete_calls.append(file_path)
+        return DeleteResult(path=file_path)
+
+
+def test_workflow_backend_remaps_v0_7_structured_results() -> None:
+    recording = _RecordingBackend()
+    backend = WorkflowScopedBackend(recording, "/workflow/session-1")
+
+    listed = backend.ls("/workflow/session-1/src")
+    grep = backend.grep(
+        "needle",
+        "/workflow/session-1/src",
+        "*.py",
+        max_count=3,
+    )
+    glob = backend.glob("*.py", "/workflow/session-1/src")
+    deleted = backend.delete("/workflow/session-1/report.md")
+
+    assert listed.entries == [{"path": "/workflow/session-1/src/report.md"}]
+    assert recording.grep_calls == [("needle", "/src", "*.py", 3)]
+    assert grep.matches == [{"path": "/workflow/session-1/src/app.py", "line": 3, "text": "needle"}]
+    assert grep.truncated is True
+    assert glob.matches == [{"path": "/workflow/session-1/src/app.py"}]
+    assert glob.truncated is True
+    assert recording.delete_calls == ["/report.md"]
+    assert deleted.path == "/workflow/session-1/report.md"
+
+
+def test_workflow_backend_preserves_structured_errors() -> None:
+    class _ErrorBackend(_RecordingBackend):
+        def ls(self, path: str) -> LsResult:
+            return LsResult(error="list failed")
+
+        def delete(self, file_path: str) -> DeleteResult:
+            return DeleteResult(error="delete failed")
+
+    backend = WorkflowScopedBackend(_ErrorBackend(), "/workflow/session-1")
+
+    assert backend.ls("/workflow/session-1").error == "list failed"
+    assert backend.delete("/workflow/session-1/report.md").error == "delete failed"

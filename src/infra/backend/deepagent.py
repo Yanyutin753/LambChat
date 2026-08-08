@@ -1,22 +1,26 @@
 """
-DeepAgent Backend 工厂模块
+DeepAgent Backend 构建模块
 
-为 DeepAgent 创建不同模式的 Backend 工厂函数。
+为 DeepAgent 创建不同模式的具体 Backend 实例。
 
 Skills 路径现在使用 SkillsStoreBackend，支持 LLM 直接读写 skills 到 MongoDB。
 """
 
 import re
-from typing import Any, Callable, Optional, cast
+from typing import Any, cast
 
 from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
 from deepagents.backends.protocol import (
     BackendProtocol,
+    DeleteResult,
     EditResult,
     FileDownloadResponse,
     FileInfo,
     FileUploadResponse,
+    GlobResult,
     GrepMatch,
+    GrepResult,
+    LsResult,
     ReadResult,
     WriteResult,
 )
@@ -63,15 +67,25 @@ class WorkflowScopedBackend(BackendProtocol):
             return f"{self.workspace_path}{path}"
         return f"{self.workspace_path}/{path}"
 
-    def ls_info(self, path: str) -> list[FileInfo]:
-        return [
-            _prefix_file_info_path(info, self.workspace_path)
-            for info in self._backend.ls_info(self._strip_path(path))
-        ]
+    def ls(self, path: str) -> LsResult:
+        result = self._backend.ls(self._strip_path(path))
+        if result.error:
+            return result
+        return LsResult(
+            entries=[
+                _prefix_file_info_path(info, self.workspace_path) for info in (result.entries or [])
+            ]
+        )
 
-    async def als_info(self, path: str) -> list[FileInfo]:
-        infos = await self._backend.als_info(self._strip_path(path))
-        return [_prefix_file_info_path(info, self.workspace_path) for info in infos]
+    async def als(self, path: str) -> LsResult:
+        result = await self._backend.als(self._strip_path(path))
+        if result.error:
+            return result
+        return LsResult(
+            entries=[
+                _prefix_file_info_path(info, self.workspace_path) for info in (result.entries or [])
+            ]
+        )
 
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
         return self._backend.read(self._strip_path(file_path), offset, limit)
@@ -79,41 +93,75 @@ class WorkflowScopedBackend(BackendProtocol):
     async def aread(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
         return await self._backend.aread(self._strip_path(file_path), offset, limit)
 
-    def grep_raw(
+    def grep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
-        result = self._backend.grep_raw(pattern, self._strip_path(path), glob)
-        if isinstance(result, str):
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        result = self._backend.grep(
+            pattern,
+            self._strip_path(path),
+            glob,
+            max_count=max_count,
+        )
+        if result.error:
             return result
-        return [
-            GrepMatch(**{**match, "path": self._prefix_path(match["path"])}) for match in result
-        ]
+        return GrepResult(
+            matches=[
+                GrepMatch(**{**match, "path": self._prefix_path(match["path"])})
+                for match in (result.matches or [])
+            ],
+            truncated=result.truncated,
+        )
 
-    async def agrep_raw(
+    async def agrep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
-        result = await self._backend.agrep_raw(pattern, self._strip_path(path), glob)
-        if isinstance(result, str):
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        result = await self._backend.agrep(
+            pattern,
+            self._strip_path(path),
+            glob,
+            max_count=max_count,
+        )
+        if result.error:
             return result
-        return [
-            GrepMatch(**{**match, "path": self._prefix_path(match["path"])}) for match in result
-        ]
+        return GrepResult(
+            matches=[
+                GrepMatch(**{**match, "path": self._prefix_path(match["path"])})
+                for match in (result.matches or [])
+            ],
+            truncated=result.truncated,
+        )
 
-    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        return [
-            _prefix_file_info_path(info, self.workspace_path)
-            for info in self._backend.glob_info(pattern, self._strip_path(path))
-        ]
+    def glob(self, pattern: str, path: str | None = None) -> GlobResult:
+        result = self._backend.glob(pattern, self._strip_path(path))
+        if result.error:
+            return result
+        return GlobResult(
+            matches=[
+                _prefix_file_info_path(info, self.workspace_path) for info in (result.matches or [])
+            ],
+            truncated=result.truncated,
+        )
 
-    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        infos = await self._backend.aglob_info(pattern, self._strip_path(path))
-        return [_prefix_file_info_path(info, self.workspace_path) for info in infos]
+    async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
+        result = await self._backend.aglob(pattern, self._strip_path(path))
+        if result.error:
+            return result
+        return GlobResult(
+            matches=[
+                _prefix_file_info_path(info, self.workspace_path) for info in (result.matches or [])
+            ],
+            truncated=result.truncated,
+        )
 
     def write(self, file_path: str, content: str) -> WriteResult:
         result = self._backend.write(self._strip_path(file_path), content)
@@ -150,6 +198,18 @@ class WorkflowScopedBackend(BackendProtocol):
             replace_all,
         )
 
+    def delete(self, file_path: str) -> DeleteResult:
+        result = self._backend.delete(self._strip_path(file_path))
+        if result.path is None:
+            return result
+        return DeleteResult(path=self._prefix_path(result.path))
+
+    async def adelete(self, file_path: str) -> DeleteResult:
+        result = await self._backend.adelete(self._strip_path(file_path))
+        if result.path is None:
+            return result
+        return DeleteResult(path=self._prefix_path(result.path))
+
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         return self._backend.upload_files(
             [(self._strip_path(path), content) for path, content in files]
@@ -182,70 +242,57 @@ def _create_routes(
     }
 
 
-def create_memory_backend_factory(
+def create_memory_backend(
     assistant_id: str,
-    user_id: Optional[str] = None,
-) -> Callable[[Any], CompositeBackend]:
-    """创建基于内存的 Backend 工厂（不使用长期存储）"""
+    user_id: str | None = None,
+) -> CompositeBackend:
+    """创建基于内存的具体 Backend（不使用长期存储）。"""
+    from src.infra.backend.skills_store import create_skills_backend
 
-    def backend_factory(_rt: Any) -> CompositeBackend:
-        from src.infra.backend.skills_store import create_skills_backend
-
-        skills_backend = create_skills_backend(user_id=user_id or "default")
-
-        return CompositeBackend(
-            default=StateBackend(),
-            routes={"/skills/": skills_backend},
-        )
-
-    return backend_factory
+    skills_backend = create_skills_backend(user_id=user_id or "default")
+    return CompositeBackend(
+        default=StateBackend(),
+        routes={"/skills/": skills_backend},
+    )
 
 
-def create_persistent_backend_factory(
+def create_persistent_backend(
     assistant_id: str,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> Callable[[Any], CompositeBackend]:
-    """创建基于 Store 的 Backend 工厂（PostgreSQL / MongoDB 通用）。
+    user_id: str | None = None,
+    session_id: str | None = None,
+) -> CompositeBackend:
+    """创建基于 Store 的具体 Backend（PostgreSQL / MongoDB 通用）。
 
     底层 Store 由 create_deep_agent 传入，此处只负责 namespace 路由。
     """
+    routes = _create_routes(assistant_id, user_id or "default")
+    workflow_session_id = _safe_session_id(session_id)
+    workspace_path = f"/workflow/{workflow_session_id}"
+    filesystem_backend = StoreBackend(
+        namespace=lambda _rt: (assistant_id, "workflow", workflow_session_id)
+    )
 
-    def backend_factory(_rt: Any) -> CompositeBackend:
-        routes = _create_routes(assistant_id, user_id or "default")
-        workflow_session_id = _safe_session_id(session_id)
-        workspace_path = f"/workflow/{workflow_session_id}"
-        filesystem_backend = StoreBackend(
-            namespace=lambda _rt: (assistant_id, "workflow", workflow_session_id)
-        )
-
-        return CompositeBackend(
-            default=WorkflowScopedBackend(filesystem_backend, workspace_path),
-            routes=routes,
-        )
-
-    return backend_factory
+    return CompositeBackend(
+        default=WorkflowScopedBackend(filesystem_backend, workspace_path),
+        routes=routes,
+    )
 
 
-def create_sandbox_backend_factory(
+def create_sandbox_backend(
     sandbox_backend: Any,
     assistant_id: str,
-    user_id: Optional[str] = None,
-) -> Callable[[Any], CompositeBackend]:
-    """创建基于沙箱的 Backend 工厂"""
+    user_id: str | None = None,
+) -> CompositeBackend:
+    """创建基于沙箱的具体 Backend。"""
+    routes = _create_routes(assistant_id, user_id or "default")
 
-    def backend_factory(_rt: Any) -> CompositeBackend:
-        routes = _create_routes(assistant_id, user_id or "default")
-
-        return CompositeBackend(
-            default=sandbox_backend,
-            routes=routes,
-            # Anchor offloaded artifacts (conversation history, large tool
-            # results) at the sandbox work_dir. The CompositeBackend default of
-            # '/' is not writable by the non-root sandbox user, which made the
-            # summarization middleware offload fail with an empty exit-code-1
-            # error (issue #195).
-            artifacts_root=getattr(sandbox_backend, "work_dir", "/home/user"),
-        )
-
-    return backend_factory
+    return CompositeBackend(
+        default=sandbox_backend,
+        routes=routes,
+        # Anchor offloaded artifacts (conversation history, large tool
+        # results) at the sandbox work_dir. The CompositeBackend default of
+        # '/' is not writable by the non-root sandbox user, which made the
+        # summarization middleware offload fail with an empty exit-code-1
+        # error (issue #195).
+        artifacts_root=getattr(sandbox_backend, "work_dir", "/home/user"),
+    )
