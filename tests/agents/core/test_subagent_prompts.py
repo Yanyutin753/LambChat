@@ -49,21 +49,24 @@ COMMON_WORKFLOW_MARKERS = (
     "verify",
     "external side effects",
     "privacy",
-    "already loaded",
-    "deferred mcp",
-    "deferred system",
-    "search_tools",
-    "sandbox tools",
-    "mcporter list",
     "progress",
     "todo",
-    "skill.md",
 )
 
 
-def test_workflow_policy_covers_every_operational_contract() -> None:
+def test_workflow_policy_is_capability_agnostic_and_compact() -> None:
     _assert_markers(WORKFLOW_SECTION, COMMON_WORKFLOW_MARKERS)
-    assert len(WORKFLOW_SECTION) <= 3800
+    assert len(WORKFLOW_SECTION) <= 2400
+    assert "### Project / Folder Reveal" not in WORKFLOW_SECTION
+    assert "search_tools" not in WORKFLOW_SECTION
+    assert "search_skills" not in WORKFLOW_SECTION
+    assert "mcporter" not in WORKFLOW_SECTION
+    assert "transfer_file" not in WORKFLOW_SECTION
+
+
+def test_storage_and_subagent_policies_fit_compact_budgets() -> None:
+    assert len(SANDBOX_STORAGE_POLICY) <= 330
+    assert len(SUBAGENT_TASK_GUIDE) <= 560
 
 
 def test_main_prompts_compose_storage_and_canonical_workflow_once() -> None:
@@ -83,7 +86,8 @@ def test_sandbox_storage_is_shared_and_runtime_path_is_separate() -> None:
     assert "{work_dir}" not in SANDBOX_SYSTEM_PROMPT
     assert SANDBOX_RUNTIME_SECTION == SANDBOX_RUNTIME_POLICY
     assert "{work_dir}" in SANDBOX_RUNTIME_SECTION
-    assert SANDBOX_SYSTEM_PROMPT.count("never use shell") == 1
+    assert SANDBOX_SYSTEM_PROMPT.count("virtual Skill storage") == 1
+    assert "transfer_file" not in SANDBOX_SYSTEM_PROMPT
 
 
 def test_artifact_policy_has_single_canonical_source() -> None:
