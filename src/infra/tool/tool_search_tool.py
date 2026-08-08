@@ -46,7 +46,7 @@ class ToolSearchInput(BaseModel):
         ...,
         description=(
             "Query to find deferred tools by name or capability. "
-            "Use exact tool names as shown in the deferred MCP list, for example "
+            "Use exact names shown in the deferred tool inventories, for example "
             '"select:github:create_issue". '
             'Use keywords like "database query" for best-match search. '
             'Prefix a term with + to require it in the tool name (e.g., "+slack send").'
@@ -55,7 +55,7 @@ class ToolSearchInput(BaseModel):
 
 
 class ToolSearchTool(BaseTool):
-    """搜索并加载延迟的 MCP 工具。
+    """搜索并加载延迟的 MCP 或系统工具。
 
     当 LLM 需要一个不在当前工具列表中的工具时，调用此工具来搜索和加载。
     搜索成功后，匹配的工具会立即可用于后续调用。
@@ -63,20 +63,10 @@ class ToolSearchTool(BaseTool):
 
     name: str = "search_tools"
     description: str = (
-        "Fetches full schema definitions for deferred tools so they can be called. "
-        'Deferred tools appear by name in the "Available MCP Tools (Deferred)" section below. '
-        "This only applies to deferred MCP tools exposed through the main tool registry; "
-        "it does NOT search sandbox tools managed by `mcporter`. "
-        "Sandbox tools are NOT MCP tools — use the `execute` tool with `mcporter` commands to invoke them. "
-        "Until fetched, only the name is known — there is no parameter schema, so the tool cannot be invoked. "
-        "This tool takes a query, matches it against the deferred tool list, and returns "
-        "the matched tools' complete parameter schemas. Once a tool's schema is returned, "
-        "it is callable exactly like any other tool in your tool list. "
-        "Use exact tool names as shown in the deferred MCP list (format: `server:tool`).\n\n"
-        "Query forms:\n"
-        '- "select:github:create_issue" — fetch this exact tool by name\n'
-        '- "database query" — keyword search, best matches returned\n'
-        '- "+slack send" — require "slack" in the name, rank by remaining terms'
+        "Loads callable schemas for deferred MCP and system tools listed in the prompt. "
+        "It does NOT search sandbox tools; use `execute` with `mcporter` for those. "
+        "Search by capability, require a term with `+term`, or fetch exact names with "
+        "`select:github:create_issue`. Use exact tool names as shown."
     )
     args_schema: type[BaseModel] = ToolSearchInput
 

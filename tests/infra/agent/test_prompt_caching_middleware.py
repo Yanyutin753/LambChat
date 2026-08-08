@@ -569,7 +569,7 @@ async def test_tool_search_middleware_skips_duplicate_search_guide_when_already_
         block["text"] for block in result.system_message.content if block.get("type") == "text"
     )
 
-    assert system_text.count("## MCP Tool Search Guide") == 1
+    assert system_text.count("## Tool Search Guide") == 1
     assert "## MCP Tools (Deferred)" in system_text
 
 
@@ -587,7 +587,8 @@ def test_deferred_prompt_does_not_repeat_loaded_tool_names() -> None:
 
     assert "## MCP Tools (Loaded)" not in prompt
     assert "- alpha:create" not in prompt
-    assert "- beta:list: beta list" in prompt
+    assert "- beta:list" in prompt
+    assert "beta list" not in prompt
 
 
 def test_deferred_prompt_blocks_split_stable_rules_and_dynamic_tool_list() -> None:
@@ -601,10 +602,11 @@ def test_deferred_prompt_blocks_split_stable_rules_and_dynamic_tool_list() -> No
     blocks = manager.get_deferred_prompt_blocks()
 
     assert len(blocks) == 2
-    assert blocks[0].startswith("## MCP Tool Search Guide")
+    assert blocks[0].startswith("## Tool Search Guide")
     assert "search_tools" in blocks[0]
     assert blocks[1].startswith("## MCP Tools (Deferred)")
-    assert "- beta:list: beta list" in blocks[1]
+    assert "- beta:list" in blocks[1]
+    assert "beta list" not in blocks[1]
 
 
 def test_deferred_prompt_keeps_search_guide_stable_after_discovery() -> None:
@@ -621,9 +623,9 @@ def test_deferred_prompt_keeps_search_guide_stable_after_discovery() -> None:
     after = manager.get_deferred_prompt_blocks()
 
     assert before[0] == after[0]
-    assert "- alpha:create: alpha create" in before[1]
-    assert "- alpha:create: alpha create" not in after[1]
-    assert "- beta:list: beta list" in after[1]
+    assert "- alpha:create" in before[1]
+    assert "- alpha:create" not in after[1]
+    assert "- beta:list" in after[1]
 
 
 def test_deferred_prompt_string_is_stably_sorted() -> None:
@@ -639,7 +641,7 @@ def test_deferred_prompt_string_is_stably_sorted() -> None:
 
     prompt = manager.get_deferred_stubs_string()
 
-    assert prompt.index("- alpha:create: alpha create") < prompt.index("- zeta:lookup: zeta lookup")
+    assert prompt.index("- alpha:create") < prompt.index("- zeta:lookup")
 
 
 def test_deferred_prompt_string_survives_prior_stub_cache_access() -> None:
@@ -655,26 +657,68 @@ def test_deferred_prompt_string_survives_prior_stub_cache_access() -> None:
 
     assert [stub.name for stub in stubs] == ["alpha:create"]
     assert "## MCP Tools (Deferred)" in prompt
-    assert "- alpha:create: alpha create" in prompt
+    assert "- alpha:create" in prompt
+    assert "alpha create" not in prompt
 
 
-def test_deferred_prompt_string_truncates_long_tool_list() -> None:
+def test_deferred_prompt_lists_every_mcp_name_without_descriptions() -> None:
+    tools = [
+        _FakeTool(
+            name=f"server:{index:03d}",
+            description=f"private description {index}",
+            server="server",
+        )
+        for index in range(101)
+    ]
     manager = DeferredToolManager(
-        all_deferred_tools=[
-            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
-            _FakeTool(name="beta:list", description="beta list", server="beta"),
-            _FakeTool(name="gamma:query", description="gamma query", server="gamma"),
-        ],
+        all_deferred_tools=tools,
         session_id="session-1",
-        prompt_tool_limit=2,
     )
 
     prompt = manager.get_deferred_stubs_string()
 
-    assert "- alpha:create: alpha create" in prompt
-    assert "- beta:list: beta list" in prompt
-    assert "- gamma:query: gamma query" not in prompt
-    assert "1 more deferred MCP tool not shown" in prompt
+    assert {line.removeprefix("- ") for line in prompt.splitlines() if line.startswith("- ")} == {
+        tool.name for tool in tools
+    }
+    assert all(tool.description not in prompt for tool in tools)
+    assert "not shown" not in prompt
+
+
+def test_deferred_prompt_splits_mcp_names_and_system_descriptions() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="github:create", description="Create a GitHub issue", server="github")
+        ],
+        deferred_system_tools=[
+            _FakeTool(
+                name="image_generate",
+                description="生成图片\nLong details must not be included",
+                server="lambchat_internal",
+            )
+        ],
+        session_id="session-1",
+    )
+
+    prompt = manager.get_deferred_stubs_string()
+
+    assert "## MCP Tools (Deferred)\n\n- github:create" in prompt
+    assert "Create a GitHub issue" not in prompt
+    assert "## System Tools (Deferred)\n\n- image_generate: 生成图片" in prompt
+    assert "Long details" not in prompt
+
+
+def test_deferred_manager_prefers_system_tool_on_duplicate_name(caplog) -> None:
+    mcp = _FakeTool(name="shared", description="MCP version", server="remote")
+    system = _FakeTool(name="shared", description="System version", server="lambchat_internal")
+
+    manager = DeferredToolManager(
+        all_deferred_tools=[mcp],
+        deferred_system_tools=[system],
+        session_id="session-1",
+    )
+
+    assert manager.get_tool("shared") is system
+    assert "duplicate" in caplog.text.lower()
 
 
 async def test_section_prompt_middleware_appends_separate_blocks() -> None:

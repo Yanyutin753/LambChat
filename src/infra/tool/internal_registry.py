@@ -236,14 +236,30 @@ async def get_internal_tools_for_user(
     user_roles: list[str] | None,
     is_admin: bool,
 ) -> list[BaseTool]:
-    """Return internal tools filtered and wrapped by per-tool policy."""
+    """Return all authorized internal tools for backward-compatible callers."""
+    direct, deferred = await get_internal_tools_by_exposure_for_user(
+        user_id=user_id,
+        user_roles=user_roles,
+        is_admin=is_admin,
+    )
+    return direct + deferred
+
+
+async def get_internal_tools_by_exposure_for_user(
+    *,
+    user_id: str | None,
+    user_roles: list[str] | None,
+    is_admin: bool,
+) -> tuple[list[BaseTool], list[BaseTool]]:
+    """Return authorized internal tools split into direct and deferred schema exposure."""
     tools = build_internal_tools()
     if not tools:
-        return []
+        return [], []
 
     policies = await get_internal_tool_policies()
     user_permissions = await _resolve_permissions_for_roles(user_roles)
-    wrapped: list[BaseTool] = []
+    direct: list[BaseTool] = []
+    deferred: list[BaseTool] = []
     for tool in tools:
         policy = _policy_for_tool(policies, tool.name)
         if not _is_tool_allowed(policy=policy, user_roles=user_roles, is_admin=is_admin):
@@ -254,18 +270,18 @@ async def get_internal_tools_for_user(
         ):
             continue
 
-        wrapped.append(
-            MCPToolWithRetry(
-                tool,
-                user_id=user_id,
-                server_name=INTERNAL_MCP_SERVER_NAME,
-                user_roles=user_roles,
-                is_admin=is_admin,
-                role_quotas=(policy.role_quotas if policy else None),
-                quota_tool_name=tool.name,
-            )
+        wrapped = MCPToolWithRetry(
+            tool,
+            user_id=user_id,
+            server_name=INTERNAL_MCP_SERVER_NAME,
+            user_roles=user_roles,
+            is_admin=is_admin,
+            role_quotas=(policy.role_quotas if policy else None),
+            quota_tool_name=tool.name,
         )
-    return wrapped
+        target = direct if policy is not None and policy.inline_exposure else deferred
+        target.append(wrapped)
+    return direct, deferred
 
 
 async def get_internal_tool_infos(

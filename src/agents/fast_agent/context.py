@@ -15,7 +15,7 @@ from src.agents.core.tool_filter import (
 from src.infra.logging import get_logger
 from src.infra.skill.manager import SkillManager
 from src.infra.tool.human_tool import get_human_tool
-from src.infra.tool.internal_registry import get_internal_tools_for_user
+from src.infra.tool.internal_registry import get_internal_tools_by_exposure_for_user
 from src.infra.tool.mcp_global import get_global_mcp_tools
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
 from src.infra.tool.reveal_project_tool import get_reveal_project_tool
@@ -63,6 +63,16 @@ class FastAgentContext:
         self.tools: List[Any] = []
         self.skills: List[dict] = []
         self.deferred_manager: Optional["DeferredToolManager"] = None
+        self._deferred_system_tools: List[Any] = []
+
+    def _append_unique_tools(self, tools: List[Any], *, reserved: set[str] | None = None) -> None:
+        existing = {getattr(tool, "name", "") for tool in self.tools}
+        blocked = reserved or set()
+        for tool in tools:
+            name = getattr(tool, "name", "")
+            if name and name not in existing and name not in blocked:
+                self.tools.append(tool)
+                existing.add(name)
 
     def apply_skill_filters(self) -> None:
         """Apply whitelist/blacklist filters to loaded skills."""
@@ -132,8 +142,15 @@ class FastAgentContext:
                 mcp_tools,
                 getattr(self.mcp_manager, "_server_tool_policies", {}),
             )
+            reserved_system_names = {
+                getattr(tool, "name", "") for tool in self._deferred_system_tools
+            }
+            if not settings.ENABLE_DEFERRED_TOOL_LOADING:
+                inline_mcp_tools = inline_mcp_tools + deferred_mcp_tools
+                deferred_mcp_tools = []
+
             if inline_mcp_tools:
-                self.tools.extend(inline_mcp_tools)
+                self._append_unique_tools(inline_mcp_tools, reserved=reserved_system_names)
                 logger.info(
                     "[FastAgentContext] Inlined %d MCP tool(s) by policy",
                     len(inline_mcp_tools),
@@ -150,14 +167,25 @@ class FastAgentContext:
                 )
 
                 pre_discovered = await restore_discovered_tools(self.session_id)
+                if self.deferred_manager is not None:
+                    pre_discovered = sorted(
+                        set(pre_discovered).union(self.deferred_manager.discovered_names)
+                    )
+
+                direct_names = {getattr(tool, "name", "") for tool in self.tools}
+                deferred_mcp_tools = [
+                    tool
+                    for tool in deferred_mcp_tools
+                    if getattr(tool, "name", "") not in direct_names
+                ]
 
                 self.deferred_manager = DeferredToolManager(
                     all_deferred_tools=deferred_mcp_tools,
+                    deferred_system_tools=self._deferred_system_tools,
                     session_id=self.session_id,
                     disabled_tools=self.disabled_tools,
                     disabled_mcp_tools=self.disabled_mcp_tools,
                     pre_discovered_names=pre_discovered,
-                    prompt_tool_limit=getattr(settings, "DEFERRED_TOOL_PROMPT_LIMIT", 40),
                 )
                 logger.info(
                     f"[FastAgentContext] Deferred {len(deferred_mcp_tools)} MCP tools "
@@ -165,7 +193,7 @@ class FastAgentContext:
                     f"pre_restored={len(pre_discovered)})"
                 )
             else:
-                self.tools.extend(deferred_mcp_tools)
+                self._append_unique_tools(deferred_mcp_tools, reserved=reserved_system_names)
         except Exception as e:
             logger.error(f"[FastAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 
@@ -202,13 +230,33 @@ class FastAgentContext:
             user_roles, is_admin = (
                 await resolve_user_mcp_access(self.user_id) if self.user_id else ([], False)
             )
-            internal_tools = await get_internal_tools_for_user(
+            direct_internal, deferred_internal = await get_internal_tools_by_exposure_for_user(
                 user_id=self.user_id,
                 user_roles=user_roles,
                 is_admin=is_admin,
             )
-            self.tools.extend(internal_tools)
-            logger.info(f"[FastAgentContext] Added {len(internal_tools)} internal tools")
+            if not settings.ENABLE_DEFERRED_TOOL_LOADING:
+                direct_internal = direct_internal + deferred_internal
+                deferred_internal = []
+            self._append_unique_tools(direct_internal)
+            direct_names = {getattr(tool, "name", "") for tool in self.tools}
+            self._deferred_system_tools = [
+                tool for tool in deferred_internal if getattr(tool, "name", "") not in direct_names
+            ]
+            if self._deferred_system_tools:
+                from src.infra.tool.deferred_manager import DeferredToolManager
+
+                self.deferred_manager = DeferredToolManager(
+                    all_deferred_tools=[],
+                    deferred_system_tools=self._deferred_system_tools,
+                    session_id=self.session_id,
+                    disabled_tools=self.disabled_tools,
+                )
+            logger.info(
+                "[FastAgentContext] Added %d direct and %d deferred internal tools",
+                len(direct_internal),
+                len(self._deferred_system_tools),
+            )
         except Exception as e:
             logger.warning(f"[FastAgentContext] Failed to load internal tools: {e}")
 
@@ -216,6 +264,9 @@ class FastAgentContext:
             from src.infra.tool.env_var_tool import get_env_var_tools
 
             existing_tool_names = {getattr(tool, "name", "") for tool in self.tools}
+            existing_tool_names.update(
+                getattr(tool, "name", "") for tool in self._deferred_system_tools
+            )
             env_var_tools = [
                 tool
                 for tool in get_env_var_tools()

@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from src.infra.logging import get_logger
-from src.kernel.config import settings
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -20,12 +19,11 @@ logger = get_logger(__name__)
 
 
 DEFERRED_TOOL_SEARCH_GUIDE = (
-    "## MCP Tool Search Guide\n\n"
-    "Deferred MCP tools are available but not yet loaded. "
+    "## Tool Search Guide\n\n"
+    "Deferred MCP and system tools are available but their schemas are not loaded. "
     "If one of these tools would help with the current request, call `search_tools` "
     "first to load its full parameter schema, then use that tool normally. "
-    "`search_tools` only searches deferred MCP tools listed in the dynamic "
-    "`## MCP Tools (Deferred)` section; it does NOT search sandbox tools. "
+    "`search_tools` searches the deferred inventories below; it does NOT search sandbox tools. "
     "Sandbox tools are NOT MCP tools — use `execute` with `mcporter` commands "
     "to discover and call them."
 )
@@ -43,6 +41,7 @@ class DeferredToolStub:
     description: str  # 首行，截断
     server: str = ""
     is_mcp: bool = False
+    kind: str = "mcp"
 
 
 class DeferredToolManager:
@@ -59,8 +58,8 @@ class DeferredToolManager:
         disabled_tools: Optional[list[str]] = None,
         disabled_mcp_tools: Optional[list[str]] = None,
         pre_discovered_names: Optional[list[str]] = None,
-        prompt_tool_limit: Optional[int] = None,
         parent: Optional["DeferredToolManager"] = None,
+        deferred_system_tools: Optional[list["BaseTool"]] = None,
     ):
         # 应用 disabled_tools 过滤
         disabled_set = set(disabled_tools or [])
@@ -68,33 +67,40 @@ class DeferredToolManager:
         mcp_servers = {t[4:] for t in disabled_set if t.startswith("mcp:")}
         exact_disabled = disabled_set - {f"mcp:{s}" for s in mcp_servers}
 
-        filtered: list["BaseTool"] = []
-        for tool in all_deferred_tools:
+        candidates = [
+            ("system", tool) for tool in sorted(deferred_system_tools or [], key=_tool_sort_key)
+        ]
+        candidates.extend(("mcp", tool) for tool in sorted(all_deferred_tools, key=_tool_sort_key))
+        tool_map: dict[str, "BaseTool"] = {}
+        tool_kinds: dict[str, str] = {}
+        for kind, tool in candidates:
             name = getattr(tool, "name", "")
-            if name in exact_disabled:
+            if not name or name in exact_disabled:
                 continue
-            # mcp:server 前缀过滤
-            server = getattr(tool, "server", "")
-            if server in mcp_servers:
+            server = getattr(tool, "server", "") or ""
+            if kind == "mcp" and (
+                server in mcp_servers or any(name.startswith(f"{item}:") for item in mcp_servers)
+            ):
                 continue
-            # 名称前缀过滤
-            for s in mcp_servers:
-                if name.startswith(f"{s}:"):
-                    break
-            else:
-                filtered.append(tool)
+            if name in tool_map:
+                logger.warning(
+                    "[DeferredToolManager] Ignoring duplicate %s tool %s; keeping %s tool",
+                    kind,
+                    name,
+                    tool_kinds[name],
+                )
+                continue
+            tool_map[name] = tool
+            tool_kinds[name] = kind
 
-        self._all_tools: list["BaseTool"] = sorted(filtered, key=_tool_sort_key)
-        self._tool_map: dict[str, "BaseTool"] = {t.name: t for t in filtered}
+        self._tool_map = tool_map
+        self._tool_kinds = tool_kinds
+        self._all_tools = sorted(tool_map.values(), key=_tool_sort_key)
         # 恢复上次已发现工具（从 store 持久化的数据）
         pre_set = set(pre_discovered_names or []) & set(self._tool_map.keys())
         self._discovered_names: set[str] = pre_set
         self._session_id = session_id
         self._parent = parent
-        configured_prompt_limit = prompt_tool_limit
-        if configured_prompt_limit is None:
-            configured_prompt_limit = getattr(settings, "DEFERRED_TOOL_PROMPT_LIMIT", 40)
-        self._prompt_tool_limit = max(int(configured_prompt_limit or 0), 0) or None
 
         # Backward-compatible aggregate dirty flag.
         self.stale: bool = True
@@ -109,7 +115,7 @@ class DeferredToolManager:
         logger.info(
             "[DeferredToolManager] Created: %d deferred tools for session %s "
             "(%d pre-restored from store)",
-            len(filtered),
+            len(self._all_tools),
             session_id,
             len(pre_set),
         )
@@ -123,10 +129,14 @@ class DeferredToolManager:
         """
         safe_scope = scope.strip() or "isolated"
         return DeferredToolManager(
-            all_deferred_tools=self._all_tools,
+            all_deferred_tools=[
+                tool for tool in self._all_tools if self._tool_kinds[tool.name] == "mcp"
+            ],
+            deferred_system_tools=[
+                tool for tool in self._all_tools if self._tool_kinds[tool.name] == "system"
+            ],
             session_id=f"{self._session_id}:{safe_scope}",
             pre_discovered_names=self.discovered_names,
-            prompt_tool_limit=self._prompt_tool_limit,
             parent=self,
         )
 
@@ -185,7 +195,8 @@ class DeferredToolManager:
                     name=tool.name,
                     description=hint,
                     server=getattr(tool, "server", ""),
-                    is_mcp=True,
+                    is_mcp=self._tool_kinds[tool.name] == "mcp",
+                    kind=self._tool_kinds[tool.name],
                 )
             )
 
@@ -200,26 +211,20 @@ class DeferredToolManager:
         if not self._prompt_stale:
             return self._cached_prompt_blocks
 
-        # 未发现工具（需要 search_tools）
-        stubs = self.get_deferred_stubs()  # 调用后 stale=False 并更新缓存
+        stubs = self.get_deferred_stubs()
         if stubs:
-            visible_stubs = stubs
-            hidden_count = 0
-            if self._prompt_tool_limit is not None and len(stubs) > self._prompt_tool_limit:
-                visible_stubs = stubs[: self._prompt_tool_limit]
-                hidden_count = len(stubs) - len(visible_stubs)
-
-            lines = "\n".join(f"- {s.name}: {s.description}" for s in visible_stubs)
-            parts: list[str] = [
-                DEFERRED_TOOL_SEARCH_GUIDE,
-                "## MCP Tools (Deferred)\n\n" + lines,
-            ]
-            if hidden_count:
-                noun = "tool" if hidden_count == 1 else "tools"
+            mcp_stubs = [stub for stub in stubs if stub.kind == "mcp"]
+            system_stubs = [stub for stub in stubs if stub.kind == "system"]
+            parts: list[str] = [DEFERRED_TOOL_SEARCH_GUIDE]
+            if mcp_stubs:
                 parts.append(
-                    f"\n\nNote: {hidden_count} more deferred MCP {noun} not shown here to save "
-                    "context. Use `search_tools` with capability keywords, or `select:server:tool` "
-                    "when you know the exact name."
+                    "## MCP Tools (Deferred)\n\n"
+                    + "\n".join(f"- {stub.name}" for stub in mcp_stubs)
+                )
+            if system_stubs:
+                parts.append(
+                    "## System Tools (Deferred)\n\n"
+                    + "\n".join(f"- {stub.name}: {stub.description}" for stub in system_stubs)
                 )
             result = tuple(parts)
         else:
