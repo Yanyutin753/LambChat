@@ -1,7 +1,7 @@
 # Prompt and Discovery Compression Design
 
 **Date:** 2026-08-08
-**Status:** Approved direction; pending spec review
+**Status:** Approved
 **Scope:** LambChat Fast, Search, Team, and subagent system prompts; deferred MCP discovery; sandbox tool inventories; Skills discovery.
 
 ## Context
