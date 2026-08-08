@@ -59,10 +59,7 @@ export async function exportProjectZip(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${projectName.replace(
-    /[^a-zA-Z0-9_\u4e00-\u9fa5-]/g,
-    "_",
-  )}.zip`;
+  a.download = `${projectName.replace(/[^\p{L}\p{N}_-]/gu, "_")}.zip`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

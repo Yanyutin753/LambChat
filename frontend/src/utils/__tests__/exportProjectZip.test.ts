@@ -59,3 +59,21 @@ test("default export keeps the existing best-effort binary contract", async () =
   expect(createObjectUrl).toHaveBeenCalledOnce();
   expect(revokeObjectUrl).toHaveBeenCalledWith("blob:best-effort");
 });
+
+test("preserves non-Latin letters in the downloaded ZIP name", async () => {
+  vi.stubGlobal("URL", {
+    ...URL,
+    createObjectURL: vi.fn(() => "blob:localized-name"),
+    revokeObjectURL: vi.fn(),
+  });
+  let downloadedName = "";
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    downloadedName = this.download;
+  });
+
+  await exportProjectZip({}, "すべてのファイル");
+
+  expect(downloadedName).toBe("すべてのファイル.zip");
+});
