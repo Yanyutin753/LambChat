@@ -231,6 +231,39 @@ async def test_import_mcp_servers_reports_sandbox_error_and_imports_http_entry()
 
 
 @pytest.mark.asyncio
+async def test_import_mcp_servers_reports_malformed_transport_and_imports_http_entry() -> None:
+    class _FakeStorage:
+        async def import_servers(self, data, user_id: str, is_admin: bool):
+            assert user_id == "user-1"
+            assert is_admin is False
+            assert set(data.get_servers()) == {"malformed", "http-server"}
+            return 1, 0, ["Invalid transport '['bad']' for server 'malformed'"]
+
+    app = FastAPI()
+    app.include_router(mcp_route.router, prefix="/api/mcp")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_mcp_import_user
+    app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
+
+    payload = {
+        "servers": {
+            "malformed": {"transport": ["bad"]},
+            "http-server": {
+                "transport": "streamable_http",
+                "url": "https://example.com/mcp",
+            },
+        }
+    }
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post("/api/mcp/import", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["imported_count"] == 1
+    assert response.json()["errors"] == ["Invalid transport '['bad']' for server 'malformed'"]
+
+
+@pytest.mark.asyncio
 async def test_admin_toggle_tool_returns_bad_request_for_disabled_tool_overflow() -> None:
     class _FakeStorage:
         async def get_system_server(self, _name: str):

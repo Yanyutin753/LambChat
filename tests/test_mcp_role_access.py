@@ -30,13 +30,16 @@ class _FakeCollection:
         self.cursors: list[_AsyncCursor] = []
 
     def find(self, query: dict[str, Any]) -> _AsyncCursor:
-        cursor = _AsyncCursor(
-            [
-                doc
-                for doc in self._docs
-                if all(doc.get(key) == value for key, value in query.items())
-            ]
-        )
+        def _matches(doc: dict[str, Any]) -> bool:
+            for key, expected in query.items():
+                if isinstance(expected, dict) and "$ne" in expected:
+                    if doc.get(key) == expected["$ne"]:
+                        return False
+                elif doc.get(key) != expected:
+                    return False
+            return True
+
+        cursor = _AsyncCursor([doc for doc in self._docs if _matches(doc)])
         self.cursors.append(cursor)
         return cursor
 

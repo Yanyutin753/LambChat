@@ -39,6 +39,18 @@ def test_sandbox_lifecycle_does_not_rebuild_mcp() -> None:
         assert "ensure_sandbox_mcp" not in source, path
 
 
+def test_sandbox_lifecycle_still_syncs_user_environment_variables() -> None:
+    paths = (
+        "src/infra/sandbox/_cubesandbox_helpers.py",
+        "src/infra/sandbox/_daytona_helpers.py",
+        "src/infra/sandbox/_e2b_helpers.py",
+        "src/infra/sandbox/session_manager.py",
+    )
+
+    for path in paths:
+        assert "sync_sandbox_env_vars" in _source(path), path
+
+
 def test_runtime_guidance_and_cache_do_not_reference_mcporter() -> None:
     paths = (
         "src/agents/core/prompt_policy.py",

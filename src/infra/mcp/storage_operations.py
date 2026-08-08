@@ -53,6 +53,11 @@ def _is_legacy_sandbox_server(doc: dict[str, Any] | None) -> bool:
     return bool(doc) and doc.get("transport") == "sandbox"
 
 
+def _supported_server_query(query: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a Mongo query that excludes removed Sandbox MCP records before limits."""
+    return {**(query or {}), "transport": {"$ne": "sandbox"}}
+
+
 def _get_effective_config_max_servers() -> int:
     value = getattr(settings, "MCP_EFFECTIVE_CONFIG_MAX_SERVERS", 100)
     try:
@@ -238,7 +243,10 @@ class StorageOperations:
         # Get system servers and apply user preferences
         system_collection = self._get_system_collection()
         system_docs: list[tuple[str, dict[str, Any]]] = []
-        system_cursor = _limit_cursor(system_collection.find({}), _server_list_limit())
+        system_cursor = _limit_cursor(
+            system_collection.find(_supported_server_query()),
+            _server_list_limit(),
+        )
         async for doc in system_cursor:
             if _is_legacy_sandbox_server(doc):
                 continue
@@ -286,7 +294,7 @@ class StorageOperations:
         user_collection = self._get_user_collection()
         user_servers: dict[str, dict[str, Any]] = {}
         user_cursor = _limit_cursor(
-            user_collection.find({"user_id": user_id, "enabled": True}),
+            user_collection.find(_supported_server_query({"user_id": user_id, "enabled": True})),
             _server_list_limit(),
         )
         async for doc in user_cursor:
@@ -333,7 +341,10 @@ class StorageOperations:
 
         # Get system servers
         system_collection = self._get_system_collection()
-        system_cursor = _limit_cursor(system_collection.find({}), _server_list_limit())
+        system_cursor = _limit_cursor(
+            system_collection.find(_supported_server_query()),
+            _server_list_limit(),
+        )
         async for doc in system_cursor:
             if _is_legacy_sandbox_server(doc):
                 continue
@@ -363,7 +374,7 @@ class StorageOperations:
         # Get user servers
         user_collection = self._get_user_collection()
         user_cursor = _limit_cursor(
-            user_collection.find({"user_id": user_id}),
+            user_collection.find(_supported_server_query({"user_id": user_id})),
             _server_list_limit(),
         )
         async for doc in user_cursor:
@@ -609,7 +620,10 @@ class StorageOperations:
         user_collection = self._get_user_collection()
         servers = {}
 
-        cursor = _limit_cursor(user_collection.find({"user_id": user_id}), _server_list_limit())
+        cursor = _limit_cursor(
+            user_collection.find(_supported_server_query({"user_id": user_id})),
+            _server_list_limit(),
+        )
         async for doc in cursor:
             if _is_legacy_sandbox_server(doc):
                 continue
@@ -622,7 +636,10 @@ class StorageOperations:
         system_collection = self._get_system_collection()
         servers = {}
 
-        cursor = _limit_cursor(system_collection.find({}), _server_list_limit())
+        cursor = _limit_cursor(
+            system_collection.find(_supported_server_query()),
+            _server_list_limit(),
+        )
         async for doc in cursor:
             if _is_legacy_sandbox_server(doc):
                 continue

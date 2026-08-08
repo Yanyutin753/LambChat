@@ -13,9 +13,8 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.envvar.storage import EnvVarStorage
+from src.infra.envvar.sync import sync_envvar_change
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_user_id_from_runtime
-from src.infra.tool.cache_pubsub import publish_tool_cache_invalidation
-from src.infra.tool.env_var_prompt import invalidate_env_var_prompt_cache
 
 if TYPE_CHECKING:
     from langchain.tools import ToolRuntime
@@ -40,11 +39,6 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
 def _get_user_id(runtime: ToolRuntime) -> str | None:
     user_id = get_user_id_from_runtime(runtime)
     return user_id if user_id else None
-
-
-async def _sync_envvar_change(user_id: str, backend: Any | None) -> None:
-    invalidate_env_var_prompt_cache(user_id)
-    await publish_tool_cache_invalidation("env_var_prompt", user_id=user_id)
 
 
 def _validate_key(key: str) -> str | None:
@@ -99,7 +93,7 @@ async def env_var_set(
     try:
         variable = await EnvVarStorage().set_var(user_id, key, value)
         backend = get_backend_from_runtime(runtime)
-        await _sync_envvar_change(user_id, backend)
+        await sync_envvar_change(user_id, backend=backend)
     except Exception as e:
         return await _json_dumps_result({"error": f"Failed to save variable: {e}"})
     return await _json_dumps_result(
@@ -132,7 +126,7 @@ async def env_var_delete(
     if not deleted:
         return await _json_dumps_result({"error": f"Environment variable '{key}' not found"})
     backend = get_backend_from_runtime(runtime)
-    await _sync_envvar_change(user_id, backend)
+    await sync_envvar_change(user_id, backend=backend)
     return await _json_dumps_result(
         {"success": True, "message": f"Environment variable '{key}' deleted"}
     )
@@ -151,7 +145,7 @@ async def env_var_delete_all(
     try:
         count = await EnvVarStorage().delete_all_vars(user_id)
         backend = get_backend_from_runtime(runtime)
-        await _sync_envvar_change(user_id, backend)
+        await sync_envvar_change(user_id, backend=backend)
     except Exception as e:
         return await _json_dumps_result({"error": f"Failed to delete all variables: {e}"})
     return await _json_dumps_result(

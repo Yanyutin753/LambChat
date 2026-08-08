@@ -233,23 +233,26 @@ async def test_env_var_set_delegates_to_storage_and_masks_response(
 
 
 @pytest.mark.asyncio
-async def test_env_var_set_invalidates_prompt_cache(
+async def test_env_var_set_syncs_active_sandbox_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.infra.tool import env_var_tool
 
     storage = _FakeEnvVarStorage()
-    invalidated: list[str] = []
+    synced: list[tuple[str, object | None]] = []
     backend = object()
 
+    async def fake_sync(user_id: str, *, backend=None) -> None:
+        synced.append((user_id, backend))
+
     monkeypatch.setattr(env_var_tool, "EnvVarStorage", lambda: storage)
-    monkeypatch.setattr(env_var_tool, "invalidate_env_var_prompt_cache", invalidated.append)
+    monkeypatch.setattr(env_var_tool, "sync_envvar_change", fake_sync, raising=False)
 
     await env_var_tool.env_var_set.coroutine(
         "FIRECRAWL_API_KEY", "secret", runtime=_Runtime("user-1", backend=backend)
     )
 
-    assert invalidated == ["user-1"]
+    assert synced == [("user-1", backend)]
 
 
 @pytest.mark.asyncio
@@ -268,6 +271,30 @@ async def test_env_var_delete_delegates_to_storage(monkeypatch: pytest.MonkeyPat
         "message": "Environment variable 'FIRECRAWL_API_KEY' deleted",
     }
     assert storage.calls == [("delete", "user-1", "FIRECRAWL_API_KEY")]
+
+
+@pytest.mark.asyncio
+async def test_env_var_delete_syncs_active_sandbox_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import env_var_tool
+
+    storage = _FakeEnvVarStorage()
+    backend = object()
+    synced: list[tuple[str, object | None]] = []
+
+    async def fake_sync(user_id: str, *, backend=None) -> None:
+        synced.append((user_id, backend))
+
+    monkeypatch.setattr(env_var_tool, "EnvVarStorage", lambda: storage)
+    monkeypatch.setattr(env_var_tool, "sync_envvar_change", fake_sync, raising=False)
+
+    await env_var_tool.env_var_delete.coroutine(
+        "FIRECRAWL_API_KEY",
+        runtime=_Runtime("user-1", backend=backend),
+    )
+
+    assert synced == [("user-1", backend)]
 
 
 @pytest.mark.asyncio

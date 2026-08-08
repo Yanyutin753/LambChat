@@ -179,7 +179,7 @@ async def import_servers(
 
     for server_name, server_config in servers.items():
         transport = server_config.get("transport", "streamable_http")
-        if transport not in {item.value for item in MCPTransport}:
+        if not isinstance(transport, str) or transport not in {item.value for item in MCPTransport}:
             continue
         if not _has_permission_for_transport(user, transport):
             raise HTTPException(

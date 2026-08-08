@@ -12,6 +12,7 @@ from deepagents.backends import CompositeBackend
 
 from src.infra.async_utils import run_blocking_io as _run_blocking_io
 from src.infra.backend.skills_store import create_skills_backend
+from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.logging import get_logger
 
 if TYPE_CHECKING:
@@ -92,6 +93,7 @@ class _E2BMixin:
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
+                        await sync_sandbox_env_vars(scoped_backend, user_id)
                         return scoped_backend, work_dir
                 except Exception as e:
                     logger.warning(f"[E2B] Cache hit but sandbox {sandbox_id} unhealthy: {e}")
@@ -128,6 +130,7 @@ class _E2BMixin:
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
+                        await sync_sandbox_env_vars(scoped_backend, user_id)
                         return scoped_backend, work_dir
                     except Exception as e:
                         logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
@@ -174,6 +177,7 @@ class _E2BMixin:
         scoped_work_dir = self._session_work_dir(work_dir, session_id)
         scoped_backend = self._scope_e2b_backend(provider_obj, user_id, scoped_work_dir)
         await self._ensure_work_dir(scoped_backend, scoped_work_dir)
+        await sync_sandbox_env_vars(scoped_backend, user_id)
         return scoped_backend, scoped_work_dir
 
     def _build_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:

@@ -29,6 +29,7 @@ from deepagents.backends.protocol import SandboxBackendProtocol
 from src.infra.async_utils import run_blocking_io
 from src.infra.backend.daytona import DaytonaBackend
 from src.infra.backend.skills_store import create_skills_backend
+from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
@@ -370,6 +371,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                     work_dir = self._session_work_dir(base_work_dir, session_id)
                     scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
                     await self._ensure_work_dir(scoped_backend, work_dir)
+                    await sync_sandbox_env_vars(scoped_backend, user_id)
                     await self._save_binding(user_id, sandbox_id, "running")
                     return scoped_backend, work_dir
                 except Exception as e:
@@ -410,6 +412,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
+                        await sync_sandbox_env_vars(scoped_backend, user_id)
                         return scoped_backend, work_dir
                     except Exception as e:
                         logger.warning(
@@ -429,6 +432,7 @@ class SessionSandboxManager(_DaytonaMixin, _E2BMixin, _CubeSandboxMixin):
                         work_dir = self._session_work_dir(base_work_dir, session_id)
                         scoped_backend = self._scope_daytona_backend(backend, user_id, work_dir)
                         await self._ensure_work_dir(scoped_backend, work_dir)
+                        await sync_sandbox_env_vars(scoped_backend, user_id)
                         return scoped_backend, work_dir
                     except Exception as e:
                         logger.warning(

@@ -45,6 +45,22 @@ class _ListCursor:
         return doc
 
 
+class _FilteringCursor(_ListCursor):
+    def __init__(self, docs: list[dict[str, Any]]) -> None:
+        super().__init__(docs)
+        self.max_items: int | None = None
+
+    def limit(self, value: int):
+        super().limit(value)
+        self.max_items = value
+        return self
+
+    async def __anext__(self):
+        if self.max_items is not None and self.index >= self.max_items:
+            raise StopAsyncIteration
+        return await super().__anext__()
+
+
 class _RecordingCollection:
     def __init__(self) -> None:
         self.find_queries: list[dict[str, Any]] = []
@@ -88,6 +104,26 @@ class _ListCollection:
     async def insert_one(self, doc: dict[str, Any]):
         self.inserted_docs.append(doc)
         return SimpleNamespace(inserted_id="doc-1")
+
+
+class _FilteringCollection:
+    def __init__(self, docs: list[dict[str, Any]]) -> None:
+        self.docs = docs
+        self.find_queries: list[dict[str, Any]] = []
+
+    @staticmethod
+    def _matches(doc: dict[str, Any], query: dict[str, Any]) -> bool:
+        for key, expected in query.items():
+            if isinstance(expected, dict) and "$ne" in expected:
+                if doc.get(key) == expected["$ne"]:
+                    return False
+            elif doc.get(key) != expected:
+                return False
+        return True
+
+    def find(self, query: dict[str, Any]):
+        self.find_queries.append(query)
+        return _FilteringCursor([doc for doc in self.docs if self._matches(doc, query)])
 
 
 class _DisabledToolsCollection:
@@ -138,7 +174,7 @@ async def test_list_user_servers_applies_storage_limit() -> None:
     servers = await storage.list_user_servers("user-1")
 
     assert servers == []
-    assert collection.find_queries == [{"user_id": "user-1"}]
+    assert collection.find_queries == [{"user_id": "user-1", "transport": {"$ne": "sandbox"}}]
     assert collection.cursor.limit_calls == [MCP_SERVER_LIST_LIMIT]
 
 
@@ -226,7 +262,28 @@ async def test_list_system_servers_omits_legacy_sandbox_documents() -> None:
     servers = await storage.list_system_servers()
 
     assert servers == []
-    assert collection.find_queries == [{}]
+    assert collection.find_queries == [{"transport": {"$ne": "sandbox"}}]
+
+
+@pytest.mark.asyncio
+async def test_list_system_servers_filters_legacy_before_storage_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.mcp import storage as mcp_storage
+
+    monkeypatch.setattr(mcp_storage, "MCP_SERVER_LIST_LIMIT", 1)
+    legacy = _mcp_doc(name="legacy", user_id="system")
+    legacy.update({"transport": "sandbox", "headers": None})
+    valid = _mcp_doc(name="valid", user_id="system")
+    valid["headers"] = None
+    collection = _FilteringCollection([legacy, valid])
+    storage = MCPStorage()
+    storage._system_collection = collection  # type: ignore[assignment]
+
+    servers = await storage.list_system_servers()
+
+    assert [server.name for server in servers] == ["valid"]
+    assert collection.find_queries == [{"transport": {"$ne": "sandbox"}}]
 
 
 @pytest.mark.asyncio
@@ -294,7 +351,7 @@ async def test_export_all_servers_applies_storage_limit() -> None:
     servers = await storage.export_all_servers()
 
     assert servers == {"mcpServers": {}}
-    assert collection.find_queries == [{}]
+    assert collection.find_queries == [{"transport": {"$ne": "sandbox"}}]
     assert collection.cursor.limit_calls == [MCP_SERVER_LIST_LIMIT]
 
 
@@ -405,6 +462,49 @@ async def test_set_user_server_tool_disabled_rejects_overflow(
         await storage.set_user_server_tool_disabled("server-1", "new-tool", "user-1", True)
 
     assert collection.updates == []
+
+
+@pytest.mark.asyncio
+async def test_disabled_tool_readers_hide_legacy_servers() -> None:
+    system_legacy = _mcp_doc(name="legacy-system", user_id="system")
+    system_legacy.update(
+        {"transport": "sandbox", "headers": None, "disabled_tools": ["hidden-tool"]}
+    )
+    user_legacy = _mcp_doc(name="legacy-user")
+    user_legacy.update({"transport": "sandbox", "headers": None, "disabled_tools": ["hidden-tool"]})
+    storage = MCPStorage()
+    storage._system_collection = _ListCollection([system_legacy])  # type: ignore[assignment]
+    storage._user_collection = _ListCollection([user_legacy])  # type: ignore[assignment]
+
+    assert await storage.get_system_disabled_tools() == {}
+    assert await storage.get_user_server_disabled_tools("user-1") == {}
+
+
+@pytest.mark.asyncio
+async def test_disabled_tool_setters_reject_legacy_servers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy = _mcp_doc()
+    legacy.update({"transport": "sandbox", "headers": None})
+    system_collection = _DisabledToolsCollection(legacy)
+    user_collection = _DisabledToolsCollection(legacy)
+    storage = MCPStorage()
+    storage._system_collection = system_collection  # type: ignore[assignment]
+    storage._user_collection = user_collection  # type: ignore[assignment]
+
+    async def _fail_cache_invalidation(*_args) -> None:
+        raise AssertionError("legacy server mutation must not invalidate caches")
+
+    monkeypatch.setattr(storage, "_invalidate_all_cache", _fail_cache_invalidation)
+    monkeypatch.setattr(storage, "_invalidate_user_cache", _fail_cache_invalidation)
+
+    with pytest.raises(ValueError, match="not found"):
+        await storage.set_system_tool_disabled("server-1", "tool-1", True)
+    with pytest.raises(ValueError, match="not found"):
+        await storage.set_user_server_tool_disabled("server-1", "tool-1", "user-1", True)
+
+    assert system_collection.updates == []
+    assert user_collection.updates == []
 
 
 class _FakeMCPClientManager:

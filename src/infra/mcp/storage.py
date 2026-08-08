@@ -29,6 +29,7 @@ from src.infra.mcp.storage_operations import (
     StorageOperations,
     _can_access_system_server,
     _is_legacy_sandbox_server,
+    _supported_server_query,
 )
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import to_iso, utc_now_iso
@@ -138,7 +139,7 @@ class MCPStorage(StorageOperations):
         """List all system MCP servers"""
         collection = self._get_system_collection()
         servers = []
-        async for doc in collection.find({}).limit(MCP_SERVER_LIST_LIMIT):
+        async for doc in collection.find(_supported_server_query()).limit(MCP_SERVER_LIST_LIMIT):
             if _is_legacy_sandbox_server(doc):
                 continue
             servers.append(await self._doc_to_system_server_async(doc))
@@ -253,7 +254,9 @@ class MCPStorage(StorageOperations):
         """List all MCP servers for a specific user"""
         collection = self._get_user_collection()
         servers = []
-        async for doc in collection.find({"user_id": user_id}).limit(MCP_SERVER_LIST_LIMIT):
+        async for doc in collection.find(_supported_server_query({"user_id": user_id})).limit(
+            MCP_SERVER_LIST_LIMIT
+        ):
             if _is_legacy_sandbox_server(doc):
                 continue
             servers.append(await self._doc_to_user_server_async(doc))
@@ -661,7 +664,7 @@ class MCPStorage(StorageOperations):
         """
         collection = self._get_system_collection()
         server_doc = await collection.find_one({"name": server_name})
-        if not server_doc:
+        if not server_doc or _is_legacy_sandbox_server(server_doc):
             raise ValueError(f"System server '{server_name}' not found")
 
         disabled_tools = _apply_disabled_tool_update(
@@ -692,7 +695,9 @@ class MCPStorage(StorageOperations):
         """
         collection = self._get_system_collection()
         result: dict[str, set[str]] = {}
-        async for doc in collection.find({}).limit(MCP_SERVER_LIST_LIMIT):
+        async for doc in collection.find(_supported_server_query()).limit(MCP_SERVER_LIST_LIMIT):
+            if _is_legacy_sandbox_server(doc):
+                continue
             server_name = doc["name"]
             disabled_tools = _normalize_disabled_tools(doc.get("disabled_tools", []))
             if disabled_tools:
@@ -714,7 +719,7 @@ class MCPStorage(StorageOperations):
         """
         collection = self._get_user_collection()
         server_doc = await collection.find_one({"name": server_name, "user_id": user_id})
-        if not server_doc:
+        if not server_doc or _is_legacy_sandbox_server(server_doc):
             raise ValueError(f"User server '{server_name}' not found for user '{user_id}'")
 
         disabled_tools = _apply_disabled_tool_update(
@@ -745,7 +750,11 @@ class MCPStorage(StorageOperations):
         """
         collection = self._get_user_collection()
         result: dict[str, set[str]] = {}
-        async for doc in collection.find({"user_id": user_id}).limit(MCP_SERVER_LIST_LIMIT):
+        async for doc in collection.find(_supported_server_query({"user_id": user_id})).limit(
+            MCP_SERVER_LIST_LIMIT
+        ):
+            if _is_legacy_sandbox_server(doc):
+                continue
             server_name = doc["name"]
             disabled_tools = _normalize_disabled_tools(doc.get("disabled_tools", []))
             if disabled_tools:
