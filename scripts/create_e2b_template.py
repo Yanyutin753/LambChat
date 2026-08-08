@@ -322,7 +322,7 @@ def _write_env_template(env_file: Path, value: str | None) -> None:
     temporary_path: Path | None = None
     try:
         descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{env_file.name}.",
+            prefix=f"{env_file.name}.",
             suffix=".tmp",
             dir=env_file.parent,
         )
@@ -517,6 +517,18 @@ async def restore_effective_configuration(
     candidate_line = f"E2B_TEMPLATE={candidate}"
     current_env_line = _env_template_line(env_file)
     phase = str(manifest.get("configuration_phase") or "pinned")
+    if phase == "pinning-env" and already_restored:
+        if current_env_line not in {previous_line, candidate_line}:
+            raise RuntimeError("concurrent E2B_TEMPLATE edit detected in environment file")
+        previous_value = previous_line.partition("=")[2] if previous_line is not None else None
+        if current_env_line != previous_line:
+            _write_env_template(env_file, previous_value)
+        _invalidate_configuration_evidence(manifest)
+        manifest["configuration_phase"] = "restored"
+        _write_manifest(manifest_path, manifest)
+        effective_value = str(await settings_service.get_raw("E2B_TEMPLATE") or "")
+        await _publish_effective_value(settings_service, effective_value)
+        return
     if phase not in {"restoring-env", "restoring-db", "restored"}:
         if already_restored:
             raise RuntimeError("database was changed outside this rollout before restore")
@@ -568,6 +580,14 @@ async def restore_effective_configuration(
             _write_manifest(manifest_path, manifest)
         raise
 
+    _invalidate_configuration_evidence(manifest)
+    manifest["configuration_phase"] = "restored"
+    _write_manifest(manifest_path, manifest)
+    effective_value = str(await settings_service.get_raw("E2B_TEMPLATE") or "")
+    await _publish_effective_value(settings_service, effective_value)
+
+
+def _invalidate_configuration_evidence(manifest: dict[str, Any]) -> None:
     for field in (
         "pinned_ref",
         "pinned_build_id",
@@ -584,10 +604,17 @@ async def restore_effective_configuration(
         "health_env_line",
     ):
         manifest.pop(field, None)
-    manifest["configuration_phase"] = "restored"
-    _write_manifest(manifest_path, manifest)
-    effective_value = str(await settings_service.get_raw("E2B_TEMPLATE") or "")
-    await _publish_effective_value(settings_service, effective_value)
+
+
+def _invalidate_health_evidence(manifest: dict[str, Any]) -> None:
+    for field in (
+        "health_checked_at",
+        "health_build_id",
+        "health_ref",
+        "health_db_guard",
+        "health_env_line",
+    ):
+        manifest.pop(field, None)
 
 
 def _require_bound_candidate(manifest: dict[str, Any], *, require_health: bool) -> None:
@@ -693,6 +720,9 @@ async def record_health(
         or before_env_line != manifest["pinned_env_line"]
     ):
         raise RuntimeError("configuration revision changed before health check")
+    _invalidate_health_evidence(manifest)
+    manifest["health_attempted_at"] = datetime.now(timezone.utc).isoformat()
+    _write_manifest(manifest_path, manifest)
     if http_client is None:
         import httpx
 

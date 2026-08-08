@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import stat
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -745,3 +746,131 @@ async def test_health_rejects_configuration_change_during_request(tmp_path: Path
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert "health_checked_at" not in manifest
+
+
+@pytest.mark.asyncio
+async def test_restore_recovers_env_pinned_before_database_cas_crash(
+    tmp_path: Path,
+) -> None:
+    from scripts.create_e2b_template import restore_effective_configuration
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=lambchat-prod:build_456\n", encoding="utf-8")
+    baseline_document = {
+        "_id": "E2B_TEMPLATE",
+        "value": "base",
+        "updated_at": "before",
+        "updated_by": "administrator",
+    }
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.update(
+        {
+            "configuration_baseline": {
+                "db_existed": True,
+                "db_document": baseline_document,
+                "env_file": str(env_file.resolve()),
+                "env_previous_line": "E2B_TEMPLATE=base",
+            },
+            "configuration_phase": "pinning-env",
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    collection = _FakeSettingsCollection(baseline_document)
+    service = _FakeSettingsService(collection)
+
+    await restore_effective_configuration(manifest_path, settings_service=service)
+
+    assert collection.document == baseline_document
+    assert env_file.read_text(encoding="utf-8") == "E2B_TEMPLATE=base\n"
+    restored = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert restored["configuration_phase"] == "restored"
+
+
+def test_failed_env_replace_cleans_ignored_unique_temp(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from scripts import create_e2b_template as module
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\nSECRET=value\n", encoding="utf-8")
+    generated: list[Path] = []
+
+    def fail_replace(source: str | Path, destination: str | Path) -> None:
+        del destination
+        generated.append(Path(source))
+        raise RuntimeError("replace failed")
+
+    monkeypatch.setattr(module.os, "replace", fail_replace)
+
+    with pytest.raises(RuntimeError, match="replace failed"):
+        module._write_env_template(env_file, "candidate")
+
+    assert len(generated) == 1
+    assert generated[0].name.startswith(".env.")
+    assert not generated[0].exists()
+    repository_root = Path(__file__).resolve().parents[2]
+    relative_probe = f".env.{generated[0].name.removeprefix('.env.')}"
+    ignored = subprocess.run(
+        ["git", "check-ignore", "--no-index", "--quiet", relative_probe],
+        cwd=repository_root,
+        check=False,
+    )
+    assert ignored.returncode == 0
+
+
+@pytest.mark.asyncio
+async def test_failed_health_recheck_invalidates_prior_success(tmp_path: Path) -> None:
+    from scripts.create_e2b_template import (
+        pin_effective_configuration,
+        promote_manifest,
+        record_health,
+        verify_effective_configuration,
+    )
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\n", encoding="utf-8")
+    collection = _FakeSettingsCollection(
+        {"_id": "E2B_TEMPLATE", "value": "base", "updated_at": "before"}
+    )
+    service = _FakeSettingsService(collection)
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+    await verify_effective_configuration(manifest_path, settings_service=service)
+    await record_health(
+        manifest_path,
+        "http://127.0.0.1:8000/health",
+        http_client=_FakeHttpClient(),
+        settings_service=service,
+    )
+
+    class _FailingHttpClient:
+        async def get(self, url: str) -> object:
+            return SimpleNamespace(status_code=500)
+
+    with pytest.raises(RuntimeError, match="HTTP 500"):
+        await record_health(
+            manifest_path,
+            "http://127.0.0.1:8000/health",
+            http_client=_FailingHttpClient(),
+            settings_service=service,
+        )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert "health_checked_at" not in manifest
+
+    class _RejectUnexpectedPromotion:
+        @staticmethod
+        def assign_tags(*args: object, **kwargs: object) -> object:
+            raise AssertionError("failed latest health must not promote")
+
+    with pytest.raises(RuntimeError, match="rollout evidence does not match"):
+        await promote_manifest(
+            manifest_path,
+            "e2b-secret",
+            settings_service=service,
+            template_api=_RejectUnexpectedPromotion,
+        )
