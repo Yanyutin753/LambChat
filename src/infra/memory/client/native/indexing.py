@@ -63,7 +63,6 @@ async def build_memory_index(backend, user_id: str) -> str:
         "title": 1,
         "index_label": 1,
         "summary": 1,
-        "memory_id": 1,
         "updated_at": 1,
         "memory_type": 1,
         "source": 1,
@@ -117,15 +116,7 @@ async def build_memory_index(backend, user_id: str) -> str:
             display_title = item.get("index_label") or item.get("title") or ""
             if not display_title:
                 display_title = (item.get("summary") or "")[:30]
-            short_id = (item.get("memory_id") or "")[:6]
-            if short_id:
-                lines.append(
-                    f"- {display_title} ({short_id}, {age_str})"
-                    if age_str
-                    else f"- {display_title} ({short_id})"
-                )
-            else:
-                lines.append(f"- {display_title} ({age_str})" if age_str else f"- {display_title}")
+            lines.append(f"- {display_title} ({age_str})" if age_str else f"- {display_title}")
 
     lines.append("\n</memory_index>")
     result = "\n".join(lines)

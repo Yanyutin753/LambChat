@@ -106,3 +106,66 @@ async def test_build_memory_index_orders_string_memory_types_by_configured_prior
     reference_pos = index.index("## [reference]")
 
     assert user_pos < project_pos < reference_pos
+
+
+@pytest.mark.asyncio
+async def test_build_memory_index_omits_internal_ids_but_keeps_age_metadata(monkeypatch):
+    class FakeCursor:
+        def __init__(self, docs):
+            self._docs = docs
+
+        def sort(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args, **_kwargs):
+            return self
+
+        async def to_list(self, length):
+            return self._docs[:length]
+
+    class FakeCollection:
+        def __init__(self, docs):
+            self._docs = docs
+
+        def find(self, *_args, **_kwargs):
+            return FakeCursor(self._docs)
+
+    class FakeBackend:
+        _INDEX_CACHE_MAX_SIZE = 10
+
+        def __init__(self, docs):
+            self._collection = FakeCollection(docs)
+            self._index_cache = {}
+
+    now = datetime(2026, 4, 2, tzinfo=timezone.utc)
+    monkeypatch.setattr("src.infra.memory.client.native.indexing.utc_now", lambda: now)
+    docs = [
+        {
+            "memory_id": "fresh-private-id",
+            "memory_type": "user",
+            "title": "Current preference",
+            "summary": "Current preference",
+            "updated_at": now,
+            "source": "manual",
+            "access_count": 1,
+        },
+        {
+            "memory_id": "stale-private-id",
+            "memory_type": "user",
+            "title": "Older preference",
+            "summary": "Older preference",
+            "updated_at": datetime(2026, 3, 1, tzinfo=timezone.utc),
+            "source": "manual",
+            "access_count": 1,
+        },
+    ]
+
+    index = await build_memory_index(FakeBackend(docs), user_id="u1")
+
+    assert index == (
+        "<memory_index>\n"
+        "\n## [user]\n"
+        "- Current preference\n"
+        "- Older preference (stale:32d)\n"
+        "\n</memory_index>"
+    )
