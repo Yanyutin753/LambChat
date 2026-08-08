@@ -41,6 +41,24 @@ def _reject_oversized_model_batch(count: int) -> None:
         )
 
 
+async def _clear_deleted_compaction_model_reference(
+    model_id: str,
+    model_value: str,
+) -> None:
+    """Clear a native-memory compaction setting that points at a deleted model."""
+    from src.infra.settings.service import get_settings_service
+
+    service = get_settings_service()
+    reference = str(await service.get_raw("NATIVE_MEMORY_COMPACTION_MODEL_ID") or "").strip()
+    if reference not in {model_id, model_value}:
+        return
+    await service.set(
+        "NATIVE_MEMORY_COMPACTION_MODEL_ID",
+        "",
+        "system:model-delete",
+    )
+
+
 # ============================================
 # CRUD 接口
 # ============================================
@@ -271,6 +289,8 @@ async def delete_model(
     affected = await agent_storage.remove_model_from_all_roles(model_id)
     if affected:
         logger.info(f"[Model] Removed deleted model '{model_id}' from {affected} role(s)")
+
+    await _clear_deleted_compaction_model_reference(model_id, model_value)
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache
