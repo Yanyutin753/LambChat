@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any, ClassVar, Sequence
@@ -100,6 +101,26 @@ class _RecordingManager:
         return CompositeBackend(default=self.sandbox, routes={}), self.sandbox.work_dir
 
 
+class _GatedRecordingManager(_RecordingManager):
+    def __init__(self, sandbox: _RecordingSandbox) -> None:
+        super().__init__(sandbox)
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        self.completed = asyncio.Event()
+
+    async def get_or_create(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+    ) -> tuple[CompositeBackend, str]:
+        self.calls.append((session_id, user_id))
+        self.entered.set()
+        await self.release.wait()
+        self.completed.set()
+        return CompositeBackend(default=self.sandbox, routes={}), self.sandbox.work_dir
+
+
 class _RouteBackend:
     def __init__(self) -> None:
         self.writes: list[tuple[str, str]] = []
@@ -136,6 +157,8 @@ class _ScriptedChatModel(BaseChatModel):
     def _next_message(self, messages: list[BaseMessage]) -> AIMessage:
         type(self).call_count += 1
         type(self).calls.append([(message.type, str(message.content)) for message in messages])
+        if self.mode == "raise":
+            raise RuntimeError("scripted model failure")
         if self.mode == "model-only":
             return AIMessage(content="model-only final")
         if self.mode == "write-file":
@@ -606,6 +629,101 @@ async def test_search_stream_first_write_initializes_after_pre_tool_content_once
     assert events_timeline.index("manager:requested") < events_timeline.index("sandbox:ready")
     assert manager.calls == [("session-1", "user-1")]
     assert manager.sandbox.write_calls == [("/provider/session-1/result.tmp", "result")]
+
+
+@pytest.mark.asyncio
+async def test_search_stream_model_exception_closes_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timeline: list[str] = []
+
+    def manager_factory() -> _RecordingManager:
+        raise AssertionError("model failure must not obtain the sandbox manager")
+
+    model = _ScriptedChatModel(mode="raise")
+    model.reset()
+    _patch_graph_dependencies(
+        monkeypatch,
+        model=model,
+        manager_factory=manager_factory,
+        timeline=timeline,
+    )
+    presenter = _TimelinePresenter(timeline)
+    agent = SearchAgent()
+    events: list[dict[str, Any]] = []
+
+    with pytest.raises(RuntimeError, match="scripted model failure"):
+        async for event in agent._stream(
+            "fail before using a tool",
+            "session-1",
+            user_id="user-1",
+            presenter=presenter,
+            agent_options={
+                "_resolved_fallback_model": None,
+                "_resolved_supports_vision": False,
+                "_resolved_image_url_to_base64": False,
+            },
+        ):
+            events.append(event)
+            timeline.append(f"yield:{event['event']}")
+
+    assert any(event["event"] == "error" for event in events)
+    assert not any(event["event"] == "done" for event in events)
+    assert not any(item.startswith("sandbox:") for item in timeline)
+    assert "context:closing:pending" in timeline
+    assert timeline.count("context:closed") == 1
+
+
+@pytest.mark.asyncio
+async def test_search_stream_cancellation_during_first_initialization_closes_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timeline: list[str] = []
+    manager = _GatedRecordingManager(_RecordingSandbox())
+    model = _ScriptedChatModel(mode="write-file")
+    model.reset()
+    _patch_graph_dependencies(
+        monkeypatch,
+        model=model,
+        manager_factory=lambda: manager,
+        timeline=timeline,
+    )
+    presenter = _TimelinePresenter(timeline)
+    agent = SearchAgent()
+
+    async def consume_stream() -> None:
+        async for event in agent._stream(
+            "write a file",
+            "session-1",
+            user_id="user-1",
+            presenter=presenter,
+            agent_options={
+                "_resolved_fallback_model": None,
+                "_resolved_supports_vision": False,
+                "_resolved_image_url_to_base64": False,
+            },
+        ):
+            timeline.append(f"yield:{event['event']}")
+
+    stream_task = asyncio.create_task(consume_stream())
+    await asyncio.wait_for(manager.entered.wait(), timeout=2)
+    stream_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(stream_task, timeout=2)
+
+    assert timeline.count("sandbox:starting") == 1
+    assert "sandbox:ready" not in timeline
+    assert "context:closing:pending" in timeline
+    assert timeline.count("context:closed") == 1
+
+    manager.release.set()
+    await asyncio.wait_for(manager.completed.wait(), timeout=2)
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert "sandbox:ready" not in timeline
+    assert not any(item.startswith("sandbox:error") for item in timeline)
+    assert manager.calls == [("session-1", "user-1")]
 
 
 @pytest.mark.asyncio
