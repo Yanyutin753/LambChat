@@ -1002,6 +1002,47 @@ async def test_concurrent_operation_waits_for_ready_event_attempt_to_complete() 
 
 
 @pytest.mark.asyncio
+async def test_sync_operation_is_rejected_until_ready_event_attempt_finishes() -> None:
+    ready_entered = asyncio.Event()
+    release_ready = asyncio.Event()
+
+    class _GatedReadyPresenter(_Presenter):
+        async def emit_sandbox_ready(self, sandbox_id: str, work_dir: str) -> dict[str, Any]:
+            self.attempts.append(("ready", sandbox_id, work_dir))
+            ready_entered.set()
+            await release_ready.wait()
+            return {}
+
+    actual = "/remote/home/sessions/session-1"
+    provider = _RecordingSandbox(work_dir=actual)
+    backend = _lazy(_Manager(provider), presenter=_GatedReadyPresenter())
+
+    initialization = asyncio.create_task(backend.awrite("first.txt", "first"))
+    await ready_entered.wait()
+
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match="Lazy sandbox is not initialized; use async operations first",
+        ):
+            backend.execute("printf too-early")
+        assert provider.commands == []
+    finally:
+        release_ready.set()
+        result = await initialization
+
+    assert result.path == "/workspace/session-1/first.txt"
+    assert backend.execute("printf ready") == ExecuteResponse(
+        output="complete output",
+        exit_code=7,
+        truncated=True,
+    )
+    assert provider.commands == [
+        (f"export LAMBCHAT_WORKSPACE={actual}; printf ready", None, actual)
+    ]
+
+
+@pytest.mark.asyncio
 async def test_provider_failure_attempts_public_error_after_starting_event_failure() -> None:
     provider_error = RuntimeError("provider failed with private details")
     provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")

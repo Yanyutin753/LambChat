@@ -544,13 +544,13 @@ class LazySandboxBackend(BaseSandbox):
             ):
                 raise ValueError("sandbox manager returned an invalid work directory")
 
-            self._delegate = delegate
-            self._actual_work_dir = actual_work_dir
-            self.enable_capture_offload = delegate.enable_capture_offload
             await self._attempt_event(
                 "ready",
                 lambda: self._presenter.emit_sandbox_ready(delegate.id, actual_work_dir),
             )
+            self._delegate = delegate
+            self._actual_work_dir = actual_work_dir
+            self.enable_capture_offload = delegate.enable_capture_offload
             self._log_timing(
                 "ready",
                 time.perf_counter() - initialization_started_at,
