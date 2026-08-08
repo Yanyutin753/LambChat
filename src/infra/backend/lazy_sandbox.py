@@ -580,12 +580,17 @@ class LazySandboxBackend(BaseSandbox):
             task.exception()
 
     async def aclose(self) -> None:
-        async with self._lock:
-            self._closed = True
-            self._suppress_events = True
+        await self._close_after_event_barrier(cancelled_waiter=False)
 
+    async def _close_after_event_barrier(self, *, cancelled_waiter: bool) -> None:
         async with self._event_lock:
-            pass
+            async with self._lock:
+                if cancelled_waiter:
+                    self._waiters -= 1
+                    if self._waiters != 0:
+                        return
+                self._closed = True
+                self._suppress_events = True
 
     async def _acquire_initialization_task(self) -> asyncio.Task[BaseSandbox]:
         async with self._lock:
@@ -600,17 +605,12 @@ class LazySandboxBackend(BaseSandbox):
             return self._initialization_task
 
     async def _release_initialization_waiter(self, *, cancelled: bool) -> None:
-        abandoned = False
+        if cancelled:
+            await self._close_after_event_barrier(cancelled_waiter=True)
+            return
+
         async with self._lock:
             self._waiters -= 1
-            if cancelled and self._waiters == 0:
-                self._closed = True
-                self._suppress_events = True
-                abandoned = True
-
-        if abandoned:
-            async with self._event_lock:
-                pass
 
     async def _complete_initialization_waiter(self) -> bool:
         async with self._lock:

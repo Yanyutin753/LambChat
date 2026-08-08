@@ -960,12 +960,66 @@ async def test_cancelling_one_initialization_waiter_keeps_shared_creation_alive(
 
 
 @pytest.mark.asyncio
+async def test_cancelling_sole_waiter_rechecks_waiters_after_event_barrier() -> None:
+    manager_entered = asyncio.Event()
+    release_manager = asyncio.Event()
+    event_entered = asyncio.Event()
+    release_event = asyncio.Event()
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    manager = _Manager(provider, entered=manager_entered, release=release_manager)
+    presenter = _Presenter()
+    backend = _lazy(manager, presenter=presenter)
+
+    async def gated_event() -> None:
+        event_entered.set()
+        await release_event.wait()
+
+    cancelled = asyncio.create_task(backend.awrite("cancelled.txt", "cancelled"))
+    await manager_entered.wait()
+    inflight_event = asyncio.create_task(
+        backend._attempt_event("gated", gated_event)  # noqa: SLF001
+    )
+    await event_entered.wait()
+
+    cancelled.cancel()
+    await asyncio.sleep(0)
+    surviving = asyncio.create_task(backend.awrite("surviving.txt", "surviving"))
+    await asyncio.sleep(0)
+
+    assert not cancelled.done()
+    assert not surviving.done()
+    assert manager.calls == [("session-1", "user-1")]
+
+    release_event.set()
+    await inflight_event
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled
+    release_manager.set()
+
+    result = await surviving
+
+    assert result.path == "/workspace/session-1/surviving.txt"
+    assert manager.calls == [("session-1", "user-1")]
+    assert provider.write_calls == [("/remote/home/sessions/session-1/surviving.txt", "surviving")]
+    assert presenter.attempts == [
+        ("starting",),
+        (
+            "ready",
+            "provider-sandbox-1",
+            "/remote/home/sessions/session-1",
+        ),
+    ]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("manager_failure", [None, RuntimeError("provider failed")])
 async def test_cancelling_sole_waiter_abandons_wrapper_and_consumes_manager_outcome(
     manager_failure: Exception | None,
 ) -> None:
     entered = asyncio.Event()
     release = asyncio.Event()
+    event_entered = asyncio.Event()
+    release_event = asyncio.Event()
     provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
     manager = _Manager(
         provider,
@@ -980,10 +1034,23 @@ async def test_cancelling_sole_waiter_abandons_wrapper_and_consumes_manager_outc
     previous_exception_handler = loop.get_exception_handler()
     loop.set_exception_handler(lambda _loop, context: unobserved_contexts.append(context))
 
+    async def gated_event() -> None:
+        event_entered.set()
+        await release_event.wait()
+
     try:
         operation = asyncio.create_task(backend.awrite("cancelled.txt", "cancelled"))
         await entered.wait()
+        inflight_event = asyncio.create_task(
+            backend._attempt_event("gated", gated_event)  # noqa: SLF001
+        )
+        await event_entered.wait()
         operation.cancel()
+        await asyncio.sleep(0)
+        assert not operation.done()
+
+        release_event.set()
+        await inflight_event
         with pytest.raises(asyncio.CancelledError):
             await operation
 
@@ -1003,7 +1070,7 @@ async def test_cancelling_sole_waiter_abandons_wrapper_and_consumes_manager_outc
         assert provider.write_calls == []
         assert presenter.attempts == [("starting",)]
 
-        del initialization_task, operation, backend
+        del initialization_task, inflight_event, operation, backend
         gc.collect()
         await asyncio.sleep(0)
         assert unobserved_contexts == []
@@ -1054,34 +1121,51 @@ async def test_aclose_during_initialization_returns_without_waiting_for_manager(
 
 @pytest.mark.asyncio
 async def test_aclose_serializes_inflight_event_and_suppresses_event_queued_behind_it() -> None:
-    starting_entered = asyncio.Event()
-    release_starting = asyncio.Event()
-
-    class _GatedStartingPresenter(_Presenter):
-        async def emit_sandbox_starting(self) -> dict[str, Any]:
-            self.attempts.append(("starting",))
-            starting_entered.set()
-            await release_starting.wait()
-            return {}
-
+    event_entered = asyncio.Event()
+    release_event = asyncio.Event()
+    event_attempts: list[str] = []
     provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
-    manager = _Manager(provider, failure=RuntimeError("manager failed"))
-    presenter = _GatedStartingPresenter()
-    backend = _lazy(manager, presenter=presenter)
+    backend = _lazy(_Manager(provider))
+    await backend.awrite("before-close.txt", "before")
 
-    operation = asyncio.create_task(backend.awrite("waiting.txt", "waiting"))
-    await starting_entered.wait()
+    async def gated_event() -> None:
+        event_attempts.append("inflight-started")
+        event_entered.set()
+        await release_event.wait()
+        event_attempts.append("inflight-finished")
+
+    async def queued_event() -> None:
+        event_attempts.append("queued-emitted")
+
+    inflight_event = asyncio.create_task(
+        backend._attempt_event("gated", gated_event)  # noqa: SLF001
+    )
+    await event_entered.wait()
     close_task = asyncio.create_task(backend.aclose())
     await asyncio.sleep(0)
 
     assert not close_task.done()
-    release_starting.set()
-    await close_task
-    with pytest.raises(SandboxInitializationError):
-        await operation
+    during_close = await backend.awrite("during-close.txt", "during")
+    queued_event_task = asyncio.create_task(
+        backend._attempt_event("queued", queued_event)  # noqa: SLF001
+    )
     await asyncio.sleep(0)
 
-    assert presenter.attempts == [("starting",)]
+    assert during_close.path == "/workspace/session-1/during-close.txt"
+    assert not queued_event_task.done()
+
+    release_event.set()
+    await inflight_event
+    await close_task
+    await queued_event_task
+    with pytest.raises(RuntimeError, match="Lazy sandbox is closed"):
+        await backend.awrite("after-close.txt", "after")
+
+    assert event_attempts == ["inflight-started", "inflight-finished"]
+    assert provider.write_calls == [
+        ("/remote/home/sessions/session-1/before-close.txt", "before"),
+        ("/remote/home/sessions/session-1/during-close.txt", "during"),
+    ]
 
 
 @pytest.mark.asyncio
