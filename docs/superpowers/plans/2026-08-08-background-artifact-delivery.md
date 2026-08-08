@@ -12,7 +12,7 @@
 
 - Automatic work for `execute`, `write_file`, `edit_file`, and `upload_url_to_sandbox` must not delay the originating tool result.
 - Explicit `reveal_file` and `reveal_project` remain foreground operations.
-- Reveal/upload concurrency is exactly four operations per middleware instance.
+- Reveal/upload concurrency is exactly four operations per active Agent invocation.
 - Terminal drain timeout is exactly three seconds.
 - No artifact task may emit after terminal drain returns.
 - Existing artifact payloads, filters, descriptions, priorities, changed-file cap, and middleware registration remain unchanged.
@@ -26,7 +26,7 @@
 - Modify `tests/infra/agent/test_artifact_delivery_middleware.py`: add behavioral regressions for non-blocking tools, concurrency, deduplication, failure isolation, and cancellation; update existing timing assumptions.
 - Reference only `docs/superpowers/specs/2026-08-08-background-artifact-delivery-design.md`: approved behavior and non-goals.
 
-No new production module is needed: the coordination state is private to one middleware instance and tightly coupled to its artifact map and reveal methods.
+No new production module is needed: the middleware keeps a private coordinator for each active Agent invocation, keyed by the invocation's stable LangGraph stream writer.
 
 ---
 
@@ -156,7 +156,7 @@ Expected: all three cases fail with `TimeoutError` because current code waits fo
 
 - [ ] **Step 3: Add tracked task state and direct delivery scheduling**
 
-Import `asyncio` and `contextlib`, add constants, and initialize per-instance state:
+Import `asyncio` and `contextlib`, add constants, and initialize invocation-scoped state:
 
 ```python
 _ARTIFACT_DELIVERY_CONCURRENCY = 4

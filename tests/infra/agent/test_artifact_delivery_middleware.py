@@ -427,6 +427,311 @@ async def test_artifact_delivery_skips_already_revealed_path() -> None:
 
 
 @pytest.mark.asyncio
+async def test_explicit_reveal_cancels_inflight_auto_delivery_for_same_path() -> None:
+    auto_reveal_started = asyncio.Event()
+    auto_reveal_cancelled = asyncio.Event()
+    release_auto_reveal = asyncio.Event()
+    explicit_reveal_started = asyncio.Event()
+    release_explicit_reveal = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def blocked_auto_reveal(**kwargs):
+        assert kwargs["file_path"] == "/workspace/chart.png"
+        auto_reveal_started.set()
+        try:
+            await release_auto_reveal.wait()
+        except asyncio.CancelledError:
+            auto_reveal_cancelled.set()
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=blocked_auto_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def write_handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {"file_path": "/workspace/chart.png", "content": "png"},
+            },
+            runtime=runtime,
+        ),
+        write_handler,
+    )
+    await asyncio.wait_for(auto_reveal_started.wait(), timeout=1.0)
+
+    async def reveal_handler(_request):
+        explicit_reveal_started.set()
+        await release_explicit_reveal.wait()
+        return ToolMessage(
+            content=json.dumps(
+                {
+                    "key": "revealed/chart.png",
+                    "url": "/api/upload/file/revealed/chart.png",
+                    "name": "chart.png",
+                    "_meta": {"path": "/workspace/chart.png"},
+                }
+            ),
+            tool_call_id="reveal-1",
+            name="reveal_file",
+        )
+
+    explicit_reveal_task = asyncio.create_task(
+        middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={
+                    "name": "reveal_file",
+                    "id": "reveal-1",
+                    "args": {"file_path": "/workspace/chart.png"},
+                },
+                runtime=runtime,
+            ),
+            reveal_handler,
+        )
+    )
+    await asyncio.wait_for(explicit_reveal_started.wait(), timeout=1.0)
+    await asyncio.wait_for(auto_reveal_cancelled.wait(), timeout=1.0)
+    await asyncio.sleep(0)
+    assert presenter.events == []
+
+    release_auto_reveal.set()
+    release_explicit_reveal.set()
+    await explicit_reveal_task
+    await middleware.aafter_agent({"messages": []}, runtime)
+
+    assert auto_reveal_cancelled.is_set()
+    assert presenter.events == []
+
+
+@pytest.mark.asyncio
+async def test_failed_explicit_reveal_keeps_inflight_auto_delivery() -> None:
+    auto_reveal_started = asyncio.Event()
+    auto_reveal_cancelled = asyncio.Event()
+    release_auto_reveal = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def blocked_auto_reveal(**kwargs):
+        auto_reveal_started.set()
+        try:
+            await release_auto_reveal.wait()
+        except asyncio.CancelledError:
+            auto_reveal_cancelled.set()
+            raise
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=blocked_auto_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def write_handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {"file_path": "/workspace/chart.png", "content": "png"},
+            },
+            runtime=runtime,
+        ),
+        write_handler,
+    )
+    await asyncio.wait_for(auto_reveal_started.wait(), timeout=1.0)
+
+    async def failed_reveal_handler(_request):
+        return ToolMessage(
+            content=json.dumps({"success": False, "error": "storage offline"}),
+            tool_call_id="reveal-1",
+            name="reveal_file",
+            status="error",
+        )
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "reveal_file",
+                "id": "reveal-1",
+                "args": {"file_path": "/workspace/chart.png"},
+            },
+            runtime=runtime,
+        ),
+        failed_reveal_handler,
+    )
+
+    release_auto_reveal.set()
+    await middleware.aafter_agent({"messages": []}, runtime)
+
+    assert auto_reveal_cancelled.is_set()
+    assert [event["event"] for event in presenter.events] == ["artifact:result"]
+
+
+@pytest.mark.asyncio
+async def test_failed_parallel_explicit_reveal_does_not_resume_auto_before_peer_finishes() -> None:
+    auto_reveal_started = asyncio.Event()
+    auto_reveal_cancelled = asyncio.Event()
+    release_cancelled_auto = asyncio.Event()
+    successful_explicit_started = asyncio.Event()
+    release_successful_explicit = asyncio.Event()
+    auto_calls = 0
+    presenter = RecordingPresenter()
+
+    async def cancellation_resistant_auto_reveal(**kwargs):
+        nonlocal auto_calls
+        auto_calls += 1
+        auto_reveal_started.set()
+        if auto_calls == 1:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                auto_reveal_cancelled.set()
+                await release_cancelled_auto.wait()
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=cancellation_resistant_auto_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+    tool_call = {
+        "name": "reveal_file",
+        "args": {"file_path": "/workspace/chart.png"},
+    }
+
+    async def write_handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {"file_path": "/workspace/chart.png", "content": "png"},
+            },
+            runtime=runtime,
+        ),
+        write_handler,
+    )
+    await asyncio.wait_for(auto_reveal_started.wait(), timeout=1.0)
+
+    async def successful_reveal_handler(_request):
+        successful_explicit_started.set()
+        await release_successful_explicit.wait()
+        return ToolMessage(
+            content=json.dumps({"_meta": {"path": "/workspace/chart.png"}}),
+            tool_call_id="reveal-success",
+            name="reveal_file",
+        )
+
+    successful_task = asyncio.create_task(
+        middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={**tool_call, "id": "reveal-success"},
+                runtime=runtime,
+            ),
+            successful_reveal_handler,
+        )
+    )
+    await asyncio.wait_for(successful_explicit_started.wait(), timeout=1.0)
+    await asyncio.wait_for(auto_reveal_cancelled.wait(), timeout=1.0)
+
+    async def failed_reveal_handler(_request):
+        return ToolMessage(
+            content=json.dumps({"success": False, "error": "storage offline"}),
+            tool_call_id="reveal-failed",
+            name="reveal_file",
+            status="error",
+        )
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={**tool_call, "id": "reveal-failed"},
+            runtime=runtime,
+        ),
+        failed_reveal_handler,
+    )
+    release_cancelled_auto.set()
+    await asyncio.sleep(0.05)
+
+    assert auto_calls == 1
+    assert presenter.events == []
+
+    release_successful_explicit.set()
+    await successful_task
+    await middleware.aafter_agent({"messages": []}, runtime)
+    assert presenter.events == []
+
+
+@pytest.mark.asyncio
+async def test_cancelled_explicit_reveal_does_not_restart_auto_delivery() -> None:
+    auto_reveal_started = asyncio.Event()
+    auto_reveal_cancelled = asyncio.Event()
+    release_cancelled_auto = asyncio.Event()
+    explicit_reveal_started = asyncio.Event()
+    auto_calls = 0
+    presenter = RecordingPresenter()
+
+    async def auto_reveal(**kwargs):
+        nonlocal auto_calls
+        auto_calls += 1
+        auto_reveal_started.set()
+        if auto_calls == 1:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                auto_reveal_cancelled.set()
+                await release_cancelled_auto.wait()
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=auto_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def write_handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {"file_path": "/workspace/chart.png", "content": "png"},
+            },
+            runtime=runtime,
+        ),
+        write_handler,
+    )
+    await asyncio.wait_for(auto_reveal_started.wait(), timeout=1.0)
+
+    async def blocked_explicit_handler(_request):
+        explicit_reveal_started.set()
+        await asyncio.Event().wait()
+
+    explicit_task = asyncio.create_task(
+        middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={
+                    "name": "reveal_file",
+                    "id": "reveal-1",
+                    "args": {"file_path": "/workspace/chart.png"},
+                },
+                runtime=runtime,
+            ),
+            blocked_explicit_handler,
+        )
+    )
+    await asyncio.wait_for(explicit_reveal_started.wait(), timeout=1.0)
+    await asyncio.wait_for(auto_reveal_cancelled.wait(), timeout=1.0)
+
+    explicit_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await explicit_task
+    release_cancelled_auto.set()
+    await asyncio.sleep(0.05)
+
+    assert auto_calls == 1
+    assert presenter.events == []
+
+
+@pytest.mark.asyncio
 async def test_artifact_delivery_deduplicates_external_url_after_direct_reveal() -> None:
     reveal_calls: list[dict] = []
     external_url = "https://cdn.example.com/assets/image.png"
@@ -1192,6 +1497,7 @@ async def test_same_path_write_coalesces_to_one_delivery_worker() -> None:
 
     assert calls == ["/workspace/report.md", "/workspace/report.md"]
     assert max_active == 1
+    assert [event["event"] for event in presenter.events] == ["artifact:result"]
 
 
 @pytest.mark.asyncio
@@ -1237,6 +1543,203 @@ async def test_terminal_drain_cancels_work_before_done(monkeypatch) -> None:
     never_release.set()
     await asyncio.sleep(0)
     assert presenter.events == []
+
+
+@pytest.mark.asyncio
+async def test_terminal_drain_is_bounded_when_background_work_suppresses_cancellation(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(artifact_delivery, "_ARTIFACT_BACKGROUND_DRAIN_TIMEOUT", 0.01)
+    reveal_started = asyncio.Event()
+    reveal_cancelled = asyncio.Event()
+    release_reveal = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def cancellation_resistant_reveal(**kwargs):
+        reveal_started.set()
+        try:
+            await release_reveal.wait()
+        except asyncio.CancelledError:
+            reveal_cancelled.set()
+            await release_reveal.wait()
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=cancellation_resistant_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {"file_path": "/workspace/slow.pdf", "content": "pdf"},
+            },
+            runtime=runtime,
+        ),
+        handler,
+    )
+    await asyncio.wait_for(reveal_started.wait(), timeout=1.0)
+
+    drain_task = asyncio.create_task(middleware.aafter_agent({"messages": []}, runtime))
+    await asyncio.sleep(0.1)
+    assert drain_task.done()
+    assert reveal_cancelled.is_set()
+
+    release_reveal.set()
+    await drain_task
+    await asyncio.sleep(0)
+    assert presenter.events == []
+
+
+@pytest.mark.asyncio
+async def test_cancelling_agent_drain_cancels_background_delivery() -> None:
+    reveal_started = asyncio.Event()
+    reveal_cancelled = asyncio.Event()
+    never_release = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def blocked_reveal(**_kwargs):
+        reveal_started.set()
+        try:
+            await never_release.wait()
+        except asyncio.CancelledError:
+            reveal_cancelled.set()
+            raise
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=blocked_reveal)
+    runtime = SimpleNamespace(
+        stream_writer=object(),
+        config={"configurable": {"presenter": presenter}},
+    )
+
+    async def handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {"file_path": "/workspace/slow.pdf", "content": "pdf"},
+            },
+            runtime=runtime,
+        ),
+        handler,
+    )
+    await asyncio.wait_for(reveal_started.wait(), timeout=1.0)
+
+    drain_task = asyncio.create_task(middleware.aafter_agent({"messages": []}, runtime))
+    await asyncio.sleep(0)
+    drain_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await drain_task
+
+    assert reveal_cancelled.is_set()
+    assert presenter.events == []
+
+
+@pytest.mark.asyncio
+async def test_middleware_can_be_reused_for_sequential_agent_runs() -> None:
+    reveal_paths: list[str] = []
+
+    async def reveal_file(**kwargs):
+        reveal_paths.append(kwargs["file_path"])
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=reveal_file)
+
+    for index in range(2):
+        runtime = SimpleNamespace(stream_writer=object(), config={})
+        await middleware.abefore_agent({"messages": []}, runtime)
+
+        async def handler(_request):
+            return ToolMessage(
+                content="ok",
+                tool_call_id=f"write-{index}",
+                name="write_file",
+            )
+
+        await middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={
+                    "name": "write_file",
+                    "id": f"write-{index}",
+                    "args": {
+                        "file_path": f"/workspace/report-{index}.pdf",
+                        "content": "pdf",
+                    },
+                },
+                runtime=runtime,
+            ),
+            handler,
+        )
+        await middleware.aafter_agent({"messages": []}, runtime)
+
+    assert reveal_paths == ["/workspace/report-0.pdf", "/workspace/report-1.pdf"]
+
+
+@pytest.mark.asyncio
+async def test_parallel_agent_runs_do_not_cancel_each_others_background_work(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(artifact_delivery, "_ARTIFACT_BACKGROUND_DRAIN_TIMEOUT", 0.01)
+    started = {"a": asyncio.Event(), "b": asyncio.Event()}
+    cancelled: set[str] = set()
+    release = {"a": asyncio.Event(), "b": asyncio.Event()}
+    presenters = {"a": RecordingPresenter(), "b": RecordingPresenter()}
+
+    async def reveal_file(**kwargs):
+        name = kwargs["file_path"].rsplit("/", 1)[-1].split(".", 1)[0]
+        started[name].set()
+        try:
+            await release[name].wait()
+        except asyncio.CancelledError:
+            cancelled.add(name)
+            raise
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=reveal_file)
+    runtimes = {
+        name: SimpleNamespace(
+            stream_writer=object(),
+            config={"configurable": {"presenter": presenters[name]}},
+        )
+        for name in ("a", "b")
+    }
+
+    async def write(name: str) -> None:
+        runtime = runtimes[name]
+        await middleware.abefore_agent({"messages": []}, runtime)
+
+        async def handler(_request):
+            return ToolMessage(content="ok", tool_call_id=f"write-{name}", name="write_file")
+
+        await middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={
+                    "name": "write_file",
+                    "id": f"write-{name}",
+                    "args": {"file_path": f"/workspace/{name}.pdf", "content": "pdf"},
+                },
+                runtime=runtime,
+            ),
+            handler,
+        )
+
+    await asyncio.gather(write("a"), write("b"))
+    await asyncio.gather(*(event.wait() for event in started.values()))
+
+    await middleware.aafter_agent({"messages": []}, runtimes["a"])
+    assert cancelled == {"a"}
+
+    release["b"].set()
+    await middleware.aafter_agent({"messages": []}, runtimes["b"])
+    assert cancelled == {"a"}
+    assert presenters["a"].events == []
+    assert [event["event"] for event in presenters["b"].events] == ["artifact:result"]
 
 
 @pytest.mark.asyncio

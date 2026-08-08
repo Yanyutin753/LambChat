@@ -32,11 +32,11 @@ The change covers all automatic artifact paths owned by `ArtifactDeliveryMiddlew
 - delivery of multiple pending artifacts;
 - task failure, cancellation, deduplication, and terminal draining.
 
-Explicit `reveal_file` and `reveal_project` calls remain foreground operations. Their returned URL or project payload is the requested tool result and may be needed by the next model step. Correctness-sensitive transformations in other middleware are also out of scope.
+Explicit `reveal_file` and `reveal_project` calls remain foreground operations. On entry they suppress and cancel automatic delivery for the same normalized path, preventing the background worker from winning the race while the explicit call is still running. A failed explicit reveal removes that suppression and resumes automatic delivery as a fallback; a cancelled explicit reveal keeps a suppression tombstone until run cleanup so stale work cannot restart after cancellation. Their returned URL or project payload is the requested tool result and may be needed by the next model step. Correctness-sensitive transformations in other middleware are also out of scope.
 
 ## Chosen Architecture
 
-Add a private, per-middleware background coordinator dedicated to artifact work. A coordinator belongs to one `ArtifactDeliveryMiddleware` instance, so main-Agent and subagent runs do not share limits, queues, mutable artifact state, or failure budgets.
+Add a private background coordinator for each active Agent invocation. One compiled `ArtifactDeliveryMiddleware` instance may be reused by sequential or parallel subagent calls, so it uses the invocation's LangGraph stream writer as the run identity; queues, limits, mutable artifact state, snapshots, and cancellation never cross invocation boundaries.
 
 The coordinator owns:
 
