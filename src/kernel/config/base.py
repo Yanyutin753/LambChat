@@ -107,6 +107,12 @@ class Settings(BaseSettings):
     MCP_SERVER_LOAD_CONCURRENCY: int = 4
     MCP_EFFECTIVE_CONFIG_MAX_SERVERS: int = 100
     MCP_EFFECTIVE_CONFIG_MAX_TOOLS: int = 200
+    TAVILY_USAGE_API_KEY: str = ""
+    TAVILY_USAGE_PROJECT_ID: str = ""
+    TAVILY_USAGE_POLL_SECONDS: int = 600
+    TAVILY_USAGE_HTTP_TIMEOUT_SECONDS: float = 5.0
+    TAVILY_USAGE_WARNING_RATIO: float = 0.80
+    TAVILY_USAGE_CRITICAL_RATIO: float = 0.95
     MCP_ENCRYPTION_SALT: Optional[str] = None  # 默认随机生成，确保加密一致性
     MCP_ENCRYPTION_DISABLE_LEGACY: bool = (
         False  # True=禁用旧 SHA256 密钥回退解密；迁移完成后由管理员手动开启
