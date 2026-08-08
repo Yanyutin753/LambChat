@@ -767,20 +767,17 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         )
         if s
     ]
-    if sandbox_backend and sandbox_work_dir:
-        _prompt_sections.append(SEARCH_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     active_goal = configurable.get("active_goal")
     goal_section = build_goal_prompt_section(active_goal)
     if goal_section:
         _prompt_sections.append(goal_section)
     if configurable.get("auto_mode"):
         _prompt_sections.append(AUTO_MODE_PROMPT_SECTION)
+    if sandbox_backend and sandbox_work_dir:
+        _prompt_sections.append(SEARCH_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if sandbox_backend:
-        user_middleware.append(
-            SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
-        )
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
@@ -795,6 +792,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 deferred_manager=context.deferred_manager,
                 search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
             )
+        )
+    if sandbox_backend:
+        user_middleware.append(
+            SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
         )
 
     rubric_middleware = create_goal_rubric_middleware(

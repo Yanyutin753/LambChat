@@ -27,6 +27,7 @@ from src.agents.core.node_utils import (
 )
 from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.subagent_prompts import (
+    AUTO_MODE_PROMPT_SECTION,
     CODEBASE_INVESTIGATOR_PROMPT,
     IMPLEMENTATION_WORKER_PROMPT,
     MAIN_AGENT_PROMPT_SECTIONS,
@@ -295,6 +296,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     goal_section = build_goal_prompt_section(active_goal)
     if goal_section:
         _prompt_sections.append(goal_section)
+    if configurable.get("auto_mode"):
+        _prompt_sections.append(AUTO_MODE_PROMPT_SECTION)
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:

@@ -294,23 +294,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
         if s
     ]
-    # Sandbox runtime is user/session-specific; keep it after global-stable blocks.
-    if sandbox_backend:
-        if sandbox_work_dir:
-            _prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     active_goal = configurable.get("active_goal")
     goal_section = build_goal_prompt_section(active_goal)
     if goal_section:
         _prompt_sections.append(goal_section)
     if configurable.get("auto_mode"):
         _prompt_sections.append(AUTO_MODE_PROMPT_SECTION)
+    if sandbox_backend and sandbox_work_dir:
+        _prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
-    # Sandbox tool/env prompts are user/session-specific and are appended after static sections.
+    # Dynamic prompt order: env names → memory hints → deferred tools → sandbox inventory.
     if sandbox_backend:
-        user_middleware.append(
-            SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
-        )
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
@@ -328,6 +323,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             )
         )
         logger.info("[SearchAgent] Tool search middleware enabled (deferred MCP loading)")
+    if sandbox_backend:
+        user_middleware.append(
+            SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
+        )
 
     user_middleware.extend(create_code_interpreter_middleware(agent_options))
     rubric_middleware = create_goal_rubric_middleware(
