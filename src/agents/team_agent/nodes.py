@@ -44,12 +44,12 @@ from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT as SEARCH_DEFAULT_SYSTEM_PROMPT,
 )
 from src.agents.search_agent.prompt import (
-    SANDBOX_RUNTIME_SECTION as SEARCH_SANDBOX_RUNTIME_SECTION,
-)
-from src.agents.search_agent.prompt import (
     SANDBOX_SYSTEM_PROMPT as SEARCH_SANDBOX_SYSTEM_PROMPT,
 )
 from src.agents.team_agent.context import TeamAgentContext
+from src.agents.team_agent.prompt import (
+    SANDBOX_RUNTIME_SECTION as TEAM_SANDBOX_RUNTIME_SECTION,
+)
 from src.agents.team_agent.prompt import (
     build_team_member_subagent_type,
     build_team_router_system_prompt,
@@ -553,7 +553,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     subagent_display_names: dict[str, str] = {}
     subagent_avatars: dict[str, str] = {}
     subagent_runtime_section = (
-        SEARCH_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
+        TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
         if sandbox_backend and sandbox_work_dir
         else None
     )
@@ -773,7 +773,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     if configurable.get("auto_mode"):
         _prompt_sections.append(AUTO_MODE_PROMPT_SECTION)
     if sandbox_backend and sandbox_work_dir:
-        _prompt_sections.append(SEARCH_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
+        _prompt_sections.append(TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if sandbox_backend:

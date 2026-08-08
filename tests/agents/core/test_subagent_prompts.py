@@ -1,5 +1,6 @@
 from src.agents.core.prompt_policy import (
     ARTIFACT_POLICY,
+    LAZY_SANDBOX_RUNTIME_POLICY,
     PERSISTENT_STORAGE_POLICY,
     SANDBOX_RUNTIME_POLICY,
     SANDBOX_STORAGE_POLICY,
@@ -22,6 +23,9 @@ from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT,
     SANDBOX_RUNTIME_SECTION,
     SANDBOX_SYSTEM_PROMPT,
+)
+from src.agents.team_agent.prompt import (
+    SANDBOX_RUNTIME_SECTION as TEAM_SANDBOX_RUNTIME_SECTION,
 )
 from src.agents.team_agent.prompt import (
     SANDBOX_SYSTEM_PROMPT as TEAM_SANDBOX_SYSTEM_PROMPT,
@@ -84,10 +88,47 @@ def test_main_prompts_compose_storage_and_canonical_workflow_once() -> None:
 def test_sandbox_storage_is_shared_and_runtime_path_is_separate() -> None:
     assert SANDBOX_SYSTEM_PROMPT == TEAM_SANDBOX_SYSTEM_PROMPT == SANDBOX_STORAGE_POLICY
     assert "{work_dir}" not in SANDBOX_SYSTEM_PROMPT
-    assert SANDBOX_RUNTIME_SECTION == SANDBOX_RUNTIME_POLICY
+    assert SANDBOX_RUNTIME_SECTION == LAZY_SANDBOX_RUNTIME_POLICY
+    assert TEAM_SANDBOX_RUNTIME_SECTION == SANDBOX_RUNTIME_POLICY
     assert "{work_dir}" in SANDBOX_RUNTIME_SECTION
     assert SANDBOX_SYSTEM_PROMPT.count("virtual Skill storage") == 1
     assert "transfer_file" not in SANDBOX_SYSTEM_PROMPT
+
+
+def test_search_lazy_runtime_distinguishes_file_and_shell_workspace_paths() -> None:
+    rendered = SANDBOX_RUNTIME_SECTION.format(work_dir="/workspace/session-1")
+
+    _assert_markers(
+        rendered,
+        (
+            "/workspace/session-1",
+            "file tools",
+            "absolute",
+            "shell",
+            "relative paths",
+            "$LAMBCHAT_WORKSPACE",
+            "do not use `/workspace/session-1` literally",
+        ),
+    )
+
+
+def test_team_runtime_keeps_eager_real_work_dir_semantics() -> None:
+    real_work_dir = "/home/user/sessions/session-1"
+    rendered = TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=real_work_dir)
+
+    assert real_work_dir in rendered
+    assert "Use this absolute, session-scoped path for shell/file output" in rendered
+    assert "$LAMBCHAT_WORKSPACE" not in rendered
+
+
+def test_team_nodes_use_team_owned_eager_runtime_section() -> None:
+    from inspect import getsource
+
+    from src.agents.team_agent import nodes as team_nodes
+
+    source = getsource(team_nodes)
+    assert "SANDBOX_RUNTIME_SECTION as TEAM_SANDBOX_RUNTIME_SECTION" in source
+    assert "SANDBOX_RUNTIME_SECTION as SEARCH_SANDBOX_RUNTIME_SECTION" not in source
 
 
 def test_artifact_policy_has_single_canonical_source() -> None:

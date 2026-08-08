@@ -60,6 +60,7 @@ from src.infra.agent.middleware import (
     create_retry_middleware,
 )
 from src.infra.backend import (
+    LazySandboxBackend,
     create_persistent_backend,
     create_sandbox_backend,
 )
@@ -459,7 +460,7 @@ async def _create_backend_and_prompt(
 
     Returns:
         (backend, system_prompt, store, sandbox_backend, sandbox_work_dir) 元组。
-        sandbox_backend 在沙箱模式下为 CompositeBackend 实例，否则为 None。
+        sandbox_backend 在沙箱模式下为 LazySandboxBackend 实例，否则为 None。
     """
     # 创建 store（优先 PostgreSQL → MongoDB fallback）
     store = await acreate_store()
@@ -482,46 +483,20 @@ async def _create_backend_and_prompt(
     if not context.user_id:
         raise ValueError("Sandbox requires authenticated user (user_id is required)")
 
-    sandbox_manager = get_session_sandbox_manager()
+    session_id = state.get("session_id") or context.session_id
+    sandbox_backend = LazySandboxBackend(
+        session_id=session_id,
+        user_id=context.user_id,
+        presenter=presenter,
+        manager_factory=get_session_sandbox_manager,
+    )
+    context.set_run_sandbox(sandbox_backend)
+    logger.info(f"Sandbox enabled, using lazy sandbox backend for assistant: {assistant_id}")
 
-    # 发送沙箱开始初始化事件
-    try:
-        await presenter.emit_sandbox_starting()
-    except Exception as e:
-        logger.warning(f"Failed to emit sandbox:starting event: {e}")
-
-    try:
-        sandbox_backend, work_dir = await sandbox_manager.get_or_create(
-            session_id=state.get("session_id", str(uuid.uuid4())),
-            user_id=context.user_id,
-        )
-
-        # 发送沙箱就绪事件
-        try:
-            # 获取 sandbox_id：CompositeBackend.default 可能是 SandboxBackendProtocol
-            # 需要安全地访问 id 属性
-            sandbox_id = getattr(sandbox_backend.default, "id", "unknown")
-            await presenter.emit_sandbox_ready(
-                sandbox_id=sandbox_id,
-                work_dir=work_dir,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to emit sandbox:ready event: {e}")
-
-        logger.info(f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}")
-
-        return (
-            create_sandbox_backend(sandbox_backend.default, assistant_id, user_id=user_id),
-            SANDBOX_SYSTEM_PROMPT,
-            store,
-            sandbox_backend,
-            work_dir,
-        )
-
-    except Exception as e:
-        # 发送沙箱初始化失败事件
-        try:
-            await presenter.emit_sandbox_error(f"沙箱初始化失败: {str(e)}")
-        except Exception as emit_err:
-            logger.warning(f"Failed to emit sandbox:error event: {emit_err}")
-        raise
+    return (
+        create_sandbox_backend(sandbox_backend, assistant_id, user_id=user_id),
+        SANDBOX_SYSTEM_PROMPT,
+        store,
+        sandbox_backend,
+        sandbox_backend.work_dir,
+    )

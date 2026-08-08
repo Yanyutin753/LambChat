@@ -15,6 +15,11 @@ from .deepagent import (
     create_persistent_backend,
     create_sandbox_backend,
 )
+from .lazy_sandbox import (
+    LazySandboxBackend,
+    SandboxInitializationError,
+    public_sandbox_work_dir,
+)
 
 if TYPE_CHECKING:
     from .skills_store import SkillsStoreBackend
@@ -29,6 +34,9 @@ __all__ = [
     "create_memory_backend",
     "create_persistent_backend",
     "create_sandbox_backend",
+    "LazySandboxBackend",
+    "SandboxInitializationError",
+    "public_sandbox_work_dir",
     # Skills Store Backend
     "SkillsStoreBackend",
     "create_skills_backend",
