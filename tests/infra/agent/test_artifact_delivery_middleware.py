@@ -12,6 +12,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import MemorySaver
 
+from src.infra.agent.middleware import artifact_delivery
 from src.infra.agent.middleware.artifact_delivery import ArtifactDeliveryMiddleware
 from src.infra.tool import reveal_file_tool
 
@@ -1095,6 +1096,182 @@ async def test_artifact_delivery_execute_snapshot_skips_ignored_outputs() -> Non
 
     assert reveal_calls == []
     assert update is None
+
+
+@pytest.mark.asyncio
+async def test_distinct_artifacts_reveal_with_four_task_concurrency_limit() -> None:
+    started: set[str] = set()
+    four_started = asyncio.Event()
+    release = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def blocked_reveal(**kwargs):
+        started.add(kwargs["file_path"])
+        if len(started) == 4:
+            four_started.set()
+        await release.wait()
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=blocked_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def run_write(path: str, call_id: str) -> None:
+        async def handler(_request):
+            return ToolMessage(content="ok", tool_call_id=call_id, name="write_file")
+
+        await middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={
+                    "name": "write_file",
+                    "id": call_id,
+                    "args": {"file_path": path, "content": path},
+                },
+                runtime=runtime,
+            ),
+            handler,
+        )
+
+    paths = [f"/workspace/{name}.txt" for name in ("a", "b", "c", "d", "e")]
+    await asyncio.gather(*(run_write(path, f"write-{index}") for index, path in enumerate(paths)))
+    await asyncio.wait_for(four_started.wait(), timeout=1.0)
+    await asyncio.sleep(0)
+    assert len(started) == 4
+
+    release.set()
+    await middleware.aafter_agent({"messages": []}, runtime)
+    assert started == set(paths)
+
+
+@pytest.mark.asyncio
+async def test_same_path_write_coalesces_to_one_delivery_worker() -> None:
+    calls: list[str] = []
+    active = 0
+    max_active = 0
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def reveal_file(**kwargs):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        calls.append(kwargs["file_path"])
+        if len(calls) == 1:
+            first_started.set()
+            await release_first.wait()
+        active -= 1
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=reveal_file)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def run_write(content: str, call_id: str) -> None:
+        async def handler(_request):
+            return ToolMessage(content="ok", tool_call_id=call_id, name="write_file")
+
+        await middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={
+                    "name": "write_file",
+                    "id": call_id,
+                    "args": {
+                        "file_path": "/workspace/report.md",
+                        "content": content,
+                    },
+                },
+                runtime=runtime,
+            ),
+            handler,
+        )
+
+    await run_write("first", "write-1")
+    await asyncio.wait_for(first_started.wait(), timeout=1.0)
+    await run_write("second", "write-2")
+    release_first.set()
+    await middleware.aafter_agent({"messages": []}, runtime)
+
+    assert calls == ["/workspace/report.md", "/workspace/report.md"]
+    assert max_active == 1
+
+
+@pytest.mark.asyncio
+async def test_terminal_drain_cancels_work_before_done(monkeypatch) -> None:
+    monkeypatch.setattr(
+        artifact_delivery,
+        "_ARTIFACT_BACKGROUND_DRAIN_TIMEOUT",
+        0.01,
+    )
+    reveal_started = asyncio.Event()
+    never_release = asyncio.Event()
+    presenter = RecordingPresenter()
+
+    async def blocked_reveal(**_kwargs):
+        reveal_started.set()
+        await never_release.wait()
+        return "{}"
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=blocked_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    result = await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {
+                    "file_path": "/workspace/slow.pdf",
+                    "content": "pdf",
+                },
+            },
+            runtime=runtime,
+        ),
+        handler,
+    )
+    assert result.content == "ok"
+    await asyncio.wait_for(reveal_started.wait(), timeout=1.0)
+
+    await middleware.aafter_agent({"messages": []}, runtime)
+    never_release.set()
+    await asyncio.sleep(0)
+    assert presenter.events == []
+
+
+@pytest.mark.asyncio
+async def test_background_reveal_failure_does_not_fail_write_tool() -> None:
+    presenter = RecordingPresenter()
+
+    async def failing_reveal(**_kwargs):
+        raise RuntimeError("storage offline")
+
+    middleware = ArtifactDeliveryMiddleware(reveal_file=failing_reveal)
+    runtime = SimpleNamespace(config={"configurable": {"presenter": presenter}})
+
+    async def handler(_request):
+        return ToolMessage(content="ok", tool_call_id="write-1", name="write_file")
+
+    result = await middleware.awrap_tool_call(
+        SimpleNamespace(
+            tool_call={
+                "name": "write_file",
+                "id": "write-1",
+                "args": {
+                    "file_path": "/workspace/report.pdf",
+                    "content": "pdf",
+                },
+            },
+            runtime=runtime,
+        ),
+        handler,
+    )
+    await middleware.aafter_agent({"messages": []}, runtime)
+
+    assert result.content == "ok"
+    assert presenter.events[0]["event"] == "artifact:result"
+    assert presenter.events[0]["data"]["success"] is False
+    assert presenter.events[0]["data"]["error"] == "storage offline"
 
 
 @pytest.mark.asyncio
