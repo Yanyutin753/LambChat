@@ -2,16 +2,26 @@ from __future__ import annotations
 
 import asyncio
 import re
+import shlex
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import PurePosixPath
-from typing import Protocol
+from typing import Protocol, cast
 
 from deepagents.backends import CompositeBackend
 from deepagents.backends.protocol import (
+    DeleteResult,
+    EditResult,
+    ExecuteOffloadResult,
     ExecuteResponse,
     FileDownloadResponse,
+    FileInfo,
     FileUploadResponse,
+    GlobResult,
+    GrepMatch,
+    GrepResult,
+    LsResult,
+    ReadResult,
     WriteResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
@@ -75,6 +85,7 @@ class LazySandboxBackend(BaseSandbox):
         self._public_work_dir = public_sandbox_work_dir(session_id)
         self._actual_work_dir: str | None = None
         self._delegate: BaseSandbox | None = None
+        self.enable_capture_offload = False
         self._initialization_task: asyncio.Task[BaseSandbox] | None = None
         self._lock = asyncio.Lock()
         self._event_lock = asyncio.Lock()
@@ -94,17 +105,342 @@ class LazySandboxBackend(BaseSandbox):
     def id(self) -> str:
         return self._delegate.id if self._delegate is not None else "pending"
 
-    def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
-        del command, timeout
-        raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
+    def _require_ready_delegate(self) -> BaseSandbox:
+        if self._delegate is None:
+            raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
+        return self._delegate
+
+    def _with_workspace_env(self, command: str) -> str:
+        actual_work_dir = shlex.quote(self._require_actual_work_dir())
+        return f"export LAMBCHAT_WORKSPACE={actual_work_dir}; {command}"
+
+    def _to_public_file_info(self, info: FileInfo) -> FileInfo:
+        return cast(FileInfo, {**info, "path": self._to_public_path(info["path"])})
+
+    def _to_public_grep_match(self, match: GrepMatch) -> GrepMatch:
+        return cast(
+            GrepMatch,
+            {**match, "path": self._to_public_path(match["path"])},
+        )
+
+    def ls(self, path: str) -> LsResult:
+        delegate = self._require_ready_delegate()
+        result = delegate.ls(self._to_provider_path(path))
+        return LsResult(
+            error=result.error,
+            entries=(
+                [self._to_public_file_info(info) for info in result.entries]
+                if result.entries is not None
+                else None
+            ),
+        )
+
+    async def als(self, path: str) -> LsResult:
+        delegate = await self._ensure_ready()
+        result = await delegate.als(self._to_provider_path(path))
+        return LsResult(
+            error=result.error,
+            entries=(
+                [self._to_public_file_info(info) for info in result.entries]
+                if result.entries is not None
+                else None
+            ),
+        )
+
+    def read(
+        self,
+        file_path: str,
+        offset: int = 0,
+        limit: int = 2000,
+    ) -> ReadResult:
+        delegate = self._require_ready_delegate()
+        result = delegate.read(self._to_provider_path(file_path), offset, limit)
+        return ReadResult(
+            error=result.error,
+            file_data=result.file_data,
+            total_lines=result.total_lines,
+            start_line=result.start_line,
+            end_line=result.end_line,
+            next_offset=result.next_offset,
+            no_lines_requested=result.no_lines_requested,
+        )
+
+    async def aread(
+        self,
+        file_path: str,
+        offset: int = 0,
+        limit: int = 2000,
+    ) -> ReadResult:
+        delegate = await self._ensure_ready()
+        result = await delegate.aread(self._to_provider_path(file_path), offset, limit)
+        return ReadResult(
+            error=result.error,
+            file_data=result.file_data,
+            total_lines=result.total_lines,
+            start_line=result.start_line,
+            end_line=result.end_line,
+            next_offset=result.next_offset,
+            no_lines_requested=result.no_lines_requested,
+        )
+
+    def grep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        delegate = self._require_ready_delegate()
+        provider_path = self._to_provider_path(path) if path is not None else None
+        result = delegate.grep(
+            pattern,
+            provider_path,
+            glob,
+            max_count=max_count,
+        )
+        return GrepResult(
+            error=result.error,
+            matches=(
+                [self._to_public_grep_match(match) for match in result.matches]
+                if result.matches is not None
+                else None
+            ),
+            truncated=result.truncated,
+        )
+
+    async def agrep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        delegate = await self._ensure_ready()
+        provider_path = self._to_provider_path(path) if path is not None else None
+        result = await delegate.agrep(
+            pattern,
+            provider_path,
+            glob,
+            max_count=max_count,
+        )
+        return GrepResult(
+            error=result.error,
+            matches=(
+                [self._to_public_grep_match(match) for match in result.matches]
+                if result.matches is not None
+                else None
+            ),
+            truncated=result.truncated,
+        )
+
+    def glob(self, pattern: str, path: str | None = None) -> GlobResult:
+        delegate = self._require_ready_delegate()
+        provider_path = self._to_provider_path(path) if path is not None else None
+        result = delegate.glob(pattern, provider_path)
+        return GlobResult(
+            error=result.error,
+            matches=(
+                [self._to_public_file_info(info) for info in result.matches]
+                if result.matches is not None
+                else None
+            ),
+            truncated=result.truncated,
+        )
+
+    async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
+        delegate = await self._ensure_ready()
+        provider_path = self._to_provider_path(path) if path is not None else None
+        result = await delegate.aglob(pattern, provider_path)
+        return GlobResult(
+            error=result.error,
+            matches=(
+                [self._to_public_file_info(info) for info in result.matches]
+                if result.matches is not None
+                else None
+            ),
+            truncated=result.truncated,
+        )
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        delegate = self._require_ready_delegate()
+        result = delegate.write(self._to_provider_path(file_path), content)
+        public_path = self._to_public_path(result.path) if result.path is not None else None
+        return WriteResult(error=result.error, path=public_path)
+
+    async def awrite(self, file_path: str, content: str) -> WriteResult:
+        delegate = await self._ensure_ready()
+        result = await delegate.awrite(self._to_provider_path(file_path), content)
+        public_path = self._to_public_path(result.path) if result.path is not None else None
+        return WriteResult(error=result.error, path=public_path)
+
+    def edit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        delegate = self._require_ready_delegate()
+        result = delegate.edit(
+            self._to_provider_path(file_path),
+            old_string,
+            new_string,
+            replace_all,
+        )
+        public_path = self._to_public_path(result.path) if result.path is not None else None
+        return EditResult(
+            error=result.error,
+            path=public_path,
+            occurrences=result.occurrences,
+        )
+
+    async def aedit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        delegate = await self._ensure_ready()
+        result = await delegate.aedit(
+            self._to_provider_path(file_path),
+            old_string,
+            new_string,
+            replace_all,
+        )
+        public_path = self._to_public_path(result.path) if result.path is not None else None
+        return EditResult(
+            error=result.error,
+            path=public_path,
+            occurrences=result.occurrences,
+        )
+
+    def delete(self, file_path: str) -> DeleteResult:
+        delegate = self._require_ready_delegate()
+        result = delegate.delete(self._to_provider_path(file_path))
+        public_path = self._to_public_path(result.path) if result.path is not None else None
+        return DeleteResult(error=result.error, path=public_path)
+
+    async def adelete(self, file_path: str) -> DeleteResult:
+        delegate = await self._ensure_ready()
+        result = await delegate.adelete(self._to_provider_path(file_path))
+        public_path = self._to_public_path(result.path) if result.path is not None else None
+        return DeleteResult(error=result.error, path=public_path)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        del files
-        raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
+        delegate = self._require_ready_delegate()
+        results = delegate.upload_files(
+            [(self._to_provider_path(path), content) for path, content in files]
+        )
+        return [
+            FileUploadResponse(
+                path=self._to_public_path(result.path),
+                error=result.error,
+            )
+            for result in results
+        ]
+
+    async def aupload_files(
+        self,
+        files: list[tuple[str, bytes]],
+    ) -> list[FileUploadResponse]:
+        delegate = await self._ensure_ready()
+        results = await delegate.aupload_files(
+            [(self._to_provider_path(path), content) for path, content in files]
+        )
+        return [
+            FileUploadResponse(
+                path=self._to_public_path(result.path),
+                error=result.error,
+            )
+            for result in results
+        ]
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        del paths
-        raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
+        delegate = self._require_ready_delegate()
+        results = delegate.download_files([self._to_provider_path(path) for path in paths])
+        return [
+            FileDownloadResponse(
+                path=self._to_public_path(result.path),
+                content=result.content,
+                error=result.error,
+            )
+            for result in results
+        ]
+
+    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        delegate = await self._ensure_ready()
+        results = await delegate.adownload_files([self._to_provider_path(path) for path in paths])
+        return [
+            FileDownloadResponse(
+                path=self._to_public_path(result.path),
+                content=result.content,
+                error=result.error,
+            )
+            for result in results
+        ]
+
+    def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+        delegate = self._require_ready_delegate()
+        return delegate.execute(self._with_workspace_env(command), timeout=timeout)
+
+    async def aexecute(
+        self,
+        command: str,
+        *,
+        timeout: int | None = None,
+    ) -> ExecuteResponse:
+        delegate = await self._ensure_ready()
+        return await delegate.aexecute(
+            self._with_workspace_env(command),
+            timeout=timeout,
+        )
+
+    def execute_with_offload(
+        self,
+        command: str,
+        capture_path: str,
+        *,
+        max_inline_bytes: int,
+        max_capture_bytes: int | None = None,
+        timeout: int | None = None,
+    ) -> ExecuteOffloadResult:
+        delegate = self._require_ready_delegate()
+        return delegate.execute_with_offload(
+            self._with_workspace_env(command),
+            self._to_provider_path(capture_path),
+            max_inline_bytes=max_inline_bytes,
+            max_capture_bytes=max_capture_bytes,
+            timeout=timeout,
+        )
+
+    async def aexecute_with_offload(
+        self,
+        command: str,
+        capture_path: str,
+        *,
+        max_inline_bytes: int,
+        max_capture_bytes: int | None = None,
+        timeout: int | None = None,
+    ) -> ExecuteOffloadResult:
+        delegate = await self._ensure_ready()
+        return await delegate.aexecute_with_offload(
+            self._with_workspace_env(command),
+            self._to_provider_path(capture_path),
+            max_inline_bytes=max_inline_bytes,
+            max_capture_bytes=max_capture_bytes,
+            timeout=timeout,
+        )
+
+    def resolve_path(self, path: str) -> str:
+        self._require_ready_delegate()
+        return self._to_provider_path(path)
+
+    async def aresolve_path(self, path: str) -> str:
+        await self._ensure_ready()
+        return self._to_provider_path(path)
 
     def _to_provider_path(self, path: str) -> str:
         actual_work_dir = self._require_actual_work_dir()
@@ -126,6 +462,8 @@ class LazySandboxBackend(BaseSandbox):
             return self._public_work_dir
         if path.startswith(actual_prefix):
             return f"{self._public_work_dir}/{path[len(actual_prefix) :]}"
+        if not path.startswith("/"):
+            return f"{self._public_work_dir}/{path}"
         return path
 
     def _require_actual_work_dir(self) -> str:
@@ -208,6 +546,7 @@ class LazySandboxBackend(BaseSandbox):
 
             self._delegate = delegate
             self._actual_work_dir = actual_work_dir
+            self.enable_capture_offload = delegate.enable_capture_offload
             await self._attempt_event(
                 "ready",
                 lambda: self._presenter.emit_sandbox_ready(delegate.id, actual_work_dir),
@@ -253,9 +592,3 @@ class LazySandboxBackend(BaseSandbox):
             return self._delegate
         task = await self._get_initialization_task()
         return await asyncio.shield(task)
-
-    async def awrite(self, file_path: str, content: str) -> WriteResult:
-        delegate = await self._ensure_ready()
-        result = await delegate.awrite(self._to_provider_path(file_path), content)
-        public_path = self._to_public_path(result.path) if result.path is not None else None
-        return WriteResult(error=result.error, path=public_path)

@@ -2,17 +2,28 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 from typing import Any
 
 import pytest
 from deepagents.backends import CompositeBackend
 from deepagents.backends.protocol import (
+    DeleteResult,
+    EditResult,
+    ExecuteOffloadResult,
     ExecuteResponse,
     FileDownloadResponse,
+    FileInfo,
     FileUploadResponse,
+    GlobResult,
+    GrepMatch,
+    GrepResult,
+    LsResult,
+    ReadResult,
     WriteResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
+from deepagents.middleware.filesystem import FilesystemMiddleware
 
 from src.infra.backend.lazy_sandbox import (
     LazySandboxBackend,
@@ -45,6 +56,8 @@ class _Presenter:
 
 
 class _RecordingSandbox(BaseSandbox):
+    enable_capture_offload = True
+
     def __init__(
         self,
         *,
@@ -54,6 +67,11 @@ class _RecordingSandbox(BaseSandbox):
         self._work_dir = work_dir
         self._write_result_path = write_result_path
         self.write_calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[Any, ...]] = []
+        self.commands: list[tuple[str, int | None, str]] = []
+        self.offload_calls: list[tuple[str, str, int, int | None, int | None]] = []
+        self.env_vars: dict[str, str] = {"PROVIDER": "cached"}
+        self.files: dict[str, bytes] = {}
 
     @property
     def id(self) -> str:
@@ -64,18 +82,213 @@ class _RecordingSandbox(BaseSandbox):
         return self._work_dir
 
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
-        del command, timeout
-        return ExecuteResponse(output="", exit_code=0)
+        self.commands.append((command, timeout, self.work_dir))
+        return ExecuteResponse(output="complete output", exit_code=7, truncated=True)
+
+    def ls(self, path: str) -> LsResult:
+        self.calls.append(("ls", path))
+        entries: list[FileInfo] = [
+            {
+                "path": f"{path.rstrip('/')}/report.txt",
+                "is_dir": False,
+                "size": 17,
+                "modified_at": "2026-08-08T10:11:12Z",
+            }
+        ]
+        return LsResult(entries=entries)
+
+    async def als(self, path: str) -> LsResult:
+        return self.ls(path)
+
+    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
+        self.calls.append(("read", file_path, offset, limit))
+        content = self.files.get(file_path, b"line two").decode()
+        return ReadResult(
+            file_data={
+                "content": content,
+                "encoding": "utf-8",
+                "created_at": "2026-08-08T10:00:00Z",
+                "modified_at": "2026-08-08T10:11:12Z",
+            },
+            total_lines=4,
+            start_line=2,
+            end_line=2,
+            next_offset=2,
+        )
+
+    async def aread(
+        self,
+        file_path: str,
+        offset: int = 0,
+        limit: int = 2000,
+    ) -> ReadResult:
+        return self.read(file_path, offset, limit)
+
+    def grep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        self.calls.append(("grep", pattern, path, glob, max_count))
+        match: GrepMatch = {
+            "path": f"{(path or self.work_dir).rstrip('/')}/report.txt",
+            "line": 2,
+            "text": "needle",
+            "context_before": [{"line": 1, "text": "before"}],
+            "context_after": [{"line": 3, "text": "after"}],
+        }
+        return GrepResult(matches=[match], truncated=True)
+
+    async def agrep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        return self.grep(pattern, path, glob, max_count=max_count)
+
+    def glob(self, pattern: str, path: str | None = None) -> GlobResult:
+        self.calls.append(("glob", pattern, path))
+        matches: list[FileInfo] = [
+            {
+                "path": f"{(path or self.work_dir).rstrip('/')}/report.txt",
+                "is_dir": False,
+                "size": 17,
+                "modified_at": "2026-08-08T10:11:12Z",
+            }
+        ]
+        return GlobResult(matches=matches, truncated=True)
+
+    async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return self.glob(pattern, path)
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        self.calls.append(("write", file_path, content))
+        self.write_calls.append((file_path, content))
+        self.files[file_path] = content.encode()
+        return WriteResult(path=self._write_result_path or file_path)
+
+    def edit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        self.calls.append(("edit", file_path, old_string, new_string, replace_all))
+        return EditResult(path=file_path, occurrences=3)
+
+    async def aedit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        return self.edit(file_path, old_string, new_string, replace_all)
+
+    def delete(self, file_path: str) -> DeleteResult:
+        self.calls.append(("delete", file_path))
+        return DeleteResult(path=file_path)
+
+    async def adelete(self, file_path: str) -> DeleteResult:
+        return self.delete(file_path)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        return [FileUploadResponse(path=path) for path, _content in files]
+        self.calls.append(("upload_files", files))
+        responses = []
+        for index, (path, content) in enumerate(files):
+            if index == 0:
+                self.files[path] = content
+            responses.append(
+                FileUploadResponse(
+                    path=path,
+                    error=None if index == 0 else "permission_denied",
+                )
+            )
+        return responses
+
+    async def aupload_files(
+        self,
+        files: list[tuple[str, bytes]],
+    ) -> list[FileUploadResponse]:
+        return self.upload_files(files)
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        return [FileDownloadResponse(path=path, content=b"") for path in paths]
+        self.calls.append(("download_files", paths))
+        return [
+            FileDownloadResponse(
+                path=path,
+                content=self.files.get(path) if index == 0 else None,
+                error=None if index == 0 else "file_not_found",
+            )
+            for index, path in enumerate(paths)
+        ]
+
+    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        return self.download_files(paths)
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
-        self.write_calls.append((file_path, content))
-        return WriteResult(path=self._write_result_path or file_path)
+        return self.write(file_path, content)
+
+    def execute_with_offload(
+        self,
+        command: str,
+        capture_path: str,
+        *,
+        max_inline_bytes: int,
+        max_capture_bytes: int | None = None,
+        timeout: int | None = None,
+    ) -> ExecuteOffloadResult:
+        self.offload_calls.append(
+            (command, capture_path, max_inline_bytes, max_capture_bytes, timeout)
+        )
+        response = self.execute(command, timeout=timeout)
+        if not self.enable_capture_offload:
+            return ExecuteOffloadResult(offloaded=False, response=response)
+        self.files[capture_path] = b"complete captured provider output"
+        return ExecuteOffloadResult(
+            offloaded=True,
+            response=ExecuteResponse(
+                output="provider output preview",
+                exit_code=response.exit_code,
+                truncated=response.truncated,
+            ),
+        )
+
+    async def aexecute_with_offload(
+        self,
+        command: str,
+        capture_path: str,
+        *,
+        max_inline_bytes: int,
+        max_capture_bytes: int | None = None,
+        timeout: int | None = None,
+    ) -> ExecuteOffloadResult:
+        return self.execute_with_offload(
+            command,
+            capture_path,
+            max_inline_bytes=max_inline_bytes,
+            max_capture_bytes=max_capture_bytes,
+            timeout=timeout,
+        )
+
+
+class _E2BShapedSandbox(_RecordingSandbox):
+    pass
+
+
+class _CubeSandboxShapedSandbox(_RecordingSandbox):
+    pass
+
+
+class _DaytonaShapedSandbox(_RecordingSandbox):
+    pass
 
 
 class _Manager:
@@ -86,11 +299,13 @@ class _Manager:
         entered: asyncio.Event | None = None,
         release: asyncio.Event | None = None,
         failure: Exception | None = None,
+        actual_work_dir: str | None = None,
     ) -> None:
         self._provider = provider
         self._entered = entered
         self._release = release
         self._failure = failure
+        self._actual_work_dir = actual_work_dir
         self.calls: list[tuple[str, str]] = []
 
     async def get_or_create(self, *, session_id: str, user_id: str) -> tuple[CompositeBackend, str]:
@@ -103,7 +318,7 @@ class _Manager:
             raise self._failure
         return (
             CompositeBackend(default=self._provider, routes={}),
-            self._provider.work_dir,
+            self._actual_work_dir or self._provider.work_dir,
         )
 
 
@@ -215,6 +430,455 @@ async def test_provider_result_mapping_is_segment_aware() -> None:
     result = await backend.awrite("/tmp/request.txt", "ok")
 
     assert result.path == "/remote/home/sessions/session-10/report.txt"
+
+
+@pytest.mark.asyncio
+async def test_relative_provider_result_path_maps_to_public_workspace() -> None:
+    provider = _RecordingSandbox(
+        work_dir="/remote/home/sessions/session-1",
+        write_result_path="reports/result.txt",
+    )
+    backend = _lazy(_Manager(provider))
+
+    result = await backend.awrite("/tmp/request.txt", "ok")
+
+    assert result.path == "/workspace/session-1/reports/result.txt"
+
+
+def test_protocol_shape_explicitly_overrides_every_delegated_method() -> None:
+    delegated_methods = {
+        "ls",
+        "als",
+        "read",
+        "aread",
+        "grep",
+        "agrep",
+        "glob",
+        "aglob",
+        "write",
+        "awrite",
+        "edit",
+        "aedit",
+        "delete",
+        "adelete",
+        "upload_files",
+        "aupload_files",
+        "download_files",
+        "adownload_files",
+        "execute",
+        "aexecute",
+        "execute_with_offload",
+        "aexecute_with_offload",
+        "resolve_path",
+        "aresolve_path",
+    }
+
+    assert delegated_methods <= LazySandboxBackend.__dict__.keys()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "als",
+        "aread",
+        "agrep",
+        "aglob",
+        "awrite",
+        "aedit",
+        "adelete",
+        "aupload_files",
+        "adownload_files",
+        "aexecute",
+    ],
+)
+async def test_async_protocol_delegates_with_path_mapping_and_complete_results(
+    method_name: str,
+) -> None:
+    actual = "/remote/home/sessions/session-1"
+    provider = _RecordingSandbox(work_dir=actual)
+    provider.files[f"{actual}/download.txt"] = b"downloaded bytes"
+    backend = _lazy(_Manager(provider))
+
+    if method_name == "als":
+        result = await backend.als("/workspace/session-1/reports")
+        assert result == LsResult(
+            entries=[
+                {
+                    "path": "/workspace/session-1/reports/report.txt",
+                    "is_dir": False,
+                    "size": 17,
+                    "modified_at": "2026-08-08T10:11:12Z",
+                }
+            ]
+        )
+        assert provider.calls[-1] == ("ls", f"{actual}/reports")
+    elif method_name == "aread":
+        result = await backend.aread("/workspace/session-1/report.txt", 1, 1)
+        assert result == ReadResult(
+            file_data={
+                "content": "line two",
+                "encoding": "utf-8",
+                "created_at": "2026-08-08T10:00:00Z",
+                "modified_at": "2026-08-08T10:11:12Z",
+            },
+            total_lines=4,
+            start_line=2,
+            end_line=2,
+            next_offset=2,
+        )
+        assert provider.calls[-1] == ("read", f"{actual}/report.txt", 1, 1)
+    elif method_name == "agrep":
+        result = await backend.agrep(
+            "needle",
+            "/workspace/session-1/reports",
+            "*.txt",
+            max_count=5,
+        )
+        assert result == GrepResult(
+            matches=[
+                {
+                    "path": "/workspace/session-1/reports/report.txt",
+                    "line": 2,
+                    "text": "needle",
+                    "context_before": [{"line": 1, "text": "before"}],
+                    "context_after": [{"line": 3, "text": "after"}],
+                }
+            ],
+            truncated=True,
+        )
+        assert provider.calls[-1] == (
+            "grep",
+            "needle",
+            f"{actual}/reports",
+            "*.txt",
+            5,
+        )
+    elif method_name == "aglob":
+        result = await backend.aglob("*.txt", "/workspace/session-1/reports")
+        assert result == GlobResult(
+            matches=[
+                {
+                    "path": "/workspace/session-1/reports/report.txt",
+                    "is_dir": False,
+                    "size": 17,
+                    "modified_at": "2026-08-08T10:11:12Z",
+                }
+            ],
+            truncated=True,
+        )
+        assert provider.calls[-1] == ("glob", "*.txt", f"{actual}/reports")
+    elif method_name == "awrite":
+        result = await backend.awrite("/workspace/session-1/new.txt", "new content")
+        assert result == WriteResult(path="/workspace/session-1/new.txt")
+        assert provider.calls[-1] == ("write", f"{actual}/new.txt", "new content")
+    elif method_name == "aedit":
+        result = await backend.aedit(
+            "/workspace/session-1/report.txt",
+            "old",
+            "new",
+            replace_all=True,
+        )
+        assert result == EditResult(
+            path="/workspace/session-1/report.txt",
+            occurrences=3,
+        )
+        assert provider.calls[-1] == (
+            "edit",
+            f"{actual}/report.txt",
+            "old",
+            "new",
+            True,
+        )
+    elif method_name == "adelete":
+        result = await backend.adelete("/workspace/session-1/report.txt")
+        assert result == DeleteResult(path="/workspace/session-1/report.txt")
+        assert provider.calls[-1] == ("delete", f"{actual}/report.txt")
+    elif method_name == "aupload_files":
+        result = await backend.aupload_files(
+            [
+                ("/workspace/session-1/ok.bin", b"ok"),
+                ("/workspace/session-1/denied.bin", b"denied"),
+            ]
+        )
+        assert result == [
+            FileUploadResponse(path="/workspace/session-1/ok.bin"),
+            FileUploadResponse(
+                path="/workspace/session-1/denied.bin",
+                error="permission_denied",
+            ),
+        ]
+        assert provider.calls[-1] == (
+            "upload_files",
+            [(f"{actual}/ok.bin", b"ok"), (f"{actual}/denied.bin", b"denied")],
+        )
+    elif method_name == "adownload_files":
+        result = await backend.adownload_files(
+            [
+                "/workspace/session-1/download.txt",
+                "/workspace/session-1/missing.txt",
+            ]
+        )
+        assert result == [
+            FileDownloadResponse(
+                path="/workspace/session-1/download.txt",
+                content=b"downloaded bytes",
+            ),
+            FileDownloadResponse(
+                path="/workspace/session-1/missing.txt",
+                error="file_not_found",
+            ),
+        ]
+        assert provider.calls[-1] == (
+            "download_files",
+            [f"{actual}/download.txt", f"{actual}/missing.txt"],
+        )
+    else:
+        result = await backend.aexecute("printf async", timeout=23)
+        assert result == ExecuteResponse(
+            output="complete output",
+            exit_code=7,
+            truncated=True,
+        )
+        assert provider.commands[-1] == (
+            f"export LAMBCHAT_WORKSPACE={shlex.quote(actual)}; printf async",
+            23,
+            actual,
+        )
+
+
+@pytest.mark.asyncio
+async def test_write_error_preserves_error_and_none_path() -> None:
+    class _WriteErrorSandbox(_RecordingSandbox):
+        async def awrite(self, file_path: str, content: str) -> WriteResult:
+            self.calls.append(("awrite", file_path, content))
+            return WriteResult(error="already exists", path=None)
+
+    provider = _WriteErrorSandbox(work_dir="/remote/session-1")
+    backend = _lazy(_Manager(provider))
+
+    result = await backend.awrite("/workspace/session-1/report.txt", "ignored")
+
+    assert result == WriteResult(error="already exists", path=None)
+
+
+def _call_sync_method(backend: LazySandboxBackend, method_name: str) -> object:
+    if method_name == "ls":
+        return backend.ls("/workspace/session-1/reports")
+    if method_name == "read":
+        return backend.read("/workspace/session-1/report.txt", 1, 1)
+    if method_name == "grep":
+        return backend.grep(
+            "needle",
+            "/workspace/session-1/reports",
+            "*.txt",
+            max_count=5,
+        )
+    if method_name == "glob":
+        return backend.glob("*.txt", "/workspace/session-1/reports")
+    if method_name == "write":
+        return backend.write("/workspace/session-1/new.txt", "new content")
+    if method_name == "edit":
+        return backend.edit("/workspace/session-1/report.txt", "old", "new", True)
+    if method_name == "delete":
+        return backend.delete("/workspace/session-1/report.txt")
+    if method_name == "upload_files":
+        return backend.upload_files([("/workspace/session-1/new.bin", b"new")])
+    if method_name == "download_files":
+        return backend.download_files(["/workspace/session-1/new.bin"])
+    if method_name == "execute":
+        return backend.execute("printf sync", timeout=19)
+    if method_name == "execute_with_offload":
+        return backend.execute_with_offload(
+            "printf offload",
+            "/workspace/session-1/large_tool_results/sync",
+            max_inline_bytes=8,
+            max_capture_bytes=64,
+            timeout=17,
+        )
+    return backend.resolve_path("/workspace/session-1/report.txt")
+
+
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "ls",
+        "read",
+        "grep",
+        "glob",
+        "write",
+        "edit",
+        "delete",
+        "upload_files",
+        "download_files",
+        "execute",
+        "execute_with_offload",
+        "resolve_path",
+    ],
+)
+def test_sync_protocol_fails_clearly_before_readiness(method_name: str) -> None:
+    provider = _RecordingSandbox(work_dir="/remote/session-1")
+    backend = _lazy(_Manager(provider))
+
+    with pytest.raises(
+        RuntimeError,
+        match="Lazy sandbox is not initialized; use async operations first",
+    ):
+        _call_sync_method(backend, method_name)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "ls",
+        "read",
+        "grep",
+        "glob",
+        "write",
+        "edit",
+        "delete",
+        "upload_files",
+        "download_files",
+        "execute",
+        "execute_with_offload",
+        "resolve_path",
+    ],
+)
+async def test_sync_protocol_delegates_after_async_readiness(method_name: str) -> None:
+    actual = "/remote/session-1"
+    provider = _RecordingSandbox(work_dir=actual)
+    backend = _lazy(_Manager(provider))
+    await backend.aresolve_path("/workspace/session-1")
+
+    result = _call_sync_method(backend, method_name)
+
+    assert result is not None
+    if method_name == "resolve_path":
+        assert result == f"{actual}/report.txt"
+    elif method_name == "execute":
+        assert result == ExecuteResponse("complete output", exit_code=7, truncated=True)
+    elif method_name == "execute_with_offload":
+        assert isinstance(result, ExecuteOffloadResult)
+        assert result.offloaded is True
+
+
+@pytest.mark.asyncio
+async def test_shared_provider_commands_use_isolated_workspace_env_without_mutation() -> None:
+    provider = _RecordingSandbox(work_dir="/remote/provider-cwd")
+    backend_a = _lazy(
+        _Manager(provider, actual_work_dir="/remote/user sessions/a"),
+        session_id="a",
+    )
+    backend_b = _lazy(
+        _Manager(provider, actual_work_dir="/remote/user sessions/b"),
+        session_id="b",
+    )
+
+    result_a, result_b = await asyncio.gather(
+        backend_a.aexecute("printf session-a"),
+        backend_b.aexecute("printf session-b"),
+    )
+
+    assert result_a.output == "complete output"
+    assert result_b.output == "complete output"
+    command_records = {
+        command.rsplit("; ", 1)[-1]: (command, cwd) for command, _, cwd in provider.commands
+    }
+    assert command_records == {
+        "printf session-a": (
+            "export LAMBCHAT_WORKSPACE='/remote/user sessions/a'; printf session-a",
+            "/remote/provider-cwd",
+        ),
+        "printf session-b": (
+            "export LAMBCHAT_WORKSPACE='/remote/user sessions/b'; printf session-b",
+            "/remote/provider-cwd",
+        ),
+    }
+    assert provider.env_vars == {"PROVIDER": "cached"}
+    assert provider.work_dir == "/remote/provider-cwd"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "provider_type",
+    [_E2BShapedSandbox, _CubeSandboxShapedSandbox, _DaytonaShapedSandbox],
+)
+async def test_offload_maps_capture_and_returns_public_readable_pointer(
+    provider_type: type[_RecordingSandbox],
+) -> None:
+    actual = "/remote/session with spaces"
+    provider = provider_type(work_dir=actual)
+    lazy = _lazy(_Manager(provider))
+    composite = CompositeBackend(
+        default=lazy,
+        routes={},
+        artifacts_root=lazy.work_dir,
+    )
+    middleware = FilesystemMiddleware(
+        backend=composite,
+        tool_token_limit_before_evict=2,
+    )
+    public_capture = f"{lazy.work_dir}/large_tool_results/tool-call-1"
+
+    assert isinstance(lazy, BaseSandbox)
+    assert middleware._large_tool_results_prefix == (  # noqa: SLF001
+        f"{lazy.work_dir}/large_tool_results"
+    )
+    result = await lazy.aexecute_with_offload(
+        "python generate.py",
+        public_capture,
+        max_inline_bytes=8,
+        max_capture_bytes=128,
+        timeout=31,
+    )
+    tool_content = middleware._interpret_capture_output(  # noqa: SLF001
+        result,
+        public_capture,
+        "tool-call-1",
+    )
+    read_result = await lazy.aread(public_capture)
+
+    expected_command = f"export LAMBCHAT_WORKSPACE={shlex.quote(actual)}; python generate.py"
+    assert provider.offload_calls == [
+        (expected_command, f"{actual}/large_tool_results/tool-call-1", 8, 128, 31)
+    ]
+    assert provider.commands == [(expected_command, 31, actual)]
+    assert public_capture in tool_content
+    assert actual not in tool_content
+    assert read_result.file_data is not None
+    assert read_result.file_data["content"] == "complete captured provider output"
+    assert provider.env_vars == {"PROVIDER": "cached"}
+
+
+@pytest.mark.asyncio
+async def test_disabled_provider_capture_offload_executes_command_once() -> None:
+    actual = "/remote/session-1"
+    provider = _RecordingSandbox(work_dir=actual)
+    provider.enable_capture_offload = False
+    lazy = _lazy(_Manager(provider))
+    public_capture = f"{lazy.work_dir}/large_tool_results/tool-call-disabled"
+
+    result = await lazy.aexecute_with_offload(
+        "printf full",
+        public_capture,
+        max_inline_bytes=4,
+    )
+
+    expected_command = f"export LAMBCHAT_WORKSPACE={actual}; printf full"
+    assert result == ExecuteOffloadResult(
+        offloaded=False,
+        response=ExecuteResponse(
+            output="complete output",
+            exit_code=7,
+            truncated=True,
+        ),
+    )
+    assert provider.offload_calls == [
+        (expected_command, f"{actual}/large_tool_results/tool-call-disabled", 4, None, None)
+    ]
+    assert provider.commands == [(expected_command, None, actual)]
+    assert f"{actual}/large_tool_results/tool-call-disabled" not in provider.files
 
 
 @pytest.mark.asyncio
