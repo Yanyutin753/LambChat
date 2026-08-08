@@ -5,6 +5,29 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_protocol_compat_reexports_v0_7_result_types() -> None:
+    import deepagents.backends.protocol as protocol
+
+    from src.infra.backend import protocol_compat
+
+    assert protocol_compat.ReadResult is protocol.ReadResult
+    assert protocol_compat.LsResult is protocol.LsResult
+    assert protocol_compat.GrepResult is protocol.GrepResult
+    assert protocol_compat.GlobResult is protocol.GlobResult
+    assert protocol_compat.DeleteResult is protocol.DeleteResult
+
+
+def test_read_result_to_string_uses_raw_v0_7_content() -> None:
+    from deepagents.backends.protocol import ReadResult
+    from deepagents.backends.utils import create_file_data
+
+    from src.infra.backend.protocol_compat import read_result_to_string
+
+    result = ReadResult(file_data=create_file_data("alpha\nbeta"))
+
+    assert read_result_to_string(result) == "alpha\nbeta"
+
+
 class _FakeSkillStorage:
     def __init__(self) -> None:
         self.files = {
