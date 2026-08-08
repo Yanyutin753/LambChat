@@ -171,11 +171,13 @@ class _MigrationCollection:
         events: list[str] | None = None,
         name: str = "collection",
         raise_after_source_update: bool = False,
+        fail_next_update: bool = False,
     ) -> None:
         self.documents = [dict(document) for document in (documents or [])]
         self.events = events if events is not None else []
         self.name = name
         self.raise_after_source_update = raise_after_source_update
+        self.fail_next_update = fail_next_update
         self.index_calls: list[tuple[str, int]] = []
 
     def find(
@@ -211,6 +213,9 @@ class _MigrationCollection:
         upsert: bool = False,
     ) -> object:
         self.events.append(self.name)
+        if self.fail_next_update and "$set" in update:
+            self.fail_next_update = False
+            return type("Result", (), {"matched_count": 0, "upserted_id": None})()
         existing = next(
             (document for document in self.documents if _migration_matches(document, query)),
             None,
@@ -235,7 +240,19 @@ class _MigrationDatabase:
 
 
 def _write_rollout_manifest(path: Path, rollout_id: str = "rollout-current") -> None:
-    path.write_text(json.dumps({"rollout_id": rollout_id}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "rollout_id": rollout_id,
+                "template_name": "lambchat-prod",
+                "build_id": "build-1",
+                "immutable_ref": "lambchat-prod:build-1",
+                "verified_build_id": "build-1",
+                "verified_at": "verified",
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 @pytest.mark.asyncio
@@ -268,6 +285,11 @@ async def test_apply_writes_rollout_backup_before_source_cas(tmp_path: Path) -> 
     assert backups.documents[0]["rollout_id"] == "rollout-current"
     assert backups.documents[0]["original_content"] == LEGACY_COMMAND
     assert "/home/oai/skills" not in source.documents[0]["content"]
+
+    second_report = await apply_migration(database, manifest_path)
+    assert second_report.recognized == 0
+    assert second_report.migrated == 0
+    assert len(backups.documents) == 1
 
 
 @pytest.mark.asyncio
@@ -341,3 +363,70 @@ async def test_rollback_preserves_later_user_edits(tmp_path: Path) -> None:
     assert report.rolled_back == 0
     assert report.conflicted == 1
     assert source.documents[0]["content"] == "later administrator edit"
+
+
+@pytest.mark.asyncio
+async def test_apply_rejects_unverified_rollout_manifest_before_writes(
+    tmp_path: Path,
+) -> None:
+    from scripts.migrate_docx_skill_paths import apply_migration
+
+    source = _MigrationCollection(
+        [{"_id": "source-1", "file_path": "SKILL.md", "content": LEGACY_COMMAND}]
+    )
+    backups = _MigrationCollection()
+    database = _MigrationDatabase(
+        {
+            "skill_files": source,
+            "skill_marketplace_files": _MigrationCollection(),
+            "system_skills": _MigrationCollection(),
+            "skill_migration_backups": backups,
+        }
+    )
+    manifest_path = tmp_path / "rollout.json"
+    manifest_path.write_text(json.dumps({"rollout_id": "rollout-current"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="verified candidate"):
+        await apply_migration(database, manifest_path)
+
+    assert backups.documents == []
+    assert source.documents[0]["content"] == LEGACY_COMMAND
+
+
+@pytest.mark.asyncio
+async def test_apply_rejects_stale_backup_after_source_revision_changes(
+    tmp_path: Path,
+) -> None:
+    from scripts.migrate_docx_skill_paths import apply_migration, rollback_migration
+
+    first_content = f"first\n{LEGACY_COMMAND}"
+    second_content = f"second administrator revision\n{LEGACY_COMMAND}"
+    source = _MigrationCollection(
+        [{"_id": "source-1", "file_path": "SKILL.md", "content": first_content}],
+        fail_next_update=True,
+    )
+    backups = _MigrationCollection()
+    database = _MigrationDatabase(
+        {
+            "skill_files": source,
+            "skill_marketplace_files": _MigrationCollection(),
+            "system_skills": _MigrationCollection(),
+            "skill_migration_backups": backups,
+        }
+    )
+    manifest_path = tmp_path / "rollout.json"
+    _write_rollout_manifest(manifest_path)
+    first_report = await apply_migration(database, manifest_path)
+    assert first_report.conflicted == 1
+    rollback_report = await rollback_migration(database, manifest_path)
+    assert rollback_report.rolled_back == 0
+    assert rollback_report.conflicted == 1
+    assert source.documents[0]["content"] == first_content
+    source.documents[0]["content"] = second_content
+
+    second_report = await apply_migration(database, manifest_path)
+
+    assert second_report.migrated == 0
+    assert second_report.conflicted == 1
+    assert source.documents[0]["content"] == second_content
+    assert backups.documents[0]["original_content"] == first_content

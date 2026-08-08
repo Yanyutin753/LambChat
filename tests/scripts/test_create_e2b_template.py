@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -83,6 +84,29 @@ def test_build_candidate_uses_unique_tag_and_writes_secret_free_manifest(
     assert "e2b-secret-key" not in manifest_path.read_text(encoding="utf-8")
 
 
+def test_build_candidate_refuses_to_overwrite_existing_manifest(tmp_path: Path) -> None:
+    from scripts import create_e2b_template as module
+
+    existing = tmp_path / "candidate-existing.json"
+    existing.write_text('{"rollout_id":"existing"}\n', encoding="utf-8")
+
+    class _RejectUnexpectedBuild:
+        @staticmethod
+        def build(*args: object, **kwargs: object) -> object:
+            raise AssertionError("existing manifest must block the remote build")
+
+    with pytest.raises(FileExistsError):
+        module.build_candidate(
+            "candidate-existing",
+            "e2b-secret-key",
+            manifest_dir=tmp_path,
+            template_api=_RejectUnexpectedBuild,
+            template_builder=_RecordingBuilder(),
+        )
+
+    assert existing.read_text(encoding="utf-8") == '{"rollout_id":"existing"}\n'
+
+
 @pytest.mark.asyncio
 async def test_resolve_api_key_uses_database_first_service_without_printing(
     capsys: pytest.CaptureFixture[str],
@@ -96,6 +120,29 @@ async def test_resolve_api_key_uses_database_first_service_without_printing(
 
     assert await resolve_e2b_api_key(_FakeSettingsService()) == "e2b-database-secret"
     assert "e2b-database-secret" not in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_resolve_api_key_falls_back_to_loaded_project_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.create_e2b_template import resolve_e2b_api_key
+    from src.kernel.config import settings
+
+    class _DefaultOnlySettingsService:
+        async def get_raw(self, key: str) -> str:
+            assert key == "E2B_API_KEY"
+            return ""
+
+    monkeypatch.setattr(settings, "E2B_API_KEY", "e2b-env-secret")
+
+    assert await resolve_e2b_api_key(_DefaultOnlySettingsService()) == "e2b-env-secret"
+
+
+def test_candidate_tags_are_unique_within_the_same_second() -> None:
+    from scripts.create_e2b_template import _candidate_tag
+
+    assert _candidate_tag() != _candidate_tag()
 
 
 def _write_candidate_manifest(path: Path) -> None:
@@ -195,6 +242,7 @@ def _matches(document: dict[str, object] | None, query: dict[str, object]) -> bo
 class _FakeSettingsCollection:
     def __init__(self, document: dict[str, object] | None) -> None:
         self.document = dict(document) if document else None
+        self.fail_next_replace = False
 
     async def find_one(self, query: dict[str, object]) -> dict[str, object] | None:
         return dict(self.document) if _matches(self.document, query) else None
@@ -204,6 +252,9 @@ class _FakeSettingsCollection:
         query: dict[str, object],
         replacement: dict[str, object],
     ) -> object:
+        if self.fail_next_replace:
+            self.fail_next_replace = False
+            return SimpleNamespace(matched_count=0)
         if not _matches(self.document, query):
             return SimpleNamespace(matched_count=0)
         self.document = dict(replacement)
@@ -397,6 +448,7 @@ async def test_effective_health_and_promotion_are_bound_to_current_build(
         manifest_path,
         "http://127.0.0.1:8000/health",
         http_client=_FakeHttpClient(),
+        settings_service=service,
     )
     promotions: list[tuple[str, str, str]] = []
 
@@ -449,7 +501,7 @@ async def test_promotion_rejects_stale_evidence_after_administrator_edit(
         def assign_tags(*args: object, **kwargs: object) -> object:
             raise AssertionError("stale evidence must not promote")
 
-    with pytest.raises(RuntimeError, match="effective E2B_TEMPLATE changed"):
+    with pytest.raises(RuntimeError, match="revision evidence is incomplete"):
         await promote_manifest(
             manifest_path,
             "e2b-secret",
@@ -482,3 +534,214 @@ async def test_cli_verify_dispatches_manifest_with_database_first_key(
 
     assert result == 0
     assert calls == [(manifest_path, "e2b-database-secret")]
+
+
+def _verified_manifest(path: Path) -> None:
+    _write_candidate_manifest(path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest.update({"verified_build_id": "build_456", "verified_at": "now"})
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_idempotent_pin_refuses_later_environment_edit(tmp_path: Path) -> None:
+    from scripts.create_e2b_template import pin_effective_configuration
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\n", encoding="utf-8")
+    collection = _FakeSettingsCollection(
+        {"_id": "E2B_TEMPLATE", "value": "base", "updated_at": "before"}
+    )
+    service = _FakeSettingsService(collection)
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+    env_file.write_text("E2B_TEMPLATE=administrator-template\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="environment file"):
+        await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+
+    assert env_file.read_text(encoding="utf-8") == ("E2B_TEMPLATE=administrator-template\n")
+
+
+@pytest.mark.asyncio
+async def test_restore_env_conflict_leaves_database_candidate_untouched(
+    tmp_path: Path,
+) -> None:
+    from scripts.create_e2b_template import (
+        pin_effective_configuration,
+        restore_effective_configuration,
+    )
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\n", encoding="utf-8")
+    collection = _FakeSettingsCollection(
+        {"_id": "E2B_TEMPLATE", "value": "base", "updated_at": "before"}
+    )
+    service = _FakeSettingsService(collection)
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+    env_file.write_text("E2B_TEMPLATE=administrator-template\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="environment file"):
+        await restore_effective_configuration(manifest_path, settings_service=service)
+
+    assert collection.document is not None
+    assert collection.document["value"] == "lambchat-prod:build_456"
+
+
+@pytest.mark.asyncio
+async def test_pin_preserves_restrictive_env_mode_and_leaves_no_temp_file(
+    tmp_path: Path,
+) -> None:
+    from scripts.create_e2b_template import pin_effective_configuration
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\nSECRET=value\n", encoding="utf-8")
+    env_file.chmod(0o600)
+    collection = _FakeSettingsCollection(
+        {"_id": "E2B_TEMPLATE", "value": "base", "updated_at": "before"}
+    )
+    service = _FakeSettingsService(collection)
+
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+
+    assert stat.S_IMODE(env_file.stat().st_mode) == 0o600
+    assert list(tmp_path.glob(".env.*")) == []
+
+
+@pytest.mark.asyncio
+async def test_restore_db_cas_race_re_pins_environment_and_evidence(
+    tmp_path: Path,
+) -> None:
+    from scripts.create_e2b_template import (
+        pin_effective_configuration,
+        restore_effective_configuration,
+    )
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\n", encoding="utf-8")
+    collection = _FakeSettingsCollection(
+        {"_id": "E2B_TEMPLATE", "value": "base", "updated_at": "before"}
+    )
+    service = _FakeSettingsService(collection)
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+    collection.fail_next_replace = True
+
+    with pytest.raises(RuntimeError, match="concurrent E2B_TEMPLATE edit"):
+        await restore_effective_configuration(manifest_path, settings_service=service)
+
+    assert env_file.read_text(encoding="utf-8") == ("E2B_TEMPLATE=lambchat-prod:build_456\n")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["configuration_phase"] == "pinned"
+    assert manifest["pinned_ref"] == "lambchat-prod:build_456"
+
+
+@pytest.mark.asyncio
+async def test_restore_deletes_rollout_created_database_document(tmp_path: Path) -> None:
+    from scripts.create_e2b_template import (
+        pin_effective_configuration,
+        restore_effective_configuration,
+    )
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("PORT=8000\n", encoding="utf-8")
+    collection = _FakeSettingsCollection(None)
+    service = _FakeSettingsService(collection)
+
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+    assert collection.document is not None
+    await restore_effective_configuration(manifest_path, settings_service=service)
+
+    assert collection.document is None
+    assert env_file.read_text(encoding="utf-8") == "PORT=8000\n"
+
+
+@pytest.mark.asyncio
+async def test_promotion_rejects_same_value_with_new_database_revision(
+    tmp_path: Path,
+) -> None:
+    from scripts.create_e2b_template import (
+        pin_effective_configuration,
+        promote_manifest,
+        record_health,
+        verify_effective_configuration,
+    )
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\n", encoding="utf-8")
+    collection = _FakeSettingsCollection(
+        {"_id": "E2B_TEMPLATE", "value": "base", "updated_at": "before"}
+    )
+    service = _FakeSettingsService(collection)
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+    await verify_effective_configuration(manifest_path, settings_service=service)
+    await record_health(
+        manifest_path,
+        "http://127.0.0.1:8000/health",
+        http_client=_FakeHttpClient(),
+        settings_service=service,
+    )
+    assert collection.document is not None
+    collection.document["updated_at"] = "later"
+    collection.document["updated_by"] = "administrator"
+
+    class _RejectUnexpectedPromotion:
+        @staticmethod
+        def assign_tags(*args: object, **kwargs: object) -> object:
+            raise AssertionError("same-value ABA edit must not promote")
+
+    with pytest.raises(RuntimeError, match="revision"):
+        await promote_manifest(
+            manifest_path,
+            "e2b-secret",
+            settings_service=service,
+            template_api=_RejectUnexpectedPromotion,
+        )
+
+
+@pytest.mark.asyncio
+async def test_health_rejects_configuration_change_during_request(tmp_path: Path) -> None:
+    from scripts.create_e2b_template import (
+        pin_effective_configuration,
+        record_health,
+        verify_effective_configuration,
+    )
+
+    manifest_path = tmp_path / "candidate.json"
+    _verified_manifest(manifest_path)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_TEMPLATE=base\n", encoding="utf-8")
+    collection = _FakeSettingsCollection(
+        {"_id": "E2B_TEMPLATE", "value": "base", "updated_at": "before"}
+    )
+    service = _FakeSettingsService(collection)
+    await pin_effective_configuration(manifest_path, env_file, settings_service=service)
+    await verify_effective_configuration(manifest_path, settings_service=service)
+
+    class _EditingHttpClient:
+        async def get(self, url: str) -> object:
+            assert collection.document is not None
+            collection.document["updated_at"] = "changed-during-health"
+            collection.document["updated_by"] = "administrator"
+            return SimpleNamespace(status_code=200)
+
+    with pytest.raises(RuntimeError, match="revision"):
+        await record_health(
+            manifest_path,
+            "http://127.0.0.1:8000/health",
+            http_client=_EditingHttpClient(),
+            settings_service=service,
+        )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert "health_checked_at" not in manifest

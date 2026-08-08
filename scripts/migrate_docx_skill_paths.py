@@ -133,6 +133,29 @@ def _rollout_id(manifest_path: Path) -> str:
     return rollout_id
 
 
+def _verified_rollout_id(manifest_path: Path) -> str:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("apply requires a verified candidate manifest")
+    rollout_id = manifest.get("rollout_id")
+    build_id = manifest.get("build_id")
+    template_name = manifest.get("template_name")
+    immutable_ref = manifest.get("immutable_ref")
+    if (
+        not isinstance(rollout_id, str)
+        or not rollout_id.strip()
+        or not isinstance(build_id, str)
+        or not build_id
+        or not isinstance(template_name, str)
+        or not template_name
+        or immutable_ref != f"{template_name}:{build_id}"
+        or manifest.get("verified_build_id") != build_id
+        or not manifest.get("verified_at")
+    ):
+        raise ValueError("apply requires a verified candidate manifest")
+    return rollout_id
+
+
 def _backup_id(rollout_id: str, match: MigrationMatch) -> str:
     identity = f"{MIGRATION_ID}\0{rollout_id}\0{match.collection_name}\0{match.source_id!s}"
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()
@@ -142,7 +165,7 @@ async def apply_migration(database: Any, manifest_path: Path) -> MigrationReport
     """Back up and CAS-update every recognized match for one rollout."""
     from src.infra.utils.datetime import utc_now
 
-    rollout_id = _rollout_id(manifest_path)
+    rollout_id = _verified_rollout_id(manifest_path)
     report = await scan_database(database)
     if report.ambiguous:
         raise RuntimeError("ambiguous legacy docx path matches block apply")
@@ -166,6 +189,14 @@ async def apply_migration(database: Any, manifest_path: Path) -> MigrationReport
             {"$setOnInsert": backup},
             upsert=True,
         )
+        durable_backup = await backups.find_one({"_id": backup["_id"]})
+        if (
+            durable_backup is None
+            or durable_backup.get("original_content_hash") != backup["original_content_hash"]
+            or durable_backup.get("migrated_content_hash") != backup["migrated_content_hash"]
+        ):
+            report.conflicted += 1
+            continue
         result = await database[match.collection_name].update_one(
             {"_id": match.source_id, "content": match.original_content},
             {"$set": {"content": match.migrated_content}},

@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -227,6 +228,9 @@ def build_candidate(
         raise ValueError("candidate tag must start with 'candidate-'")
     if not api_key:
         raise ValueError("E2B_API_KEY is not configured")
+    manifest_path = manifest_dir / f"{candidate_tag}.json"
+    if manifest_path.exists():
+        raise FileExistsError(f"candidate manifest already exists: {manifest_path}")
 
     build_info = template_api.build(
         build_template(template_builder),
@@ -247,7 +251,6 @@ def build_candidate(
         "immutable_ref": f"{TEMPLATE_ALIAS}:{build_id}",
         "built_at": datetime.now(timezone.utc).isoformat(),
     }
-    manifest_path = manifest_dir / f"{candidate_tag}.json"
     _write_manifest(manifest_path, manifest)
     return manifest_path
 
@@ -314,9 +317,39 @@ def _write_env_template(env_file: Path, value: str | None) -> None:
     if replacement is not None and not replaced:
         output.append(replacement)
     env_file.parent.mkdir(parents=True, exist_ok=True)
-    temporary = env_file.with_suffix(f"{env_file.suffix}.tmp")
-    temporary.write_text("\n".join(output) + ("\n" if output else ""), encoding="utf-8")
-    temporary.replace(env_file)
+    existing_stat = env_file.stat() if env_file.exists() else None
+    descriptor = -1
+    temporary_path: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{env_file.name}.",
+            suffix=".tmp",
+            dir=env_file.parent,
+        )
+        temporary_path = Path(temporary_name)
+        os.fchmod(descriptor, existing_stat.st_mode & 0o7777 if existing_stat else 0o600)
+        if existing_stat is not None:
+            try:
+                os.fchown(descriptor, existing_stat.st_uid, existing_stat.st_gid)
+            except PermissionError:
+                pass
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            handle.write("\n".join(output) + ("\n" if output else ""))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, env_file)
+        temporary_path = None
+        directory_fd = os.open(env_file.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def _template_document(value: str, rollout_id: str) -> dict[str, Any]:
@@ -380,6 +413,7 @@ async def pin_effective_configuration(
             "env_previous_line": _env_template_line(resolved_env_file),
         }
         manifest["configuration_baseline"] = baseline
+        manifest["configuration_phase"] = "baseline-recorded"
         _write_manifest(manifest_path, manifest)
     elif baseline.get("env_file") != str(resolved_env_file):
         raise RuntimeError("rollout manifest is already bound to a different environment file")
@@ -392,9 +426,12 @@ async def pin_effective_configuration(
         and current.get("updated_by") == rollout_marker
     ):
         if _env_template_line(resolved_env_file) != env_candidate_line:
-            _write_env_template(resolved_env_file, candidate)
+            raise RuntimeError("concurrent E2B_TEMPLATE edit detected in environment file")
         manifest["pinned_ref"] = candidate
         manifest["pinned_build_id"] = build_id
+        manifest["pinned_db_guard"] = _document_guard(current)
+        manifest["pinned_env_line"] = env_candidate_line
+        manifest["configuration_phase"] = "pinned"
         _write_manifest(manifest_path, manifest)
         await _publish_effective_value(settings_service, candidate)
         return
@@ -406,7 +443,17 @@ async def pin_effective_configuration(
     elif not _document_guard(previous_document) == _document_guard(current or {}):
         raise RuntimeError("concurrent E2B_TEMPLATE edit detected during pin")
 
-    _write_env_template(resolved_env_file, candidate)
+    previous_line = baseline.get("env_previous_line")
+    current_env_line = _env_template_line(resolved_env_file)
+    if manifest.get("configuration_phase") == "pinning-env":
+        if current_env_line not in {previous_line, env_candidate_line}:
+            raise RuntimeError("concurrent E2B_TEMPLATE edit detected in environment file")
+    elif current_env_line != previous_line:
+        raise RuntimeError("concurrent E2B_TEMPLATE edit detected in environment file")
+    manifest["configuration_phase"] = "pinning-env"
+    _write_manifest(manifest_path, manifest)
+    if current_env_line != env_candidate_line:
+        _write_env_template(resolved_env_file, candidate)
     replacement = dict(previous_document or _template_document(candidate, manifest["rollout_id"]))
     replacement.update(
         {
@@ -424,14 +471,18 @@ async def pin_effective_configuration(
             if result.matched_count != 1:
                 raise RuntimeError("concurrent E2B_TEMPLATE edit detected during pin")
     except Exception:
-        previous_line = baseline.get("env_previous_line")
         previous_value = previous_line.partition("=")[2] if previous_line is not None else None
         if _env_template_line(resolved_env_file) == env_candidate_line:
             _write_env_template(resolved_env_file, previous_value)
+        manifest["configuration_phase"] = "baseline-recorded"
+        _write_manifest(manifest_path, manifest)
         raise
 
     manifest["pinned_ref"] = candidate
     manifest["pinned_build_id"] = build_id
+    manifest["pinned_db_guard"] = _document_guard(replacement)
+    manifest["pinned_env_line"] = env_candidate_line
+    manifest["configuration_phase"] = "pinned"
     _write_manifest(manifest_path, manifest)
     await _publish_effective_value(settings_service, candidate)
 
@@ -461,46 +512,79 @@ async def restore_effective_configuration(
         if previous_document is None
         else _document_guard(current or {}) == _document_guard(previous_document)
     )
-    if not already_restored:
-        candidate_guard = {
-            "_id": "E2B_TEMPLATE",
-            "value": candidate,
-            "updated_at": current.get("updated_at") if current else None,
-            "updated_by": rollout_marker,
-        }
+    env_file = Path(str(baseline["env_file"]))
+    previous_line = baseline.get("env_previous_line")
+    candidate_line = f"E2B_TEMPLATE={candidate}"
+    current_env_line = _env_template_line(env_file)
+    phase = str(manifest.get("configuration_phase") or "pinned")
+    if phase not in {"restoring-env", "restoring-db", "restored"}:
+        if already_restored:
+            raise RuntimeError("database was changed outside this rollout before restore")
+        if current_env_line != candidate_line:
+            raise RuntimeError("concurrent E2B_TEMPLATE edit detected in environment file")
         if (
             current is None
             or current.get("value") != candidate
             or current.get("updated_by") != rollout_marker
         ):
             raise RuntimeError("concurrent E2B_TEMPLATE edit detected during restore")
-        if previous_document is None:
-            result = await collection.delete_one(candidate_guard)
-            if result.deleted_count != 1:
-                raise RuntimeError("concurrent E2B_TEMPLATE edit detected during restore")
-        else:
-            result = await collection.replace_one(candidate_guard, previous_document)
-            if result.matched_count != 1:
-                raise RuntimeError("concurrent E2B_TEMPLATE edit detected during restore")
-
-    env_file = Path(str(baseline["env_file"]))
-    previous_line = baseline.get("env_previous_line")
-    previous_value = previous_line.partition("=")[2] if previous_line is not None else None
-    current_env_line = _env_template_line(env_file)
-    if current_env_line not in {f"E2B_TEMPLATE={candidate}", previous_line}:
+        manifest["configuration_phase"] = "restoring-env"
+        _write_manifest(manifest_path, manifest)
+        phase = "restoring-env"
+    if current_env_line not in {candidate_line, previous_line}:
         raise RuntimeError("concurrent E2B_TEMPLATE edit detected in environment file")
-    _write_env_template(env_file, previous_value)
+    previous_value = previous_line.partition("=")[2] if previous_line is not None else None
+    if current_env_line != previous_line:
+        _write_env_template(env_file, previous_value)
+    manifest["configuration_phase"] = "restoring-db"
+    _write_manifest(manifest_path, manifest)
+
+    try:
+        if not already_restored:
+            candidate_guard = {
+                "_id": "E2B_TEMPLATE",
+                "value": candidate,
+                "updated_at": current.get("updated_at") if current else None,
+                "updated_by": rollout_marker,
+            }
+            if (
+                current is None
+                or current.get("value") != candidate
+                or current.get("updated_by") != rollout_marker
+            ):
+                raise RuntimeError("concurrent E2B_TEMPLATE edit detected during restore")
+            if previous_document is None:
+                result = await collection.delete_one(candidate_guard)
+                if result.deleted_count != 1:
+                    raise RuntimeError("concurrent E2B_TEMPLATE edit detected during restore")
+            else:
+                result = await collection.replace_one(candidate_guard, previous_document)
+                if result.matched_count != 1:
+                    raise RuntimeError("concurrent E2B_TEMPLATE edit detected during restore")
+    except Exception:
+        if _env_template_line(env_file) == previous_line:
+            _write_env_template(env_file, candidate)
+            manifest["configuration_phase"] = "pinned"
+            _write_manifest(manifest_path, manifest)
+        raise
 
     for field in (
         "pinned_ref",
         "pinned_build_id",
+        "pinned_db_guard",
+        "pinned_env_line",
         "effective_ref_verified_at",
         "effective_ref_build_id",
+        "effective_db_guard",
+        "effective_env_line",
         "health_checked_at",
         "health_build_id",
         "health_ref",
+        "health_db_guard",
+        "health_env_line",
     ):
         manifest.pop(field, None)
+    manifest["configuration_phase"] = "restored"
     _write_manifest(manifest_path, manifest)
     effective_value = str(await settings_service.get_raw("E2B_TEMPLATE") or "")
     await _publish_effective_value(settings_service, effective_value)
@@ -524,11 +608,39 @@ def _require_bound_candidate(manifest: dict[str, Any], *, require_health: bool) 
         )
     if any(manifest.get(field) != expected for field, expected in required.items()):
         raise RuntimeError("rollout evidence does not match the candidate build")
+    pinned_guard = manifest.get("pinned_db_guard")
+    pinned_env_line = manifest.get("pinned_env_line")
+    if not isinstance(pinned_guard, dict) or not isinstance(pinned_env_line, str):
+        raise RuntimeError("rollout configuration revision evidence is incomplete")
+    if (
+        manifest.get("effective_db_guard") != pinned_guard
+        or manifest.get("effective_env_line") != pinned_env_line
+    ):
+        raise RuntimeError("effective configuration revision does not match pinned revision")
     timestamp_fields = ["verified_at", "effective_ref_verified_at"]
     if require_health:
         timestamp_fields.append("health_checked_at")
+        if (
+            manifest.get("health_db_guard") != pinned_guard
+            or manifest.get("health_env_line") != pinned_env_line
+        ):
+            raise RuntimeError("health configuration revision does not match pinned revision")
     if any(not manifest.get(field) for field in timestamp_fields):
         raise RuntimeError("rollout evidence is incomplete")
+
+
+async def _configuration_state(
+    settings_service: Any,
+    manifest: dict[str, Any],
+) -> tuple[dict[str, Any], str | None]:
+    baseline = manifest.get("configuration_baseline")
+    if not isinstance(baseline, dict) or not baseline.get("env_file"):
+        raise RuntimeError("rollout manifest has no configuration baseline")
+    collection = settings_service._storage._get_collection()
+    document = await collection.find_one({"_id": "E2B_TEMPLATE"})
+    if document is None:
+        raise RuntimeError("effective E2B_TEMPLATE database document is missing")
+    return _document_guard(document), _env_template_line(Path(str(baseline["env_file"])))
 
 
 async def verify_effective_configuration(
@@ -549,8 +661,15 @@ async def verify_effective_configuration(
     effective = str(await settings_service.get_raw("E2B_TEMPLATE") or "")
     if effective != reference:
         raise RuntimeError("effective E2B_TEMPLATE does not match candidate")
+    database_guard, env_line = await _configuration_state(settings_service, manifest)
+    if database_guard != manifest.get("pinned_db_guard") or env_line != manifest.get(
+        "pinned_env_line"
+    ):
+        raise RuntimeError("effective configuration revision changed after pin")
     manifest["effective_ref_build_id"] = build_id
     manifest["effective_ref_verified_at"] = datetime.now(timezone.utc).isoformat()
+    manifest["effective_db_guard"] = database_guard
+    manifest["effective_env_line"] = env_line
     _write_manifest(manifest_path, manifest)
 
 
@@ -559,10 +678,21 @@ async def record_health(
     health_url: str,
     *,
     http_client: Any | None = None,
+    settings_service: Any | None = None,
 ) -> None:
     """Record a successful health response only for the fully bound candidate."""
     manifest = _read_manifest(manifest_path)
     _require_bound_candidate(manifest, require_health=False)
+    if settings_service is None:
+        from src.infra.settings.service import SettingsService
+
+        settings_service = SettingsService.get_instance()
+    before_guard, before_env_line = await _configuration_state(settings_service, manifest)
+    if (
+        before_guard != manifest["pinned_db_guard"]
+        or before_env_line != manifest["pinned_env_line"]
+    ):
+        raise RuntimeError("configuration revision changed before health check")
     if http_client is None:
         import httpx
 
@@ -572,9 +702,14 @@ async def record_health(
         response = await http_client.get(health_url)
     if not 200 <= int(response.status_code) < 300:
         raise RuntimeError(f"health check failed with HTTP {response.status_code}")
+    after_guard, after_env_line = await _configuration_state(settings_service, manifest)
+    if (after_guard, after_env_line) != (before_guard, before_env_line):
+        raise RuntimeError("configuration revision changed during health check")
     manifest["health_checked_at"] = datetime.now(timezone.utc).isoformat()
     manifest["health_build_id"] = manifest["build_id"]
     manifest["health_ref"] = manifest["immutable_ref"]
+    manifest["health_db_guard"] = after_guard
+    manifest["health_env_line"] = after_env_line
     _write_manifest(manifest_path, manifest)
 
 
@@ -595,6 +730,9 @@ async def promote_manifest(
     effective = str(await settings_service.get_raw("E2B_TEMPLATE") or "")
     if effective != manifest["immutable_ref"]:
         raise RuntimeError("effective E2B_TEMPLATE changed after health verification")
+    database_guard, env_line = await _configuration_state(settings_service, manifest)
+    if database_guard != manifest["health_db_guard"] or env_line != manifest["health_env_line"]:
+        raise RuntimeError("configuration revision changed after health verification")
     result = template_api.assign_tags(
         manifest["immutable_ref"],
         "production",
@@ -614,11 +752,16 @@ async def resolve_e2b_api_key(settings_service: Any | None = None) -> str:
 
         settings_service = SettingsService.get_instance()
     value = await settings_service.get_raw("E2B_API_KEY")
-    return str(value or "")
+    if value:
+        return str(value)
+    from src.kernel.config import settings
+
+    return str(settings.E2B_API_KEY or "")
 
 
 def _candidate_tag() -> str:
-    return datetime.now(timezone.utc).strftime("candidate-%Y%m%d%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("candidate-%Y%m%d%H%M%S")
+    return f"{timestamp}-{uuid.uuid4().hex[:8]}"
 
 
 async def async_main(argv: list[str] | None = None) -> int:
