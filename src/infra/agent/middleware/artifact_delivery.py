@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import os
 import re
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Coroutine
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
@@ -21,6 +23,9 @@ RevealTool = Callable[..., Awaitable[str]]
 
 logger = logging.getLogger(__name__)
 _EXECUTE_SNAPSHOT_MAX_CHANGED_FILES = 20
+_ARTIFACT_DELIVERY_CONCURRENCY = 4
+_ARTIFACT_BACKGROUND_DRAIN_TIMEOUT = 3.0
+_ARTIFACT_BACKGROUND_CANCEL_GRACE = 0.05
 _FILE_URL_PATTERN = re.compile(r"https?://[^\s<>\]\"']+", re.IGNORECASE)
 _AUTO_DELIVERABLE_URL_EXTENSIONS = frozenset(
     {
@@ -91,6 +96,23 @@ class StagedArtifact:
     description: str = ""
     priority: str = "final"
     revealed: bool = False
+
+
+@dataclass
+class _ArtifactRunState:
+    artifacts: dict[str, StagedArtifact] = field(default_factory=dict)
+    background_tasks: set[asyncio.Task[Any]] = field(default_factory=set)
+    delivery_tasks: dict[str, asyncio.Task[Any]] = field(default_factory=dict)
+    artifact_generations: dict[str, int] = field(default_factory=dict)
+    suppressed_paths: dict[str, int] = field(default_factory=dict)
+    delivery_semaphore: asyncio.Semaphore = field(
+        default_factory=lambda: asyncio.Semaphore(_ARTIFACT_DELIVERY_CONCURRENCY)
+    )
+    accepting_tasks: bool = True
+    emission_open: bool = True
+    snapshot_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    baseline_snapshot_task: asyncio.Task[Any] | None = None
+    last_snapshot: dict[str, tuple[int | None, str | None]] | None = None
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
@@ -246,59 +268,131 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         workspace_path: str | None = None,
     ) -> None:
         super().__init__()
-        self._artifacts: dict[str, StagedArtifact] = {}
         self._reveal_file = reveal_file
         self._reveal_project = reveal_project
         self._workspace_path = workspace_path.rstrip("/") if workspace_path else None
+        self._runs: dict[object, _ArtifactRunState] = {}
+        self._fallback_run_key = object()
+
+    def _run_key(self, runtime: Any) -> object:
+        stream_writer = getattr(runtime, "stream_writer", None)
+        if stream_writer is None:
+            config = getattr(runtime, "config", None)
+            configurable = config.get("configurable") if isinstance(config, dict) else None
+            pregel_runtime = (
+                configurable.get("__pregel_runtime") if isinstance(configurable, dict) else None
+            )
+            stream_writer = getattr(pregel_runtime, "stream_writer", None)
+        return stream_writer if stream_writer is not None else self._fallback_run_key
+
+    def _run_state(self, runtime: Any) -> tuple[object, _ArtifactRunState]:
+        key = self._run_key(runtime)
+        run = self._runs.get(key)
+        if run is None:
+            run = _ArtifactRunState()
+            self._runs[key] = run
+        return key, run
+
+    async def abefore_agent(self, state: Any, runtime: Any) -> None:
+        del state
+        _, run = self._run_state(runtime)
+        if run.baseline_snapshot_task is None:
+            run.baseline_snapshot_task = self._schedule_workspace_snapshot(
+                run,
+                runtime,
+                name="initial-snapshot",
+            )
 
     async def awrap_tool_call(
         self,
         request: Any,
         handler: Callable[[Any], Awaitable[Any]],
     ) -> Any:
-        before_snapshot = None
+        _, run = self._run_state(request.runtime)
+        before_snapshot_task = None
         tool_name = request.tool_call.get("name", "")
         tool_args = request.tool_call.get("args", {})
         if not isinstance(tool_args, dict):
             tool_args = {}
         if tool_name == "execute":
-            before_snapshot = await self._snapshot_workspace(request.runtime)
+            before_snapshot_task = self._schedule_workspace_snapshot(
+                run,
+                request.runtime,
+                name="before-execute-snapshot",
+            )
 
-        result = await handler(request)
+        explicit_path = None
+        if tool_name in {"reveal_file", "reveal_project"}:
+            explicit_path = self._suppress_auto_delivery(run, tool_args)
+
+        try:
+            result = await handler(request)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self._resume_auto_delivery(run, explicit_path, request.runtime)
+            raise
         if not isinstance(result, ToolMessage):
+            self._resume_auto_delivery(run, explicit_path, request.runtime)
             return result
 
         if tool_name == "execute":
-            staged = await self._auto_stage_execute_changes(
-                request.runtime,
-                before_snapshot,
-                result,
+            self._track_background_task(
+                run,
+                self._process_execute_changes(
+                    run,
+                    request.runtime,
+                    before_snapshot_task,
+                    result,
+                ),
+                name="execute-changes",
             )
-            await self._deliver_staged_artifacts(staged, request.runtime)
             return result
 
         if tool_name in {"reveal_file", "reveal_project"}:
-            self._mark_revealed(result, tool_args)
+            if self._mark_revealed(run, result, tool_args):
+                if explicit_path is not None:
+                    existing = run.artifacts.get(explicit_path)
+                    if existing is not None:
+                        existing.revealed = True
+                self._release_auto_suppression(run, explicit_path)
+            else:
+                self._resume_auto_delivery(run, explicit_path, request.runtime)
             return result
 
-        staged = self._auto_stage_from_tool_result(tool_name, tool_args, result)
-        await self._deliver_staged_artifacts(staged, request.runtime)
+        staged = self._auto_stage_from_tool_result(run, tool_name, tool_args, result)
+        self._deliver_staged_artifacts(run, staged, request.runtime)
         return result
 
     async def aafter_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
-        self._auto_stage_external_urls_from_state(state)
-        pending = [artifact for artifact in self._artifacts.values() if not artifact.revealed]
-        if not pending:
+        key, run = self._run_state(runtime)
+        try:
+            self._auto_stage_external_urls_from_state(run, state)
+            artifact_count_before_drain = len(run.artifacts)
+            had_pending_artifacts = False
+            for artifact in run.artifacts.values():
+                if not artifact.revealed:
+                    had_pending_artifacts = True
+                    self._schedule_artifact_delivery(
+                        run,
+                        artifact,
+                        runtime,
+                        allow_without_presenter=True,
+                    )
+            await self._drain_background_tasks(run)
+            found_artifacts_during_drain = len(run.artifacts) > artifact_count_before_drain
+            if had_pending_artifacts or found_artifacts_during_drain:
+                return {"messages": []}
             return None
+        finally:
+            if self._runs.get(key) is run:
+                self._runs.pop(key, None)
 
-        for artifact in pending:
-            delivered = await self._deliver_artifact(artifact, runtime)
-            if delivered:
-                artifact.revealed = True
-
-        return {"messages": []}
-
-    def _auto_stage_external_urls_from_state(self, state: Any) -> None:
+    def _auto_stage_external_urls_from_state(
+        self,
+        run: _ArtifactRunState,
+        state: Any,
+    ) -> None:
         messages = state.get("messages") if isinstance(state, dict) else None
         if not isinstance(messages, list):
             return
@@ -311,30 +405,119 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
                 continue
             for url in _extract_file_urls_from_text(content):
                 self._stage_path(
+                    run,
                     url,
                     kind="file",
                     description="External file linked by the agent",
                     priority="intermediate",
                 )
 
-    def _mark_revealed(self, result: ToolMessage, args: dict[str, Any]) -> None:
-        path = _path_from_reveal_result(result, args)
-        if not path:
+    @staticmethod
+    def _explicit_path(args: dict[str, Any]) -> str | None:
+        path = args.get("file_path") or args.get("project_path") or args.get("path")
+        return _normalize_path(path) if isinstance(path, str) and path else None
+
+    def _suppress_auto_delivery(
+        self,
+        run: _ArtifactRunState,
+        args: dict[str, Any],
+    ) -> str | None:
+        normalized_path = self._explicit_path(args)
+        if normalized_path is None:
+            return None
+        run.suppressed_paths[normalized_path] = run.suppressed_paths.get(normalized_path, 0) + 1
+        run.artifact_generations[normalized_path] = (
+            run.artifact_generations.get(normalized_path, 0) + 1
+        )
+        delivery_task = run.delivery_tasks.get(normalized_path)
+        if delivery_task is not None and not delivery_task.done():
+            delivery_task.cancel()
+        return normalized_path
+
+    @staticmethod
+    def _release_auto_suppression(
+        run: _ArtifactRunState,
+        normalized_path: str | None,
+    ) -> bool:
+        if normalized_path is None:
+            return False
+        count = run.suppressed_paths.get(normalized_path, 0)
+        if count > 1:
+            run.suppressed_paths[normalized_path] = count - 1
+            return False
+        run.suppressed_paths.pop(normalized_path, None)
+        return count == 1
+
+    def _resume_auto_delivery(
+        self,
+        run: _ArtifactRunState,
+        normalized_path: str | None,
+        runtime: Any,
+    ) -> None:
+        if normalized_path is None:
+            return
+        if not self._release_auto_suppression(run, normalized_path):
+            return
+        self._schedule_resumed_auto_delivery(run, normalized_path, runtime)
+
+    def _schedule_resumed_auto_delivery(
+        self,
+        run: _ArtifactRunState,
+        normalized_path: str,
+        runtime: Any,
+    ) -> None:
+        artifact = run.artifacts.get(normalized_path)
+        if artifact is None or artifact.revealed or not run.accepting_tasks:
             return
 
+        active = run.delivery_tasks.get(normalized_path)
+        if active is not None and not active.done():
+
+            def resume_after_active(_done_task: asyncio.Task[Any]) -> None:
+                self._schedule_resumed_auto_delivery(run, normalized_path, runtime)
+
+            active.add_done_callback(resume_after_active)
+            return
+        self._schedule_artifact_delivery(run, artifact, runtime)
+
+    def _mark_revealed(
+        self,
+        run: _ArtifactRunState,
+        result: ToolMessage,
+        args: dict[str, Any],
+    ) -> bool:
+        parsed = _parse_jsonish(result.content)
+        if (
+            getattr(result, "status", None) == "error"
+            or (isinstance(parsed, dict) and parsed.get("success") is False)
+            or _reveal_error(parsed) is not None
+        ):
+            return False
+        path = _path_from_reveal_result(result, args)
+        if not path:
+            return False
+
         normalized_path = _normalize_path(path)
-        existing = self._artifacts.get(normalized_path)
+        run.artifact_generations[normalized_path] = (
+            run.artifact_generations.get(normalized_path, 0) + 1
+        )
+        delivery_task = run.delivery_tasks.get(normalized_path)
+        if delivery_task is not None and not delivery_task.done():
+            delivery_task.cancel()
+        existing = run.artifacts.get(normalized_path)
         if existing is None:
-            self._artifacts[normalized_path] = StagedArtifact(
+            run.artifacts[normalized_path] = StagedArtifact(
                 path=path,
                 kind="project" if result.name == "reveal_project" else "file",
                 revealed=True,
             )
-            return
+            return True
         existing.revealed = True
+        return True
 
     def _auto_stage_from_tool_result(
         self,
+        run: _ArtifactRunState,
         tool_name: str,
         args: dict[str, Any],
         result: ToolMessage,
@@ -353,6 +536,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             return []
 
         artifact = self._stage_path(
+            run,
             path,
             kind="file",
             description=self._description_from_auto_stage(tool_name),
@@ -393,6 +577,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
 
     def _stage_path(
         self,
+        run: _ArtifactRunState,
         path: str,
         *,
         kind: str,
@@ -410,27 +595,55 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             description=description,
             priority=priority,
         )
-        self._artifacts[normalized_path] = artifact
+        run.artifacts[normalized_path] = artifact
+        run.artifact_generations[normalized_path] = (
+            run.artifact_generations.get(normalized_path, 0) + 1
+        )
         return artifact
 
-    async def _auto_stage_execute_changes(
+    async def _process_execute_changes(
         self,
+        run: _ArtifactRunState,
         runtime: Any,
-        before_snapshot: dict[str, tuple[int | None, str | None]] | None,
+        before_task: asyncio.Task[Any] | None,
         result: ToolMessage,
-    ) -> list[StagedArtifact]:
-        if before_snapshot is None or getattr(result, "status", None) == "error":
-            return []
+    ) -> None:
+        if getattr(result, "status", None) == "error":
+            return
         parsed = _parse_jsonish(result.content)
         if isinstance(parsed, dict) and (
             parsed.get("success") is False or parsed.get("error") is not None
         ):
-            return []
+            return
 
-        after_snapshot = await self._snapshot_workspace(runtime)
-        if after_snapshot is None:
-            return []
+        before_snapshot = None
+        if before_task is not None:
+            with contextlib.suppress(Exception):
+                before_snapshot = await before_task
+        if before_snapshot is None and run.baseline_snapshot_task is not None:
+            with contextlib.suppress(Exception):
+                before_snapshot = await run.baseline_snapshot_task
+        if before_snapshot is None:
+            before_snapshot = run.last_snapshot
 
+        after_snapshot = await self._take_workspace_snapshot(run, runtime)
+        if before_snapshot is None or after_snapshot is None:
+            return
+
+        staged = self._stage_snapshot_changes(run, before_snapshot, after_snapshot)
+        self._deliver_staged_artifacts(
+            run,
+            staged,
+            runtime,
+            allow_without_presenter=True,
+        )
+
+    def _stage_snapshot_changes(
+        self,
+        run: _ArtifactRunState,
+        before_snapshot: dict[str, tuple[int | None, str | None]],
+        after_snapshot: dict[str, tuple[int | None, str | None]],
+    ) -> list[StagedArtifact]:
         changed_paths: list[str] = []
         for path, signature in after_snapshot.items():
             if before_snapshot.get(path) != signature and not _should_skip_auto_artifact(path):
@@ -441,6 +654,7 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         staged: list[StagedArtifact] = []
         for path in changed_paths:
             artifact = self._stage_path(
+                run,
                 path,
                 kind="file",
                 description="File created or modified by a shell command",
@@ -449,6 +663,30 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             if artifact is not None:
                 staged.append(artifact)
         return staged
+
+    async def _take_workspace_snapshot(
+        self,
+        run: _ArtifactRunState,
+        runtime: Any,
+    ) -> dict[str, tuple[int | None, str | None]] | None:
+        async with run.snapshot_lock:
+            snapshot = await self._snapshot_workspace(runtime)
+            if snapshot is not None:
+                run.last_snapshot = snapshot
+            return snapshot
+
+    def _schedule_workspace_snapshot(
+        self,
+        run: _ArtifactRunState,
+        runtime: Any,
+        *,
+        name: str,
+    ) -> asyncio.Task[Any] | None:
+        return self._track_background_task(
+            run,
+            self._take_workspace_snapshot(run, runtime),
+            name=name,
+        )
 
     async def _snapshot_workspace(
         self, runtime: Any
@@ -505,7 +743,127 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         except Exception:
             return None
 
-    async def _deliver_artifact(self, artifact: StagedArtifact, runtime: Any) -> bool:
+    def _track_background_task(
+        self,
+        run: _ArtifactRunState,
+        awaitable: Coroutine[Any, Any, Any],
+        *,
+        name: str,
+    ) -> asyncio.Task[Any] | None:
+        if not run.accepting_tasks:
+            close = getattr(awaitable, "close", None)
+            if callable(close):
+                close()
+            return None
+
+        task = asyncio.create_task(awaitable, name=f"artifact:{name}")
+        run.background_tasks.add(task)
+
+        def on_done(done_task: asyncio.Task[Any]) -> None:
+            run.background_tasks.discard(done_task)
+            if done_task.cancelled():
+                return
+            try:
+                done_task.result()
+            except Exception:
+                logger.warning("Artifact background task failed: %s", name, exc_info=True)
+
+        task.add_done_callback(on_done)
+        return task
+
+    def _schedule_artifact_delivery(
+        self,
+        run: _ArtifactRunState,
+        artifact: StagedArtifact,
+        runtime: Any,
+        *,
+        allow_without_presenter: bool = False,
+    ) -> None:
+        if self._get_presenter(runtime) is None and not allow_without_presenter:
+            return
+        normalized = _normalize_path(artifact.path)
+        if normalized in run.suppressed_paths:
+            return
+        active = run.delivery_tasks.get(normalized)
+        if active is not None and not active.done():
+            return
+        task = self._track_background_task(
+            run,
+            self._deliver_latest_artifact(run, normalized, runtime),
+            name=f"deliver:{normalized}",
+        )
+        if task is not None:
+            run.delivery_tasks[normalized] = task
+
+    async def _deliver_latest_artifact(
+        self,
+        run: _ArtifactRunState,
+        normalized: str,
+        runtime: Any,
+    ) -> None:
+        current_task = asyncio.current_task()
+        try:
+            while True:
+                artifact = run.artifacts.get(normalized)
+                if artifact is None or artifact.revealed or normalized in run.suppressed_paths:
+                    return
+                generation = run.artifact_generations.get(normalized, 0)
+                async with run.delivery_semaphore:
+                    delivered = await self._deliver_artifact(
+                        run,
+                        artifact,
+                        runtime,
+                        normalized=normalized,
+                        generation=generation,
+                    )
+                if generation != run.artifact_generations.get(normalized, 0):
+                    continue
+                if delivered:
+                    artifact.revealed = True
+                return
+        finally:
+            if run.delivery_tasks.get(normalized) is current_task:
+                run.delivery_tasks.pop(normalized, None)
+
+    async def _drain_background_tasks(self, run: _ArtifactRunState) -> None:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _ARTIFACT_BACKGROUND_DRAIN_TIMEOUT
+        timed_out = False
+        try:
+            while run.background_tasks:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    timed_out = True
+                    break
+                done, _ = await asyncio.wait(
+                    list(run.background_tasks),
+                    timeout=remaining,
+                )
+                run.background_tasks.difference_update(done)
+        finally:
+            run.accepting_tasks = False
+            run.emission_open = False
+            pending = list(run.background_tasks)
+            for task in pending:
+                task.cancel()
+            if pending:
+                if timed_out:
+                    logger.warning(
+                        "Cancelling %s artifact background task(s) after %.1fs drain timeout",
+                        len(pending),
+                        _ARTIFACT_BACKGROUND_DRAIN_TIMEOUT,
+                    )
+                await asyncio.wait(pending, timeout=_ARTIFACT_BACKGROUND_CANCEL_GRACE)
+
+    async def _deliver_artifact(
+        self,
+        run: _ArtifactRunState,
+        artifact: StagedArtifact,
+        runtime: Any,
+        *,
+        normalized: str,
+        generation: int,
+    ) -> bool:
         is_project = artifact.kind in {"project", "folder"}
         tool_name = "reveal_project" if is_project else "reveal_file"
         args: dict[str, Any]
@@ -546,21 +904,34 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             status = "error"
             error = str(exc)
 
-        return await self._emit_artifact_result(runtime, delivered, status=status, error=error)
+        return await self._emit_artifact_result(
+            run,
+            runtime,
+            artifact,
+            delivered,
+            normalized=normalized,
+            generation=generation,
+            status=status,
+            error=error,
+        )
 
-    async def _deliver_staged_artifacts(
+    def _deliver_staged_artifacts(
         self,
+        run: _ArtifactRunState,
         artifacts: list[StagedArtifact],
         runtime: Any,
+        *,
+        allow_without_presenter: bool = False,
     ) -> None:
-        if self._get_presenter(runtime) is None:
-            return
         for artifact in artifacts:
             if artifact.revealed:
                 continue
-            delivered = await self._deliver_artifact(artifact, runtime)
-            if delivered:
-                artifact.revealed = True
+            self._schedule_artifact_delivery(
+                run,
+                artifact,
+                runtime,
+                allow_without_presenter=allow_without_presenter,
+            )
 
     async def _call_reveal_tool(self, tool_name: str, args: dict[str, Any], runtime: Any) -> str:
         delivery_runtime = self._runtime_with_delivery_source(runtime, "artifact_auto")
@@ -610,12 +981,22 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
 
     async def _emit_artifact_result(
         self,
+        run: _ArtifactRunState,
         runtime: Any,
+        staged: StagedArtifact,
         artifact: dict[str, Any],
         *,
+        normalized: str,
+        generation: int,
         status: str,
         error: str | None,
     ) -> bool:
+        if (
+            not run.emission_open
+            or staged.revealed
+            or generation != run.artifact_generations.get(normalized, 0)
+        ):
+            return False
         presenter = self._get_presenter(runtime)
         if presenter is None or not hasattr(presenter, "present_artifact_result"):
             return False
@@ -627,6 +1008,12 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         )
         emit = getattr(presenter, "emit", None)
         if callable(emit):
+            if (
+                not run.emission_open
+                or staged.revealed
+                or generation != run.artifact_generations.get(normalized, 0)
+            ):
+                return False
             await emit(event)
             return True
         return False
