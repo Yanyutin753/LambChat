@@ -26,6 +26,36 @@ class FakeFileSnapshotBackend:
         return GlobResult(matches=self._snapshots.pop(0))
 
 
+class BlockingAfterSnapshotBackend:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.after_started = asyncio.Event()
+        self.release_after = asyncio.Event()
+
+    async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
+        assert pattern == "**/*"
+        assert path == "/workspace"
+        self.calls += 1
+        if self.calls == 1:
+            return GlobResult(
+                matches=[
+                    {
+                        "path": "/workspace/existing.txt",
+                        "size": 1,
+                        "modified_at": "1",
+                    }
+                ]
+            )
+        self.after_started.set()
+        await self.release_after.wait()
+        return GlobResult(
+            matches=[
+                {"path": "/workspace/existing.txt", "size": 1, "modified_at": "1"},
+                {"path": "/workspace/report.csv", "size": 12, "modified_at": "2"},
+            ]
+        )
+
+
 class RecordingPresenter:
     def __init__(self) -> None:
         self.events: list[dict[str, Any]] = []
@@ -885,6 +915,52 @@ async def test_artifact_delivery_skips_sensitive_auto_staged_write_file() -> Non
 
     assert reveal_calls == []
     assert update is None
+
+
+@pytest.mark.asyncio
+async def test_execute_returns_before_background_post_snapshot() -> None:
+    backend = BlockingAfterSnapshotBackend()
+    presenter = RecordingPresenter()
+    reveal_paths: list[str] = []
+
+    async def reveal_file(**kwargs):
+        reveal_paths.append(kwargs["file_path"])
+        return json.dumps({"_meta": {"path": kwargs["file_path"]}})
+
+    middleware = ArtifactDeliveryMiddleware(
+        reveal_file=reveal_file,
+        workspace_path="/workspace",
+    )
+    runtime = SimpleNamespace(config={"configurable": {"backend": backend, "presenter": presenter}})
+
+    async def handler(_request):
+        return ToolMessage(
+            content="created report.csv",
+            tool_call_id="exec-1",
+            name="execute",
+        )
+
+    result = await asyncio.wait_for(
+        middleware.awrap_tool_call(
+            SimpleNamespace(
+                tool_call={
+                    "name": "execute",
+                    "id": "exec-1",
+                    "args": {"command": "build"},
+                },
+                runtime=runtime,
+            ),
+            handler,
+        ),
+        timeout=1.0,
+    )
+    assert result.content == "created report.csv"
+
+    await asyncio.wait_for(backend.after_started.wait(), timeout=1.0)
+    assert reveal_paths == []
+    backend.release_after.set()
+    await middleware.aafter_agent({"messages": []}, runtime)
+    assert reveal_paths == ["/workspace/report.csv"]
 
 
 @pytest.mark.asyncio

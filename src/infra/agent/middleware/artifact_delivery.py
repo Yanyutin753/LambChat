@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -258,31 +259,47 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         self._artifact_generations: dict[str, int] = {}
         self._delivery_semaphore = asyncio.Semaphore(_ARTIFACT_DELIVERY_CONCURRENCY)
         self._background_closed = False
+        self._snapshot_lock = asyncio.Lock()
+        self._baseline_snapshot_task: asyncio.Task[Any] | None = None
+        self._last_snapshot: dict[str, tuple[int | None, str | None]] | None = None
+
+    async def abefore_agent(self, state: Any, runtime: Any) -> None:
+        del state
+        if self._baseline_snapshot_task is None:
+            self._baseline_snapshot_task = self._schedule_workspace_snapshot(
+                runtime,
+                name="initial-snapshot",
+            )
 
     async def awrap_tool_call(
         self,
         request: Any,
         handler: Callable[[Any], Awaitable[Any]],
     ) -> Any:
-        before_snapshot = None
+        before_snapshot_task = None
         tool_name = request.tool_call.get("name", "")
         tool_args = request.tool_call.get("args", {})
         if not isinstance(tool_args, dict):
             tool_args = {}
         if tool_name == "execute":
-            before_snapshot = await self._snapshot_workspace(request.runtime)
+            before_snapshot_task = self._schedule_workspace_snapshot(
+                request.runtime,
+                name="before-execute-snapshot",
+            )
 
         result = await handler(request)
         if not isinstance(result, ToolMessage):
             return result
 
         if tool_name == "execute":
-            staged = await self._auto_stage_execute_changes(
-                request.runtime,
-                before_snapshot,
-                result,
+            self._track_background_task(
+                self._process_execute_changes(
+                    request.runtime,
+                    before_snapshot_task,
+                    result,
+                ),
+                name="execute-changes",
             )
-            self._deliver_staged_artifacts(staged, request.runtime)
             return result
 
         if tool_name in {"reveal_file", "reveal_project"}:
@@ -429,24 +446,46 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         )
         return artifact
 
-    async def _auto_stage_execute_changes(
+    async def _process_execute_changes(
         self,
         runtime: Any,
-        before_snapshot: dict[str, tuple[int | None, str | None]] | None,
+        before_task: asyncio.Task[Any] | None,
         result: ToolMessage,
-    ) -> list[StagedArtifact]:
-        if before_snapshot is None or getattr(result, "status", None) == "error":
-            return []
+    ) -> None:
+        if getattr(result, "status", None) == "error":
+            return
         parsed = _parse_jsonish(result.content)
         if isinstance(parsed, dict) and (
             parsed.get("success") is False or parsed.get("error") is not None
         ):
-            return []
+            return
 
-        after_snapshot = await self._snapshot_workspace(runtime)
-        if after_snapshot is None:
-            return []
+        before_snapshot = None
+        if before_task is not None:
+            with contextlib.suppress(Exception):
+                before_snapshot = await before_task
+        if before_snapshot is None and self._baseline_snapshot_task is not None:
+            with contextlib.suppress(Exception):
+                before_snapshot = await self._baseline_snapshot_task
+        if before_snapshot is None:
+            before_snapshot = self._last_snapshot
 
+        after_snapshot = await self._take_workspace_snapshot(runtime)
+        if before_snapshot is None or after_snapshot is None:
+            return
+
+        staged = self._stage_snapshot_changes(before_snapshot, after_snapshot)
+        self._deliver_staged_artifacts(
+            staged,
+            runtime,
+            allow_without_presenter=True,
+        )
+
+    def _stage_snapshot_changes(
+        self,
+        before_snapshot: dict[str, tuple[int | None, str | None]],
+        after_snapshot: dict[str, tuple[int | None, str | None]],
+    ) -> list[StagedArtifact]:
         changed_paths: list[str] = []
         for path, signature in after_snapshot.items():
             if before_snapshot.get(path) != signature and not _should_skip_auto_artifact(path):
@@ -465,6 +504,26 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
             if artifact is not None:
                 staged.append(artifact)
         return staged
+
+    async def _take_workspace_snapshot(
+        self, runtime: Any
+    ) -> dict[str, tuple[int | None, str | None]] | None:
+        async with self._snapshot_lock:
+            snapshot = await self._snapshot_workspace(runtime)
+            if snapshot is not None:
+                self._last_snapshot = snapshot
+            return snapshot
+
+    def _schedule_workspace_snapshot(
+        self,
+        runtime: Any,
+        *,
+        name: str,
+    ) -> asyncio.Task[Any] | None:
+        return self._track_background_task(
+            self._take_workspace_snapshot(runtime),
+            name=name,
+        )
 
     async def _snapshot_workspace(
         self, runtime: Any
@@ -656,11 +715,17 @@ class ArtifactDeliveryMiddleware(AgentMiddleware):
         self,
         artifacts: list[StagedArtifact],
         runtime: Any,
+        *,
+        allow_without_presenter: bool = False,
     ) -> None:
         for artifact in artifacts:
             if artifact.revealed:
                 continue
-            self._schedule_artifact_delivery(artifact, runtime)
+            self._schedule_artifact_delivery(
+                artifact,
+                runtime,
+                allow_without_presenter=allow_without_presenter,
+            )
 
     async def _call_reveal_tool(self, tool_name: str, args: dict[str, Any], runtime: Any) -> str:
         delivery_runtime = self._runtime_with_delivery_source(runtime, "artifact_auto")
