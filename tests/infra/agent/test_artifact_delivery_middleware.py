@@ -4,6 +4,7 @@ from typing import Any, ClassVar, Sequence
 
 import pytest
 from deepagents import create_deep_agent
+from deepagents.backends.protocol import GlobResult
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -19,9 +20,9 @@ class FakeFileSnapshotBackend:
         self._snapshots = [before, after]
         self.calls: list[tuple[str, str]] = []
 
-    async def aglob_info(self, pattern: str, path: str = "/"):
+    async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
         self.calls.append((pattern, path))
-        return self._snapshots.pop(0)
+        return GlobResult(matches=self._snapshots.pop(0))
 
 
 class FakeDownloadBackend:

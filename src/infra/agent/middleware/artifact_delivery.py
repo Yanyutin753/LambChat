@@ -191,17 +191,11 @@ def _extract_file_urls_from_text(text: str) -> list[str]:
 
 
 async def _list_backend_files(backend: Any, workspace: str) -> list[Any]:
-    if hasattr(backend, "aglob_info"):
-        return await backend.aglob_info("**/*", path=workspace)
-    if hasattr(backend, "aglob"):
-        result = await backend.aglob("**/*", path=workspace)
-        return getattr(result, "matches", result) or []
-    if hasattr(backend, "glob_info"):
-        return await run_blocking_io(backend.glob_info, "**/*", workspace)
-    if hasattr(backend, "glob"):
-        result = await run_blocking_io(backend.glob, "**/*", workspace)
-        return getattr(result, "matches", result) or []
-    return []
+    result = await backend.aglob("**/*", path=workspace)
+    if result.error:
+        logger.debug("Artifact workspace glob failed for %s: %s", workspace, result.error)
+        return []
+    return result.matches or []
 
 
 def _path_from_reveal_result(result: ToolMessage, args: dict[str, Any]) -> str | None:
