@@ -129,7 +129,7 @@ class LazySandboxBackend(BaseSandbox):
         delegate = self._require_ready_delegate()
         result = delegate.ls(self._to_provider_path(path))
         return LsResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             entries=(
                 [self._to_public_file_info(info) for info in result.entries]
                 if result.entries is not None
@@ -141,7 +141,7 @@ class LazySandboxBackend(BaseSandbox):
         delegate = await self._ensure_ready()
         result = await delegate.als(self._to_provider_path(path))
         return LsResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             entries=(
                 [self._to_public_file_info(info) for info in result.entries]
                 if result.entries is not None
@@ -158,7 +158,7 @@ class LazySandboxBackend(BaseSandbox):
         delegate = self._require_ready_delegate()
         result = delegate.read(self._to_provider_path(file_path), offset, limit)
         return ReadResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             file_data=result.file_data,
             total_lines=result.total_lines,
             start_line=result.start_line,
@@ -176,7 +176,7 @@ class LazySandboxBackend(BaseSandbox):
         delegate = await self._ensure_ready()
         result = await delegate.aread(self._to_provider_path(file_path), offset, limit)
         return ReadResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             file_data=result.file_data,
             total_lines=result.total_lines,
             start_line=result.start_line,
@@ -202,7 +202,7 @@ class LazySandboxBackend(BaseSandbox):
             max_count=max_count,
         )
         return GrepResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             matches=(
                 [self._to_public_grep_match(match) for match in result.matches]
                 if result.matches is not None
@@ -228,7 +228,7 @@ class LazySandboxBackend(BaseSandbox):
             max_count=max_count,
         )
         return GrepResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             matches=(
                 [self._to_public_grep_match(match) for match in result.matches]
                 if result.matches is not None
@@ -242,7 +242,7 @@ class LazySandboxBackend(BaseSandbox):
         provider_path = self._to_provider_path(path) if path is not None else None
         result = delegate.glob(pattern, provider_path)
         return GlobResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             matches=(
                 [self._to_public_file_info(info) for info in result.matches]
                 if result.matches is not None
@@ -256,7 +256,7 @@ class LazySandboxBackend(BaseSandbox):
         provider_path = self._to_provider_path(path) if path is not None else None
         result = await delegate.aglob(pattern, provider_path)
         return GlobResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             matches=(
                 [self._to_public_file_info(info) for info in result.matches]
                 if result.matches is not None
@@ -269,13 +269,13 @@ class LazySandboxBackend(BaseSandbox):
         delegate = self._require_ready_delegate()
         result = delegate.write(self._to_provider_path(file_path), content)
         public_path = self._to_public_path(result.path) if result.path is not None else None
-        return WriteResult(error=result.error, path=public_path)
+        return WriteResult(error=self._to_public_error(result.error), path=public_path)
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
         delegate = await self._ensure_ready()
         result = await delegate.awrite(self._to_provider_path(file_path), content)
         public_path = self._to_public_path(result.path) if result.path is not None else None
-        return WriteResult(error=result.error, path=public_path)
+        return WriteResult(error=self._to_public_error(result.error), path=public_path)
 
     def edit(
         self,
@@ -293,7 +293,7 @@ class LazySandboxBackend(BaseSandbox):
         )
         public_path = self._to_public_path(result.path) if result.path is not None else None
         return EditResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             path=public_path,
             occurrences=result.occurrences,
         )
@@ -314,7 +314,7 @@ class LazySandboxBackend(BaseSandbox):
         )
         public_path = self._to_public_path(result.path) if result.path is not None else None
         return EditResult(
-            error=result.error,
+            error=self._to_public_error(result.error),
             path=public_path,
             occurrences=result.occurrences,
         )
@@ -323,13 +323,13 @@ class LazySandboxBackend(BaseSandbox):
         delegate = self._require_ready_delegate()
         result = delegate.delete(self._to_provider_path(file_path))
         public_path = self._to_public_path(result.path) if result.path is not None else None
-        return DeleteResult(error=result.error, path=public_path)
+        return DeleteResult(error=self._to_public_error(result.error), path=public_path)
 
     async def adelete(self, file_path: str) -> DeleteResult:
         delegate = await self._ensure_ready()
         result = await delegate.adelete(self._to_provider_path(file_path))
         public_path = self._to_public_path(result.path) if result.path is not None else None
-        return DeleteResult(error=result.error, path=public_path)
+        return DeleteResult(error=self._to_public_error(result.error), path=public_path)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         delegate = self._require_ready_delegate()
@@ -339,7 +339,7 @@ class LazySandboxBackend(BaseSandbox):
         return [
             FileUploadResponse(
                 path=self._to_public_path(result.path),
-                error=result.error,
+                error=self._to_public_error(result.error),
             )
             for result in results
         ]
@@ -355,7 +355,7 @@ class LazySandboxBackend(BaseSandbox):
         return [
             FileUploadResponse(
                 path=self._to_public_path(result.path),
-                error=result.error,
+                error=self._to_public_error(result.error),
             )
             for result in results
         ]
@@ -367,7 +367,7 @@ class LazySandboxBackend(BaseSandbox):
             FileDownloadResponse(
                 path=self._to_public_path(result.path),
                 content=result.content,
-                error=result.error,
+                error=self._to_public_error(result.error),
             )
             for result in results
         ]
@@ -379,7 +379,7 @@ class LazySandboxBackend(BaseSandbox):
             FileDownloadResponse(
                 path=self._to_public_path(result.path),
                 content=result.content,
-                error=result.error,
+                error=self._to_public_error(result.error),
             )
             for result in results
         ]
@@ -467,6 +467,13 @@ class LazySandboxBackend(BaseSandbox):
         if not path.startswith("/"):
             return f"{self._public_work_dir}/{path}"
         return path
+
+    def _to_public_error(self, error: str | None) -> str | None:
+        if error is None:
+            return None
+        actual_work_dir = self._require_actual_work_dir().rstrip("/")
+        actual_path = re.compile(rf"{re.escape(actual_work_dir)}(?![A-Za-z0-9_.-])")
+        return actual_path.sub(self._public_work_dir, error)
 
     def _require_actual_work_dir(self) -> str:
         if self._actual_work_dir is None:

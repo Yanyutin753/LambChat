@@ -292,6 +292,56 @@ class _DaytonaShapedSandbox(_RecordingSandbox):
     pass
 
 
+class _PathErrorSandbox(_RecordingSandbox):
+    @property
+    def path_error(self) -> str:
+        return (
+            f"cannot access {self.work_dir}/secret.txt; "
+            f"workspace {self.work_dir}; "
+            f"unrelated {self.work_dir}0/keep.txt"
+        )
+
+    def ls(self, path: str) -> LsResult:
+        return LsResult(error=self.path_error)
+
+    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
+        return ReadResult(error=self.path_error)
+
+    def grep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        return GrepResult(error=self.path_error)
+
+    def glob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return GlobResult(error=self.path_error)
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        return WriteResult(error=self.path_error, path=file_path)
+
+    def edit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        return EditResult(error=self.path_error, path=file_path)
+
+    def delete(self, file_path: str) -> DeleteResult:
+        return DeleteResult(error=self.path_error, path=file_path)
+
+    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        return [FileUploadResponse(path=path, error=self.path_error) for path, _ in files]
+
+    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        return [FileDownloadResponse(path=path, error=self.path_error) for path in paths]
+
+
 class _Manager:
     def __init__(
         self,
@@ -663,6 +713,65 @@ async def test_write_error_preserves_error_and_none_path() -> None:
     assert result == WriteResult(error="already exists", path=None)
 
 
+def _result_errors(result: object) -> list[str | None]:
+    if isinstance(result, list):
+        return [getattr(item, "error") for item in result]
+    return [getattr(result, "error")]
+
+
+async def _call_async_path_method(
+    backend: LazySandboxBackend,
+    method_name: str,
+) -> object:
+    if method_name == "als":
+        return await backend.als("/workspace/session-1/reports")
+    if method_name == "aread":
+        return await backend.aread("/workspace/session-1/report.txt")
+    if method_name == "agrep":
+        return await backend.agrep("needle", "/workspace/session-1/reports")
+    if method_name == "aglob":
+        return await backend.aglob("*.txt", "/workspace/session-1/reports")
+    if method_name == "awrite":
+        return await backend.awrite("/workspace/session-1/report.txt", "content")
+    if method_name == "aedit":
+        return await backend.aedit("/workspace/session-1/report.txt", "old", "new")
+    if method_name == "adelete":
+        return await backend.adelete("/workspace/session-1/report.txt")
+    if method_name == "aupload_files":
+        return await backend.aupload_files([("/workspace/session-1/report.txt", b"content")])
+    return await backend.adownload_files(["/workspace/session-1/report.txt"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "als",
+        "aread",
+        "agrep",
+        "aglob",
+        "awrite",
+        "aedit",
+        "adelete",
+        "aupload_files",
+        "adownload_files",
+    ],
+)
+async def test_async_protocol_maps_provider_paths_inside_error_fields(
+    method_name: str,
+) -> None:
+    provider = _PathErrorSandbox(work_dir="/remote/private/sessions/session-1")
+    backend = _lazy(_Manager(provider))
+
+    result = await _call_async_path_method(backend, method_name)
+
+    assert _result_errors(result) == [
+        "cannot access /workspace/session-1/secret.txt; "
+        "workspace /workspace/session-1; "
+        "unrelated /remote/private/sessions/session-10/keep.txt"
+    ]
+
+
 def _call_sync_method(backend: LazySandboxBackend, method_name: str) -> object:
     if method_name == "ls":
         return backend.ls("/workspace/session-1/reports")
@@ -698,6 +807,37 @@ def _call_sync_method(backend: LazySandboxBackend, method_name: str) -> object:
             timeout=17,
         )
     return backend.resolve_path("/workspace/session-1/report.txt")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "ls",
+        "read",
+        "grep",
+        "glob",
+        "write",
+        "edit",
+        "delete",
+        "upload_files",
+        "download_files",
+    ],
+)
+async def test_sync_protocol_maps_provider_paths_inside_error_fields(
+    method_name: str,
+) -> None:
+    provider = _PathErrorSandbox(work_dir="/remote/private/sessions/session-1")
+    backend = _lazy(_Manager(provider))
+    await backend.aresolve_path("/workspace/session-1")
+
+    result = _call_sync_method(backend, method_name)
+
+    assert _result_errors(result) == [
+        "cannot access /workspace/session-1/secret.txt; "
+        "workspace /workspace/session-1; "
+        "unrelated /remote/private/sessions/session-10/keep.txt"
+    ]
 
 
 @pytest.mark.parametrize(

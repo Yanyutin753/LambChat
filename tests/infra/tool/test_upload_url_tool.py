@@ -9,7 +9,7 @@ from deepagents.backends import CompositeBackend
 from deepagents.backends.protocol import ExecuteResponse, FileDownloadResponse, FileUploadResponse
 from deepagents.backends.sandbox import BaseSandbox
 
-from src.infra.backend.lazy_sandbox import LazySandboxBackend
+from src.infra.backend.lazy_sandbox import LazySandboxBackend, SandboxInitializationError
 from src.infra.tool import upload_url_tool
 
 
@@ -170,6 +170,48 @@ async def test_upload_url_to_sandbox_uses_direct_backend_async_path_resolver() -
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("failure_stage", ["resolver", "execution"])
+async def test_upload_url_to_sandbox_propagates_sandbox_initialization_error(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_stage: str,
+) -> None:
+    class _InitializationFailingBackend:
+        async def aresolve_path(self, path: str) -> str:
+            if failure_stage == "resolver":
+                raise SandboxInitializationError()
+            return path
+
+        async def aexecute(self, command: str) -> ExecuteResponse:
+            del command
+            raise SandboxInitializationError()
+
+        async def aupload_files(self, files):
+            raise AssertionError("initialization failures must not use API-side fallback")
+
+    class _FailHttpClient:
+        async def __aenter__(self):
+            raise AssertionError("initialization failures must not use HTTP fallback")
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr(
+        upload_url_tool.httpx,
+        "AsyncClient",
+        lambda **_kwargs: _FailHttpClient(),
+    )
+
+    with pytest.raises(SandboxInitializationError) as exc_info:
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url="https://files.example.com/input.txt",
+            file_path="/workspace/input.txt",
+            runtime=_Runtime(_InitializationFailingBackend()),
+        )
+
+    assert str(exc_info.value) == SandboxInitializationError.PUBLIC_MESSAGE
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("failure_kind", "expected_category"),
     [("nonzero_exit", "exit_code=17"), ("exception", "execution_error")],
@@ -247,6 +289,7 @@ async def test_upload_url_to_sandbox_redacts_provider_path_from_success_log(
 ) -> None:
     actual_path = "/remote/session-1/input.txt"
     public_path = "/workspace/session-1/input.txt"
+    signed_url = "https://files.example.com/input.txt?token=secret-credential"
 
     class _SuccessfulSandbox(_RecordingSandbox):
         async def aresolve_path(self, path: str) -> str:
@@ -260,14 +303,16 @@ async def test_upload_url_to_sandbox_redacts_provider_path_from_success_log(
 
     result = json.loads(
         await upload_url_tool.upload_url_to_sandbox.coroutine(
-            url="https://files.example.com/input.txt",
+            url=signed_url,
             file_path=public_path,
             runtime=_Runtime(_SuccessfulSandbox(work_dir="/remote/session-1")),
         )
     )
 
     assert result == {"success": True, "path": public_path, "source": "sandbox"}
-    assert actual_path not in caplog.text
+    assert "sandbox_download_succeeded" in caplog.text
+    for private_detail in (signed_url, public_path, actual_path, "secret-credential"):
+        assert private_detail not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -407,6 +452,256 @@ async def test_upload_url_to_sandbox_streams_download(monkeypatch: pytest.Monkey
 
     assert result == {"success": True, "path": "/workspace/input.txt", "size": 11}
     assert uploaded == [("/workspace/input.txt", b"hello world")]
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_redacts_http_download_failure_log(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    signed_url = "https://files.example.com/input.txt?token=secret-credential"
+    public_path = "/workspace/private/input.txt"
+
+    class _FakeBackend:
+        async def aupload_files(self, files):
+            raise AssertionError("failed downloads should not upload")
+
+    class _FailingResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            request = upload_url_tool.httpx.Request("GET", signed_url)
+            response = upload_url_tool.httpx.Response(403, request=request)
+            raise upload_url_tool.httpx.HTTPStatusError(
+                f"request for {signed_url} was forbidden",
+                request=request,
+                response=response,
+            )
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            return _FailingResponse()
+
+    monkeypatch.setattr(upload_url_tool.httpx, "AsyncClient", lambda **_kwargs: _FakeHttpClient())
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url=signed_url,
+            file_path=public_path,
+            runtime=_Runtime(_FakeBackend()),
+        )
+    )
+
+    assert result == {"success": False, "error": "Download failed: HTTP 403"}
+    assert "download_failed category=http_status status_code=403" in caplog.text
+    for private_detail in (signed_url, public_path, "secret-credential"):
+        assert private_detail not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_redacts_generic_download_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    signed_url = "https://files.example.com/input.txt?token=secret-credential"
+    public_path = "/workspace/private/input.txt"
+
+    class _FakeBackend:
+        async def aupload_files(self, files):
+            raise AssertionError("failed downloads should not upload")
+
+    class _FailHttpClient:
+        async def __aenter__(self):
+            raise RuntimeError(f"download failed for {signed_url}")
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+    monkeypatch.setattr(upload_url_tool.httpx, "AsyncClient", lambda **_kwargs: _FailHttpClient())
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url=signed_url,
+            file_path=public_path,
+            runtime=_Runtime(_FakeBackend()),
+        )
+    )
+
+    assert result == {"success": False, "error": "Download failed; please retry later"}
+    assert "download_failed category=RuntimeError" in caplog.text
+    captured_output = json.dumps(result)
+    for private_detail in (signed_url, public_path, "secret-credential"):
+        assert private_detail not in caplog.text
+        assert private_detail not in captured_output
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_logs_only_size_after_fallback_upload(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    signed_url = "https://files.example.com/input.txt?token=secret-credential"
+    public_path = "/workspace/private/input.txt"
+
+    class _FakeBackend:
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=None)]
+
+    class _FakeResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"content"
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            return _FakeResponse()
+
+    monkeypatch.setattr(upload_url_tool.httpx, "AsyncClient", lambda **_kwargs: _FakeHttpClient())
+    caplog.set_level(logging.INFO)
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url=signed_url,
+            file_path=public_path,
+            runtime=_Runtime(_FakeBackend()),
+        )
+    )
+
+    assert result == {"success": True, "path": public_path, "size": 7}
+    assert "upload_succeeded size_bytes=7" in caplog.text
+    for private_detail in (signed_url, public_path, "secret-credential"):
+        assert private_detail not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_redacts_upload_result_error(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    signed_url = "https://files.example.com/input.txt?token=secret-credential"
+    public_path = "/workspace/private/input.txt"
+    actual_path = "/remote/private/input.txt"
+
+    class _FakeBackend:
+        async def aupload_files(self, files):
+            return [SimpleNamespace(error=f"provider rejected {actual_path}")]
+
+    class _FakeResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"content"
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            return _FakeResponse()
+
+    monkeypatch.setattr(upload_url_tool.httpx, "AsyncClient", lambda **_kwargs: _FakeHttpClient())
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url=signed_url,
+            file_path=public_path,
+            runtime=_Runtime(_FakeBackend()),
+        )
+    )
+
+    assert result == {"success": False, "error": "Upload failed; please retry later"}
+    captured_output = json.dumps(result)
+    for private_detail in (signed_url, public_path, actual_path, "secret-credential"):
+        assert private_detail not in caplog.text
+        assert private_detail not in captured_output
+
+
+@pytest.mark.asyncio
+async def test_upload_url_to_sandbox_redacts_fallback_upload_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    signed_url = "https://files.example.com/input.txt?token=secret-credential"
+    public_path = "/workspace/private/input.txt"
+    actual_path = "/remote/private/input.txt"
+
+    class _FakeBackend:
+        async def aupload_files(self, files):
+            raise RuntimeError(f"provider rejected {actual_path}")
+
+    class _FakeResponse:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        async def aiter_bytes(self):
+            yield b"content"
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        def stream(self, method: str, request_url: str):
+            return _FakeResponse()
+
+    monkeypatch.setattr(upload_url_tool.httpx, "AsyncClient", lambda **_kwargs: _FakeHttpClient())
+
+    result = json.loads(
+        await upload_url_tool.upload_url_to_sandbox.coroutine(
+            url=signed_url,
+            file_path=public_path,
+            runtime=_Runtime(_FakeBackend()),
+        )
+    )
+
+    assert result == {"success": False, "error": "Upload failed; please retry later"}
+    assert "upload_failed category=RuntimeError" in caplog.text
+    captured_output = json.dumps(result)
+    for private_detail in (signed_url, public_path, actual_path, "secret-credential"):
+        assert private_detail not in caplog.text
+        assert private_detail not in captured_output
 
 
 @pytest.mark.asyncio

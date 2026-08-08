@@ -101,13 +101,13 @@ def test_search_lazy_runtime_distinguishes_file_and_shell_workspace_paths() -> N
     _assert_markers(
         rendered,
         (
+            "Logical file-tool alias (not a shell path)",
             "/workspace/session-1",
-            "file tools",
-            "absolute",
-            "shell",
+            "Use this alias only with file tools and uploads",
             "relative paths",
             "$LAMBCHAT_WORKSPACE",
-            "do not use `/workspace/session-1` literally",
+            "Never paste `/workspace/session-1` into a shell command",
+            "Never guess or repeat a provider filesystem path",
         ),
     )
 

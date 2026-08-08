@@ -17,6 +17,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.backend.lazy_sandbox import SandboxInitializationError
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
 
@@ -122,21 +123,22 @@ async def upload_url_to_sandbox(
         if base_url:
             url = f"{base_url}{url}"
         else:
-            logger.warning("[upload_url_to_sandbox] url is relative but base_url is empty: %s", url)
+            logger.warning(
+                "[upload_url_to_sandbox] url_validation_failed "
+                "category=relative_url_without_base_url"
+            )
 
     if hasattr(backend, "aexecute") or hasattr(backend, "execute"):
         try:
             ok, status = await _execute_sandbox_download(backend, url, file_path)
             if ok:
-                logger.info(
-                    "[upload_url_to_sandbox] Sandbox downloaded %s -> %s",
-                    url,
-                    file_path,
-                )
+                logger.info("[upload_url_to_sandbox] sandbox_download_succeeded")
                 return await _json_dumps_result(
                     {"success": True, "path": file_path, "source": "sandbox"}
                 )
             logger.warning("[upload_url_to_sandbox] Sandbox download failed (%s)", status)
+        except SandboxInitializationError:
+            raise
         except Exception:
             logger.warning("[upload_url_to_sandbox] Sandbox download failed (execution_error)")
 
@@ -175,7 +177,10 @@ async def upload_url_to_sandbox(
                 await run_blocking_io(spooled.seek, 0)
                 content = await run_blocking_io(spooled.read)
     except httpx.HTTPStatusError as e:
-        logger.warning(f"[upload_url_to_sandbox] HTTP error downloading {url}: {e}")
+        logger.warning(
+            "[upload_url_to_sandbox] download_failed category=http_status status_code=%s",
+            e.response.status_code,
+        )
         return await _json_dumps_result(
             {
                 "success": False,
@@ -183,8 +188,13 @@ async def upload_url_to_sandbox(
             }
         )
     except Exception as e:
-        logger.warning(f"[upload_url_to_sandbox] Failed to download {url}: {e}")
-        return await _json_dumps_result({"success": False, "error": f"Download failed: {e}"})
+        logger.warning(
+            "[upload_url_to_sandbox] download_failed category=%s",
+            type(e).__name__,
+        )
+        return await _json_dumps_result(
+            {"success": False, "error": "Download failed; please retry later"}
+        )
 
     # 上传到沙箱
     try:
@@ -192,17 +202,21 @@ async def upload_url_to_sandbox(
         result = results[0]
         if result.error:
             return await _json_dumps_result(
-                {
-                    "success": False,
-                    "error": f"Upload failed: {result.error}",
-                    "path": file_path,
-                }
+                {"success": False, "error": "Upload failed; please retry later"}
             )
-        logger.info(f"[upload_url_to_sandbox] Uploaded {url} -> {file_path} ({len(content)} bytes)")
+        logger.info(
+            "[upload_url_to_sandbox] upload_succeeded size_bytes=%s",
+            len(content),
+        )
         return await _json_dumps_result({"success": True, "path": file_path, "size": len(content)})
     except Exception as e:
-        logger.error(f"[upload_url_to_sandbox] Failed to upload to {file_path}: {e}")
-        return await _json_dumps_result({"success": False, "error": f"Upload failed: {e}"})
+        logger.error(
+            "[upload_url_to_sandbox] upload_failed category=%s",
+            type(e).__name__,
+        )
+        return await _json_dumps_result(
+            {"success": False, "error": "Upload failed; please retry later"}
+        )
 
 
 def get_upload_url_tool() -> BaseTool:
