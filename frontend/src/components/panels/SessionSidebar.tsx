@@ -41,6 +41,7 @@ import type { ScheduledTaskItemHandle } from "../sidebar/ScheduledTaskSidebarIte
 import { type UnreadBySession } from "../sidebar/unreadCounts";
 import { SearchDialog } from "./SearchDialog";
 import { ShareDialog } from "../share/ShareDialog";
+import { ShareProjectDialog } from "../share/ShareProjectDialog";
 import { NewProjectModal } from "./NewProjectModal";
 import {
   SessionListContent,
@@ -177,6 +178,13 @@ export const SessionSidebar = forwardRef<
     isOpen: boolean;
     projectId: string | null;
     projectName: string;
+  }>({ isOpen: false, projectId: null, projectName: "" });
+
+  const [shareProjectDialog, setShareProjectDialog] = useState<{
+    isOpen: boolean;
+    projectId: string | null;
+    projectName: string;
+    projectIcon?: string;
   }>({ isOpen: false, projectId: null, projectName: "" });
 
   const isCollapsed = externalCollapsed ?? internalCollapsed;
@@ -366,6 +374,15 @@ export const SessionSidebar = forwardRef<
           isOpen: true,
           projectId: id,
           projectName: proj?.name ?? "",
+        });
+      },
+      onShareProject: (id) => {
+        const proj = projects.find((p) => p.id === id);
+        setShareProjectDialog({
+          isOpen: true,
+          projectId: id,
+          projectName: proj?.name ?? "",
+          projectIcon: proj?.icon,
         });
       },
       onUpdateIcon: projectManager.handleUpdateIcon,
@@ -761,6 +778,21 @@ export const SessionSidebar = forwardRef<
         onClose={() => actions.setShareDialogSessionId(null)}
         sessionId={actions.shareDialogSessionId ?? ""}
         sessionName={actions.shareDialogSessionName || t("sidebar.newChat")}
+      />
+
+      {/* Share project dialog */}
+      <ShareProjectDialog
+        isOpen={shareProjectDialog.isOpen}
+        onClose={() =>
+          setShareProjectDialog({
+            isOpen: false,
+            projectId: null,
+            projectName: "",
+          })
+        }
+        projectId={shareProjectDialog.projectId ?? ""}
+        projectName={shareProjectDialog.projectName}
+        projectIcon={shareProjectDialog.projectIcon}
       />
 
       {/* Desktop more menu */}

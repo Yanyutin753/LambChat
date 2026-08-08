@@ -12,6 +12,7 @@ INDEX_ROBOTS = "index, follow, max-image-preview:large"
 NOINDEX_ROBOTS = "noindex, follow, max-image-preview:large"
 DEFAULT_SHARE_PREVIEW_LABEL = "Shared session preview"
 DEFAULT_SHARE_DESCRIPTION = "View this shared session on LambChat."
+DEFAULT_SHARE_PROJECT_PREVIEW_LABEL = "Shared project preview"
 PUBLIC_HOME_PATH = "/"
 CRAWLER_ROBOTS_META_NAMES = (
     "googlebot",
@@ -248,6 +249,54 @@ def build_shared_page_seo(
         preview_summary=summary,
         author_name=_normalize_text((owner or {}).get("username")),
         published_date=_format_date(session.get("created_at")),
+    )
+
+
+def build_shared_project_seo(
+    *,
+    base_url: str,
+    share_id: str,
+    project: Any,
+    sessions: Sequence[Any],
+    sessions_total: int | None = None,
+    owner: Mapping[str, Any] | None,
+    app_name: str = "LambChat",
+    indexable: bool = False,
+) -> SharedPageSeo:
+    """Build SEO metadata for a shared project (scope=project).
+
+    Returns the same ``SharedPageSeo`` shape as session shares so the existing
+    HTML injection works unchanged.
+    """
+    project_name = _normalize_text(
+        project.get("name") if isinstance(project, dict) else getattr(project, "name", "")
+    )
+    session_count = sessions_total if sessions_total is not None else len(sessions)
+
+    preview_title = project_name or "Shared project"
+    title = f"{preview_title} - {app_name} Shared Project"
+
+    if session_count:
+        description = (
+            f"Shared project '{preview_title}' with {session_count} conversation(s) on {app_name}."
+        )
+    else:
+        description = f"Shared project '{preview_title}' on {app_name}."
+
+    robots = "index, follow, max-image-preview:large" if indexable else DEFAULT_SHARE_ROBOTS
+    canonical_url = f"{base_url.rstrip('/')}/shared/{share_id}"
+
+    return SharedPageSeo(
+        title=title,
+        description=description,
+        canonical_url=canonical_url,
+        robots=robots,
+        og_type="article",
+        preview_label=DEFAULT_SHARE_PROJECT_PREVIEW_LABEL,
+        preview_title=preview_title,
+        preview_summary=description,
+        author_name=_normalize_text((owner or {}).get("username")),
+        published_date="",
     )
 
 

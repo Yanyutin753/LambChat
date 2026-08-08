@@ -212,6 +212,8 @@ export type {
 export type {
   ShareType,
   ShareVisibility,
+  ShareScope,
+  ProjectSnapshot,
   SharedSession,
   ShareCreate,
   ShareUpdate,
@@ -219,6 +221,9 @@ export type {
   ShareListResponse,
   SharedContentOwner,
   SharedContentResponse,
+  SharedProjectSessionItem,
+  SharedProjectContentResponse,
+  SharedContent,
 } from "./share";
 
 // ============================================

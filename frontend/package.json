@@ -88,6 +88,7 @@
     "react-router-dom": "^7.13.0",
     "react-turnstile": "^1.1.5",
     "react-virtuoso": "^4.18.3",
+    "recharts": "^2.15.4",
     "rehype-highlight": "^7.0.2",
     "rehype-katex": "^7.0.1",
     "remark-breaks": "^4.0.0",

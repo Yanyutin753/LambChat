@@ -28,9 +28,9 @@ import { appNotificationService } from "./services/notifications/appNotification
 import { UpdateDialog } from "./components/update/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
-const SharedPage = lazy(() =>
-  import("./components/share/SharedPage").then((m) => ({
-    default: m.SharedPage,
+const SharedEntry = lazy(() =>
+  import("./components/share/SharedEntry").then((m) => ({
+    default: m.SharedEntry,
   })),
 );
 const OAuthCallback = lazy(() =>
@@ -675,12 +675,12 @@ function App() {
             <Route path="/auth/verify-email" element={<VerifyEmail />} />
             {/* Registration pending verification page - no auth required */}
             <Route path="/auth/pending" element={<RegistrationPending />} />
-            {/* Public shared session page - no auth required */}
+            {/* Public shared page (session or project) - no auth required */}
             <Route
               path="/shared/:shareId"
               element={
                 <Suspense fallback={null}>
-                  <SharedPage />
+                  <SharedEntry />
                 </Suspense>
               }
             />

@@ -5,7 +5,7 @@
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Edit2, Trash2, MessageSquarePlus, X } from "lucide-react";
+import { Edit2, Trash2, MessageSquarePlus, Share2, X } from "lucide-react";
 import type { Project } from "../../types";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
@@ -16,6 +16,7 @@ interface ProjectMenuProps {
   onClose: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onShare?: () => void;
   onNewSessionInProject?: (projectId: string) => void;
   anchorEl: HTMLElement | null;
 }
@@ -26,6 +27,7 @@ export function ProjectMenu({
   onClose,
   onRename,
   onDelete,
+  onShare,
   onNewSessionInProject,
   anchorEl,
 }: ProjectMenuProps) {
@@ -166,6 +168,20 @@ export function ProjectMenu({
               <span>{t("sidebar.rename")}</span>
             </button>
 
+            {/* Share project */}
+            {onShare && (
+              <button
+                onClick={() => {
+                  onShare();
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              >
+                <Share2 size={16} />
+                <span>{t("sidebar.shareProject", "分享项目")}</span>
+              </button>
+            )}
+
             {/* Divider */}
             <div className="h-px bg-stone-200 dark:bg-stone-700 my-1.5" />
 
@@ -204,6 +220,20 @@ export function ProjectMenu({
         <Edit2 size={14} />
         <span>{t("sidebar.rename")}</span>
       </button>
+
+      {/* Share project option */}
+      {onShare && (
+        <button
+          onClick={() => {
+            onShare();
+            onClose();
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+        >
+          <Share2 size={14} />
+          <span>{t("sidebar.shareProject", "分享项目")}</span>
+        </button>
+      )}
 
       {/* New Session option */}
       {onNewSessionInProject && (

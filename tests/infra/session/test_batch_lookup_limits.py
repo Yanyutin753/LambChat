@@ -82,6 +82,37 @@ async def test_get_by_session_ids_caps_mongo_in_query(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
+async def test_get_by_session_ids_falls_back_to_object_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """没有 session_id 字段的会话以 str(_id) 为规范 id，应通过 _id 回查而非漏取。"""
+    from bson import ObjectId
+
+    collection = _RecordingCollection()
+    storage = session_storage.SessionStorage()
+    storage._collection = collection
+
+    async def _skip_indexes(_self):
+        return None
+
+    monkeypatch.setattr(session_storage.SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+
+    # 混合：一个真实 session_id（UUID 形，非 ObjectId）+ 一个 ObjectId 形（无 session_id 字段的会话）
+    uuid_id = "07bb8ec7-6760-401a-9bd9-eb11286e7b7e"
+    oid_hex = "6a2e8bb97940c469637b4e73"  # 24 hex chars -> 合法 ObjectId
+    assert ObjectId.is_valid(oid_hex)
+
+    await storage.get_by_session_ids([uuid_id, oid_hex])
+
+    assert len(collection.queries) == 1
+    query = collection.queries[0]
+    assert "$or" in query
+    session_id_clause, oid_clause = query["$or"]
+    assert session_id_clause == {"session_id": {"$in": [uuid_id, oid_hex]}}
+    assert oid_clause == {"_id": {"$in": [ObjectId(oid_hex)]}}
+
+
+@pytest.mark.asyncio
 async def test_list_sessions_caps_direct_storage_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     collection = _RecordingListCollection()
     storage = session_storage.SessionStorage()

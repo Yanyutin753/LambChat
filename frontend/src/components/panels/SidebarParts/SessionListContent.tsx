@@ -74,6 +74,7 @@ export interface SessionActions {
 export interface ProjectActions {
   onRenameProject: (id: string, name: string) => void;
   onDeleteProject: (id: string) => void;
+  onShareProject?: (id: string) => void;
   onUpdateIcon: (id: string, icon: string) => void;
   onOpenNewProjectModal: () => void;
   onNewSessionInProject: (projectId: string) => void;
@@ -477,6 +478,7 @@ export function SessionListContent({
                   onMoveSession={sessionActions.onMoveSession}
                   onToggleFavorite={sessionActions.onToggleFavorite}
                   onShareSession={sessionActions.onShareSession}
+                  onShareProject={projectActions.onShareProject}
                   onRenameProject={projectActions.onRenameProject}
                   onDeleteProject={projectActions.onDeleteProject}
                   onUpdateIcon={projectActions.onUpdateIcon}
@@ -511,6 +513,7 @@ export function SessionListContent({
                 onMoveSession={sessionActions.onMoveSession}
                 onToggleFavorite={sessionActions.onToggleFavorite}
                 onShareSession={sessionActions.onShareSession}
+                onShareProject={projectActions.onShareProject}
                 onRenameProject={projectActions.onRenameProject}
                 onDeleteProject={projectActions.onDeleteProject}
                 onUpdateIcon={projectActions.onUpdateIcon}
