@@ -217,7 +217,7 @@ function TreeDirRow({
   const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const [isDownloading, setIsDownloading] = useState(false);
   const dirSize = expanded ? getTreeDirSize(node) : 0;
-  const { binaryFiles, skippedCount } = useMemo(
+  const { binaryFiles, skippedCount, skippedPaths } = useMemo(
     () => buildRevealArtifactBinaryFiles(collectSubtreeFiles(node)),
     [node],
   );
@@ -260,7 +260,12 @@ function TreeDirRow({
             onClick={async () => {
               if (isDownloading) return;
               if (skippedCount > 0) {
-                toast.error(t("chat.message.downloadFailed", "下载失败"));
+                toast.error(
+                  `${t(
+                    "chat.message.downloadFailed",
+                    "下载失败",
+                  )}: ${skippedPaths.join(", ")}`,
+                );
                 return;
               }
               try {
@@ -437,7 +442,7 @@ function getRevealArtifactImagePreviewItems(
 function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
   const { t } = useTranslation();
   const [isDownloading, setIsDownloading] = useState(false);
-  const { binaryFiles, skippedCount } = useMemo(
+  const { binaryFiles, skippedCount, skippedPaths } = useMemo(
     () => buildRevealArtifactBinaryFiles(artifacts),
     [artifacts],
   );
@@ -450,7 +455,12 @@ function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
       onClick={async () => {
         if (isDownloading) return;
         if (skippedCount > 0) {
-          toast.error(t("chat.message.downloadFailed", "下载失败"));
+          toast.error(
+            `${t(
+              "chat.message.downloadFailed",
+              "下载失败",
+            )}: ${skippedPaths.join(", ")}`,
+          );
           return;
         }
         try {

@@ -60,6 +60,32 @@ test("default export keeps the existing best-effort binary contract", async () =
   expect(revokeObjectUrl).toHaveBeenCalledWith("blob:best-effort");
 });
 
+test("default export does not silently apply strict resource limits", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    headers: { get: () => String(30 * 1024 * 1024) },
+    arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1]).buffer),
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("URL", {
+    ...URL,
+    createObjectURL: vi.fn(() => "blob:legacy"),
+    revokeObjectURL: vi.fn(),
+  });
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  const binaryFiles = Object.fromEntries(
+    Array.from({ length: 51 }, (_, index) => [
+      `file-${index}.bin`,
+      `/api/upload/file/${index}`,
+    ]),
+  );
+
+  await expect(
+    exportProjectZip({}, "legacy", binaryFiles),
+  ).resolves.toBeUndefined();
+  expect(fetchMock).toHaveBeenCalledTimes(51);
+});
+
 test("preserves non-Latin letters in the downloaded ZIP name", async () => {
   vi.stubGlobal("URL", {
     ...URL,

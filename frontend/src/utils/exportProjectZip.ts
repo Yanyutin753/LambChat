@@ -86,30 +86,35 @@ export async function exportProjectZip(
 
   // 添加二进制文件（从 OSS URL 拉取）
   if (binaryFiles) {
-    const maxFiles = positiveInteger(
-      options.maxBinaryFiles,
-      DEFAULT_MAX_BINARY_FILES,
-    );
-    const maxBytes = positiveInteger(
-      options.maxBinaryBytes,
-      DEFAULT_MAX_BINARY_BYTES,
-    );
+    const resourceGuardsEnabled =
+      options.failOnBinaryError === true ||
+      options.maxBinaryFiles !== undefined ||
+      options.maxBinaryBytes !== undefined ||
+      options.maxBinaryFileBytes !== undefined ||
+      options.binaryTimeoutMs !== undefined;
+    const allEntries = Object.entries(binaryFiles);
+    const maxFiles = resourceGuardsEnabled
+      ? positiveInteger(options.maxBinaryFiles, DEFAULT_MAX_BINARY_FILES)
+      : allEntries.length;
+    const maxBytes = resourceGuardsEnabled
+      ? positiveInteger(options.maxBinaryBytes, DEFAULT_MAX_BINARY_BYTES)
+      : Number.MAX_SAFE_INTEGER;
     const maxFileBytes = Math.min(
-      positiveInteger(
-        options.maxBinaryFileBytes,
-        DEFAULT_MAX_BINARY_FILE_BYTES,
-      ),
+      resourceGuardsEnabled
+        ? positiveInteger(
+            options.maxBinaryFileBytes,
+            DEFAULT_MAX_BINARY_FILE_BYTES,
+          )
+        : Number.MAX_SAFE_INTEGER,
       maxBytes,
     );
     const concurrency = Math.min(
       positiveInteger(options.binaryConcurrency, DEFAULT_BINARY_CONCURRENCY),
       8,
     );
-    const timeoutMs = positiveInteger(
-      options.binaryTimeoutMs,
-      DEFAULT_BINARY_TIMEOUT_MS,
-    );
-    const allEntries = Object.entries(binaryFiles);
+    const timeoutMs = resourceGuardsEnabled
+      ? positiveInteger(options.binaryTimeoutMs, DEFAULT_BINARY_TIMEOUT_MS)
+      : undefined;
     if (options.failOnBinaryError && allEntries.length > maxFiles) {
       throw new Error(`Binary ZIP limit exceeded: at most ${maxFiles} files`);
     }
@@ -125,10 +130,9 @@ export async function exportProjectZip(
         nextIndex += 1;
         const [path, sourceUrl] = entries[index];
         const controller = new AbortController();
-        const timeoutId = window.setTimeout(
-          () => controller.abort(),
-          timeoutMs,
-        );
+        const timeoutId = timeoutMs
+          ? window.setTimeout(() => controller.abort(), timeoutMs)
+          : undefined;
         try {
           const readUrl = buildUploadProxyUrl(sourceUrl) || sourceUrl;
           const response = await fetch(readUrl, { signal: controller.signal });
@@ -148,7 +152,7 @@ export async function exportProjectZip(
           // Best-effort callers keep the previous behavior; strict callers reject below.
           failedPaths.push(path);
         } finally {
-          window.clearTimeout(timeoutId);
+          if (timeoutId !== undefined) window.clearTimeout(timeoutId);
         }
       }
     };

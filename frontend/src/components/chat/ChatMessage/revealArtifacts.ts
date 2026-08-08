@@ -252,6 +252,7 @@ function normalizeArtifactPath(path: string): string {
 export interface RevealArtifactBinaryFiles {
   binaryFiles: Record<string, string>;
   skippedCount: number;
+  skippedPaths: string[];
 }
 
 function normalizeZipEntryPath(path: string, fallbackName: string): string {
@@ -308,12 +309,14 @@ export function buildRevealArtifactBinaryFiles(
   const binaryFiles: Record<string, string> = {};
   const usedPaths = new Set<string>();
   let skippedCount = 0;
+  const skippedPaths: string[] = [];
 
   for (const artifact of artifacts) {
     if (artifact.kind !== "file") continue;
     const url = artifact.preview.signedUrl;
     if (!url) {
       skippedCount += 1;
+      skippedPaths.push(artifact.path || artifact.name);
       continue;
     }
     const path = makeUniqueZipEntryPath(
@@ -323,7 +326,7 @@ export function buildRevealArtifactBinaryFiles(
     binaryFiles[path] = url;
   }
 
-  return { binaryFiles, skippedCount };
+  return { binaryFiles, skippedCount, skippedPaths };
 }
 
 function getRevealArtifactDedupeKey(artifact: RevealArtifact): string {

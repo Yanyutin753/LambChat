@@ -66,6 +66,7 @@ test("builds safe unique ZIP paths and skips files without a signed URL", () => 
       "workspace/notes.txt": "/api/upload/file/notes",
     },
     skippedCount: 1,
+    skippedPaths: ["/workspace/missing.txt"],
   });
 });
 
@@ -103,6 +104,7 @@ test("sanitizes unsafe fallback names with the same ZIP path rules", () => {
       "file (2)": "/api/upload/file/unsafe-control",
     },
     skippedCount: 0,
+    skippedPaths: [],
   });
 });
 

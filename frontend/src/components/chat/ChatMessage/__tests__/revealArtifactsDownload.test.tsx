@@ -206,7 +206,9 @@ test("does not silently create a partial ZIP when one signed URL is missing", as
   fireEvent.click(screen.getByRole("button", { name: "Download all" }));
 
   await waitFor(() => {
-    expect(mocks.toastError).toHaveBeenCalledWith("Download failed");
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "Download failed: /workspace/missing.txt",
+    );
   });
   expect(mocks.exportProjectZip).not.toHaveBeenCalled();
 });
