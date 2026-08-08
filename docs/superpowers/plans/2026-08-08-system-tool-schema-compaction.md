@@ -78,6 +78,16 @@ LAMBCHAT_MODULE_PREFIXES = (
 
 Matching a name and property set without trusted provenance must return the original object unchanged. Dictionary tool definitions also pass through unchanged because their provenance cannot be established.
 
+## Baseline Snapshot Source
+
+The supplied snapshot is available at:
+
+```text
+/home/yangyang/.codex/attachments/985a047a-3698-4a7a-9c7e-6781d9ee4725/pasted-text.txt
+```
+
+Its SHA-256 is `fd7b8088649d15e7bfb6149a4236bb64dc80a742e567bbbcf331acebb71d44ef`. After excluding only `web_search_prime`, `search_doc`, and `get_repo_structure`, compact JSON serialization of the 21-entry array has SHA-256 `609dccbe1bc1f06b03d3884c02c92abc114cf322a11d5cb2c88632e847e12ec3`. Token accounting sums the independently encoded compact JSON for each tool; that per-tool sum is 6,981 tokens. Encoding the surrounding array as one payload produces a different boundary count and must not be used for the acceptance baseline.
+
 ## Compact Description Requirements
 
 Exact wording may be refined to meet the budget, but tests must require the concepts in the right column:
@@ -234,7 +244,16 @@ git commit -m "feat: compact trusted system tool schemas"
 
 - [ ] **Step 1: Create the exact 21-tool baseline fixture**
 
-Copy the supplied JSON snapshot and exclude only `web_search_prime`, `search_doc`, and `get_repo_structure`. Keep descriptions and parameter schemas byte-for-byte semantically equivalent; format differences are allowed because measurement uses compact JSON serialization.
+Verify and filter the supplied JSON snapshot with these exact commands:
+
+```bash
+sha256sum /home/yangyang/.codex/attachments/985a047a-3698-4a7a-9c7e-6781d9ee4725/pasted-text.txt
+jq '[.[] | select(.name != "web_search_prime" and .name != "search_doc" and .name != "get_repo_structure")]' \
+  /home/yangyang/.codex/attachments/985a047a-3698-4a7a-9c7e-6781d9ee4725/pasted-text.txt \
+  > tests/fixtures/system_tool_schemas.json
+```
+
+Expected source SHA-256: `fd7b8088649d15e7bfb6149a4236bb64dc80a742e567bbbcf331acebb71d44ef`. Keep descriptions and parameter schemas byte-for-byte semantically equivalent; whitespace formatting is allowed to differ because measurement reserializes each object as compact JSON.
 
 Add a fixture guard:
 
@@ -248,8 +267,15 @@ EXPECTED_SYSTEM_TOOL_NAMES = {
 
 
 def _token_count(definitions: list[dict[str, Any]]) -> int:
-    payload = json.dumps(definitions, ensure_ascii=False, separators=(",", ":"))
-    return len(tiktoken.get_encoding("o200k_base").encode(payload))
+    encoding = tiktoken.get_encoding("o200k_base")
+    return sum(
+        len(
+            encoding.encode(
+                json.dumps(definition, ensure_ascii=False, separators=(",", ":"))
+            )
+        )
+        for definition in definitions
+    )
 
 
 def test_fixture_matches_approved_system_tool_baseline() -> None:
@@ -257,6 +283,8 @@ def test_fixture_matches_approved_system_tool_baseline() -> None:
     assert {item["name"] for item in source} == EXPECTED_SYSTEM_TOOL_NAMES
     assert _token_count(source) == 6981
 ```
+
+Also compact-serialize the entire filtered array and assert its SHA-256 is `609dccbe1bc1f06b03d3884c02c92abc114cf322a11d5cb2c88632e847e12ec3`; this detects accidental edits independently of the name and token guards.
 
 - [ ] **Step 2: Add failing token-budget and semantic-marker tests**
 
@@ -352,6 +380,7 @@ Cover:
 4. One conversion failure logs the tool name and falls back only that tool.
 5. The original `request.tools` list and every original tool remain unchanged.
 6. Existing `extras`, including `_lambchat_prompt_cache_volatile`, survive on compact clones.
+7. Untrusted tools explicitly named `web_search_prime`, `search_doc`, and `get_repo_structure` pass through by identity with identical OpenAI definitions.
 
 - [ ] **Step 2: Run the middleware tests and verify RED**
 
@@ -441,6 +470,46 @@ def test_agent_uses_schema_tail_for_main_and_subagent_stacks(agent_name: str) ->
 ```
 
 Also assert the subagent occurrence follows any `ToolSearchMiddleware` construction, and the main occurrence is after the main `ToolSearchMiddleware` block. The factory itself fixes compaction-before-cache order.
+
+Add an async composition test that executes the same nested order as the registered stack. Use a real `DeferredToolManager` with pre-discovered untrusted `BaseTool` objects named `web_search_prime`, `search_doc`, and `get_repo_structure`, plus a real dynamically injected `ToolSearchTool`. Capture the request at the boundary between compaction and prompt caching:
+
+```python
+async def test_tool_search_compaction_and_cache_execute_in_order() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[web_tool, search_doc_tool, repo_structure_tool],
+        session_id="session-1",
+        pre_discovered_names=[
+            "web_search_prime",
+            "search_doc",
+            "get_repo_structure",
+        ],
+    )
+    search = ToolSearchMiddleware(deferred_manager=manager)
+    compact = SystemToolSchemaCompactionMiddleware()
+    cache = PromptCachingMiddleware()
+    after_compaction: list[Any] = []
+
+    async def final_handler(request):
+        return request
+
+    async def cache_layer(request):
+        after_compaction.extend(request.tools)
+        return await cache.awrap_model_call(request, final_handler)
+
+    async def compact_layer(request):
+        return await compact.awrap_model_call(request, cache_layer)
+
+    result = await search.awrap_model_call(_AnthropicRequest(), compact_layer)
+
+    search_tool = next(tool for tool in after_compaction if tool.name == "search_tools")
+    assert len(search_tool.description) < len(search._get_search_tool().description)
+    assert next(tool for tool in after_compaction if tool.name == "web_search_prime") is web_tool
+    assert next(tool for tool in after_compaction if tool.name == "search_doc") is search_doc_tool
+    assert next(tool for tool in after_compaction if tool.name == "get_repo_structure") is repo_structure_tool
+    assert any((tool.extras or {}).get("cache_control") for tool in result.tools)
+```
+
+The final identity assertion is intentionally made at the post-compaction/pre-cache boundary because prompt caching may clone stable tools solely to add `cache_control`. At the final boundary, compare external tool names, descriptions, and parameter schemas rather than object identity.
 
 - [ ] **Step 2: Run and verify RED**
 
@@ -614,7 +683,7 @@ Expected: PASS. If infrastructure or external-service prerequisites prevent comp
 uv run python scripts/report_system_tool_schema_tokens.py \
   tests/fixtures/system_tool_schemas.json
 git status --short
-git diff --check HEAD~4..HEAD
+git diff --check HEAD~5..HEAD
 ```
 
 Record before/after tokens, percentage saved, focused-test count, full-suite result, Ruff result, and Mypy result in the handoff. Confirm that `web_search_prime`, `search_doc`, and `get_repo_structure` are absent from the compacted fixture and unchanged by pass-through tests.
