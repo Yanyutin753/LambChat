@@ -160,8 +160,11 @@ class _ConcurrentListCollection(_FakeCollection):
 
 
 class _FakeMongoClient:
-    def __init__(self, sessions):
+    def __init__(self, sessions, *, max_pool_size=None):
         self._sessions = [dict(session) for session in sessions]
+        if max_pool_size is not None:
+            pool_options = type("PoolOptions", (), {"max_pool_size": max_pool_size})()
+            self.options = type("ClientOptions", (), {"pool_options": pool_options})()
 
     def __getitem__(self, _db_name):
         return _FakeMongoDatabase(self._sessions)
@@ -639,12 +642,13 @@ async def test_list_files_grouped_bounds_parallel_session_queries(
     storage.ensure_indexes_if_needed = _no_op_async
     monkeypatch.setattr(
         "src.infra.revealed_file.storage.settings.MONGODB_POOL_MAX_SIZE",
-        4,
+        100,
     )
     monkeypatch.setattr(
         "src.infra.storage.mongodb.get_mongo_client",
         lambda: _FakeMongoClient(
-            [{"session_id": session_id, "name": session_id} for session_id in session_ids]
+            [{"session_id": session_id, "name": session_id} for session_id in session_ids],
+            max_pool_size=4,
         ),
     )
 

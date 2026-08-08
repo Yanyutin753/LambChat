@@ -104,22 +104,23 @@ async def test_get_all_bounds_settings_query() -> None:
 
     await storage.get_all(admin_mode=True)
 
-    assert collection.cursor.length == len(SETTING_DEFINITIONS) + 2
+    assert collection.cursor.length == len(SETTING_DEFINITIONS) + 1
     query, projection = collection.find_calls[0]
     assert query == {
         "_id": {
             "$in": [
                 *SETTING_DEFINITIONS.keys(),
-                "__settings_atomic__:mongodb_pool:business",
-                "__settings_atomic__:mongodb_pool:checkpoint",
+                "__settings_atomic__:mongodb_pools",
             ]
         }
     }
     assert projection == {
         "_id": 1,
         "value": 1,
-        "min": 1,
-        "max": 1,
+        "business_min": 1,
+        "business_max": 1,
+        "checkpoint_min": 1,
+        "checkpoint_max": 1,
         "updated_at": 1,
         "updated_by": 1,
     }
@@ -241,8 +242,8 @@ async def test_pool_writes_are_serialized_across_storage_instances(
     )
 
     assert sum(isinstance(outcome, ValueError) for outcome in outcomes) == 1
-    pair = collection.docs["__settings_atomic__:mongodb_pool:business"]
-    assert pair["min"] <= pair["max"]
+    pair = collection.docs["__settings_atomic__:mongodb_pools"]
+    assert pair["business_min"] <= pair["business_max"]
 
 
 @pytest.mark.asyncio
@@ -293,8 +294,51 @@ async def test_reset_all_serializes_with_concurrent_pool_write() -> None:
     collection.allow_pair_read.set()
     await asyncio.gather(write_task, reset_task, return_exceptions=True)
 
-    pair = collection.docs["__settings_atomic__:mongodb_pool:business"]
-    assert pair["min"] <= pair["max"]
+    pair = collection.docs["__settings_atomic__:mongodb_pools"]
+    assert pair["business_min"] <= pair["business_max"]
+
+
+@pytest.mark.asyncio
+async def test_pool_audit_mirror_failure_does_not_report_authoritative_write_failure() -> None:
+    class _MirrorFailureCollection(_SettingsWriteCollection):
+        async def update_one(self, query, update, **kwargs):
+            if query["_id"] == "MONGODB_POOL_MIN_SIZE":
+                raise RuntimeError("legacy write failed")
+            return await super().update_one(query, update, **kwargs)
+
+    from src.infra.settings.storage import SettingsStorage
+
+    collection = _MirrorFailureCollection({"MONGODB_POOL_MIN_SIZE": 2, "MONGODB_POOL_MAX_SIZE": 20})
+    storage = SettingsStorage()
+    storage._collection = collection
+
+    saved = await storage.set("MONGODB_POOL_MIN_SIZE", 10, "admin-1")
+
+    assert saved is not None
+    assert saved.value == 10
+    pair = collection.docs["__settings_atomic__:mongodb_pools"]
+    assert pair["business_min"] == 10
+
+
+@pytest.mark.asyncio
+async def test_pool_reset_succeeds_when_audit_mirror_is_already_missing() -> None:
+    from src.infra.settings.storage import SettingsStorage
+
+    collection = _SettingsWriteCollection({})
+    collection.docs["__settings_atomic__:mongodb_pools"] = {
+        "_id": "__settings_atomic__:mongodb_pools",
+        "business_min": 10,
+        "business_max": 20,
+        "checkpoint_min": 2,
+        "checkpoint_max": 10,
+    }
+    storage = SettingsStorage()
+    storage._collection = collection
+
+    count = await storage.reset("MONGODB_POOL_MIN_SIZE")
+
+    assert count == 1
+    assert collection.docs["__settings_atomic__:mongodb_pools"]["business_min"] == 2
 
 
 @pytest.mark.asyncio

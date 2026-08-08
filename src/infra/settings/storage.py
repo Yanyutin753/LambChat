@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from pymongo import ReturnDocument
 
+from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import (
     RESTART_REQUIRED_SETTINGS,
@@ -28,6 +29,9 @@ _MONGODB_POOL_GROUPS = {
         "CHECKPOINT_MONGO_POOL_MAX_SIZE",
     ),
 }
+_MONGODB_POOL_PAIR_DOC_ID = "__settings_atomic__:mongodb_pools"
+
+logger = get_logger(__name__)
 
 
 def _validate_mongodb_pool_size_bounds(key: str, value: Any) -> None:
@@ -55,47 +59,44 @@ def _mongodb_pool_group(key: str) -> str:
     return "checkpoint" if key.startswith("CHECKPOINT_") else "business"
 
 
-def _mongodb_pool_pair_key(key: str) -> str:
-    group = _mongodb_pool_group(key)
-    return f"__settings_atomic__:mongodb_pool:{group}"
+def _mongodb_pool_pair_key(_key: str) -> str:
+    return _MONGODB_POOL_PAIR_DOC_ID
 
 
-def _pool_pair_values_from_docs(key: str, docs: dict[str, dict[str, Any]]) -> dict[str, int]:
-    """Resolve a safe pair from legacy setting documents or defaults."""
-    group = _mongodb_pool_group(key)
-    min_key, max_key = _MONGODB_POOL_GROUPS[group]
-    min_value = docs.get(min_key, {}).get("value", _get_default_from_settings(min_key))
-    max_value = docs.get(max_key, {}).get("value", _get_default_from_settings(max_key))
-    try:
-        _validate_mongodb_pool_size_bounds(min_key, min_value)
-        _validate_mongodb_pool_size_bounds(max_key, max_value)
-        _validate_mongodb_pool_size_pair(min_key, min_value, max_value)
-    except ValueError:
-        min_value = _get_default_from_settings(min_key)
-        max_value = _get_default_from_settings(max_key)
-    return {"min": min_value, "max": max_value}
+def _pool_pair_values_from_docs(docs: dict[str, dict[str, Any]]) -> dict[str, int]:
+    """Resolve safe authoritative values from legacy documents or defaults."""
+    values: dict[str, int] = {}
+    for group, (min_key, max_key) in _MONGODB_POOL_GROUPS.items():
+        min_value = docs.get(min_key, {}).get("value", _get_default_from_settings(min_key))
+        max_value = docs.get(max_key, {}).get("value", _get_default_from_settings(max_key))
+        try:
+            _validate_mongodb_pool_size_bounds(min_key, min_value)
+            _validate_mongodb_pool_size_bounds(max_key, max_value)
+            _validate_mongodb_pool_size_pair(min_key, min_value, max_value)
+        except ValueError:
+            min_value = _get_default_from_settings(min_key)
+            max_value = _get_default_from_settings(max_key)
+        values[f"{group}_min"] = min_value
+        values[f"{group}_max"] = max_value
+    return values
 
 
 def _mongodb_pool_pair_keys() -> list[str]:
-    return [f"__settings_atomic__:mongodb_pool:{group}" for group in _MONGODB_POOL_GROUPS]
+    return [_MONGODB_POOL_PAIR_DOC_ID]
 
 
 def _pool_pair_field(key: str) -> str:
-    return _MONGODB_POOL_SIZE_SETTINGS[key][0]
+    return f"{_mongodb_pool_group(key)}_{_MONGODB_POOL_SIZE_SETTINGS[key][0]}"
 
 
 def _pool_pair_condition(key: str, value: int) -> dict[str, Any]:
     kind, _ = _MONGODB_POOL_SIZE_SETTINGS[key]
-    return {"max": {"$gte": value}} if kind == "min" else {"min": {"$lte": value}}
+    paired_field = f"{_mongodb_pool_group(key)}_{'max' if kind == 'min' else 'min'}"
+    return {paired_field: {"$gte": value}} if kind == "min" else {paired_field: {"$lte": value}}
 
 
 def _pool_pair_value(key: str, pair: dict[str, Any]) -> int:
     return pair[_pool_pair_field(key)]
-
-
-def _mongodb_pool_pair_setting_keys(key: str) -> tuple[str, str]:
-    group = "checkpoint" if key.startswith("CHECKPOINT_") else "business"
-    return _MONGODB_POOL_GROUPS[group]
 
 
 class SettingsStorage:
@@ -120,13 +121,13 @@ class SettingsStorage:
         pair = await collection.find_one({"_id": _mongodb_pool_pair_key(key)})
         if pair is not None:
             return pair
-        min_key, max_key = _mongodb_pool_pair_setting_keys(key)
         docs: dict[str, dict[str, Any]] = {}
-        for setting_key in (min_key, max_key):
-            doc = await collection.find_one({"_id": setting_key}, {"value": 1})
-            if doc is not None:
-                docs[setting_key] = doc
-        return _pool_pair_values_from_docs(key, docs)
+        for min_key, max_key in _MONGODB_POOL_GROUPS.values():
+            for setting_key in (min_key, max_key):
+                doc = await collection.find_one({"_id": setting_key}, {"value": 1})
+                if doc is not None:
+                    docs[setting_key] = doc
+        return _pool_pair_values_from_docs(docs)
 
     async def _ensure_mongodb_pool_pair(self, key: str) -> dict[str, Any]:
         """Create the authoritative pair once, preserving valid legacy overrides."""
@@ -138,7 +139,7 @@ class SettingsStorage:
         initial = await self._read_mongodb_pool_pair(key)
         await collection.update_one(
             {"_id": pair_key},
-            {"$setOnInsert": {"min": initial["min"], "max": initial["max"]}},
+            {"$setOnInsert": initial},
             upsert=True,
         )
         pair = await collection.find_one({"_id": pair_key})
@@ -150,7 +151,8 @@ class SettingsStorage:
         collection = self._get_collection()
         pair = await self._ensure_mongodb_pool_pair(key)
         kind = _pool_pair_field(key)
-        paired_value = pair["max" if kind == "min" else "min"]
+        paired_key = _MONGODB_POOL_SIZE_SETTINGS[key][1]
+        paired_value = pair[_pool_pair_field(paired_key)]
         _validate_mongodb_pool_size_pair(key, value, paired_value)
         updated = await collection.find_one_and_update(
             {"_id": _mongodb_pool_pair_key(key), **_pool_pair_condition(key, value)},
@@ -160,7 +162,7 @@ class SettingsStorage:
         if updated is None:
             # A competing writer changed the counterpart after our first read.
             latest = await self._read_mongodb_pool_pair(key)
-            latest_paired = latest["max" if kind == "min" else "min"]
+            latest_paired = latest[_pool_pair_field(paired_key)]
             _validate_mongodb_pool_size_pair(key, value, latest_paired)
             raise ValueError("Concurrent MongoDB pool setting update; retry the request")
 
@@ -191,8 +193,10 @@ class SettingsStorage:
             {
                 "_id": 1,
                 "value": 1,
-                "min": 1,
-                "max": 1,
+                "business_min": 1,
+                "business_max": 1,
+                "checkpoint_min": 1,
+                "checkpoint_max": 1,
                 "updated_at": 1,
                 "updated_by": 1,
             },
@@ -219,7 +223,7 @@ class SettingsStorage:
             if key in _MONGODB_POOL_SIZE_SETTINGS:
                 pair = db_settings.get(_mongodb_pool_pair_key(key))
                 if pair is None:
-                    pair = _pool_pair_values_from_docs(key, db_settings)
+                    pair = _pool_pair_values_from_docs(db_settings)
                 value = _pool_pair_value(key, pair)
             else:
                 value = db_doc["value"] if db_doc else default_value
@@ -363,7 +367,14 @@ class SettingsStorage:
             await _persist()
         else:
             await self._update_mongodb_pool_pair(key, value)
-            await _persist()
+            try:
+                await _persist()
+            except Exception as exc:
+                logger.warning(
+                    "Authoritative pool setting %s was saved, but its audit mirror failed: %s",
+                    key,
+                    exc,
+                )
 
         return await self.get(key)
 
@@ -380,24 +391,57 @@ class SettingsStorage:
                 default_value = _get_default_from_settings(key)
                 _validate_mongodb_pool_size_bounds(key, default_value)
                 await self._update_mongodb_pool_pair(key, default_value)
-                result = await collection.delete_one({"_id": key})
+                try:
+                    result = await collection.delete_one({"_id": key})
+                except Exception as exc:
+                    logger.warning(
+                        "Authoritative pool setting %s was reset, but its audit mirror failed: %s",
+                        key,
+                        exc,
+                    )
+
+                    class _BestEffortResetResult:
+                        deleted_count = 1
+
+                    result = _BestEffortResetResult()
+                return 1
             return 1 if result.deleted_count > 0 else 0
         else:
             # Reset all
-            keys_to_delete = list(SETTING_DEFINITIONS.keys())
-            for group, (min_key, max_key) in _MONGODB_POOL_GROUPS.items():
-                await collection.update_one(
-                    {"_id": f"__settings_atomic__:mongodb_pool:{group}"},
-                    {
-                        "$set": {
-                            "min": _get_default_from_settings(min_key),
-                            "max": _get_default_from_settings(max_key),
-                        }
-                    },
-                    upsert=True,
+            non_pool_keys = [
+                setting_key
+                for setting_key in SETTING_DEFINITIONS
+                if setting_key not in _MONGODB_POOL_SIZE_SETTINGS
+            ]
+            result = await collection.delete_many({"_id": {"$in": non_pool_keys}})
+            defaults = {
+                f"{group}_min": _get_default_from_settings(min_key)
+                for group, (min_key, _) in _MONGODB_POOL_GROUPS.items()
+            }
+            defaults.update(
+                {
+                    f"{group}_max": _get_default_from_settings(max_key)
+                    for group, (_, max_key) in _MONGODB_POOL_GROUPS.items()
+                }
+            )
+            await collection.update_one(
+                {"_id": _MONGODB_POOL_PAIR_DOC_ID},
+                {"$set": defaults},
+                upsert=True,
+            )
+            try:
+                mirror_result = await collection.delete_many(
+                    {"_id": {"$in": list(_MONGODB_POOL_SIZE_SETTINGS)}}
                 )
-            result = await collection.delete_many({"_id": {"$in": keys_to_delete}})
-            return result.deleted_count
+            except Exception as exc:
+                logger.warning(
+                    "MongoDB pool settings were reset, but audit mirror cleanup failed: %s",
+                    exc,
+                )
+                mirror_count = 0
+            else:
+                mirror_count = mirror_result.deleted_count
+            return result.deleted_count + mirror_count
 
     async def close(self):
         """Close MongoDB connection (only clears local refs, does not close global client)"""
