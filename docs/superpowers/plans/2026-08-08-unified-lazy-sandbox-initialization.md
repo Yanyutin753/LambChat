@@ -131,9 +131,18 @@ class LazySandboxBackend(BaseSandbox):
     @property
     def id(self) -> str:
         return self._delegate.id if self._delegate is not None else "pending"
+
+    def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+        raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
+
+    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
+
+    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
 ```
 
-Add segment-aware `_to_provider_path()` and `_to_public_path()` helpers. Validate manager results only when initialization is added in Task 2; do not call the manager from `__init__`, `work_dir`, or `id`.
+Add segment-aware `_to_provider_path()` and `_to_public_path()` helpers. The three sync methods above are the minimal abstract-method implementations required to instantiate `BaseSandbox`; Task 3 replaces them with already-ready delegation. Validate manager results only when initialization is added in Task 2; do not call the manager from `__init__`, `work_dir`, or `id`.
 
 - [ ] **Step 4: Implement minimal async file delegation for the first tests**
 
@@ -417,7 +426,18 @@ Add prompt assertions:
 - shell guidance requires relative paths or `$LAMBCHAT_WORKSPACE` and forbids using the public alias literally in shell commands;
 - Team Agent continues using the existing eager `SANDBOX_RUNTIME_POLICY` with its real `{work_dir}`.
 
-- [ ] **Step 3: Run Search Agent tests and verify RED**
+- [ ] **Step 3: Write graph-level model-only and first-tool tests before production changes**
+
+Exercise `SearchAgent._stream()` so the test covers the real outer graph, `agent_node()`, a real DeepAgents inner graph, middleware construction, and `SearchAgentContext.close()` before terminal `done`. Use a deterministic fake chat model:
+
+- model-only response: the fake manager raises if obtained; assert the first/final AI content succeeds, no lifecycle event is attempted, `context.close()` closes an uninitialized wrapper, and close occurs before `done`;
+- first-tool response: the fake model emits a real `write_file` or `execute` tool call followed by a final answer; assert any streamed AI content before the tool is processed first, then one `starting`/`ready` pair, one manager request, correct public/actual path mapping, and unchanged final answer;
+- capture the `create_deep_agent()` arguments or inspect the compiled graph to prove main/subagent middleware and artifact roots receive the public workspace without initialization;
+- fail the test if any sync lazy method is called before readiness.
+
+Use the fake `BaseChatModel` patterns in `tests/agents/core/test_nested_graph_context.py` and `tests/infra/agent/test_artifact_delivery_middleware.py`. Do not replace either graph with a stub that bypasses DeepAgents middleware.
+
+- [ ] **Step 4: Run Search Agent tests and verify RED**
 
 Run:
 
@@ -425,9 +445,9 @@ Run:
 uv run pytest tests/agents/test_search_agent_lazy_sandbox.py tests/agents/test_agent_context_defaults.py tests/agents/core/test_subagent_prompts.py -v
 ```
 
-Expected: Search Agent still initializes the manager eagerly and context owns no sandbox resource.
+Expected: Search Agent still initializes the manager eagerly, model-only graph execution reaches the manager, and context owns no sandbox resource.
 
-- [ ] **Step 4: Export and assemble the lazy backend**
+- [ ] **Step 5: Export and assemble the lazy backend**
 
 Export `LazySandboxBackend`, `SandboxInitializationError`, and `public_sandbox_work_dir` from `src/infra/backend/__init__.py`.
 
@@ -443,11 +463,11 @@ In `_create_backend_and_prompt()`:
 
 Do not add E2B/CubeSandbox/Daytona branches.
 
-- [ ] **Step 5: Add context-owned finalization**
+- [ ] **Step 6: Add context-owned finalization**
 
 Add a typed optional lazy-backend field and a small `set_sandbox_resource()` method to `SearchAgentContext`. Its idempotent `close()` awaits `resource.aclose()` before returning. `SearchAgent._stream()` already calls `await context.close()` in `finally` before yielding `done`; keep that ordering and prove it in the test rather than adding another cleanup path to `agent_node()`.
 
-- [ ] **Step 6: Add a lazy-only runtime prompt section**
+- [ ] **Step 7: Add a lazy-only runtime prompt section**
 
 Keep `SANDBOX_RUNTIME_POLICY` unchanged for eager Team/Fast paths. Add `LAZY_SANDBOX_RUNTIME_POLICY` in `src/agents/core/prompt_policy.py`, and make Search Agent's `SANDBOX_RUNTIME_SECTION` alias it. The section must clearly separate:
 
@@ -455,7 +475,7 @@ Keep `SANDBOX_RUNTIME_POLICY` unchanged for eager Team/Fast paths. Add `LAZY_SAN
 - shell: starts in the real session workspace, so use relative paths or `$LAMBCHAT_WORKSPACE`;
 - do not insert the public alias literally into shell commands.
 
-- [ ] **Step 7: Run Search Agent tests and verify GREEN**
+- [ ] **Step 8: Run assembly, graph, cleanup, and prompt tests and verify GREEN**
 
 Run:
 
@@ -463,30 +483,9 @@ Run:
 uv run pytest tests/agents/test_search_agent_lazy_sandbox.py tests/agents/test_agent_context_defaults.py tests/agents/core/test_subagent_prompts.py -v
 ```
 
-Expected: all three providers share the lazy branch, model-only assembly emits no sandbox event, and context cleanup passes.
+Expected: all three providers share the lazy branch, model-only graph execution emits no sandbox event, first-tool graph execution initializes once, and context cleanup precedes terminal `done`.
 
-- [ ] **Step 8: Add graph-level model-only and first-tool regression tests**
-
-Exercise `agent_node()` through a real DeepAgents graph with a deterministic fake chat model, real middleware construction, and the real lazy outer `CompositeBackend`:
-
-- model-only response: the fake manager raises if obtained; assert the first/final AI content succeeds, no lifecycle event is attempted, and context cleanup closes an uninitialized wrapper;
-- first-tool response: the fake model emits a real `write_file` or `execute` tool call followed by a final answer; assert any streamed AI content before the tool is processed first, then one `starting`/`ready` pair, one manager request, correct public/actual path mapping, and unchanged final answer;
-- capture the `create_deep_agent()` arguments or inspect the compiled graph to prove main/subagent middleware and artifact roots receive the public workspace without initialization;
-- fail the test if any sync lazy method is called before readiness.
-
-Use the existing fake `BaseChatModel` pattern in `tests/agents/core/test_nested_graph_context.py` and `tests/infra/agent/test_artifact_delivery_middleware.py`; do not replace the graph with a stub that bypasses DeepAgents middleware.
-
-- [ ] **Step 9: Run graph-level tests and verify RED, then GREEN after integration**
-
-Run before and after the production assembly changes:
-
-```bash
-uv run pytest tests/agents/test_search_agent_lazy_sandbox.py -k "graph_model_only or graph_first_tool" -v
-```
-
-Expected before: eager manager access or missing lazy resource behavior fails. Expected after: both graph paths pass and the model-only case performs zero provider I/O.
-
-- [ ] **Step 10: Commit Search Agent integration**
+- [ ] **Step 9: Commit Search Agent integration**
 
 ```bash
 git add src/infra/backend/__init__.py src/agents/search_agent/context.py src/agents/search_agent/nodes.py src/agents/core/prompt_policy.py src/agents/search_agent/prompt.py tests/agents/test_search_agent_lazy_sandbox.py tests/agents/test_agent_context_defaults.py tests/agents/core/test_subagent_prompts.py
@@ -503,10 +502,10 @@ git commit -m "feat: initialize Search Agent sandbox on first use"
 
 - [ ] **Step 1: Write the failing async path-resolution test**
 
-Add a real outer `CompositeBackend` whose `default` is a fake lazy backend with `aresolve_path()` and `aexecute()`:
+Add a real outer `CompositeBackend(routes={}, default=lazy)` whose `default` is either the real `LazySandboxBackend` with a fake manager/provider or a protocol-complete `BaseSandbox` fake with `aresolve_path()`:
 
 ```python
-class _ResolvingLazyBackend:
+class _ResolvingLazyBackend(BaseSandbox):
     async def aresolve_path(self, path: str) -> str:
         assert path == "/workspace/session-1/input.txt"
         return "/remote/session-1/input.txt"
@@ -514,9 +513,12 @@ class _ResolvingLazyBackend:
     async def aexecute(self, command: str):
         self.command = command
         return SimpleNamespace(exit_code=0, output="")
+
+    # Implement id, execute, upload_files, and download_files so the fake
+    # satisfies BaseSandbox/SandboxBackendProtocol and CompositeBackend.aexecute().
 ```
 
-Pass `CompositeBackend(default=lazy)` through the runtime exactly as Search Agent does. Assert the shell command contains only the resolved actual destination, while the tool's JSON result continues returning the caller-visible public path. Add compatibility tests for a direct resolving backend and for a backend with no resolver.
+Pass `CompositeBackend(default=lazy, routes={})` through the runtime exactly as Search Agent does. Assert the shell command contains only the resolved actual destination, while the tool's JSON result continues returning the caller-visible public path. Add compatibility tests for a direct resolving backend and for a backend with no resolver.
 
 - [ ] **Step 2: Run upload tests and verify RED**
 
