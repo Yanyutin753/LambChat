@@ -1,4 +1,9 @@
-import { resolveSessionTitle } from "../shareProjectDialogState";
+import {
+  PROJECT_SHARE_SESSION_LIMIT,
+  buildInitialProjectSessionSelection,
+  resolveSessionTitle,
+  toggleProjectSessionSelection,
+} from "../shareProjectDialogState";
 
 test("prefers top-level name when it is a string", () => {
   expect(
@@ -45,4 +50,50 @@ test("treats empty string name as present (does not fall back)", () => {
 
 test("handles missing metadata field gracefully", () => {
   expect(resolveSessionTitle({ name: null })).toBe("");
+});
+
+test("caps the initial partial-project selection at the backend limit", () => {
+  const sessionIds = Array.from(
+    { length: PROJECT_SHARE_SESSION_LIMIT + 5 },
+    (_, index) => `session-${index}`,
+  );
+
+  expect(buildInitialProjectSessionSelection(sessionIds)).toEqual(
+    sessionIds.slice(0, PROJECT_SHARE_SESSION_LIMIT),
+  );
+});
+
+test("filters empty and duplicate session IDs from the initial selection", () => {
+  expect(
+    buildInitialProjectSessionSelection([
+      "session-1",
+      "",
+      "session-1",
+      "session-2",
+    ]),
+  ).toEqual(["session-1", "session-2"]);
+});
+
+test("does not allow selecting more sessions than the backend accepts", () => {
+  const selected = Array.from(
+    { length: PROJECT_SHARE_SESSION_LIMIT },
+    (_, index) => `session-${index}`,
+  );
+
+  expect(toggleProjectSessionSelection(selected, "session-extra")).toEqual({
+    selected,
+    limitReached: true,
+  });
+});
+
+test("still allows deselecting when the selection is at the limit", () => {
+  const selected = Array.from(
+    { length: PROJECT_SHARE_SESSION_LIMIT },
+    (_, index) => `session-${index}`,
+  );
+
+  expect(toggleProjectSessionSelection(selected, "session-0")).toEqual({
+    selected: selected.slice(1),
+    limitReached: false,
+  });
 });

@@ -25,6 +25,19 @@ def test_build_shared_project_seo_uses_project_name_and_session_count() -> None:
     assert seo.robots == "noindex, follow, max-image-preview:large"
 
 
+def test_build_shared_project_seo_prefers_total_over_manifest_page_size() -> None:
+    seo = build_shared_project_seo(
+        base_url="https://lambchat.com",
+        share_id="largeProject",
+        project={"name": "大型项目"},
+        sessions=[{"id": f"s{index}"} for index in range(50)],
+        sessions_total=120,
+        owner={"username": "alice"},
+    )
+
+    assert "120 conversation(s)" in seo.description
+
+
 def test_build_shared_project_seo_handles_empty_project_name() -> None:
     seo = build_shared_project_seo(
         base_url="https://lambchat.com",

@@ -10,6 +10,33 @@ export interface SessionTitleSource {
   metadata?: unknown;
 }
 
+export const PROJECT_SHARE_SESSION_LIMIT = 50;
+
+export function buildInitialProjectSessionSelection(
+  sessionIds: string[],
+): string[] {
+  return [...new Set(sessionIds.filter(Boolean))].slice(
+    0,
+    PROJECT_SHARE_SESSION_LIMIT,
+  );
+}
+
+export function toggleProjectSessionSelection(
+  selected: string[],
+  sessionId: string,
+): { selected: string[]; limitReached: boolean } {
+  if (selected.includes(sessionId)) {
+    return {
+      selected: selected.filter((id) => id !== sessionId),
+      limitReached: false,
+    };
+  }
+  if (!sessionId || selected.length >= PROJECT_SHARE_SESSION_LIMIT) {
+    return { selected, limitReached: true };
+  }
+  return { selected: [...selected, sessionId], limitReached: false };
+}
+
 export function resolveSessionTitle(item: SessionTitleSource): string {
   if (typeof item.name === "string") {
     return item.name;

@@ -14,6 +14,7 @@ from src.kernel.schemas.share import (
     SharedSession,
     ShareScope,
     ShareType,
+    ShareUpdate,
     ShareVisibility,
 )
 
@@ -270,6 +271,53 @@ async def test_create_share_session_scope_backward_compatible(monkeypatch) -> No
     assert share_storage.project_snapshot_received is None
 
 
+@pytest.mark.asyncio
+async def test_update_project_partial_visibility_keeps_stale_membership_snapshot(
+    monkeypatch,
+) -> None:
+    """Changing visibility must not revalidate an unchanged membership snapshot."""
+    share = _project_share(share_type=ShareType.PARTIAL, session_ids=["moved-session"])
+
+    class _Storage:
+        async def get_by_id(self, _share_id):
+            return share
+
+        async def update(
+            self,
+            _share_id,
+            owner_id,
+            share_type,
+            run_ids,
+            visibility,
+            session_ids,
+        ):
+            return share.model_copy(
+                update={
+                    "owner_id": owner_id,
+                    "share_type": share_type,
+                    "run_ids": run_ids,
+                    "visibility": visibility,
+                    "session_ids": session_ids,
+                }
+            )
+
+    class _ProjectStorage:
+        async def get_by_id(self, _project_id, _owner_id):
+            raise AssertionError("unchanged snapshots must not be revalidated")
+
+    monkeypatch.setattr(share_route, "ShareStorage", lambda: _Storage())
+    monkeypatch.setattr(share_route, "get_project_storage", lambda: _ProjectStorage())
+
+    response = await share_route.update_share(
+        "db-1",
+        ShareUpdate(visibility=ShareVisibility.AUTHENTICATED),
+        _user(),
+    )
+
+    assert response.visibility == ShareVisibility.AUTHENTICATED
+    assert response.session_ids == ["moved-session"]
+
+
 # ---------------------------------------------------------------------------
 # list_project_shares
 # ---------------------------------------------------------------------------
@@ -517,6 +565,52 @@ async def test_subsession_returns_events_for_member(monkeypatch) -> None:
     resp = await share_route.get_shared_session_in_project("sharetoken", "s1")
     assert resp.share_scope == ShareScope.SESSION
     assert resp.events[0]["event_type"] == "assistant:message"
+
+
+@pytest.mark.asyncio
+async def test_project_partial_subsession_does_not_apply_session_run_filter(monkeypatch) -> None:
+    """Project partial freezes membership, not run IDs inside each session."""
+    share = _project_share(share_type=ShareType.PARTIAL, session_ids=["s1"])
+    share.run_ids = ["run-from-unrelated-session-share"]
+    captured_kwargs: dict[str, Any] = {}
+
+    class _Storage:
+        async def get_by_share_id(self, _sid):
+            return share
+
+    class _Manager:
+        async def get_session(self, _sid):
+            return SimpleNamespace(
+                id="s1",
+                name="会话1",
+                agent_id="fast",
+                metadata={},
+                created_at=None,
+                updated_at=None,
+                task_status=None,
+                task_error=None,
+                completed_at=None,
+                user_id="user-1",
+            )
+
+    class _DualWriter:
+        async def read_session_events(self, session_id, **kwargs):
+            captured_kwargs.update(kwargs)
+            return []
+
+    class _UserStorage:
+        async def get_by_id(self, _uid):
+            return SimpleNamespace(username="alice", avatar_url=None)
+
+    monkeypatch.setattr(share_route, "ShareStorage", lambda: _Storage())
+    monkeypatch.setattr(share_route, "SessionManager", lambda: _Manager())
+    monkeypatch.setattr(share_route, "get_dual_writer", lambda: _DualWriter())
+    monkeypatch.setattr(share_route, "UserStorage", lambda: _UserStorage())
+
+    response = await share_route.get_shared_session_in_project("sharetoken", "s1")
+
+    assert "run_ids" not in captured_kwargs
+    assert response.run_ids is None
 
 
 # ---------------------------------------------------------------------------

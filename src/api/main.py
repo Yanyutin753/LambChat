@@ -814,6 +814,7 @@ def create_app() -> FastAPI:
                     share_id=share_id,
                     project=shared_content.project.model_dump(),
                     sessions=shared_content.sessions,
+                    sessions_total=shared_content.sessions_total,
                     owner=shared_content.owner.model_dump(),
                     app_name=settings.APP_NAME,
                     indexable=False,

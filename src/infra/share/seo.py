@@ -258,6 +258,7 @@ def build_shared_project_seo(
     share_id: str,
     project: Any,
     sessions: Sequence[Any],
+    sessions_total: int | None = None,
     owner: Mapping[str, Any] | None,
     app_name: str = "LambChat",
     indexable: bool = False,
@@ -270,7 +271,7 @@ def build_shared_project_seo(
     project_name = _normalize_text(
         project.get("name") if isinstance(project, dict) else getattr(project, "name", "")
     )
-    session_count = len(sessions) if sessions is not None else 0
+    session_count = sessions_total if sessions_total is not None else len(sessions)
 
     preview_title = project_name or "Shared project"
     title = f"{preview_title} - {app_name} Shared Project"

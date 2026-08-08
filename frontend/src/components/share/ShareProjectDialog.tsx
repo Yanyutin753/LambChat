@@ -30,7 +30,12 @@ import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { copyToClipboard } from "../../utils/clipboard";
 import { getFullUrl } from "../../services/api/config";
-import { resolveSessionTitle } from "./shareProjectDialogState";
+import {
+  PROJECT_SHARE_SESSION_LIMIT,
+  buildInitialProjectSessionSelection,
+  resolveSessionTitle,
+  toggleProjectSessionSelection,
+} from "./shareProjectDialogState";
 
 interface ProjectSessionOption {
   session_id: string;
@@ -99,7 +104,9 @@ export function ShareProjectDialog({
         };
       });
       setSessions(opts);
-      setSelectedSessionIds(opts.map((o) => o.session_id));
+      setSelectedSessionIds(
+        buildInitialProjectSessionSelection(opts.map((o) => o.session_id)),
+      );
     } catch (error) {
       console.error("Failed to load project sessions:", error);
     } finally {
@@ -161,17 +168,25 @@ export function ShareProjectDialog({
   };
 
   const toggleSession = (sessionId: string) => {
-    setSelectedSessionIds((prev) =>
-      prev.includes(sessionId)
-        ? prev.filter((id) => id !== sessionId)
-        : [...prev, sessionId],
-    );
+    const result = toggleProjectSessionSelection(selectedSessionIds, sessionId);
+    if (result.limitReached) {
+      toast.error(
+        t("share.selectionLimitReached", {
+          count: PROJECT_SHARE_SESSION_LIMIT,
+        }),
+      );
+    }
+    setSelectedSessionIds(result.selected);
   };
 
+  const selectableSessionIds = buildInitialProjectSessionSelection(
+    sessions.map((session) => session.session_id),
+  );
   const allSelected =
-    sessions.length > 0 && selectedSessionIds.length === sessions.length;
+    selectableSessionIds.length > 0 &&
+    selectableSessionIds.every((id) => selectedSessionIds.includes(id));
   const toggleAll = () => {
-    setSelectedSessionIds(allSelected ? [] : sessions.map((s) => s.session_id));
+    setSelectedSessionIds(allSelected ? [] : selectableSessionIds);
   };
 
   if (!isOpen) return null;

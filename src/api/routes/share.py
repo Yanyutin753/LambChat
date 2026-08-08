@@ -260,7 +260,9 @@ async def _build_session_content(
     dual_writer = get_dual_writer()
 
     partial_run_ids = (
-        _bounded_partial_run_ids(share.run_ids) if share.share_type == ShareType.PARTIAL else None
+        _bounded_partial_run_ids(share.run_ids)
+        if share.share_scope == ShareScope.SESSION and share.share_type == ShareType.PARTIAL
+        else None
     )
     read_events_kwargs: dict[str, Any] = {"completed_only": True}
     if event_limit is not None:
@@ -290,7 +292,11 @@ async def _build_session_content(
         events=events,
         owner=owner_info,
         share_type=share.share_type,
-        run_ids=partial_run_ids if share.share_type == ShareType.PARTIAL else share.run_ids,
+        run_ids=(
+            partial_run_ids
+            if share.share_scope == ShareScope.SESSION and share.share_type == ShareType.PARTIAL
+            else None
+        ),
         events_limited=events_limited,
         events_limit=event_limit,
     )
@@ -476,17 +482,21 @@ async def update_share(
                     status_code=400,
                     detail=f"session_ids 数量不能超过 {SHARE_PROJECT_SESSIONS_LIMIT}",
                 )
-            # 校验会话归属与项目所有权
-            await _validate_project_share(
-                ShareCreate(
-                    share_scope=ShareScope.PROJECT,
-                    project_id=share.project_id,
-                    share_type=ShareType.PARTIAL,
-                    session_ids=next_session_ids,
-                    visibility=next_visibility,
-                ),
-                user,
-            )
+            # Existing partial shares are membership snapshots. Project changes
+            # after creation must not block a visibility-only update; revalidate
+            # ownership and membership only when the selection itself changes or
+            # when converting a live share into a snapshot.
+            if share_data.session_ids is not None or share.share_type != ShareType.PARTIAL:
+                await _validate_project_share(
+                    ShareCreate(
+                        share_scope=ShareScope.PROJECT,
+                        project_id=share.project_id,
+                        share_type=ShareType.PARTIAL,
+                        session_ids=next_session_ids,
+                        visibility=next_visibility,
+                    ),
+                    user,
+                )
         else:
             next_session_ids = None
         next_run_ids = None
