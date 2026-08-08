@@ -10,6 +10,7 @@ from typing import Any, Dict
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
+from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
@@ -511,6 +512,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     ) -> list:
         """Build the middleware stack for a single subagent."""
         mw = [
+            TodoListMiddleware(),
             *create_retry_middleware(fallback_model=fallback_model, thinking=thinking_config),
             ToolResultBinaryMiddleware(base_url=subagent_base_url),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
@@ -784,6 +786,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
+    user_middleware.append(TodoListMiddleware())
 
     user_middleware.append(PromptCachingMiddleware())
 

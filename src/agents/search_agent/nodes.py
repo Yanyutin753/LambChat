@@ -11,6 +11,7 @@ from typing import Any, Dict
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
+from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
@@ -210,6 +211,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     def _build_subagent_middleware(subagent_type: str) -> list:
         mw = [
+            TodoListMiddleware(),
             *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
             MCPQuotaMiddleware(user_id=context.user_id),
             ToolResultBinaryMiddleware(base_url=search_base_url),
@@ -334,6 +336,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
+    user_middleware.append(TodoListMiddleware())
 
     # KV cache: tag final system block + last tool AFTER all dynamic injection
     user_middleware.append(PromptCachingMiddleware())
