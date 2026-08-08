@@ -36,16 +36,40 @@ MCP_TOOL_TIMEOUT = 300  # 单次工具调用超时（秒）
 MCP_CONFIG_FILE_MAX_BYTES = 1024 * 1024
 
 
-def _normalize_json_array_args(kwargs: dict[str, Any]) -> dict[str, Any]:
+def _schema_allows_array(value_schema: Any) -> bool:
+    """Return whether a JSON-schema fragment accepts an array value."""
+    if not isinstance(value_schema, dict):
+        return False
+    schema_type = value_schema.get("type")
+    if schema_type == "array" or (isinstance(schema_type, list) and "array" in schema_type):
+        return True
+    return any(
+        _schema_allows_array(option)
+        for keyword in ("anyOf", "oneOf")
+        for option in value_schema.get(keyword, [])
+    )
+
+
+def _normalize_json_array_args(kwargs: dict[str, Any], args_schema: Any = None) -> dict[str, Any]:
     """Coerce JSON-array-string arguments back to real lists.
 
     Some callers/LLMs serialize list arguments as a JSON array literal string
     (e.g. ``urls='["https://..."]'``), which remote MCP servers reject as an
     invalid value. Parse such values back to a list (issue #198).
     """
+    schema = args_schema
+    if schema is not None and not isinstance(schema, dict):
+        to_json_schema = getattr(schema, "model_json_schema", None)
+        schema = to_json_schema() if callable(to_json_schema) else None
+    properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
+
     normalized: dict[str, Any] = {}
     for key, value in kwargs.items():
-        if isinstance(value, str) and value.lstrip().startswith("["):
+        if (
+            _schema_allows_array(properties.get(key))
+            and isinstance(value, str)
+            and value.lstrip().startswith("[")
+        ):
             try:
                 parsed = json.loads(value)
             except (json.JSONDecodeError, ValueError):
@@ -223,7 +247,7 @@ class MCPToolWithRetry(BaseTool):
 
         # Coerce JSON-array-string args back to lists before delegating, so
         # remote MCP servers receive properly typed values (issue #198).
-        kwargs = _normalize_json_array_args(kwargs)
+        kwargs = _normalize_json_array_args(kwargs, self.args_schema)
 
         last_error: Exception | None = None
         for attempt in range(self._max_retries):

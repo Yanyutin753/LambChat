@@ -230,7 +230,15 @@ def test_normalize_json_array_args_unwraps_array_string() -> None:
             "urls": '["https://a.com", "https://b.com"]',
             "query": "plain string",
             "depth": 2,
-        }
+        },
+        {
+            "type": "object",
+            "properties": {
+                "urls": {"type": "array", "items": {"type": "string"}},
+                "query": {"type": "string"},
+                "depth": {"type": "integer"},
+            },
+        },
     )
     assert out["urls"] == ["https://a.com", "https://b.com"]
     assert out["query"] == "plain string"
@@ -247,6 +255,17 @@ async def test_mcp_arun_retries_streamable_http_and_normalizes_args() -> None:
     class _RecordingTool(BaseTool):
         name: str = "tavily_extract"
         description: str = "extract"
+        args_schema: dict[str, Any] = {
+            "type": "object",
+            "properties": {
+                "urls": {
+                    "anyOf": [
+                        {"type": "array", "items": {"type": "string"}},
+                        {"type": "string"},
+                    ]
+                }
+            },
+        }
 
         def _run(self, *a, **k):
             raise NotImplementedError
@@ -255,11 +274,38 @@ async def test_mcp_arun_retries_streamable_http_and_normalizes_args() -> None:
             received.append(kwargs)
             raise Exception("Streamable HTTP error: Error POSTing to endpoint")
 
-    wrapper = MCPToolWithRetry(
-        original_tool=_RecordingTool(), max_retries=2, retry_delay=0
-    )
+    wrapper = MCPToolWithRetry(original_tool=_RecordingTool(), max_retries=2, retry_delay=0)
     result = await wrapper._arun(urls='["https://x.com"]')
 
     assert len(received) == 2  # retried once after the first failure
     assert received[0]["urls"] == ["https://x.com"]
     assert "Streamable HTTP error" in result
+
+
+@pytest.mark.asyncio
+async def test_mcp_arun_preserves_json_array_text_for_string_arguments() -> None:
+    """JSON-looking text is still valid input for a schema-declared string."""
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    received: list[dict] = []
+
+    class _StringTool(BaseTool):
+        name: str = "string_payload"
+        description: str = "accepts literal JSON text"
+        args_schema: dict[str, Any] = {
+            "type": "object",
+            "properties": {"payload": {"type": "string"}},
+        }
+
+        def _run(self, *a, **k):
+            raise NotImplementedError
+
+        async def _arun(self, *args, config=None, **kwargs):
+            received.append(kwargs)
+            return "ok"
+
+    wrapper = MCPToolWithRetry(original_tool=_StringTool())
+    result = await wrapper._arun(payload='["literal", "json"]')
+
+    assert result == "ok"
+    assert received == [{"payload": '["literal", "json"]'}]

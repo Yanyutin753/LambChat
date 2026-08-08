@@ -652,7 +652,7 @@ class E2BBackend(BaseSandbox):
                 error_str = str(e).lower()
                 if "permission" in error_str:
                     error_type = "permission_denied"
-                elif "directory" in error_str or "is a dir" in error_str:
+                elif "is a directory" in error_str or "is a dir" in error_str:
                     error_type = "is_directory"
                 else:
                     error_type = "file_not_found"

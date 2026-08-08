@@ -225,18 +225,7 @@ class ModelFallbackMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         try:
-            # Hang safety net: when the primary model never returns and never
-            # raises (e.g. a third-party SSE proxy stall), the provider SDK's own
-            # timeout may not fire for mid-stream stalls. wait_for guarantees we
-            # fall back instead of blocking the whole request forever.
-            response = await asyncio.wait_for(
-                handler(request),
-                timeout=settings.LLM_REQUEST_TIMEOUT,
-            )
-        except asyncio.TimeoutError:
-            return await self._invoke_fallback(
-                request, handler, f"timeout after {settings.LLM_REQUEST_TIMEOUT}s"
-            )
+            response = await handler(request)
         except Exception as exc:
             return await self._invoke_fallback(request, handler, str(exc))
 
@@ -247,6 +236,26 @@ class ModelFallbackMiddleware(AgentMiddleware):
             return await self._invoke_fallback(request, handler, reason)
 
         return response
+
+
+class ModelRequestTimeoutMiddleware(AgentMiddleware):
+    """Bound each individual model attempt, including fallback attempts.
+
+    This sits inside retry middleware so an explicit timeout is retryable before
+    the outer fallback layer switches models. Keeping the timeout at this layer
+    also protects model configurations that do not define a fallback.
+    """
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        timeout = settings.LLM_REQUEST_TIMEOUT
+        try:
+            return await asyncio.wait_for(handler(request), timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            raise asyncio.TimeoutError(f"model request timed out after {timeout}s") from exc
 
 
 class EmptyContentRetryMiddleware(AgentMiddleware):
@@ -293,10 +302,12 @@ def create_retry_middleware(
 ) -> list[AgentMiddleware]:
     """Create the retry middleware stack for deep agents.
 
-    Returns [ModelFallbackMiddleware?, ModelRetryMiddleware, EmptyContentRetryMiddleware]:
+    Returns [ModelFallbackMiddleware?, ModelRetryMiddleware,
+    EmptyContentRetryMiddleware, ModelRequestTimeoutMiddleware]:
     - Outer layer (optional): falls back to an alternate model when primary fails
     - Middle layer: retries on 429/5xx/timeout with exponential backoff
     - Inner layer: retries on empty content responses
+    - Innermost layer: applies the request timeout to each individual attempt
     """
     stack: list[AgentMiddleware] = []
 
@@ -317,6 +328,7 @@ def create_retry_middleware(
             EmptyContentRetryMiddleware(
                 max_retries=settings.LLM_MAX_RETRIES, retry_delay=settings.LLM_RETRY_DELAY
             ),
+            ModelRequestTimeoutMiddleware(),
         ]
     )
     return stack

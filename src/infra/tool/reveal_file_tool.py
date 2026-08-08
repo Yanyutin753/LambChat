@@ -28,6 +28,7 @@ import json
 import mimetypes
 import os
 import re
+from contextvars import ContextVar
 from tempfile import SpooledTemporaryFile
 from typing import Annotated, Any, Literal, Optional
 from urllib.parse import unquote, urlparse
@@ -50,6 +51,12 @@ from src.infra.tool.backend_utils import (
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
+
+# Task-local handoff from the download helper to the immediate error probe. This
+# is transient request state only; backend selection still comes from ToolRuntime.
+_last_backend_download_error: ContextVar[tuple[Any, str, str] | None] = ContextVar(
+    "reveal_file_last_backend_download_error", default=None
+)
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
@@ -268,11 +275,11 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
     沙箱（DaytonaBackend）和非沙箱（StateBackend/StoreBackend）均支持 download_files，
     返回原始字节，不包含行号等格式化内容。
 
-    Note: the underlying ``error`` (e.g. ``is_directory``) is logged but not
-    propagated; see issue #196 — surfacing it to callers needs a wider refactor
-    of all call sites + their test mocks.
+    The structured ``error`` from a failed response is handed to the immediate
+    reveal-file probe via task-local transient state (issue #196).
     """
     logger.info(f"[reveal_file] Attempting to download: {file_path}")
+    _last_backend_download_error.set(None)
 
     if hasattr(backend, "adownload_files"):
         try:
@@ -286,6 +293,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
                     return resp.content
                 elif resp.error:
                     logger.warning(f"[reveal_file] Download error: {resp.error}")
+                    _last_backend_download_error.set((backend, file_path, resp.error))
+                    return None
         except Exception as e:
             logger.warning(f"[reveal_file] adownload_files failed for {file_path}: {e}")
 
@@ -301,6 +310,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
                     return resp.content
                 elif resp.error:
                     logger.warning(f"[reveal_file] Download error: {resp.error}")
+                    _last_backend_download_error.set((backend, file_path, resp.error))
+                    return None
         except Exception as e:
             logger.warning(f"[reveal_file] download_files failed for {file_path}: {e}")
 
@@ -311,10 +322,15 @@ async def _probe_download_error(backend: Any, file_path: str) -> Optional[str]:
     """Probe the backend's structured download error for a path (issue #196).
 
     Called after a download yields no content to tell a directory from a
-    missing file, so the caller can give the agent an actionable hint. This
-    re-issues ``download_files`` (cheap, read-only) only to read the structured
-    ``error`` field — it does not duplicate the content fetch.
+    missing file, so the caller can give the agent an actionable hint. The
+    immediately preceding structured error is reused task-locally; a read-only
+    probe is issued only when no such result is available.
     """
+    cached = _last_backend_download_error.get()
+    if cached is not None and cached[0] is backend and cached[1] == file_path:
+        _last_backend_download_error.set(None)
+        return cached[2]
+
     try:
         if hasattr(backend, "adownload_files"):
             responses = await backend.adownload_files([file_path])

@@ -117,8 +117,8 @@ SYSTEM_PACKAGES = [
     "curl",
     "unzip",
     "p7zip-full",
-    "ripgrep", # rg - 快速内容搜索（agent 裸 bash 调用，补 #199）
-    "librsvg2-bin", # rsvg-convert - SVG 转 PNG/PDF（补 #199）
+    "ripgrep",  # rg - 快速内容搜索（agent 裸 bash 调用，补 #199）
+    "librsvg2-bin",  # rsvg-convert - SVG 转 PNG/PDF（补 #199）
     # 中文字体
     "fonts-noto-cjk",
     "fonts-wqy-zenhei",

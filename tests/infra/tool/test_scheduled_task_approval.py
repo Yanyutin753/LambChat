@@ -28,9 +28,7 @@ async def test_confirm_scheduled_task_creation_rejects_in_unattended_session(
 
     monkeypatch.setattr(approval, "create_approval", fail_create)
 
-    result = await approval._confirm_scheduled_task_creation(
-        preview={"name": "t"}, user_id="u1"
-    )
+    result = await approval._confirm_scheduled_task_creation(preview={"name": "t"}, user_id="u1")
 
     assert result["approved"] is False
     assert result["status"] == "unattended"

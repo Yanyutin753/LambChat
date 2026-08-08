@@ -246,6 +246,27 @@ def test_e2b_download_files_classifies_directory_error() -> None:
     assert responses[0].content is None
 
 
+def test_e2b_download_files_keeps_missing_path_as_file_not_found() -> None:
+    """A conventional missing-path error must not be mistaken for a directory.
+
+    ``No such file or directory`` contains the word ``directory`` but describes
+    an absent path, not a directory passed where a file was expected.
+    """
+    from src.infra.backend.e2b import E2BBackend
+
+    class _FilesAPI:
+        def read(self, path, format="bytes"):
+            raise Exception("[Errno 2] No such file or directory: '/home/user/missing.txt'")
+
+    sandbox = SimpleNamespace(sandbox_id="e2b-test", files=_FilesAPI())
+    backend = E2BBackend(sandbox=sandbox)
+
+    responses = backend.download_files(["/home/user/missing.txt"])
+
+    assert responses[0].error == "file_not_found"
+    assert responses[0].content is None
+
+
 @pytest.mark.asyncio
 async def test_probe_download_error_reads_structured_error() -> None:
     """_probe_download_error surfaces the structured download error so
@@ -267,3 +288,30 @@ async def test_probe_download_error_reads_structured_error() -> None:
     assert await _probe_download_error(_Backend("is_directory"), "/d") == "is_directory"
     assert await _probe_download_error(_Backend("file_not_found"), "/d") == "file_not_found"
     assert await _probe_download_error(_Backend(None), "/d") is None
+
+
+@pytest.mark.asyncio
+async def test_probe_download_error_reuses_the_failed_download_response() -> None:
+    """Directory classification must not download the same path a second time."""
+    from src.infra.tool.reveal_file_tool import (
+        _download_file_from_backend,
+        _probe_download_error,
+    )
+
+    class _Resp:
+        path = "/d"
+        content = None
+        error = "is_directory"
+
+    class _Backend:
+        calls = 0
+
+        async def adownload_files(self, paths):
+            self.calls += 1
+            return [_Resp()]
+
+    backend = _Backend()
+
+    assert await _download_file_from_backend(backend, "/d") is None
+    assert await _probe_download_error(backend, "/d") == "is_directory"
+    assert backend.calls == 1
