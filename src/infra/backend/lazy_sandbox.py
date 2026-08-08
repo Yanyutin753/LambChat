@@ -106,6 +106,8 @@ class LazySandboxBackend(BaseSandbox):
         return self._delegate.id if self._delegate is not None else "pending"
 
     def _require_ready_delegate(self) -> BaseSandbox:
+        if self._closed:
+            raise RuntimeError("Lazy sandbox is closed")
         if self._delegate is None:
             raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
         return self._delegate
@@ -548,9 +550,11 @@ class LazySandboxBackend(BaseSandbox):
                 "ready",
                 lambda: self._presenter.emit_sandbox_ready(delegate.id, actual_work_dir),
             )
-            self._delegate = delegate
-            self._actual_work_dir = actual_work_dir
-            self.enable_capture_offload = delegate.enable_capture_offload
+            async with self._lock:
+                if not self._closed:
+                    self._delegate = delegate
+                    self._actual_work_dir = actual_work_dir
+                    self.enable_capture_offload = delegate.enable_capture_offload
             self._log_timing(
                 "ready",
                 time.perf_counter() - initialization_started_at,
@@ -575,20 +579,62 @@ class LazySandboxBackend(BaseSandbox):
         if not task.cancelled():
             task.exception()
 
-    async def _get_initialization_task(self) -> asyncio.Task[BaseSandbox]:
+    async def aclose(self) -> None:
         async with self._lock:
+            self._closed = True
+            self._suppress_events = True
+
+        async with self._event_lock:
+            pass
+
+    async def _acquire_initialization_task(self) -> asyncio.Task[BaseSandbox]:
+        async with self._lock:
+            if self._closed:
+                raise RuntimeError("Lazy sandbox is closed")
             if self._initialization_task is None:
                 first_operation_at = time.perf_counter()
                 task = asyncio.create_task(self._initialize(first_operation_at))
                 task.add_done_callback(self._consume_initialization_exception)
                 self._initialization_task = task
+            self._waiters += 1
             return self._initialization_task
 
+    async def _release_initialization_waiter(self, *, cancelled: bool) -> None:
+        abandoned = False
+        async with self._lock:
+            self._waiters -= 1
+            if cancelled and self._waiters == 0:
+                self._closed = True
+                self._suppress_events = True
+                abandoned = True
+
+        if abandoned:
+            async with self._event_lock:
+                pass
+
+    async def _complete_initialization_waiter(self) -> bool:
+        async with self._lock:
+            self._waiters -= 1
+            return self._closed
+
     async def _ensure_ready(self) -> BaseSandbox:
-        initialization_task = self._initialization_task
-        if initialization_task is not None and not initialization_task.done():
-            return await asyncio.shield(initialization_task)
-        if self._delegate is not None:
-            return self._delegate
-        task = await self._get_initialization_task()
-        return await asyncio.shield(task)
+        async with self._lock:
+            if self._closed:
+                raise RuntimeError("Lazy sandbox is closed")
+            if self._delegate is not None:
+                return self._delegate
+
+        task = await self._acquire_initialization_task()
+        try:
+            delegate = await asyncio.shield(task)
+            closed = await self._complete_initialization_waiter()
+        except asyncio.CancelledError:
+            await self._release_initialization_waiter(cancelled=True)
+            raise
+        except BaseException:
+            await self._release_initialization_waiter(cancelled=False)
+            raise
+
+        if closed:
+            raise RuntimeError("Lazy sandbox is closed")
+        return delegate
