@@ -123,7 +123,7 @@ The list is the complete, sorted set returned by `DeferredToolManager.get_undisc
 Sandbox tools remain separate from deferred MCP tools:
 
 - The stable guide says to use `execute`, then `mcporter list <service> --schema`, then `mcporter call`.
-- With at most 20 sandbox tools, the inventory may include a single short description per tool.
+- With at most 20 sandbox tools, the inventory includes each name and one cleaned single-line description. It omits parameter summaries and repeated per-tool commands because the stable guide already requires schema inspection.
 - Above 20 tools, the inventory contains every `server.tool` name and no descriptions, parameter summaries, or repeated per-tool commands.
 - No sandbox tool is hidden, and no overflow note claims that tools were omitted.
 
@@ -154,6 +154,8 @@ Each result contains only:
 
 It does not mutate discovery state or return complete Skill instructions.
 
+`search_skills` returns at most 10 results. This is a constructor-level constant, not a model-controlled argument or deployment setting. Exact `select:` queries still return only the requested existing names. Ten results are sufficient for routing while bounding tool-result context.
+
 ## Shared Search Engine
 
 Introduce a small shared discovery-ranking module used by `search_tools` and `search_skills`. Each record indexes:
@@ -165,7 +167,7 @@ Introduce a small shared discovery-ranking module used by `search_tools` and `se
 - pinyin initials;
 - normalized description and Skill tags.
 
-Use `pypinyin` for Chinese transliteration. Use the standard library similarity matcher for light typo tolerance; do not add a second fuzzy-search dependency.
+Use `pypinyin` for Chinese transliteration. Use the standard library `SequenceMatcher` for light typo tolerance; do not add a second fuzzy-search dependency. Typo matching applies only when both normalized strings contain at least four characters and their similarity ratio is at least `0.82`. Short aliases must match through exact, prefix, substring, or pinyin-initial rules instead of typo similarity. For example, `xiaohognshu` must match the `xiaohongshu` alias, while `xhb` must not fuzzy-match the `xhs` initials and `xiaolanshu` must not match `xiaohongshu` through the typo tier.
 
 Ranking priority:
 
@@ -187,11 +189,13 @@ Tool-object parsing keeps the existing weak-reference cache. Skill indexes are i
 
 - Exact `select:` queries normally load one named tool.
 - Fuzzy queries return only the highest-ranked results up to `DEFERRED_TOOL_SEARCH_LIMIT`.
-- Each result includes the callable name, concise description, and complete compact parameter schema.
-- Decorative status prose, repeated invocation guidance, pretty-printed JSON, and score text may be shortened when not required for behavior.
+- Each result includes the callable name, concise description, and compact callable parameter schema.
+- The compact schema preserves top-level `type`, `properties`, `required`, `additionalProperties`, `$defs`, `oneOf`, `anyOf`, and `allOf` when present. Nested values under those fields are preserved recursively subject to the existing array-item and string-length safety caps. Other annotation-only top-level fields are omitted.
+- A capped array receives the existing explicit `... schema truncated, N more item(s) omitted` sentinel entry; a capped string receives the corresponding omitted-character suffix. These markers are prompt metadata and are not treated as executable JSON Schema.
+- Output uses compact JSON rather than indentation. It omits ranking scores and repeated per-result call guidance. One concise header identifies newly loaded versus already available counts, followed by the matched definitions.
 - Schema safety caps remain to prevent unbounded third-party schemas.
 
-`search_skills` defaults to a smaller result count because results are routing hints rather than callable schemas.
+`search_skills` returns at most 10 results because results are routing hints rather than callable schemas.
 
 ## Error Handling
 
@@ -199,7 +203,8 @@ Tool-object parsing keeps the existing weak-reference cache. Skill indexes are i
 - No-match responses tell the model to use another keyword or an exact visible name.
 - Pinyin generation failures fall back to normalized text search and never break tool construction.
 - Malformed third-party tool schemas retain the current empty-schema fallback.
-- Duplicate names are deduplicated by canonical registry identity; disabled or unauthorized items are never reintroduced by search.
+- Duplicate canonical tool names are resolved before prompt or search construction. After sorting by `(server, canonical name)`, the first tool wins and later duplicates are ignored with a warning. This makes prompt, search, and invocation use the same object deterministically. Duplicate Skill names are resolved by the already-effective Skill mapping before the list reaches the prompt builder.
+- Disabled or unauthorized items are never reintroduced by search.
 - Prompt builders return an empty section when the corresponding capability is unavailable.
 
 ## Configuration
