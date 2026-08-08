@@ -241,6 +241,38 @@ def storage():
 
 
 @pytest.mark.asyncio
+async def test_remove_team_from_all_user_preferences_targets_only_users_holding_team_id() -> None:
+    """P0-1: cleanup must filter to users holding the team_id, not scan all users."""
+    captured: list[tuple[dict, dict]] = []
+
+    class _RecordingUserCollection:
+        async def update_many(self, query: dict, update_doc: dict):
+            captured.append((dict(query), dict(update_doc)))
+            result = MagicMock()
+            result.modified_count = 0
+            return result
+
+    storage = TeamStorage()
+    storage._user_collection = _RecordingUserCollection()
+
+    await storage._remove_team_from_all_user_preferences("team-123")
+
+    assert len(captured) == 1
+    query, update_doc = captured[0]
+    # Must NOT be an empty filter — that scans the whole users collection.
+    assert query
+    assert "$or" in query
+    assert {"metadata.pinned_team_ids": "team-123"} in query["$or"]
+    assert {"metadata.favorite_team_ids": "team-123"} in query["$or"]
+    assert update_doc == {
+        "$pull": {
+            "metadata.pinned_team_ids": "team-123",
+            "metadata.favorite_team_ids": "team-123",
+        }
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_team(storage):
     s, store, users = storage
     team = await s.create_team(

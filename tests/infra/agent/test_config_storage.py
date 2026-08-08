@@ -79,6 +79,26 @@ class _RecordingUpdateCollection:
         self.calls.append((query, update, upsert))
 
 
+class _RecordingCatalogCollection:
+    """Fake catalog collection recording update_one / bulk_write / delete_many."""
+
+    def __init__(self) -> None:
+        self.update_one_calls: list[tuple[dict, dict, bool]] = []
+        self.bulk_write_calls: list[list] = []
+        self.bulk_write_ordered: list[bool] = []
+        self.delete_many_calls: list[dict] = []
+
+    async def update_one(self, query: dict, update: dict, upsert: bool = False):
+        self.update_one_calls.append((query, update, upsert))
+
+    async def bulk_write(self, operations, ordered: bool = False):
+        self.bulk_write_calls.append(list(operations))
+        self.bulk_write_ordered.append(ordered)
+
+    async def delete_many(self, query: dict):
+        self.delete_many_calls.append(query)
+
+
 @pytest.mark.asyncio
 async def test_is_agent_enabled_checks_catalog_agent_without_loading_all() -> None:
     storage = config_storage.AgentConfigStorage()
@@ -346,3 +366,37 @@ async def test_get_all_role_models_limits_documents_loaded() -> None:
 
     assert [mapping["role_id"] for mapping in mappings] == [f"role-{index}" for index in range(5)]
     assert collection.cursor.limit_calls == [config_storage.ROLE_MODEL_MAPPING_LIST_LIMIT]
+
+
+@pytest.mark.asyncio
+async def test_set_catalog_config_uses_single_bulk_write() -> None:
+    from src.kernel.schemas.agent import AgentCatalogConfig
+
+    storage = config_storage.AgentConfigStorage()
+    collection = _RecordingCatalogCollection()
+    storage._collections = {
+        config_storage._COLL_AGENT_CATALOG_CONFIG: collection,
+    }
+    agents = [
+        AgentCatalogConfig(
+            id=f"agent-{index}",
+            name=f"Agent {index}",
+            description=f"desc-{index}",
+        )
+        for index in range(3)
+    ]
+
+    returned = await storage.set_catalog_config(agents)
+
+    assert returned == agents
+    # Must not issue per-agent update_one calls any longer.
+    assert collection.update_one_calls == []
+    # Exactly one bulk_write carrying 3 UpdateOne operations.
+    assert len(collection.bulk_write_calls) == 1
+    operations = collection.bulk_write_calls[0]
+    assert len(operations) == 3
+    for operation, agent in zip(operations, agents):
+        assert operation._filter == {"agent_id": agent.id}
+        assert operation._upsert is True
+    # delete_many keeps only registered agent ids.
+    assert collection.delete_many_calls == [{"agent_id": {"$nin": [agent.id for agent in agents]}}]

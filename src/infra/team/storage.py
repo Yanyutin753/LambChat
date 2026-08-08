@@ -47,6 +47,21 @@ class TeamStorage:
             self._collection = db["teams"]
         return self._collection
 
+    async def ensure_indexes(self) -> None:
+        """Create indexes for the teams collection."""
+        from src.infra.logging import get_logger
+
+        logger = get_logger(__name__)
+        try:
+            await self.collection.create_index(
+                [("owner_user_id", 1), ("updated_at", -1)],
+                name="team_owner_updated_idx",
+                background=True,
+            )
+            logger.info("Team storage indexes ensured")
+        except Exception as e:
+            logger.error(f"Failed to create team storage indexes: {e}")
+
     @property
     def user_collection(self) -> "AsyncIOMotorCollection[Any]":
         """Lazy MongoDB users collection for per-user team preferences."""
@@ -262,7 +277,12 @@ class TeamStorage:
     async def _remove_team_from_all_user_preferences(self, team_id: str) -> None:
         """Remove a deleted team id from user preference lists."""
         await self.user_collection.update_many(
-            {},
+            {
+                "$or": [
+                    {"metadata.pinned_team_ids": team_id},
+                    {"metadata.favorite_team_ids": team_id},
+                ]
+            },
             {
                 "$pull": {
                     "metadata.pinned_team_ids": team_id,

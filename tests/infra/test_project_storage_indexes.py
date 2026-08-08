@@ -1,0 +1,51 @@
+"""Tests for ProjectStorage.ensure_indexes (P0-2)."""
+
+from __future__ import annotations
+
+import pytest
+
+
+class _FakeCollection:
+    def __init__(self) -> None:
+        self.created_indexes: list[tuple[object, dict[str, object]]] = []
+
+    async def create_index(self, keys, **kwargs):
+        self.created_indexes.append((keys, dict(kwargs)))
+
+
+class _FakeDb:
+    def __init__(self, collection: _FakeCollection) -> None:
+        self._collection = collection
+
+    def __getitem__(self, name: str) -> _FakeCollection:
+        return self._collection
+
+
+class _FakeClient:
+    def __init__(self, collection: _FakeCollection) -> None:
+        self._db = _FakeDb(collection)
+
+    def __getitem__(self, name: str) -> _FakeDb:
+        return self._db
+
+
+@pytest.mark.asyncio
+async def test_project_storage_ensures_user_type_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _FakeCollection()
+    client = _FakeClient(collection)
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: client)
+
+    from src.infra.folder.storage import ProjectStorage
+
+    storage = ProjectStorage()
+    await storage.ensure_indexes()
+
+    assert any(
+        keys == [("user_id", 1), ("type", 1)]
+        and kwargs.get("name") == "project_user_type_idx"
+        and kwargs.get("background") is True
+        and not kwargs.get("unique")
+        for keys, kwargs in collection.created_indexes
+    )

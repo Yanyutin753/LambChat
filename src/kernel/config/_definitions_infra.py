@@ -53,6 +53,22 @@ INFRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 16,
         "frontend_visible": False,
     },
+    "MONGODB_POOL_MIN_SIZE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MONGODB,
+        "subcategory": "pool",
+        "description": "settingDesc.MONGODB_POOL_MIN_SIZE",
+        "default": 2,
+        "frontend_visible": True,
+    },
+    "MONGODB_POOL_MAX_SIZE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MONGODB,
+        "subcategory": "pool",
+        "description": "settingDesc.MONGODB_POOL_MAX_SIZE",
+        "default": 20,
+        "frontend_visible": True,
+    },
     # ============================================
     # Redis Settings
     # ============================================

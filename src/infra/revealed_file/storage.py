@@ -13,6 +13,7 @@ from src.kernel.config import settings
 logger = get_logger(__name__)
 REVEALED_FILE_PAGE_LIMIT_MAX = 50
 REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX = 10
+REVEALED_FILE_GROUP_FETCH_CONCURRENCY = 8
 REVEALED_FILE_SESSION_LIST_LIMIT = 100
 
 
@@ -23,6 +24,14 @@ def _safe_search_pattern(text: str) -> str:
 
 def _bounded_page_limit(limit: int) -> int:
     return min(max(int(limit), 1), REVEALED_FILE_PAGE_LIMIT_MAX)
+
+
+def _group_fetch_concurrency(client: Any = None) -> int:
+    pool_options = getattr(getattr(client, "options", None), "pool_options", None)
+    actual_pool_max = getattr(pool_options, "max_pool_size", None)
+    pool_max = max(int(actual_pool_max or settings.MONGODB_POOL_MAX_SIZE), 1)
+    pool_budget = pool_max - 1 if pool_max > 1 else 1
+    return min(REVEALED_FILE_GROUP_FETCH_CONCURRENCY, pool_budget)
 
 
 def _normalize_dedupe_path(path: str) -> str:
@@ -538,9 +547,12 @@ class RevealedFileStorage:
         ).to_list(length=len(session_ids))
         name_map: Dict[str, Optional[str]] = {s["session_id"]: s.get("name") for s in sessions}
 
-        # Group files by session
-        files_by_session: Dict[str, list] = {sid: [] for sid in session_ids}
-        for sid in session_ids:
+        # Group files by session. Issue per-session queries concurrently with
+        # asyncio.gather (NOT a single $in + global sort + client bucketing):
+        # a single hot session can otherwise fill the grouped to_list window and
+        # starve low-activity sessions (see the warning above). Each session gets
+        # its own bounded find + sort + limit + serialize.
+        async def _fetch_session_files(sid: str) -> list:
             file_query = {**file_query_base, "session_id": sid}
             cursor = (
                 self.collection.find(file_query)
@@ -548,15 +560,24 @@ class RevealedFileStorage:
                 .limit(REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX)
             )
             raw_files = await cursor.to_list(length=REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX)
-            for item in raw_files:
-                files_by_session[sid].append(
-                    self._serialize_item(
-                        {
-                            **item,
-                            "session_name": name_map.get(sid),
-                        }
-                    )
-                )
+            return [
+                self._serialize_item({**item, "session_name": name_map.get(sid)})
+                for item in raw_files
+            ]
+
+        fetched_files: list[list] = [[] for _ in session_ids]
+        next_index = 0
+
+        async def _worker() -> None:
+            nonlocal next_index
+            while next_index < len(session_ids):
+                index = next_index
+                next_index += 1
+                fetched_files[index] = await _fetch_session_files(session_ids[index])
+
+        worker_count = min(_group_fetch_concurrency(client), len(session_ids))
+        await asyncio.gather(*(_worker() for _ in range(worker_count)))
+        files_by_session: Dict[str, list] = dict(zip(session_ids, fetched_files))
 
         count_map = {r["_id"]: r["file_count"] for r in session_results}
         sessions_list = []

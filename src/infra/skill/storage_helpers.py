@@ -49,6 +49,89 @@ def normalize_skill_files(files: dict[str, str]) -> dict[str, str]:
     return normalized
 
 
+def _add_normalized_skill_file(bucket: dict[str, str], doc: dict[str, Any]) -> None:
+    file_path = doc["file_path"]
+    canonical_path = normalize_skill_file_path(file_path)
+    if canonical_path in bucket and file_path != canonical_path:
+        return
+    bucket[canonical_path] = doc["content"]
+
+
+async def batch_get_skill_files_from_collection(
+    collection: Any,
+    skill_keys: list[tuple[str, str]],
+    *,
+    batch_limit: int,
+    files_per_skill_limit: int,
+) -> dict[tuple[str, str], dict[str, str]]:
+    """Load bounded files for skill keys, with a dirty-data starvation fallback."""
+    seen: set[tuple[str, str]] = set()
+    clauses: list[dict[str, str]] = []
+    for skill_name, user_id in skill_keys:
+        key = (skill_name, user_id)
+        if key not in seen:
+            seen.add(key)
+            clauses.append({"skill_name": skill_name, "user_id": user_id})
+            if len(clauses) >= batch_limit:
+                break
+
+    result: dict[tuple[str, str], dict[str, str]] = {
+        (item["skill_name"], item["user_id"]): {} for item in clauses
+    }
+    query_limit = len(clauses) * files_per_skill_limit
+    sort_keys = [("skill_name", 1), ("user_id", 1), ("file_path", 1)]
+    cursor = (
+        collection.find({"$or": clauses, "file_path": {"$ne": "__meta__"}})
+        .sort(sort_keys)
+        .limit(query_limit)
+    )
+    loaded_count = 0
+    async for doc in cursor:
+        loaded_count += 1
+        bucket = result.get((doc["skill_name"], doc["user_id"]))
+        if bucket is not None and len(bucket) < files_per_skill_limit:
+            _add_normalized_skill_file(bucket, doc)
+
+    if loaded_count == query_limit:
+        fallback_clauses = []
+        for clause in clauses:
+            key = (clause["skill_name"], clause["user_id"])
+            if len(result[key]) < files_per_skill_limit:
+                fallback_clauses.append(clause)
+
+        if fallback_clauses:
+            for clause in fallback_clauses:
+                result[(clause["skill_name"], clause["user_id"])] = {}
+            fallback = collection.aggregate(
+                [
+                    {
+                        "$match": {
+                            "$or": fallback_clauses,
+                            "file_path": {"$ne": "__meta__"},
+                        }
+                    },
+                    {
+                        "$setWindowFields": {
+                            "partitionBy": {
+                                "skill_name": "$skill_name",
+                                "user_id": "$user_id",
+                            },
+                            "sortBy": {"file_path": 1},
+                            "output": {"__skill_file_rank": {"$documentNumber": {}}},
+                        }
+                    },
+                    {"$match": {"__skill_file_rank": {"$lte": files_per_skill_limit}}},
+                    {"$sort": {"skill_name": 1, "user_id": 1, "file_path": 1}},
+                    {"$unset": "__skill_file_rank"},
+                ]
+            )
+            async for doc in fallback:
+                bucket = result.get((doc["skill_name"], doc["user_id"]))
+                if bucket is not None:
+                    _add_normalized_skill_file(bucket, doc)
+    return result
+
+
 async def _parse_skill_md_offload(content: str) -> tuple[Optional[str], str, list[str]]:
     from src.infra.skill.parser import parse_skill_md
 

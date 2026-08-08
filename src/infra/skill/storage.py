@@ -19,6 +19,7 @@ from src.infra.skill.storage_helpers import (
     SKILL_FILES_PER_SKILL_LIMIT,
     SKILL_MD_SCAN_LIMIT,
     SKILL_METADATA_LIST_LIMIT,
+    batch_get_skill_files_from_collection,
     normalize_skill_file_path,
     normalize_skill_files,
     normalize_skill_name_list,
@@ -57,12 +58,9 @@ class SkillStorage:
 
     async def ensure_indexes(self) -> None:
         """创建索引"""
-        files = self._get_files_collection()
-        await files.create_index(
-            [("skill_name", 1), ("user_id", 1), ("file_path", 1)],
-            unique=True,
-            background=True,
-        )
+        from src.infra.skill.indexes import ensure_skill_indexes
+
+        await ensure_skill_indexes(self)
 
     # ==========================================
     # 文件操作
@@ -711,32 +709,12 @@ class SkillStorage:
             return {}
 
         collection = self._get_files_collection()
-
-        # 去重
-        seen: set[tuple[str, str]] = set()
-        or_clauses = []
-        for skill_name, user_id in skill_keys:
-            key = (skill_name, user_id)
-            if key not in seen:
-                seen.add(key)
-                or_clauses.append({"skill_name": skill_name, "user_id": user_id})
-                if len(or_clauses) >= SKILL_BATCH_FILE_LOOKUP_LIMIT:
-                    break
-
-        result: dict[tuple[str, str], dict[str, str]] = {}
-        for clause in or_clauses:
-            key = (clause["skill_name"], clause["user_id"])
-            result[key] = {}
-            cursor = collection.find(
-                {
-                    **clause,
-                    "file_path": {"$ne": "__meta__"},
-                }
-            ).limit(SKILL_FILES_PER_SKILL_LIMIT)
-            async for doc in cursor:
-                result[key][normalize_skill_file_path(doc["file_path"])] = doc["content"]
-
-        return result
+        return await batch_get_skill_files_from_collection(
+            collection,
+            skill_keys,
+            batch_limit=SKILL_BATCH_FILE_LOOKUP_LIMIT,
+            files_per_skill_limit=SKILL_FILES_PER_SKILL_LIMIT,
+        )
 
     # ==========================================
     # Skill 元数据操作（存储在 __meta__ 文档中）

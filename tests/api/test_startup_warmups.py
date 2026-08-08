@@ -121,6 +121,20 @@ async def test_startup_index_initializers_include_user_storage_indexes(
 
 
 @pytest.mark.asyncio
+async def test_startup_index_initializers_include_team_project_persona_role_mcp() -> None:
+    initializers = dict(api_main._startup_index_initializers())
+
+    for name in (
+        "team_storage",
+        "project_storage",
+        "persona_preset_storage",
+        "role_storage",
+        "mcp_storage",
+    ):
+        assert name in initializers
+
+
+@pytest.mark.asyncio
 async def test_run_startup_indexes_waits_for_index_initialization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

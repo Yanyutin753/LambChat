@@ -50,6 +50,8 @@ _DISABLED_CHECKPOINT_BACKENDS = {"", "0", "false", "none", "off", "disabled"}
 
 # MongoDB Checkpointer 单例
 _mongo_checkpointer: Optional[BaseCheckpointSaver[Any]] = None
+# 独立同步 MongoClient（与业务 motor 池物理隔离）。checkpointer 持有它。
+_mongo_checkpoint_client: Any = None
 
 # PostgreSQL Checkpointer 单例
 _pg_checkpointer: Optional[BaseCheckpointSaver[Any]] = None
@@ -139,6 +141,7 @@ def get_checkpointer_diagnostics() -> dict[str, Any]:
         "configured_backend": str(getattr(settings, "CHECKPOINT_BACKEND", "mongodb")),
         "backend_enabled": is_checkpoint_backend_enabled(),
         "mongo_checkpointer_active": _mongo_checkpointer is not None,
+        "mongo_checkpoint_client_active": _mongo_checkpoint_client is not None,
         "postgres_checkpointer_active": _pg_checkpointer is not None,
         "postgres_pool_active": _pg_checkpointer_pool is not None,
         "memory_saver_singleton_active": hasattr(get_async_checkpointer, "_memory_saver"),
@@ -160,7 +163,11 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints") -> BaseCheckpoi
     """
     获取 MongoDB checkpointer 单例
 
-    复用 motor 的底层同步 MongoClient，避免创建独立的同步连接池。
+    使用一个**独立的同步 pymongo MongoClient**（独立 maxPoolSize/minPoolSize），
+    与业务请求的 motor 连接池物理隔离——checkpoint 写入不再抢占业务连接。
+
+    连接串构造与超时/时区/认证参数与 motor 客户端保持一致（复用
+    build_mongo_connection_string），仅池大小可独立配置。
 
     Args:
         collection_name: MongoDB collection 名称，默认为 "checkpoints"
@@ -168,27 +175,42 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints") -> BaseCheckpoi
     Returns:
         MongoDBSaver 实例，如果创建失败则返回 None
     """
-    global _mongo_checkpointer
+    global _mongo_checkpointer, _mongo_checkpoint_client
     if _mongo_checkpointer is not None:
         return _mongo_checkpointer
 
+    client: Any = None
     try:
+        from datetime import timezone
+
         from langgraph.checkpoint.mongodb import MongoDBSaver
+        from pymongo import MongoClient
 
-        from src.infra.storage.mongodb import get_mongo_client
+        from src.infra.storage.mongodb import build_mongo_connection_string
 
-        motor_client = get_mongo_client()
-        sync_client = motor_client.delegate
+        connection_string = build_mongo_connection_string()
+        client = MongoClient(
+            connection_string,
+            maxPoolSize=settings.CHECKPOINT_MONGO_POOL_MAX_SIZE,
+            minPoolSize=settings.CHECKPOINT_MONGO_POOL_MIN_SIZE,
+            connectTimeoutMS=5000,
+            serverSelectionTimeoutMS=10000,
+            tz_aware=True,
+            tzinfo=timezone.utc,
+        )
 
         cp = MongoDBSaver(
-            sync_client,
+            client,
             db_name=settings.MONGODB_DB,
             checkpoint_collection_name=collection_name,
         )
 
         logger.info(
-            f"MongoDB checkpointer created: {settings.MONGODB_DB}.{collection_name} (reusing motor connection pool)"
+            f"MongoDB checkpointer created: {settings.MONGODB_DB}.{collection_name} "
+            f"(independent pool, min={settings.CHECKPOINT_MONGO_POOL_MIN_SIZE}, "
+            f"max={settings.CHECKPOINT_MONGO_POOL_MAX_SIZE})"
         )
+        _mongo_checkpoint_client = client
         _mongo_checkpointer = cp
         return _mongo_checkpointer
 
@@ -196,16 +218,34 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints") -> BaseCheckpoi
         logger.warning(f"MongoDB checkpointer not available: {e}")
         return None
     except Exception as e:
+        if client is not None:
+            try:
+                client.close()
+            except Exception as close_error:
+                logger.warning(f"Error closing failed MongoDB checkpointer client: {close_error}")
         logger.warning(f"Failed to create MongoDB checkpointer: {e}")
         return None
 
 
 def close_mongo_checkpointer():
-    """释放 MongoDB checkpointer 单例引用，允许 GC 回收。"""
-    global _mongo_checkpointer
-    if _mongo_checkpointer is not None:
-        _mongo_checkpointer = None
-        logger.info("MongoDB checkpointer reference released")
+    """关闭 MongoDB checkpointer 单例及其独立 MongoClient。
+
+    带防抖：若从未创建（checkpointer 与 client 均为空），直接返回，不在
+    关闭路径上反向创建连接。
+    """
+    global _mongo_checkpointer, _mongo_checkpoint_client
+    if _mongo_checkpointer is None and _mongo_checkpoint_client is None:
+        return
+
+    client = _mongo_checkpoint_client
+    _mongo_checkpointer = None
+    _mongo_checkpoint_client = None
+    if client is not None:
+        try:
+            client.close()
+        except Exception as e:
+            logger.warning(f"Error closing MongoDB checkpointer client: {e}")
+    logger.info("MongoDB checkpointer closed (independent client released)")
 
 
 def is_checkpoint_backend_enabled() -> bool:

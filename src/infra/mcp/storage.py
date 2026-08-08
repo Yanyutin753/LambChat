@@ -120,6 +120,12 @@ class MCPStorage(StorageOperations):
             self._tool_policies_collection = db["mcp_tool_policies"]
         return self._tool_policies_collection
 
+    async def ensure_indexes(self) -> None:
+        """Create unique indexes across the five MCP collections."""
+        from src.infra.mcp.indexes import ensure_mcp_indexes
+
+        await ensure_mcp_indexes(self)
+
     # ==========================================
     # System MCP Servers (Admin)
     # ==========================================

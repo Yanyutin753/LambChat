@@ -9,6 +9,8 @@ Agent 配置存储层
 
 from typing import Any, Optional
 
+from pymongo import UpdateOne
+
 from src.infra.agent.model_access import ROLE_MODEL_ACCESS_LIMIT
 from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.config import settings
@@ -168,20 +170,26 @@ class AgentConfigStorage:
         now = utc_now_iso()
         collection = self._get_collection(_COLL_AGENT_CATALOG_CONFIG)
 
+        operations: list[UpdateOne] = []
         for agent in agents:
             payload = agent.model_dump()
             agent_id = payload.pop("id")
-            await collection.update_one(
-                {"agent_id": agent_id},
-                {
-                    "$set": {
-                        **payload,
-                        "agent_id": agent_id,
-                        "updated_at": now,
-                    }
-                },
-                upsert=True,
+            operations.append(
+                UpdateOne(
+                    {"agent_id": agent_id},
+                    {
+                        "$set": {
+                            **payload,
+                            "agent_id": agent_id,
+                            "updated_at": now,
+                        }
+                    },
+                    upsert=True,
+                )
             )
+
+        if operations:
+            await collection.bulk_write(operations, ordered=True)
 
         registered_ids = [agent.id for agent in agents]
         if registered_ids:
