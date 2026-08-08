@@ -28,9 +28,8 @@ def test_subagent_workflow_allows_folder_reveal() -> None:
     from src.agents.core.subagent_prompts import WORKFLOW_SECTION
 
     assert "Project / Folder Reveal" in WORKFLOW_SECTION
-    assert "ordinary folders with many files" in WORKFLOW_SECTION
-    assert 'mode: "folder"' in WORKFLOW_SECTION
-    assert "Use reveal_file for single files" in WORKFLOW_SECTION
+    assert "multi-file projects or folders" in WORKFLOW_SECTION
+    assert "use `reveal_file` for single files" in WORKFLOW_SECTION.lower()
 
 
 def test_reveal_project_default_upload_concurrency_bounds_download_buffers() -> None:

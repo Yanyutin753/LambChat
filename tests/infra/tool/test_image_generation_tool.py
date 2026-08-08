@@ -1653,7 +1653,9 @@ async def test_search_agent_context_includes_image_generation_tool(
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert "image_generate" in names
+    assert "image_generate" not in names
+    assert ctx.deferred_manager is not None
+    assert ctx.deferred_manager.get_tool("image_generate") is not None
 
 
 @pytest.mark.asyncio
@@ -1676,4 +1678,6 @@ async def test_fast_agent_context_includes_image_generation_tool(
     await ctx.setup()
 
     names = {tool.name for tool in ctx.tools}
-    assert "image_generate" in names
+    assert "image_generate" not in names
+    assert ctx.deferred_manager is not None
+    assert ctx.deferred_manager.get_tool("image_generate") is not None

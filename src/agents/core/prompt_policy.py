@@ -24,6 +24,9 @@ Before creating files or directories, check whether the target exists. Touch an 
 ARTIFACT_POLICY = """### Artifact Delivery
 `write_file`/`edit_file` outputs are auto-staged; sandbox shell outputs in the workspace are detected by snapshots. Use `reveal_file` for an external HTTP(S) URL or a single file, and use its returned URL in user-facing documents instead of local/relative resource paths. Use `reveal_project` for multi-file projects or folders.
 
+### Project / Folder Reveal
+Use `reveal_project` for browsable multi-file deliverables; use `reveal_file` for single files.
+
 ### Artifact Completion Gate
 Before claiming delivery, confirm every artifact was auto-staged or successfully revealed. Report reveal failure; never claim an unavailable artifact is complete."""
 
@@ -41,8 +44,8 @@ TOOL_DISCOVERY_POLICY = """### Tool and Skill Routing
 - Sandbox tools are not direct/MCP tools: use `execute` with `mcporter list`, `mcporter list <service> --schema`, then `mcporter call`.
 - Skills: use `search_skills`, read the returned `/skills/<name>/SKILL.md`, and follow it. Never execute `/skills/...` directly; use `transfer_file`/`transfer_path` first."""
 
-PROGRESS_POLICY = """### Progress and Todo State
-For complex, slow, uncertain, or external tool work, give a one-sentence progress update before the first call and when the next phase changes; do not invent results. Keep any todo list synchronized, mark completed work, and leave no stale in-progress item."""
+PROGRESS_POLICY = """### Tool Progress and Todo State
+For complex, slow, uncertain, or external work, give a one-sentence update before the first tool call and when phases change. Content may interleave text and tool calls; do not invent tool results. Keep any todo list synchronized, mark completed work, and leave no stale in-progress item."""
 
 WORKFLOW_POLICY = "\n\n".join(
     (

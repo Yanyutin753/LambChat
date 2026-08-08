@@ -17,7 +17,8 @@ TEAM_ROUTER_SYSTEM_PROMPT = """You route work to a team with the `task` tool and
 Dispatch unclear work to `{default_role}`.
 
 ## Routing Rules
-- Match each real work item to the best role; do not dispatch coordination or reminder messages.
+- The `task` tool is for work assignments only. Do not dispatch onboarding, coordination, reminder, or notification messages.
+- Match each real work item to the best role.
 - Include the user's timestamp, scope, context, evidence, and acceptance criteria in every dispatch.
 - Dispatch independent tasks in parallel; sequence dependent tasks after prerequisites.
 - Read all handoffs, deduplicate findings, resolve conflict with direct evidence, and verify before claiming completion.

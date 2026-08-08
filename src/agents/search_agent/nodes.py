@@ -183,21 +183,21 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         if inspect.isawaitable(maybe_tools):
             await maybe_tools
     filter_tools = getattr(context, "filter_tools", None)
-    filtered_tools = list(
+    filtered_tool_list = list(
         filter_tools() if callable(filter_tools) else getattr(context, "tools", [])
     )
     if context.deferred_manager is not None and not any(
-        getattr(tool, "name", "") == "search_tools" for tool in filtered_tools
+        getattr(tool, "name", "") == "search_tools" for tool in filtered_tool_list
     ):
         from src.infra.tool.tool_search_tool import ToolSearchTool
 
-        filtered_tools.append(
+        filtered_tool_list.append(
             ToolSearchTool(
                 manager=context.deferred_manager,
                 search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
             )
         )
-    filtered_tools = filtered_tools or None
+    filtered_tools: list[Any] | None = filtered_tool_list or None
 
     # 创建内层 graph (deep agent)
     checkpointer_start = time.time()

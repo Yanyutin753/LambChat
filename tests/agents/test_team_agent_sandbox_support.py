@@ -173,7 +173,10 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
 
     assert fake_graph.captured_create_kwargs is not None
     assert fake_graph.captured_create_kwargs["backend"] is sandbox_backend
-    assert "Storage Architecture (CRITICAL)" in fake_graph.captured_create_kwargs["system_prompt"]
+    system_prompt = fake_graph.captured_create_kwargs["system_prompt"]
+    assert "## Storage" in system_prompt
+    assert "current session workspace" in system_prompt
+    assert "/skills/" in system_prompt
     assert emitted[0][0] == "starting"
     assert emitted[1][0] == "ready"
 
@@ -544,10 +547,7 @@ async def test_team_member_agent_mode_override_injects_search_prompt(
     section_middleware = next(
         item for item in subagent["middleware"] if isinstance(item, dict) and "sections" in item
     )
-    assert any(
-        "virtual storage, not a real filesystem" in section
-        for section in section_middleware["sections"]
-    )
+    assert any("virtual Skill store" in section for section in section_middleware["sections"])
 
 
 @pytest.mark.asyncio
