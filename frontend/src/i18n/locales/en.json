@@ -591,6 +591,7 @@
     "message": {
       "allFiles": "All files",
       "downloadAll": "Download all",
+      "downloadFailed": "Download failed",
       "args": "Args",
       "artifactsSubtitleFiles": "{{count}} files",
       "artifactsSubtitleMixed": "{{files}} files · {{projects}} projects",

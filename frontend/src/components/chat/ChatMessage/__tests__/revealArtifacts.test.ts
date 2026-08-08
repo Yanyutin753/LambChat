@@ -1,9 +1,73 @@
 import {
+  buildRevealArtifactBinaryFiles,
   buildRevealArtifactTree,
   collectRevealArtifacts,
   getRevealArtifactStats,
   type RevealArtifact,
 } from "../revealArtifacts.ts";
+
+test("builds safe unique ZIP paths and skips files without a signed URL", () => {
+  const artifacts: RevealArtifact[] = [
+    {
+      kind: "file",
+      id: "file:first-report",
+      name: "Report.pdf",
+      path: "https://files.example.test/first/report.pdf",
+      fileSize: 10,
+      preview: {
+        kind: "file",
+        previewKey: "first-report",
+        filePath: "https://files.example.test/first/report.pdf",
+        signedUrl: "/api/upload/file/first-report",
+      },
+    },
+    {
+      kind: "file",
+      id: "file:second-report",
+      name: "report.pdf",
+      path: "https://files.example.test/second/report.pdf",
+      fileSize: 20,
+      preview: {
+        kind: "file",
+        previewKey: "second-report",
+        filePath: "https://files.example.test/second/report.pdf",
+        signedUrl: "/api/upload/file/second-report",
+      },
+    },
+    {
+      kind: "file",
+      id: "file:windows-path",
+      name: "notes.txt",
+      path: "C:\\workspace\\notes.txt",
+      preview: {
+        kind: "file",
+        previewKey: "windows-path",
+        filePath: "C:\\workspace\\notes.txt",
+        signedUrl: "/api/upload/file/notes",
+      },
+    },
+    {
+      kind: "file",
+      id: "file:missing-url",
+      name: "missing.txt",
+      path: "/workspace/missing.txt",
+      preview: {
+        kind: "file",
+        previewKey: "missing-url",
+        filePath: "/workspace/missing.txt",
+      },
+    },
+  ];
+
+  expect(buildRevealArtifactBinaryFiles(artifacts)).toEqual({
+    binaryFiles: {
+      "Report.pdf": "/api/upload/file/first-report",
+      "report (2).pdf": "/api/upload/file/second-report",
+      "workspace/notes.txt": "/api/upload/file/notes",
+    },
+    skippedCount: 1,
+  });
+});
 
 test("collects successful file and project reveal artifacts from current message parts", () => {
   const artifacts = collectRevealArtifacts([

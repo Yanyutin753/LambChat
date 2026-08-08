@@ -1,10 +1,16 @@
 import JSZip from "jszip";
 import { buildUploadProxyUrl } from "../services/api/config";
 
+export interface ExportProjectZipOptions {
+  /** Reject before creating the ZIP if any binary URL cannot be downloaded. */
+  failOnBinaryError?: boolean;
+}
+
 export async function exportProjectZip(
   files: Record<string, string>,
   projectName: string,
   binaryFiles?: Record<string, string>,
+  options: ExportProjectZipOptions = {},
 ): Promise<void> {
   const zip = new JSZip();
 
@@ -18,22 +24,35 @@ export async function exportProjectZip(
 
   // 添加二进制文件（从 OSS URL 拉取）
   if (binaryFiles) {
-    await Promise.all(
-      Object.entries(binaryFiles).map(async ([path, url]) => {
-        try {
-          const readUrl = buildUploadProxyUrl(url) || url;
-          const resp = await fetch(readUrl);
-          if (!resp.ok) return;
-          const buffer = await resp.arrayBuffer();
-          const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-          if (normalizedPath) {
-            zip.file(normalizedPath, buffer);
+    const failedPaths = (
+      await Promise.all(
+        Object.entries(binaryFiles).map(async ([path, url]) => {
+          try {
+            const readUrl = buildUploadProxyUrl(url) || url;
+            const resp = await fetch(readUrl);
+            if (!resp.ok) return path;
+            const buffer = await resp.arrayBuffer();
+            const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+            if (normalizedPath) {
+              zip.file(normalizedPath, buffer);
+            }
+            return null;
+          } catch {
+            // 跳过下载失败的二进制文件
+            return path;
           }
-        } catch {
-          // 跳过下载失败的二进制文件
-        }
-      }),
-    );
+        }),
+      )
+    ).filter((path): path is string => path !== null);
+
+    if (options.failOnBinaryError && failedPaths.length > 0) {
+      const fileLabel = failedPaths.length === 1 ? "file" : "files";
+      throw new Error(
+        `Failed to download ${
+          failedPaths.length
+        } binary ${fileLabel}: ${failedPaths.join(", ")}`,
+      );
+    }
   }
 
   const blob = await zip.generateAsync({ type: "blob" });
