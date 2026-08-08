@@ -4,6 +4,7 @@ Team Agent 节点 - 团队路由，角色分派
 基于 fast_agent/nodes.py 扩展，增加团队解析和多角色子代理。
 """
 
+import inspect
 import time
 import uuid
 from typing import Any, Dict
@@ -357,6 +358,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
     role_system_prompts: dict[str, str] = {}
     role_skill_prompts: dict[str, str] = {}
+    role_skills_by_member: dict[str, list[dict]] = {}
     role_summaries: dict[str, str] = {}
 
     if team and team.active_members:
@@ -376,8 +378,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     role_skills = [
                         skill for skill in context.skills if skill.get("name") in role_skill_names
                     ]
+                    role_skills_by_member[member.member_id] = role_skills
                     role_skill_prompts[member.member_id] = await build_skills_prompt(role_skills)
                 else:
+                    role_skills_by_member[member.member_id] = list(context.skills)
                     role_skill_prompts[member.member_id] = skills_prompt
                 summary = summarize_role_system_prompt(preset_snapshot.system_prompt)
                 if summary:
@@ -478,19 +482,27 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     store = await acreate_store()
 
     # 过滤工具（懒加载 MCP 工具）
-    filtered_tools = None
-    if settings.ENABLE_MCP:
-        await context.get_tools()
-        filtered_tools = context.filter_tools() or None
+    get_tools = getattr(context, "get_tools", None)
+    if callable(get_tools):
+        maybe_tools = get_tools()
+        if inspect.isawaitable(maybe_tools):
+            await maybe_tools
+    filter_tools = getattr(context, "filter_tools", None)
+    filtered_tools = list(
+        filter_tools() if callable(filter_tools) else getattr(context, "tools", [])
+    )
+    if context.deferred_manager is not None and not any(
+        getattr(tool, "name", "") == "search_tools" for tool in filtered_tools
+    ):
+        from src.infra.tool.tool_search_tool import ToolSearchTool
 
-        if context.deferred_manager is not None and filtered_tools is not None:
-            from src.infra.tool.tool_search_tool import ToolSearchTool
-
-            search_tool = ToolSearchTool(
+        filtered_tools.append(
+            ToolSearchTool(
                 manager=context.deferred_manager,
                 search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
             )
-            filtered_tools.append(search_tool)
+        )
+    filtered_tools = filtered_tools or None
 
     # 创建内层 graph (deep agent)
     checkpointer_start = time.time()
@@ -649,6 +661,18 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         should_convert_image_url_to_base64=member_image_url_to_base64,
                     ),
                 }
+                if filtered_tools is not None:
+                    from src.infra.skill.skill_search_tool import SkillSearchTool
+
+                    member_tools = [
+                        tool
+                        for tool in filtered_tools
+                        if getattr(tool, "name", "") != "search_skills"
+                    ]
+                    member_skills = role_skills_by_member.get(member.member_id, [])
+                    if settings.ENABLE_SKILLS and member_skills:
+                        member_tools.append(SkillSearchTool(member_skills))
+                    subagent_config["tools"] = member_tools
                 if member_model is not None:
                     subagent_config["model"] = member_model
                 custom_subagents.append(subagent_config)

@@ -147,3 +147,73 @@ async def test_deferred_system_tools_do_not_force_small_mcp_set_to_defer(
     assert context.deferred_manager is not None
     assert context.deferred_manager.get_tool("deferred_system") is system
     assert context.deferred_manager.get_tool("github:create") is None
+
+
+@pytest.mark.asyncio
+async def test_fast_context_registers_one_search_skills_after_filtering(
+    monkeypatch,
+    lean_settings,
+) -> None:
+    monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", True)
+
+    async def no_internal(**_kwargs):
+        return [], []
+
+    class _SkillManager:
+        def __init__(self, user_id):
+            self.user_id = user_id
+
+        async def get_effective_skills(self):
+            return {
+                "allowed": {"name": "allowed", "description": "可用技能", "enabled": True},
+                "blocked": {"name": "blocked", "description": "禁用技能", "enabled": True},
+            }
+
+    monkeypatch.setattr(
+        fast_context,
+        "get_internal_tools_by_exposure_for_user",
+        no_internal,
+    )
+    monkeypatch.setattr(fast_context, "SkillManager", _SkillManager)
+    context = FastAgentContext(
+        session_id="session-1",
+        user_id="user-1",
+        disabled_skills=["blocked"],
+    )
+
+    await context.setup()
+
+    search_tools = [tool for tool in context.tools if tool.name == "search_skills"]
+    assert len(search_tools) == 1
+    assert "Name: allowed" in search_tools[0]._run("allowed")
+    assert search_tools[0]._run("blocked") == "No Skills matched that query."
+
+
+@pytest.mark.asyncio
+async def test_fast_context_omits_search_skills_for_empty_inventory(
+    monkeypatch,
+    lean_settings,
+) -> None:
+    monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", True)
+
+    async def no_internal(**_kwargs):
+        return [], []
+
+    class _SkillManager:
+        def __init__(self, user_id):
+            self.user_id = user_id
+
+        async def get_effective_skills(self):
+            return {}
+
+    monkeypatch.setattr(
+        fast_context,
+        "get_internal_tools_by_exposure_for_user",
+        no_internal,
+    )
+    monkeypatch.setattr(fast_context, "SkillManager", _SkillManager)
+    context = FastAgentContext(session_id="session-1", user_id="user-1")
+
+    await context.setup()
+
+    assert "search_skills" not in {tool.name for tool in context.tools}

@@ -248,6 +248,9 @@ async def test_fast_agent_subagent_tool_search_uses_isolated_manager(
     assert "subagent:general-purpose" in deferred_manager.fork_calls
     assert captured_managers[0] is deferred_manager.forked
     assert captured_managers[-1] is deferred_manager
+    assert [tool.name for tool in fake_graph.captured_create_kwargs["tools"]].count(
+        "search_tools"
+    ) == 1
 
 
 @pytest.mark.asyncio
@@ -686,21 +689,24 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
         lambda: _PresetManager(),
     )
 
+    from src.infra.skill.skill_search_tool import SkillSearchTool
+
+    context_skills = [
+        {
+            "name": "xiaohongshu-copy",
+            "description": "Write Xiaohongshu-style copy.",
+        },
+        {
+            "name": "unrelated-skill",
+            "description": "Should not be injected for this role.",
+        },
+    ]
     context = SimpleNamespace(
         user_id="user-1",
-        skills=[
-            {
-                "name": "xiaohongshu-copy",
-                "description": "Write Xiaohongshu-style copy.",
-            },
-            {
-                "name": "unrelated-skill",
-                "description": "Should not be injected for this role.",
-            },
-        ],
+        skills=context_skills,
         deferred_manager=None,
         get_tools=lambda: [],
-        filter_tools=lambda: [],
+        filter_tools=lambda: [SkillSearchTool(context_skills)],
     )
     config = {
         "configurable": {
@@ -729,6 +735,9 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     assert "## Skills System" in sections
     assert "xiaohongshu-copy" in sections
     assert "unrelated-skill" not in sections
+    role_search = next(tool for tool in subagent["tools"] if tool.name == "search_skills")
+    assert "Name: xiaohongshu-copy" in role_search._run("xiaohongshu")
+    assert role_search._run("unrelated-skill") == "No Skills matched that query."
     assert fake_graph.captured_inner_config is not None
     assert fake_graph.captured_inner_config["configurable"]["enabled_skills"] is None
 

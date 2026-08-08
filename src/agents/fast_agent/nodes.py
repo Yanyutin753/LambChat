@@ -4,6 +4,7 @@ Fast Agent 节点 - 无沙箱，快速响应
 基于 deep_agent/nodes.py 简化，移除沙箱相关逻辑。
 """
 
+import inspect
 import time
 import uuid
 from typing import Any, Dict
@@ -167,19 +168,27 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     store = await acreate_store()
 
     # 过滤工具（懒加载 MCP 工具）
-    filtered_tools = None
-    if settings.ENABLE_MCP:
-        await context.get_tools()
-        filtered_tools = context.filter_tools() or None
+    get_tools = getattr(context, "get_tools", None)
+    if callable(get_tools):
+        maybe_tools = get_tools()
+        if inspect.isawaitable(maybe_tools):
+            await maybe_tools
+    filter_tools = getattr(context, "filter_tools", None)
+    filtered_tools = list(
+        filter_tools() if callable(filter_tools) else getattr(context, "tools", [])
+    )
+    if context.deferred_manager is not None and not any(
+        getattr(tool, "name", "") == "search_tools" for tool in filtered_tools
+    ):
+        from src.infra.tool.tool_search_tool import ToolSearchTool
 
-        if context.deferred_manager is not None and filtered_tools is not None:
-            from src.infra.tool.tool_search_tool import ToolSearchTool
-
-            search_tool = ToolSearchTool(
+        filtered_tools.append(
+            ToolSearchTool(
                 manager=context.deferred_manager,
                 search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
             )
-            filtered_tools.append(search_tool)
+        )
+    filtered_tools = filtered_tools or None
 
     # Diagnostic: log tool names passed to the LLM
     if filtered_tools is not None:

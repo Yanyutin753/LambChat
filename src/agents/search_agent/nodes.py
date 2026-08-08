@@ -5,6 +5,7 @@ LangGraph 节点函数，使用 deep agent 执行任务。
 后续可扩展：retrieve_node, summarize_node 等。
 """
 
+import inspect
 import time
 import uuid
 from typing import Any, Dict
@@ -176,22 +177,27 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
 
     # 过滤工具（懒加载 MCP 工具）
-    filtered_tools = None
-    if settings.ENABLE_MCP:
-        await context.get_tools()
-        filtered_tools = context.filter_tools() or None
+    get_tools = getattr(context, "get_tools", None)
+    if callable(get_tools):
+        maybe_tools = get_tools()
+        if inspect.isawaitable(maybe_tools):
+            await maybe_tools
+    filter_tools = getattr(context, "filter_tools", None)
+    filtered_tools = list(
+        filter_tools() if callable(filter_tools) else getattr(context, "tools", [])
+    )
+    if context.deferred_manager is not None and not any(
+        getattr(tool, "name", "") == "search_tools" for tool in filtered_tools
+    ):
+        from src.infra.tool.tool_search_tool import ToolSearchTool
 
-        # 延迟加载模式：将 search_tools 注册到 ToolNode
-        # 这样 ToolNode 的 tools_by_name 里也有 search_tools，
-        # 避免 "not a valid tool" 错误
-        if context.deferred_manager is not None and filtered_tools is not None:
-            from src.infra.tool.tool_search_tool import ToolSearchTool
-
-            search_tool = ToolSearchTool(
+        filtered_tools.append(
+            ToolSearchTool(
                 manager=context.deferred_manager,
                 search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
             )
-            filtered_tools.append(search_tool)
+        )
+    filtered_tools = filtered_tools or None
 
     # 创建内层 graph (deep agent)
     checkpointer_start = time.time()

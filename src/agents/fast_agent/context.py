@@ -332,6 +332,11 @@ class FastAgentContext:
             except Exception as e:
                 logger.warning(f"[FastAgentContext] Failed to load skills: {e}")
 
+        if settings.ENABLE_SKILLS and self.skills:
+            from src.infra.skill.skill_search_tool import SkillSearchTool
+
+            self._append_unique_tools([SkillSearchTool(self.skills)])
+
         logger.info(f"[FastAgentContext] Setup complete, total {len(self.tools)} tools available")
 
     async def close(self) -> None:

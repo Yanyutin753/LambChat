@@ -346,6 +346,11 @@ class SearchAgentContext:
             except Exception as e:
                 logger.warning(f"[SearchAgentContext] Failed to load skills: {e}")
 
+        if settings.ENABLE_SKILLS and self.skills:
+            from src.infra.skill.skill_search_tool import SkillSearchTool
+
+            self._append_unique_tools([SkillSearchTool(self.skills)])
+
         logger.info(f"[SearchAgentContext] Setup complete, total {len(self.tools)} tools available")
 
     async def close(self) -> None:
