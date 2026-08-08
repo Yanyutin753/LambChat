@@ -61,6 +61,13 @@ export function SandboxItem({
             ? t("chat.sandbox.ready")
             : t("chat.sandbox.name")
       }
+      suffix={
+        status === "ready" && sandboxId ? (
+          <span className="text-xs font-mono font-medium min-w-0 truncate overflow-hidden leading-none">
+            {t("chat.sandboxId", { id: sandboxId })}
+          </span>
+        ) : undefined
+      }
       expandable={!!hasDetails}
       onExpandChange={setIsExpanded}
       animatedDots={status === "starting"}
