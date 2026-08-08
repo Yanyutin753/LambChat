@@ -424,7 +424,10 @@ async def inline_image_attachments_as_data_urls(
                 inlined.append(attachment)
                 continue
         except Exception as e:
-            logger.warning("Failed to inline image attachment %s: %s", key, e)
+            logger.warning(
+                "Failed to inline image attachment: error_type=%s",
+                type(e).__name__,
+            )
             inlined.append(attachment)
             continue
 

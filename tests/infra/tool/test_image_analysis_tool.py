@@ -57,6 +57,7 @@ def test_validate_image_data_url_returns_safe_metadata() -> None:
         "data:text/plain;base64,aGVsbG8=",
         "data:image/png;base64,not-valid***",
         "data:image/png;base64,",
+        "DATA:image/png;base64,not-valid***",
     ],
 )
 async def test_image_analyze_rejects_invalid_data_url_without_model_call(
@@ -151,6 +152,50 @@ async def test_image_analyze_emits_decodable_provider_payload_and_safe_diagnosti
     assert base64.b64decode(encoded, validate=True) == b"\x89PNG\r\n\x1a\n"
     assert data_url not in caplog.text
     assert "4c4b6a3be131" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_image_analyze_model_error_omits_request_content(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from src.infra.tool import image_analysis_tool
+
+    data_url = "data:image/png;base64,iVBORw0KGgo="
+    model = ModelConfig(
+        id="vision-id",
+        value="openai/gpt-4o-mini",
+        label="Vision",
+        profile=ModelProfile(supports_vision=True),
+    )
+
+    class _FailingLLM:
+        async def ainvoke(self, _messages, config=None):
+            raise RuntimeError(f"gateway rejected payload={data_url}")
+
+    async def fake_get_model(**_kwargs):
+        return _FailingLLM()
+
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_MAX_ATTEMPTS", 1)
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: _FakeStorage(model),
+    )
+    monkeypatch.setattr(image_analysis_tool.LLMClient, "get_model", fake_get_model)
+
+    with caplog.at_level(logging.WARNING):
+        result = json.loads(
+            await image_analysis_tool.image_analyze.coroutine(
+                image_urls=[data_url],
+                prompt="Describe",
+                runtime=_Runtime(),
+            )
+        )
+
+    assert result == {"error": "Image analysis failed"}
+    assert data_url not in caplog.text
+    assert "RuntimeError" in caplog.text
 
 
 @pytest.mark.asyncio

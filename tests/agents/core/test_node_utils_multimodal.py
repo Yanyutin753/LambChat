@@ -577,6 +577,32 @@ async def test_inline_image_failure_log_omits_url_and_exception_text(
     assert "RuntimeError" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_inline_stored_image_failure_log_omits_key_and_exception_text(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    storage_key = "uploads/private.png?signature=private-token"
+
+    async def _fail_storage_init():
+        raise RuntimeError(f"storage failed for {storage_key}")
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage",
+        _fail_storage_init,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        attachments = await inline_image_attachments_as_data_urls(
+            [image_attachment(key=storage_key, url=None)],
+            force_data_url=True,
+        )
+
+    assert attachments[0]["key"] == storage_key
+    assert storage_key not in caplog.text
+    assert "RuntimeError" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # Fix #2: shared _resolve_model_profile_bool — verify both wrappers still work
 # ---------------------------------------------------------------------------

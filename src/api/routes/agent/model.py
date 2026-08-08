@@ -13,7 +13,7 @@ Model 配置路由
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from src.api.deps import require_permissions
-from src.infra.agent.model_storage import get_model_storage
+from src.infra.agent.model_storage import ModelStorage, get_model_storage
 from src.infra.logging import get_logger
 from src.kernel.schemas.model import (
     AvailableModelListResponse,
@@ -44,13 +44,19 @@ def _reject_oversized_model_batch(count: int) -> None:
 async def _clear_deleted_compaction_model_reference(
     model_id: str,
     model_value: str,
+    storage: ModelStorage,
 ) -> None:
     """Clear a native-memory compaction setting that points at a deleted model."""
     from src.infra.settings.service import get_settings_service
 
     service = get_settings_service()
     reference = str(await service.get_raw("NATIVE_MEMORY_COMPACTION_MODEL_ID") or "").strip()
-    if reference not in {model_id, model_value}:
+    if reference == model_id:
+        pass
+    elif reference == model_value:
+        if await storage.get_by_value(model_value) is not None:
+            return
+    else:
         return
     await service.set(
         "NATIVE_MEMORY_COMPACTION_MODEL_ID",
@@ -267,6 +273,12 @@ async def delete_model(
     model_value = existing.value
     await storage.delete(model_id)
 
+    # Invalidate immediately after deletion so later best-effort cleanup cannot
+    # leave the removed model reachable through process or distributed caches.
+    from src.infra.llm.models_service import invalidate_cache
+
+    await invalidate_cache()
+
     logger.info(f"[Model] Deleted model: {model_value} (id={model_id})")
 
     # 清理所有模型中被删模型作为 fallback_model 的孤儿引用
@@ -290,12 +302,7 @@ async def delete_model(
     if affected:
         logger.info(f"[Model] Removed deleted model '{model_id}' from {affected} role(s)")
 
-    await _clear_deleted_compaction_model_reference(model_id, model_value)
-
-    # 使 models_service 缓存失效
-    from src.infra.llm.models_service import invalidate_cache
-
-    await invalidate_cache()
+    await _clear_deleted_compaction_model_reference(model_id, model_value, storage)
 
     return None
 

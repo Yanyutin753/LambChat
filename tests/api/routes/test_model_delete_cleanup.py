@@ -15,8 +15,14 @@ class _FakeCollection:
 
 
 class _FakeModelStorage:
-    def __init__(self, model: ModelConfig) -> None:
+    def __init__(
+        self,
+        model: ModelConfig,
+        *,
+        remaining_by_value: ModelConfig | None = None,
+    ) -> None:
         self.model = model
+        self.remaining_by_value = remaining_by_value
         self.deleted_ids: list[str] = []
         self.collection = _FakeCollection()
 
@@ -26,6 +32,9 @@ class _FakeModelStorage:
     async def delete(self, model_id: str) -> bool:
         self.deleted_ids.append(model_id)
         return True
+
+    async def get_by_value(self, _model_value: str) -> ModelConfig | None:
+        return self.remaining_by_value
 
     def _get_collection(self) -> _FakeCollection:
         return self.collection
@@ -58,9 +67,11 @@ def _install_delete_route_fakes(
     monkeypatch: pytest.MonkeyPatch,
     storage: _FakeModelStorage,
     settings_service: _FakeSettingsService,
+    invalidations: list[str] | None = None,
 ) -> None:
     async def _invalidate_cache() -> None:
-        return None
+        if invalidations is not None:
+            invalidations.append("invalidated")
 
     monkeypatch.setattr(model_routes, "get_model_storage", lambda: storage)
     monkeypatch.setattr(
@@ -106,3 +117,41 @@ async def test_delete_model_preserves_unrelated_compaction_reference(
     assert storage.deleted_ids == ["model-id"]
     assert settings_service.values["NATIVE_MEMORY_COMPACTION_MODEL_ID"] == "other-model"
     assert settings_service.updated_by is None
+
+
+@pytest.mark.asyncio
+async def test_delete_model_preserves_value_reference_when_duplicate_remains(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = ModelConfig(id="model-id", value="openai/shared-model", label="Deleted")
+    remaining = ModelConfig(id="model-id-2", value="openai/shared-model", label="Remaining")
+    storage = _FakeModelStorage(model, remaining_by_value=remaining)
+    settings_service = _FakeSettingsService("openai/shared-model")
+    _install_delete_route_fakes(monkeypatch, storage, settings_service)
+
+    await model_routes.delete_model("model-id", _admin_token())
+
+    assert storage.deleted_ids == ["model-id"]
+    assert settings_service.values["NATIVE_MEMORY_COMPACTION_MODEL_ID"] == "openai/shared-model"
+    assert settings_service.updated_by is None
+
+
+@pytest.mark.asyncio
+async def test_delete_model_invalidates_cache_when_setting_cleanup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FailingSettingsService(_FakeSettingsService):
+        async def get_raw(self, key: str) -> str:
+            raise RuntimeError("settings unavailable")
+
+    model = ModelConfig(id="model-id", value="openai/deleted-model", label="Deleted")
+    storage = _FakeModelStorage(model)
+    settings_service = _FailingSettingsService("model-id")
+    invalidations: list[str] = []
+    _install_delete_route_fakes(monkeypatch, storage, settings_service, invalidations)
+
+    with pytest.raises(RuntimeError, match="settings unavailable"):
+        await model_routes.delete_model("model-id", _admin_token())
+
+    assert storage.deleted_ids == ["model-id"]
+    assert invalidations == ["invalidated"]

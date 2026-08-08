@@ -81,7 +81,7 @@ def _validate_attachment_data_urls(attachments: list[dict[str, Any]]) -> None:
     for attachment in attachments:
         candidates = [("data_url", attachment.get("data_url"))]
         url = attachment.get("url")
-        if isinstance(url, str) and url.startswith("data:"):
+        if isinstance(url, str) and url.lower().startswith("data:"):
             candidates.append(("url", url))
 
         for reference_kind, value in candidates:
@@ -369,8 +369,11 @@ async def image_analyze(
             }
         )
     except Exception as exc:
-        logger.warning("[image_analyze] failed: %s", exc)
-        return await _json_dumps_result({"error": f"Image analysis failed: {exc}"})
+        logger.warning(
+            "[image_analyze] failed: error_type=%s",
+            type(exc).__name__,
+        )
+        return await _json_dumps_result({"error": "Image analysis failed"})
 
 
 def get_image_analysis_tool() -> BaseTool:
