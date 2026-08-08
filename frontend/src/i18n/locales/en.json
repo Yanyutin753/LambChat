@@ -2486,6 +2486,7 @@
     "selectAtLeastOneSession": "Select at least one conversation",
     "selectionLimitReached": "You can share up to {{count}} conversations",
     "selectSessions": "Select conversations",
+    "selectUpToLimit": "Select up to {{count}}",
     "selectRuns": "Select conversations to share",
     "session": "Session",
     "shareType": "Share Scope",

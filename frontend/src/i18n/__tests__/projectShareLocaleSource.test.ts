@@ -22,6 +22,7 @@ const PROJECT_SHARE_KEYS = [
   "selectAtLeastOneSession",
   "selectionLimitReached",
   "selectSessions",
+  "selectUpToLimit",
   "sharedProject",
   "untitledSession",
 ] as const;

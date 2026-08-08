@@ -2486,6 +2486,7 @@
     "selectAtLeastOneSession": "会話を1件以上選択してください",
     "selectionLimitReached": "共有できる会話は最大{{count}}件です",
     "selectSessions": "会話を選択",
+    "selectUpToLimit": "最大{{count}}件を選択",
     "selectRuns": "共有する会話を選択",
     "session": "セッション",
     "shareType": "共有範囲",

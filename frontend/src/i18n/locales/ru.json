@@ -2486,6 +2486,7 @@
     "selectAtLeastOneSession": "Выберите хотя бы один диалог",
     "selectionLimitReached": "Можно открыть доступ не более чем к {{count}} диалогам",
     "selectSessions": "Выберите диалоги",
+    "selectUpToLimit": "Выбрать до {{count}}",
     "selectRuns": "Выберите разговоры для общего доступа",
     "session": "Сессия",
     "shareType": "Область доступа",

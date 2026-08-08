@@ -215,7 +215,7 @@ export function ShareProjectDialog({
                 className="text-stone-500 dark:text-stone-400"
               />
               <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
-                {t("share.project", "分享项目")}
+                {t("sidebar.shareProject")}
               </h3>
             </div>
             <button
@@ -297,7 +297,11 @@ export function ShareProjectDialog({
                     >
                       {allSelected
                         ? t("share.deselectAll")
-                        : t("share.selectAll")}
+                        : sessions.length > PROJECT_SHARE_SESSION_LIMIT
+                          ? t("share.selectUpToLimit", {
+                              count: PROJECT_SHARE_SESSION_LIMIT,
+                            })
+                          : t("share.selectAll")}
                     </button>
                   )}
                 </div>
