@@ -4,7 +4,7 @@
 
 **Goal:** Reduce the representative 11,157-character sandbox system prompt by at least 20% while preserving every tool, dynamic inventory, safety contract, and prompt-cache boundary.
 
-**Architecture:** Keep one prompt owner per capability. The canonical workflow owns general safety and delivery behavior; Skills, deferred tools, sandbox tools, environment variables, and Memory own their capability-specific instructions. A shared factory keeps the `write_todos` tool and state schema but suppresses LangChain's duplicated default prose.
+**Architecture:** Keep one prompt owner per capability. The canonical workflow owns general safety and delivery behavior; Skills, deferred tools, environment variables, and Memory own their capability-specific instructions. A shared factory keeps the `write_todos` tool and state schema but suppresses LangChain's duplicated default prose.
 
 **Tech Stack:** Python 3.12, DeepAgents 0.7.5, LangChain 1.3.14, pytest, Ruff.
 
@@ -167,7 +167,6 @@ def test_workflow_policy_is_capability_agnostic_and_compact() -> None:
     assert "### Project / Folder Reveal" not in WORKFLOW_SECTION
     assert "search_tools" not in WORKFLOW_SECTION
     assert "search_skills" not in WORKFLOW_SECTION
-    assert "mcporter" not in WORKFLOW_SECTION
     assert "transfer_file" not in WORKFLOW_SECTION
 
 
@@ -263,12 +262,10 @@ git commit -m "refactor: deduplicate canonical agent workflow"
 - Modify: `src/infra/skill/loader.py`
 - Modify: `src/infra/memory/client/types.py`
 - Modify: `src/infra/tool/deferred_manager.py`
-- Modify: `src/infra/tool/sandbox_mcp_prompt.py`
 - Modify: `src/infra/tool/env_var_prompt.py`
 - Test: `tests/infra/skill/test_loader_prompt.py`
 - Test: `tests/infra/memory/test_tools.py`
 - Test: `tests/infra/agent/test_prompt_caching_middleware.py`
-- Test: `tests/test_sandbox_mcp_prompt_guidance.py`
 - Test: `tests/infra/tool/test_env_var_tool.py`
 
 **Interfaces:**
@@ -300,7 +297,6 @@ Tighten or add these existing-guide assertions:
 ```python
 assert len(NATIVE_MEMORY_GUIDE) <= 960
 assert len(DEFERRED_TOOL_SEARCH_GUIDE) <= 300
-assert len(sections[0]) <= 330  # sandbox guide
 assert len(sections[0]) <= 200  # environment guide
 ```
 
@@ -310,7 +306,7 @@ names, deterministic ordering, schema inspection, and secret-value omission.
 - [ ] **Step 2: Run the focused files and verify RED**
 
 ```bash
-uv run pytest tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/test_sandbox_mcp_prompt_guidance.py tests/infra/tool/test_env_var_tool.py -q
+uv run pytest tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_env_var_tool.py -q
 ```
 
 Expected: new budgets fail; inventory and ordering tests remain green.
@@ -355,7 +351,7 @@ Delete inaccurate entries and honor ignore/forget requests. Content older than 3
 """
 ```
 
-- [ ] **Step 5: Shorten deferred and sandbox routing**
+- [ ] **Step 5: Shorten deferred routing**
 
 Use:
 
@@ -363,20 +359,7 @@ Use:
 DEFERRED_TOOL_SEARCH_GUIDE = (
     "## Tool Search Guide\n\n"
     "Deferred MCP/system tool schemas are not loaded. If a listed tool helps, "
-    "call `search_tools` once, then call the loaded tool directly. `search_tools` "
-    "does not search sandbox tools; follow their injected `mcporter` guide."
-)
-```
-
-Replace only the sandbox `intro` string:
-
-```python
-intro = (
-    "## Sandbox Tools (use through `execute`)\n\n"
-    "These are not direct/MCP tools and `search_tools` cannot load them. Before "
-    "the first call, run `mcporter list` and `mcporter list <service> --schema`; "
-    "then run `mcporter call server.tool <args>`. Manage servers with "
-    "`sandbox_mcp_add`, `sandbox_mcp_update`, or `sandbox_mcp_remove`."
+    "call `search_tools` once, then call the loaded tool directly."
 )
 ```
 
@@ -402,7 +385,7 @@ handling remain unchanged.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/infra/skill/loader.py src/infra/memory/client/types.py src/infra/tool/deferred_manager.py src/infra/tool/sandbox_mcp_prompt.py src/infra/tool/env_var_prompt.py tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/test_sandbox_mcp_prompt_guidance.py tests/infra/tool/test_env_var_tool.py
+git add src/infra/skill/loader.py src/infra/memory/client/types.py src/infra/tool/deferred_manager.py src/infra/tool/env_var_prompt.py tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_env_var_tool.py
 git commit -m "refactor: compress dynamic agent prompt guides"
 ```
 
@@ -433,7 +416,6 @@ from src.agents.core.todo_middleware import create_todo_middleware
 from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
 from src.infra.skill.loader import format_skills_prompt
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE
-from src.infra.tool.sandbox_mcp_prompt import _format_tools_list_sections
 
 
 def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
@@ -442,11 +424,6 @@ def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
         {"name": "ant", "description": "Enterprise interface design."},
         {"name": "publisher", "description": "Publish social content."},
     ]
-    sandbox_sections, total = _format_tools_list_sections(
-        {"servers": [{"name": "demo", "status": "ok", "tools": [{"name": "run", "description": "Run demo"}]}]}
-    )
-    assert total == 1
-
     blocks = (
         SANDBOX_STORAGE_POLICY,
         SANDBOX_RUNTIME_POLICY.format(work_dir="/home/user/sessions/example"),
@@ -456,7 +433,6 @@ def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
         format_skills_prompt(skills),
         NATIVE_MEMORY_GUIDE,
         DEFERRED_TOOL_SEARCH_GUIDE,
-        sandbox_sections[0],
         create_todo_middleware().system_prompt,
     )
 
@@ -476,7 +452,7 @@ dropping semantic assertions or inventory entries.
 - [ ] **Step 3: Run the complete focused suite**
 
 ```bash
-uv run pytest tests/agents/test_todo_middleware_registration.py tests/agents/core/test_subagent_prompts.py tests/agents/core/test_system_prompt_budget.py tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/test_sandbox_mcp_prompt_guidance.py tests/infra/tool/test_env_var_tool.py -q
+uv run pytest tests/agents/test_todo_middleware_registration.py tests/agents/core/test_subagent_prompts.py tests/agents/core/test_system_prompt_budget.py tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_env_var_tool.py -q
 ```
 
 Expected: all selected tests pass.
@@ -484,7 +460,7 @@ Expected: all selected tests pass.
 - [ ] **Step 4: Run Ruff on changed Python files**
 
 ```bash
-uv run ruff check src/agents/core/todo_middleware.py src/agents/core/prompt_policy.py src/agents/core/subagent_prompts.py src/agents/fast_agent/nodes.py src/agents/search_agent/nodes.py src/agents/team_agent/nodes.py src/infra/skill/loader.py src/infra/memory/client/types.py src/infra/tool/deferred_manager.py src/infra/tool/sandbox_mcp_prompt.py src/infra/tool/env_var_prompt.py tests/agents/test_todo_middleware_registration.py tests/agents/core/test_subagent_prompts.py tests/agents/core/test_system_prompt_budget.py tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/test_sandbox_mcp_prompt_guidance.py tests/infra/tool/test_env_var_tool.py
+uv run ruff check src/agents/core/todo_middleware.py src/agents/core/prompt_policy.py src/agents/core/subagent_prompts.py src/agents/fast_agent/nodes.py src/agents/search_agent/nodes.py src/agents/team_agent/nodes.py src/infra/skill/loader.py src/infra/memory/client/types.py src/infra/tool/deferred_manager.py src/infra/tool/env_var_prompt.py tests/agents/test_todo_middleware_registration.py tests/agents/core/test_subagent_prompts.py tests/agents/core/test_system_prompt_budget.py tests/infra/skill/test_loader_prompt.py tests/infra/memory/test_tools.py tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_env_var_tool.py
 ```
 
 Expected: no Ruff errors.

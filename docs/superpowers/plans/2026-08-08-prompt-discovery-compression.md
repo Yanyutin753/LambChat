@@ -33,7 +33,6 @@
 - `src/infra/tool/tool_search_tool.py` — compact callable schema and deterministic result formatting.
 - `src/infra/tool/deferred_manager.py` — deduplicate canonical names and render complete MCP and internal-system inventories by kind.
 - `src/infra/tool/internal_registry.py` — split authorized internal tools according to the existing `inline_exposure` policy.
-- `src/infra/tool/sandbox_mcp_prompt.py` — small/large progressive disclosure without truncation.
 - `src/infra/skill/loader.py`, `src/infra/skill/middleware.py` — one shared Skill inventory builder and 20/21 threshold behavior.
 - `src/kernel/config/base.py`, `src/kernel/config/_definitions_tools.py` — add the Skill description threshold to runtime settings and remove the deferred prompt limit.
 - `src/agents/fast_agent/context.py`, `src/agents/search_agent/context.py` — register `search_skills`; stop passing deferred prompt limits.
@@ -43,7 +42,7 @@
 - `src/infra/memory/client/types.py`, `src/infra/tool/env_var_prompt.py` — compact stable dynamic guides without changing behavior.
 - `docs/en/env/mcp.md`, `docs/zh/env/mcp.md` — remove the obsolete deferred prompt limit and document the Skill inventory threshold.
 - `tests/kernel/config/test_tool_setting_definitions.py` — verify new/removed tool-setting definitions.
-- Existing tests under `tests/infra/tool/`, `tests/infra/skill/`, `tests/agents/core/`, `tests/agents/`, and `tests/test_sandbox_mcp_prompt_guidance.py` — migrate literal legacy assertions to semantic invariants.
+- Existing tests under `tests/infra/tool/`, `tests/infra/skill/`, `tests/agents/core/`, and `tests/agents/` — migrate literal legacy assertions to semantic invariants.
 
 ## Task 1: Shared Pinyin-Aware Discovery Engine
 
@@ -122,7 +121,6 @@ git commit -m "feat: add pinyin-aware discovery search"
 - Modify: `src/infra/tool/tool_search_tool.py`
 - Modify: `tests/infra/test_tool_search_cache.py`
 - Modify: `tests/infra/tool/test_tool_search_tool.py`
-- Modify: `tests/test_sandbox_mcp_prompt_guidance.py`
 
 - [ ] **Step 1: Write failing adapter tests for pinyin and cache lifetime**
 
@@ -155,14 +153,14 @@ Project the allowed top-level schema keys, recursively apply current caps, seria
 Run:
 
 ```bash
-uv run pytest tests/infra/test_tool_search_cache.py tests/infra/tool/test_tool_search_tool.py tests/test_sandbox_mcp_prompt_guidance.py -q
+uv run pytest tests/infra/test_tool_search_cache.py tests/infra/tool/test_tool_search_tool.py -q
 uv run ruff check src/infra/tool/tool_search.py src/infra/tool/tool_search_tool.py tests/infra/tool tests/infra/test_tool_search_cache.py
 ```
 
 - [ ] **Step 7: Commit tool search migration**
 
 ```bash
-git add src/infra/tool/tool_search.py src/infra/tool/tool_search_tool.py tests/infra/test_tool_search_cache.py tests/infra/tool/test_tool_search_tool.py tests/test_sandbox_mcp_prompt_guidance.py
+git add src/infra/tool/tool_search.py src/infra/tool/tool_search_tool.py tests/infra/test_tool_search_cache.py tests/infra/tool/test_tool_search_tool.py
 git commit -m "feat: improve deferred tool search"
 ```
 
@@ -176,7 +174,6 @@ git commit -m "feat: improve deferred tool search"
 - Modify: `src/agents/fast_agent/context.py`
 - Modify: `src/agents/search_agent/context.py`
 - Modify: `tests/infra/agent/test_prompt_caching_middleware.py`
-- Modify: `tests/test_sandbox_mcp_prompt_guidance.py`
 - Create: `tests/infra/tool/test_internal_registry_exposure.py`
 - Create: `tests/agents/test_deferred_system_tools.py`
 
@@ -203,7 +200,7 @@ Add a collision matrix covering core direct, system direct/deferred, and MCP dir
 
 - [ ] **Step 3: Run tests and confirm RED**
 
-Run: `uv run pytest tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_internal_registry_exposure.py tests/agents/test_deferred_system_tools.py tests/test_sandbox_mcp_prompt_guidance.py -q`
+Run: `uv run pytest tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_internal_registry_exposure.py tests/agents/test_deferred_system_tools.py -q`
 
 Expected: the legacy prompt omits names above its configured limit and includes descriptions.
 
@@ -234,14 +231,14 @@ Delete `DEFERRED_TOOL_PROMPT_LIMIT`, the manager constructor argument/property, 
 Run:
 
 ```bash
-uv run pytest tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_internal_registry_exposure.py tests/agents/test_deferred_system_tools.py tests/test_sandbox_mcp_prompt_guidance.py -q
+uv run pytest tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_internal_registry_exposure.py tests/agents/test_deferred_system_tools.py -q
 uv run ruff check src/infra/tool/deferred_manager.py src/infra/tool/internal_registry.py src/agents/fast_agent/context.py src/agents/search_agent/context.py src/kernel/config/base.py
 ```
 
 - [ ] **Step 9: Commit inventory changes**
 
 ```bash
-git add src/infra/tool/deferred_manager.py src/infra/tool/internal_registry.py src/kernel/config/base.py src/agents/fast_agent/context.py src/agents/search_agent/context.py tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_internal_registry_exposure.py tests/agents/test_deferred_system_tools.py tests/test_sandbox_mcp_prompt_guidance.py
+git add src/infra/tool/deferred_manager.py src/infra/tool/internal_registry.py src/kernel/config/base.py src/agents/fast_agent/context.py src/agents/search_agent/context.py tests/infra/agent/test_prompt_caching_middleware.py tests/infra/tool/test_internal_registry_exposure.py tests/agents/test_deferred_system_tools.py
 git commit -m "feat: defer internal system tools"
 ```
 
@@ -357,44 +354,7 @@ git add src/agents/fast_agent src/agents/search_agent src/agents/team_agent test
 git commit -m "feat: expose skill search to agents"
 ```
 
-## Task 6: Complete Sandbox Tool Inventories
-
-**Files:**
-
-- Modify: `src/infra/tool/sandbox_mcp_prompt.py`
-- Modify: `tests/test_sandbox_mcp_prompt_guidance.py`
-
-- [ ] **Step 1: Write failing small/large inventory tests**
-
-At 20 tools, assert all names and cleaned one-line descriptions appear, while params and repeated per-tool commands do not. At 21+ tools, assert the exact complete set of `server.tool` names appears with no descriptions, params, or overflow omission note. Feed servers and tools in deliberately shuffled order and assert both small and large inventories are sorted by canonical `server.tool` name.
-
-- [ ] **Step 2: Run tests and confirm RED**
-
-Run: `uv run pytest tests/test_sandbox_mcp_prompt_guidance.py -q`
-
-Expected: current implementation truncates above 20 and repeats params/call examples.
-
-- [ ] **Step 3: Separate the stable guide from progressive inventory formatting**
-
-Keep one compact first-use sequence: `mcporter list`, `mcporter list <service> --schema`, then `mcporter call`. Remove repeated per-tool arrows, parameter summaries, repository-search advice unrelated to sandbox tool invocation, and overflow helpers. Collect valid named entries first, sort them by canonical `server.tool`, then choose small or large formatting from the complete sorted collection.
-
-- [ ] **Step 4: Run tests and Ruff until GREEN**
-
-Run:
-
-```bash
-uv run pytest tests/test_sandbox_mcp_prompt_guidance.py -q
-uv run ruff check src/infra/tool/sandbox_mcp_prompt.py tests/test_sandbox_mcp_prompt_guidance.py
-```
-
-- [ ] **Step 5: Commit sandbox inventory changes**
-
-```bash
-git add src/infra/tool/sandbox_mcp_prompt.py tests/test_sandbox_mcp_prompt_guidance.py
-git commit -m "feat: compress sandbox tool inventory"
-```
-
-## Task 7: Canonicalize and Compress Static Agent Guidance
+## Task 6: Canonicalize and Compress Static Agent Guidance
 
 **Files:**
 
@@ -412,7 +372,7 @@ git commit -m "feat: compress sandbox tool inventory"
 
 - [ ] **Step 1: Convert literal prose tests into a failing semantic coverage matrix**
 
-Define compact markers or predicates for storage, workspace boundaries, transfer-before-execute, artifact staging/reveal/resources/completion, time, untrusted input, clarification, verification, external actions, privacy, direct/deferred MCP/deferred system/sandbox tool routing, progress, todos, subagent timestamp/dispatch/handoff/synthesis, and canonical `SKILL.md` naming. Run each required matrix against the relevant main and subagent effective prompts. Add middleware/source assertions for the exact dynamic order defined below.
+Define compact markers or predicates for storage, workspace boundaries, transfer-before-execute, artifact staging/reveal/resources/completion, time, untrusted input, clarification, verification, external actions, privacy, direct/deferred MCP/deferred system-tool routing, progress, todos, subagent timestamp/dispatch/handoff/synthesis, and canonical `SKILL.md` naming. Run each required matrix against the relevant main and subagent effective prompts. Add middleware/source assertions for the exact dynamic order defined below.
 
 - [ ] **Step 2: Add failing duplicate-source tests**
 
@@ -436,7 +396,7 @@ Keep persona behavior limited to response style and task persistence. Remove dup
 
 - [ ] **Step 6: Update every agent base prompt to import canonical blocks**
 
-Fast, Search, and Team must retain their distinct roles and filesystem mode while sharing identical operational contracts. Build the static `SectionPromptMiddleware` content in this order when each block exists: canonical workflow, persona, Skills inventory, memory guide, goal/mode, sandbox runtime. Order later dynamic middleware as: environment-variable names, memory index, deferred tool inventories (`ToolSearchMiddleware`), sandbox `mcporter` inventory, and finally `PromptCachingMiddleware`. Fast Agent omits unavailable sandbox/env blocks but preserves the relative order. Apply the corresponding subset to custom subagents. Update tests to assert this order rather than preserving the current differing order.
+Fast, Search, and Team must retain their distinct roles and filesystem mode while sharing identical operational contracts. Build the static `SectionPromptMiddleware` content in this order when each block exists: canonical workflow, persona, Skills inventory, memory guide, goal/mode, sandbox runtime. Order later dynamic middleware as: environment-variable names, memory index, deferred tool inventories (`ToolSearchMiddleware`), and finally `PromptCachingMiddleware`. Fast Agent omits unavailable sandbox/env blocks but preserves the relative order. Apply the corresponding subset to custom subagents. Update tests to assert this order rather than preserving the current differing order.
 
 - [ ] **Step 7: Run prompt tests and Ruff until GREEN**
 
@@ -454,7 +414,7 @@ git add src/agents/core src/agents/fast_agent/prompt.py src/agents/search_agent/
 git commit -m "refactor: compress shared agent prompts"
 ```
 
-## Task 8: Compact Memory and Environment Guides; Enforce Budgets
+## Task 7: Compact Memory and Environment Guides; Enforce Budgets
 
 **Files:**
 
@@ -510,7 +470,7 @@ git add src/infra/memory/client/types.py src/infra/tool/env_var_prompt.py tests/
 git commit -m "refactor: enforce compact prompt budgets"
 ```
 
-## Task 9: Cross-Agent Regression Verification
+## Task 8: Cross-Agent Regression Verification
 
 **Files:**
 
@@ -528,8 +488,7 @@ uv run pytest \
   tests/agents/core \
   tests/agents/test_disabled_skills_config_propagation.py \
   tests/unit/agents/test_team_router.py \
-  tests/unit/agents/test_team_prompt_builder.py \
-  tests/test_sandbox_mcp_prompt_guidance.py -q
+  tests/unit/agents/test_team_prompt_builder.py -q
 ```
 
 Expected: all selected tests pass.

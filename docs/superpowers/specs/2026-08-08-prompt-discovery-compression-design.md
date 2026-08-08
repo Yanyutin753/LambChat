@@ -2,11 +2,11 @@
 
 **Date:** 2026-08-08
 **Status:** Approved
-**Scope:** LambChat Fast, Search, Team, and subagent system prompts; direct, deferred MCP, and deferred internal-system tool exposure; sandbox tool inventories; Skills discovery.
+**Scope:** LambChat Fast, Search, Team, and subagent system prompts; direct, deferred MCP, and deferred internal-system tool exposure; Skills discovery.
 
 ## Context
 
-LambChat currently builds its effective system prompt from agent base prompts, shared workflow guidance, persona, Skills, memory guidance and index, sandbox runtime data, environment-variable names, deferred MCP tools, and sandbox tool metadata. The resulting prompt repeats several contracts across agents and can grow sharply when tools or Skills are numerous.
+LambChat currently builds its effective system prompt from agent base prompts, shared workflow guidance, persona, Skills, memory guidance and index, sandbox runtime data, environment-variable names, and deferred MCP tools. The resulting prompt repeats several contracts across agents and can grow sharply when tools or Skills are numerous.
 
 Measured baselines on 2026-08-08:
 
@@ -17,23 +17,21 @@ Measured baselines on 2026-08-08:
 | Search subagent prompt | 8,772 |
 | Skills prompt with 25 sample Skills | 3,579 |
 
-Deferred MCP prompts currently truncate the visible list at `DEFERRED_TOOL_PROMPT_LIMIT`, while sandbox tool prompts show at most 20 tools. This means a tool can be available but absent from the model-visible inventory. Skills have no dedicated `search_skills` tool and inject every description directly.
+Deferred MCP prompts currently truncate the visible list at `DEFERRED_TOOL_PROMPT_LIMIT`. This means a tool can be available but absent from the model-visible inventory. Skills have no dedicated `search_skills` tool and inject every description directly.
 
 ## Goals
 
 1. Reduce agent-controlled static system-prompt text by 50–65% without removing any operational contract.
 2. Make every filtered, undiscovered MCP tool name visible in the deferred inventory, with no prompt-level truncation.
 3. Honor the existing internal-tool `inline_exposure` policy: direct tools preload schemas, while non-inline system tools expose only name and description until `search_tools` loads them.
-4. Make every sandbox tool name returned by `mcporter list --json` visible; large inventories must contain names only.
-5. Add `search_skills` and apply progressive disclosure to Skill metadata.
-6. Support Chinese, full pinyin, spaced pinyin, pinyin initials, separator normalization, and light typo tolerance in both tool and Skill search.
-7. Keep prompt blocks deterministic and ordered from stable to dynamic for prompt-cache efficiency.
-8. Preserve authorization, disabled-item filtering, storage limits, and existing tool execution boundaries.
+4. Add `search_skills` and apply progressive disclosure to Skill metadata.
+5. Support Chinese, full pinyin, spaced pinyin, pinyin initials, separator normalization, and light typo tolerance in both tool and Skill search.
+6. Keep prompt blocks deterministic and ordered from stable to dynamic for prompt-cache efficiency.
+7. Preserve authorization, disabled-item filtering, storage limits, and existing tool execution boundaries.
 
 ## Non-goals
 
 - Changing user-authored persona text, Skill instructions, memory entries, or user messages.
-- Making `search_tools` search sandbox tools. It searches deferred MCP tools and deferred LambChat system tools; sandbox tools remain discoverable and callable only through `execute` and `mcporter`.
 - Returning complete `SKILL.md` content from `search_skills`; the model must read the selected file through the Skills backend.
 - Replacing MongoDB or the Skills virtual filesystem.
 - Introducing embeddings, a vector database, or a remote search service for discovery.
@@ -58,7 +56,7 @@ Create one canonical source for these semantic contracts:
 1. **Storage and paths:** workspace ownership, `/skills/` virtual routing, shell restrictions, URL upload, and transfer-before-execute.
 2. **Artifact delivery:** automatic staging, explicit reveal cases, document resource URLs, single-file versus project reveal, and the completion gate.
 3. **Safety and verification:** untrusted content, clarification boundary, time handling, destructive/external actions, secrets/privacy, and verification before completion.
-4. **Discovery and progress:** loaded-tool preference, deferred MCP/system search, sandbox `mcporter` routing, concise progress updates, and synchronized todos.
+4. **Discovery and progress:** loaded-tool preference, deferred MCP/system search, concise progress updates, and synchronized todos.
 5. **Subagent contract:** dispatch threshold, timestamp propagation, complete work order, report inspection, synthesis, specialist routing, and structured handoff.
 
 Fast, Search, Team, and subagent prompts will import these sections rather than maintaining copies. Compatibility exports such as `WORKFLOW_SECTION` and `MAIN_AGENT_PROMPT_SECTIONS` may remain, but their content must be composed from the canonical definitions.
@@ -78,7 +76,6 @@ Dynamic data remains in separate prompt blocks after stable guidance:
 7. Memory index
 8. Deferred MCP names
 9. Deferred system-tool names and descriptions
-10. Sandbox tool inventory
 
 Each list must have deterministic sorting. Dynamic blocks must not repeat stable operating instructions.
 
@@ -95,7 +92,7 @@ Compression is semantic, not deletion. Tests will maintain a coverage matrix for
 - clarification and irreversible-action boundaries;
 - code/config/document verification;
 - secrets and privacy-safe output;
-- direct, deferred MCP, deferred system-tool, and sandbox tool routing;
+- direct, deferred MCP, and deferred system-tool routing;
 - user progress and todo state;
 - subagent dispatch, timestamp, handoff, report inspection, and synthesis;
 - Skill selection and canonical `SKILL.md` naming;
@@ -113,9 +110,7 @@ LambChat tools have three model-facing forms:
 2. **Deferred MCP tools:** schema omitted until `search_tools`; the prompt lists every canonical name only.
 3. **Deferred system tools:** LambChat internal tools with `inline_exposure=false` or no explicit inline policy; schema omitted until `search_tools`; the prompt lists every name and one-line description.
 
-Sandbox `mcporter` tools remain a separate execution backend rather than a fourth model-callable form.
-
-Core workflow tools assembled directly by the agent, including `ask_human`, artifact reveal, file transfer, memory operations, and sandbox-management tools, keep their current direct behavior unless they are already part of the internal virtual MCP registry. The new system-tool form applies to tools returned by `get_internal_tools_for_user`, whose existing per-tool `inline_exposure` policy is already exposed in the MCP administration UI.
+Core workflow tools assembled directly by the agent, including `ask_human`, artifact reveal, file transfer, and memory operations, keep their current direct behavior unless they are already part of the internal virtual MCP registry. The new system-tool form applies to tools returned by `get_internal_tools_for_user`, whose existing per-tool `inline_exposure` policy is already exposed in the MCP administration UI.
 
 ### Deferred MCP tools
 
@@ -154,17 +149,6 @@ Deferred system tools create a deferred manager even when MCP is disabled or the
 `ENABLE_DEFERRED_TOOL_LOADING=false` is the global escape hatch: all authorized internal and MCP tools are exposed directly, regardless of per-tool inline policy or count threshold. No deferred inventory or `search_tools` is added solely for those tools. This preserves tool availability when operators intentionally disable deferred loading.
 
 Agent contexts currently request environment-variable tools both through the internal registry and through a separate compatibility block. After exposure splitting, deduplication must consider both direct and deferred internal names so this compatibility path cannot re-add a deferred system tool as direct. Once a system tool is discovered, its schema remains available for the rest of the existing deferred discovery scope, matching current MCP discovery persistence.
-
-### Sandbox tools
-
-Sandbox tools remain separate from deferred MCP tools:
-
-- The stable guide says to use `execute`, then `mcporter list <service> --schema`, then `mcporter call`.
-- With at most 20 sandbox tools, the inventory includes each name and one cleaned single-line description. It omits parameter summaries and repeated per-tool commands because the stable guide already requires schema inspection.
-- Above 20 tools, the inventory contains every `server.tool` name and no descriptions, parameter summaries, or repeated per-tool commands.
-- No sandbox tool is hidden, and no overflow note claims that tools were omitted.
-
-The first-use schema-inspection requirement remains because the prompt inventory is not an invocation schema.
 
 ## Skill Inventory and `search_skills`
 
@@ -266,7 +250,6 @@ Implementation follows red-green-refactor TDD.
 - Compatibility registration cannot re-add a deferred internal tool, including environment-variable tools, as a direct schema.
 - With deferred loading disabled, every authorized system and MCP tool remains available directly and no deferred-only tool disappears.
 - Core/system/MCP name collisions resolve by the global priority rule across all direct/deferred combinations.
-- Sandbox inventories above 20 expose every `server.tool` name and no metadata.
 - Skill inventories exercise the 20/21 boundary and never add prompt-level truncation.
 - `search_skills` returns canonical name, description, path, and read-next instruction.
 - Both searches match Chinese, full pinyin, spaced pinyin, initials, separator variants, and one light typo.
@@ -292,8 +275,7 @@ Budgets are regression ceilings, not targets to fill. If a necessary rule cannot
 uv run pytest \
   tests/infra/tool \
   tests/infra/skill \
-  tests/agents/core \
-  tests/test_sandbox_mcp_prompt_guidance.py -q
+  tests/agents/core -q
 
 uv run ruff check src/infra/tool src/infra/skill src/agents tests
 ```
@@ -302,6 +284,6 @@ Agent construction tests must additionally confirm that `search_skills` is avail
 
 ## Rollout Risk
 
-The largest risk is preserving literal-string tests while improving wording. Tests should migrate from long sentence matching to behavioral assertions and compact semantic markers. The second risk is fuzzy-search noise; exact and name matches must dominate, typo matching must use a conservative threshold, and deterministic tie-breaking is required. The third risk is accidentally conflating deferred MCP tools with sandbox tools; separate headings, tools, and invocation rules remain mandatory.
+The largest risk is preserving literal-string tests while improving wording. Tests should migrate from long sentence matching to behavioral assertions and compact semantic markers. The second risk is fuzzy-search noise; exact and name matches must dominate, typo matching must use a conservative threshold, and deterministic tie-breaking is required.
 
 No deployment data migration is required. The change affects prompt construction, local ranking, dependency packaging, and tests.

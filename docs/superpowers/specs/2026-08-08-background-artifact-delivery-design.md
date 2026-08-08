@@ -122,4 +122,4 @@ Focused verification will run `tests/infra/agent/test_artifact_delivery_middlewa
 
 ## Rollout Notes
 
-The implementation must avoid touching the unrelated, already-dirty sandbox MCP removal work in the checkout. No configuration or frontend change is required. If the bounded final drain proves too short in production, its value can be promoted to configuration later; this change should begin with one conservative internal constant rather than expanding the settings surface prematurely.
+The implementation must avoid touching unrelated, already-dirty work in the checkout. No configuration or frontend change is required. If the bounded final drain proves too short in production, its value can be promoted to configuration later; this change should begin with one conservative internal constant rather than expanding the settings surface prematurely.

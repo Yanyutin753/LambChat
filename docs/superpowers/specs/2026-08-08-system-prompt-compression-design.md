@@ -29,7 +29,6 @@ Each operational contract should have one authoritative prompt owner:
 | Concise todo behavior | `PROGRESS_POLICY` |
 | Skill discovery, `SKILL.md`, virtual storage, transfer before execution | `src/infra/skill/loader.py` |
 | Deferred MCP/system tool discovery | `src/infra/tool/deferred_manager.py` |
-| Sandbox `mcporter` discovery and invocation | `src/infra/tool/sandbox_mcp_prompt.py` |
 | Environment-variable secrecy | `src/infra/tool/env_var_prompt.py` |
 | Cross-session memory behavior | `src/infra/memory/client/types.py` |
 | Virtual-to-host path mappings | DeepAgents `FilesystemMiddleware` runtime block |
@@ -58,8 +57,8 @@ and progress in `prompt_policy.py`. Apply the following deduplication:
 - Merge the repeated single-file/project reveal guidance into Artifact Delivery.
 - Remove Skill transfer details from Workspace Boundaries.
 - Remove the generic Tool and Skill Routing section from `WORKFLOW_POLICY`.
-  Capability-specific dynamic guides already describe Skills, deferred tools,
-  and sandbox tools only when those capabilities are present.
+  Capability-specific dynamic guides already describe Skills and deferred tools
+  only when those capabilities are present.
 - Keep the storage block short and leave shell accessibility to DeepAgents'
   runtime path-mapping block.
 - Tighten subagent dispatch prose without dropping timestamp, parallelism,
@@ -72,8 +71,6 @@ Shorten wording, not inventories:
 - Skills retain every advertised name and existing description-threshold logic.
 - Deferred MCP inventories retain every undiscovered tool name; deferred system
   tools retain their one-line descriptions.
-- Sandbox tool inventories retain every tool name and current description
-  threshold.
 - Environment prompts retain every configured key name without reading values.
 - Memory retains the four memory types, selective recall, retain/skip policy,
   stale verification, deletion, and ignore/forget behavior.
@@ -83,7 +80,7 @@ not change.
 
 ## Error and Compatibility Behavior
 
-- Empty Skills, Memory, environment, deferred-tool, and sandbox-tool inventories
+- Empty Skills, Memory, environment, and deferred-tool inventories
   continue to omit their prompt blocks.
 - Disabling a capability does not leave behind instructions for an unavailable
   tool.
@@ -101,7 +98,7 @@ Follow TDD for each behavior change:
 1. Change todo middleware tests to require an empty `system_prompt` while still
    asserting the `write_todos` tool and `todos` state channel.
 2. Add or tighten prompt-budget assertions for the canonical workflow, Skills,
-   Memory, deferred search guide, sandbox guide, and environment guide.
+   Memory, deferred search guide, and environment guide.
 3. Assert each routing contract appears in its owning dynamic guide and no
    longer appears in the canonical workflow.
 4. Preserve tests for prompt block ordering, stable/dynamic cache boundaries,
