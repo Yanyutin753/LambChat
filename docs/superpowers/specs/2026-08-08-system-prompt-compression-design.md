@@ -41,7 +41,8 @@ the active backend and contains facts that LambChat cannot safely hard-code.
 
 ### Compact Todo Middleware
 
-Add one shared factory under `src/agents/core/` that returns
+Add `create_todo_middleware()` in
+`src/agents/core/todo_middleware.py`. It returns
 `TodoListMiddleware(system_prompt="")`. Replace the six direct
 `TodoListMiddleware()` constructions used by main agents and subagents.
 
@@ -88,8 +89,9 @@ not change.
   tool.
 - Prompt headings used by cache classification remain stable unless their
   corresponding block is deliberately removed from the canonical workflow.
-- Existing alias constants are kept only where active code still imports them;
-  dead aliases may be removed together with their tests.
+- Remove `TOOL_DISCOVERY_POLICY` and its `TOOL_DISCOVERY_GUIDE` alias after
+  confirming there are no remaining production imports. Keep the other legacy
+  aliases because active code or tests still consume them.
 - No installed dependency file is edited or monkey-patched.
 
 ## Testing
@@ -104,15 +106,19 @@ Follow TDD for each behavior change:
    longer appears in the canonical workflow.
 4. Preserve tests for prompt block ordering, stable/dynamic cache boundaries,
    inventory completeness, description thresholds, and disabled capabilities.
-5. Run the focused Python test files covering prompt composition and middleware,
+5. Record before-and-after character counts for the decoded representative
+   prompt. Also enforce smaller per-block budgets in tests so future prose does
+   not silently restore the duplication. Dynamic inventory entries are held
+   constant during the comparison.
+6. Run the focused Python test files covering prompt composition and middleware,
    then run Ruff on changed Python files.
 
 ## Acceptance Criteria
 
 - Main and subagents still expose `write_todos`, with no LangChain default todo
   prompt appended.
-- The representative full prompt is at least 20% shorter, with a preferred range
-  of 20% to 30%.
+- The decoded representative prompt is at least 20% shorter than its 11,157
+  character baseline when the same dynamic inventory entries are used.
 - No operational contract listed in Prompt Ownership is lost.
 - Dynamic inventories remain complete and deterministically ordered.
 - Prompt cache block ordering is unchanged.
