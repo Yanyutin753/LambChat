@@ -7,12 +7,10 @@ import pytest
 from src.infra.tool import sandbox_mcp_prompt
 from src.infra.tool.deferred_manager import DeferredToolManager
 from src.infra.tool.sandbox_mcp_prompt import (
-    _MAX_TOOLS_IN_PROMPT,
     _cleanup_excess_prompt_cache_entries,
     _fetch_and_format,
     _format_tools_list,
     _format_tools_list_sections,
-    _maybe_append_overflow_hint,
     _sandbox_mcp_prompt_cache,
 )
 from src.infra.tool.tool_search_tool import ToolSearchTool
@@ -198,11 +196,67 @@ def test_sandbox_mcp_prompt_sections_split_intro_and_tool_listing() -> None:
     assert "`playwright.screenshot`" in sections[1]
 
 
-def test_sandbox_overflow_hint_mentions_service_specific_schema_inspection() -> None:
-    prompt = _maybe_append_overflow_hint("sandbox prompt\n", _MAX_TOOLS_IN_PROMPT + 1)
+def test_small_sandbox_inventory_keeps_all_sorted_names_and_clean_descriptions() -> None:
+    tools = [
+        {
+            "name": f"tool-{index:02d}",
+            "description": f"Description {index}\n\nArgs: hidden details",
+            "inputSchema": {"properties": {"query": {"type": "string"}}},
+        }
+        for index in range(19, -1, -1)
+    ]
 
-    assert "mcporter list" in prompt
-    assert "mcporter list <service> --schema" in prompt
+    sections, total = _format_tools_list_sections(
+        {"servers": [{"name": "beta", "status": "ok", "tools": tools}]}
+    )
+    inventory = sections[1]
+
+    assert total == 20
+    assert all(f"`beta.tool-{index:02d}`: Description {index}" in inventory for index in range(20))
+    assert inventory.index("beta.tool-00") < inventory.index("beta.tool-19")
+    assert "Params:" not in inventory
+    assert "mcporter call" not in inventory
+    assert "Args:" not in inventory
+
+
+def test_large_sandbox_inventory_keeps_every_sorted_name_only() -> None:
+    data = {
+        "servers": [
+            {
+                "name": "zeta",
+                "status": "ok",
+                "tools": [
+                    {"name": f"tool-{index:02d}", "description": f"Zeta description {index}"}
+                    for index in range(10, -1, -1)
+                ],
+            },
+            {
+                "name": "alpha",
+                "status": "ok",
+                "tools": [
+                    {"name": f"tool-{index:02d}", "description": f"Alpha description {index}"}
+                    for index in range(9, -1, -1)
+                ],
+            },
+        ]
+    }
+
+    sections, total = _format_tools_list_sections(data)
+    inventory = sections[1]
+    names = [
+        line.removeprefix("- `").removesuffix("`")
+        for line in inventory.splitlines()
+        if line.startswith("- `")
+    ]
+
+    assert total == 21
+    assert names == sorted(
+        [f"alpha.tool-{index:02d}" for index in range(10)]
+        + [f"zeta.tool-{index:02d}" for index in range(11)]
+    )
+    assert "description" not in inventory.lower()
+    assert "Params:" not in inventory
+    assert "not shown" not in "\n\n".join(sections)
 
 
 def test_sandbox_mcp_prompt_requires_service_specific_schema_inspection_before_first_call() -> None:
@@ -233,35 +287,6 @@ def test_sandbox_mcp_prompt_requires_service_specific_schema_inspection_before_f
     assert "must inspect its parameters via `execute`" in prompt
     assert "`mcporter list <service> --schema`" in prompt
     assert "`mcporter list`" in prompt
-
-
-def test_sandbox_mcp_prompt_discourages_repo_wide_grep_searches() -> None:
-    prompt, total = _format_tools_list(
-        {
-            "servers": [
-                {
-                    "name": "playwright",
-                    "status": "ok",
-                    "tools": [
-                        {
-                            "name": "screenshot",
-                            "description": "Take a screenshot.",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {"url": {"type": "string"}},
-                                "required": ["url"],
-                            },
-                        }
-                    ],
-                }
-            ]
-        }
-    )
-
-    assert total == 1
-    assert "avoid repo-wide searches" in prompt
-    assert "use `ls` or `glob` first" in prompt
-    assert "narrow `path` before `grep`" in prompt
 
 
 def test_sandbox_mcp_prompt_cache_eviction_caps_users(monkeypatch: pytest.MonkeyPatch) -> None:

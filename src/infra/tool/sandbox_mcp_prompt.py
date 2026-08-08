@@ -24,9 +24,7 @@ _sandbox_mcp_prompt_cache: dict[str, tuple[tuple[str, ...], int, float]] = {}
 _CACHE_TTL = 1800  # 30 minutes
 _MAX_PROMPT_CACHE_ENTRIES = 500
 
-# Max tools to inject into system prompt (beyond this, LLM uses bash to discover more)
-# With descriptions + params, each tool uses ~60-120 tokens; 20 tools ≈ 1200-2400 tokens.
-_MAX_TOOLS_IN_PROMPT = 20
+_DESCRIPTION_THRESHOLD = 20
 
 # mcporter timeout
 _MCPORTER_TIMEOUT = 15
@@ -65,7 +63,7 @@ async def build_sandbox_mcp_prompt_sections(
         prompt_sections, total_count, ts = _sandbox_mcp_prompt_cache[user_id]
         if time.time() - ts < _CACHE_TTL:
             logger.debug(f"[SandboxMCP Prompt] Cache hit for user {user_id}")
-            return _maybe_append_overflow_hint_sections(prompt_sections, total_count)
+            return prompt_sections
 
     # Fetch from mcporter
     prompt_sections, total_count = await _fetch_and_format(backend)
@@ -77,7 +75,7 @@ async def build_sandbox_mcp_prompt_sections(
         f"for user {user_id}, prompt length={sum(len(section) for section in prompt_sections)}, total_tools={total_count}"
     )
 
-    return _maybe_append_overflow_hint_sections(prompt_sections, total_count)
+    return prompt_sections
 
 
 def _cleanup_stale_cache() -> None:
@@ -118,33 +116,6 @@ def invalidate_sandbox_mcp_prompt_cache(user_id: str) -> None:
         logger.debug(f"[SandboxMCP Prompt] Cache invalidated for user {user_id}")
 
 
-def _maybe_append_overflow_hint(prompt: str, total_count: int) -> str:
-    """Append overflow hint to prompt if tools were truncated."""
-    if not prompt or total_count <= _MAX_TOOLS_IN_PROMPT:
-        return prompt
-
-    return (
-        prompt
-        + f"> **Note:** Only {_MAX_TOOLS_IN_PROMPT} of {total_count} tools are shown above. "
-        + 'Use `execute(command="mcporter list")` to find the right service, then '
-        + '`execute(command="mcporter list <service> --schema")` before the first call.\n'
-    )
-
-
-def _maybe_append_overflow_hint_sections(
-    prompt_sections: tuple[str, ...], total_count: int
-) -> tuple[str, ...]:
-    """Append overflow hint as its own section when tools were truncated."""
-    if not prompt_sections or total_count <= _MAX_TOOLS_IN_PROMPT:
-        return prompt_sections
-
-    return prompt_sections + (
-        f"> **Note:** Only {_MAX_TOOLS_IN_PROMPT} of {total_count} tools are shown above. "
-        'Use `execute(command="mcporter list")` to find the right service, then '
-        '`execute(command="mcporter list <service> --schema")` before the first call.\n',
-    )
-
-
 def _clean_description(desc: str) -> str:
     """Strip Args/COST WARNING sections, keep core one-line description."""
     if not desc:
@@ -165,43 +136,6 @@ def _clean_description(desc: str) -> str:
     if len(desc) > 200:
         desc = desc[:197] + "..."
     return desc
-
-
-def _format_params(schema: Any) -> str:
-    """Format inputSchema properties into a concise parameter list.
-
-    Example output:
-      Params: query (string, required), limit (integer, default: 10)
-    """
-    if not isinstance(schema, dict):
-        return ""
-
-    properties = schema.get("properties", {})
-    required = set(schema.get("required", []))
-
-    if not properties:
-        return ""
-
-    parts = []
-    for name, info in properties.items():
-        if not isinstance(info, dict):
-            continue
-        ptype = info.get("type", "any")
-        tokens = [name, f"({ptype}"]
-        if name in required:
-            tokens.append(", required")
-        if "default" in info:
-            tokens.append(f", default: {info['default']}")
-        # Add enum hint if present
-        if "enum" in info and isinstance(info["enum"], list):
-            enum_vals = ", ".join(str(v) for v in info["enum"][:5])
-            tokens.append(f", enum: [{enum_vals}]")
-        tokens.append(")")
-        parts.append("".join(tokens))
-
-    if not parts:
-        return ""
-    return "Params: " + ", ".join(parts)
 
 
 def _format_tools_list(data: Any) -> tuple[str, int]:
@@ -242,110 +176,45 @@ def _format_tools_list_sections(data: Any) -> tuple[tuple[str, ...], int]:
     if not isinstance(servers, list):
         return (), 0
 
-    intro_lines = [
-        "## Sandbox Tools (NOT MCP — DO NOT call directly)",
-        "",
-        "⚠️ **IMPORTANT**: The tools listed below are **sandbox tools**, NOT MCP tools. "
-        "You do NOT have direct access to them. Do NOT attempt to call them as MCP tools "
-        "— such calls will fail.",
-        "",
-        "**How to use**: You MUST use the `execute` tool with `mcporter` commands. "
-        "The `execute` tool is your ONLY way to invoke sandbox tools.",
-        "",
-        "**Required first-use sequence**: before the first `mcporter call` for any sandbox tool, "
-        "you must inspect its parameters via `execute`: first identify the service with "
-        "`mcporter list`, then inspect that service with `mcporter list <service> --schema`.",
-        "Do NOT jump straight to `mcporter call` just because a short params summary appears below. "
-        "The summary tells you what exists, not the full tool shape.",
-        "",
-        "Example — find the service, inspect it, then call `server.my_tool` with arg `query=hello`:",
-        "```",
-        'execute(command="mcporter list")',
-        "# find the target service, then inspect it:",
-        'execute(command="mcporter list server --schema")',
-        "# after confirming the tool and its parameters:",
-        'execute(command="mcporter call server.my_tool query=hello")',
-        "```",
-        "",
-        "**Discovery** — run via `execute`:",
-        "- `mcporter list` — list configured services and their tools",
-        "- `mcporter list <service> --schema` — inspect one service's tools and parameter schemas before first use",
-        "",
-        "**Repository search discipline**:",
-        "- avoid repo-wide searches unless absolutely necessary.",
-        "- When looking for code, use `ls` or `glob` first to narrow the area.",
-        "- narrow `path` before `grep`; do not start by grepping from the repository root with a broad pattern.",
-        "",
-        "**Invocation** — call via `execute`: `mcporter call server.tool <args>`",
-        "- Named args: `mcporter call server.tool key=value` (values with spaces MUST be quoted)",
-        '- JSON payload: `mcporter call server.tool --args \'{"key": "value"}\'` (for complex params)',
-        "",
-        "Do NOT use `--flag value` syntax — that passes `value` as a positional arg.",
-        "",
-        "**Server Management**: `sandbox_mcp_add` / `sandbox_mcp_update` / `sandbox_mcp_remove` — "
-        "changes are persisted and auto-restored on sandbox rebuild.",
-        "",
-    ]
-    tool_lines: list[str] = []
-
-    tool_count = 0
-    total_count = 0
+    intro = (
+        "## Sandbox Tools (NOT MCP — DO NOT call directly)\n\n"
+        "Use `execute` with `mcporter`; `search_tools` does not search this inventory. "
+        "Therefore, before the first `mcporter call`, you must inspect its parameters via `execute`: "
+        "run `mcporter list`, then `mcporter list <service> --schema`, then "
+        "`mcporter call server.tool <args>`. "
+        "Manage servers with `sandbox_mcp_add`, `sandbox_mcp_update`, or `sandbox_mcp_remove`."
+    )
+    entries: list[tuple[str, str]] = []
 
     for server in servers:
         if not isinstance(server, dict):
             continue
 
         server_name = server.get("name", "")
-        server_status = server.get("status", "")
         tools = server.get("tools", [])
-        if not tools:
+        if not server_name or not isinstance(tools, list):
             continue
 
-        # Server header
-        status_tag = f" ({server_status})" if server_status and server_status != "ok" else ""
-        tool_lines.append(f"### {server_name}{status_tag}")
-
         for tool in tools:
-            total_count += 1
-
-            if tool_count >= _MAX_TOOLS_IN_PROMPT:
+            if not isinstance(tool, dict):
                 continue
-
-            tool_name = tool.get("name", "")
-            tool_desc = tool.get("description", "")
-
+            tool_name = str(tool.get("name") or "").strip()
             if not tool_name:
                 continue
-
-            tool_count += 1
-
-            # Build tool entry with description and parameters
             full_name = f"{server_name}.{tool_name}"
+            entries.append((full_name, _clean_description(str(tool.get("description") or ""))))
 
-            # Clean description: strip Args/COST WARNING sections, keep core description
-            tool_desc = _clean_description(tool_desc)
-
-            tool_lines.append(f"- `{full_name}`")
-            if tool_desc:
-                tool_lines.append(f"  {tool_desc}")
-
-            # Extract and format parameters
-            param_line = _format_params(tool.get("inputSchema"))
-            if param_line:
-                tool_lines.append(f"  {param_line}")
-
-            tool_lines.append(
-                f'  → first inspect this service: `execute(command="mcporter list {server_name} --schema")`'
-            )
-            tool_lines.append(
-                f'  → then call: `execute(command="mcporter call {full_name} <args>")`'
-            )
-
-        tool_lines.append("")
-
-    if not tool_lines:
-        return (), total_count
-    return ("\n".join(intro_lines), "\n".join(tool_lines).rstrip()), total_count
+    entries.sort(key=lambda item: (item[0].lower(), item[0]))
+    if not entries:
+        return (), 0
+    if len(entries) <= _DESCRIPTION_THRESHOLD:
+        inventory = "\n".join(
+            f"- `{name}`: {description}" if description else f"- `{name}`"
+            for name, description in entries
+        )
+    else:
+        inventory = "\n".join(f"- `{name}`" for name, _description in entries)
+    return (intro, inventory), len(entries)
 
 
 async def _fetch_and_format(backend: Any) -> tuple[tuple[str, ...], int]:
