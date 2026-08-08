@@ -246,6 +246,9 @@ class LazySandboxBackend(BaseSandbox):
             return self._initialization_task
 
     async def _ensure_ready(self) -> BaseSandbox:
+        initialization_task = self._initialization_task
+        if initialization_task is not None and not initialization_task.done():
+            return await asyncio.shield(initialization_task)
         if self._delegate is not None:
             return self._delegate
         task = await self._get_initialization_task()

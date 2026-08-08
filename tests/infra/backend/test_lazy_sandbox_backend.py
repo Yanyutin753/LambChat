@@ -307,6 +307,37 @@ async def test_ready_event_failure_does_not_replace_provider_success() -> None:
 
 
 @pytest.mark.asyncio
+async def test_concurrent_operation_waits_for_ready_event_attempt_to_complete() -> None:
+    ready_entered = asyncio.Event()
+    release_ready = asyncio.Event()
+
+    class _GatedReadyPresenter(_Presenter):
+        async def emit_sandbox_ready(self, sandbox_id: str, work_dir: str) -> dict[str, Any]:
+            self.attempts.append(("ready", sandbox_id, work_dir))
+            ready_entered.set()
+            await release_ready.wait()
+            return {}
+
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    manager = _Manager(provider)
+    presenter = _GatedReadyPresenter()
+    backend = _lazy(manager, presenter=presenter)
+
+    first = asyncio.create_task(backend.awrite("first.txt", "first"))
+    await ready_entered.wait()
+    second = asyncio.create_task(backend.awrite("second.txt", "second"))
+    await asyncio.sleep(0)
+
+    try:
+        assert provider.write_calls == []
+        assert not first.done()
+        assert not second.done()
+    finally:
+        release_ready.set()
+        await asyncio.gather(first, second)
+
+
+@pytest.mark.asyncio
 async def test_provider_failure_attempts_public_error_after_starting_event_failure() -> None:
     provider_error = RuntimeError("provider failed with private details")
     provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
