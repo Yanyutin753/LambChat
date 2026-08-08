@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import re
-from collections.abc import Callable
-from typing import Any, Protocol, cast
+import time
+from collections.abc import Awaitable, Callable
+from pathlib import PurePosixPath
+from typing import Protocol
 
 from deepagents.backends import CompositeBackend
 from deepagents.backends.protocol import (
@@ -14,7 +16,11 @@ from deepagents.backends.protocol import (
 )
 from deepagents.backends.sandbox import BaseSandbox
 
+from src.infra.logging import get_logger
+from src.kernel.config import settings
+
 PUBLIC_SANDBOX_ROOT = "/workspace"
+logger = get_logger(__name__)
 
 
 def public_sandbox_work_dir(session_id: str) -> str:
@@ -41,6 +47,14 @@ class _SandboxManager(Protocol):
     ) -> tuple[CompositeBackend, str]: ...
 
 
+class _SandboxPresenter(Protocol):
+    async def emit_sandbox_starting(self) -> object: ...
+
+    async def emit_sandbox_ready(self, sandbox_id: str, work_dir: str) -> object: ...
+
+    async def emit_sandbox_error(self, error: str) -> object: ...
+
+
 class LazySandboxBackend(BaseSandbox):
     """Run-scoped sandbox that obtains its provider on first async use."""
 
@@ -49,13 +63,15 @@ class LazySandboxBackend(BaseSandbox):
         *,
         session_id: str,
         user_id: str,
-        presenter: Any,
+        presenter: _SandboxPresenter,
         manager_factory: Callable[[], _SandboxManager],
     ) -> None:
+        construction_started_at = time.perf_counter()
         self._session_id = session_id
         self._user_id = user_id
-        self._presenter = presenter
+        self._presenter: _SandboxPresenter = presenter
         self._manager_factory = manager_factory
+        self._platform = settings.SANDBOX_PLATFORM.lower()
         self._public_work_dir = public_sandbox_work_dir(session_id)
         self._actual_work_dir: str | None = None
         self._delegate: BaseSandbox | None = None
@@ -65,6 +81,10 @@ class LazySandboxBackend(BaseSandbox):
         self._waiters = 0
         self._closed = False
         self._suppress_events = False
+        self._log_timing(
+            "constructed",
+            time.perf_counter() - construction_started_at,
+        )
 
     @property
     def work_dir(self) -> str:
@@ -113,16 +133,123 @@ class LazySandboxBackend(BaseSandbox):
             raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
         return self._actual_work_dir
 
-    async def _ensure_ready(self) -> BaseSandbox:
-        if self._delegate is None:
-            manager = self._manager_factory()
-            scoped_backend, actual_work_dir = await manager.get_or_create(
-                session_id=self._session_id,
-                user_id=self._user_id,
-            )
-            self._delegate = cast(BaseSandbox, scoped_backend.default)
+    def _log_timing(
+        self,
+        phase: str,
+        duration_seconds: float,
+        *,
+        exception_category: str | None = None,
+    ) -> None:
+        details: dict[str, object] = {
+            "lazy_sandbox_phase": phase,
+            "sandbox_platform": self._platform,
+            "duration_seconds": duration_seconds,
+        }
+        if exception_category is not None:
+            details["exception_category"] = exception_category
+        logger.info("lazy_sandbox_timing", extra=details)
+
+    async def _attempt_event(
+        self,
+        event_name: str,
+        emit: Callable[[], Awaitable[object]],
+    ) -> None:
+        async with self._event_lock:
+            if self._suppress_events:
+                return
+            try:
+                await emit()
+            except Exception as exc:
+                logger.warning(
+                    "lazy_sandbox_event_emit_failed",
+                    extra={
+                        "event_name": event_name,
+                        "sandbox_platform": self._platform,
+                        "exception_category": type(exc).__name__,
+                    },
+                )
+
+    async def _initialize(self, first_operation_at: float) -> BaseSandbox:
+        initialization_started_at = time.perf_counter()
+        self._log_timing(
+            "initialization_started",
+            initialization_started_at - first_operation_at,
+        )
+        await self._attempt_event(
+            "starting",
+            self._presenter.emit_sandbox_starting,
+        )
+
+        try:
+            manager_started_at = time.perf_counter()
+            try:
+                manager = self._manager_factory()
+                scoped_backend, actual_work_dir = await manager.get_or_create(
+                    session_id=self._session_id,
+                    user_id=self._user_id,
+                )
+            finally:
+                self._log_timing(
+                    "manager_completed",
+                    time.perf_counter() - manager_started_at,
+                )
+
+            if not isinstance(scoped_backend, CompositeBackend):
+                raise TypeError("sandbox manager returned an invalid backend")
+            delegate = scoped_backend.default
+            if not isinstance(delegate, BaseSandbox):
+                raise TypeError("sandbox manager returned an invalid default backend")
+            if not (
+                isinstance(actual_work_dir, str)
+                and actual_work_dir
+                and PurePosixPath(actual_work_dir).is_absolute()
+            ):
+                raise ValueError("sandbox manager returned an invalid work directory")
+
+            self._delegate = delegate
             self._actual_work_dir = actual_work_dir
-        return self._delegate
+            await self._attempt_event(
+                "ready",
+                lambda: self._presenter.emit_sandbox_ready(delegate.id, actual_work_dir),
+            )
+            self._log_timing(
+                "ready",
+                time.perf_counter() - initialization_started_at,
+            )
+            return delegate
+        except Exception as exc:
+            await self._attempt_event(
+                "error",
+                lambda: self._presenter.emit_sandbox_error(
+                    SandboxInitializationError.PUBLIC_MESSAGE
+                ),
+            )
+            self._log_timing(
+                "failure",
+                time.perf_counter() - initialization_started_at,
+                exception_category=type(exc).__name__,
+            )
+            raise SandboxInitializationError() from exc
+
+    @staticmethod
+    def _consume_initialization_exception(task: asyncio.Task[BaseSandbox]) -> None:
+        if not task.cancelled():
+            task.exception()
+
+    async def _get_initialization_task(self) -> asyncio.Task[BaseSandbox]:
+        async with self._lock:
+            if self._initialization_task is None:
+                first_operation_at = time.perf_counter()
+                task = asyncio.create_task(self._initialize(first_operation_at))
+                task.add_done_callback(self._consume_initialization_exception)
+                self._initialization_task = task
+            return self._initialization_task
+
+    async def _ensure_ready(self) -> BaseSandbox:
+        if self._delegate is not None:
+            return self._delegate
+        task = await self._get_initialization_task()
+        return await asyncio.shield(task)
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
         delegate = await self._ensure_ready()
