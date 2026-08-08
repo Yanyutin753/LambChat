@@ -5,7 +5,7 @@ function readSource(relativePath: string): string {
 }
 
 const componentSource = readSource("../McpSelectorEmptyState.tsx");
-const consumers = ["../EnvKeysSelector.tsx", "../RoleSelector.tsx"];
+const consumers = ["../RoleSelector.tsx"];
 
 test("mcp selector dropdown empty states share one presentation component", () => {
   expect(componentSource).toMatch(/export function McpSelectorEmptyState\(/);

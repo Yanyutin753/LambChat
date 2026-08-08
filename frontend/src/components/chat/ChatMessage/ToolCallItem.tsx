@@ -118,7 +118,6 @@ export { ScheduledTaskItem } from "./items/ScheduledTaskItem";
 export { EnvVarItem } from "./items/EnvVarItem";
 export { PersonaItem } from "./items/PersonaItem";
 export { TeamItem } from "./items/TeamItem";
-export { SandboxMcpItem } from "./items/SandboxMcpItem";
 export { MemoryRecallItem } from "./items/MemoryRecallItem";
 export { MemoryStoreItem } from "./items/MemoryStoreItem";
 export { AskHumanItem } from "./items/AskHumanItem";

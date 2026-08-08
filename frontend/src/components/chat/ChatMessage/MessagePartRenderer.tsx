@@ -24,7 +24,6 @@ import {
   EnvVarItem,
   PersonaItem,
   TeamItem,
-  SandboxMcpItem,
   MemoryRecallItem,
   MemoryStoreItem,
   AskHumanItem,
@@ -390,24 +389,6 @@ export function MessagePartRenderer({
     ) {
       return (
         <TeamItem
-          toolName={part.name}
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (
-      part.name === "sandbox_mcp_add" ||
-      part.name === "sandbox_mcp_update" ||
-      part.name === "sandbox_mcp_remove"
-    ) {
-      return (
-        <SandboxMcpItem
           toolName={part.name}
           args={part.args}
           result={part.result}

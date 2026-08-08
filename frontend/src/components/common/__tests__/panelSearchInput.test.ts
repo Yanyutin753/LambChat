@@ -237,7 +237,6 @@ test("direct panel-search fields opt into the same refresh-safe behavior", () =>
 test("selector search fields share editing-safe input behavior", () => {
   for (const path of [
     "../../mcp/RoleSelector.tsx",
-    "../../mcp/EnvKeysSelector.tsx",
     "../../agent/ModelSelector.tsx",
     "../../team/TeamBuilder.tsx",
     "../../team/TeamPickerModal.tsx",

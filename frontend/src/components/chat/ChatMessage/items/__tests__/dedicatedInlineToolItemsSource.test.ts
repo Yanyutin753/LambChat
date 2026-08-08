@@ -58,7 +58,6 @@ test("message part renderer covers every backend internal tool", () => {
     "src/infra/tool/persona_preset_tool.py",
     "src/infra/tool/reveal_project_tool.py",
     "src/infra/tool/transfer_file_tool.py",
-    "src/infra/tool/sandbox_mcp_tool.py",
     "src/infra/tool/team_tool.py",
     "src/infra/tool/image_generation_tool.py",
     "src/infra/tool/scheduled_task/read.py",
@@ -69,7 +68,7 @@ test("message part renderer covers every backend internal tool", () => {
   ];
   const internalToolNames = backendToolFiles.flatMap(extractToolFunctionNames);
 
-  expect(internalToolNames.length).toBe(32);
+  expect(internalToolNames.length).toBe(29);
 
   for (const toolName of internalToolNames) {
     expect(source).toMatch(new RegExp(`part\\.name\\s*===\\s*"${toolName}"`));

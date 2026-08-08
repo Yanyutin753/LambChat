@@ -14,7 +14,6 @@ const themedItems = [
   { file: "../EnvVarItem.tsx", accent: "emerald" },
   { file: "../PersonaItem.tsx", accent: "amber" },
   { file: "../TeamItem.tsx", accent: "emerald" },
-  { file: "../SandboxMcpItem.tsx", accent: "teal" },
 ];
 
 test("internal tool items keep accents while using theme surfaces", () => {
@@ -25,15 +24,4 @@ test("internal tool items keep accents while using theme surfaces", () => {
     expect(source).toMatch(/bg-theme-bg/);
     expect(source).toMatch(/border-theme-border/);
   }
-});
-
-test("sandbox MCP renders as a teal terminal card instead of a stone panel", () => {
-  const source = readSource("../SandboxMcpItem.tsx");
-
-  expect(source).toMatch(/Terminal/);
-  expect(source).toMatch(/text-teal-500/);
-  expect(source).toMatch(/bg-teal-950/);
-  expect(source).toMatch(/border-teal-500\/20/);
-  expect(source).toMatch(/command\.length > 120/);
-  expect(source).not.toMatch(/bg-stone-900|dark:bg-stone-950/);
 });

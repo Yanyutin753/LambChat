@@ -69,7 +69,6 @@ export function MCPServerToolsSidebar({
   const TRANSPORT_LABELS: Record<string, string> = {
     sse: t("mcp.form.transportSse"),
     streamable_http: t("mcp.form.transportHttp"),
-    sandbox: t("mcp.form.transportSandbox"),
   };
 
   const transportLabel =
@@ -217,9 +216,9 @@ export function MCPServerToolsSidebar({
         </span>
       </div>
 
-      {(server.url || server.command) && (
+      {server.url && (
         <div className="font-mono text-[11px] text-[var(--theme-text-tertiary)] truncate">
-          {server.url || server.command}
+          {server.url}
         </div>
       )}
 

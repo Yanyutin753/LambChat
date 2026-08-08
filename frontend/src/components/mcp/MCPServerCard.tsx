@@ -24,8 +24,6 @@ const TRANSPORT_COLORS: Record<string, string> = {
   sse: "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:ring-emerald-800/60",
   streamable_http:
     "bg-violet-50 text-violet-600 ring-1 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:ring-violet-800/60",
-  sandbox:
-    "bg-amber-50 text-amber-600 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-800/60",
 };
 
 const DEFAULT_TRANSPORT_COLOR =
@@ -44,7 +42,6 @@ export function MCPServerCard({
   const TRANSPORT_LABELS: Record<string, string> = {
     sse: t("mcp.form.transportSse"),
     streamable_http: t("mcp.form.transportHttp"),
-    sandbox: t("mcp.form.transportSandbox"),
   };
   const transportLabel =
     TRANSPORT_LABELS[server.transport] || server.transport.toUpperCase();
@@ -120,7 +117,7 @@ export function MCPServerCard({
         </div>
 
         <div className="mt-2 text-xs font-mono text-stone-400 dark:text-stone-500 truncate">
-          {server.url || server.command || ""}
+          {server.url || ""}
         </div>
 
         <div className="flex-1" />

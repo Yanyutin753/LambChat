@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 
 /**
  * Lightweight collapsible block for tool result panel detail views.
- * Used by PersonaItem, TeamItem, EnvVarItem, SandboxMcpItem, etc.
+ * Used by PersonaItem, TeamItem, EnvVarItem, etc.
  */
 export function DetailSection({
   title,
