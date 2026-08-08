@@ -1013,6 +1013,87 @@ async def test_cancelling_sole_waiter_rechecks_waiters_after_event_barrier() -> 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("manager_failure", [None, RuntimeError("provider failed")])
+async def test_repeated_cancellation_drains_sole_waiter_cleanup_before_finishing(
+    manager_failure: Exception | None,
+) -> None:
+    manager_entered = asyncio.Event()
+    release_manager = asyncio.Event()
+    event_entered = asyncio.Event()
+    release_event = asyncio.Event()
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    manager = _Manager(
+        provider,
+        entered=manager_entered,
+        release=release_manager,
+        failure=manager_failure,
+    )
+    presenter = _Presenter()
+    backend = _lazy(manager, presenter=presenter)
+    unobserved_contexts: list[dict[str, Any]] = []
+    loop = asyncio.get_running_loop()
+    previous_exception_handler = loop.get_exception_handler()
+    loop.set_exception_handler(lambda _loop, context: unobserved_contexts.append(context))
+
+    async def gated_event() -> None:
+        event_entered.set()
+        await release_event.wait()
+
+    try:
+        operation = asyncio.create_task(backend.awrite("cancelled.txt", "cancelled"))
+        await manager_entered.wait()
+        inflight_event = asyncio.create_task(
+            backend._attempt_event("gated", gated_event)  # noqa: SLF001
+        )
+        await event_entered.wait()
+
+        operation.cancel()
+        await asyncio.sleep(0)
+        assert not operation.done()
+        operation.cancel()
+        await asyncio.sleep(0)
+        completed_before_event_release = operation.done()
+
+        release_event.set()
+        await inflight_event
+        with pytest.raises(asyncio.CancelledError):
+            await operation
+        assert operation.cancelled()
+
+        release_manager.set()
+        initialization_task = backend._initialization_task  # noqa: SLF001
+        assert initialization_task is not None
+        for _ in range(20):
+            if initialization_task.done():
+                break
+            await asyncio.sleep(0)
+        assert initialization_task.done()
+        later_outcome = await asyncio.gather(
+            backend.awrite("later.txt", "later"),
+            return_exceptions=True,
+        )
+        waiter_count = backend._waiters  # noqa: SLF001
+
+        del initialization_task, inflight_event, operation, backend
+        gc.collect()
+        await asyncio.sleep(0)
+
+        assert completed_before_event_release is False
+        assert waiter_count == 0
+        assert len(later_outcome) == 1
+        assert isinstance(later_outcome[0], RuntimeError)
+        assert str(later_outcome[0]) == "Lazy sandbox is closed"
+        assert manager.calls == [("session-1", "user-1")]
+        assert provider.write_calls == []
+        assert presenter.attempts == [("starting",)]
+        assert unobserved_contexts == []
+    finally:
+        release_event.set()
+        release_manager.set()
+        loop.set_exception_handler(previous_exception_handler)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("manager_failure", [None, RuntimeError("provider failed")])
 async def test_cancelling_sole_waiter_abandons_wrapper_and_consumes_manager_outcome(
     manager_failure: Exception | None,
 ) -> None:

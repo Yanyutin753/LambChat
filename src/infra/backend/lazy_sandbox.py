@@ -617,6 +617,15 @@ class LazySandboxBackend(BaseSandbox):
             self._waiters -= 1
             return self._closed
 
+    @staticmethod
+    async def _drain_cleanup_task(cleanup_task: asyncio.Task[None]) -> None:
+        while not cleanup_task.done():
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                continue
+        cleanup_task.result()
+
     async def _ensure_ready(self) -> BaseSandbox:
         async with self._lock:
             if self._closed:
@@ -629,7 +638,8 @@ class LazySandboxBackend(BaseSandbox):
             delegate = await asyncio.shield(task)
             closed = await self._complete_initialization_waiter()
         except asyncio.CancelledError:
-            await self._release_initialization_waiter(cancelled=True)
+            cleanup_task = asyncio.create_task(self._release_initialization_waiter(cancelled=True))
+            await self._drain_cleanup_task(cleanup_task)
             raise
         except BaseException:
             await self._release_initialization_waiter(cancelled=False)
