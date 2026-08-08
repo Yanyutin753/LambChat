@@ -267,7 +267,7 @@ assert "export LAMBCHAT_WORKSPACE='/remote/b'" in provider.commands[1]
 assert "LAMBCHAT_WORKSPACE" not in provider.env_vars
 ```
 
-Instantiate `FilesystemMiddleware` with a `CompositeBackend(default=lazy, artifacts_root=lazy.work_dir)` and drive `aexecute_with_offload()`. Prove for E2B-, CubeSandbox-, and Daytona-shaped fake delegates that:
+Instantiate `FilesystemMiddleware` with a `CompositeBackend(default=lazy, routes={}, artifacts_root=lazy.work_dir)` and drive `aexecute_with_offload()`. Prove for E2B-, CubeSandbox-, and Daytona-shaped fake delegates that:
 
 - `isinstance(lazy, BaseSandbox)` keeps capture-at-source enabled;
 - the delegate receives the actual capture path and the command-scoped workspace prefix;
