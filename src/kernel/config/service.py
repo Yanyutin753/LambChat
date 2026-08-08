@@ -72,7 +72,6 @@ async def initialize_settings() -> None:
                     loaded_count += 1
 
     logger.info(f"[Settings] Loaded {loaded_count} settings into cache")
-    logger.info(f"[Settings] REDIS_URL = {settings.REDIS_URL}")
 
     # Persist auto-generated VAPID keys to database so they survive restarts
     if settings._vapid_keys_generated and _settings_service is not None:

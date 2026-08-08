@@ -68,16 +68,14 @@ class PushManager:
                 if status_code in (404, 410):
                     # Subscription expired or revoked
                     logger.info(
-                        "Push subscription gone (HTTP %s), removing: endpoint=%s",
+                        "Push subscription gone (HTTP %s), removing stored subscription",
                         status_code,
-                        sub.endpoint[:80],
                     )
                     await self.storage.delete_by_endpoint(sub.endpoint)
                 else:
                     logger.warning(
-                        "Failed to send push notification: endpoint=%s, error=%s",
-                        sub.endpoint[:80],
-                        e,
+                        "Failed to send push notification: error_type=%s",
+                        type(e).__name__,
                     )
         return delivered
 

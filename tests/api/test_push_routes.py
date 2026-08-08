@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -102,6 +104,37 @@ async def test_subscribe_saves_subscription_and_returns_it() -> None:
     assert calls[0][0] == "user-1"
     assert calls[0][1]["endpoint"] == "https://push.example.com/sub/123"
     assert resp.json()["id"] == "sub-1"
+
+
+@pytest.mark.asyncio
+async def test_subscribe_log_omits_subscription_endpoint(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    endpoint = "https://push.example.com/sub/private-token"
+
+    class _FakeManager:
+        async def save_subscription(self, user_id: str, data: dict, user_agent: str = "") -> dict:
+            return _subscription(endpoint=endpoint)
+
+    app = FastAPI()
+    app.include_router(push_route.router, prefix="/api/push")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[push_route.get_push_manager] = lambda: _FakeManager()
+
+    with caplog.at_level(logging.INFO):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.post(
+                "/api/push/subscribe",
+                json={
+                    "endpoint": endpoint,
+                    "keys": {"p256dh": "key", "auth": "auth"},
+                },
+            )
+
+    assert response.status_code == 200
+    assert endpoint not in caplog.text
+    assert "user-1" in caplog.text
 
 
 @pytest.mark.asyncio

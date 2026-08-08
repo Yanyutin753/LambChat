@@ -446,7 +446,7 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
             self.config.app_id,
             self.config.app_secret,
             event_handler=event_handler,
-            log_level=lark.LogLevel.INFO,
+            log_level=lark.LogLevel.WARNING,
             auto_reconnect=True,
         )
         self._ws_client._reconnect_interval = self._SDK_RECONNECT_INTERVAL
@@ -469,7 +469,11 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
                     while self._running:
                         await asyncio.sleep(1)
                 except Exception as e:
-                    logger.warning(f"Feishu WebSocket error for user {self.config.user_id}: {e}")
+                    logger.warning(
+                        "Feishu WebSocket error for user %s: error_type=%s",
+                        self.config.user_id,
+                        type(e).__name__,
+                    )
                     if self._running:
                         self._set_connection_state(ConnectionState.RECONNECTING)
                         delay = self._get_reconnect_delay()

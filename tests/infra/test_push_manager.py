@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -153,6 +154,48 @@ async def test_send_push_skips_other_errors(mock_webpush: MagicMock) -> None:
 
     assert count == 0
     manager.storage.delete_by_endpoint.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("pywebpush.webpush")
+async def test_send_push_error_log_omits_endpoint_and_exception_text(
+    mock_webpush: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    endpoint = "https://push.example.com/sub/private-token"
+    manager = PushManager()
+    manager.storage.get_by_user = AsyncMock(return_value=[_make_subscription(endpoint)])
+    manager.storage.delete_by_endpoint = AsyncMock()
+    mock_webpush.side_effect = ConnectionError(f"failed endpoint={endpoint}")
+
+    with patch("src.infra.push.manager.settings", _fake_settings()):
+        await manager.send_push_to_user("user-1", {"title": "Test"})
+
+    assert endpoint not in caplog.text
+    assert "failed endpoint" not in caplog.text
+    assert "ConnectionError" in caplog.text
+
+
+@pytest.mark.asyncio
+@patch("pywebpush.webpush")
+async def test_send_push_gone_log_omits_endpoint(
+    mock_webpush: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    endpoint = "https://push.example.com/sub/revoked-token"
+    manager = PushManager()
+    manager.storage.get_by_user = AsyncMock(return_value=[_make_subscription(endpoint)])
+    manager.storage.delete_by_endpoint = AsyncMock()
+    error = Exception("Gone")
+    error.status_code = 410
+    mock_webpush.side_effect = error
+
+    with caplog.at_level(logging.INFO):
+        with patch("src.infra.push.manager.settings", _fake_settings()):
+            await manager.send_push_to_user("user-1", {"title": "Test"})
+
+    assert endpoint not in caplog.text
+    assert "HTTP 410" in caplog.text
 
 
 @pytest.mark.asyncio

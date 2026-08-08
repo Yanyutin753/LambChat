@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import threading
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -291,6 +292,65 @@ async def test_start_imports_lark_sdk_off_event_loop(
     assert await channel.start() is True
     assert import_threads
     assert import_threads[0] != main_thread_id
+
+
+@pytest.mark.asyncio
+async def test_ws_client_disables_sdk_info_connection_url_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class _FakeWsClient:
+        def __init__(self, _app_id: str, _app_secret: str, **kwargs: object) -> None:
+            captured.update(kwargs)
+            self._reconnect_interval = None
+            self._reconnect_nonce = None
+
+        async def _disconnect(self) -> None:
+            return None
+
+    monkeypatch.setattr("lark_oapi.ws.Client", _FakeWsClient)
+    channel = _build_channel()
+    channel._running = False
+
+    await channel._run_ws_client(event_handler=object())
+
+    log_level = captured["log_level"]
+    assert getattr(log_level, "name", None) == "WARNING"
+
+
+@pytest.mark.asyncio
+async def test_ws_connection_error_log_omits_exception_details(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret_url = "wss://open.feishu.cn/ws?token=private-token"
+
+    class _FakeWsClient:
+        def __init__(self, _app_id: str, _app_secret: str, **_kwargs: object) -> None:
+            self._reconnect_interval = None
+            self._reconnect_nonce = None
+
+        async def _connect(self) -> None:
+            raise ConnectionError(secret_url)
+
+        async def _disconnect(self) -> None:
+            return None
+
+    channel = _build_channel()
+
+    async def _stop_after_retry(_delay: float) -> None:
+        channel._running = False
+
+    monkeypatch.setattr("lark_oapi.ws.Client", _FakeWsClient)
+    monkeypatch.setattr("src.infra.channel.feishu.channel.asyncio.sleep", _stop_after_retry)
+    channel._running = True
+
+    with caplog.at_level(logging.WARNING):
+        await channel._run_ws_client(event_handler=object())
+
+    assert secret_url not in caplog.text
+    assert "ConnectionError" in caplog.text
 
 
 @pytest.mark.asyncio

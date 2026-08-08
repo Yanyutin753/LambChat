@@ -52,7 +52,7 @@ async def subscribe_push(
         data=data.model_dump(),
         user_agent=data.user_agent,
     )
-    logger.info("Push subscription saved: user_id=%s, endpoint=%s", user.sub, data.endpoint[:80])
+    logger.info("Push subscription saved: user_id=%s", user.sub)
     return PushSubscription.model_validate(subscription)
 
 
