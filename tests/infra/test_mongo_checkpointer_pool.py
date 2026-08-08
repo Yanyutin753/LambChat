@@ -18,10 +18,12 @@ from src.infra.storage import mongodb as mongodb_mod
 
 
 @pytest.fixture(autouse=True)
-def _reset_mongo_checkpointer_singleton() -> None:
-    """Ensure each test starts with no checkpointer and no independent client."""
+def _reset_mongo_checkpointer_singleton(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reset singleton state and isolate tests from local Mongo credentials."""
     checkpoint_mod._mongo_checkpointer = None
     checkpoint_mod._mongo_checkpoint_client = None
+    monkeypatch.setattr(mongodb_mod.settings, "MONGODB_USERNAME", "")
+    monkeypatch.setattr(mongodb_mod.settings, "MONGODB_PASSWORD", "")
     yield
     checkpoint_mod._mongo_checkpointer = None
     checkpoint_mod._mongo_checkpoint_client = None
