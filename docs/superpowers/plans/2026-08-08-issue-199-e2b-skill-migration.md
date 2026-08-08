@@ -19,7 +19,7 @@
 
 - [ ] **Step 1: Write failing builder tests**
 
-Import the script under pytest and use fake `Template`/builder objects. Assert it imports `Template` from `e2b`, starts from `code-interpreter-v1`, emits an apt command containing `ripgrep` and `librsvg2-bin`, installs the declared pip packages, and calls `Template.build` with a unique candidate tag, CPU/memory values, API key, and build logger.
+Import the script under pytest and use fake `Template`/builder objects. Assert it imports `Template` from `e2b`, starts from `code-interpreter-v1`, emits an apt command containing `ripgrep` and `librsvg2-bin`, installs the declared pip packages, and calls `Template.build` with a unique candidate tag, CPU/memory values, API key, and build logger. With a fake `SettingsService`, assert the CLI resolves `E2B_API_KEY` database-first and never prints it.
 
 ```python
 def test_template_apt_step_installs_issue_199_commands():
@@ -38,7 +38,7 @@ Expected: the current script fails because `e2b_code_interpreter` is unavailable
 
 - [ ] **Step 3: Refactor to minimal testable functions**
 
-Add `.gitignore` exceptions for the tracked operational scripts in this plan. Use `from e2b import Template, default_build_logger`. Add `build_template()`, `build_candidate(candidate_tag, api_key)`, and an argparse CLI. Build under name `lambchat-prod` with a unique candidate tag such as `candidate-YYYYMMDDHHMMSS`; write the SDK-returned template/build IDs and immutable reference to an ignored `workspace/e2b-rollouts/<candidate>.json` manifest, but never the API key. Keep `main()` as a thin validation/CLI wrapper.
+Add `.gitignore` exceptions for the tracked operational scripts in this plan. Use `from e2b import Template, default_build_logger`. Add `build_template()`, `build_candidate(candidate_tag, api_key)`, and an argparse CLI. Resolve the build key through `SettingsService.get_raw("E2B_API_KEY")`, which honors database-first configuration. Build under name `lambchat-prod` with a unique candidate tag such as `candidate-YYYYMMDDHHMMSS`; write a UUID `rollout_id`, the SDK-returned template/build IDs, and immutable reference to an ignored `workspace/e2b-rollouts/<candidate>.json` manifest, but never the API key. Keep `main()` as a thin async validation/CLI wrapper.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -51,7 +51,7 @@ git add .gitignore scripts/create_e2b_template.py tests/scripts/test_create_e2b_
 git commit -m "fix: make E2B template builder executable"
 ```
 
-### Task 2: Add cleanup-safe immutable template verification
+### Task 2: Add cleanup-safe manifest verification and effective-config guards
 
 **Files:**
 - Modify: `scripts/create_e2b_template.py`
@@ -61,6 +61,8 @@ git commit -m "fix: make E2B template builder executable"
 
 Use a fake sandbox whose `commands.run` records calls. Assert `verify_manifest(path)` reads the immutable reference from the build manifest, checks `command -v rg`, `command -v rsvg-convert`, writes a tiny SVG, converts it to PNG, and validates a non-empty output. Assert `sandbox.kill()` runs in `finally` on success and command failure. Assert successful verification atomically writes `verified_at` and `verified_build_id` to the same manifest. A failed smoke test must leave those fields absent and cannot promote tags.
 
+With fake `system_settings` storage and a temporary `.env`, test first-pin CAS, idempotent retry, rejection of a concurrent administrator value, and preservation of the original database-document existence/value plus env line. Test restore deletes a rollout-created database document when none existed, restores an existing document when it did, and refuses after a later edit. Test `verify_effective_configuration` and `record_health` reject any manifest/config mismatch. Test `promote_manifest` reads the reference only from the fully verified manifest.
+
 - [ ] **Step 2: Run verifier tests and verify RED**
 
 Run: `uv run pytest tests/scripts/test_create_e2b_template.py -q`
@@ -69,7 +71,11 @@ Run: `uv run pytest tests/scripts/test_create_e2b_template.py -q`
 
 Add `verify_manifest(manifest_path, api_key)` using `Sandbox.create(manifest["immutable_ref"], timeout=300, api_key=...)`. Run one shell command with `set -euo pipefail`, both `command -v` checks, a temporary SVG, `rsvg-convert`, and `test -s`. Kill the sandbox in `finally` and atomically update only that manifest on success.
 
-Add `pin_environment(manifest_path, env_file)` that updates only `E2B_TEMPLATE`, records the previous value and environment-file path in the manifest, and refuses to pin an unverified build. Add the inverse `restore_environment(manifest_path)`. Add `record_health(manifest_path, health_url)` that performs the health request itself and records `health_checked_at` only for a successful response after `verified_build_id == build_id` and `pinned_ref == immutable_ref`. Add `promote_manifest(manifest_path, api_key)` that accepts no caller-provided template reference, refuses unless verified, pinned, and health fields all match the manifest build ID/reference, and then calls `Template.assign_tags(manifest["immutable_ref"], "production", api_key=...)`. This mechanically binds build, verification, environment pinning, health, and promotion.
+Add async `pin_effective_configuration(manifest_path, env_file)` that treats MongoDB `system_settings.E2B_TEMPLATE` as authoritative and `.env` only as fallback. On the first pin it records, exactly once, whether a database document existed, its previous value/update metadata, the prior `.env` line, and the environment-file path. It then compare-and-swaps the database setting to the immutable candidate, aligns the `.env` fallback, publishes the setting change, and records `pinned_ref`. A second call is idempotent only when the manifest and both sources already equal the candidate; it must never overwrite the original rollback baseline. Any unrelated current value causes a conflict and abort.
+
+Add the inverse `restore_effective_configuration(manifest_path)`, also compare-and-swap guarded: restore the saved database document or delete the rollout-created document when none existed, restore the saved `.env` fallback, publish the setting change, and refuse to overwrite a later administrator edit.
+
+Add `verify_effective_configuration(manifest_path)` using `SettingsService.get_raw("E2B_TEMPLATE")`; it records `effective_ref_verified_at` only when the database-first value equals the manifest immutable reference. Add `record_health(manifest_path, health_url)` that performs the health request itself and records `health_checked_at` only after verified build, pin, and effective-config evidence all match. Add `promote_manifest(manifest_path, api_key)` that accepts no caller-provided template reference, refuses unless every preceding manifest field matches, and then calls `Template.assign_tags(manifest["immutable_ref"], "production", api_key=...)`.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -129,7 +135,7 @@ git commit -m "feat: detect legacy docx skill paths"
 
 - [ ] **Step 1: Write failing apply/rollback tests**
 
-Assert apply creates an idempotent `skill_migration_backups` record before source update, creates a TTL index on `expire_at` with `expireAfterSeconds=0`, and updates with `{"_id": id, "content": original}`. Assert a CAS miss increments `conflicted`. Assert rollback restores only when the current content SHA-256 equals `migrated_content_hash`; later edits are reported and untouched. Assert a second apply has zero pending changes.
+Assert apply requires a unique rollout manifest/ID, creates an idempotent `skill_migration_backups` record before source update, creates a TTL index on `expire_at` with `expireAfterSeconds=0`, and updates with `{"_id": id, "content": original}`. Assert the exact backup/source IDs changed by this apply are appended atomically to that rollout manifest. Assert a CAS miss increments `conflicted`. Assert rollback reads only IDs recorded in the supplied rollout manifest and restores only when the current content SHA-256 equals `migrated_content_hash`; later edits are reported and untouched. Assert backups from an earlier rollout ID are never selected. Assert a second apply has zero pending changes.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -137,7 +143,7 @@ Run: `uv run pytest tests/scripts/test_migrate_docx_skill_paths.py -q`
 
 - [ ] **Step 3: Implement backups, CAS, and `--rollback`**
 
-Use a stable migration ID and an idempotent unique key of migration/collection/source ID. Set `expire_at=utc_now()+timedelta(days=30)`. Insert/upsert backup before each CAS update. Rollback reads backups in bounded batches and uses the migrated hash guard. Make `--apply` and `--rollback` mutually exclusive.
+Use a stable migration-kind ID plus the unique `rollout_id` generated in the E2B build manifest. The backup unique key is migration-kind/rollout/collection/source ID. Set `expire_at=utc_now()+timedelta(days=30)`. Insert/upsert backup before each CAS update and append the changed backup/source ID to the manifest only after the source CAS succeeds. `--apply --manifest <path>` and `--rollback --manifest <path>` are mutually exclusive; rollback queries only the manifest's rollout ID and recorded IDs, then applies the migrated hash guard.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -214,7 +220,7 @@ Candidate build and smoke verification must succeed before any MongoDB write. Sa
 
 - [ ] **Step 1: Capture prior config and running service set**
 
-Read `E2B_TEMPLATE` without echoing other `.env` values. Record running LambChat backend/worker process identifiers or container/service names using read-only commands. Do not start previously stopped services.
+Use `SettingsService.get_raw("E2B_TEMPLATE")` to record the database-first effective template without echoing other settings. Separately record the fallback `.env` line and running LambChat backend/worker process identifiers or container/service names using read-only commands. Do not start previously stopped services.
 
 - [ ] **Step 2: Build a uniquely tagged candidate and manifest**
 
@@ -230,17 +236,19 @@ Expected: `rg`, `rsvg-convert`, and SVG conversion all pass; the temporary sandb
 
 - [ ] **Step 4: Apply the migration only after candidate verification**
 
-If preflight reported recognized matches, run `uv run python scripts/migrate_docx_skill_paths.py --apply`, then require a zero-match dry-run. If preflight was zero, skip writes. Record whether apply changed data so rollback can be conditional.
+If preflight reported recognized matches, run `uv run python scripts/migrate_docx_skill_paths.py --apply --manifest '<manifest-path>'`, then require a zero-match dry-run. If preflight was zero, skip writes. The script records the exact changed backup/source IDs in this rollout manifest so rollback is conditional and scoped.
 
 - [ ] **Step 5: Pin `.env` and recreate only a running Compose app**
 
-Select the environment file actually used by the detected runtime and run `uv run python scripts/create_e2b_template.py pin-env --manifest '<manifest-path>' --env-file '<env-file>'`; do not copy the build reference manually. If `docker compose -f deploy/docker-compose.yml ps --status running lambchat` shows the app running, use `docker compose -f deploy/docker-compose.yml up -d --force-recreate --no-deps lambchat`; plain `restart` is forbidden because it does not reload environment. Inspect the recreated container with a redacted command that asserts its `E2B_TEMPLATE` equals the manifest reference, then run the health check.
+Select the environment file actually used by the detected runtime and run `uv run python scripts/create_e2b_template.py pin-config --manifest '<manifest-path>' --env-file '<env-file>'`; do not copy the build reference manually. This command compare-and-swaps the database-first `system_settings` value and aligns the `.env` fallback while preserving the first rollback baseline.
+
+If `docker compose --env-file '<env-file>' -f deploy/docker-compose.yml ps --status running lambchat` shows the app running, first validate interpolation with `docker compose --env-file '<env-file>' -f deploy/docker-compose.yml config`, then use `docker compose --env-file '<env-file>' -f deploy/docker-compose.yml up -d --force-recreate --no-deps lambchat`; plain `restart` is forbidden because it does not reload environment. Run `uv run python scripts/create_e2b_template.py verify-effective --manifest '<manifest-path>'` to require the database-first value to equal the candidate, then run the health check.
 
 If no app service is running, do not start one; the pinned setting applies on the next start. If a native `main.py` process is running without a supervisor, stop and ask for the exact restart mechanism rather than killing it heuristically; do not promote until the running process has been demonstrably restarted with the manifest reference.
 
 - [ ] **Step 6: Roll back config and migrated data on failed health**
 
-On any failure after migration apply, run `uv run python scripts/create_e2b_template.py restore-env --manifest '<manifest-path>'`, force-recreate the same Compose service when applicable, run `uv run python scripts/migrate_docx_skill_paths.py --rollback`, verify recovery and migration counts, and stop. Do not assign the production tag.
+On any failure after migration apply, run `uv run python scripts/create_e2b_template.py restore-config --manifest '<manifest-path>'`, force-recreate the same Compose service with the same explicit `--env-file` when applicable, run `uv run python scripts/migrate_docx_skill_paths.py --rollback --manifest '<manifest-path>'`, verify effective configuration, recovery health, and migration counts, and stop. Do not assign the production tag.
 
 - [ ] **Step 7: Record health and promote only through the manifest**
 

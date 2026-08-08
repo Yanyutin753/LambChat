@@ -20,7 +20,7 @@
 
 - [ ] **Step 1: Write failing credential-resolution tests**
 
-Cover explicit `settings.TAVILY_USAGE_API_KEY`, `https://mcp.tavily.com/...?...tavilyApiKey=tvly-*`, and an HTTPS `*.tavily.com` Authorization bearer header. Assert precedence is explicit setting first. Reject non-Tavily hosts, HTTP URLs, wrong query names, and keys without the `tvly-` prefix. Assert the returned context exposes only a SHA-256 fingerprint, never the raw key.
+Cover explicit `settings.TAVILY_USAGE_API_KEY`, `https://mcp.tavily.com/...?...tavilyApiKey=tvly-*`, and an HTTPS `*.tavily.com` Authorization bearer header. Assert precedence is explicit setting first. Reject non-Tavily hosts, HTTP URLs, wrong query names, and keys without the `tvly-` prefix. Assert the returned context exposes only a SHA-256 fingerprint, never the raw key. Set `TAVILY_USAGE_POLL_SECONDS=1` in a regression test and assert `get_tavily_poll_seconds()` clamps it to the hard minimum 600 seconds.
 
 ```python
 def test_resolve_context_rejects_proxy_bearer(monkeypatch):
@@ -61,6 +61,8 @@ TAVILY_USAGE_CRITICAL_RATIO: float = 0.95
 ```
 
 Add matching redacted entries to `.env.example`. Implement a frozen context using `pydantic.SecretStr`; parse URLs with `urllib.parse`, allow only the hosts and sources in the approved spec, and hash the key for Redis identifiers.
+
+Do not trust the raw configurable polling value directly. Implement `get_tavily_poll_seconds()` as `max(600, int(configured_value or 600))` and use it for every provider-request/cache TTL decision, so a bad database or environment override cannot exceed Tavily's polling budget.
 
 - [ ] **Step 4: Run the focused tests and verify GREEN**
 
@@ -135,7 +137,7 @@ Run: `uv run pytest tests/infra/mcp/test_tavily_usage.py -q`
 
 - [ ] **Step 3: Implement `TavilyUsageMonitor.maybe_refresh`**
 
-Use keys of the form `mcp:tavily-usage:<fingerprint>:{snapshot,lock,alert}`. Read cached JSON first, acquire the lock with `await redis.set(lock_key, token, nx=True, ex=30)`, call `GET https://api.tavily.com/usage`, then cache sanitized JSON for at least `TAVILY_USAGE_POLL_SECONDS`. Never cache or log the raw key. Release a lock only when its token still matches, using a small Lua compare/delete script. Maintain a bounded process-local dict keyed by fingerprint as fail-open fallback. Persist the highest alerted severity until a fresh below-warning snapshot resets it. On monitoring failure, sanitize the exception to its type and bounded message without request data, retain the last good buckets, set `last_error`, and cache that sanitized snapshot through the same path.
+Use keys of the form `mcp:tavily-usage:<fingerprint>:{snapshot,lock,alert}`. Read cached JSON first, acquire the lock with `await redis.set(lock_key, token, nx=True, ex=30)`, call `GET https://api.tavily.com/usage`, then cache sanitized JSON for `get_tavily_poll_seconds()`; never use the raw configurable value as a TTL. Never cache or log the raw key. Release a lock only when its token still matches, using a small Lua compare/delete script. Maintain a bounded process-local dict keyed by fingerprint as fail-open fallback. Persist the highest alerted severity until a fresh below-warning snapshot resets it. On monitoring failure, sanitize the exception to its type and bounded message without request data, retain the last good buckets, set `last_error`, and cache that sanitized snapshot through the same path.
 
 - [ ] **Step 4: Run the tests and verify GREEN**
 
@@ -156,7 +158,7 @@ git commit -m "feat: monitor Tavily usage with distributed dedupe"
 
 - [ ] **Step 1: Write failing wrapper integration tests**
 
-Add tests that a successful `tavily_search` schedules/awaits one fail-open refresh, a Tavily plan-limit exception is not retried and passes the observed error to the monitor, and monitor failure does not replace a successful result or original MCP error. Assert an observed error immediately returns/caches a synthetic exhausted snapshot but does not bypass the ten-minute provider polling gate. Assert non-Tavily tools receive no monitor. Add a manager test proving the server config context reaches only `tavily_*` wrappers.
+Add tests that a successful `tavily_search` performs one fail-open due refresh, while a Tavily plan-limit exception is not retried and passes the observed error to a non-blocking monitor method. Use an HTTP fake that never completes and assert the wrapper returns the actionable quota error immediately without awaiting the provider refresh. Assert the observed error synchronously creates a synthetic exhausted local snapshot, schedules at most one tracked background refresh under the normal ten-minute polling gate, and never bypasses that gate. When the background response is lower, assert the observed exhausted severity remains for the current polling interval; only a below-warning response after that interval resets it. Assert non-Tavily tools receive no monitor. Add a manager test proving the server config context reaches only `tavily_*` wrappers.
 
 ```python
 @pytest.mark.asyncio
@@ -167,6 +169,7 @@ async def test_plan_limit_is_not_retried_and_refreshes_usage():
     result = await wrapper._arun(query="x")
     assert tool.calls == 1
     assert monitor.observed_errors == ["This request exceeds your plan's set usage limit"]
+    assert monitor.background_refreshes == 1
     assert "quota exhausted" in result.lower()
 ```
 
@@ -176,9 +179,9 @@ Run: `uv run pytest tests/infra/tool/test_mcp_client.py -q`
 
 - [ ] **Step 3: Add minimal wrapper wiring**
 
-Store resolved contexts per server while converting `mcpServers` to client connections. Add a private optional monitor attribute to `MCPToolWithRetry`. Introduce `_is_tavily_plan_limit_error` before retry classification; it must match the exact usage-limit family, never generic HTTP 429. Call `maybe_refresh()` after success and `maybe_refresh(observed_error=error_str)` after exhaustion, each inside a fail-open helper that catches and logs monitoring failures.
+Store resolved contexts per server while converting `mcpServers` to client connections. Add a private optional monitor attribute to `MCPToolWithRetry`. Introduce `_is_tavily_plan_limit_error` before retry classification; it must match the exact usage-limit family, never generic HTTP 429. Await `maybe_refresh()` after success. On exhaustion, call a synchronous `observe_exhaustion(error_str)` that records/logs the synthetic state immediately and schedules a tracked background refresh; the tool failure path must not await HTTP or Redis.
 
-`observed_error` never means “force a provider request.” The monitor must first derive a synthetic exhausted snapshot from the last cached buckets (or an empty-bucket snapshot), persist/deduplicate the exhausted alert, and then perform an official usage request only if the normal cache age and distributed lock permit it.
+`observe_exhaustion` never means “force a provider request.” It derives a synthetic exhausted snapshot from local cached buckets (or an empty-bucket snapshot), keeps an `observed_exhausted_until` floor for at least `get_tavily_poll_seconds()`, and schedules one task in a module-level bounded task set with a done callback that consumes/logs exceptions. That task persists/deduplicates the alert and requests official usage only if normal cache age and distributed lock permit it. A background response merges bucket data but cannot lower severity before the floor expires.
 
 - [ ] **Step 4: Run focused MCP and Tavily tests**
 
