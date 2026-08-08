@@ -27,6 +27,16 @@ logger = get_logger(__name__)
 
 TOOL_SEARCH_SCHEMA_MAX_ARRAY_ITEMS = 200
 TOOL_SEARCH_SCHEMA_MAX_STRING_CHARS = 2000
+_CALLABLE_SCHEMA_KEYS = (
+    "type",
+    "properties",
+    "required",
+    "additionalProperties",
+    "$defs",
+    "oneOf",
+    "anyOf",
+    "allOf",
+)
 
 
 class ToolSearchInput(BaseModel):
@@ -122,32 +132,14 @@ class ToolSearchTool(BaseTool):
         # 提升匹配的工具
         matched_names = [r.name for r in results]
         newly_discovered = self._manager.discover_tools(matched_names)
-        newly_discovered_names = {tool.name for tool in newly_discovered}
         already_available_count = len(results) - len(newly_discovered)
 
-        status = ""
-        if newly_discovered and already_available_count:
-            status = (
-                f" ({len(newly_discovered)} newly loaded, "
-                f"{already_available_count} already available)"
-            )
-        elif newly_discovered:
-            status = f" ({len(newly_discovered)} tools loaded)"
-        elif already_available_count:
-            status = f" ({already_available_count} already available)"
-
         header = (
-            f"Found {len(results)} tool(s){status}. These tools are now available for use. "
-            "If the tool you need appears below, call it directly next.\n\n"
+            f"Found {len(results)} tool(s). Loaded {len(newly_discovered)} new; "
+            f"{already_available_count} already available. Returned schemas are callable; "
+            "call it directly next.\n\n"
         )
-        formatted_parts = [
-            part.replace(
-                "__TOOL_STATUS__",
-                "newly loaded" if result.name in newly_discovered_names else "already available",
-            )
-            for result, part in zip(results, parts)
-        ]
-        return header + "\n\n---\n\n".join(formatted_parts)
+        return header + "\n\n".join(parts)
 
 
 def _search_and_format_tool_results(
@@ -186,20 +178,15 @@ def _format_tool_result(result: ToolSearchResult) -> str:
         except Exception:
             pass
 
-    props = _compact_schema_value(schema.get("properties", {}))
-    required = _compact_schema_value(schema.get("required", []))
-
-    schema_str = json.dumps(
-        {"properties": props, "required": required},
-        ensure_ascii=False,
-        indent=2,
-    )
+    callable_schema = {
+        key: _compact_schema_value(schema[key]) for key in _CALLABLE_SCHEMA_KEYS if key in schema
+    }
+    schema_str = json.dumps(callable_schema, ensure_ascii=False, separators=(",", ":"))
 
     return (
-        f"## {result.name} (score: {result.score:.1f})\n"
-        "Status: __TOOL_STATUS__\n"
+        f"## {result.name}\n"
         f"Description: {result.description[:300]}\n"
-        f"Parameters:\n```json\n{schema_str}\n```"
+        f"Schema:\n```json\n{schema_str}\n```"
     )
 
 
