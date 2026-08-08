@@ -25,6 +25,14 @@
 - Modify `tests/infra/tool/test_upload_url_tool.py`: async public-path resolution coverage while retaining existing download/fallback tests.
 - Modify `tests/infra/test_session_sandbox_manager.py`: provider-adapter cancellation tests proving late blocking creation is registered or cleaned rather than orphaned.
 
+## Global Constraints
+
+- Preserve all pre-existing uncommitted files and deletions. Never stage or commit an unrelated hunk.
+- Do not add provider branches to Search Agent or `LazySandboxBackend`; E2B, CubeSandbox, and Daytona selection stays in `SessionSandboxManager`.
+- Do not change Fast Agent or Team Agent eager behavior in this implementation.
+- Follow red-green-refactor for every behavior change and record the failing command before production edits.
+- Use deterministic provider fakes for required coverage. Run live provider smoke tests only where credentials and infrastructure already exist.
+
 ### Task 1: Lazy Backend Construction and Workspace Mapping
 
 **Files:**
@@ -111,6 +119,7 @@ class LazySandboxBackend(BaseSandbox):
         self._delegate: BaseSandbox | None = None
         self._initialization_task: asyncio.Task[BaseSandbox] | None = None
         self._lock = asyncio.Lock()
+        self._event_lock = asyncio.Lock()
         self._waiters = 0
         self._closed = False
         self._suppress_events = False
@@ -194,12 +203,12 @@ Expected: failures show duplicate/incomplete initialization and missing sanitize
 
 Implement `_get_initialization_task()` under `asyncio.Lock`, then await it with `asyncio.shield()`. `_initialize()` must:
 
-1. attempt `presenter.emit_sandbox_starting()` and log only the emitter exception class if it fails;
+1. call a shared `_attempt_event()` helper that holds `_event_lock`, re-checks `_suppress_events`, attempts `presenter.emit_sandbox_starting()`, and logs only the emitter exception class if it fails;
 2. call `manager_factory().get_or_create(session_id=..., user_id=...)`;
 3. validate `CompositeBackend.default` is a `BaseSandbox` and returned `work_dir` is a non-empty absolute POSIX path;
 4. store delegate and actual directory;
-5. attempt `emit_sandbox_ready(real_id, actual_work_dir)` unless events are suppressed;
-6. on provider failure, attempt `emit_sandbox_error(SandboxInitializationError.PUBLIC_MESSAGE)` unless suppressed, log only provider/platform exception categories, and raise `SandboxInitializationError()` from the original exception.
+5. use the same `_attempt_event()` helper for `emit_sandbox_ready(real_id, actual_work_dir)`;
+6. on provider failure, use `_attempt_event()` for `emit_sandbox_error(SandboxInitializationError.PUBLIC_MESSAGE)`, log only provider/platform exception categories, and raise `SandboxInitializationError()` from the original exception.
 
 Attach a done callback when the task is created. The callback calls `task.exception()` when not cancelled so an abandoned task cannot produce an unobserved exception warning.
 
@@ -317,6 +326,7 @@ Add tests for:
 - cancelling the sole waiter marks the wrapper closed/abandoned, suppresses late ready/error events, and prevents another operation in that run from creating a second request;
 - `aclose()` before initialization performs no manager I/O;
 - `aclose()` during initialization returns without cancelling the shielded manager task, and its done callback consumes the eventual outcome.
+- an event emitter paused after acquiring the event lock must finish before `aclose()` returns, while an event waiting to acquire the lock is suppressed after close; therefore no lifecycle event can complete after close returns.
 
 - [ ] **Step 2: Write failing provider blocking-create tests**
 
@@ -348,7 +358,7 @@ Around `await asyncio.shield(task)`, increment/decrement `_waiters` under the st
 - reject later operations in the same wrapper with a stable closed/cancelled error;
 - allow manager `get_or_create()` to finish binding/caching or cleaning its resource.
 
-Event attempts inside `_initialize()` must check `_suppress_events` immediately before ready/error emission. Starting may already have been attempted before cancellation; no ready/error attempt may occur afterward.
+All lifecycle attempts must use `_attempt_event()`, which owns `_event_lock` across both the suppression check and awaited Presenter call. `aclose()` acquires the same lock before setting `_suppress_events=True` and `_closed=True`; consequently it waits for an already-started emission to finish and prevents any later emission from starting. Starting may already have completed before cancellation, but no ready/error event can complete after `aclose()` returns.
 
 - [ ] **Step 5: Run cancellation and session-manager tests and verify GREEN**
 
@@ -394,6 +404,8 @@ assert presenter.sandbox_events == []
 ```
 
 Then invoke one lazy file or execute operation and assert the manager is obtained only then, with one ordered event pair for every configured provider. Add a disabled-sandbox case proving the persistent backend branch is unchanged.
+
+Add routing tests using the actual outer `CompositeBackend`: reads/writes under `/skills/` and `/memories/` must not initialize the lazy default, while artifact-root writes, artifact snapshots, and subagent handoff writes must initialize it exactly once.
 
 - [ ] **Step 2: Write failing context cleanup and prompt tests**
 
@@ -453,7 +465,28 @@ uv run pytest tests/agents/test_search_agent_lazy_sandbox.py tests/agents/test_a
 
 Expected: all three providers share the lazy branch, model-only assembly emits no sandbox event, and context cleanup passes.
 
-- [ ] **Step 8: Commit Search Agent integration**
+- [ ] **Step 8: Add graph-level model-only and first-tool regression tests**
+
+Exercise `agent_node()` through a real DeepAgents graph with a deterministic fake chat model, real middleware construction, and the real lazy outer `CompositeBackend`:
+
+- model-only response: the fake manager raises if obtained; assert the first/final AI content succeeds, no lifecycle event is attempted, and context cleanup closes an uninitialized wrapper;
+- first-tool response: the fake model emits a real `write_file` or `execute` tool call followed by a final answer; assert any streamed AI content before the tool is processed first, then one `starting`/`ready` pair, one manager request, correct public/actual path mapping, and unchanged final answer;
+- capture the `create_deep_agent()` arguments or inspect the compiled graph to prove main/subagent middleware and artifact roots receive the public workspace without initialization;
+- fail the test if any sync lazy method is called before readiness.
+
+Use the existing fake `BaseChatModel` pattern in `tests/agents/core/test_nested_graph_context.py` and `tests/infra/agent/test_artifact_delivery_middleware.py`; do not replace the graph with a stub that bypasses DeepAgents middleware.
+
+- [ ] **Step 9: Run graph-level tests and verify RED, then GREEN after integration**
+
+Run before and after the production assembly changes:
+
+```bash
+uv run pytest tests/agents/test_search_agent_lazy_sandbox.py -k "graph_model_only or graph_first_tool" -v
+```
+
+Expected before: eager manager access or missing lazy resource behavior fails. Expected after: both graph paths pass and the model-only case performs zero provider I/O.
+
+- [ ] **Step 10: Commit Search Agent integration**
 
 ```bash
 git add src/infra/backend/__init__.py src/agents/search_agent/context.py src/agents/search_agent/nodes.py src/agents/core/prompt_policy.py src/agents/search_agent/prompt.py tests/agents/test_search_agent_lazy_sandbox.py tests/agents/test_agent_context_defaults.py tests/agents/core/test_subagent_prompts.py
@@ -466,14 +499,14 @@ git commit -m "feat: initialize Search Agent sandbox on first use"
 - Modify: `src/infra/tool/upload_url_tool.py`
 - Modify: `tests/infra/tool/test_upload_url_tool.py`
 
-> Before editing, inspect and preserve the existing uncommitted user changes in both files. Apply a narrow patch around `_execute_sandbox_download`; do not replace or reformat unrelated tool-schema work.
+> Before editing, inspect and preserve the existing uncommitted user changes. Apply a narrow patch around `_execute_sandbox_download`; do not replace or reformat unrelated tool-schema work. `src/infra/tool/upload_url_tool.py` already has user-owned edits, so only the new resolver hunk may be staged.
 
 - [ ] **Step 1: Write the failing async path-resolution test**
 
-Add a fake backend with `aresolve_path()` and `aexecute()`:
+Add a real outer `CompositeBackend` whose `default` is a fake lazy backend with `aresolve_path()` and `aexecute()`:
 
 ```python
-class _ResolvingBackend:
+class _ResolvingLazyBackend:
     async def aresolve_path(self, path: str) -> str:
         assert path == "/workspace/session-1/input.txt"
         return "/remote/session-1/input.txt"
@@ -483,7 +516,7 @@ class _ResolvingBackend:
         return SimpleNamespace(exit_code=0, output="")
 ```
 
-Assert the shell command contains only the resolved actual destination, while the tool's JSON result continues returning the caller-visible public path. Add a compatibility test proving a backend without `aresolve_path()` keeps the existing behavior.
+Pass `CompositeBackend(default=lazy)` through the runtime exactly as Search Agent does. Assert the shell command contains only the resolved actual destination, while the tool's JSON result continues returning the caller-visible public path. Add compatibility tests for a direct resolving backend and for a backend with no resolver.
 
 - [ ] **Step 2: Run upload tests and verify RED**
 
@@ -497,11 +530,13 @@ Expected: the command still embeds the public path.
 
 - [ ] **Step 3: Implement the narrow resolution hook**
 
-In `_execute_sandbox_download()`, before building the command:
+In `_execute_sandbox_download()`, find the resolver on the runtime backend first and then on its default backend before building the command:
 
 ```python
 resolved_path = file_path
 resolver = getattr(backend, "aresolve_path", None)
+if not callable(resolver):
+    resolver = getattr(getattr(backend, "default", None), "aresolve_path", None)
 if callable(resolver):
     resolved_path = await resolver(file_path)
 command = _sandbox_download_command(url, resolved_path)
@@ -519,12 +554,23 @@ uv run pytest tests/infra/tool/test_upload_url_tool.py -v
 
 Expected: all existing streaming, size-limit, blocking-IO, and new path-resolution tests pass.
 
-- [ ] **Step 5: Commit the bridge change**
+- [ ] **Step 5: Stage only the bridge hunk and inspect ownership**
 
 ```bash
-git add src/infra/tool/upload_url_tool.py tests/infra/tool/test_upload_url_tool.py
+git add tests/infra/tool/test_upload_url_tool.py
+git add -p -- src/infra/tool/upload_url_tool.py
+git diff --cached -- src/infra/tool/upload_url_tool.py tests/infra/tool/test_upload_url_tool.py
+```
+
+Accept only the resolver lines. If Git cannot split the hunk cleanly from user-owned edits, unstage this source file and leave the source plus its new test uncommitted for the final handoff; do not stage the entire file and do not manufacture a mixed-ownership commit.
+
+- [ ] **Step 6: Commit only if the staged diff is ownership-clean**
+
+```bash
 git commit -m "fix: resolve lazy sandbox paths for URL downloads"
 ```
+
+If the resolver source hunk cannot be isolated, skip this commit and report the verified uncommitted change explicitly at handoff.
 
 ### Task 7: Cross-Provider Regression and Final Verification
 
