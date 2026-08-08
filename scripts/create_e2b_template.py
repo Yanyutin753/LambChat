@@ -9,7 +9,7 @@
 3. 安装额外的 pip 包
 4. 构建名为 "lambchat" 的自定义模板
 
-构建完成后，在 .env 中设置 E2B_TEMPLATE=lambchat 即可使用。
+构建完成后，在 .env 中设置 E2B_TEMPLATE=lambchat-prod 即可使用。
 """
 
 import os
@@ -117,6 +117,8 @@ SYSTEM_PACKAGES = [
     "curl",
     "unzip",
     "p7zip-full",
+    "ripgrep",  # rg - 快速内容搜索（agent 裸 bash 调用，补 #199）
+    "librsvg2-bin",  # rsvg-convert - SVG 转 PNG/PDF（补 #199）
     # 中文字体
     "fonts-noto-cjk",
     "fonts-wqy-zenhei",

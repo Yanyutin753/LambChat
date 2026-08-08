@@ -186,3 +186,126 @@ def test_mcp_client_rejects_oversized_file_config_before_open(
     )
 
     assert client._load_config_from_file_sync() is None
+
+
+from langchain_core.tools import BaseTool
+
+
+class _StubTool(BaseTool):
+    name: str = "stub"
+    description: str = "stub"
+
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+
+def test_mcp_is_retryable_error_recognizes_streamable_http() -> None:
+    """Streamable HTTP / stream-disconnected errors must be retried (issue #198).
+
+    Previously retryable_patterns omitted these, so SSE reconnect POST failures
+    returned immediately with zero retries.
+    """
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    wrapper = MCPToolWithRetry(original_tool=_StubTool())
+    assert wrapper._is_retryable_error(
+        Exception("Streamable HTTP error: Error POSTing to endpoint: (POST /mcp)")
+    )
+    assert wrapper._is_retryable_error(Exception("GET stream disconnected, reconnecting"))
+
+
+def test_normalize_json_array_args_unwraps_array_string() -> None:
+    """A JSON-array string arg is coerced back to a list (issue #198).
+
+    tavily_extract received urls as a JSON array literal string and the remote
+    server rejected it as an invalid URL format.
+    """
+    from src.infra.tool.mcp_client import _normalize_json_array_args
+
+    out = _normalize_json_array_args(
+        {
+            "urls": '["https://a.com", "https://b.com"]',
+            "query": "plain string",
+            "depth": 2,
+        },
+        {
+            "type": "object",
+            "properties": {
+                "urls": {"type": "array", "items": {"type": "string"}},
+                "query": {"type": "string"},
+                "depth": {"type": "integer"},
+            },
+        },
+    )
+    assert out["urls"] == ["https://a.com", "https://b.com"]
+    assert out["query"] == "plain string"
+    assert out["depth"] == 2
+
+
+@pytest.mark.asyncio
+async def test_mcp_arun_retries_streamable_http_and_normalizes_args() -> None:
+    """_arun retries streamable-http errors and passes normalized kwargs (issue #198)."""
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    received: list[dict] = []
+
+    class _RecordingTool(BaseTool):
+        name: str = "tavily_extract"
+        description: str = "extract"
+        args_schema: dict[str, Any] = {
+            "type": "object",
+            "properties": {
+                "urls": {
+                    "anyOf": [
+                        {"type": "array", "items": {"type": "string"}},
+                        {"type": "string"},
+                    ]
+                }
+            },
+        }
+
+        def _run(self, *a, **k):
+            raise NotImplementedError
+
+        async def _arun(self, *args, config=None, **kwargs):
+            received.append(kwargs)
+            raise Exception("Streamable HTTP error: Error POSTing to endpoint")
+
+    wrapper = MCPToolWithRetry(original_tool=_RecordingTool(), max_retries=2, retry_delay=0)
+    result = await wrapper._arun(urls='["https://x.com"]')
+
+    assert len(received) == 2  # retried once after the first failure
+    assert received[0]["urls"] == ["https://x.com"]
+    assert "Streamable HTTP error" in result
+
+
+@pytest.mark.asyncio
+async def test_mcp_arun_preserves_json_array_text_for_string_arguments() -> None:
+    """JSON-looking text is still valid input for a schema-declared string."""
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    received: list[dict] = []
+
+    class _StringTool(BaseTool):
+        name: str = "string_payload"
+        description: str = "accepts literal JSON text"
+        args_schema: dict[str, Any] = {
+            "type": "object",
+            "properties": {"payload": {"type": "string"}},
+        }
+
+        def _run(self, *a, **k):
+            raise NotImplementedError
+
+        async def _arun(self, *args, config=None, **kwargs):
+            received.append(kwargs)
+            return "ok"
+
+    wrapper = MCPToolWithRetry(original_tool=_StringTool())
+    result = await wrapper._arun(payload='["literal", "json"]')
+
+    assert result == "ok"
+    assert received == [{"payload": '["literal", "json"]'}]

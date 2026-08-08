@@ -510,31 +510,25 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
         await self._ws_client._disconnect()
 
     async def _health_check_loop(self) -> None:
-        """Health check loop to detect and force-reconnect zombie connections."""
+        """Observe connection state; reconnects are handled by the SDK.
+
+        The lark-oapi SDK runs its own keep-alive ping loop
+        (``_sdk_ws_start_ping``) and auto-reconnects on real disconnects. We
+        previously force-closed connections with no business-message activity
+        within ``CONNECTION_TIMEOUT``, but ping/pong success never updated that
+        timestamp — so healthy idle connections were misjudged as dead and
+        cycled every few minutes (issue #200). The loop now only observes.
+        """
         while self._running:
             await asyncio.sleep(self.HEALTH_CHECK_INTERVAL)
             if not self._running:
                 break
-
             state = self._get_connection_state()
             if state == ConnectionState.CONNECTED:
-                if not self._is_connection_healthy():
-                    logger.warning(
-                        f"Feishu connection appears dead for user {self.config.user_id} "
-                        f"(no activity for {time.time() - self._last_activity_time:.0f}s), "
-                        "force-closing to trigger reconnect"
-                    )
-                    self._set_connection_state(ConnectionState.RECONNECTING)
-                    # Force-close the underlying connection so the SDK detects
-                    # the disconnect and triggers its reconnection loop.
-                    try:
-                        if self._ws_loop_ref is None or self._ws_client is None:
-                            continue
-                        await asyncio.wait_for(self._sdk_ws_disconnect(), timeout=5)
-                    except Exception:
-                        pass
-                else:
-                    logger.debug(f"Feishu connection healthy for user {self.config.user_id}")
+                logger.debug(
+                    "Feishu connection alive for user %s (SDK keep-alive + auto-reconnect active)",
+                    self.config.user_id,
+                )
 
     async def stop(self) -> None:
         """Stop the Feishu bot."""

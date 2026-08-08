@@ -1868,7 +1868,7 @@ requires-dist = [
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cubesandbox", specifier = ">=0.5.0" },
     { name = "daytona", specifier = ">=0.153.0" },
-    { name = "deepagents", specifier = ">=0.6.5" },
+    { name = "deepagents", specifier = ">=0.6.5,<0.7" },
     { name = "deepagents-backends", specifier = ">=0.2.0" },
     { name = "e2b", specifier = ">=2.15.3" },
     { name = "email-validator", specifier = ">=2.3.0" },

@@ -176,6 +176,7 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
 
     if event:
         # 单进程内：同时等待本地 Event 和 MongoDB 轮询
+        wait_tasks: list[asyncio.Task] = []
         try:
             # 先检查是否已有响应
             response = await _approval_storage.get_response(approval_id)
@@ -190,19 +191,14 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
             local_wait = asyncio.wait_for(event.wait(), timeout=timeout)
             mongo_wait = wait_for_response_distributed(approval_id, timeout)
 
+            wait_tasks = [
+                asyncio.create_task(local_wait),
+                asyncio.create_task(mongo_wait),
+            ]
             done, pending = await asyncio.wait(
-                [
-                    asyncio.create_task(local_wait),
-                    asyncio.create_task(mongo_wait),
-                ],
+                wait_tasks,
                 return_when=asyncio.FIRST_COMPLETED,
             )
-
-            # 取消未完成的任务
-            for task in pending:
-                task.cancel()
-            if pending:
-                await asyncio.gather(*pending, return_exceptions=True)
 
             # 获取结果（local_event.wait() 返回 True，需要从 MongoDB 获取实际响应）
             for task in done:
@@ -221,8 +217,17 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
             else:
                 logger.info("[HITL] approval_id=%s Wait timed out", approval_id)
             return final_response
-
         finally:
+            # Always cancel + retrieve the wait tasks, even when the outer
+            # caller cancels this coroutine (e.g. MCPToolWithRetry wait_for).
+            # Without this, asyncio.wait is interrupted by CancelledError and
+            # the tasks are orphaned with unretrieved TimeoutError ("Task
+            # exception was never retrieved", issue #197).
+            for task in wait_tasks:
+                if not task.done():
+                    task.cancel()
+            if wait_tasks:
+                await asyncio.gather(*wait_tasks, return_exceptions=True)
             _local_events.pop(approval_id, None)
     else:
         # 跨进程：直接使用 MongoDB 轮询

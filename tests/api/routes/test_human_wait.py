@@ -190,3 +190,46 @@ async def test_create_approval_bounded_local_event_cache(
             previous_limit,
         )
         human._local_events.clear()
+
+
+@pytest.mark.asyncio
+async def test_wait_for_response_cancels_distributed_wait_on_external_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """External cancellation must still clean up the distributed wait task.
+
+    Regression test for issue #197: cleanup lived inside the try block, so a
+    CancelledError from the outer MCPToolWithRetry wait_for skipped it and
+    orphaned the wait tasks ("Task exception was never retrieved").
+    """
+    import contextlib
+
+    approval_id = "approval-ext-cancel"
+    distributed_cancelled = asyncio.Event()
+
+    class _FakeApprovalStorage:
+        async def get_response(self, _requested_id: str):
+            return None
+
+    async def tracked_distributed(_requested_id: str, _timeout: float):
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            distributed_cancelled.set()
+            raise
+
+    event = asyncio.Event()  # never set → both waits block until cancelled
+    human._local_events[approval_id] = (event, 0)
+    monkeypatch.setattr(human, "_approval_storage", _FakeApprovalStorage())
+    monkeypatch.setattr(human, "wait_for_response_distributed", tracked_distributed)
+
+    wait_task = asyncio.create_task(human.wait_for_response(approval_id, timeout=60))
+    await asyncio.sleep(0.05)  # let it reach asyncio.wait
+    wait_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await wait_task
+
+    # finally-cleanup must have cancelled the distributed waiter.
+    await asyncio.wait_for(distributed_cancelled.wait(), timeout=1)
+    assert distributed_cancelled.is_set()
+    human._local_events.pop(approval_id, None)

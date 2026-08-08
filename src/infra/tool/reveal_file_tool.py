@@ -28,6 +28,7 @@ import json
 import mimetypes
 import os
 import re
+from contextvars import ContextVar
 from tempfile import SpooledTemporaryFile
 from typing import Annotated, Any, Literal, Optional
 from urllib.parse import unquote, urlparse
@@ -50,6 +51,12 @@ from src.infra.tool.backend_utils import (
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
+
+# Task-local handoff from the download helper to the immediate error probe. This
+# is transient request state only; backend selection still comes from ToolRuntime.
+_last_backend_download_error: ContextVar[tuple[Any, str, str] | None] = ContextVar(
+    "reveal_file_last_backend_download_error", default=None
+)
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
@@ -267,8 +274,12 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
 
     沙箱（DaytonaBackend）和非沙箱（StateBackend/StoreBackend）均支持 download_files，
     返回原始字节，不包含行号等格式化内容。
+
+    The structured ``error`` from a failed response is handed to the immediate
+    reveal-file probe via task-local transient state (issue #196).
     """
     logger.info(f"[reveal_file] Attempting to download: {file_path}")
+    _last_backend_download_error.set(None)
 
     if hasattr(backend, "adownload_files"):
         try:
@@ -282,6 +293,8 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
                     return resp.content
                 elif resp.error:
                     logger.warning(f"[reveal_file] Download error: {resp.error}")
+                    _last_backend_download_error.set((backend, file_path, resp.error))
+                    return None
         except Exception as e:
             logger.warning(f"[reveal_file] adownload_files failed for {file_path}: {e}")
 
@@ -297,9 +310,38 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
                     return resp.content
                 elif resp.error:
                     logger.warning(f"[reveal_file] Download error: {resp.error}")
+                    _last_backend_download_error.set((backend, file_path, resp.error))
+                    return None
         except Exception as e:
             logger.warning(f"[reveal_file] download_files failed for {file_path}: {e}")
 
+    return None
+
+
+async def _probe_download_error(backend: Any, file_path: str) -> Optional[str]:
+    """Probe the backend's structured download error for a path (issue #196).
+
+    Called after a download yields no content to tell a directory from a
+    missing file, so the caller can give the agent an actionable hint. The
+    immediately preceding structured error is reused task-locally; a read-only
+    probe is issued only when no such result is available.
+    """
+    cached = _last_backend_download_error.get()
+    if cached is not None and cached[0] is backend and cached[1] == file_path:
+        _last_backend_download_error.set(None)
+        return cached[2]
+
+    try:
+        if hasattr(backend, "adownload_files"):
+            responses = await backend.adownload_files([file_path])
+        elif hasattr(backend, "download_files"):
+            responses = await run_blocking_io(backend.download_files, [file_path])
+        else:
+            return None
+        if responses:
+            return responses[0].error
+    except Exception as e:
+        logger.debug("[reveal_file] probe error for %s: %s", file_path, e)
     return None
 
 
@@ -727,6 +769,27 @@ async def reveal_file(
             use_filesystem_stream = await run_blocking_io(_is_file_path, file_path)
 
         if file_content is None and not use_filesystem_stream:
+            # Distinguish a directory from a missing file so the agent can stop
+            # retrying / switch to reveal_project (issue #196). Sandbox only —
+            # the local filesystem fallback path doesn't classify directories.
+            if _is_sandbox_backend(backend):
+                probe_error = await _probe_download_error(backend, file_path)
+                if probe_error == "is_directory":
+                    logger.warning(
+                        "[reveal_file] Path is a directory, not a file: %s",
+                        file_path,
+                    )
+                    return await _json_dumps_result(
+                        {
+                            "type": "file_reveal",
+                            "file": {
+                                "path": file_path,
+                                "description": description or "",
+                                "error": "path_is_directory",
+                                "hint": "Path is a directory. Use reveal_project(project_path=...) for directories instead of reveal_file.",
+                            },
+                        }
+                    )
             logger.error(f"Failed to read file {file_path} from backend")
             missing_file_result = {
                 "type": "file_reveal",

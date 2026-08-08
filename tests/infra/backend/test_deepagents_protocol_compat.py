@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 
 class _FakeSkillStorage:
     def __init__(self) -> None:
@@ -175,3 +177,141 @@ def test_e2b_read_skips_large_file_before_text_read(monkeypatch) -> None:
 
     assert "too large" in str(result)
     assert files_api.read_calls == []
+
+
+def test_sandbox_backend_factory_anchors_artifacts_at_work_dir(monkeypatch) -> None:
+    """The E2B sandbox CompositeBackend must use work_dir as artifacts_root.
+
+    Regression test for issue #195: artifacts_root defaulted to '/', so the
+    summarization middleware offloaded history to /conversation_history and hit
+    a PermissionError on the non-root sandbox (exit code 1, empty error).
+    """
+    from src.infra.backend.deepagent import create_sandbox_backend_factory
+    from src.infra.backend.e2b import E2BBackend
+
+    monkeypatch.setattr(
+        "src.infra.backend.skills_store.create_skills_backend",
+        lambda **_kw: SimpleNamespace(),
+    )
+
+    backend = E2BBackend(sandbox=_FakeE2BSandbox(_FakeFilesAPI({})))
+    composite = create_sandbox_backend_factory(backend, "asst-1", "user-1")(object())
+
+    assert composite.artifacts_root == backend.work_dir
+    assert composite.artifacts_root != "/"
+
+
+def test_e2b_execute_surfaces_command_stderr_on_failure() -> None:
+    """execute() must surface stderr/stdout from a failed command instead of an
+    empty error string (issue #195 diagnostics)."""
+    from src.infra.backend.e2b import E2BBackend
+
+    class _CmdError(Exception):
+        def __init__(self, message: str, stderr: str, stdout: str = "") -> None:
+            super().__init__(message)
+            self.stderr = stderr
+            self.stdout = stdout
+
+    class _Commands:
+        def run(self, **_kwargs):
+            raise _CmdError("Command exited with code 1", stderr="PermissionError: /")
+
+    sandbox = SimpleNamespace(sandbox_id="e2b-test", commands=_Commands())
+    backend = E2BBackend(sandbox=sandbox)
+
+    result = backend.execute("echo hi")
+
+    assert result.exit_code == -1
+    assert "PermissionError" in result.output
+
+
+def test_e2b_download_files_classifies_directory_error() -> None:
+    """download_files must surface 'is_directory' instead of 'file_not_found'
+    when the path is a directory (issue #196), matching upload_files behavior."""
+    from src.infra.backend.e2b import E2BBackend
+
+    class _FilesAPI:
+        def list(self, path):
+            return []
+
+        def read(self, path, format="bytes"):
+            raise Exception("path /home/user/project is a directory")
+
+    sandbox = SimpleNamespace(sandbox_id="e2b-test", files=_FilesAPI())
+    backend = E2BBackend(sandbox=sandbox)
+
+    responses = backend.download_files(["/home/user/project"])
+
+    assert responses[0].error == "is_directory"
+    assert responses[0].content is None
+
+
+def test_e2b_download_files_keeps_missing_path_as_file_not_found() -> None:
+    """A conventional missing-path error must not be mistaken for a directory.
+
+    ``No such file or directory`` contains the word ``directory`` but describes
+    an absent path, not a directory passed where a file was expected.
+    """
+    from src.infra.backend.e2b import E2BBackend
+
+    class _FilesAPI:
+        def read(self, path, format="bytes"):
+            raise Exception("[Errno 2] No such file or directory: '/home/user/missing.txt'")
+
+    sandbox = SimpleNamespace(sandbox_id="e2b-test", files=_FilesAPI())
+    backend = E2BBackend(sandbox=sandbox)
+
+    responses = backend.download_files(["/home/user/missing.txt"])
+
+    assert responses[0].error == "file_not_found"
+    assert responses[0].content is None
+
+
+@pytest.mark.asyncio
+async def test_probe_download_error_reads_structured_error() -> None:
+    """_probe_download_error surfaces the structured download error so
+    reveal_file can tell a directory from a missing file (issue #196)."""
+    from src.infra.tool.reveal_file_tool import _probe_download_error
+
+    class _Resp:
+        def __init__(self, error):
+            self.error = error
+            self.content = None
+
+    class _Backend:
+        def __init__(self, error):
+            self._error = error
+
+        async def adownload_files(self, paths):
+            return [_Resp(self._error)]
+
+    assert await _probe_download_error(_Backend("is_directory"), "/d") == "is_directory"
+    assert await _probe_download_error(_Backend("file_not_found"), "/d") == "file_not_found"
+    assert await _probe_download_error(_Backend(None), "/d") is None
+
+
+@pytest.mark.asyncio
+async def test_probe_download_error_reuses_the_failed_download_response() -> None:
+    """Directory classification must not download the same path a second time."""
+    from src.infra.tool.reveal_file_tool import (
+        _download_file_from_backend,
+        _probe_download_error,
+    )
+
+    class _Resp:
+        path = "/d"
+        content = None
+        error = "is_directory"
+
+    class _Backend:
+        calls = 0
+
+        async def adownload_files(self, paths):
+            self.calls += 1
+            return [_Resp()]
+
+    backend = _Backend()
+
+    assert await _download_file_from_backend(backend, "/d") is None
+    assert await _probe_download_error(backend, "/d") == "is_directory"
+    assert backend.calls == 1
