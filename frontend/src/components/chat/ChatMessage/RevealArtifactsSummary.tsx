@@ -82,6 +82,15 @@ function downloadFile(name: string, url?: string) {
   a.click();
 }
 
+function getDownloadFailureMessage(
+  baseMessage: string,
+  error: unknown,
+): string {
+  return error instanceof Error && error.message
+    ? `${baseMessage}: ${error.message}`
+    : baseMessage;
+}
+
 function getTreeDirSize(node: RevealArtifactTreeDir): number {
   return node.children.reduce((sum, child) => {
     if (child.kind === "file") {
@@ -259,8 +268,13 @@ function TreeDirRow({
                 await exportProjectZip({}, node.name, binaryFiles, {
                   failOnBinaryError: true,
                 });
-              } catch {
-                toast.error(t("chat.message.downloadFailed", "下载失败"));
+              } catch (error) {
+                toast.error(
+                  getDownloadFailureMessage(
+                    t("chat.message.downloadFailed", "下载失败"),
+                    error,
+                  ),
+                );
               } finally {
                 setIsDownloading(false);
               }
@@ -447,8 +461,13 @@ function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
             binaryFiles,
             { failOnBinaryError: true },
           );
-        } catch {
-          toast.error(t("chat.message.downloadFailed", "下载失败"));
+        } catch (error) {
+          toast.error(
+            getDownloadFailureMessage(
+              t("chat.message.downloadFailed", "下载失败"),
+              error,
+            ),
+          );
         } finally {
           setIsDownloading(false);
         }

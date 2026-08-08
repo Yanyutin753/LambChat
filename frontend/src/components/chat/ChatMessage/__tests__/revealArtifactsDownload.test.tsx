@@ -175,7 +175,9 @@ test("reports ZIP download failures and restores the action", async () => {
   fireEvent.click(downloadAll);
 
   await waitFor(() => {
-    expect(mocks.toastError).toHaveBeenCalledWith("Download failed");
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "Download failed: expired signed URL",
+    );
   });
   expect(mocks.exportProjectZip).toHaveBeenCalledWith(
     {},

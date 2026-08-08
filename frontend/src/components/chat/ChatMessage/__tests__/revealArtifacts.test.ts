@@ -69,6 +69,43 @@ test("builds safe unique ZIP paths and skips files without a signed URL", () => 
   });
 });
 
+test("sanitizes unsafe fallback names with the same ZIP path rules", () => {
+  const artifacts: RevealArtifact[] = [
+    {
+      kind: "file",
+      id: "file:unsafe-dot-dot",
+      name: "..",
+      path: "https://files.example.test/no-safe-name",
+      preview: {
+        kind: "file",
+        previewKey: "unsafe-dot-dot",
+        filePath: "https://files.example.test/no-safe-name",
+        signedUrl: "/api/upload/file/unsafe-dot-dot",
+      },
+    },
+    {
+      kind: "file",
+      id: "file:unsafe-control",
+      name: "\0",
+      path: "https://files.example.test/control",
+      preview: {
+        kind: "file",
+        previewKey: "unsafe-control",
+        filePath: "https://files.example.test/control",
+        signedUrl: "/api/upload/file/unsafe-control",
+      },
+    },
+  ];
+
+  expect(buildRevealArtifactBinaryFiles(artifacts)).toEqual({
+    binaryFiles: {
+      file: "/api/upload/file/unsafe-dot-dot",
+      "file (2)": "/api/upload/file/unsafe-control",
+    },
+    skippedCount: 0,
+  });
+});
+
 test("collects successful file and project reveal artifacts from current message parts", () => {
   const artifacts = collectRevealArtifacts([
     {

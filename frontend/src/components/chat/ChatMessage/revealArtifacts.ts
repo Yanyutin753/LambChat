@@ -256,22 +256,31 @@ export interface RevealArtifactBinaryFiles {
 
 function normalizeZipEntryPath(path: string, fallbackName: string): string {
   const rawPath = /^https?:\/\//i.test(path) ? fallbackName : path;
-  const segments = rawPath
-    .replace(/\\/g, "/")
-    .replace(/^[a-zA-Z]:\//, "")
-    .split("/");
-  const safeSegments: string[] = [];
+  const sanitize = (candidate: string): string => {
+    const segments = candidate
+      .replace(/\\/g, "/")
+      .replace(/^[a-zA-Z]:\//, "")
+      .split("/");
+    const safeSegments: string[] = [];
 
-  for (const segment of segments) {
-    if (!segment || segment === ".") continue;
-    if (segment === "..") {
-      safeSegments.pop();
-      continue;
+    for (const segment of segments) {
+      if (!segment || segment === ".") continue;
+      if (segment === "..") {
+        safeSegments.pop();
+        continue;
+      }
+      const cleaned = Array.from(segment)
+        .filter((character) => {
+          const codePoint = character.codePointAt(0) ?? 0;
+          return codePoint >= 32 && codePoint !== 127;
+        })
+        .join("");
+      if (cleaned) safeSegments.push(cleaned);
     }
-    safeSegments.push(segment.replace(/\0/g, ""));
-  }
+    return safeSegments.join("/");
+  };
 
-  return safeSegments.filter(Boolean).join("/") || fallbackName || "file";
+  return sanitize(rawPath) || sanitize(fallbackName) || "file";
 }
 
 function makeUniqueZipEntryPath(path: string, usedPaths: Set<string>): string {
