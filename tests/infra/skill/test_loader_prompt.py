@@ -14,6 +14,35 @@ async def test_build_skills_prompt_requires_transfer_before_execution() -> None:
 
 
 @pytest.mark.asyncio
+async def test_twenty_skills_keep_every_name_and_description() -> None:
+    skills = [
+        {"name": f"skill-{index:02d}", "description": f"Description {index}"} for index in range(20)
+    ]
+
+    prompt = await build_skills_prompt(skills)
+
+    assert all(skill["name"] in prompt for skill in skills)
+    assert all(skill["description"] in prompt for skill in skills)
+
+
+@pytest.mark.asyncio
+async def test_twenty_one_skills_keep_all_names_without_descriptions_or_paths() -> None:
+    skills = [
+        {"name": f"skill-{index:02d}", "description": f"Private description {index}"}
+        for index in range(21)
+    ]
+
+    prompt = await build_skills_prompt(skills)
+
+    assert all(skill["name"] in prompt for skill in skills)
+    assert all(skill["description"] not in prompt for skill in skills)
+    assert "/skills/skill-" not in prompt
+    assert "search_skills" in prompt
+    assert "SKILL.md" in prompt
+    assert "not shown" not in prompt
+
+
+@pytest.mark.asyncio
 async def test_load_skill_files_uses_async_binary_ref_parser(monkeypatch) -> None:
     calls: list[str] = []
 

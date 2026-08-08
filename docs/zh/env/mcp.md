@@ -18,13 +18,13 @@ Model Context Protocol (MCP) 和工具系统设置。
 | `ENABLE_DEFERRED_TOOL_LOADING` | `true` | 启用延迟/懒加载工具。 |
 | `DEFERRED_TOOL_THRESHOLD` | `20` | 触发延迟加载的工具数量阈值。 |
 | `DEFERRED_TOOL_SEARCH_LIMIT` | `25` | 搜索返回的最大工具数。 |
-| `DEFERRED_TOOL_PROMPT_LIMIT` | `25` | 提示中包含的最大工具数。 |
 
 ## 技能
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
 | `ENABLE_SKILLS` | `true` | 启用技能系统。 |
+| `SKILL_PROMPT_DESCRIPTION_THRESHOLD` | `20` | Skill 数量不超过该值时显示描述；超过时保留全部名称并使用 `search_skills`。 |
 
 ## 代码解释器
 

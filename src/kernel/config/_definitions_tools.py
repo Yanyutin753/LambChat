@@ -149,6 +149,14 @@ TOOLS_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 25,
         "depends_on": "ENABLE_DEFERRED_TOOL_LOADING",
     },
+    "SKILL_PROMPT_DESCRIPTION_THRESHOLD": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "subcategory": "skills",
+        "description": "settingDesc.SKILL_PROMPT_DESCRIPTION_THRESHOLD",
+        "default": 20,
+        "depends_on": "ENABLE_SKILLS",
+    },
     # ============================================
     # Audio Transcription Settings
     # ============================================

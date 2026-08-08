@@ -13,6 +13,7 @@
 from typing import Optional
 
 from src.infra.logging import get_logger
+from src.infra.skill.loader import format_skills_prompt
 from src.infra.skill.manager import SkillManager
 
 logger = get_logger(__name__)
@@ -87,46 +88,8 @@ class SkillsMiddleware:
             return []
 
     async def _build_skills_prompt(self, skills: list[dict]) -> str:
-        """
-        Build skills prompt text with enhanced matching hints.
-
-        Includes skill descriptions, usage triggers, and matching guidance
-        to help the LLM select the most relevant skill for user queries.
-        """
-        if not skills:
-            return ""
-
-        lines = ["## Available Skills", ""]
-        lines.append(
-            "The following skills are available. Read skill files from `/skills/{skill_name}/` "
-            "to get detailed instructions."
-        )
-        lines.append(
-            "When creating or updating a skill's main instruction file, always use the canonical "
-            "filename `SKILL.md` exactly; treat `skill.md`, `Skill.md`, and other case variants "
-            "as `SKILL.md`."
-        )
-        lines.append("")
-
-        for skill in skills:
-            name = skill.get("name", "unnamed skill")
-            description = skill.get("description", "no description")
-
-            lines.append(f"### {name}")
-            lines.append(f"**Description**: {description}")
-            lines.append(f"**Path**: `/skills/{name}/SKILL.md`")
-            lines.append("")
-
-        lines.append("### Skill Selection Strategy")
-        lines.append("1. Analyze the user's request for key intent and domain")
-        lines.append("2. Match intent with skill descriptions above")
-        lines.append("3. Read the skill's SKILL.md for detailed instructions")
-        lines.append("4. Follow the skill's instructions step by step")
-        lines.append("5. Save main skill instructions as `SKILL.md` exactly when editing skills")
-        lines.append("6. If multiple skills might apply, ask the user to clarify")
-        lines.append("")
-
-        return "\n".join(lines)
+        """Build the same Skill prompt used by direct agent contexts."""
+        return format_skills_prompt(skills)
 
 
 def get_skills_middleware(

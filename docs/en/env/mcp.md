@@ -18,13 +18,13 @@ For MCP servers with many tools, deferred loading reduces prompt size by loading
 | `ENABLE_DEFERRED_TOOL_LOADING` | `true` | Enable deferred/lazy tool loading. |
 | `DEFERRED_TOOL_THRESHOLD` | `20` | Tool count threshold to trigger deferred loading. |
 | `DEFERRED_TOOL_SEARCH_LIMIT` | `25` | Maximum tools returned in a search. |
-| `DEFERRED_TOOL_PROMPT_LIMIT` | `25` | Maximum tools included in a prompt. |
 
 ## Skills
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENABLE_SKILLS` | `true` | Enable the skills system. |
+| `SKILL_PROMPT_DESCRIPTION_THRESHOLD` | `20` | Include Skill descriptions at or below this count; larger inventories list every name and use `search_skills`. |
 
 ## Code Interpreter
 

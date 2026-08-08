@@ -233,6 +233,7 @@ class Settings(BaseSettings):
 
     # Skills Settings
     ENABLE_SKILLS: bool = True
+    SKILL_PROMPT_DESCRIPTION_THRESHOLD: int = 20
 
     # Code Interpreter Settings
     ENABLE_CODE_INTERPRETER: bool = False

@@ -96,42 +96,40 @@ async def load_skill_files(user_id: Optional[str]) -> SkillLoadResult:
     return result
 
 
-async def build_skills_prompt(skills: list[dict]) -> str:
-    """
-    Build skills prompt text with progressive disclosure pattern.
-
-    Matches the format used by deepagents.middleware.skills.SkillsMiddleware
-    to ensure consistent behavior when SkillsMiddleware is disabled.
-    """
+def format_skills_prompt(skills: list[dict]) -> str:
+    """Format a complete, deduplicated Skill inventory with progressive detail."""
     if not skills:
         return ""
 
-    # Format skills list with progressive disclosure pattern
-    skills_lines = []
+    unique: dict[str, dict] = {}
     for skill in skills:
-        name = skill.get("name", "unnamed skill")
-        description = skill.get("description", "no description")
-        skill_path = f"/skills/{name}/SKILL.md"
+        name = str(skill.get("name") or "").strip()
+        if name and name not in unique:
+            unique[name] = skill
+    ordered = [
+        (name, unique[name]) for name in sorted(unique, key=lambda item: (item.lower(), item))
+    ]
+    if not ordered:
+        return ""
 
-        # Format skill entry matching SkillsMiddleware._format_skills_list
-        desc_line = f"- **{name}**: {description}"
-        skills_lines.append(desc_line)
-        skills_lines.append(f"  -> Read `{skill_path}` for full instructions")
+    threshold = max(int(settings.SKILL_PROMPT_DESCRIPTION_THRESHOLD), 0)
+    if len(ordered) <= threshold:
+        inventory = "\n".join(
+            f"- {name}: {skill.get('description') or 'No description'}" for name, skill in ordered
+        )
+    else:
+        inventory = "\n".join(f"- {name}" for name, _skill in ordered)
 
-    skills_list_str = "\n".join(skills_lines)
+    return f"""## Skills System
 
-    # Build full prompt matching SkillsMiddleware.SKILLS_SYSTEM_PROMPT format
-    prompt = f"""## Skills System
+Available Skills ({len(ordered)}):
+{inventory}
 
-**Skills Location**: `/skills/`
-
-**Available Skills:**
-
-{skills_list_str}
-
-**Usage:** When a task matches a skill's description, read its `SKILL.md` for step-by-step workflows. When creating or updating a skill's main instruction file, always use the canonical filename `SKILL.md` exactly; treat `skill.md`, `Skill.md`, and other case variants as `SKILL.md`. If a skill includes executable scripts, first transfer them out of `/skills/` into the sandbox workspace, then run the workspace copy with an absolute path.
-**Commands:** Use `ls("/skills/")`, `read_file`, `write_file`, `edit_file(path, old, new)` to access skills. Do NOT create directories manually.
-
-**IMPORTANT:** `/skills/` is a virtual path backed by a database, NOT a real filesystem directory. NEVER use shell commands (e.g., `ls -la /skills/`, `cat /skills/x.md`, `python /skills/x.py`, `cp /skills/* .`) to access skills — they will fail. Use `transfer_file` or `transfer_path` to move skill files into the workspace before executing them. Always use the `ls`, `read_file`, `write_file`, `edit_file` tools instead.
+Use `search_skills` by name or capability, then read the returned `/skills/<name>/SKILL.md` with `read_file` before applying it. Main instructions must use the exact filename `SKILL.md`.
+`/skills/` is virtual storage: use `ls`, `read_file`, `write_file`, or `edit_file`, never shell filesystem commands. If a Skill includes executable scripts, transfer them out of `/skills/` into the sandbox workspace first. Use `transfer_file` or `transfer_path` to move skill files into the workspace before executing them.
 """
-    return prompt
+
+
+async def build_skills_prompt(skills: list[dict]) -> str:
+    """Async-compatible wrapper around the shared Skill inventory formatter."""
+    return format_skills_prompt(skills)
