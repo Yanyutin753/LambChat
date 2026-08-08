@@ -311,14 +311,18 @@ class _FakeCollection:
     def __init__(self, docs: list[dict[str, Any]]) -> None:
         self._docs = docs
 
+    @staticmethod
+    def _matches(doc: dict[str, Any], query: dict[str, Any]) -> bool:
+        for key, expected in query.items():
+            if isinstance(expected, dict) and "$ne" in expected:
+                if doc.get(key) == expected["$ne"]:
+                    return False
+            elif doc.get(key) != expected:
+                return False
+        return True
+
     def find(self, query: dict[str, Any]):
-        return _AsyncCursor(
-            [
-                doc
-                for doc in self._docs
-                if all(doc.get(key) == value for key, value in query.items())
-            ]
-        )
+        return _AsyncCursor([doc for doc in self._docs if self._matches(doc, query)])
 
 
 class _BulkPolicyStorage(StorageOperations):
