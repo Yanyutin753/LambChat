@@ -21,7 +21,7 @@ Application startup must not log `REDIS_URL`. WebPush subscription and delivery 
 
 The Feishu WebSocket SDK currently logs its credential-bearing connection URL at INFO level. LambChat will construct the SDK client at WARNING level and will log only the exception class for connection failures. Existing lifecycle messages that contain user IDs and retry counts remain available.
 
-`deploy/docker-compose.yml` will obtain Redis credentials through explicit environment interpolation instead of a repository literal. `.env.example` will contain only clearly non-production development placeholders. The current `origin` remote is already a credential-free HTTPS URL, so this work will not rewrite remotes or Git history.
+The current tracked `deploy/docker-compose.yml` Redis URL contains no embedded username or password, `.env.example` contains only local-development placeholders, and the current `origin` remote is a credential-free HTTPS URL. This work will verify those properties without introducing a new Redis authentication requirement, rewriting remotes, or rewriting Git history. Credentials found in the deployed environment or older history remain rotation targets.
 
 ## Deleted Compaction Model References
 
@@ -62,7 +62,7 @@ A request-contract regression test will verify that the final LangChain/OpenAI-s
 All behavior changes follow red-green-refactor:
 
 - logging tests assert that representative Redis, WebPush, and Feishu secret values never appear in captured records;
-- deployment source tests assert that tracked Compose configuration contains no literal Redis credential;
+- a value-redacted repository scan verifies that tracked Compose configuration and current remotes contain no embedded credential;
 - model-route tests assert that matching compaction references are cleared and unrelated values are preserved;
 - image-analysis tests assert that malformed data URLs never call the model, valid data URLs decode, and request payloads retain the expected MIME type and bytes;
 - existing compaction fallback and sandbox artifact-root regression tests remain green.
