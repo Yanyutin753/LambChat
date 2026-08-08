@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeGuard, cast
 
 from deepagents.backends.protocol import (
     BackendProtocol,
@@ -20,7 +20,7 @@ from deepagents.backends.protocol import (
 )
 
 
-def is_read_result(value: object) -> bool:
+def is_read_result(value: object) -> TypeGuard[ReadResult]:
     """Return whether *value* is a deepagents v0.7 read result."""
     return isinstance(value, ReadResult)
 
@@ -34,7 +34,9 @@ def read_result_to_string(value: object) -> str:
     if error:
         return error if error.startswith("Error:") else f"Error: {error}"
 
-    return str((value.file_data or {}).get("content", ""))
+    if value.file_data is None:
+        return ""
+    return str(value.file_data["content"])
 
 
 ExtendedFileError = Literal[

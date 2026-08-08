@@ -299,7 +299,7 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
 def create_retry_middleware(
     fallback_model: str | None = None,
     thinking: dict | None = None,
-) -> list[AgentMiddleware]:
+) -> list[AgentMiddleware[Any, Any, Any]]:
     """Create the retry middleware stack for deep agents.
 
     Returns [ModelFallbackMiddleware?, ModelRetryMiddleware,
@@ -309,7 +309,7 @@ def create_retry_middleware(
     - Inner layer: retries on empty content responses
     - Innermost layer: applies the request timeout to each individual attempt
     """
-    stack: list[AgentMiddleware] = []
+    stack: list[AgentMiddleware[Any, Any, Any]] = []
 
     if fallback_model:
         stack.append(ModelFallbackMiddleware(fallback_model=fallback_model, thinking=thinking))
