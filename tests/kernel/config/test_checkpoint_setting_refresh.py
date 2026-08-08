@@ -21,25 +21,37 @@ class _FakeSettingsService:
 
 
 @pytest.mark.asyncio
-async def test_refresh_checkpoint_setting_resets_runtime_state(
+@pytest.mark.parametrize(
+    ("key", "current", "updated"),
+    [
+        ("CHECKPOINT_BACKEND", "mongodb", "postgres"),
+        ("CHECKPOINT_PG_HOST", "localhost", "postgres.internal"),
+        ("CHECKPOINT_PG_POOL_MAX_SIZE", 10, 20),
+        ("CHECKPOINT_MONGO_POOL_MAX_SIZE", 10, 20),
+    ],
+)
+async def test_refresh_restart_required_checkpoint_setting_keeps_runtime_state(
     monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    current: object,
+    updated: object,
 ) -> None:
     reset_calls: list[str] = []
 
     async def _fake_reset_runtime_state() -> None:
         reset_calls.append("reset")
 
-    monkeypatch.setattr(config_service, "_settings_service", _FakeSettingsService("postgres"))
-    monkeypatch.setattr(config_service.settings, "CHECKPOINT_BACKEND", "mongodb")
+    monkeypatch.setattr(config_service, "_settings_service", _FakeSettingsService(updated))
+    monkeypatch.setattr(config_service.settings, key, current)
     monkeypatch.setattr(
         "src.infra.storage.checkpoint.reset_checkpointer_runtime_state",
         _fake_reset_runtime_state,
     )
 
-    await config_service.refresh_settings("CHECKPOINT_BACKEND")
+    await config_service.refresh_settings(key)
 
-    assert config_service.settings.CHECKPOINT_BACKEND == "postgres"
-    assert reset_calls == ["reset"]
+    assert getattr(config_service.settings, key) == updated
+    assert reset_calls == []
 
 
 @pytest.mark.asyncio

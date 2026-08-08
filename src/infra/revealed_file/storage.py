@@ -26,6 +26,12 @@ def _bounded_page_limit(limit: int) -> int:
     return min(max(int(limit), 1), REVEALED_FILE_PAGE_LIMIT_MAX)
 
 
+def _group_fetch_concurrency() -> int:
+    pool_max = max(int(settings.MONGODB_POOL_MAX_SIZE), 1)
+    pool_budget = pool_max - 1 if pool_max > 1 else 1
+    return min(REVEALED_FILE_GROUP_FETCH_CONCURRENCY, pool_budget)
+
+
 def _normalize_dedupe_path(path: str) -> str:
     normalized = path.strip().replace("\\", "/")
     while "//" in normalized:
@@ -567,7 +573,7 @@ class RevealedFileStorage:
                 next_index += 1
                 fetched_files[index] = await _fetch_session_files(session_ids[index])
 
-        worker_count = min(REVEALED_FILE_GROUP_FETCH_CONCURRENCY, len(session_ids))
+        worker_count = min(_group_fetch_concurrency(), len(session_ids))
         await asyncio.gather(*(_worker() for _ in range(worker_count)))
         files_by_session: Dict[str, list] = dict(zip(session_ids, fetched_files))
 

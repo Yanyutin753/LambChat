@@ -285,6 +285,21 @@ class _ManyFilesCollection:
         self.cursors.append(cursor)
         return cursor
 
+    def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+        clauses = pipeline[0]["$match"]["$or"]
+        per_skill_limit = pipeline[2]["$match"]["__skill_file_rank"]["$lte"]
+        docs: list[dict[str, Any]] = []
+        for clause in clauses:
+            for index in range(per_skill_limit):
+                docs.append(
+                    {
+                        **clause,
+                        "file_path": f"file-{index}.md",
+                        "content": f"content-{index}",
+                    }
+                )
+        return _AsyncCursor(docs)
+
 
 @pytest.mark.asyncio
 async def test_batch_get_skill_files_limits_files_loaded_per_skill(
@@ -379,6 +394,92 @@ async def test_batch_get_skill_files_selects_files_deterministically_by_path(
         "file-1.md",
         "file-2.md",
     ]
+
+
+@pytest.mark.asyncio
+async def test_batch_get_skill_files_prefers_canonical_skill_md_over_legacy_case(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _CanonicalCollisionCollection:
+        def find(self, _query: dict[str, Any]) -> _AsyncCursor:
+            return _AsyncCursor(
+                [
+                    {
+                        "skill_name": "planner",
+                        "user_id": "user-1",
+                        "file_path": "skill.md",
+                        "content": "legacy",
+                    },
+                    {
+                        "skill_name": "planner",
+                        "user_id": "user-1",
+                        "file_path": "SKILL.md",
+                        "content": "canonical",
+                    },
+                ]
+            )
+
+    storage = skill_storage.SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", _CanonicalCollisionCollection)
+
+    result = await storage.batch_get_skill_files([("planner", "user-1")])
+
+    assert result[("planner", "user-1")]["SKILL.md"] == "canonical"
+
+
+@pytest.mark.asyncio
+async def test_batch_get_skill_files_uses_one_windowed_starvation_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _StarvedCollection:
+        def __init__(self) -> None:
+            self.aggregate_calls: list[list[dict[str, Any]]] = []
+
+        def find(self, query: dict[str, Any]) -> _AsyncCursor:
+            clauses = query["$or"]
+            docs: list[dict[str, Any]] = []
+            for clause in clauses:
+                count = 9 if clause["skill_name"] == "alpha" else 1
+                docs.extend(
+                    {
+                        **clause,
+                        "file_path": f"file-{index}.md",
+                        "content": str(index),
+                    }
+                    for index in range(count)
+                )
+            return _AsyncCursor(docs)
+
+        def aggregate(self, pipeline: list[dict[str, Any]]) -> _AsyncCursor:
+            self.aggregate_calls.append(pipeline)
+            clauses = pipeline[0]["$match"]["$or"]
+            return _AsyncCursor(
+                [
+                    {
+                        **clause,
+                        "file_path": "file-0.md",
+                        "content": "0",
+                    }
+                    for clause in clauses
+                ]
+            )
+
+    monkeypatch.setattr(skill_storage, "SKILL_FILES_PER_SKILL_LIMIT", 3, raising=False)
+    collection = _StarvedCollection()
+    storage = skill_storage.SkillStorage()
+    monkeypatch.setattr(storage, "_get_files_collection", lambda: collection)
+
+    result = await storage.batch_get_skill_files(
+        [("alpha", "user-1"), ("beta", "user-1"), ("gamma", "user-1")]
+    )
+
+    assert set(result[("beta", "user-1")]) == {"file-0.md"}
+    assert set(result[("gamma", "user-1")]) == {"file-0.md"}
+    assert len(collection.aggregate_calls) == 1
+    assert collection.aggregate_calls[0][1]["$setWindowFields"]["partitionBy"] == {
+        "skill_name": "$skill_name",
+        "user_id": "$user_id",
+    }
 
 
 class _AggregateSkillNameCollection:

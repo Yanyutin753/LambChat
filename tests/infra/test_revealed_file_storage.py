@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 import pytest
 
 from src.infra.revealed_file.storage import (
-    REVEALED_FILE_GROUP_FETCH_CONCURRENCY,
     REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
     REVEALED_FILE_SESSION_LIST_LIMIT,
     RevealedFileStorage,
@@ -639,6 +638,10 @@ async def test_list_files_grouped_bounds_parallel_session_queries(
     )
     storage.ensure_indexes_if_needed = _no_op_async
     monkeypatch.setattr(
+        "src.infra.revealed_file.storage.settings.MONGODB_POOL_MAX_SIZE",
+        4,
+    )
+    monkeypatch.setattr(
         "src.infra.storage.mongodb.get_mongo_client",
         lambda: _FakeMongoClient(
             [{"session_id": session_id, "name": session_id} for session_id in session_ids]
@@ -647,7 +650,8 @@ async def test_list_files_grouped_bounds_parallel_session_queries(
 
     await storage.list_files_grouped_by_session("user-1", limit=len(session_ids))
 
-    assert storage.collection.tracker["maximum"] <= REVEALED_FILE_GROUP_FETCH_CONCURRENCY
+    assert storage.collection.tracker["maximum"] == 3
+    assert storage.collection.tracker["maximum"] < 4
 
 
 @pytest.mark.asyncio

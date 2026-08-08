@@ -4,6 +4,8 @@ Settings storage using MongoDB
 
 from typing import Any, Optional
 
+from pymongo import ReturnDocument
+
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import (
     RESTART_REQUIRED_SETTINGS,
@@ -19,24 +21,81 @@ _MONGODB_POOL_SIZE_SETTINGS = {
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": ("min", "CHECKPOINT_MONGO_POOL_MAX_SIZE"),
     "CHECKPOINT_MONGO_POOL_MAX_SIZE": ("max", "CHECKPOINT_MONGO_POOL_MIN_SIZE"),
 }
+_MONGODB_POOL_GROUPS = {
+    "business": ("MONGODB_POOL_MIN_SIZE", "MONGODB_POOL_MAX_SIZE"),
+    "checkpoint": (
+        "CHECKPOINT_MONGO_POOL_MIN_SIZE",
+        "CHECKPOINT_MONGO_POOL_MAX_SIZE",
+    ),
+}
 
 
-def _validate_mongodb_pool_size(key: str, value: Any) -> None:
+def _validate_mongodb_pool_size_bounds(key: str, value: Any) -> None:
     pool_setting = _MONGODB_POOL_SIZE_SETTINGS.get(key)
     if pool_setting is None:
         return
-    kind, paired_key = pool_setting
+    kind, _ = pool_setting
     if type(value) is not int:
         raise ValueError(f"Setting {key} pool size must be an integer")
     if (kind == "min" and value < 0) or (kind == "max" and value < 1):
         lower_bound = 0 if kind == "min" else 1
         raise ValueError(f"Setting {key} pool size must be at least {lower_bound}")
 
-    paired_value = getattr(settings, paired_key)
+
+def _validate_mongodb_pool_size_pair(key: str, value: int, paired_value: Any) -> None:
+    kind, paired_key = _MONGODB_POOL_SIZE_SETTINGS[key]
+    _validate_mongodb_pool_size_bounds(paired_key, paired_value)
     if kind == "min" and value > paired_value:
         raise ValueError(f"Setting {key} must not exceed {paired_key} ({paired_value})")
     if kind == "max" and value < paired_value:
         raise ValueError(f"Setting {key} must be at least {paired_key} ({paired_value})")
+
+
+def _mongodb_pool_group(key: str) -> str:
+    return "checkpoint" if key.startswith("CHECKPOINT_") else "business"
+
+
+def _mongodb_pool_pair_key(key: str) -> str:
+    group = _mongodb_pool_group(key)
+    return f"__settings_atomic__:mongodb_pool:{group}"
+
+
+def _pool_pair_values_from_docs(key: str, docs: dict[str, dict[str, Any]]) -> dict[str, int]:
+    """Resolve a safe pair from legacy setting documents or defaults."""
+    group = _mongodb_pool_group(key)
+    min_key, max_key = _MONGODB_POOL_GROUPS[group]
+    min_value = docs.get(min_key, {}).get("value", _get_default_from_settings(min_key))
+    max_value = docs.get(max_key, {}).get("value", _get_default_from_settings(max_key))
+    try:
+        _validate_mongodb_pool_size_bounds(min_key, min_value)
+        _validate_mongodb_pool_size_bounds(max_key, max_value)
+        _validate_mongodb_pool_size_pair(min_key, min_value, max_value)
+    except ValueError:
+        min_value = _get_default_from_settings(min_key)
+        max_value = _get_default_from_settings(max_key)
+    return {"min": min_value, "max": max_value}
+
+
+def _mongodb_pool_pair_keys() -> list[str]:
+    return [f"__settings_atomic__:mongodb_pool:{group}" for group in _MONGODB_POOL_GROUPS]
+
+
+def _pool_pair_field(key: str) -> str:
+    return _MONGODB_POOL_SIZE_SETTINGS[key][0]
+
+
+def _pool_pair_condition(key: str, value: int) -> dict[str, Any]:
+    kind, _ = _MONGODB_POOL_SIZE_SETTINGS[key]
+    return {"max": {"$gte": value}} if kind == "min" else {"min": {"$lte": value}}
+
+
+def _pool_pair_value(key: str, pair: dict[str, Any]) -> int:
+    return pair[_pool_pair_field(key)]
+
+
+def _mongodb_pool_pair_setting_keys(key: str) -> tuple[str, str]:
+    group = "checkpoint" if key.startswith("CHECKPOINT_") else "business"
+    return _MONGODB_POOL_GROUPS[group]
 
 
 class SettingsStorage:
@@ -56,6 +115,63 @@ class SettingsStorage:
             self._collection = db["system_settings"]
         return self._collection
 
+    async def _read_mongodb_pool_pair(self, key: str) -> dict[str, Any]:
+        collection = self._get_collection()
+        pair = await collection.find_one({"_id": _mongodb_pool_pair_key(key)})
+        if pair is not None:
+            return pair
+        min_key, max_key = _mongodb_pool_pair_setting_keys(key)
+        docs: dict[str, dict[str, Any]] = {}
+        for setting_key in (min_key, max_key):
+            doc = await collection.find_one({"_id": setting_key}, {"value": 1})
+            if doc is not None:
+                docs[setting_key] = doc
+        return _pool_pair_values_from_docs(key, docs)
+
+    async def _ensure_mongodb_pool_pair(self, key: str) -> dict[str, Any]:
+        """Create the authoritative pair once, preserving valid legacy overrides."""
+        collection = self._get_collection()
+        pair_key = _mongodb_pool_pair_key(key)
+        existing = await collection.find_one({"_id": pair_key})
+        if existing is not None:
+            return existing
+        initial = await self._read_mongodb_pool_pair(key)
+        await collection.update_one(
+            {"_id": pair_key},
+            {"$setOnInsert": {"min": initial["min"], "max": initial["max"]}},
+            upsert=True,
+        )
+        pair = await collection.find_one({"_id": pair_key})
+        if pair is None:
+            raise RuntimeError("Failed to initialize MongoDB pool setting pair")
+        return pair
+
+    async def _update_mongodb_pool_pair(self, key: str, value: int) -> None:
+        collection = self._get_collection()
+        pair = await self._ensure_mongodb_pool_pair(key)
+        kind = _pool_pair_field(key)
+        paired_value = pair["max" if kind == "min" else "min"]
+        _validate_mongodb_pool_size_pair(key, value, paired_value)
+        updated = await collection.find_one_and_update(
+            {"_id": _mongodb_pool_pair_key(key), **_pool_pair_condition(key, value)},
+            {"$set": {kind: value}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if updated is None:
+            # A competing writer changed the counterpart after our first read.
+            latest = await self._read_mongodb_pool_pair(key)
+            latest_paired = latest["max" if kind == "min" else "min"]
+            _validate_mongodb_pool_size_pair(key, value, latest_paired)
+            raise ValueError("Concurrent MongoDB pool setting update; retry the request")
+
+    async def _get_effective_value(self, key: str) -> Any:
+        if key in _MONGODB_POOL_SIZE_SETTINGS:
+            pair = await self._read_mongodb_pool_pair(key)
+            return _pool_pair_value(key, pair)
+        collection = self._get_collection()
+        doc = await collection.find_one({"_id": key}, {"value": 1})
+        return doc["value"] if doc is not None else _get_default_from_settings(key)
+
     async def get_all(
         self, admin_mode: bool = False, mask_sensitive: bool = True
     ) -> dict[str, list[SettingItem]]:
@@ -69,16 +185,19 @@ class SettingsStorage:
         """
         collection = self._get_collection()
         setting_keys = list(SETTING_DEFINITIONS.keys())
+        stored_keys = [*setting_keys, *_mongodb_pool_pair_keys()]
         cursor = collection.find(
-            {"_id": {"$in": setting_keys}},
+            {"_id": {"$in": stored_keys}},
             {
                 "_id": 1,
                 "value": 1,
+                "min": 1,
+                "max": 1,
                 "updated_at": 1,
                 "updated_by": 1,
             },
         )
-        db_settings = {doc["_id"]: doc for doc in await cursor.to_list(length=len(setting_keys))}
+        db_settings = {doc["_id"]: doc for doc in await cursor.to_list(length=len(stored_keys))}
 
         result: dict[str, list[SettingItem]] = {}
 
@@ -96,7 +215,14 @@ class SettingsStorage:
 
             # Use DB value if exists, otherwise use default
             db_doc = db_settings.get(key)
-            value = db_doc["value"] if db_doc else default_value
+            value: Any
+            if key in _MONGODB_POOL_SIZE_SETTINGS:
+                pair = db_settings.get(_mongodb_pool_pair_key(key))
+                if pair is None:
+                    pair = _pool_pair_values_from_docs(key, db_settings)
+                value = _pool_pair_value(key, pair)
+            else:
+                value = db_doc["value"] if db_doc else default_value
 
             is_sensitive = definition.get("is_sensitive", False)
 
@@ -145,7 +271,12 @@ class SettingsStorage:
         # Get default from SETTING_DEFINITIONS (single source of truth)
         default_value = _get_default_from_settings(key)
 
-        value = doc["value"] if doc else default_value
+        value: Any
+        if key in _MONGODB_POOL_SIZE_SETTINGS:
+            pair = await self._read_mongodb_pool_pair(key)
+            value = _pool_pair_value(key, pair)
+        else:
+            value = doc["value"] if doc else default_value
 
         is_sensitive = definition.get("is_sensitive", False)
 
@@ -181,7 +312,7 @@ class SettingsStorage:
         if value == "********":
             raise ValueError("Cannot set masked value")
 
-        _validate_mongodb_pool_size(key, value)
+        _validate_mongodb_pool_size_bounds(key, value)
 
         # Type validation
         expected_type = definition["type"]
@@ -211,21 +342,28 @@ class SettingsStorage:
         # Get default from SETTING_DEFINITIONS (single source of truth)
         default_value = _get_default_from_settings(key)
 
-        await collection.update_one(
-            {"_id": key},
-            {
-                "$set": {
-                    "value": value,
-                    "type": expected_type.value,
-                    "category": definition["category"].value,
-                    "description": definition["description"],
-                    "default_value": default_value,
-                    "updated_at": now,
-                    "updated_by": user_id,
-                }
-            },
-            upsert=True,
-        )
+        async def _persist() -> None:
+            await collection.update_one(
+                {"_id": key},
+                {
+                    "$set": {
+                        "value": value,
+                        "type": expected_type.value,
+                        "category": definition["category"].value,
+                        "description": definition["description"],
+                        "default_value": default_value,
+                        "updated_at": now,
+                        "updated_by": user_id,
+                    }
+                },
+                upsert=True,
+            )
+
+        if key not in _MONGODB_POOL_SIZE_SETTINGS:
+            await _persist()
+        else:
+            await self._update_mongodb_pool_pair(key, value)
+            await _persist()
 
         return await self.get(key)
 
@@ -236,11 +374,28 @@ class SettingsStorage:
         if key:
             if key not in SETTING_DEFINITIONS:
                 return 0
-            result = await collection.delete_one({"_id": key})
+            if key not in _MONGODB_POOL_SIZE_SETTINGS:
+                result = await collection.delete_one({"_id": key})
+            else:
+                default_value = _get_default_from_settings(key)
+                _validate_mongodb_pool_size_bounds(key, default_value)
+                await self._update_mongodb_pool_pair(key, default_value)
+                result = await collection.delete_one({"_id": key})
             return 1 if result.deleted_count > 0 else 0
         else:
             # Reset all
             keys_to_delete = list(SETTING_DEFINITIONS.keys())
+            for group, (min_key, max_key) in _MONGODB_POOL_GROUPS.items():
+                await collection.update_one(
+                    {"_id": f"__settings_atomic__:mongodb_pool:{group}"},
+                    {
+                        "$set": {
+                            "min": _get_default_from_settings(min_key),
+                            "max": _get_default_from_settings(max_key),
+                        }
+                    },
+                    upsert=True,
+                )
             result = await collection.delete_many({"_id": {"$in": keys_to_delete}})
             return result.deleted_count
 
