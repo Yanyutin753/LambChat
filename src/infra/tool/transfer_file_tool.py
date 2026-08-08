@@ -16,8 +16,8 @@ Transfer File / Transfer Path 工具
 安全措施：
 - 路径穿越防护（.. 规范化检查）
 - 文件类型限制（扩展名黑名单 + null 字节检测）
-- 文件大小限制（单文件 1MB，批量 10MB）
-- 目录深度/文件数限制（深度 5 层，1000 文件）
+- 文件大小限制（单文件 10MB，批量 100MB）
+- 目录深度/文件数限制（深度 5 层，500 文件）
 """
 
 import inspect
@@ -325,33 +325,16 @@ async def _upload_to_backend(backend: Any, target_path: str, content: bytes) -> 
 async def transfer_file(
     source_path: Annotated[
         str,
-        "源文件路径。路径前缀决定源 backend：/skills/* → 技能存储, 其他 → 沙箱/工作区。跨会话语义记忆请使用 memory_* 工具。",
+        "Source text-file path; /skills/* routes to Skill storage, otherwise workspace.",
     ],
     target_path: Annotated[
         str,
-        "目标文件路径。路径前缀决定目标 backend：/skills/* → 技能存储, 其他 → 沙箱/工作区。跨会话语义记忆请使用 memory_* 工具。",
+        "Target text-file path; /skills/* routes to Skill storage, otherwise workspace.",
     ],
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """
-    在不同 backend 之间转移文本文件
-
-    仅支持文本文件（代码、配置、Markdown 等），不支持二进制文件（图片、视频、压缩包等）。
-    通过路径前缀自动路由到对应的存储后端：
-    - /skills/* 路由到技能存储 (MongoDB)
-    - 其他路径路由到沙箱 (Daytona/E2B) 或持久化存储
-
-    常见用途：
-    - 从沙箱转移生成的代码到技能目录
-    - 从技能目录复制文件到沙箱工作区
-
-    Args:
-        source_path: 源文件路径（路径前缀决定源 backend）
-        target_path: 目标文件路径（路径前缀决定目标 backend）
-
-    Returns:
-        JSON 格式的操作结果
-    """
+    """Transfer one text file between workspace and /skills/ storage. Binary files are
+    unsupported; use memory_* rather than files for cross-session semantic memory."""
     backend = get_backend_from_runtime(runtime)
 
     if backend is None:
@@ -494,40 +477,16 @@ async def _list_dir_files(
 async def transfer_path(
     source_dir: Annotated[
         str,
-        "源目录路径（如当前 session 工作区下的 my-project/ 或 /skills/MySkill/）。路径前缀决定源 backend：/skills/* → 技能存储, 其他 → 沙箱。",
+        "Source directory; /skills/* routes to Skill storage, otherwise workspace.",
     ],
     target_prefix: Annotated[
         str,
-        "目标路径前缀。默认 /skills/，会将源目录下所有文件传输到 skills 数据库，目录名作为 skill 名称。也可指定其他沙箱/工作区路径。",
+        "Target prefix; defaults to /skills/ and keeps the source directory name.",
     ] = "/skills/",
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """
-    批量传输目录下所有文本文件到目标 backend（双向）
-
-    在任意两个 backend 之间批量传输目录文件：
-    - 沙箱 → /skills/ (批量创建 skill)
-    - /skills/ → 沙箱 (将 skill 文件复制到工作区)
-
-    目录名自动作为目标子路径名称（如 /skills/Foo/ → 当前 session 工作区下的 Foo/）。
-
-    安全限制：
-    - 仅支持文本文件，不支持二进制文件
-    - 单文件上限 1MB，总大小上限 10MB
-    - 递归深度最大 5 层，最多 500 个文件
-    - 禁止路径穿越（..）
-
-    常见用途：
-    - 从沙箱目录批量创建 skill（如当前 session 工作区下的 my-skill/ → /skills/my-skill/）
-    - 将 skill 文件批量复制到沙箱工作区（如 /skills/MySkill/ → 当前 session 工作区下的 MySkill/）
-
-    Args:
-        source_dir: 源目录路径
-        target_prefix: 目标路径前缀（默认 /skills/）
-
-    Returns:
-        JSON 格式的操作结果，包含每个文件的传输状态
-    """
+    """Transfer a directory of text files between workspace and /skills/. Limits:
+    10MB/file, 100MB total, depth 5, 500 files; binary files and .. traversal are rejected."""
     backend = get_backend_from_runtime(runtime)
 
     if backend is None:

@@ -27,11 +27,10 @@ from src.infra.tool.scheduled_task.helpers import _json, _permission_error
 
 @tool
 async def scheduled_task_delete(
-    task_id: Annotated[str, "ID of the task to delete"],
+    task_id: Annotated[str, "Task ID."],
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Delete a scheduled task. This is a hard delete — the task document is physically
-    removed from the database and will no longer appear in listings or fire."""
+    """Permanently delete a scheduled task so it cannot list or run."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})

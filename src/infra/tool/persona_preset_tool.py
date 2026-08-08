@@ -6,7 +6,7 @@ pattern as env_var_tool.py. Permission checks happen at invocation time.
 
 import json
 import sys
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from langchain_core.tools import BaseTool, InjectedToolArg
 
@@ -78,47 +78,41 @@ def _is_admin(user: TokenPayload) -> bool:
 async def save_persona_preset(
     name: Annotated[
         str | None,
-        "Persona name. Required when creating; optional new name when updating.",
+        "Name; required to create, optional replacement when updating.",
     ] = None,
     system_prompt: Annotated[
         str | None,
-        "Full system prompt. Required when creating; optional full replacement when updating.",
+        "Full prompt; required to create, full replacement when updating.",
     ] = None,
     preset_id: Annotated[str | None, "Optional persona id to update when known."] = None,
-    current_name: Annotated[
-        str | None, "Existing persona name to update when id is unknown."
-    ] = None,
-    description: Annotated[str | None, "Short one-line description"] = None,
+    current_name: Annotated[str | None, "Existing name when ID is unknown."] = None,
+    description: Annotated[str | None, "One-line description."] = None,
     avatar: Annotated[
         str | None,
-        "emoji or avatar image URL for this persona.",
+        "emoji or avatar image URL.",
     ] = None,
-    tags: Annotated[list[str] | None, "Tags for categorization"] = None,
+    tags: Annotated[list[str] | None, "Searchable tags."] = None,
     starter_prompts: Annotated[
         list[PersonaStarterPrompt] | None,
-        "Starter prompt suggestions for this persona.",
+        "Starter prompt suggestions.",
     ] = None,
-    skill_names: Annotated[list[str] | None, "Skill/tool names to enable"] = None,
+    skill_names: Annotated[list[str] | None, "Enabled Skill/tool names."] = None,
     scope: Annotated[
-        str | None,
-        "Updated scope: 'user' or 'global'. Global requires admin permission.",
+        Literal["user", "global"] | None,
+        "Scope; global requires admin.",
     ] = None,
     visibility: Annotated[
-        str | None,
-        "Visibility: 'private' (only you) or 'public' (all users)",
+        Literal["private", "public"] | None,
+        "Visibility.",
     ] = None,
     status: Annotated[
-        str | None,
-        "Status: 'draft' (work in progress) or 'published' (ready to use)",
+        Literal["draft", "published", "archived"] | None,
+        "Publication status.",
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Create or update a persona preset for the current user.
-
-    Omit preset_id/current_name to create; pass preset_id or current_name to update.
-    When a team role needs a new persona, create it here and pass preset.id into
-    create_agent_team.
-    """
+    """Create or update a persona. Omit preset_id/current_name to create; provide one
+    to update. For a new team role, pass the returned preset.id to create_agent_team."""
     user_id = _get_user_id(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})

@@ -43,23 +43,23 @@ class FormField(BaseModel):
 
     name: str = Field(
         default="choice",
-        description="字段名称，用于标识返回值中的字段",
+        description="返回值中的字段名",
     )
     label: str = Field(
         default="请选择",
-        description="字段标签，显示给用户看的名称",
+        description="用户可见标签",
     )
     type: FieldType = Field(
         default=FieldType.TEXT,
-        description="字段类型：text、textarea、number、checkbox、select、radio、multi_select",
+        description="输入类型",
     )
     placeholder: Optional[str] = Field(
         default=None,
-        description="输入框占位符文本",
+        description="占位文本",
     )
     default: Optional[Any] = Field(
         default=None,
-        description="字段默认值",
+        description="默认值",
     )
     required: bool = Field(
         default=True,
@@ -67,41 +67,12 @@ class FormField(BaseModel):
     )
     options: Optional[List[str]] = Field(
         default=None,
-        description="选项列表（仅 select、radio 和 multi_select 类型使用）",
+        description="select/radio/multi_select 的选项",
     )
     multiple: bool = Field(
         default=False,
-        description="是否允许多选。设置 options 时可用它自动推断单选或多选",
+        description="是否多选",
     )
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "name": "username",
-                    "label": "用户名",
-                    "type": "text",
-                    "placeholder": "请输入用户名",
-                    "required": True,
-                },
-                {
-                    "name": "description",
-                    "label": "描述",
-                    "type": "textarea",
-                    "placeholder": "请输入详细描述",
-                    "required": False,
-                },
-                {
-                    "name": "environment",
-                    "label": "部署环境",
-                    "type": "select",
-                    "options": ["development", "staging", "production"],
-                    "default": "development",
-                    "required": True,
-                },
-            ]
-        }
-    }
 
 
 class AskHumanInput(BaseModel):
@@ -109,59 +80,27 @@ class AskHumanInput(BaseModel):
 
     message: str = Field(
         ...,
-        description="向用户展示的提示消息，说明需要用户提供什么信息",
+        description="向用户展示的问题",
     )
     fields: List[FormField] = Field(
         default_factory=list,
-        description="表单字段列表，定义需要用户填写的各个字段",
+        description="结构化表单字段",
     )
     choices: Optional[List[str]] = Field(
         default=None,
-        description="简写选项列表。设置后无需手写 fields，会自动生成一个 choice 字段",
+        description="简写选项；设置后自动生成 choice 字段",
     )
     multiple: bool = Field(
         default=False,
-        description="配合 choices 使用：false 为单选，true 为多选",
+        description="choices 是否多选",
     )
     timeout: int = Field(
         default=300,
         ge=10,
         le=3600,
-        description="等待响应的超时时间（秒），范围 10-3600",
+        description="等待秒数（10-3600）",
     )
     allow_other: bool = Field(
         default=True,
-        description="是否额外提供一个「其他意见」文本输入框，让用户可以填写选项中没有的建议，返回值中会包含 _other 字段",
+        description="添加其他意见输入，返回 _other",
     )
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "message": "请填写数据库连接信息",
-                    "fields": [
-                        {
-                            "name": "host",
-                            "label": "主机地址",
-                            "type": "text",
-                            "required": True,
-                        },
-                        {
-                            "name": "port",
-                            "label": "端口",
-                            "type": "number",
-                            "default": 5432,
-                            "required": True,
-                        },
-                        {
-                            "name": "password",
-                            "label": "密码",
-                            "type": "text",
-                            "required": True,
-                        },
-                    ],
-                    "timeout": 300,
-                }
-            ]
-        }
-    }

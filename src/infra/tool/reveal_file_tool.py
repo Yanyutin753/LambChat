@@ -642,31 +642,12 @@ async def _resolve_local_references(
 
 @tool
 async def reveal_file(
-    file_path: Annotated[
-        str, "要展示的文件路径（本地绝对路径、相对路径，或可直接访问的 http(s) URL）"
-    ],
-    description: Annotated[
-        Optional[str], "对文件内容的简要描述，帮助用户理解为什么要查看这个文件"
-    ] = None,
+    file_path: Annotated[str, "单个文件路径或 http(s) URL；目录用 reveal_project"],
+    description: Annotated[Optional[str], "可选的文件说明"] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """
-    向用户展示/推荐一个文件
-
-    用户要求查看、打开、显示文件时，必须调用此工具。
-    只回复文件路径或文件名是不够的。
-    用户无法直接访问隔离环境中的文件系统，`reveal_file` 才会把文件真正暴露给前端界面。
-
-    当你想让用户查看某个文件时，使用此工具。
-    前端自动给用户显示可点击的文件。
-
-    Args:
-        file_path: 要展示的文件路径（本地绝对路径、相对路径，或可直接访问的 http(s) URL）
-        description: 对文件内容的简要描述，帮助用户理解为什么要查看这个文件（可选）
-
-    Returns:
-        JSON 格式的结果，包含文件信息
-    """
+    """向用户实际展示一个可点击的单个文件或 URL；仅回复路径不够。
+    目录或多文件项目必须使用 reveal_project。"""
     if _is_remote_url(file_path):
         filename = _get_filename_from_path(file_path)
         mime_type = get_mime_type(filename)

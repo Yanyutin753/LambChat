@@ -538,35 +538,18 @@ async def _upload_project_files_bounded(
 async def reveal_project(
     project_path: Annotated[
         str,
-        "项目或文件夹目录路径；单个文件请使用 reveal_file；前端项目可预览，普通文件夹会以 folder 模式展示",
+        "项目/文件夹路径；单个文件用 reveal_file",
     ],
-    name: Annotated[Optional[str], "项目名称（可选，默认使用目录名）"] = None,
-    description: Annotated[Optional[str], "项目描述（可选）"] = None,
+    name: Annotated[Optional[str], "项目名；默认目录名"] = None,
+    description: Annotated[Optional[str], "可选项目说明"] = None,
     template: Annotated[
         Optional[ProjectTemplate],
-        "项目模板类型（可选，自动检测：react/vue/vanilla/static）",
+        "可选模板；默认自动检测",
     ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
-    """
-    向用户展示一个项目或文件夹（多文件预览 / 文件树浏览）
-
-    当 AI 生成或整理了多个文件时，使用此工具把整个目录展示给用户。
-    单个 HTML、Markdown、PDF、图片或其他文件应优先使用 reveal_file。
-    对 HTML/CSS/JS、React/Vue 等前端项目，工具会返回 project 模式用于浏览器预览；
-    对没有前端入口的非前端普通代码目录、文档目录、配置目录或文件很多的结果，工具会返回 folder
-    模式，让用户直接浏览文件夹内容。
-
-    Args:
-        project_path: 项目或文件夹目录路径；单个文件请使用 reveal_file
-        name: 项目名称（可选，默认使用目录名）
-        description: 项目描述（可选）
-        template: 项目模板类型（可选，自动检测：react/vue/vanilla/static/angular/svelte/solid/nextjs）
-        runtime: 工具运行时（自动注入）
-
-    Returns:
-        JSON 格式的项目文件清单，包含每个文件的 OSS URL
-    """
+    """向用户展示整个项目或文件夹。前端目录返回 project 预览，非前端文件夹
+    返回 folder 文件树；单个文件使用 reveal_file。"""
     storage = await _get_storage()
 
     backend = get_backend_from_runtime(runtime)

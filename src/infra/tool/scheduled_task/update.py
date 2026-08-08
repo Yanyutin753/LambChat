@@ -1,7 +1,7 @@
 """scheduled_task_update, scheduled_task_pause, scheduled_task_resume tool implementations."""
 
 import sys
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from langchain_core.tools import InjectedToolArg
 
@@ -28,30 +28,27 @@ from src.infra.tool.scheduled_task.helpers import _json, _permission_error
 
 @tool
 async def scheduled_task_update(
-    task_id: Annotated[str, "ID of the task to update"],
+    task_id: Annotated[str, "Task ID."],
     action: Annotated[
-        str | None,
-        "Optional operation to perform instead of field updates: 'pause', 'resume', or 'run'.",
+        Literal["pause", "resume", "run"] | None,
+        "Lifecycle action instead of field updates.",
     ] = None,
-    name: Annotated[str | None, "New task name"] = None,
-    message: Annotated[str | None, "New message to send to the agent on each execution"] = None,
-    description: Annotated[str | None, "New description"] = None,
-    enabled: Annotated[bool | None, "Enable or disable the task"] = None,
-    timeout_seconds: Annotated[int | None, "New timeout in seconds (10-3600)"] = None,
-    max_retries: Annotated[int | None, "Max retry count on failure (0-10)"] = None,
+    name: Annotated[str | None, "New name."] = None,
+    message: Annotated[str | None, "New per-run agent message."] = None,
+    description: Annotated[str | None, "New description."] = None,
+    enabled: Annotated[bool | None, "Enable or disable."] = None,
+    timeout_seconds: Annotated[int | None, "Timeout seconds (10-7200)."] = None,
+    max_retries: Annotated[int | None, "Retry count (0-10)."] = None,
     trigger_config: Annotated[
         dict | None,
-        "Full replacement trigger config. "
-        'For interval: {"seconds": 300}. '
-        'For cron: {"hour": "9", "minute": "0", "day_of_week": "mon-fri"}. '
-        "WARNING: This replaces the entire trigger config. "
-        "Use scheduled_task_create to change trigger_type.",
+        'Full replacement: interval {"seconds":300}; cron '
+        '{"hour":"9","minute":"0","day_of_week":"mon-fri"}. '
+        "Use create to change trigger_type.",
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Update an existing scheduled task. Pass only the fields you want to change.
-    Use action='pause', action='resume', or action='run' for lifecycle operations.
-    To change the trigger_type, delete the task and create a new one."""
+    """Update selected task fields or perform a lifecycle action. To change trigger_type,
+    delete and recreate the task."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})

@@ -44,56 +44,8 @@ class AskHumanTool(BaseTool):
     """
 
     name: str = "ask_human"
-    description: str = """向用户提问并等待响应，支持多字段表单。
-
-使用场景：
-- 需要用户确认敏感操作（如删除文件、执行危险命令）
-- 需要用户提供额外信息才能继续
-- 需要用户填写表单（如数据库连接信息、配置参数等）
-- 遇到多种可能的方案需要用户选择
-- 不确定用户意图时请求澄清
-
-参数：
-- message: 向用户展示的提示消息，说明需要用户提供什么信息
-- choices: 简写选项列表；设置后会自动生成单选字段
-- multiple: 配合 choices 使用，true 时生成多选字段
-- fields: 表单字段列表，每个字段包含：
-  - name: 字段名称（用于标识返回值）
-  - label: 显示给用户的标签
-  - type: 字段类型 - text（单行文本）、textarea（多行文本）、number（数字）、checkbox（复选框）、select（下拉单选）、radio（平铺单选）、multi_select（多选）
-  - placeholder: 输入框占位符文本（可选）
-  - default: 默认值（可选）
-  - required: 是否必填（默认 true）
-  - options: 选项列表（仅 select 和 multi_select 类型使用）
-- timeout: 等待响应的超时时间（秒），范围 10-3600，默认 300
-- allow_other: 是否额外提供「其他意见」文本输入框（默认 false），启用后返回值中会包含 other 字段
-
-返回值：
-- 成功时返回 JSON 字符串，包含各字段的值
-- 超时时返回超时消息
-- 用户拒绝时返回拒绝消息
-
-示例：
-1. 简单确认：
-   ask_human(message="确定要删除这个文件吗？", fields=[{"name": "confirm", "label": "确认", "type": "checkbox", "default": false}])
-
-2. 获取文本输入：
-   ask_human(message="请输入数据库连接信息", fields=[
-     {"name": "host", "label": "主机地址", "type": "text", "required": true},
-     {"name": "port", "label": "端口", "type": "number", "default": 5432},
-     {"name": "password", "label": "密码", "type": "text", "required": true}
-   ])
-
-3. 多选一：
-   ask_human(message="选择部署环境", fields=[
-     {"name": "env", "label": "环境", "type": "select", "options": ["development", "staging", "production"], "default": "development"}
-   ])
-
-4. 多行文本：
-   ask_human(message="请描述问题详情", fields=[
-     {"name": "description", "label": "描述", "type": "textarea", "placeholder": "请详细描述您遇到的问题..."}
-   ])
-"""
+    description: str = """向用户提问并等待回复。仅在缺少必要信息、需要用户选择，或需确认敏感/不可逆操作时使用。
+简单选项用 choices（multiple 控制多选）；结构化表单用 fields。返回字段 JSON、超时或拒绝状态。"""
     args_schema: Type[AskHumanInput] = AskHumanInput
     return_direct: bool = False
 

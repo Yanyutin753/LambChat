@@ -99,31 +99,20 @@ def _invalid_persona_preset_id(persona_preset_id: str) -> str | None:
 async def search_persona_presets(
     query: Annotated[
         str | None,
-        "Search text for persona presets. Use this before creating a team. "
-        "Search by role/capability words from the user's task, such as 'research', "
-        "'writer', 'reviewer', 'designer', 'coding', '数据分析', or '竞品'. "
-        "Use a broad query first if you are unsure. Pass null or an empty string to list "
-        "recent visible personas when you need general candidates.",
+        "Role/capability query; empty lists recent visible personas.",
     ] = None,
     tag: Annotated[
         str | None,
-        "Optional exact tag filter. Use only when the user asks for a specific domain "
-        "or when a prior search result showed a useful tag.",
+        "Optional exact tag.",
     ] = None,
     limit: Annotated[
         int,
-        "Maximum personas to return, from 1 to 50. Use 10-20 for exploration; use a "
-        "smaller number when you already know the capability you need.",
+        "Maximum results (1-50).",
     ] = 20,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Search visible persona presets that can become members of a Team.
-
-    Use this tool first when you need to assemble a Team. The returned `id` values are
-    the only valid `persona_preset_id` values to pass into `create_agent_team`.
-    Search several times with different capability words if the first result set does
-    not cover all roles needed by the user's task.
-    """
+    """Use this tool first to search visible personas before create_agent_team. Use
+    returned IDs as member persona_preset_id values; search again if roles are missing."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})
@@ -169,87 +158,52 @@ async def search_persona_presets(
 async def create_agent_team(
     name: Annotated[
         str,
-        "User-facing team name, max 80 characters. Required for both create and update. "
-        "Choose a reusable name that reflects the goal and the main roles, e.g. "
-        "'竞品分析团队 · Research/Writer' or 'Code Review Team · Engineer/Reviewer'.",
+        "Reusable user-facing team name (max 80 characters).",
     ],
     members: Annotated[
         list[dict[str, Any]],
-        "Members chosen by the LLM after calling search_persona_presets. Each item is an "
-        "object with: persona_preset_id (required, must be an id returned by "
-        "search_persona_presets or the preset.id returned by save_persona_preset), "
-        "agent_id (optional agent mode id for this member, such as 'fast' or 'search'; "
-        "omit or null to follow the team's default member mode; do not use 'team'), "
-        "model_id (optional model configuration id for this member; omit or null to "
-        "follow the conversation model), "
-        "role_name (required, concise display name for this team such as 'Market Research "
-        "Lead'), role_avatar (required when creating a role for a team; use an emoji or "
-        "avatar image URL such as '🔎' or 'https://example.com/researcher.png'), "
-        "role_instructions (recommended, specific responsibility in this team), "
-        "member_id (optional stable id like 'm-research'), position (optional zero-based "
-        "order), enabled (optional, default true). Create 2-5 members for complex work, "
-        "or 1 member for narrow tasks. Do not invent persona_preset_id values. Never use "
-        "placeholder ids such as 'general-purpose'; if no existing persona fits the role, "
-        "call save_persona_preset first and use the returned preset.id.",
+        "Members from search_persona_presets/save_persona_preset. Each needs "
+        "persona_preset_id and role_name; optional agent_id (do not use 'team'), model_id, "
+        "role_avatar (emoji or avatar image URL), role_instructions, member_id, position, "
+        "enabled. Do not invent persona_preset_id values. Never use placeholder ids such "
+        "as 'general-purpose'. Use 2-5 members for complex work or 1 member for a narrow "
+        "task; include role_instructions and role_avatar.",
     ],
     team_id: Annotated[
         str | None,
-        "Optional existing Team id to update. Leave null to create a new Team. Pass this "
-        "when the user asks to adjust, expand, rename, or improve an existing team, or when "
-        "the current conversation/session already has a team_id you should modify.",
+        "Optional existing Team id to update; omit to create.",
     ] = None,
     description: Annotated[
         str,
-        "Short user-facing description of what this team is good at. Mention the task "
-        "type and expected output, not internal implementation details.",
+        "Short task/output description.",
     ] = "",
     avatar: Annotated[
         str | None,
-        "Always provide an emoji or avatar image URL for this team when creating or "
-        "updating it. Use a single emoji such as '🧭' or an image URL such as "
-        "'https://example.com/team.png'.",
+        "Always provide an emoji or avatar image URL.",
     ] = None,
     tags: Annotated[
         list[str] | None,
-        "Short searchable tags, e.g. ['auto-built', 'research', 'writing']. Keep tags "
-        "lowercase and useful for later filtering.",
+        "Short searchable tags.",
     ] = None,
     default_member_id: Annotated[
         str | None,
-        "member_id of the default role for ambiguous subtasks. Usually choose the planner, "
-        "lead researcher, or generalist member. Must match one member_id in members. Leave "
-        "null to use the first member.",
+        "Default member_id; must occur in members. Omit to use first.",
     ] = None,
     team_instructions: Annotated[
         str,
-        "Collaboration rules for the team router. Include how to split work, which role "
-        "goes first, how to verify or review, and how to synthesize final output. Example: "
-        "'Researcher gathers evidence first; Writer drafts; Reviewer checks gaps and "
-        "risks; final answer must synthesize, not concatenate.'",
+        "Routing rules: work split/order, verification, and synthesis, e.g. Researcher "
+        "gathers evidence first; Writer drafts; Reviewer checks gaps.",
     ] = "",
     starter_prompts: Annotated[
         list[dict[str, Any]] | None,
-        "Optional prompt suggestions shown after selecting this team. Use the same shape "
-        "as persona starter prompts: each item is an object with 'text' (a plain string "
-        "or a multi-language dict like {'zh': '帮我分析这三个竞品', 'en': 'Analyze these "
-        "three competitors'}) and optional 'icon' (a single emoji, e.g. '🔎', '📝', "
-        "'✅'). Example: [{'icon': '🔎', 'text': {'zh': '调研这个市场并输出竞品表', "
-        "'en': 'Research this market and produce a competitor table'}}, {'icon': '📝', "
-        "'text': 'Turn the research into an executive brief'}]. Keep examples practical "
-        "for reusing this exact team.",
+        "Optional suggestions, e.g. {'text': {'zh': '帮我分析这三个竞品', "
+        "'en': 'Analyze these three competitors'}, 'icon': '🔎'}; icon is a single emoji.",
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Create or update a reusable Team from an LLM-authored team form.
-
-    Call `search_persona_presets` first, inspect the returned personas, then call this
-    tool with a complete team design. If the search results do not include a suitable
-    persona for a role, call `save_persona_preset` first to create that role, then use
-    the returned `preset.id` in `members`. Leave `team_id` empty to create a new team;
-    Pass `team_id` to update an existing team. This tool is equivalent to the user
-    manually creating or editing a Team in the UI: it persists the Team for the current
-    user and returns `team_id` for immediate use in the conversation.
-    """
+    """Create or update a persistent Team, like creating or editing a Team in the UI.
+    Call search_persona_presets first; use save_persona_preset for a missing role. Leave
+    `team_id` empty to create a new team. Pass `team_id` to update an existing team."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"error": "No user context available"})

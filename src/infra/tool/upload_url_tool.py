@@ -100,11 +100,7 @@ async def upload_url_to_sandbox(
     file_path: Annotated[str, "沙箱内的目标文件路径（绝对路径）"],
     runtime: Annotated[ToolRuntime, InjectedToolArg],
 ) -> str:
-    """Download a file from a URL and upload it to the sandbox filesystem.
-
-    Use this tool to transfer external files (user uploads, web resources) into the sandbox
-    so they can be accessed by shell commands and scripts.
-    """
+    """Download a URL to a sandbox file path for use by shell commands and scripts."""
     if not file_path.startswith("/"):
         return await _json_dumps_result(
             {"success": False, "error": "file_path must be an absolute path"}

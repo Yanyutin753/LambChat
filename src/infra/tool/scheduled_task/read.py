@@ -1,7 +1,7 @@
 """scheduled_task_list and scheduled_task_get tool implementations."""
 
 import sys
-from typing import TYPE_CHECKING, Annotated, Any, Optional
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional
 
 from langchain_core.tools import InjectedToolArg
 
@@ -30,17 +30,15 @@ from src.infra.tool.scheduled_task.helpers import _json, _permission_error
 async def scheduled_task_list(
     task_id: Annotated[
         str | None,
-        "Optional scheduled task ID. When provided, returns detailed information for that task.",
+        "Task ID for one detailed result; omit to list.",
     ] = None,
     status: Annotated[
-        str | None,
-        "Filter by status: 'active', 'paused', or omit to list all",
+        Literal["active", "paused", "deleted"] | None,
+        "Optional status filter.",
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """List scheduled tasks owned by the current user. Provide task_id to fetch
-    detailed information for a single task; otherwise optionally filter by
-    status ('active' or 'paused')."""
+    """List the user's scheduled tasks, optionally by status, or fetch task_id details."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})

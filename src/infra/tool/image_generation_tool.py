@@ -12,7 +12,7 @@ import random
 import re
 import sys
 from tempfile import SpooledTemporaryFile
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urlparse, urlsplit
 
 import httpx
@@ -815,56 +815,36 @@ async def _image_generate_impl(
 
 @tool
 async def image_generate(
-    prompt: Annotated[str, "Describe the image you want to create or edit."],
+    prompt: Annotated[str, "Image generation or edit instructions."],
     input_images: Annotated[
         list[str] | None,
-        "Optional source image URLs or project file URLs. Provide one or more images to switch to image-to-image mode; leave empty for pure text-to-image.",
+        "Reference/source image URLs; omit for text-only generation.",
     ] = None,
     background: Annotated[
-        str,
-        "Background handling: auto, opaque, or transparent.",
+        Literal["auto", "opaque", "transparent"],
+        "Background mode.",
     ] = "auto",
     input_fidelity: Annotated[
-        str,
-        "How strongly edits should preserve the input image: low or high.",
+        Literal["low", "high"],
+        "Reference preservation strength.",
     ] = "low",
     size: Annotated[
         str,
-        "Output image size. 1K sizes: 1024x1024, 1536x1024, 1024x1536, 1792x1024, 1024x1792. 2K sizes: 2048x2048, 3072x2048, 2048x3072, 2048x1152, 1152x2048, 2048x1536, 1536x2048. Also accepts ratio strings like auto, 1:1, 16:9, 9:16, 4:3, 3:4, etc.",
+        "Pixel size or ratio such as 1024x1024, 2048x2048, auto, 1:1, or 16:9.",
     ] = _DEFAULT_IMAGE_SIZE,
     quality: Annotated[
-        str,
-        "Generation quality: auto, low, medium, or high.",
+        Literal["auto", "low", "medium", "high"],
+        "Generation quality.",
     ] = "auto",
     output_format: Annotated[
-        str,
-        "Output file format: png, jpeg, or webp.",
+        Literal["png", "jpeg", "webp"],
+        "Output format.",
     ] = "png",
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Generate or edit images with an OpenAI-compatible image API.
-
-    Use this tool for either:
-    - text-to-image generation when only `prompt` is provided
-    - image-to-image editing when `input_images` is provided
-
-    IMPORTANT reference-image routing:
-    - If the user uploaded or mentioned an image and asks for 图生图, 参考图,
-      参考这张, 照着这张, 基于这张, 改这张, 保持风格, 同款, or image-to-image,
-      pass the uploaded image URLs in `input_images`. Do not leave `input_images`
-      empty for those requests.
-    - For multiple images, explain each image role in the prompt, for example:
-      first image is the edit target, second image is the style/reference image.
-    - If no image URL is available yet, ask for or locate the uploaded image URL before
-      calling this tool instead of silently doing pure text-to-image generation.
-
-    The tool accepts a small, opinionated set of options for canvas size, edit fidelity,
-    background handling, quality, and output format. Input images can be uploaded files,
-    project file URLs, or other accessible image URLs.
-
-    The response contains uploaded image URLs plus metadata such as the generated file key
-    and any revised prompt returned by the image API.
-    """
+    """Generate from text, or edit when input_images contains reference URLs.
+    For 图生图/参考图/照着这张/基于这张 requests, pass those URLs and describe each
+    image's role in prompt; never silently fall back to text-only generation."""
     return await _image_generate_impl(
         prompt=prompt,
         input_images=input_images,
@@ -881,47 +861,37 @@ async def image_generate(
 async def image_edit_with_references(
     prompt: Annotated[
         str,
-        "Describe how to edit or regenerate the image, including each input image role.",
+        "Edit instructions including each reference image's role.",
     ],
     input_images: Annotated[
         list[str],
-        "Required source/reference image URLs. Use uploaded image URLs here for 图生图, 参考图, 照着这张, 基于这张, 改这张, 保持风格, 同款, or image-to-image requests.",
+        "Required source/reference image URLs.",
     ],
     background: Annotated[
-        str,
-        "Background handling: auto, opaque, or transparent.",
+        Literal["auto", "opaque", "transparent"],
+        "Background mode.",
     ] = "auto",
     input_fidelity: Annotated[
-        str,
-        "How strongly edits should preserve the input image: low or high.",
+        Literal["low", "high"],
+        "Reference preservation strength.",
     ] = "high",
     size: Annotated[
         str,
-        "Output image size. 1K sizes: 1024x1024, 1536x1024, 1024x1536, 1792x1024, 1024x1792. 2K sizes: 2048x2048, 3072x2048, 2048x3072, 2048x1152, 1152x2048, 2048x1536, 1536x2048. Also accepts ratio strings like auto, 1:1, 16:9, 9:16, 4:3, 3:4, etc.",
+        "Pixel size or ratio such as 1024x1024, 2048x2048, auto, 1:1, or 16:9.",
     ] = _DEFAULT_IMAGE_SIZE,
     quality: Annotated[
-        str,
-        "Generation quality: auto, low, medium, or high.",
+        Literal["auto", "low", "medium", "high"],
+        "Generation quality.",
     ] = "auto",
     output_format: Annotated[
-        str,
-        "Output file format: png, jpeg, or webp.",
+        Literal["png", "jpeg", "webp"],
+        "Output format.",
     ] = "png",
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Edit or regenerate images from required reference images.
-
-    Use this tool instead of pure text-to-image when the user provides image attachments
-    or says 图生图, 参考图, 参考这张图生成, 照着这张, 基于这张, 改这张, 把这张改成,
-    保持人物/产品/构图/风格, 同款, style reference, composition reference, or
-    image-to-image.
-
-    Always put the uploaded image URLs in `input_images`. If there are multiple images,
-    state their roles in `prompt`, such as: Image 1 is the edit target; Image 2 is the
-    style/reference image; preserve Image 1's subject while applying Image 2's style.
-    This wrapper requires `input_images` so reference-image requests are not accidentally
-    handled as text-only generation.
-    """
+    """Edit or regenerate from required reference images (图生图/参考图/照着这张).
+    Put every uploaded image URL in input_images and describe each role in prompt; use
+    image_generate for text-only generation."""
     if not input_images:
         return await _json_dumps_result(
             {

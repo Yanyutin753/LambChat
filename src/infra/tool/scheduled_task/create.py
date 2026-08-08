@@ -2,7 +2,7 @@
 
 import sys
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
 from langchain_core.tools import InjectedToolArg
@@ -49,129 +49,100 @@ def _parse_run_at_iso(value: str, timezone_name: str) -> datetime:
 
 @tool
 async def scheduled_task_create(
-    name: Annotated[str, "Task name, e.g. 'Daily Report', 'Cache Cleanup'"],
+    name: Annotated[str, "Task name."],
     message: Annotated[
         str,
-        "The message sent to the agent when this task fires. "
-        "Write clear, specific instructions for what the agent should do. "
-        "Example: 'Generate a summary of today's conversations and save it to memory.'",
+        "Instructions sent to the agent on each run.",
     ],
     trigger_type: Annotated[
-        str,
-        "Trigger type: 'date' (run once), 'interval' (fixed interval), or 'cron' (cron expression). "
-        "Use 'date' for one-time requests like 'in 5 minutes', 'tomorrow at 9', or reminders.",
+        Literal["date", "interval", "cron"],
+        "date=once, interval=fixed seconds, cron=calendar schedule.",
     ],
     delay_seconds: Annotated[
         int | None,
-        "Delay in seconds before a one-time run. Use when trigger_type='date' for relative requests "
-        "like '5 minutes later'. Minimum: 1.",
+        "Relative one-time delay for date trigger (min 1).",
     ] = None,
     run_at_iso: Annotated[
         str | None,
-        "Absolute ISO-8601 datetime for a one-time run. Use when trigger_type='date'. "
-        "If timezone/offset is omitted, schedule_timezone is assumed.",
+        "ISO-8601 time for date trigger; naive values use schedule_timezone.",
     ] = None,
     schedule_timezone: Annotated[
         str | None,
-        "IANA timezone for interpreting user-facing schedule times, e.g. 'Asia/Shanghai' "
-        "or 'America/Los_Angeles'. Usually omit this and inherit the current user's timezone. "
-        "For cron schedules, cron_hour/cron_minute are in this timezone, not UTC.",
+        "IANA timezone; defaults to user timezone. Cron fields use it, not UTC.",
     ] = None,
     interval_seconds: Annotated[
         int | None,
-        "Interval in seconds. Required when trigger_type='interval'. "
-        "Examples: 300 (5min), 3600 (1h), 86400 (1d). Minimum: 60.",
+        "Seconds for interval trigger (min 60).",
     ] = None,
     cron_hour: Annotated[
         str | None,
-        "Cron hour pattern (0-23). Only used when trigger_type='cron'. "
-        "Examples: '9' (9 AM), '0,12' (midnight and noon), '*/3' (every 3 hours). "
-        "Time is in schedule_timezone/the user's local timezone, not UTC.",
+        "Cron hour (0-23), e.g. 9, 0,12, or */3; uses schedule_timezone.",
     ] = None,
     cron_minute: Annotated[
         str | None,
-        "Cron minute pattern (0-59). Only used when trigger_type='cron'. "
-        "Examples: '0' (on the hour), '30' (half past). Default: '0'.",
+        "Cron minute (0-59); default 0.",
     ] = None,
     cron_day_of_week: Annotated[
         str | None,
-        "Cron day-of-week pattern. Only used when trigger_type='cron'. "
-        "Examples: 'mon-fri' (weekdays), '1-5' (same), 'mon,wed,fri'. Default: every day.",
+        "Cron weekday, e.g. mon-fri or mon,wed,fri.",
     ] = None,
     cron_day: Annotated[
         str | None,
-        "Cron day-of-month pattern (1-31). Only used when trigger_type='cron'. "
-        "Examples: '1' (1st of month), '1,15' (1st and 15th). Default: every day.",
+        "Cron day of month (1-31).",
     ] = None,
     cron_month: Annotated[
         str | None,
-        "Cron month pattern (1-12). Only used when trigger_type='cron'. Default: every month.",
+        "Cron month (1-12).",
     ] = None,
     agent_id: Annotated[
         str | None,
-        "Agent ID to execute. If omitted, use the current conversation's agent.",
+        "Agent ID; defaults to current conversation.",
     ] = None,
     persona_preset_id: Annotated[
         str | None,
-        "Persona preset ID for non-team agents. Ignored when the effective agent is 'team'.",
+        "Persona ID for non-team agent.",
     ] = None,
     team_id: Annotated[
         str | None,
-        "Team ID for the team agent. Ignored unless the effective agent is 'team'.",
+        "Team ID for team agent.",
     ] = None,
     role_query: Annotated[
         str | None,
-        "Natural-language role/persona search text in the user's language. Use this when "
-        "the user names a role but you do not know persona_preset_id. For Chinese users, "
-        "search with Chinese role words such as '写作', '研究员', or '数据分析'. Ignored when "
-        "persona_preset_id is provided or when the effective agent is 'team'.",
+        "Role query when persona_preset_id is unknown; ignored for team agent.",
     ] = None,
     team_query: Annotated[
         str | None,
-        "Natural-language team search text in the user's language. Use this when the user "
-        "names a team but you do not know team_id. Providing this selects the team agent "
-        "unless agent_id='team' was already explicit.",
+        "Team query when team_id is unknown; selects team agent.",
     ] = None,
     model_id: Annotated[
         str | None,
-        "LLM model ID to use. If omitted, use the current conversation's model.",
+        "Model config ID; defaults to current conversation.",
     ] = None,
     model: Annotated[
         str | None,
-        "LLM model value/name to use. Usually omit this unless model_id is unavailable.",
+        "Model name fallback when model_id is unavailable.",
     ] = None,
     description: Annotated[
         str | None,
-        "Optional description of what this task does",
+        "Optional task description.",
     ] = None,
     timeout_seconds: Annotated[
         int,
-        "Maximum execution time in seconds. Range: 10-7200. Default: 3600s (60 min). "
-        "Do not set this too short; omit it unless the user explicitly asks for a shorter timeout.",
+        "Execution timeout seconds (10-7200). Default: 3600s. Do not set this too short.",
     ] = 3600,
     run_on_start: Annotated[
         bool,
-        "Whether to run the task immediately after creation",
+        "Run once immediately after creation.",
     ] = False,
     attachments: Annotated[
         list[dict[str, Any]] | None,
-        "Optional uploaded attachment references to send to the agent on every task run. "
-        "Use the same attachment objects returned by the upload/chat flow "
-        "(id, key, name, type, mime_type, size, url). If omitted, the tool will inherit "
-        "current message attachments when available.",
+        "Attachment objects reused on each run; defaults to current message attachments.",
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Create a scheduled task that automatically runs an agent at specified times.
-    The agent will receive the 'message' as a user prompt on each execution.
-    Use trigger_type='date' for one-time tasks (e.g. remind me in 5 minutes).
-    Use trigger_type='interval' for periodic tasks (e.g. every 5 minutes),
-    or trigger_type='cron' for calendar-based schedules (e.g. every weekday at 9 AM
-    in the user's timezone).
-    Each run creates a new session under the user's account.
-    Before calling this tool, explain in the current conversation what the scheduled
-    task will do. This tool does not run the task once for preview; it only asks
-    for explicit human confirmation before creating the schedule."""
+    """Create a confirmed agent schedule: date for one run, interval for fixed periods,
+    or cron for calendar times in the user's timezone. Explain it before calling; each
+    run creates a new session and creation does not run a preview."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})

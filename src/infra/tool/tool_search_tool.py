@@ -44,13 +44,7 @@ class ToolSearchInput(BaseModel):
 
     query: str = Field(
         ...,
-        description=(
-            "Query to find deferred tools by name or capability. "
-            "Use exact names shown in the deferred tool inventories, for example "
-            '"select:github:create_issue". '
-            'Use keywords like "database query" for best-match search. '
-            'Prefix a term with + to require it in the tool name (e.g., "+slack send").'
-        ),
+        description=("Capability keywords, +required-name term, or select:exact_tool_name."),
     )
 
 
@@ -63,9 +57,8 @@ class ToolSearchTool(BaseTool):
 
     name: str = "search_tools"
     description: str = (
-        "Loads callable schemas for deferred MCP and system tools listed in the prompt. "
-        "Search by capability, require a term with `+term`, or fetch exact names with "
-        "`select:github:create_issue`. Use exact tool names as shown."
+        "Load deferred callable tool schemas. Search by capability, +required term, or "
+        "select:exact_tool_name; then call the loaded tool directly."
     )
     args_schema: type[BaseModel] = ToolSearchInput
 
