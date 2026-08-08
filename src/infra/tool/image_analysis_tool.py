@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
+import hashlib
 import json
 import mimetypes
 import os
+import re
 import sys
 from typing import Annotated, Any
 from urllib.parse import unquote, urlsplit
@@ -44,6 +47,58 @@ IMAGE_ANALYSIS_INTERNAL_RUN_CONFIG = {
     "tags": ["internal_tool_call", "image_analysis_tool"],
 }
 _UPLOAD_FILE_MARKER = "/api/upload/file/"
+_IMAGE_DATA_URL_RE = re.compile(
+    r"^data:(image/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+/]*={0,2})$",
+    re.IGNORECASE,
+)
+
+
+def _validate_image_data_url(value: str) -> tuple[str, int, str]:
+    """Validate an image data URL and return safe diagnostic metadata."""
+    match = _IMAGE_DATA_URL_RE.fullmatch(value.strip())
+    if not match:
+        raise ValueError("invalid_image_data_url")
+
+    mime_type = match.group(1).lower()
+    encoded = match.group(2)
+    padding = len(encoded) - len(encoded.rstrip("="))
+    estimated_size = (len(encoded) * 3) // 4 - padding
+    if estimated_size <= 0 or estimated_size > get_image_download_max_bytes():
+        raise ValueError("invalid_image_data_url")
+
+    try:
+        decoded = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError("invalid_image_data_url") from exc
+    if not decoded or len(decoded) > get_image_download_max_bytes():
+        raise ValueError("invalid_image_data_url")
+
+    digest = hashlib.sha256(decoded).hexdigest()[:12]
+    return mime_type, len(decoded), digest
+
+
+def _validate_attachment_data_urls(attachments: list[dict[str, Any]]) -> None:
+    for attachment in attachments:
+        candidates = [("data_url", attachment.get("data_url"))]
+        url = attachment.get("url")
+        if isinstance(url, str) and url.startswith("data:"):
+            candidates.append(("url", url))
+
+        for reference_kind, value in candidates:
+            if not isinstance(value, str):
+                continue
+            mime_type, decoded_size, digest = _validate_image_data_url(value)
+            encoded_size = len(value.split(",", 1)[1])
+            logger.debug(
+                "[image_analyze] validated image data URL: "
+                "reference_kind=%s mime_type=%s encoded_chars=%s "
+                "decoded_bytes=%s sha256=%s",
+                reference_kind,
+                mime_type,
+                encoded_size,
+                decoded_size,
+                digest,
+            )
 
 
 async def _json_dumps_result(data: dict[str, Any]) -> str:
@@ -292,6 +347,11 @@ async def image_analyze(
             base_url=get_base_url_from_runtime(runtime),
             force_data_url=force_data_url,
         )
+        try:
+            _validate_attachment_data_urls(attachments)
+        except ValueError:
+            logger.warning("[image_analyze] rejected invalid image data URL")
+            return await _json_dumps_result({"error": "Invalid image data URL"})
         message = build_human_message(
             prompt or DEFAULT_IMAGE_ANALYSIS_PROMPT, attachments, supports_vision=True
         )

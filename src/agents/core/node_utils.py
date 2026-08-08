@@ -300,13 +300,13 @@ async def _download_image_url_as_data_url(
         )
 
     if _is_private_url(url):
-        logger.warning("Refusing to inline private/internal image URL: %s", url)
+        logger.warning("Refusing to inline private/internal image URL")
         return None
 
     try:
         import httpx
     except Exception:
-        logger.warning("Cannot inline remote image URL without httpx: %s", url)
+        logger.warning("Cannot inline remote image URL without httpx")
         return None
 
     spooled = SpooledTemporaryFile(
@@ -381,7 +381,10 @@ async def inline_image_attachments_as_data_urls(
                     inlined.append(attachment)
                     continue
             except Exception as e:
-                logger.warning("Failed to inline image URL %s: %s", existing_url, e)
+                logger.warning(
+                    "Failed to inline image URL: error_type=%s",
+                    type(e).__name__,
+                )
                 inlined.append(attachment)
                 continue
             inlined.append(

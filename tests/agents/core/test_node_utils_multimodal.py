@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -530,11 +531,50 @@ async def test_download_image_url_rejects_private_address():
 
 
 @pytest.mark.asyncio
+async def test_private_image_url_rejection_log_omits_url(
+    caplog: pytest.LogCaptureFixture,
+):
+    from src.agents.core.node_utils import _download_image_url_as_data_url
+
+    image_url = "http://127.0.0.1/secret.png?token=private-token"
+
+    with caplog.at_level(logging.WARNING):
+        result = await _download_image_url_as_data_url(image_url, "image/png")
+
+    assert result is None
+    assert image_url not in caplog.text
+    assert "private/internal image URL" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_download_image_url_rejects_non_http_scheme():
     from src.agents.core.node_utils import _download_image_url_as_data_url
 
     result = await _download_image_url_as_data_url("file:///etc/passwd", "image/png")
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_inline_image_failure_log_omits_url_and_exception_text(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    image_url = "https://cdn.example.test/image.png?signature=private-token"
+
+    async def _fail_download(_url: str, _mime_type: str):
+        raise RuntimeError(f"download failed for {image_url}")
+
+    monkeypatch.setattr(node_utils, "_download_image_url_as_data_url", _fail_download)
+
+    with caplog.at_level(logging.WARNING):
+        attachments = await inline_image_attachments_as_data_urls(
+            [image_attachment(url=image_url)],
+            force_data_url=True,
+        )
+
+    assert attachments[0]["url"] == image_url
+    assert image_url not in caplog.text
+    assert "RuntimeError" in caplog.text
 
 
 # ---------------------------------------------------------------------------

@@ -1,3 +1,6 @@
+import logging
+
+import pytest
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 
@@ -67,3 +70,28 @@ async def test_image_url_middleware_converts_model_request_blocks(monkeypatch):
 
     payload = ChatOpenAI(api_key="test")._get_request_payload([converted])
     assert "original_url" not in payload["messages"][0]["content"][1]
+
+
+async def test_image_url_middleware_failure_log_omits_exception_details(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    secret_url = "https://cdn.example.test/image.png?signature=private-token"
+
+    async def _fail_download(_url: str, _mime_type: str):
+        raise RuntimeError(f"failed to fetch {secret_url}")
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.image_url._download_image_url_as_data_url",
+        _fail_download,
+    )
+    middleware = ImageUrlToBase64Middleware()
+
+    with caplog.at_level(logging.WARNING):
+        content = await middleware._convert_content_blocks(
+            [{"type": "image_url", "image_url": {"url": secret_url}}]
+        )
+
+    assert content[0]["image_url"]["url"] == secret_url
+    assert secret_url not in caplog.text
+    assert "RuntimeError" in caplog.text

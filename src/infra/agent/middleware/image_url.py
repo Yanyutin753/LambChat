@@ -102,7 +102,10 @@ class ImageUrlToBase64Middleware(AgentMiddleware):
                     _mime_type_from_block(block),
                 )
             except Exception as e:
-                logger.warning("Failed to convert image_url to base64: %s", e)
+                logger.warning(
+                    "Failed to convert image_url to base64: error_type=%s",
+                    type(e).__name__,
+                )
                 data_url = None
 
             if data_url:

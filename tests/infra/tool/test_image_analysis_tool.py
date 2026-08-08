@@ -1,8 +1,11 @@
+import base64
 import json
+import logging
 from types import SimpleNamespace
 
 import pytest
 from langchain_core.messages import HumanMessage
+from langchain_openai import ChatOpenAI
 
 from src.kernel.schemas.model import ModelConfig, ModelProfile
 
@@ -33,6 +36,121 @@ class _FakeStorage:
     async def get_by_value(self, value: str):
         self.requested.append(value)
         return self.model if self.model and self.model.value == value else None
+
+
+def test_validate_image_data_url_returns_safe_metadata() -> None:
+    from src.infra.tool import image_analysis_tool
+
+    mime_type, decoded_size, digest = image_analysis_tool._validate_image_data_url(
+        "data:image/png;base64,iVBORw0KGgo="
+    )
+
+    assert mime_type == "image/png"
+    assert decoded_size == 8
+    assert digest == "4c4b6a3be131"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "image_ref",
+    [
+        "data:text/plain;base64,aGVsbG8=",
+        "data:image/png;base64,not-valid***",
+        "data:image/png;base64,",
+    ],
+)
+async def test_image_analyze_rejects_invalid_data_url_without_model_call(
+    monkeypatch: pytest.MonkeyPatch,
+    image_ref: str,
+) -> None:
+    from src.infra.tool import image_analysis_tool
+
+    model = ModelConfig(
+        id="vision-id",
+        value="openai/gpt-4o-mini",
+        label="Vision",
+        profile=ModelProfile(supports_vision=True),
+    )
+    calls = 0
+
+    class _FailIfInvoked:
+        async def ainvoke(self, _messages, config=None):
+            nonlocal calls
+            calls += 1
+            raise AssertionError("invalid input reached model")
+
+    async def fake_get_model(**_kwargs):
+        return _FailIfInvoked()
+
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_RETRY_DELAY", 0)
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: _FakeStorage(model),
+    )
+    monkeypatch.setattr(image_analysis_tool.LLMClient, "get_model", fake_get_model)
+
+    result = json.loads(
+        await image_analysis_tool.image_analyze.coroutine(
+            image_urls=[image_ref],
+            prompt="Describe",
+            runtime=_Runtime(),
+        )
+    )
+
+    assert result == {"error": "Invalid image data URL"}
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_image_analyze_emits_decodable_provider_payload_and_safe_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from src.infra.tool import image_analysis_tool
+
+    data_url = "data:image/png;base64,iVBORw0KGgo="
+    model = ModelConfig(
+        id="vision-id",
+        value="openai/gpt-4o-mini",
+        label="Vision",
+        profile=ModelProfile(supports_vision=True),
+    )
+    captured: dict[str, object] = {}
+
+    class _FakeLLM:
+        async def ainvoke(self, messages, config=None):
+            captured["messages"] = messages
+            return SimpleNamespace(content="valid image")
+
+    async def fake_get_model(**_kwargs):
+        return _FakeLLM()
+
+    monkeypatch.setattr(image_analysis_tool.settings, "IMAGE_ANALYSIS_MODEL_ID", "vision-id")
+    monkeypatch.setattr(
+        "src.infra.agent.model_storage.get_model_storage",
+        lambda: _FakeStorage(model),
+    )
+    monkeypatch.setattr(image_analysis_tool.LLMClient, "get_model", fake_get_model)
+
+    with caplog.at_level(logging.DEBUG, logger=image_analysis_tool.__name__):
+        result = json.loads(
+            await image_analysis_tool.image_analyze.coroutine(
+                image_urls=[data_url],
+                prompt="Describe",
+                runtime=_Runtime(),
+            )
+        )
+
+    assert result["success"] is True
+    request_payload = ChatOpenAI(api_key="test")._get_request_payload(captured["messages"])
+    emitted_data_url = request_payload["messages"][0]["content"][1]["image_url"]["url"]
+    header, encoded = emitted_data_url.split(",", 1)
+    assert header == "data:image/png;base64"
+    assert base64.b64decode(encoded, validate=True) == b"\x89PNG\r\n\x1a\n"
+    assert data_url not in caplog.text
+    assert "4c4b6a3be131" in caplog.text
 
 
 @pytest.mark.asyncio
