@@ -1,23 +1,5 @@
 from __future__ import annotations
 
-import deepagents.backends.protocol as deepagents_protocol
-
-for _missing_name in (
-    "EditResult",
-    "FileDownloadResponse",
-    "FileInfo",
-    "FileUploadResponse",
-    "GlobResult",
-    "GrepMatch",
-    "GrepResult",
-    "LsResult",
-    "ReadResult",
-    "WriteResult",
-):
-    if not hasattr(deepagents_protocol, _missing_name):
-        setattr(deepagents_protocol, _missing_name, dict)
-
-
 from src.infra.backend.skills_store import SkillsStoreBackend
 from src.infra.skill.binary import build_binary_ref_content
 from src.infra.skill.storage_helpers import SKILL_EFFECTIVE_LOAD_LIMIT
@@ -378,8 +360,32 @@ async def test_skills_store_backend_read_slices_file_data_for_offset_reads() -> 
     result = await backend.aread("/skills/visible/multi.txt", offset=1, limit=2)
 
     assert _field(result, "file_data")["content"] == "beta\ngamma\n"
-    assert "2\tbeta" in str(result)
-    assert "3\tgamma" in str(result)
+    assert _field(result, "start_line") == 2
+    assert _field(result, "end_line") == 3
+    assert _field(result, "next_offset") == 3
+    assert _field(result, "total_lines") == 4
+
+
+async def test_skills_store_backend_zero_limit_returns_uninspected_window() -> None:
+    backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])
+    backend._storage = _FakeSkillStorage()
+
+    result = await backend.aread("/skills/visible/multi.txt", offset=0, limit=0)
+
+    assert _field(result, "file_data")["content"] == ""
+    assert _field(result, "no_lines_requested") is True
+    assert _field(result, "start_line") is None
+    assert _field(result, "next_offset") is None
+
+
+async def test_skills_store_backend_grep_honors_max_count() -> None:
+    backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])
+    backend._storage = _FakeSkillStorage()
+
+    result = await backend.agrep("needle", "/skills/", max_count=1)
+
+    assert len(_field(result, "matches")) == 1
+    assert _field(result, "truncated") is True
 
 
 async def test_skills_store_backend_sync_read_rejects_running_event_loop() -> None:

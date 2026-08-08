@@ -110,14 +110,14 @@ def test_skills_store_backend_supports_current_deepagents_protocol() -> None:
     backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])
     backend._storage = _FakeSkillStorage()
 
-    entries = backend.ls_info("/skills/")
-    assert entries == [{"path": "/visible/", "is_dir": True}]
+    listed = backend.ls("/skills/")
+    assert listed.entries == [{"path": "/visible/", "is_dir": True}]
 
     content = backend.read("/skills/visible/SKILL.md")
-    assert "visible skill" in content
+    assert content.file_data["content"] == "visible skill"
 
-    matches = backend.glob_info("*", "/skills/")
-    assert matches == [{"path": "/visible/", "is_dir": True}]
+    globbed = backend.glob("*", "/skills/")
+    assert globbed.matches == [{"path": "/visible/", "is_dir": True}]
 
 
 def test_e2b_backend_supports_current_deepagents_protocol() -> None:

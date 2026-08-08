@@ -14,9 +14,9 @@ Skills Store Backend
 
 import fnmatch
 from tempfile import SpooledTemporaryFile
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional
 
-from deepagents.backends.utils import create_file_data, format_content_with_line_numbers
+from deepagents.backends.utils import create_file_data, slice_read_response
 from langgraph.config import get_config
 
 from src.infra.async_utils import run_blocking_io
@@ -49,8 +49,6 @@ from src.infra.backend.protocol_compat import (
     ReadResult,
     WriteResult,
     file_download_response,
-    is_read_result,
-    read_result_to_string,
 )
 from src.infra.logging import get_logger
 from src.infra.skill.binary import is_binary_file, parse_binary_ref
@@ -66,39 +64,8 @@ SKILL_BINARY_SPOOL_MAX_MEMORY_BYTES = 2 * 1024 * 1024
 SKILL_DOWNLOAD_FILES_LIMIT = 100
 
 
-def _slice_file_data(content: str, offset: int, limit: int):
-    try:
-        from deepagents.backends.utils import slice_read_response
-
-        return slice_read_response(create_file_data(content), offset, limit)
-    except ImportError:
-        lines = content.splitlines(keepends=True)
-        if offset >= len(lines):
-            return ReadResult(
-                error=f"Line offset {offset} exceeds file length ({len(lines)} lines)"
-            )
-        sliced = "".join(lines[offset : offset + limit]) if limit >= 0 else "".join(lines[offset:])
-        return sliced
-
-
-def _slice_text_read(content: str, offset: int, limit: int) -> str | ReadResult:
-    if not content:
-        return ""
-    sliced = _slice_file_data(content, offset, limit)
-    if is_read_result(sliced):
-        error = getattr(sliced, "error", None)
-        return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
-    return format_content_with_line_numbers(sliced, start_line=offset + 1)  # type: ignore[arg-type]
-
-
-def _slice_text_content(content: str, offset: int, limit: int) -> str | ReadResult:
-    if not content:
-        return ""
-    sliced = _slice_file_data(content, offset, limit)
-    if is_read_result(sliced):
-        error = getattr(sliced, "error", None)
-        return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
-    return cast(str, sliced)
+def _slice_file_data(content: str, offset: int, limit: int) -> ReadResult:
+    return slice_read_response(create_file_data(content), offset, limit)
 
 
 class SkillsStoreBackend(BackendProtocol):
@@ -244,27 +211,9 @@ class SkillsStoreBackend(BackendProtocol):
                     f"\nThis is a binary file stored in object storage. "
                     f"Access it via the URL above."
                 )
-                sliced_content = _slice_text_content(desc, offset, limit)
-                if is_read_result(sliced_content):
-                    return sliced_content  # type: ignore[return-value]
-                rendered = _slice_text_read(desc, offset, limit)
-                if is_read_result(rendered):
-                    return rendered  # type: ignore[return-value]
-                return ReadResult(
-                    file_data={"content": cast(str, sliced_content), "encoding": "utf-8"},
-                    rendered_content=cast(str, rendered),
-                )
+                return _slice_file_data(desc, offset, limit)
 
-            sliced_content = _slice_text_content(content, offset, limit)
-            if is_read_result(sliced_content):
-                return sliced_content  # type: ignore[return-value]
-            rendered = _slice_text_read(content, offset, limit)
-            if is_read_result(rendered):
-                return rendered  # type: ignore[return-value]
-            return ReadResult(
-                file_data={"content": cast(str, sliced_content), "encoding": "utf-8"},
-                rendered_content=cast(str, rendered),
-            )
+            return _slice_file_data(content, offset, limit)
 
         except Exception as e:
             logger.error(f"Failed to read {file_path}: {e}")
@@ -311,7 +260,7 @@ class SkillsStoreBackend(BackendProtocol):
 
             await self._emit_skills_changed("created" if is_new_skill else "updated", skill_name)
 
-            return WriteResult(path=file_path, files_update=None)
+            return WriteResult(path=file_path)
 
         except Exception as e:
             logger.error(f"Failed to write {file_path}: {e}", exc_info=True)
@@ -388,7 +337,7 @@ class SkillsStoreBackend(BackendProtocol):
             logger.info(
                 f"Edited user skill '{skill_name}' file '{file_name}' ({occurrences} replacements)"
             )
-            return EditResult(path=file_path, files_update=None, occurrences=occurrences)
+            return EditResult(path=file_path, occurrences=occurrences)
 
         except Exception as e:
             logger.error(f"Failed to edit {file_path}: {e}")
@@ -400,14 +349,6 @@ class SkillsStoreBackend(BackendProtocol):
 
     def ls(self, path: str) -> LsResult:
         return _run_async(self.als(path))
-
-    def ls_info(self, path: str) -> list[FileInfo]:
-        result = self.ls(path)
-        return result.entries or []
-
-    async def als_info(self, path: str) -> list[FileInfo]:
-        result = await self.als(path)
-        return result.entries or []
 
     async def als(self, path: str) -> LsResult:
         """异步列出 skills 或文件"""
@@ -657,18 +598,28 @@ class SkillsStoreBackend(BackendProtocol):
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
+        *,
+        max_count: int | None = None,
     ) -> GrepResult:
-        return _run_async(self.agrep(pattern, path, glob))
+        return _run_async(self.agrep(pattern, path, glob, max_count=max_count))
 
     async def agrep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
+        *,
+        max_count: int | None = None,
     ) -> GrepResult:
         """异步在 skill 文件中搜索文本模式（精确子串匹配）"""
         normalized_path = normalize_path(path or "/")
         storage = await self._get_storage()
+        result_limit = (
+            min(max_count, SKILLS_GREP_MAX_MATCHES)
+            if max_count is not None
+            else SKILLS_GREP_MAX_MATCHES
+        )
+        fetch_limit = result_limit + 1
 
         try:
             if is_skills_root(normalized_path):
@@ -689,12 +640,15 @@ class SkillsStoreBackend(BackendProtocol):
                         await self._get_skill_file_paths(storage, skill_name),
                         self._user_id,
                         self._is_skill_visible,
-                        max_matches=SKILLS_GREP_MAX_MATCHES - len(matches),
+                        max_matches=fetch_limit - len(matches),
                     )
                     matches.extend(skill_matches)
-                    if len(matches) >= SKILLS_GREP_MAX_MATCHES:
+                    if len(matches) >= fetch_limit:
                         break
-                return GrepResult(matches=matches)
+                return GrepResult(
+                    matches=matches[:result_limit],
+                    truncated=len(matches) > result_limit,
+                )
 
             parsed = parse_skill_path(normalized_path.rstrip("/"))
             if not parsed:
@@ -710,43 +664,35 @@ class SkillsStoreBackend(BackendProtocol):
                     skill_file_paths,
                     self._user_id,
                     self._is_skill_visible,
+                    max_matches=fetch_limit,
                 )
-                return GrepResult(matches=matches)
+                return GrepResult(
+                    matches=matches[:result_limit],
+                    truncated=len(matches) > result_limit,
+                )
 
             skill_name, sub_path = parsed
             skill_file_paths = await self._get_skill_file_paths(storage, skill_name)
             prefix = f"{sub_path}/" if sub_path else ""
             filtered = [p for p in skill_file_paths if p.startswith(prefix)]
             matches = await grep_single_skill(
-                pattern, glob, skill_name, storage, filtered, self._user_id, self._is_skill_visible
+                pattern,
+                glob,
+                skill_name,
+                storage,
+                filtered,
+                self._user_id,
+                self._is_skill_visible,
+                max_matches=fetch_limit,
             )
-            return GrepResult(matches=matches)
+            return GrepResult(
+                matches=matches[:result_limit],
+                truncated=len(matches) > result_limit,
+            )
 
         except Exception as e:
             logger.error(f"Failed to grep {path}: {e}", exc_info=True)
             return GrepResult(error=str(e))
-
-    def grep_raw(
-        self,
-        pattern: str,
-        path: str | None = None,
-        glob: str | None = None,
-    ) -> list[GrepMatch] | str:
-        result = self.grep(pattern, path, glob)
-        if result.error:
-            return result.error if result.error.startswith("Error:") else f"Error: {result.error}"
-        return result.matches or []
-
-    async def agrep_raw(
-        self,
-        pattern: str,
-        path: str | None = None,
-        glob: str | None = None,
-    ) -> list[GrepMatch] | str:
-        result = await self.agrep(pattern, path, glob)
-        if result.error:
-            return result.error if result.error.startswith("Error:") else f"Error: {result.error}"
-        return result.matches or []
 
     # ==========================================
     # Glob 操作
@@ -754,14 +700,6 @@ class SkillsStoreBackend(BackendProtocol):
 
     def glob(self, pattern: str, path: str | None = None) -> GlobResult:
         return _run_async(self.aglob(pattern, path))
-
-    def glob_info(self, pattern: str, path: str | None = None) -> list[FileInfo]:
-        result = self.glob(pattern, path)
-        return result.matches or []
-
-    async def aglob_info(self, pattern: str, path: str | None = None) -> list[FileInfo]:
-        result = await self.aglob(pattern, path)
-        return result.matches or []
 
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
         """异步版本"""
