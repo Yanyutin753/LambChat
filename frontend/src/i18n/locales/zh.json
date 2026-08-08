@@ -590,6 +590,8 @@
     "mermaidDiagram": "Mermaid 图表",
     "message": {
       "allFiles": "全部文件",
+      "downloadAll": "下载全部",
+      "downloadFailed": "下载失败",
       "args": "参数",
       "artifactsSubtitleFiles": "{{count}} 个文件",
       "artifactsSubtitleMixed": "{{files}} 个文件 · {{projects}} 个项目",

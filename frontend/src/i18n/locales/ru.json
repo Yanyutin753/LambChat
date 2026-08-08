@@ -590,6 +590,8 @@
     "mermaidDiagram": "Диаграмма Mermaid",
     "message": {
       "allFiles": "Все файлы",
+      "downloadAll": "Скачать всё",
+      "downloadFailed": "Не удалось скачать",
       "args": "Аргументы",
       "artifactsSubtitleFiles": "{{count}} файлов",
       "artifactsSubtitleMixed": "{{files}} файлов · {{projects}} проектов",

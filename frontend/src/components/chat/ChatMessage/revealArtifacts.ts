@@ -249,6 +249,86 @@ function normalizeArtifactPath(path: string): string {
     .replace(/^\/+|\/+$/g, "");
 }
 
+export interface RevealArtifactBinaryFiles {
+  binaryFiles: Record<string, string>;
+  skippedCount: number;
+  skippedPaths: string[];
+}
+
+function normalizeZipEntryPath(path: string, fallbackName: string): string {
+  const rawPath = /^https?:\/\//i.test(path) ? fallbackName : path;
+  const sanitize = (candidate: string): string => {
+    const segments = candidate
+      .replace(/\\/g, "/")
+      .replace(/^[a-zA-Z]:\//, "")
+      .split("/");
+    const safeSegments: string[] = [];
+
+    for (const segment of segments) {
+      if (!segment || segment === ".") continue;
+      if (segment === "..") {
+        safeSegments.pop();
+        continue;
+      }
+      const cleaned = Array.from(segment)
+        .filter((character) => {
+          const codePoint = character.codePointAt(0) ?? 0;
+          return codePoint >= 32 && codePoint !== 127;
+        })
+        .join("");
+      if (cleaned) safeSegments.push(cleaned);
+    }
+    return safeSegments.join("/");
+  };
+
+  return sanitize(rawPath) || sanitize(fallbackName) || "file";
+}
+
+function makeUniqueZipEntryPath(path: string, usedPaths: Set<string>): string {
+  const slashIndex = path.lastIndexOf("/");
+  const directory = slashIndex >= 0 ? path.slice(0, slashIndex + 1) : "";
+  const fileName = slashIndex >= 0 ? path.slice(slashIndex + 1) : path;
+  const dotIndex = fileName.lastIndexOf(".");
+  const hasExtension = dotIndex > 0;
+  const stem = hasExtension ? fileName.slice(0, dotIndex) : fileName;
+  const extension = hasExtension ? fileName.slice(dotIndex) : "";
+  let candidate = path;
+  let suffix = 2;
+
+  while (usedPaths.has(candidate.toLocaleLowerCase())) {
+    candidate = `${directory}${stem} (${suffix})${extension}`;
+    suffix += 1;
+  }
+  usedPaths.add(candidate.toLocaleLowerCase());
+  return candidate;
+}
+
+export function buildRevealArtifactBinaryFiles(
+  artifacts: RevealArtifact[],
+): RevealArtifactBinaryFiles {
+  const binaryFiles: Record<string, string> = {};
+  const usedPaths = new Set<string>();
+  let skippedCount = 0;
+  const skippedPaths: string[] = [];
+
+  for (const artifact of artifacts) {
+    if (artifact.kind !== "file") continue;
+    const url = artifact.preview.signedUrl;
+    if (!url) {
+      skippedCount += 1;
+      skippedPaths.push(artifact.path || artifact.name);
+      continue;
+    }
+    const path = makeUniqueZipEntryPath(
+      normalizeZipEntryPath(artifact.path, artifact.name),
+      usedPaths,
+    );
+    binaryFiles[path] = url;
+  }
+
+  return { binaryFiles, skippedCount, skippedPaths };
+}
+
 function getRevealArtifactDedupeKey(artifact: RevealArtifact): string {
   if (artifact.kind === "file") {
     const normalizedPath = normalizeArtifactPath(artifact.path);

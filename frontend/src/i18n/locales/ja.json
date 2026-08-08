@@ -590,6 +590,8 @@
     "mermaidDiagram": "Mermaid 図",
     "message": {
       "allFiles": "すべてのファイル",
+      "downloadAll": "すべてダウンロード",
+      "downloadFailed": "ダウンロードに失敗しました",
       "args": "引数",
       "artifactsSubtitleFiles": "{{count}} 件のファイル",
       "artifactsSubtitleMixed": "{{files}} 件のファイル · {{projects}} 件のプロジェクト",
