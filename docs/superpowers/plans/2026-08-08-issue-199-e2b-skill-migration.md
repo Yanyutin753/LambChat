@@ -61,7 +61,7 @@ git commit -m "fix: make E2B template builder executable"
 
 Use a fake sandbox whose `commands.run` records calls. Assert `verify_manifest(path)` reads the immutable reference from the build manifest, checks `command -v rg`, `command -v rsvg-convert`, writes a tiny SVG, converts it to PNG, and validates a non-empty output. Assert `sandbox.kill()` runs in `finally` on success and command failure. Assert successful verification atomically writes `verified_at` and `verified_build_id` to the same manifest. A failed smoke test must leave those fields absent and cannot promote tags.
 
-With fake `system_settings` storage and a temporary `.env`, test first-pin CAS, idempotent retry, rejection of a concurrent administrator value, and preservation of the original database-document existence/value plus env line. Test restore deletes a rollout-created database document when none existed, restores an existing document when it did, and refuses after a later edit. Test `verify_effective_configuration` and `record_health` reject any manifest/config mismatch. Test `promote_manifest` reads the reference only from the fully verified manifest.
+With fake `system_settings` storage and a temporary `.env`, test first-pin CAS, idempotent retry, rejection of a concurrent administrator value, and preservation of the original database-document existence/value plus env line. Test restore deletes a rollout-created database document when none existed, restores an existing document when it did, refuses after a later edit, and clears `pinned_ref`, effective-config evidence, and health evidence. Test `verify_effective_configuration` and `record_health` reject any manifest/config mismatch. Test `promote_manifest` reads the reference only from the fully verified manifest and re-reads the database-first effective value immediately before tagging; stale manifest evidence after a restore or administrator edit must fail promotion.
 
 - [ ] **Step 2: Run verifier tests and verify RED**
 
@@ -73,9 +73,9 @@ Add `verify_manifest(manifest_path, api_key)` using `Sandbox.create(manifest["im
 
 Add async `pin_effective_configuration(manifest_path, env_file)` that treats MongoDB `system_settings.E2B_TEMPLATE` as authoritative and `.env` only as fallback. On the first pin it records, exactly once, whether a database document existed, its previous value/update metadata, the prior `.env` line, and the environment-file path. It then compare-and-swaps the database setting to the immutable candidate, aligns the `.env` fallback, publishes the setting change, and records `pinned_ref`. A second call is idempotent only when the manifest and both sources already equal the candidate; it must never overwrite the original rollback baseline. Any unrelated current value causes a conflict and abort.
 
-Add the inverse `restore_effective_configuration(manifest_path)`, also compare-and-swap guarded: restore the saved database document or delete the rollout-created document when none existed, restore the saved `.env` fallback, publish the setting change, and refuse to overwrite a later administrator edit.
+Add the inverse `restore_effective_configuration(manifest_path)`, also compare-and-swap guarded: restore the saved database document or delete the rollout-created document when none existed, restore the saved `.env` fallback, publish the setting change, refuse to overwrite a later administrator edit, and atomically invalidate `pinned_ref`, `effective_ref_verified_at`, `health_checked_at`, plus their associated build/reference fields in the manifest.
 
-Add `verify_effective_configuration(manifest_path)` using `SettingsService.get_raw("E2B_TEMPLATE")`; it records `effective_ref_verified_at` only when the database-first value equals the manifest immutable reference. Add `record_health(manifest_path, health_url)` that performs the health request itself and records `health_checked_at` only after verified build, pin, and effective-config evidence all match. Add `promote_manifest(manifest_path, api_key)` that accepts no caller-provided template reference, refuses unless every preceding manifest field matches, and then calls `Template.assign_tags(manifest["immutable_ref"], "production", api_key=...)`.
+Add `verify_effective_configuration(manifest_path)` using `SettingsService.get_raw("E2B_TEMPLATE")`; it records `effective_ref_verified_at` only when the database-first value equals the manifest immutable reference. Add `record_health(manifest_path, health_url)` that performs the health request itself and records `health_checked_at` only after verified build, pin, and effective-config evidence all match. Add `promote_manifest(manifest_path, api_key)` that accepts no caller-provided template reference, refuses unless every preceding manifest field matches, then re-reads `SettingsService.get_raw("E2B_TEMPLATE")` and requires it still equals the immutable reference immediately before calling `Template.assign_tags(manifest["immutable_ref"], "production", api_key=...)`.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -135,7 +135,7 @@ git commit -m "feat: detect legacy docx skill paths"
 
 - [ ] **Step 1: Write failing apply/rollback tests**
 
-Assert apply requires a unique rollout manifest/ID, creates an idempotent `skill_migration_backups` record before source update, creates a TTL index on `expire_at` with `expireAfterSeconds=0`, and updates with `{"_id": id, "content": original}`. Assert the exact backup/source IDs changed by this apply are appended atomically to that rollout manifest. Assert a CAS miss increments `conflicted`. Assert rollback reads only IDs recorded in the supplied rollout manifest and restores only when the current content SHA-256 equals `migrated_content_hash`; later edits are reported and untouched. Assert backups from an earlier rollout ID are never selected. Assert a second apply has zero pending changes.
+Assert apply requires a unique rollout manifest/ID, creates an idempotent `skill_migration_backups` record before source update, creates a TTL index on `expire_at` with `expireAfterSeconds=0`, and updates with `{"_id": id, "content": original}`. Simulate a crash immediately after the source CAS and assert rollback still discovers the backup by the manifest's unique rollout ID. Assert a CAS miss increments `conflicted`. Assert rollback queries every backup for only the supplied manifest's rollout ID and restores only when the current content SHA-256 equals `migrated_content_hash`; backups whose source CAS never happened, later edits, and backups from an earlier rollout ID are reported and untouched. Assert a second apply has zero pending changes.
 
 - [ ] **Step 2: Run tests and verify RED**
 
@@ -143,7 +143,7 @@ Run: `uv run pytest tests/scripts/test_migrate_docx_skill_paths.py -q`
 
 - [ ] **Step 3: Implement backups, CAS, and `--rollback`**
 
-Use a stable migration-kind ID plus the unique `rollout_id` generated in the E2B build manifest. The backup unique key is migration-kind/rollout/collection/source ID. Set `expire_at=utc_now()+timedelta(days=30)`. Insert/upsert backup before each CAS update and append the changed backup/source ID to the manifest only after the source CAS succeeds. `--apply --manifest <path>` and `--rollback --manifest <path>` are mutually exclusive; rollback queries only the manifest's rollout ID and recorded IDs, then applies the migrated hash guard.
+Use a stable migration-kind ID plus the unique `rollout_id` generated in the E2B build manifest. The backup unique key is migration-kind/rollout/collection/source ID. Set `expire_at=utc_now()+timedelta(days=30)`. Insert/upsert the complete backup before each source CAS. `--apply --manifest <path>` and `--rollback --manifest <path>` are mutually exclusive; rollback queries all and only backups with the manifest's rollout ID, then applies the migrated hash guard. This makes the backup itself the durable rollback registry and removes any crash window between the source CAS and a second filesystem-manifest write.
 
 - [ ] **Step 4: Run tests and verify GREEN**
 
@@ -236,7 +236,7 @@ Expected: `rg`, `rsvg-convert`, and SVG conversion all pass; the temporary sandb
 
 - [ ] **Step 4: Apply the migration only after candidate verification**
 
-If preflight reported recognized matches, run `uv run python scripts/migrate_docx_skill_paths.py --apply --manifest '<manifest-path>'`, then require a zero-match dry-run. If preflight was zero, skip writes. The script records the exact changed backup/source IDs in this rollout manifest so rollback is conditional and scoped.
+If preflight reported recognized matches, run `uv run python scripts/migrate_docx_skill_paths.py --apply --manifest '<manifest-path>'`, then require a zero-match dry-run. If preflight was zero, skip writes. Every backup is keyed by the unique rollout ID already stored in this manifest, so rollback is conditional, crash-safe, and scoped to this rollout.
 
 - [ ] **Step 5: Pin `.env` and recreate only a running Compose app**
 
