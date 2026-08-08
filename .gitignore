@@ -92,6 +92,7 @@ YubbChat/
 !/scripts/
 !/scripts/create_daytona_snapshot.py
 !/scripts/create_e2b_template.py
+!/scripts/migrate_docx_skill_paths.py
 !/scripts/migrate_trace_events_to_chunks.py
 !/scripts/verify_trace_event_chunks.py
 !/scripts/pre_deploy_db_checks.py
