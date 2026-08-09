@@ -184,7 +184,10 @@ function FileTreeNode({
     return (
       <div>
         <button
+          type="button"
           onClick={() => toggleDir(node.path)}
+          aria-expanded={expanded}
+          data-sidebar-snapshot-key={`file-tree:${node.path}`}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-theme-bg-subtle transition-colors group"
         >
           <FolderIcon size={36} className="shrink-0" />

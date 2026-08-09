@@ -46,6 +46,9 @@ export function BlockPreviewPortal() {
 
   if (!preview) return null;
 
+  const previewIdentity =
+    preview.src ?? preview.url ?? preview.fileName ?? preview.text ?? "unknown";
+
   let icon: React.ReactNode;
   let title: string;
   let content: React.ReactNode;
@@ -104,6 +107,7 @@ export function BlockPreviewPortal() {
     <ToolResultPanel
       open
       onClose={close}
+      registryKey={`block-preview:${preview.type}:${previewIdentity}`}
       title={title}
       icon={icon}
       status="success"
@@ -503,6 +507,7 @@ function JsonFallback({
       {needsTruncation && (
         <button
           onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
           className="flex items-center gap-1 mt-1 text-xs text-theme-text-tertiary hover:text-theme-text transition-colors"
         >
           {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -621,6 +626,7 @@ function RejectionResult({ data }: { data: Record<string, unknown> }) {
           {(description || preview) && (
             <button
               onClick={() => setShowDetails((v) => !v)}
+              aria-expanded={showDetails}
               className="flex items-center gap-0.5 text-[11px] transition-colors hover:text-theme-text-secondary"
               style={{ color: "var(--theme-text-tertiary)" }}
             >

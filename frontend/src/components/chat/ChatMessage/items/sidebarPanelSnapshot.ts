@@ -8,6 +8,10 @@ export interface SidebarPanelSnapshot {
     locator: SidebarSnapshotLocator;
     expanded: boolean;
   }>;
+  pressed: ReadonlyArray<{
+    locator: SidebarSnapshotLocator;
+    pressed: boolean;
+  }>;
   details: ReadonlyArray<{
     locator: SidebarSnapshotLocator;
     open: boolean;
@@ -125,6 +129,17 @@ export function captureActiveSidebarPanelSnapshot(): SidebarPanelSnapshot | null
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
+  const pressed = [...root.querySelectorAll<HTMLElement>("[aria-pressed]")]
+    .map((element) => {
+      const locator = locateElement(root, element);
+      if (!locator) return null;
+      return {
+        locator,
+        pressed: element.getAttribute("aria-pressed") === "true",
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
   const scroll = [root, ...root.querySelectorAll<HTMLElement>("*")]
     .filter(isScrollable)
     .map((element) => {
@@ -138,7 +153,7 @@ export function captureActiveSidebarPanelSnapshot(): SidebarPanelSnapshot | null
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
-  return { panelKey, expanded, details, scroll };
+  return { panelKey, expanded, pressed, details, scroll };
 }
 
 export function queueSidebarPanelSnapshot(
@@ -155,19 +170,43 @@ export async function restorePendingSidebarPanelSnapshot(
   if (!snapshot || snapshot.panelKey !== panelKey) return false;
   pendingSnapshot = null;
 
-  snapshot.expanded.forEach(({ locator, expanded }) => {
-    const element = resolveElement(root, locator);
-    if (!element) return;
-    const current = element.getAttribute("aria-expanded") === "true";
-    if (current !== expanded) element.click();
-  });
-
-  snapshot.details.forEach(({ locator, open }) => {
-    const element = resolveElement(root, locator);
-    if (element instanceof HTMLDetailsElement) element.open = open;
-  });
-
-  await waitForAnimationFrame();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    let needsAnotherPass = false;
+    snapshot.expanded.forEach(({ locator, expanded }) => {
+      const element = resolveElement(root, locator);
+      if (!element) {
+        needsAnotherPass = true;
+        return;
+      }
+      const current = element.getAttribute("aria-expanded") === "true";
+      if (current !== expanded) {
+        element.click();
+        needsAnotherPass = true;
+      }
+    });
+    snapshot.pressed.forEach(({ locator, pressed }) => {
+      const element = resolveElement(root, locator);
+      if (!element) {
+        needsAnotherPass = true;
+        return;
+      }
+      const current = element.getAttribute("aria-pressed") === "true";
+      if (current !== pressed) {
+        element.click();
+        needsAnotherPass = true;
+      }
+    });
+    snapshot.details.forEach(({ locator, open }) => {
+      const element = resolveElement(root, locator);
+      if (!(element instanceof HTMLDetailsElement)) {
+        needsAnotherPass = true;
+        return;
+      }
+      element.open = open;
+    });
+    if (!needsAnotherPass) break;
+    if (attempt < 4) await waitForAnimationFrame();
+  }
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     snapshot.scroll.forEach(({ locator, top, left }) => {

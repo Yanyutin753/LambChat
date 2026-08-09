@@ -174,7 +174,7 @@ test("tool result panel uses refined professional chrome treatment", () => {
   );
 });
 
-test("tool result panel masks rich content until the first panel paint settles", () => {
+test("tool result panel masks rich content until snapshot restoration settles", () => {
   const componentSource = readFileSync(
     new URL("../ToolResultPanel.tsx", import.meta.url),
     "utf8",
@@ -183,8 +183,9 @@ test("tool result panel masks rich content until the first panel paint settles",
   expect(componentSource).toMatch(
     /const \[contentReady, setContentReady\] = useState\(false\)/,
   );
+  expect(componentSource).toMatch(/restorePendingSidebarPanelSnapshot/);
   expect(componentSource).toMatch(
-    /requestAnimationFrame\(\(\) => \{\s*frameIds\.push\(\s*requestAnimationFrame\(\(\) => \{/s,
+    /if \(!restored\) await waitForInitialPaint\(\);\s*if \(!cancelled\) setContentReady\(true\);/s,
   );
   expect(componentSource).toMatch(/aria-busy=\{!contentReady\}/);
   expect(componentSource).toMatch(
@@ -200,7 +201,7 @@ test("tool result panel resets first-paint state for a new registry panel but no
   );
 
   expect(componentSource).toMatch(
-    /useEffect\(\(\) => \{[\s\S]*?setContentReady\(false\)[\s\S]*?\}, \[open, registryKey\]\);/,
+    /useEffect\(\(\) => \{[\s\S]*?setContentReady\(false\)[\s\S]*?\}, \[open, panelRef, registryKey\]\);/,
   );
   expect(componentSource).not.toMatch(/\}, \[open, children\]\);/);
 });

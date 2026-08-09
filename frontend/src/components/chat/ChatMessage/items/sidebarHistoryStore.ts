@@ -1,8 +1,15 @@
 import { createSingletonStore } from "./createSingletonStore";
 import { clearToolPanelRegistry } from "./toolPanelRegistry";
+import {
+  captureActiveSidebarPanelSnapshot,
+  clearSidebarPanelSnapshots,
+  queueSidebarPanelSnapshot,
+  type SidebarPanelSnapshot,
+} from "./sidebarPanelSnapshot";
 
 export interface SidebarHistoryEntry {
   restore: () => void;
+  snapshot?: SidebarPanelSnapshot | null;
 }
 
 type CaptureFn = () => SidebarHistoryEntry | null;
@@ -29,7 +36,10 @@ export function pushCurrentPanelToHistory(): void {
   if (isRestoring) return;
   const entry = captureCurrentPanel();
   if (entry) {
-    history = [...history, entry];
+    history = [
+      ...history,
+      { ...entry, snapshot: captureActiveSidebarPanelSnapshot() },
+    ];
     countStore.set(history.length);
   }
 }
@@ -42,6 +52,7 @@ export function goBackSidebar(): boolean {
   isRestoring = true;
   clearToolPanelRegistry();
   try {
+    queueSidebarPanelSnapshot(entry.snapshot ?? null);
     entry.restore();
   } finally {
     isRestoring = false;
@@ -56,6 +67,7 @@ export function getSidebarHistoryLength(): number {
 export function clearSidebarHistory(): void {
   history = [];
   countStore.set(0);
+  clearSidebarPanelSnapshots();
 }
 
 export function subscribeSidebarHistory(listener: () => void): () => void {

@@ -129,16 +129,27 @@ function ComplexArgRow({
   return (
     <div>
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
         className={`group/arg flex items-center gap-2 rounded-[var(--radius-sm)] px-2 transition-colors duration-[var(--duration-fast)] cursor-pointer ${
           expanded
             ? "bg-[var(--theme-bg-elevated)]"
             : "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)]"
         } ${compact ? "py-1 text-[11px]" : "py-1.5 text-xs"}`}
         onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          setExpanded((value) => !value);
+        }}
       >
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setExpanded((value) => !value);
+          }}
           className="shrink-0 text-[var(--theme-text-tertiary)] transition-transform duration-[var(--duration-fast)]"
           style={{ transform: expanded ? "rotate(0deg)" : "rotate(-90deg)" }}
         >

@@ -28,6 +28,10 @@ import {
   subscribeSidebarHistory,
   clearSidebarHistory,
 } from "./sidebarHistoryStore";
+import {
+  registerActiveSidebarSnapshotTarget,
+  restorePendingSidebarPanelSnapshot,
+} from "./sidebarPanelSnapshot";
 export { closeCurrentToolPanel } from "./toolPanelRegistry";
 
 const WIDTH_STORAGE_KEY = "sidebar-preview-width";
@@ -285,6 +289,11 @@ export function ToolResultPanel({
   }, [entry.active, registryKey]);
 
   useEffect(() => {
+    if (!entry.active || !registryKey || !panelRef.current) return;
+    return registerActiveSidebarSnapshotTarget(registryKey, panelRef.current);
+  }, [entry.active, panelRef, registryKey]);
+
+  useEffect(() => {
     if (!open) {
       setContentReady(false);
       return;
@@ -292,21 +301,34 @@ export function ToolResultPanel({
 
     setContentReady(false);
 
+    let cancelled = false;
     const frameIds: number[] = [];
-    frameIds.push(
-      requestAnimationFrame(() => {
+    const waitForInitialPaint = () =>
+      new Promise<void>((resolve) => {
         frameIds.push(
           requestAnimationFrame(() => {
-            setContentReady(true);
+            frameIds.push(requestAnimationFrame(() => resolve()));
           }),
         );
-      }),
-    );
+      });
+
+    void (async () => {
+      const restored =
+        registryKey && panelRef.current
+          ? await restorePendingSidebarPanelSnapshot(
+              registryKey,
+              panelRef.current,
+            )
+          : false;
+      if (!restored) await waitForInitialPaint();
+      if (!cancelled) setContentReady(true);
+    })();
 
     return () => {
+      cancelled = true;
       frameIds.forEach((frameId) => cancelAnimationFrame(frameId));
     };
-  }, [open, registryKey]);
+  }, [open, panelRef, registryKey]);
 
   // Override handleResizeStart to call onUserInteraction
   const handleResize = useCallback(
@@ -509,6 +531,7 @@ export function ToolResultPanel({
                 <div className="tool-console-actions flex items-center gap-2 sm:gap-1 shrink-0">
                   <ToolbarIconButton
                     variant="muted"
+                    aria-pressed={!isSidebar}
                     onClick={() => {
                       handleToggleViewMode();
                     }}
@@ -570,6 +593,7 @@ export function ToolResultPanel({
 
       {/* Content */}
       <div
+        data-sidebar-snapshot-key="panel-body"
         className={`tool-console-body relative flex-1 overflow-auto min-h-0 overscroll-contain ${
           isCenter && !hasCustomHeader && !isMobile && !isFullscreen
             ? "!overflow-hidden"

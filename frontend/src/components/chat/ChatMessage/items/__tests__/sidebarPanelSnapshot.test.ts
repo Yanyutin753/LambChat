@@ -62,6 +62,7 @@ test("captures expanded controls, details, and every nested scroll position", ()
   expect(captureActiveSidebarPanelSnapshot()).toEqual({
     panelKey: "panel:a",
     expanded: [{ locator: { key: "args" }, expanded: true }],
+    pressed: [],
     details: [{ locator: { key: "raw" }, open: true }],
     scroll: [
       { locator: { path: [] }, top: 240, left: 0 },
@@ -90,6 +91,7 @@ test("uses deterministic paths for elements without explicit snapshot keys", () 
   expect(captureActiveSidebarPanelSnapshot()).toEqual({
     panelKey: "panel:path",
     expanded: [{ locator: { path: [0, 0] }, expanded: true }],
+    pressed: [],
     details: [],
     scroll: [{ locator: { path: [0, 1] }, top: 91, left: 0 }],
   });
@@ -125,6 +127,7 @@ test("replays expansion before scroll and skips missing snapshot elements", asyn
       { locator: { key: "args" }, expanded: true },
       { locator: { key: "removed-section" }, expanded: true },
     ],
+    pressed: [],
     details: [{ locator: { key: "removed-details" }, open: true }],
     scroll: [
       { locator: { key: "results" }, top: 180, left: 24 },
@@ -154,6 +157,7 @@ test("leaves a pending snapshot available for its matching panel", async () => {
   const snapshot: SidebarPanelSnapshot = {
     panelKey: "panel:a",
     expanded: [],
+    pressed: [],
     details: [],
     scroll: [{ locator: { key: "results" }, top: 64, left: 0 }],
   };
@@ -166,4 +170,69 @@ test("leaves a pending snapshot available for its matching panel", async () => {
     restorePendingSidebarPanelSnapshot("panel:a", root),
   ).resolves.toBe(true);
   expect(scroller.scrollTop).toBe(64);
+});
+
+test("captures and restores pressed panel controls", async () => {
+  const sourceRoot = document.createElement("section");
+  const sourceControl = document.createElement("button");
+  sourceControl.dataset.sidebarSnapshotKey = "explorer";
+  sourceControl.setAttribute("aria-pressed", "true");
+  sourceRoot.append(sourceControl);
+  registerActiveSidebarSnapshotTarget("panel:pressed", sourceRoot);
+  const snapshot = captureActiveSidebarPanelSnapshot();
+
+  expect(snapshot).toMatchObject({
+    pressed: [{ locator: { key: "explorer" }, pressed: true }],
+  });
+
+  const restoredRoot = document.createElement("section");
+  const restoredControl = document.createElement("button");
+  restoredControl.dataset.sidebarSnapshotKey = "explorer";
+  restoredControl.setAttribute("aria-pressed", "false");
+  restoredControl.addEventListener("click", () =>
+    restoredControl.setAttribute("aria-pressed", "true"),
+  );
+  restoredRoot.append(restoredControl);
+  queueSidebarPanelSnapshot(snapshot);
+
+  await restorePendingSidebarPanelSnapshot("panel:pressed", restoredRoot);
+
+  expect(restoredControl.getAttribute("aria-pressed")).toBe("true");
+});
+
+test("retries nested expansion after a parent mounts its child control", async () => {
+  const root = document.createElement("section");
+  const parent = document.createElement("button");
+  parent.dataset.sidebarSnapshotKey = "folder:parent";
+  parent.setAttribute("aria-expanded", "false");
+  parent.addEventListener("click", () => {
+    parent.setAttribute("aria-expanded", "true");
+    queueMicrotask(() => {
+      const child = document.createElement("button");
+      child.dataset.sidebarSnapshotKey = "folder:child";
+      child.setAttribute("aria-expanded", "false");
+      child.addEventListener("click", () =>
+        child.setAttribute("aria-expanded", "true"),
+      );
+      root.append(child);
+    });
+  });
+  root.append(parent);
+  queueSidebarPanelSnapshot({
+    panelKey: "panel:nested",
+    expanded: [
+      { locator: { key: "folder:parent" }, expanded: true },
+      { locator: { key: "folder:child" }, expanded: true },
+    ],
+    pressed: [],
+    details: [],
+    scroll: [],
+  });
+
+  await restorePendingSidebarPanelSnapshot("panel:nested", root);
+
+  expect(parent.getAttribute("aria-expanded")).toBe("true");
+  expect(
+    root.querySelector('[data-sidebar-snapshot-key="folder:child"]'),
+  ).toHaveAttribute("aria-expanded", "true");
 });
