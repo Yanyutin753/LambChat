@@ -709,8 +709,8 @@ Expected: PASS with zero failures.
 - [ ] **Step 3: Run frontend lint and production build**
 
 ```bash
-cd frontend && pnpm run lint
-cd frontend && pnpm run build
+(cd frontend && pnpm run lint)
+(cd frontend && pnpm run build)
 ```
 
 Expected: both exit 0.
