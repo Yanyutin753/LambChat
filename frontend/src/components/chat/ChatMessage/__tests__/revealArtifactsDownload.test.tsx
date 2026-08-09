@@ -184,6 +184,7 @@ test("keeps long nested folder rows inside the panel width boundary", () => {
   const folderNode = folderRow?.parentElement;
   const panelScroller = folderRow?.closest(".overflow-y-auto");
 
+  expect(folderButton).toHaveClass("!min-w-0", "flex-1");
   expect(panelScroller).toHaveClass(
     "min-w-0",
     "max-w-full",

@@ -234,7 +234,7 @@ function TreeDirRow({
           type="button"
           aria-expanded={expanded}
           onClick={toggleExpanded}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          className="flex !min-w-0 flex-1 items-center gap-3 text-left"
         >
           <FolderIcon size={36} className="shrink-0" />
           <div className="flex-1 min-w-0">
