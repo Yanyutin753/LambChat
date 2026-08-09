@@ -36,6 +36,8 @@ vi.mock("react-i18next", () => ({
         "chat.message.downloadAll": "Download all",
         "chat.message.downloadFailed": "Download failed",
         "chat.message.files": "Files",
+        "common.collapse": "Collapse",
+        "common.expand": "Expand",
         "project.exportZip": "Export ZIP",
         "project.preview": "Preview",
       };
@@ -140,6 +142,54 @@ test("folder downloads are real buttons and do not toggle the folder", () => {
 
   expect(screen.queryByText("report.pdf")).not.toBeInTheDocument();
   expect(mocks.exportProjectZip).toHaveBeenCalledTimes(1);
+});
+
+test("folder download appears immediately before the expansion chevron", () => {
+  openAllFilesPanel([
+    filePart({
+      id: "file:report",
+      name: "report.pdf",
+      path: "/workspace/folder/report.pdf",
+      signedUrl: "/api/upload/file/report",
+    }),
+  ]);
+
+  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
+  const folderButton = screen.getByRole("button", { name: "folder" });
+  const folderDownload = screen.getByRole("button", {
+    name: "Export ZIP: folder",
+  });
+  const folderChevron = screen.getByRole("button", {
+    name: "Expand: folder",
+  });
+
+  expect(folderButton.nextElementSibling).toBe(folderDownload);
+  expect(folderDownload.nextElementSibling).toBe(folderChevron);
+});
+
+test("folder expansion chevron toggles the folder", () => {
+  openAllFilesPanel([
+    filePart({
+      id: "file:report",
+      name: "report.pdf",
+      path: "/workspace/folder/report.pdf",
+      signedUrl: "/api/upload/file/report",
+    }),
+  ]);
+
+  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Expand: folder",
+    }),
+  );
+
+  expect(screen.getByText("report.pdf")).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", {
+      name: "Collapse: folder",
+    }),
+  ).toHaveAttribute("aria-expanded", "true");
 });
 
 test("does not offer ZIP actions when revealed files have no signed URL", () => {

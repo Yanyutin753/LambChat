@@ -222,6 +222,10 @@ function TreeDirRow({
     [node],
   );
   const hasDownloadableFiles = Object.keys(binaryFiles).length > 0;
+  const toggleExpanded = () => setExpanded((value) => !value);
+  const toggleLabel = `${t(expanded ? "common.collapse" : "common.expand")}: ${
+    node.name
+  }`;
 
   return (
     <div>
@@ -229,7 +233,7 @@ function TreeDirRow({
         <button
           type="button"
           aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
+          onClick={toggleExpanded}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <FolderIcon size={36} className="shrink-0" />
@@ -243,13 +247,6 @@ function TreeDirRow({
               </div>
             )}
           </div>
-          <ChevronRight
-            size={18}
-            className={clsx(
-              "shrink-0 text-stone-400 transition-transform duration-200",
-              expanded && "rotate-90",
-            )}
-          />
         </button>
         {hasDownloadableFiles && (
           <button
@@ -294,6 +291,22 @@ function TreeDirRow({
             )}
           </button>
         )}
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={toggleLabel}
+          onClick={toggleExpanded}
+          title={toggleLabel}
+          className="shrink-0 rounded-lg p-1.5 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-700 dark:hover:text-stone-300"
+        >
+          <ChevronRight
+            size={18}
+            className={clsx(
+              "transition-transform duration-200",
+              expanded && "rotate-90",
+            )}
+          />
+        </button>
       </div>
       {expanded && (
         <div className={clsx(depth === 0 ? "pl-2" : "pl-4")}>
