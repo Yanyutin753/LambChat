@@ -1,5 +1,5 @@
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { cjkGfmRemarkPlugins } from "../../common/markdownRemarkPlugins";
 
 interface TaskToastMarkdownProps {
   content: string;
@@ -33,7 +33,7 @@ export function TaskToastMarkdown({ content }: TaskToastMarkdownProps) {
           ),
           p: ({ children }) => <span>{children}</span>,
         }}
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[...cjkGfmRemarkPlugins]}
         unwrapDisallowed
       >
         {content}

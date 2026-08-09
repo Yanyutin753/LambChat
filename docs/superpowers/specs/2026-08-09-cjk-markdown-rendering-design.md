@@ -35,7 +35,7 @@ No separate change is needed for renderers that delegate to `MarkdownContent`.
 
 Add the CJK parser extensions as direct frontend dependencies:
 
-- `remark-cjk-friendly` for CommonMark emphasis and strong emphasis.
+- `remark-cjk-friendly`, imported from `remark-cjk-friendly/parseOnly`, for CommonMark emphasis and strong emphasis.
 - `remark-cjk-friendly-gfm-strikethrough`, imported from `remark-cjk-friendly-gfm-strikethrough/parseOnly` because LambChat only parses Markdown in these components.
 
 Create a shared module under `frontend/src/components/common/` that exports the ordered base plugin list:
@@ -56,12 +56,14 @@ This keeps parser ordering in one place while preserving the different rendering
 
 The renderer must recognize CJK-adjacent:
 
-- Strong emphasis using `**...**` and `__...__`
-- Emphasis using `*...*` and `_..._`
+- Strong emphasis using `**...**`
+- Emphasis using `*...*`
 - GFM strikethrough using `~~...~~`
 - Delimiters at both leading and trailing CJK boundaries
 - Content whose inner boundary contains punctuation, including the reported `%**左右` case
 - Chinese, Japanese, and Korean examples
+
+The `_..._` and `__...__` forms retain CommonMark's intentional intraword restriction. Treating underscores inside uninterrupted CJK text as delimiters would make identifiers and ordinary underscore usage ambiguous; it is not part of this CJK punctuation-boundary repair.
 
 Standard CommonMark/GFM behavior outside these CJK boundary cases must remain unchanged.
 
@@ -69,7 +71,7 @@ Standard CommonMark/GFM behavior outside these CJK boundary cases must remain un
 
 Testing follows red-green-refactor:
 
-1. Add behavioral tests around the shared plugin configuration using `ReactMarkdown` and server-rendered HTML. The tests must fail with the current parser and prove `<strong>`, `<em>`, and `<del>` nodes are generated. The test matrix covers opening and closing CJK boundaries, inner punctuation adjacent to the closing delimiter, Chinese/Japanese/Korean text, and every supported delimiter form (`**`, `__`, `*`, `_`, and `~~`).
+1. Add behavioral tests around the shared plugin configuration using `ReactMarkdown` and server-rendered HTML. The tests must fail with the current parser and prove `<strong>`, `<em>`, and `<del>` nodes are generated. The test matrix covers opening and closing CJK boundaries, inner punctuation adjacent to the closing delimiter, Chinese/Japanese/Korean text, and every supported delimiter form (`**`, `*`, and `~~`).
 2. Extend the existing task-toast test with the reported no-space Chinese boundary case so an actual product entry point is covered.
 3. Add a source-completeness test that scans frontend TSX sources containing direct `<ReactMarkdown` usage and requires the shared CJK base configuration. This prevents future entry points from silently reverting to plain CommonMark behavior.
 4. Run the focused tests, complete frontend test suite, frontend lint, and frontend production build.

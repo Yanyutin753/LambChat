@@ -36,9 +36,9 @@ Extend `TaskToastMarkdown.test.tsx` with a `test.each` matrix that server-render
 ```tsx
 test.each([
   ["中文星号粗体", "提出到**锻炼人数达40%**左右", "strong", "锻炼人数达40%"],
-  ["中文下划线粗体", "这是__（重要）__内容", "strong", "（重要）"],
+  ["中文标点边界粗体", "这是**（重要）**内容", "strong", "（重要）"],
   ["日文星号斜体", "これは*（重要）*です", "em", "（重要）"],
-  ["韩文下划线斜体", "이것은_강조._입니다", "em", "강조."],
+  ["韩文标点边界斜体", "이것은*강조.*입니다", "em", "강조."],
   ["中文删除线", "提出到~~锻炼人数达40%~~左右", "del", "锻炼人数达40%"],
 ])("renders CJK-adjacent %s", (_name, markdown, tag, text) => {
   const html = renderToStaticMarkup(<TaskToastMarkdown content={markdown} />);
@@ -63,7 +63,7 @@ Expected: the new CJK cases fail because the HTML still contains literal delimit
 Run:
 
 ```bash
-cd frontend && pnpm add remark-cjk-friendly@^2.0.1 remark-cjk-friendly-gfm-strikethrough@^2.3.1
+cd frontend && pnpm add remark-cjk-friendly@^2.3.1 remark-cjk-friendly-gfm-strikethrough@^2.3.1
 ```
 
 Confirm `frontend/package.json` and `frontend/pnpm-lock.yaml` are updated and no unrelated package versions are changed.
@@ -73,7 +73,7 @@ Confirm `frontend/package.json` and `frontend/pnpm-lock.yaml` are updated and no
 Create `markdownRemarkPlugins.ts`:
 
 ```ts
-import remarkCjkFriendly from "remark-cjk-friendly";
+import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough/parseOnly";
 import remarkGfm from "remark-gfm";
 
