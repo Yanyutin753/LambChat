@@ -42,9 +42,9 @@ The URL effect must not issue a duplicate load for this internal navigation. A f
 
 `mark-read` starts without being awaited. Feedback starts without being awaited and is applied later to matching run messages only if the history request is still current. Neither failure changes the history loading result.
 
-For the common current-run case, task status comes from the session metadata already returned by the session-detail request. A `run_id` URL parameter that differs from `metadata.current_run_id` is historical context and must never inherit the current run's status or trigger SSE reconnection. If current-run metadata has no usable status, the existing status endpoint may be used as a fallback after the essential requests; it must not delay display of completed history.
+Session metadata restores configuration but is not authoritative for deciding whether the returned event snapshot needs SSE completion. The events response carries that decision from the same trace snapshot used to select history events. A `run_id` URL parameter that differs from `metadata.current_run_id` is historical context and must never inherit the current run's status or trigger SSE reconnection.
 
-The frontend treats `queued`, `pending`, `starting`, `running`, `cancelling`, and `recovering` as nonterminal states. It reconnects SSE only for the session's actual `current_run_id`; terminal or historical runs do not reconnect.
+The events response identifies either a complete snapshot or an active-user-only snapshot with a `stream_run_id`. The frontend reconnects only when `stream_run_id` is present. This covers `queued`, `pending`, `starting`, `running`, `cancelling`, and `recovering` without racing a separate session/status response. A complete snapshot or historical URL run never reconnects.
 
 ### Cancellation and stale-result isolation
 
@@ -66,14 +66,31 @@ User-message deduplication remains based on persisted `message_id` and `run_id`;
 
 ### Active user event option
 
-Extend `GET /api/sessions/{session_id}/events` and `sessionApi.getEvents` with an additive boolean option such as `include_active_user_message`.
+Extend `GET /api/sessions/{session_id}/events` and `sessionApi.getEvents` with an additive boolean option such as `include_active_user_message`. When the option is enabled, the response also contains snapshot metadata:
+
+```json
+{
+  "events": [],
+  "history_mode": "complete",
+  "stream_run_id": null
+}
+```
+
+`history_mode` is `complete` or `active_user_only`. `stream_run_id` is present only for `active_user_only` and is the sole frontend authority for history-time SSE reconnection.
 
 When enabled and session metadata identifies a nonterminal current run, the response contains:
 
 - complete events for all other traces, and
 - only `user:message` events for the current active run.
 
-It excludes all other active-run events. If the active trace becomes terminal during the read, events are merged by trace/run and event sequence so the user message is present once and the complete terminal trace is not duplicated. The option defaults to false so existing API consumers retain current behavior.
+It excludes all other active-run events. Trace status observed by the same initial trace query that selects event mode determines the response contract:
+
+- A trace observed as terminal contributes its complete events and produces `history_mode: complete` with no stream run.
+- A trace observed as nonterminal contributes only its user event and produces `history_mode: active_user_only` with its run ID, even if session metadata concurrently becomes terminal. SSE replay is then required to deliver the remaining events and terminal marker.
+
+If a trace becomes terminal after the nonterminal snapshot is selected, the server must preserve a reliable replay path until the frontend receives the terminal event. Baseline timestamp deduplication makes replay of the already returned user event harmless. If a trace is already observed terminal, the full trace events are part of the stable reveal and no SSE dependency remains. These rules cover both transition orderings without losing the assistant response.
+
+Events are merged by trace/run and event sequence so the user message is present once and a terminal trace is not duplicated. The option defaults to false so existing API consumers retain their current response metadata and behavior.
 
 ### Batched full-history storage read
 
@@ -97,8 +114,8 @@ This replaces MongoDB round trips proportional to run count with a constant numb
 
 ## Verification
 
-Frontend tests cover immediate navigation, one load per selection, concurrent essential requests, nonblocking mark-read and feedback, abort propagation, stale-result isolation, one-shot complete-history commit, all nonterminal states, historical `run_id` isolation, absence of assistant-only placeholders, atomic SSE fallback insertion, user-message deduplication, and delayed feedback applying only to the active session.
+Frontend tests cover immediate navigation, one load per selection, concurrent essential requests, nonblocking mark-read and feedback, abort propagation, stale-result isolation, one-shot complete-history commit, snapshot-directed reconnect behavior, historical `run_id` isolation, absence of assistant-only placeholders, atomic SSE fallback insertion, user-message deduplication, and delayed feedback applying only to the active session.
 
-Backend tests cover the additive active-user option, one active user with no active assistant events, status-transition deduplication, batch query counts, chronological ordering, limits and filters, recommendation synthesis, and legacy/chunked/mixed compatibility.
+Backend tests cover the additive active-user option, one active user with no active assistant events, both active-to-terminal response orderings, replay-required snapshot metadata, complete terminal snapshots, status-transition deduplication, batch query counts, chronological ordering, limits and filters, recommendation synthesis, and legacy/chunked/mixed compatibility.
 
 Focused frontend tests run after each TDD cycle. Final verification includes the relevant backend suite, full frontend tests, frontend lint and build, then cross-stack checks appropriate to the touched API, storage, and UI paths.
