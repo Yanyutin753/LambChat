@@ -3209,6 +3209,14 @@
   min-height: 0;
 }
 
+.document-preview-toolbar > button,
+.document-preview-toolbar-actions > button {
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+}
+
 .tool-console-header-icon {
   border-radius: 0.5rem;
   background: color-mix(in srgb, var(--theme-primary-light) 68%, transparent);

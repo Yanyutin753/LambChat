@@ -83,7 +83,7 @@ test("toolbar icon button centralizes shared panel toolbar button behavior", () 
   expect(documentToolbar).not.toMatch(/const toolbarBtnClass/);
   expect(toolResultPanel).not.toMatch(/const panelBtnClass/);
   expect(toolResultPanel).not.toMatch(/const panelCloseBtnClass/);
-  expect(documentToolbar).toMatch(/gap-2 sm:gap-1 relative/);
+  expect(documentToolbar).toMatch(/gap-2\.5 sm:gap-1 relative/);
   expect(revealPreviewHost).toMatch(
     /headerActions=[\s\S]*?<ToolbarIconButton[\s\S]*?aria-pressed=/,
   );

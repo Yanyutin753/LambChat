@@ -116,7 +116,7 @@ export default function DocumentPreviewToolbar({
   return (
     <div
       ref={toolbarRef}
-      className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--theme-border)] overflow-hidden"
+      className="document-preview-toolbar flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--theme-border)] overflow-hidden [&_button>svg]:size-5 sm:[&_button>svg]:size-4"
     >
       {effectiveOnBack && (
         <ToolbarIconButton
@@ -150,7 +150,7 @@ export default function DocumentPreviewToolbar({
           </span>
         </div>
       </div>
-      <div className="ml-auto flex items-center gap-2 sm:gap-1 relative z-10 shrink-0">
+      <div className="document-preview-toolbar-actions ml-auto flex items-center gap-2.5 sm:gap-1 relative z-10 shrink-0">
         {markdownFile && data?.content && (
           <ToolbarIconButton
             onClick={() => {

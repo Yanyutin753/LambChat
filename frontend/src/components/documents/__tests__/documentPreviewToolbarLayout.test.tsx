@@ -6,7 +6,7 @@ import { vi } from "vitest";
 import DocumentPreviewToolbar from "../DocumentPreviewToolbar";
 import { getFileTypeInfo } from "../utils";
 
-test("document preview toolbar compresses file info before the action group", () => {
+test("document preview toolbar enlarges mobile actions beside compressible file info", () => {
   const fileName = "人工智能对大学生的影响（80页）.docx";
   const fileInfo = getFileTypeInfo(fileName);
   const props = {
@@ -48,10 +48,16 @@ test("document preview toolbar compresses file info before the action group", ()
   render(<DocumentPreviewToolbar {...props} />);
 
   const title = screen.getByTitle(fileName);
+  const toolbar = title.closest(".document-preview-toolbar");
   const fileInfoBlock = title.parentElement;
   const fileIcon = fileInfoBlock?.previousElementSibling;
   const actionGroup = fileInfoBlock?.nextElementSibling;
 
+  expect(toolbar).toBeInTheDocument();
+  expect(toolbar).toHaveClass(
+    "[&_button>svg]:size-5",
+    "sm:[&_button>svg]:size-4",
+  );
   expect(fileIcon).toHaveClass("size-8");
   expect(fileInfoBlock).toHaveClass(
     "flex-[0_1_clamp(7rem,28%,12rem)]",
@@ -59,5 +65,11 @@ test("document preview toolbar compresses file info before the action group", ()
     "overflow-hidden",
   );
   expect(fileInfoBlock).not.toHaveClass("flex-1");
-  expect(actionGroup).toHaveClass("ml-auto", "shrink-0");
+  expect(actionGroup).toHaveClass(
+    "document-preview-toolbar-actions",
+    "ml-auto",
+    "gap-2.5",
+    "sm:gap-1",
+    "shrink-0",
+  );
 });
