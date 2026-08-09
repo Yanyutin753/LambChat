@@ -55,6 +55,9 @@ test("toolbar icon button centralizes shared panel toolbar button behavior", () 
   const documentToolbar = readSource(
     "../../documents/DocumentPreviewToolbar.tsx",
   );
+  const revealPreviewHost = readSource(
+    "../../chat/ChatMessage/items/RevealPreviewHost.tsx",
+  );
   const toolResultPanel = readSource(
     "../../chat/ChatMessage/items/ToolResultPanel.tsx",
   );
@@ -80,6 +83,13 @@ test("toolbar icon button centralizes shared panel toolbar button behavior", () 
   expect(documentToolbar).not.toMatch(/const toolbarBtnClass/);
   expect(toolResultPanel).not.toMatch(/const panelBtnClass/);
   expect(toolResultPanel).not.toMatch(/const panelCloseBtnClass/);
+  expect(documentToolbar).toMatch(/gap-2 sm:gap-1 relative/);
+  expect(revealPreviewHost).toMatch(
+    /headerActions=[\s\S]*?<ToolbarIconButton[\s\S]*?aria-pressed=/,
+  );
+  expect(revealPreviewHost).not.toMatch(
+    /headerActions=[\s\S]*?w-8 h-8[\s\S]*?toggleExplorer/,
+  );
 });
 
 test("floating icon button centralizes fullscreen overlay icon actions", () => {

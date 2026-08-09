@@ -150,7 +150,7 @@ export default function DocumentPreviewToolbar({
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-px sm:gap-1 relative z-10 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-1 relative z-10 shrink-0">
         {markdownFile && data?.content && (
           <ToolbarIconButton
             onClick={() => {

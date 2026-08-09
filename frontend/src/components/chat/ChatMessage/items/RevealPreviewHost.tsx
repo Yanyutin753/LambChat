@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Code2, FolderTree } from "lucide-react";
-import clsx from "clsx";
 import { useTranslation } from "react-i18next";
-import { LoadingSpinner, ImageViewer } from "../../../common";
+import {
+  LoadingSpinner,
+  ImageViewer,
+  ToolbarIconButton,
+} from "../../../common";
 import { LazyDocumentPreview } from "../../../documents/LazyDocumentPreview";
 import { LazyProjectPreview } from "../../../documents/previews/LazyProjectPreview";
 import { ToolResultPanel } from "./ToolResultPanel";
@@ -312,18 +315,19 @@ function ProjectRevealPreviewPanel({
         headerActions={
           !isFolder ? (
             <div className="flex items-center gap-1 shrink-0">
-              <button
+              <ToolbarIconButton
+                variant="muted"
                 onClick={() => setShowExplorer(!showExplorer)}
-                className={clsx(
-                  "flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200 active:scale-95",
+                className={
                   showExplorer
-                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                    : "hover:bg-theme-bg-subtle text-theme-text-tertiary",
-                )}
+                    ? "!bg-[var(--theme-primary-light)] !text-[var(--theme-primary)]"
+                    : undefined
+                }
+                aria-pressed={showExplorer}
+                aria-label={t("project.toggleExplorer", "切换文件浏览器")}
                 title={t("project.toggleExplorer", "切换文件浏览器")}
-              >
-                <FolderTree size={18} />
-              </button>
+                icon={<FolderTree size={18} />}
+              />
             </div>
           ) : undefined
         }
