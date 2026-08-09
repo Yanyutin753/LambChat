@@ -36,7 +36,10 @@ import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
-import type { ChatInputSlashCommand } from "./chatInputSlashCommands";
+import {
+  getMatchingSlashDropdownItems,
+  type ChatInputSlashCommand,
+} from "./chatInputSlashCommands";
 import {
   consumePendingSelectionActionPrompt,
   SELECTION_ACTION_EVENT,
@@ -533,15 +536,15 @@ export const ChatInput = memo(function ChatInput({
         ? { enabledSkills: runEnabledSkillNames }
         : undefined;
       const prepared = prepareSubmit(trimmed, visibleAttachments);
+      if (trimmed) {
+        pushHistory(trimmed);
+      }
       onSend(
         prepared.message,
         agentOptionValues,
         prepared.attachments,
         runOptions,
       );
-      if (trimmed) {
-        pushHistory(trimmed);
-      }
       setInput("");
       inputValueRef.current = "";
       composerRef.current?.setPlainText("");
@@ -604,6 +607,13 @@ export const ChatInput = memo(function ChatInput({
         return true;
       }
 
+      if (
+        getMatchingSlashDropdownItems(input, cursorPosition, availableRunSkills)
+          .length > 0
+      ) {
+        return false;
+      }
+
       if (!isBrowsing && input.includes("\n")) {
         const boundary = getComposerCaretBoundary(editor);
         if (!(direction === "up" ? boundary.atStart : boundary.atEnd)) {
@@ -622,6 +632,8 @@ export const ChatInput = memo(function ChatInput({
     [
       input,
       isBrowsing,
+      cursorPosition,
+      availableRunSkills,
       mention.isActive,
       moveMentionHighlight,
       navigateDown,

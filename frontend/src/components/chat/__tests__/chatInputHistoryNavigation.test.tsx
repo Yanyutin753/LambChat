@@ -66,10 +66,12 @@ test("ArrowUp and ArrowDown browse input history and restore the draft", async (
   await waitFor(() => expect(editor).toHaveTextContent("draft"));
   editor.focus();
   moveCaretToEnd(editor);
-  editor.addEventListener("keydown", (event) => event.stopPropagation());
+  const lexicalKeyDown = vi.fn();
+  editor.addEventListener("keydown", lexicalKeyDown);
 
   fireLexicalArrow(editor, "ArrowUp");
   await waitFor(() => expect(editor).toHaveTextContent("second"));
+  expect(lexicalKeyDown).not.toHaveBeenCalled();
 
   fireLexicalArrow(editor, "ArrowUp");
   await waitFor(() => expect(editor).toHaveTextContent("first"));
@@ -82,9 +84,12 @@ test("ArrowUp and ArrowDown browse input history and restore the draft", async (
 });
 
 test("a sent message remains available after the chat input remounts", async () => {
+  const onSend = vi.fn(() => {
+    expect(localStorage.getItem("chatInputHistory")).toBe('["persisted"]');
+  });
   const first = render(
     <ChatInput
-      onSend={vi.fn()}
+      onSend={onSend}
       onStop={vi.fn()}
       isLoading={false}
       pendingInput="persisted"

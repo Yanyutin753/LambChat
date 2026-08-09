@@ -12,21 +12,21 @@ export function useInputHistory() {
       return [];
     }
   });
+  const historyRef = useRef(history);
   const historyIndexRef = useRef(-1);
   const draftRef = useRef("");
 
   const pushHistory = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
-    setHistory((prev) => {
-      const next = [...prev, trimmed].slice(-MAX_HISTORY);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* storage full or unavailable */
-      }
-      return next;
-    });
+    const next = [...historyRef.current, trimmed].slice(-MAX_HISTORY);
+    historyRef.current = next;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* storage full or unavailable */
+    }
+    setHistory(next);
     historyIndexRef.current = -1;
     draftRef.current = "";
   };
@@ -37,13 +37,17 @@ export function useInputHistory() {
   };
 
   const navigateUp = (currentInput: string) => {
-    if (history.length === 0) return null;
+    const currentHistory = historyRef.current;
+    if (currentHistory.length === 0) return null;
     if (historyIndexRef.current === -1) {
       draftRef.current = currentInput;
     }
-    const newIndex = Math.min(historyIndexRef.current + 1, history.length - 1);
+    const newIndex = Math.min(
+      historyIndexRef.current + 1,
+      currentHistory.length - 1,
+    );
     historyIndexRef.current = newIndex;
-    return history[history.length - 1 - newIndex];
+    return currentHistory[currentHistory.length - 1 - newIndex];
   };
 
   const navigateDown = () => {
@@ -54,7 +58,8 @@ export function useInputHistory() {
       return draftRef.current;
     }
     historyIndexRef.current = newIndex;
-    return history[history.length - 1 - newIndex];
+    const currentHistory = historyRef.current;
+    return currentHistory[currentHistory.length - 1 - newIndex];
   };
 
   const isBrowsing = historyIndexRef.current !== -1;

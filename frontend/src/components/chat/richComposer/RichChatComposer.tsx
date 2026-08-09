@@ -117,6 +117,21 @@ export const RichChatComposer = forwardRef<
     },
     [onChange],
   );
+  const handleKeyDownCapture = useCallback<
+    React.KeyboardEventHandler<HTMLDivElement>
+  >(
+    (event) => {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      const direction = event.key === "ArrowUp" ? "up" : "down";
+      if (!onArrowKey?.(direction, event.currentTarget)) return;
+
+      // React capture runs before Lexical's native root listener. Consuming a
+      // history key here keeps browser/editor selection handling from winning.
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [onArrowKey],
+  );
 
   const initialConfig: InitialConfigType = {
     namespace: "LambChatRichComposer",
@@ -153,6 +168,7 @@ export const RichChatComposer = forwardRef<
               aria-label={ariaLabel}
               aria-disabled={disabled}
               spellCheck
+              onKeyDownCapture={handleKeyDownCapture}
               onKeyDown={onKeyDown}
             />
           }

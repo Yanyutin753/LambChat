@@ -58,16 +58,14 @@ export function stripLocalAttachmentFields(
 ): MessageAttachment[] | undefined {
   if (!attachments) return attachments;
   return attachments.map((attachment) => {
-    const {
-      localOriginalText: _localOriginalText,
-      fromLongText: _fromLongText,
-      uploadProgress: _uploadProgress,
-      isUploading: _isUploading,
-      composerReferenceId: _composerReferenceId,
-      uploadError: _uploadError,
-      ...rest
-    } = attachment;
-    return rest;
+    const cleaned = { ...attachment };
+    delete cleaned.localOriginalText;
+    delete cleaned.fromLongText;
+    delete cleaned.uploadProgress;
+    delete cleaned.isUploading;
+    delete cleaned.composerReferenceId;
+    delete cleaned.uploadError;
+    return cleaned;
   });
 }
 
