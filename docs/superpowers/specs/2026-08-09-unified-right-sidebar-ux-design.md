@@ -34,9 +34,10 @@ Mobile panels mix bottom sheets and full-screen surfaces even when the tasks hav
 similar depth. Focus restoration, dialog semantics, touch target sizes, keyboard
 resizing, and reduced-motion behavior are not consistently defined.
 
-Only a running subagent currently auto-opens a content panel. Its suppression
-logic knows about other content panels but not about open editor panels, so it
-can still interrupt deliberate work in the other panel family.
+Running subagents and completed file/project reveal events can auto-open content
+panels. Their suppression rules live in separate stores and do not share a view
+of editor panels or of each other, so automatic events can still interrupt
+deliberate work or compete for the same right-side space.
 
 ## Considered Approaches
 
@@ -84,7 +85,8 @@ The coordinator exposes narrow operations rather than panel-specific content:
 - determine whether an owner is active;
 - determine whether a previous entry exists;
 - close the active entry;
-- report whether any deliberate panel is already open.
+- report whether any panel is already open and whether it was opened
+  deliberately.
 
 `EditorSidebar` and `ToolResultPanel` consume these operations internally, so
 their existing call sites receive the behavior without duplicating coordination
@@ -146,22 +148,25 @@ left navigation state.
 - Route or parent-state changes may unmount stale entries; the next valid entry
   then becomes active automatically.
 
-### Automatic subagent opening
+### Automatic opening
 
-Automatic opening remains available as a convenience, but follows an
-interruptibility policy:
+Automatic opening remains available for running subagents and newly completed
+file/project reveals, but all three paths follow one interruptibility policy:
 
-- desktop only;
-- running subagents only;
-- at most once for each subagent run;
-- only when no deliberate right panel is open;
+- docked wide screens only;
+- only eligible running-subagent or successful file/project completion events;
+- at most once for each logical subagent or preview key;
+- only when the entire right-panel lane is empty;
 - never replaces or covers a panel the user selected;
-- closing an auto-opened panel suppresses reopening for that run;
+- closing an auto-opened panel suppresses reopening for that logical key;
 - manual opening remains available after suppression;
+- interacting with an automatic preview promotes it to deliberate state;
 - automatic opening does not steal keyboard focus.
 
-Suppression and the once-per-run marker are keyed by the subagent panel key, not
-one global boolean shared by unrelated runs.
+Suppression and once-only markers remain keyed by their subagent or preview key,
+not one global boolean shared by unrelated runs. A deliberate panel opening
+while an automatic panel is visible closes the automatic entry instead of
+leaving it in Back history.
 
 ### Header and actions
 
@@ -262,9 +267,10 @@ Use TDD for each behavior group.
 
 ### Auto-open tests
 
-- one running subagent auto-opens once on desktop when the lane is empty;
-- mobile, completed, failed, previously opened, dismissed, and occupied-lane
-  cases do not auto-open;
+- one running subagent and one eligible file/project completion auto-open once
+  on a docked wide screen when the lane is empty;
+- overlay/full-screen, completed or failed subagent, ineligible reveal,
+  previously opened, dismissed, and occupied-lane cases do not auto-open;
 - manual opening still works after automatic suppression;
 - an open editor counts as an occupied deliberate lane.
 
