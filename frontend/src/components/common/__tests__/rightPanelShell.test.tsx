@@ -1,13 +1,14 @@
 /** @vitest-environment jsdom */
 
 import { useState, type ReactNode } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { resetRightPanelCoordinator } from "../rightPanelCoordinator";
 import { useRightPanelEntry } from "../useRightPanelEntry";
 import { useSidebarPanel } from "../../../hooks/useSidebarPanel";
+import { EditorSidebar } from "../EditorSidebar";
 
 function installMatchMedia(width: number): void {
   Object.defineProperty(window, "innerWidth", {
@@ -186,4 +187,78 @@ test("clamps an unsafe stored width and supports accessible keyboard resizing", 
   fireEvent.keyDown(separator, { key: "Home" });
   expect(screen.getByTestId("panel")).toHaveAttribute("data-width", "48");
   expect(localStorage.getItem("test-right-panel-width")).toBe("48");
+});
+
+test("editor uses complementary semantics when docked", () => {
+  render(
+    <EditorSidebar open onClose={vi.fn()} title="Model editor">
+      body
+    </EditorSidebar>,
+  );
+
+  expect(
+    screen.getByRole("complementary", { name: "Model editor" }),
+  ).toHaveAttribute("data-panel-presentation", "docked");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("editor close is labelled and resize rail is keyboard accessible", () => {
+  render(
+    <EditorSidebar open onClose={vi.fn()} title="Model editor">
+      body
+    </EditorSidebar>,
+  );
+
+  expect(screen.getByRole("button", { name: /close/i })).toBeVisible();
+  expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow");
+});
+
+test("editor uses modal dialog semantics in overlay and fullscreen modes", () => {
+  installMatchMedia(1024);
+  const view = render(
+    <EditorSidebar open onClose={vi.fn()} title="Overlay editor">
+      body
+    </EditorSidebar>,
+  );
+  expect(
+    screen.getByRole("dialog", { name: "Overlay editor" }),
+  ).toHaveAttribute("aria-modal", "true");
+
+  view.unmount();
+  installMatchMedia(390);
+  render(
+    <EditorSidebar open onClose={vi.fn()} title="Mobile editor">
+      body
+    </EditorSidebar>,
+  );
+  expect(screen.getByRole("dialog", { name: "Mobile editor" })).toHaveAttribute(
+    "data-panel-presentation",
+    "fullscreen",
+  );
+});
+
+test("manual close restores focus to the opening trigger", async () => {
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button onClick={() => setOpen(true)}>Open editor</button>
+        <EditorSidebar
+          open={open}
+          onClose={() => setOpen(false)}
+          title="Editor"
+        >
+          body
+        </EditorSidebar>
+      </>
+    );
+  }
+
+  const user = userEvent.setup();
+  render(<Harness />);
+  const trigger = screen.getByRole("button", { name: "Open editor" });
+  await user.click(trigger);
+  await user.click(screen.getByRole("button", { name: /close/i }));
+
+  await waitFor(() => expect(trigger).toHaveFocus());
 });
