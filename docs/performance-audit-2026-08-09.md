@@ -103,6 +103,19 @@ The post-integration frontend artifact budgets remain green at 471,475 eager gzi
 
 The integrated backend run used 47.61 seconds wall time and 838,488 KiB peak RSS. Compared with baseline, those host-level measurements are effectively unchanged and are treated as trend data; the deterministic improvement is the constant database query count.
 
+### Local-reference upload fallback after optimization
+
+| Metric/invariant | Result |
+| --- | --- |
+| Upload scheduling | Fixed-size worker pool with at most 4 concurrent uploads |
+| Outer resource bound | Existing cap of 20 unique local references remains in force |
+| Ordering | Indexed results preserve first-seen reference order even when uploads overlap |
+| Failure isolation | A failed resource remains unchanged while successful resources are still rewritten |
+| Focused verification | 17 reveal-file fallback tests passed, including overlap and concurrency-bound proof |
+| Integrated backend verification | Ruff and Mypy passed; 2,408 tests passed and 1 skipped in 37.90 seconds |
+
+The final backend run used 45.66 seconds wall time and 838,824 KiB peak RSS. The deterministic regression test proves two uploads overlap while never exceeding the configured worker count; no production storage latency claim is inferred from fixture timing.
+
 ### Other surfaces
 
 | Metric | Baseline |
@@ -124,7 +137,7 @@ The integrated backend run used 47.61 seconds wall time and 838,488 KiB peak RSS
 | F-004 | Frontend quality signal | ESLint emits four existing unused-variable warnings while returning success | No measured runtime cost; warning noise can hide future findings | deferred | Not performance-significant and outside this optimization scope |
 | B-001 | Session history reads | Baseline history assembly performed per-trace compatibility reads; summary fallback also called `get_first_trace_event` inside its loop | Trace/chunk query count could grow with returned runs | optimized | Batched compatibility read uses one trace query and one chunk query; race-safe snapshot and 45 focused tests pass |
 | B-002 | Team persona hydration | Display hydration previously awaited persona `get_by_id` inside nested team/member loops | Database query count and latency grew with returned member count | optimized | One bounded `get_by_ids` call hydrates the complete list; ordering, deduplication, fallback, and 4,000-ID bound tests pass; runtime validation remains intentionally separate |
-| B-003 | Local-reference upload fallback | `_resolve_local_references` awaits upload work sequentially for each bounded local reference | Independent backend/storage I/O can add linearly to reveal-file latency | optimized | Qualifies for a scoped phase-5 TDD addendum; upload limit provides a concurrency bound |
+| B-003 | Local-reference upload fallback | `_resolve_local_references` awaited upload work sequentially for each bounded local reference | Independent backend/storage I/O added linearly to reveal-file latency | optimized | Four-worker indexed pool preserves the 20-reference cap, stable replacement order, and per-resource failure isolation; overlap/bound regression passes |
 | B-004 | Ruff comprehension suggestions | 31 `PERF` findings are local loop/comprehension rewrites without profiling evidence | Likely negligible compared with I/O and may reduce readability for async cursors | deferred | Full static scan recorded; evidence gate rejects speculative mechanical rewrites |
 | B-005 | Ruff timeout-name rule | 17 `ASYNC109` findings are API parameters named `timeout` | Naming does not itself create a performance defect | false positive | Call sites use explicit timeout machinery; no blocking operation is implied by the parameter name |
 | B-006 | Feishu WebSocket wait loop | Ruff reports `ASYNC110` for one-second sleep polling while the connection is active | Shutdown can wait up to one second, but the sleep yields and does not consume CPU | deferred | Existing behavior is bounded and non-busy; no user-visible latency reproduction |
