@@ -29,20 +29,43 @@ import asyncio
 from typing import Any, Dict, List, Optional
 
 from src.infra.logging import get_logger
+from src.infra.session._trace_storage_support import (
+    _RECOMMEND_QUESTIONS_LIMIT as _RECOMMEND_QUESTIONS_LIMIT,
+)
+from src.infra.session._trace_storage_support import (
+    TRACE_EVENTS_DEFAULT_LIMIT as TRACE_EVENTS_DEFAULT_LIMIT,
+)
+from src.infra.session._trace_storage_support import (
+    TRACE_EVENTS_READ_LIMIT as TRACE_EVENTS_READ_LIMIT,
+)
+from src.infra.session._trace_storage_support import (
+    TRACE_LIST_LIMIT,
+    _bounded_unique_strings,
+    _clamp_event_read_limit,
+    _clamp_nonnegative_int,
+    _clamp_positive_int,
+    _event_seq,
+    _get_session_event_read_default_limit,
+    _normalize_recommend_questions,
+)
+from src.infra.session._trace_storage_support import (
+    _event_chunk_index as _event_chunk_index,
+)
+from src.infra.session._trace_storage_support import (
+    _event_preview as _event_preview,
+)
+from src.infra.session._trace_storage_support import (
+    _get_event_chunk_size as _get_event_chunk_size,
+)
 from src.infra.session.trace_event_chunks import TraceEventChunkMixin
+from src.infra.session.trace_storage_writes import TraceStorageWriteMixin
 from src.infra.storage.mongodb import get_mongo_client
-from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
 _SESSION_EVENTS_BATCH_SIZE = 200
 SESSION_EVENT_FILTER_LIST_LIMIT = 100
-TRACE_EVENTS_DEFAULT_LIMIT = 1000
-TRACE_EVENTS_READ_LIMIT = 5000
-TRACE_LIST_LIMIT = 100
-_USAGE_LOGS_ENABLED = True  # 是否在 trace 完成时写入 usage_logs 集合
-_RECOMMEND_QUESTIONS_LIMIT = 3
 
 
 async def _write_usage_log(trace_id: str) -> None:
@@ -72,106 +95,7 @@ async def _write_usage_log(trace_id: str) -> None:
         logger.warning(f"Failed to write usage log for trace {trace_id}: {e}")
 
 
-def _get_session_event_read_default_limit() -> int:
-    configured = max(int(getattr(settings, "SESSION_EVENT_READ_DEFAULT_LIMIT", 1000) or 0), 1)
-    return min(configured, TRACE_EVENTS_READ_LIMIT)
-
-
-def _clamp_positive_int(value: int | None, *, default: int, maximum: int) -> int:
-    try:
-        candidate = int(value if value is not None else default)
-    except (TypeError, ValueError):
-        candidate = default
-    return min(max(candidate, 1), maximum)
-
-
-def _clamp_event_read_limit(value: int | None, *, default: int) -> int:
-    try:
-        candidate = int(value if value is not None else default)
-    except (TypeError, ValueError):
-        candidate = default
-    if candidate <= 0:
-        return 0
-    return min(candidate, TRACE_EVENTS_READ_LIMIT)
-
-
-def _clamp_nonnegative_int(value: int | None) -> int:
-    try:
-        return max(int(value or 0), 0)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _get_event_chunk_size() -> int:
-    try:
-        return max(int(getattr(settings, "SESSION_EVENT_CHUNK_SIZE", 5000) or 0), 1)
-    except (TypeError, ValueError):
-        return 5000
-
-
-def _event_chunk_index(seq: int) -> int:
-    return (max(int(seq), 1) - 1) // _get_event_chunk_size()
-
-
-def _event_preview(event: Dict[str, Any] | None) -> Dict[str, Any] | None:
-    if not event:
-        return None
-    preview = {
-        "event_type": event.get("event_type"),
-        "data": event.get("data", {}),
-        "timestamp": event.get("timestamp"),
-    }
-    if "seq" in event:
-        preview["seq"] = event.get("seq")
-    return preview
-
-
-def _event_seq(event: Dict[str, Any], fallback: int) -> int:
-    try:
-        return int(event.get("seq", fallback))
-    except (TypeError, ValueError):
-        return fallback
-
-
-def _bounded_unique_strings(
-    values: Optional[List[str]],
-    limit: int = SESSION_EVENT_FILTER_LIST_LIMIT,
-) -> List[str]:
-    if not values:
-        return []
-    bounded: List[str] = []
-    seen = set()
-    for value in values:
-        if not isinstance(value, str) or not value or value in seen:
-            continue
-        seen.add(value)
-        bounded.append(value)
-        if len(bounded) >= limit:
-            break
-    return bounded
-
-
-def _normalize_recommend_questions(value: Any) -> List[str]:
-    """Normalize current and defensive legacy run-field shapes."""
-    if isinstance(value, dict):
-        value = value.get("questions")
-    if not isinstance(value, (list, tuple)):
-        return []
-
-    questions: List[str] = []
-    for item in value:
-        if not isinstance(item, str):
-            continue
-        question = item.strip()
-        if not question:
-            continue
-        questions.append(question)
-        if len(questions) >= _RECOMMEND_QUESTIONS_LIMIT:
-            break
-    return questions
-
-
-class TraceStorage(TraceEventChunkMixin):
+class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
     """
     Trace 存储类
 
@@ -298,282 +222,6 @@ class TraceStorage(TraceEventChunkMixin):
                 logger.info("EventMerger started successfully")
             except Exception as e:
                 logger.warning(f"Failed to start EventMerger: {e}")
-
-    async def create_trace(
-        self,
-        trace_id: str,
-        session_id: str,
-        agent_id: Optional[str] = None,
-        run_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
-        """
-        创建 trace 文档（幂等：若已存在则跳过）
-
-        Args:
-            trace_id: 唯一 trace 标识
-            session_id: 会话 ID
-            agent_id: Agent ID
-            run_id: 运行 ID
-            user_id: 用户 ID
-            metadata: 额外元数据
-
-        Returns:
-            是否创建成功（已存在也返回 True）
-        """
-        from pymongo.errors import DuplicateKeyError
-
-        await self.ensure_indexes_if_needed()
-        now = utc_now()
-        doc: Dict[str, Any] = {
-            "trace_id": trace_id,
-            "session_id": session_id,
-            "agent_id": agent_id,
-            "run_id": run_id,
-            "user_id": user_id,
-            "events": [],
-            "event_count": 0,
-            "started_at": now,
-            "updated_at": now,
-            "status": "running",
-            "metadata": metadata or {},
-        }
-
-        try:
-            result = await self.collection.insert_one(doc)
-            logger.info(
-                f"Created trace {trace_id} for session {session_id}, inserted_id={result.inserted_id}"
-            )
-            return True
-        except DuplicateKeyError:
-            # Trace already exists (e.g., queued path created it before dequeue)
-            logger.debug("Trace %s already exists, skipping", trace_id)
-            return True
-        except Exception as e:
-            logger.error(f"Failed to create trace {trace_id}: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return False
-
-    async def append_event(
-        self,
-        trace_id: str,
-        event_type: str,
-        data: Dict[str, Any],
-    ) -> bool:
-        """
-        追加事件到 trace
-
-        使用 $push 和 $inc 原子操作，保证一致性。
-
-        Args:
-            trace_id: Trace ID
-            event_type: 事件类型
-            data: 事件数据
-
-        Returns:
-            是否追加成功
-        """
-        try:
-            result = await self.collection.update_one(
-                {"trace_id": trace_id},
-                {
-                    "$push": {
-                        "events": {
-                            "event_type": event_type,
-                            "data": data,
-                            "timestamp": utc_now(),
-                        }
-                    },
-                    "$inc": {"event_count": 1},
-                    "$set": {"updated_at": utc_now()},
-                },
-            )
-            if result.modified_count == 0:
-                logger.warning(f"append_event: trace {trace_id} not found or not modified")
-            return result.modified_count > 0
-        except Exception as e:
-            logger.error(f"Failed to append event to trace {trace_id}: {e}")
-            return False
-
-    async def set_run_recommend_questions(
-        self,
-        session_id: str,
-        run_id: str,
-        questions: List[str],
-    ) -> bool:
-        """Persist bounded recommendations on the trace identified by a run."""
-        normalized = _normalize_recommend_questions(questions)
-        if not session_id or not run_id or not normalized:
-            return False
-
-        try:
-            await self.ensure_indexes_if_needed()
-            now = utc_now()
-            result = await self.collection.update_one(
-                {"session_id": session_id, "run_id": run_id},
-                {
-                    "$set": {
-                        "recommend_questions": normalized,
-                        "recommend_questions_updated_at": now,
-                        "updated_at": now,
-                    }
-                },
-            )
-            if result.modified_count == 0:
-                logger.warning(
-                    "Recommendation trace not found or unchanged: session=%s, run_id=%s",
-                    session_id,
-                    run_id,
-                )
-            return result.modified_count > 0
-        except Exception as e:
-            logger.warning(
-                "Failed to persist recommendations: session=%s, run_id=%s, error=%s",
-                session_id,
-                run_id,
-                e,
-            )
-            return False
-
-    async def _ensure_token_usage_event(self, trace_id: str) -> None:
-        """Insert a zero token usage event before done when a trace has no usage event yet."""
-        now = utc_now()
-        usage_event = {
-            "event_type": "token:usage",
-            "data": {
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "total_tokens": 0,
-                "duration": 0.0,
-                "timestamp": utc_now_iso(),
-            },
-            "timestamp": now,
-        }
-        try:
-            if await self._has_event_chunks(trace_id):
-                events = await self.read_trace_events_compat(trace_id)
-                if any(event.get("event_type") == "token:usage" for event in events):
-                    return
-                done_index = next(
-                    (
-                        index
-                        for index, event in enumerate(events)
-                        if event.get("event_type") == "done"
-                    ),
-                    -1,
-                )
-                next_events = list(events)
-                if done_index >= 0:
-                    next_events.insert(done_index, usage_event)
-                else:
-                    next_events.append(usage_event)
-                trace_doc = await self.collection.find_one(
-                    {"trace_id": trace_id},
-                    {"_id": 0, "events": 0},
-                )
-                if trace_doc:
-                    await self.replace_trace_events_with_chunks(trace_doc, next_events)
-                return
-
-            await self.collection.update_one(
-                {
-                    "trace_id": trace_id,
-                    "events.event_type": {"$ne": "token:usage"},
-                },
-                [
-                    {
-                        "$set": {
-                            "events": {
-                                "$let": {
-                                    "vars": {
-                                        "done_index": {
-                                            "$indexOfArray": ["$events.event_type", "done"]
-                                        }
-                                    },
-                                    "in": {
-                                        "$cond": [
-                                            {"$gte": ["$$done_index", 0]},
-                                            {
-                                                "$concatArrays": [
-                                                    {"$slice": ["$events", 0, "$$done_index"]},
-                                                    [usage_event],
-                                                    {
-                                                        "$slice": [
-                                                            "$events",
-                                                            "$$done_index",
-                                                            {
-                                                                "$subtract": [
-                                                                    {"$size": "$events"},
-                                                                    "$$done_index",
-                                                                ]
-                                                            },
-                                                        ]
-                                                    },
-                                                ]
-                                            },
-                                            {"$concatArrays": ["$events", [usage_event]]},
-                                        ]
-                                    },
-                                }
-                            },
-                            "event_count": {"$add": [{"$ifNull": ["$event_count", 0]}, 1]},
-                            "updated_at": now,
-                        }
-                    }
-                ],
-            )
-        except Exception as e:
-            logger.warning("Failed to ensure token usage event for trace %s: %s", trace_id, e)
-
-    async def complete_trace(
-        self,
-        trace_id: str,
-        status: str = "completed",
-        metadata: Optional[Dict[str, Any]] = None,
-        ensure_token_usage: bool = True,
-    ) -> bool:
-        """
-        标记 trace 完成
-
-        Args:
-            trace_id: Trace ID
-            status: 最终状态 (completed/error)
-            metadata: 额外元数据
-
-        Returns:
-            是否更新成功
-        """
-        update = {
-            "$set": {
-                "status": status,
-                "completed_at": utc_now(),
-                "updated_at": utc_now(),
-            }
-        }
-        if metadata:
-            for key, value in metadata.items():
-                update["$set"][f"metadata.{key}"] = value
-
-        try:
-            await self.ensure_indexes_if_needed()
-            if ensure_token_usage:
-                await self._ensure_token_usage_event(trace_id)
-            result = await self.collection.update_one(
-                {"trace_id": trace_id},
-                update,
-            )
-            # 异步写入 usage_logs 集合（fire-and-forget，失败不影响主流程）
-            if _USAGE_LOGS_ENABLED and result.modified_count > 0:
-                asyncio.create_task(_write_usage_log(trace_id))
-            if result.modified_count > 0 and self._merger is not None:
-                self._merger.schedule_merge_once()
-            return result.modified_count > 0
-        except Exception as e:
-            logger.error(f"Failed to complete trace {trace_id}: {e}")
-            return False
 
     async def get_trace(
         self,
