@@ -5,7 +5,7 @@ import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import React, { memo, useState } from "react";
-import { Copy, Check, Download, Table2 } from "lucide-react";
+import { Copy, Check, Download, Table2, Code2, X, Minus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { getFullUrl } from "../../../services/api/config";
@@ -36,6 +36,30 @@ function extractNodeText(node: React.ReactNode): string {
   }
 
   return "";
+}
+
+type ComparisonCellState = "included" | "excluded" | "neutral";
+
+function getComparisonCellState(value: string): ComparisonCellState | null {
+  const normalized = value.trim().toLocaleLowerCase();
+
+  if (
+    ["✓", "✔", "yes", "true", "included", "支持", "包含"].includes(normalized)
+  ) {
+    return "included";
+  }
+  if (
+    ["✗", "✕", "×", "no", "false", "not included", "不支持", "不包含"].includes(
+      normalized,
+    )
+  ) {
+    return "excluded";
+  }
+  if (["—", "–", "-", "n/a", "na"].includes(normalized)) {
+    return "neutral";
+  }
+
+  return null;
 }
 
 function getHeadingAnchorId({
@@ -108,12 +132,20 @@ function CodeBlock({
   }
 
   return (
-    <div className="group relative my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700">
+    <div
+      className="ai-code-block group relative my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700"
+      data-streaming={isStreaming || undefined}
+    >
       {/* Header bar - always visible on touch, hover on desktop */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-stone-200/70 dark:bg-stone-800/50">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="ai-code-block__header flex items-center justify-between px-3 sm:px-4 py-2 bg-stone-200/70 dark:bg-stone-800/50">
+        <div className="ai-code-block__file flex items-center gap-2 min-w-0">
+          <Code2
+            size={14}
+            className="ai-code-block__icon shrink-0"
+            aria-hidden="true"
+          />
           {/* Language label */}
-          <span className="text-xs font-medium text-stone-500 dark:text-stone-400 truncate">
+          <span className="ai-code-block__language text-xs font-medium text-stone-500 dark:text-stone-400 truncate">
             {language || "text"}
           </span>
         </div>
@@ -121,12 +153,15 @@ function CodeBlock({
         <button
           onClick={handleCopy}
           className={clsx(
-            "flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all touch-manipulation",
+            "ai-code-block__copy flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all touch-manipulation",
             "min-h-[32px] min-w-[32px]",
             copied
               ? "text-green-600 dark:text-green-400"
               : "text-stone-500 hover:text-stone-700 hover:bg-stone-300/50 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/50",
           )}
+          aria-label={
+            copied ? t("chat.message.copied") : t("chat.message.copyCode")
+          }
           title={copied ? t("chat.message.copied") : t("chat.message.copyCode")}
         >
           {copied ? (
@@ -146,7 +181,7 @@ function CodeBlock({
       </div>
 
       {/* Code content */}
-      <div className="bg-white dark:bg-[#282c34] [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden rounded-b-xl">
+      <div className="ai-code-block__body bg-white dark:bg-[#282c34] [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden rounded-b-xl">
         <DeferredCodeMirrorViewer
           value={codeString}
           language={language || undefined}
@@ -222,28 +257,29 @@ function TableBlock({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="group/table my-3 rounded-lg shadow ring-1 ring-stone-200 dark:ring-stone-700 overflow-hidden">
+    <div className="ai-data-table group/table my-3 overflow-hidden">
       {/* Toolbar */}
       <div
         className={clsx(
-          "flex items-center justify-between px-2 py-2",
-          "border-b border-stone-200/60 dark:border-stone-700/60",
-          "bg-stone-50/80 dark:bg-stone-800/60",
+          "ai-data-table__toolbar flex items-center justify-between px-2.5 py-2",
         )}
       >
-        <span className="flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-stone-500 dark:text-stone-400 select-none">
-          <Table2 size={12} />
+        <span className="ai-data-table__title flex items-center gap-1.5 text-[11px] sm:text-xs font-medium select-none">
+          <Table2 size={12} aria-hidden="true" />
           {t("chat.message.table", "Table")}
         </span>
-        <div className="flex items-center gap-0.5">
+        <div className="ai-data-table__actions flex items-center gap-0.5">
           <button
             onClick={handleCopy}
             className={clsx(
-              "flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] sm:text-xs font-medium transition-colors",
+              "ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] sm:text-xs font-medium transition-colors",
               copied
-                ? "text-green-600 dark:text-green-400"
-                : "text-stone-500 hover:text-stone-700 hover:bg-stone-200/60 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/50",
+                ? "ai-data-table__action--copied"
+                : "text-stone-500 dark:text-stone-400",
             )}
+            aria-label={
+              copied ? t("chat.message.copied") : t("chat.message.copy")
+            }
             title={copied ? t("chat.message.copied") : t("chat.message.copy")}
           >
             {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -251,7 +287,8 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           </button>
           <button
             onClick={handleExport}
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] sm:text-xs font-medium text-stone-500 hover:text-stone-700 hover:bg-stone-200/60 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/50 transition-colors"
+            className="ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] sm:text-xs font-medium text-stone-500 dark:text-stone-400 transition-colors"
+            aria-label={t("chat.message.exportCsv", "Export CSV")}
             title={t("chat.message.exportCsv", "Export CSV")}
           >
             <Download size={12} />
@@ -260,11 +297,8 @@ function TableBlock({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       {/* Scrollable table area */}
-      <div className="overflow-x-auto">
-        <table
-          ref={tableRef}
-          className="min-w-full divide-y divide-stone-200 dark:divide-stone-700"
-        >
+      <div className="ai-data-table__scroll overflow-x-auto">
+        <table ref={tableRef} className="ai-data-table__table min-w-full">
           {children}
         </table>
       </div>
@@ -286,7 +320,11 @@ export const MarkdownContent = memo(function MarkdownContent({
   const sessionImageGallery = useSessionImageGallery();
 
   return (
-    <span className="markdown-preview block my-1 pl-0.5">
+    <span
+      className="ai-streaming-text markdown-preview block my-1 pl-0.5"
+      data-streaming={isStreaming || undefined}
+      aria-busy={isStreaming || undefined}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
         rehypePlugins={[rehypeKatex]}
@@ -486,28 +524,47 @@ export const MarkdownContent = memo(function MarkdownContent({
           // Tables with copy & export toolbar
           table: ({ children }) => <TableBlock>{children}</TableBlock>,
           thead: ({ children }) => (
-            <thead className="bg-stone-50 dark:bg-stone-800">{children}</thead>
+            <thead className="ai-data-table__head">{children}</thead>
           ),
           tbody: ({ children }) => (
-            <tbody className="divide-y divide-stone-200 dark:divide-stone-700 bg-white dark:bg-stone-900">
-              {children}
-            </tbody>
+            <tbody className="ai-data-table__body">{children}</tbody>
           ),
           tr: ({ children }) => (
-            <tr className="hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors">
-              {children}
-            </tr>
+            <tr className="ai-data-table__row">{children}</tr>
           ),
           th: ({ children }) => (
-            <th className="px-2 sm:px-3 py-1.5 sm:py-2 text-left text-[11px] sm:text-xs font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider whitespace-nowrap min-w-[40px]">
-              {children}
-            </th>
+            <th className="ai-data-table__header-cell">{children}</th>
           ),
-          td: ({ children }) => (
-            <td className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-stone-600 dark:text-stone-400 break-words min-w-[60px]">
-              {children}
-            </td>
-          ),
+          td: ({ children }) => {
+            const cellText = extractNodeText(children).trim();
+            const comparisonState = getComparisonCellState(cellText);
+            const ComparisonIcon =
+              comparisonState === "included"
+                ? Check
+                : comparisonState === "excluded"
+                  ? X
+                  : Minus;
+
+            return (
+              <td
+                className="ai-data-table__cell"
+                data-comparison-state={comparisonState || undefined}
+              >
+                {comparisonState ? (
+                  <span className="ai-comparison-value">
+                    <ComparisonIcon
+                      size={13}
+                      strokeWidth={2.25}
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">{cellText}</span>
+                  </span>
+                ) : (
+                  children
+                )}
+              </td>
+            );
+          },
           // Images — click to preview with ImageViewer
           img: ({ src, alt }) => {
             const resolvedSrc = getFullUrl(src);

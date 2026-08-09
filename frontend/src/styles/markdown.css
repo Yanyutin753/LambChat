@@ -72,6 +72,248 @@
   background: rgba(96, 165, 250, 0.46);
 }
 
+/* Markdown code blocks — quiet, tool-like frame scoped to rendered code */
+.ai-code-block {
+  border-color: color-mix(in srgb, var(--theme-text) 10%, var(--theme-border));
+  background: var(--theme-bg-card);
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--theme-text) 3%, transparent),
+    0 6px 18px -18px color-mix(in srgb, var(--theme-text) 24%, transparent);
+}
+
+.ai-code-block__header {
+  min-height: 2.5rem;
+  border-bottom: 1px solid var(--theme-border);
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-subtle) 72%,
+    transparent
+  ) !important;
+}
+
+.ai-code-block__file {
+  color: var(--theme-text-tertiary);
+}
+
+.ai-code-block__icon {
+  color: color-mix(in srgb, var(--theme-primary) 68%, var(--theme-text));
+}
+
+.ai-code-block__language {
+  color: var(--theme-text-secondary) !important;
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", Monaco, monospace;
+  letter-spacing: 0.01em;
+}
+
+.ai-code-block__copy {
+  color: var(--theme-text-tertiary);
+}
+
+.ai-code-block__copy:hover {
+  color: var(--theme-text);
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+}
+
+.ai-code-block__copy:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--theme-primary) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.ai-code-block__body {
+  background: color-mix(
+    in srgb,
+    var(--theme-bg) 88%,
+    var(--theme-bg-card)
+  ) !important;
+}
+
+.dark .ai-code-block__body {
+  background: color-mix(in srgb, #111827 72%, var(--theme-bg-card)) !important;
+}
+
+/* Streaming prose — use the server stream as the typewriter, add only a caret. */
+.ai-streaming-text[data-streaming="true"] > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1.05em;
+  margin-inline-start: 0.18em;
+  border-radius: 1px;
+  background: currentColor;
+  vertical-align: -0.16em;
+  animation: ai-streaming-caret-blink 0.9s step-end infinite;
+}
+
+@keyframes ai-streaming-caret-blink {
+  0%,
+  46% {
+    opacity: 1;
+  }
+  47%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Markdown data tables — semantic table markup with an AIcss-inspired frame. */
+.ai-data-table {
+  border: 1px solid var(--theme-border);
+  border-radius: 0.75rem;
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-subtle) 74%,
+    var(--theme-bg-card)
+  );
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--theme-text) 3%, transparent),
+    0 8px 24px -24px color-mix(in srgb, var(--theme-text) 24%, transparent);
+}
+
+.ai-data-table__toolbar {
+  min-height: 2.5rem;
+  border-block-end: 1px solid var(--theme-border);
+}
+
+.ai-data-table__title {
+  color: var(--theme-text-tertiary);
+}
+
+.ai-data-table__action {
+  color: var(--theme-text-tertiary);
+}
+
+.ai-data-table__action:hover {
+  color: var(--theme-text);
+  background: color-mix(in srgb, var(--theme-text) 6%, transparent);
+}
+
+.ai-data-table__action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--theme-primary) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.ai-data-table__action--copied {
+  color: #059669;
+}
+
+.ai-data-table__scroll {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+
+.ai-data-table__table {
+  width: 100%;
+  min-width: max(100%, 32rem);
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--theme-bg-card);
+  font-size: 0.8125rem;
+}
+
+.ai-data-table__head {
+  color: var(--theme-text-tertiary);
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-subtle) 78%,
+    var(--theme-bg-card)
+  );
+}
+
+.ai-data-table__header-cell,
+.ai-data-table__cell {
+  min-width: 6rem;
+  padding: 0.5625rem 0.75rem;
+  text-align: start;
+  vertical-align: middle;
+}
+
+.ai-data-table__header-cell {
+  color: var(--theme-text-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.ai-data-table__cell {
+  color: var(--theme-text-secondary);
+  line-height: 1.45;
+}
+
+.ai-data-table__header-cell:not(:last-child),
+.ai-data-table__cell:not(:last-child) {
+  border-inline-end: 1px solid
+    color-mix(in srgb, var(--theme-border) 74%, transparent);
+}
+
+.ai-data-table__body .ai-data-table__row:not(:last-child) .ai-data-table__cell {
+  border-block-end: 1px solid
+    color-mix(in srgb, var(--theme-border) 74%, transparent);
+}
+
+.ai-data-table__body .ai-data-table__row {
+  background: var(--theme-bg-card);
+  transition: background-color 0.15s ease;
+}
+
+.ai-data-table__body .ai-data-table__row:hover {
+  background: color-mix(in srgb, var(--theme-primary) 3%, var(--theme-bg-card));
+}
+
+.ai-data-table__header-cell:first-child,
+.ai-data-table__cell:first-child {
+  min-width: 9rem;
+  font-weight: 550;
+}
+
+.ai-data-table__cell[data-comparison-state] {
+  text-align: center;
+}
+
+.ai-comparison-value {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.ai-data-table__cell[data-comparison-state="included"] {
+  color: #047857;
+}
+
+.ai-data-table__cell[data-comparison-state="included"] .ai-comparison-value {
+  background: color-mix(in srgb, #10b981 12%, transparent);
+}
+
+.ai-data-table__cell[data-comparison-state="excluded"] {
+  color: #b91c1c;
+}
+
+.ai-data-table__cell[data-comparison-state="excluded"] .ai-comparison-value {
+  background: color-mix(in srgb, #ef4444 9%, transparent);
+}
+
+.ai-data-table__cell[data-comparison-state="neutral"] {
+  color: var(--theme-text-tertiary);
+}
+
+.ai-data-table__cell[data-comparison-state="neutral"] .ai-comparison-value {
+  background: color-mix(in srgb, var(--theme-text) 5%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-streaming-text[data-streaming="true"] > :last-child::after {
+    animation: none;
+    opacity: 1;
+  }
+
+  .ai-data-table__body .ai-data-table__row {
+    transition: none;
+  }
+}
+
 .markdown-content ul,
 .markdown-content ol {
   padding-left: 1.5rem;

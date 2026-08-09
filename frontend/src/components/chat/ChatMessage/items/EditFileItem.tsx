@@ -47,53 +47,58 @@ const EditFileItem = memo(function EditFileItem({
 
   const detailContent = canExpand && (
     <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
-      <ToolArgsBlock size="detail">
-        <span className="truncate">{filePath}</span>
-      </ToolArgsBlock>
-      {oldString && (
-        <div>
-          <div className="text-xs text-red-500 dark:text-red-400 mb-1.5 font-semibold uppercase tracking-wider">
-            {t("chat.message.toolEditRemoved")}
+      <div className="ai-file-diff" data-state={status}>
+        <ToolArgsBlock size="detail" className="ai-file-diff__header">
+          <Pencil size={14} aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate font-mono">{filePath}</span>
+        </ToolArgsBlock>
+        {oldString && (
+          <div className="ai-file-diff__section" data-kind="removed">
+            <div className="ai-file-diff__label">
+              <span aria-hidden="true">−</span>
+              {t("chat.message.toolEditRemoved")}
+            </div>
+            <div className="ai-file-diff__body relative group overflow-hidden tool-diff-removed">
+              <DeferredCodeMirrorViewer
+                value={oldString}
+                filePath={filePath}
+                lineNumbers={false}
+                fontSize="0.8rem"
+                className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
+              />
+              <ToolHoverCopyButton
+                text={oldString}
+                size={14}
+                position="panel"
+                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-red-200 dark:!border-red-800"
+              />
+            </div>
           </div>
-          <div className="relative group rounded-lg overflow-hidden tool-diff-removed">
-            <DeferredCodeMirrorViewer
-              value={oldString}
-              filePath={filePath}
-              lineNumbers={false}
-              fontSize="0.8rem"
-              className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
-            />
-            <ToolHoverCopyButton
-              text={oldString}
-              size={14}
-              position="panel"
-              copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-red-200 dark:!border-red-800"
-            />
+        )}
+        {newString && (
+          <div className="ai-file-diff__section" data-kind="added">
+            <div className="ai-file-diff__label">
+              <span aria-hidden="true">+</span>
+              {t("chat.message.toolEditAdded")}
+            </div>
+            <div className="ai-file-diff__body relative group overflow-hidden tool-diff-added">
+              <DeferredCodeMirrorViewer
+                value={newString}
+                filePath={filePath}
+                lineNumbers={false}
+                fontSize="0.8rem"
+                className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
+              />
+              <ToolHoverCopyButton
+                text={newString}
+                size={14}
+                position="panel"
+                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-emerald-200 dark:!border-emerald-800"
+              />
+            </div>
           </div>
-        </div>
-      )}
-      {newString && (
-        <div>
-          <div className="text-xs text-emerald-500 dark:text-emerald-400 mb-1.5 font-semibold uppercase tracking-wider">
-            {t("chat.message.toolEditAdded")}
-          </div>
-          <div className="relative group rounded-lg overflow-hidden tool-diff-added">
-            <DeferredCodeMirrorViewer
-              value={newString}
-              filePath={filePath}
-              lineNumbers={false}
-              fontSize="0.8rem"
-              className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
-            />
-            <ToolHoverCopyButton
-              text={newString}
-              size={14}
-              position="panel"
-              copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-emerald-200 dark:!border-emerald-800"
-            />
-          </div>
-        </div>
-      )}
+        )}
+      </div>
       {result &&
         (() => {
           const text = extractText(result);
@@ -134,51 +139,61 @@ const EditFileItem = memo(function EditFileItem({
       >
         {canExpand && (
           <ToolInlineDetails>
-            <ToolArgsBlock size="compact">
-              <span className="truncate">{filePath}</span>
-            </ToolArgsBlock>
-            {oldString && (
-              <div className="mb-2">
-                <div className="text-xs text-red-500 dark:text-red-400 mb-1 font-medium">
-                  -
+            <div
+              className="ai-file-diff ai-file-diff--compact"
+              data-state={status}
+            >
+              <ToolArgsBlock size="compact" className="ai-file-diff__header">
+                <Pencil size={12} aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate font-mono">
+                  {filePath}
+                </span>
+              </ToolArgsBlock>
+              {oldString && (
+                <div className="ai-file-diff__section" data-kind="removed">
+                  <div className="ai-file-diff__label">
+                    <span aria-hidden="true">−</span>
+                    {t("chat.message.toolEditRemoved")}
+                  </div>
+                  <div className="ai-file-diff__body relative group overflow-y-auto tool-diff-removed">
+                    <DeferredCodeMirrorViewer
+                      value={oldString}
+                      filePath={filePath}
+                      lineNumbers={false}
+                      fontSize="0.75rem"
+                      className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
+                    />
+                    <ToolHoverCopyButton
+                      text={oldString}
+                      position="panelCompact"
+                      copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-red-200 dark:!border-red-800"
+                    />
+                  </div>
                 </div>
-                <div className="relative group overflow-y-auto rounded-md tool-diff-removed">
-                  <DeferredCodeMirrorViewer
-                    value={oldString}
-                    filePath={filePath}
-                    lineNumbers={false}
-                    fontSize="0.75rem"
-                    className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
-                  />
-                  <ToolHoverCopyButton
-                    text={oldString}
-                    position="panelCompact"
-                    copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-red-200 dark:!border-red-800"
-                  />
+              )}
+              {newString && (
+                <div className="ai-file-diff__section" data-kind="added">
+                  <div className="ai-file-diff__label">
+                    <span aria-hidden="true">+</span>
+                    {t("chat.message.toolEditAdded")}
+                  </div>
+                  <div className="ai-file-diff__body relative group overflow-y-auto tool-diff-added">
+                    <DeferredCodeMirrorViewer
+                      value={newString}
+                      filePath={filePath}
+                      lineNumbers={false}
+                      fontSize="0.75rem"
+                      className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
+                    />
+                    <ToolHoverCopyButton
+                      text={newString}
+                      position="panelCompact"
+                      copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-emerald-200 dark:!border-emerald-800"
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
-            {newString && (
-              <div className="mb-2">
-                <div className="text-xs text-emerald-500 dark:text-emerald-400 mb-1 font-medium">
-                  +
-                </div>
-                <div className="relative group overflow-y-auto rounded-md tool-diff-added">
-                  <DeferredCodeMirrorViewer
-                    value={newString}
-                    filePath={filePath}
-                    lineNumbers={false}
-                    fontSize="0.75rem"
-                    className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
-                  />
-                  <ToolHoverCopyButton
-                    text={newString}
-                    position="panelCompact"
-                    copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-emerald-200 dark:!border-emerald-800"
-                  />
-                </div>
-              </div>
-            )}
+              )}
+            </div>
             {result &&
               (() => {
                 const text = extractText(result);

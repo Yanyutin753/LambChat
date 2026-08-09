@@ -3554,6 +3554,197 @@
   background: color-mix(in srgb, #10b981 6%, var(--theme-bg));
 }
 
+/* Image generation — scoped creative surface */
+.ai-image-generation__header,
+.ai-image-generation__compact-header {
+  box-shadow: inset 0 0 0 0.5px
+    color-mix(in srgb, var(--theme-text) 3%, transparent);
+}
+
+.ai-image-generation__icon {
+  color: #7c3aed;
+  border: 1px solid color-mix(in srgb, #8b5cf6 20%, var(--theme-border));
+  background: color-mix(in srgb, #8b5cf6 10%, var(--theme-bg-card));
+}
+
+.dark .ai-image-generation__icon {
+  color: #c4b5fd;
+}
+
+.ai-image-generation-frame {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 10rem;
+  border: 1px solid color-mix(in srgb, #8b5cf6 18%, var(--theme-border));
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, #8b5cf6 7%, var(--theme-bg-card)),
+    color-mix(in srgb, var(--theme-bg) 90%, #8b5cf6 10%)
+  );
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, white 35%, transparent),
+    0 8px 24px -20px color-mix(in srgb, #6d28d9 45%, transparent);
+}
+
+.ai-image-generation-frame::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  width: 48%;
+  transform: translateX(-130%) skewX(-12deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, white 58%, transparent),
+    transparent
+  );
+  animation: ai-image-generation-shimmer 1.8s ease-in-out infinite;
+}
+
+.ai-image-generation-frame--compact {
+  min-height: 7rem;
+  margin-bottom: 0.5rem;
+}
+
+.ai-image-generation-frame__status {
+  position: absolute;
+  inset: auto 0.75rem 0.75rem;
+  z-index: 1;
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid color-mix(in srgb, #8b5cf6 16%, var(--theme-border));
+  border-radius: 999px;
+  color: color-mix(in srgb, #6d28d9 75%, var(--theme-text));
+  background: color-mix(in srgb, var(--theme-bg-card) 90%, transparent);
+  box-shadow: 0 4px 14px -10px color-mix(in srgb, #6d28d9 40%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+
+.dark .ai-image-generation-frame__status {
+  color: #ddd6fe;
+}
+
+.ai-image-generation-result {
+  animation: ai-image-generation-result-in 0.28s cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+}
+
+@keyframes ai-image-generation-shimmer {
+  0% {
+    transform: translateX(-130%) skewX(-12deg);
+  }
+  65%,
+  100% {
+    transform: translateX(310%) skewX(-12deg);
+  }
+}
+
+@keyframes ai-image-generation-result-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* File editing — one continuous, readable diff surface */
+.ai-file-diff {
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.75rem;
+  background: var(--theme-bg-card);
+  box-shadow: inset 0 0 0 0.5px
+    color-mix(in srgb, var(--theme-text) 3%, transparent);
+}
+
+.ai-file-diff__header {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0;
+  border-block-end: 1px solid var(--theme-border);
+  color: var(--theme-text-secondary);
+  background: color-mix(in srgb, var(--theme-bg-subtle) 72%, transparent);
+  font-size: 0.75rem;
+}
+
+.ai-file-diff__header > span {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-file-diff__section + .ai-file-diff__section {
+  border-top: 1px solid var(--theme-border);
+}
+
+.ai-file-diff__label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.875rem;
+  padding: 0.375rem 0.75rem;
+  border-block-end: 1px solid
+    color-mix(in srgb, var(--theme-border) 75%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.ai-file-diff__section[data-kind="removed"] {
+  background: color-mix(in srgb, #ef4444 3%, var(--theme-bg-card));
+}
+
+.ai-file-diff__section[data-kind="removed"] .ai-file-diff__label {
+  color: color-mix(in srgb, #dc2626 82%, var(--theme-text));
+}
+
+.ai-file-diff__section[data-kind="added"] {
+  background: color-mix(in srgb, #10b981 3%, var(--theme-bg-card));
+}
+
+.ai-file-diff__section[data-kind="added"] .ai-file-diff__label {
+  color: color-mix(in srgb, #059669 82%, var(--theme-text));
+}
+
+.ai-file-diff__body.tool-diff-removed,
+.ai-file-diff__body.tool-diff-added {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ai-file-diff--compact .ai-file-diff__header {
+  min-height: 2.125rem;
+  padding: 0.45rem 0.625rem;
+}
+
+.ai-file-diff--compact .ai-file-diff__label {
+  min-height: 1.75rem;
+  padding: 0.3rem 0.625rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-image-generation-frame::before,
+  .ai-image-generation-result {
+    animation: none;
+  }
+}
+
 /* File list items — hover refinement */
 .tool-file-row {
   transition: background-color 0.15s ease;

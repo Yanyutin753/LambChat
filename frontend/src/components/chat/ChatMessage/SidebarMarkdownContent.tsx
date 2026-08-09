@@ -31,7 +31,7 @@ export function SidebarMarkdownContent({
   return (
     <div className="space-y-2">
       <div className="relative overflow-hidden rounded-md bg-theme-bg-card">
-        <div className="max-h-[min(58vh,680px)] w-full overflow-auto whitespace-pre-wrap break-words px-0.5 pb-6 text-sm leading-7 text-theme-text-secondary">
+        <div className="max-h-[min(58vh,680px)] w-full overflow-auto whitespace-pre-wrap break-words px-3 pb-6 pt-2 text-[0.9375rem] leading-[1.75] text-theme-text-secondary sm:px-4">
           {previewContent}
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-theme-bg-card to-transparent" />

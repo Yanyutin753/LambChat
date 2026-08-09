@@ -90,7 +90,11 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
   }, [result, images.length]);
 
   const canExpand =
-    !!prompt || images.length > 0 || !!fallbackText || inputImages.length > 0;
+    !!isPending ||
+    !!prompt ||
+    images.length > 0 ||
+    !!fallbackText ||
+    inputImages.length > 0;
   const status = isPending
     ? "loading"
     : cancelled
@@ -102,19 +106,16 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
   // ── detail (panel) content ─────────────────────────────────────────
 
   const detailContent = canExpand && (
-    <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
+    <div className="ai-image-generation p-4 sm:p-5 space-y-3 tool-panel-content">
       {/* ── Character Card Header ── */}
       <div
         className={clsx(
-          "flex items-center gap-3 rounded-xl p-3",
-          "bg-gradient-to-r from-violet-50 to-fuchsia-50/80 dark:from-violet-950/30 dark:to-fuchsia-950/20",
-          "border border-violet-200/60 dark:border-violet-800/40",
-          "hover:border-violet-300 dark:hover:border-violet-700/50",
-          "transition-colors",
+          "ai-image-generation__header flex items-center gap-3 rounded-xl p-3",
+          "border border-theme-border bg-theme-bg-card transition-colors",
         )}
       >
-        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center text-xl sm:text-2xl leading-none shrink-0 bg-white/60 dark:bg-white/10 shadow-sm">
-          🎨
+        <div className="ai-image-generation__icon w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center shrink-0">
+          <ImageIcon size={20} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm text-theme-text font-semibold truncate">
@@ -134,6 +135,23 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
           </span>
         )}
       </div>
+
+      {isPending && images.length === 0 && (
+        <div
+          className="ai-image-generation-frame aspect-[4/3]"
+          data-state={status}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="ai-image-generation-frame__status">
+            <Sparkles size={14} aria-hidden="true" />
+            <span>
+              {t("chat.message.running")} ·{" "}
+              {t("chat.message.toolImageGenerate")}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── Tags ── */}
       <div className="flex flex-wrap gap-1.5">
@@ -265,7 +283,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
             <div
               key={i}
               className={clsx(
-                "group/img relative rounded-xl overflow-hidden",
+                "ai-image-generation-result group/img relative rounded-xl overflow-hidden",
                 "border border-theme-border",
                 "hover:border-violet-200 dark:hover:border-violet-800/50 hover:shadow-lg",
                 "transition-all duration-200",
@@ -311,14 +329,12 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
   const compactContent = canExpand && (
     <ToolInlineDetails>
       {/* Mini character card */}
-      <div
-        className={clsx(
-          "flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2",
-          "bg-gradient-to-r from-violet-50/80 to-fuchsia-50/60 dark:from-violet-950/20 dark:to-fuchsia-950/10",
-          "border border-violet-100/60 dark:border-violet-900/30",
-        )}
-      >
-        <span className="text-sm leading-none shrink-0">🎨</span>
+      <div className="ai-image-generation__compact-header flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2 border border-theme-border bg-theme-bg-card">
+        <ImageIcon
+          size={14}
+          className="shrink-0 text-violet-500 dark:text-violet-400"
+          aria-hidden="true"
+        />
         <span className="text-xs text-violet-700 dark:text-violet-300 font-medium truncate min-w-0 flex-1 overflow-hidden">
           {t("chat.message.toolImageGenerate")}
         </span>
@@ -328,6 +344,20 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
           </span>
         )}
       </div>
+
+      {isPending && images.length === 0 && (
+        <div
+          className="ai-image-generation-frame ai-image-generation-frame--compact aspect-[16/9]"
+          data-state={status}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="ai-image-generation-frame__status">
+            <Sparkles size={12} aria-hidden="true" />
+            <span>{t("chat.message.running")}</span>
+          </div>
+        </div>
+      )}
 
       {/* Compact prompt */}
       {prompt && (
@@ -404,7 +434,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
           {images.slice(0, 4).map((img, i) => (
             <div
               key={i}
-              className="relative rounded-lg overflow-hidden border border-theme-border hover:border-violet-200 dark:hover:border-violet-800/50 transition-colors cursor-pointer"
+              className="ai-image-generation-result relative rounded-lg overflow-hidden border border-theme-border hover:border-violet-200 dark:hover:border-violet-800/50 transition-colors cursor-pointer"
               onClick={() => openImagePreview(img.url)}
             >
               <ImageWithSkeleton
