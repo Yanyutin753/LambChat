@@ -76,7 +76,7 @@ Extend `GET /api/sessions/{session_id}/events` and `sessionApi.getEvents` with a
 }
 ```
 
-`history_mode` is `complete` or `active_user_only`. `stream_run_id` is present only for `active_user_only` and is the sole frontend authority for history-time SSE reconnection.
+`history_mode` is `complete` or `active_user_only`. `stream_run_id` is always a `string | null`: it contains the active run ID only for `active_user_only` and is the sole frontend authority for history-time SSE reconnection.
 
 When enabled and session metadata identifies a nonterminal current run, the response contains:
 
