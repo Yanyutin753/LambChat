@@ -1,4 +1,4 @@
-"""Prompt caching middleware — KV cache optimization for Anthropic models."""
+"""Provider-aware prompt caching over deterministic system and tool prefixes."""
 
 from __future__ import annotations
 
@@ -13,10 +13,11 @@ from langchain.agents.middleware.types import (
     ModelResponse,
     ResponseT,
 )
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
 
 from src.infra.agent.middleware._helpers import _system_message_to_blocks
+from src.infra.llm.client import _is_gpt_56_or_later
 from src.kernel.config import settings
 
 _MAX_ANTHROPIC_CACHE_BREAKPOINTS = 4
@@ -26,95 +27,60 @@ logger = logging.getLogger(__name__)
 
 
 class PromptCachingMiddleware(AgentMiddleware):
-    """Re-tags cache breakpoints AFTER all user middleware has injected dynamic content.
-
-    Problem
-    -------
-    deepagents' built-in ``AnthropicPromptCachingMiddleware`` runs **before** user
-    middleware (AppPrompt, MemoryIndex, ToolSearch).  It tags the *then*
-    last system-message content block with ``cache_control``, but user middleware
-    subsequently appends more blocks (skills, memory, MCP tools, deferred stubs).
-    The original cache breakpoint ends up in the middle of the final system message,
-    so all dynamic content is re-processed every turn.
-
-    Solution
-    --------
-    This middleware runs **last** in the user middleware chain (innermost layer).
-    It walks the final system message and tools, then:
-
-    1. Removes stale ``cache_control`` tags left by earlier middleware.
-    2. Allocates at most Anthropic's four cache breakpoints across tools and
-       system blocks, reserving one for tools when possible and using the rest
-       for the system-message tail.
-
-    Result: cache tags stay valid while covering the stable prompt prefix
-    (base prompt + workflow + persona + skills + memory guide) before volatile
-    blocks such as memory indexes or deferred tool lists.
-    """
+    """Apply documented cache controls after every prompt/tool injection step."""
 
     _CACHE_CONTROL = {"type": "ephemeral"}
+    _AUTOMATIC_CACHE_CONTROL = {"type": "ephemeral", "ttl": "5m"}
 
     def __init__(self) -> None:
         super().__init__()
         self._max_cached_system_blocks = max(
-            int(getattr(settings, "PROMPT_CACHE_MAX_SYSTEM_BLOCKS", 8) or 0), 1
+            int(getattr(settings, "PROMPT_CACHE_MAX_SYSTEM_BLOCKS", 8) or 0), 0
         )
-        self._max_cached_tools = max(int(getattr(settings, "PROMPT_CACHE_MAX_TOOLS", 8) or 0), 1)
+        self._max_cached_tools = max(int(getattr(settings, "PROMPT_CACHE_MAX_TOOLS", 8) or 0), 0)
+
+    @staticmethod
+    def _model_chain(model: Any) -> list[Any]:
+        """Return a wrapper-safe model chain without following string model names."""
+        chain: list[Any] = []
+        seen: set[int] = set()
+        current = model
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            chain.append(current)
+            next_model = getattr(current, "bound", None)
+            if next_model is None:
+                next_model = getattr(current, "_bound", None)
+            if next_model is None:
+                candidate = getattr(current, "model", None)
+                next_model = candidate if not isinstance(candidate, str) else None
+            current = next_model
+        return chain
+
+    @classmethod
+    def _runtime_provider(cls, model: Any) -> str | None:
+        for current in cls._model_chain(model):
+            metadata = getattr(current, "metadata", None)
+            if isinstance(metadata, dict) and metadata.get("lambchat_provider"):
+                return str(metadata["lambchat_provider"])
+        return None
+
+    @classmethod
+    def _runtime_model_name(cls, model: Any) -> str:
+        for current in cls._model_chain(model):
+            for attr in ("model_name", "model"):
+                value = getattr(current, attr, None)
+                if isinstance(value, str) and value:
+                    return value
+        return ""
 
     @staticmethod
     def _is_anthropic_model(model: Any) -> bool:
         """Return True when request.model is backed by langchain-anthropic."""
-        seen: set[int] = set()
-        current = model
-        while current is not None and id(current) not in seen:
-            seen.add(id(current))
+        for current in PromptCachingMiddleware._model_chain(model):
             cls = type(current)
             if cls.__module__.startswith("langchain_anthropic"):
                 return True
-
-            # RunnableBinding and similar wrappers keep the underlying model on
-            # ``bound``.  Some adapters use ``model`` for the wrapped runnable.
-            next_model = getattr(current, "bound", None)
-            if next_model is None:
-                next_model = getattr(current, "_bound", None)
-            if next_model is None:
-                candidate = getattr(current, "model", None)
-                next_model = candidate if not isinstance(candidate, str) else None
-            current = next_model
-        return False
-
-    @staticmethod
-    def _is_minimax_passive_cache_model(model: Any) -> bool:
-        """Return True for MiniMax Anthropic-compatible models.
-
-        MiniMax Prompt Cache is passive by default on its Anthropic-compatible
-        endpoint. Avoid adding Anthropic active ``cache_control`` tags here so
-        requests keep the documented passive-cache semantics.
-        """
-        seen: set[int] = set()
-        current = model
-        while current is not None and id(current) not in seen:
-            seen.add(id(current))
-            haystack = " ".join(
-                str(getattr(current, attr, "") or "")
-                for attr in (
-                    "model",
-                    "model_name",
-                    "anthropic_api_url",
-                    "base_url",
-                    "_base_url",
-                )
-            ).lower()
-            if "minimax" in haystack or "minimaxi" in haystack:
-                return True
-
-            next_model = getattr(current, "bound", None)
-            if next_model is None:
-                next_model = getattr(current, "_bound", None)
-            if next_model is None:
-                candidate = getattr(current, "model", None)
-                next_model = candidate if not isinstance(candidate, str) else None
-            current = next_model
         return False
 
     # ---- system message ---------------------------------------------------
@@ -149,21 +115,32 @@ class PromptCachingMiddleware(AgentMiddleware):
 
     @staticmethod
     def _cache_indices_for_stable_prefix(cacheable_count: int, max_cached_blocks: int) -> list[int]:
-        """Pick cache breakpoints for stable blocks.
-
-        Always include block 0 when possible so the global base prompt can be
-        reused across different personas, skills, sessions, and runtime sections.
-        Remaining breakpoints go to the tail of the stable prefix.
-        """
+        """Use one cumulative breakpoint at the end of the stable prefix."""
         if cacheable_count <= 0 or max_cached_blocks <= 0:
             return []
+        return [cacheable_count - 1]
 
-        if max_cached_blocks == 1 or cacheable_count == 1:
-            return [0]
+    @staticmethod
+    def _strip_block_cache_tags(block: Any) -> Any:
+        if not isinstance(block, dict):
+            return block
+        cleaned = {key: value for key, value in block.items() if key != "cache_control"}
+        extras = cleaned.get("extras")
+        if isinstance(extras, dict) and "prompt_cache_breakpoint" in extras:
+            cleaned_extras = {
+                key: value for key, value in extras.items() if key != "prompt_cache_breakpoint"
+            }
+            if cleaned_extras:
+                cleaned["extras"] = cleaned_extras
+            else:
+                cleaned.pop("extras", None)
+        return cleaned
 
-        tail_budget = min(max_cached_blocks - 1, cacheable_count - 1)
-        tail_start = cacheable_count - tail_budget
-        return [0, *range(tail_start, cacheable_count)]
+    @staticmethod
+    def _replace_system_content(system_message: Any, blocks: list[Any]) -> Any:
+        if isinstance(system_message, SystemMessage):
+            return system_message.model_copy(update={"content": blocks})
+        return SystemMessage(content=blocks)
 
     @staticmethod
     def _retag_system_message(
@@ -177,22 +154,17 @@ class PromptCachingMiddleware(AgentMiddleware):
         if not blocks:
             return system_message
 
-        # Remove cache_control from every block
-        for i, block in enumerate(blocks):
-            if isinstance(block, dict) and "cache_control" in block:
-                blocks[i] = {k: v for k, v in block.items() if k != "cache_control"}
+        blocks = [PromptCachingMiddleware._strip_block_cache_tags(block) for block in blocks]
 
         if max_cached_blocks <= 0:
-            return SystemMessage(content=blocks)
+            return PromptCachingMiddleware._replace_system_content(system_message, blocks)
 
         cacheable_count = PromptCachingMiddleware._cacheable_system_block_count(
             SystemMessage(content=blocks)
         )
         if cacheable_count <= 0:
-            return SystemMessage(content=blocks)
+            return PromptCachingMiddleware._replace_system_content(system_message, blocks)
 
-        # Tag global base plus the tail of the stable prefix. Later volatile
-        # blocks still get sent, but they do not consume cache breakpoints.
         for i in PromptCachingMiddleware._cache_indices_for_stable_prefix(
             cacheable_count, max_cached_blocks
         ):
@@ -200,7 +172,28 @@ class PromptCachingMiddleware(AgentMiddleware):
             base = block if isinstance(block, dict) else {"type": "text", "text": str(block)}
             blocks[i] = {**base, "cache_control": cache_control}
 
-        return SystemMessage(content=blocks)
+        return PromptCachingMiddleware._replace_system_content(system_message, blocks)
+
+    @staticmethod
+    def _retag_openai_system_message(system_message: Any) -> Any:
+        if system_message is None:
+            return system_message
+        blocks = [
+            PromptCachingMiddleware._strip_block_cache_tags(block)
+            for block in _system_message_to_blocks(system_message)
+        ]
+        cacheable_count = PromptCachingMiddleware._cacheable_system_block_count(
+            PromptCachingMiddleware._replace_system_content(system_message, blocks)
+        )
+        if cacheable_count > 0:
+            index = cacheable_count - 1
+            block = blocks[index]
+            base = block if isinstance(block, dict) else {"type": "text", "text": str(block)}
+            raw_extras = base.get("extras")
+            extras = dict(raw_extras) if isinstance(raw_extras, dict) else {}
+            extras["prompt_cache_breakpoint"] = {"mode": "explicit"}
+            blocks[index] = {**base, "extras": extras}
+        return PromptCachingMiddleware._replace_system_content(system_message, blocks)
 
     # ---- tools ------------------------------------------------------------
 
@@ -219,13 +212,7 @@ class PromptCachingMiddleware(AgentMiddleware):
     def _retag_tools(
         tools: list[Any] | None, cache_control: dict, *, max_cached_tools: int = 4
     ) -> list[Any] | None:
-        """Strip stale cache_control, reorder volatile-first, tag the final stable N tools.
-
-        Volatile tools (marked with ``_PROMPT_CACHE_VOLATILE_TOOL_EXTRA``) are placed
-        before stable tools so that cache breakpoints always cover the stable tail.
-        This ensures that deferred/discovered tools don't push stable tools out of
-        the cache window.
-        """
+        """Keep a stable tool prefix, then a sorted volatile session tail."""
         if not tools:
             return tools
 
@@ -246,19 +233,49 @@ class PromptCachingMiddleware(AgentMiddleware):
             else:
                 volatile_tools.append(tool)
 
-        if max_cached_tools <= 0:
-            return volatile_tools + stable_tools
+        volatile_tools.sort(key=lambda tool: str(getattr(tool, "name", "")))
+        if max_cached_tools > 0:
+            for segment in (stable_tools, volatile_tools):
+                if segment and isinstance(segment[-1], BaseTool):
+                    tool = segment[-1]
+                    new_extras = {**(tool.extras or {}), "cache_control": cache_control}
+                    segment[-1] = tool.model_copy(update={"extras": new_extras})
 
-        # Tag the last N stable tools
-        for idx in range(
-            len(stable_tools) - min(max_cached_tools, len(stable_tools)), len(stable_tools)
-        ):
-            tool = stable_tools[idx]
-            if isinstance(tool, BaseTool):
-                new_extras = {**(tool.extras or {}), "cache_control": cache_control}
-                stable_tools[idx] = tool.model_copy(update={"extras": new_extras})
+        return stable_tools + volatile_tools
 
-        return volatile_tools + stable_tools
+    @staticmethod
+    def _retag_latest_message(
+        messages: list[BaseMessage] | tuple[BaseMessage, ...], cache_control: dict
+    ) -> list[BaseMessage]:
+        """Tag the last eligible text block for MiniMax explicit caching."""
+        updated = list(messages)
+        for index in range(len(updated) - 1, -1, -1):
+            message = updated[index]
+            content = message.content
+            if isinstance(content, str):
+                if not content:
+                    continue
+                blocks = [{"type": "text", "text": content, "cache_control": cache_control}]
+                updated[index] = message.model_copy(update={"content": blocks})
+                return updated
+            if not isinstance(content, list):
+                continue
+            blocks = [PromptCachingMiddleware._strip_block_cache_tags(block) for block in content]
+            for block_index in range(len(blocks) - 1, -1, -1):
+                block = blocks[block_index]
+                if isinstance(block, str) and block:
+                    blocks[block_index] = {
+                        "type": "text",
+                        "text": block,
+                        "cache_control": cache_control,
+                    }
+                    updated[index] = message.model_copy(update={"content": blocks})
+                    return updated
+                if isinstance(block, dict) and block.get("type") == "text":
+                    blocks[block_index] = {**block, "cache_control": cache_control}
+                    updated[index] = message.model_copy(update={"content": blocks})
+                    return updated
+        return updated
 
     # ---- main entry -------------------------------------------------------
 
@@ -267,41 +284,34 @@ class PromptCachingMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
-        if not self._is_anthropic_model(getattr(request, "model", None)):
+        model = getattr(request, "model", None)
+        provider = self._runtime_provider(model)
+        model_name = self._runtime_model_name(model)
+
+        if provider == "openai" and _is_gpt_56_or_later(model_name):
+            new_system = self._retag_openai_system_message(request.system_message)
+            return await handler(request.override(system_message=new_system))
+
+        is_anthropic = self._is_anthropic_model(model)
+        if provider not in {"anthropic", "minimax"} and not is_anthropic:
             return await handler(request)
-        if self._is_minimax_passive_cache_model(getattr(request, "model", None)):
-            return await handler(request)
+
+        effective_provider = provider or "anthropic"
 
         overrides: dict[str, Any] = {}
-        system_block_count = self._cacheable_system_block_count(request.system_message)
-        tool_count = self._cacheable_tool_count(request.tools)
+        system_enabled = self._max_cached_system_blocks > 0
+        tools_enabled = self._max_cached_tools > 0
 
-        reserved_tool_breakpoints = 1 if tool_count > 0 and self._max_cached_tools > 0 else 0
-        system_budget = min(
-            self._max_cached_system_blocks,
-            system_block_count,
-            _MAX_ANTHROPIC_CACHE_BREAKPOINTS - reserved_tool_breakpoints,
-        )
-        tool_budget = min(
-            self._max_cached_tools,
-            tool_count,
-            _MAX_ANTHROPIC_CACHE_BREAKPOINTS - system_budget,
-        )
-
-        logger.debug(
-            "[PromptCache] budget: system=%d/%d tool=%d/%d (total_breakpoints=%d, max=%d)",
-            system_budget,
-            system_block_count,
-            tool_budget,
-            tool_count,
-            system_budget + tool_budget,
-            _MAX_ANTHROPIC_CACHE_BREAKPOINTS,
-        )
+        if effective_provider == "anthropic":
+            overrides["model_settings"] = {
+                **(getattr(request, "model_settings", {}) or {}),
+                "cache_control": self._AUTOMATIC_CACHE_CONTROL,
+            }
 
         new_system = self._retag_system_message(
             request.system_message,
             self._CACHE_CONTROL,
-            max_cached_blocks=system_budget,
+            max_cached_blocks=int(system_enabled),
         )
         if new_system is not request.system_message:
             overrides["system_message"] = new_system
@@ -309,10 +319,35 @@ class PromptCachingMiddleware(AgentMiddleware):
         new_tools = self._retag_tools(
             request.tools,
             self._CACHE_CONTROL,
-            max_cached_tools=tool_budget,
+            max_cached_tools=int(tools_enabled),
         )
         if new_tools is not request.tools:
             overrides["tools"] = new_tools
+
+        if effective_provider == "minimax":
+            messages = getattr(request, "messages", ()) or ()
+            new_messages = self._retag_latest_message(messages, self._CACHE_CONTROL)
+            if list(messages) != new_messages:
+                overrides["messages"] = new_messages
+
+        explicit_breakpoints = (
+            int(system_enabled and self._cacheable_system_block_count(request.system_message) > 0)
+            + int(tools_enabled and self._cacheable_tool_count(request.tools) > 0)
+            + int(
+                tools_enabled
+                and any(not self._is_cacheable_tool(tool) for tool in request.tools or [])
+            )
+            + int(effective_provider == "minimax" and bool(getattr(request, "messages", ())))
+        )
+        total_breakpoints = explicit_breakpoints + int(effective_provider == "anthropic")
+        if total_breakpoints > _MAX_ANTHROPIC_CACHE_BREAKPOINTS:
+            raise RuntimeError("prompt_cache_breakpoint_budget_exceeded")
+        logger.debug(
+            "[PromptCache] provider=%s explicit=%d total=%d",
+            effective_provider,
+            explicit_breakpoints,
+            total_breakpoints,
+        )
 
         if overrides:
             request = request.override(**overrides)

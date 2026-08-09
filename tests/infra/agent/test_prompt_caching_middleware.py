@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
-from langchain_core.messages import SystemMessage, ToolMessage
+import pytest
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
 from src.infra.agent.middleware import (
@@ -21,6 +22,116 @@ class _FakeTool(BaseTool):
         return "ok"
 
 
+class _ProviderModel:
+    def __init__(self, provider: str, model_name: str) -> None:
+        self.metadata = {"lambchat_provider": provider}
+        self.model = model_name
+
+
+class _CacheRequest:
+    def __init__(
+        self,
+        *,
+        provider: str,
+        model_name: str = "claude-sonnet-4-5",
+        with_volatile_tool: bool = True,
+        with_message: bool = True,
+    ) -> None:
+        self.model = _ProviderModel(provider, model_name)
+        self.system_message = SystemMessage(
+            content=[
+                {"type": "text", "text": "base"},
+                {"type": "text", "text": "persona"},
+                {"type": "text", "text": "<memory_index>dynamic</memory_index>"},
+            ]
+        )
+        self.tools = [_FakeTool(name="read_file", description="stable")]
+        if with_volatile_tool:
+            self.tools.append(
+                _FakeTool(
+                    name="github:create_issue",
+                    description="dynamic",
+                    extras={"_lambchat_prompt_cache_volatile": True},
+                )
+            )
+        self.messages = [HumanMessage(content="latest user request")] if with_message else []
+        self.model_settings = {}
+
+    def override(self, **kwargs):
+        clone = object.__new__(_CacheRequest)
+        clone.__dict__ = {**self.__dict__, **kwargs}
+        return clone
+
+
+async def _run_provider_cache(**kwargs) -> _CacheRequest:
+    middleware = PromptCachingMiddleware()
+
+    async def _handler(request):
+        return request
+
+    return await middleware.awrap_model_call(_CacheRequest(**kwargs), _handler)
+
+
+def _explicit_breakpoint_count(request: _CacheRequest) -> int:
+    system_count = sum(
+        1
+        for block in request.system_message.content
+        if isinstance(block, dict)
+        and ("cache_control" in block or "prompt_cache_breakpoint" in block.get("extras", {}))
+    )
+    tool_count = sum(
+        1
+        for tool in request.tools
+        if isinstance(tool, BaseTool) and "cache_control" in (tool.extras or {})
+    )
+    message_count = sum(
+        1
+        for message in request.messages
+        for block in (message.content if isinstance(message.content, list) else [])
+        if isinstance(block, dict) and "cache_control" in block
+    )
+    return system_count + tool_count + message_count
+
+
+async def test_direct_anthropic_uses_automatic_and_three_explicit_breakpoints() -> None:
+    result = await _run_provider_cache(provider="anthropic")
+
+    assert result.model_settings["cache_control"] == {"type": "ephemeral", "ttl": "5m"}
+    assert _explicit_breakpoint_count(result) == 3
+
+
+async def test_minimax_uses_four_explicit_breakpoints_without_automatic_mode() -> None:
+    result = await _run_provider_cache(provider="minimax", model_name="MiniMax-M2.7")
+
+    assert "cache_control" not in result.model_settings
+    assert _explicit_breakpoint_count(result) == 4
+    assert isinstance(result.messages[-1].content, list)
+    assert result.messages[-1].content[-1]["cache_control"] == {"type": "ephemeral"}
+
+
+async def test_gpt_56_marks_only_the_final_stable_system_block() -> None:
+    result = await _run_provider_cache(
+        provider="openai",
+        model_name="gpt-5.6",
+        with_volatile_tool=False,
+    )
+
+    assert result.system_message.content[1]["extras"] == {
+        "prompt_cache_breakpoint": {"mode": "explicit"}
+    }
+    assert "extras" not in result.system_message.content[0]
+    assert "extras" not in result.system_message.content[2]
+    assert _explicit_breakpoint_count(result) == 1
+
+
+@pytest.mark.parametrize("provider", ["deepseek", "google", "qwen"])
+async def test_implicit_cache_providers_receive_no_explicit_breakpoints(provider: str) -> None:
+    result = await _run_provider_cache(provider=provider)
+
+    assert _explicit_breakpoint_count(result) == 0
+    assert result.model_settings == {}
+
+
 def test_retag_system_message_prefers_stable_prefix_before_volatile_tail() -> None:
     system_message = SystemMessage(
         content=[
@@ -38,9 +149,9 @@ def test_retag_system_message_prefers_stable_prefix_before_volatile_tail() -> No
     )
 
     assert isinstance(retagged.content, list)
-    assert retagged.content[0]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in retagged.content[0]
     assert "cache_control" not in retagged.content[1]
-    assert retagged.content[2]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in retagged.content[2]
     assert retagged.content[3]["cache_control"] == {"type": "ephemeral"}
     assert "cache_control" not in retagged.content[4]
     assert "cache_control" not in retagged.content[5]
@@ -61,13 +172,13 @@ def test_retag_system_message_pins_global_base_block_for_cross_context_reuse() -
     )
 
     assert isinstance(retagged.content, list)
-    assert retagged.content[0]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in retagged.content[0]
     tagged_indices = [
         i
         for i, block in enumerate(retagged.content)
         if isinstance(block, dict) and "cache_control" in block
     ]
-    assert tagged_indices == [0, 2, 3]
+    assert tagged_indices == [3]
 
 
 def test_session_stable_runtime_system_sections_are_cacheable() -> None:
@@ -133,10 +244,10 @@ def test_retag_system_message_keeps_session_stable_runtime_sections_in_cache_pre
         if isinstance(block, dict) and "cache_control" in block
     ]
 
-    assert tagged_indices == [0, 2, 3, 4]
+    assert tagged_indices == [4]
 
 
-def test_retag_tools_tags_multiple_tail_tools() -> None:
+def test_retag_tools_tags_the_stable_segment_tail() -> None:
     tools = [
         _FakeTool(name="alpha", description="a"),
         _FakeTool(name="beta", description="b"),
@@ -149,18 +260,21 @@ def test_retag_tools_tags_multiple_tail_tools() -> None:
 
     assert retagged is not None
     assert retagged[0].extras in (None, {})
-    assert retagged[1].extras == {"cache_control": {"type": "ephemeral"}}
+    assert retagged[1].extras in (None, {})
     assert retagged[2].extras == {"cache_control": {"type": "ephemeral"}}
 
 
-def test_retag_tools_reorders_volatile_before_stable() -> None:
-    """Volatile tools (deferred/discovered) must come before stable tools
-    so cache breakpoints always cover the stable tail."""
+def test_retag_tools_keeps_stable_prefix_before_volatile_tail() -> None:
     tools = [
         _FakeTool(name="read_file", description="stable read tool"),
         _FakeTool(name="write_file", description="stable write tool"),
         _FakeTool(
-            name="github:create_issue",
+            name="zeta:list",
+            description="dynamic deferred tool",
+            extras={"_lambchat_prompt_cache_volatile": True},
+        ),
+        _FakeTool(
+            name="alpha:get",
             description="dynamic deferred tool",
             extras={"_lambchat_prompt_cache_volatile": True},
         ),
@@ -171,13 +285,19 @@ def test_retag_tools_reorders_volatile_before_stable() -> None:
     )
 
     assert retagged is not None
-    # Volatile tool first
-    assert retagged[0].name == "github:create_issue"
-    # Stable tools after, last 2 tagged
-    assert retagged[1].name == "read_file"
+    assert [tool.name for tool in retagged] == [
+        "read_file",
+        "write_file",
+        "alpha:get",
+        "zeta:list",
+    ]
+    assert retagged[0].extras in (None, {})
     assert retagged[1].extras == {"cache_control": {"type": "ephemeral"}}
-    assert retagged[2].name == "write_file"
-    assert retagged[2].extras == {"cache_control": {"type": "ephemeral"}}
+    assert retagged[2].extras == {"_lambchat_prompt_cache_volatile": True}
+    assert retagged[3].extras == {
+        "_lambchat_prompt_cache_volatile": True,
+        "cache_control": {"type": "ephemeral"},
+    }
 
 
 def test_retag_tools_skips_explicitly_volatile_tools() -> None:
@@ -195,11 +315,13 @@ def test_retag_tools_skips_explicitly_volatile_tools() -> None:
     )
 
     assert retagged is not None
-    # Volatile first
-    assert retagged[0].name == "github:create_issue"
-    # Stable tool tagged
-    assert retagged[1].name == "stable_tool"
-    assert retagged[1].extras == {"cache_control": {"type": "ephemeral"}}
+    assert retagged[0].name == "stable_tool"
+    assert retagged[0].extras == {"cache_control": {"type": "ephemeral"}}
+    assert retagged[1].name == "github:create_issue"
+    assert retagged[1].extras == {
+        "_lambchat_prompt_cache_volatile": True,
+        "cache_control": {"type": "ephemeral"},
+    }
 
 
 def test_cacheable_tool_count_ignores_volatile_deferred_tools() -> None:
@@ -216,64 +338,16 @@ def test_cacheable_tool_count_ignores_volatile_deferred_tools() -> None:
 
 
 async def test_prompt_caching_middleware_respects_four_breakpoint_budget() -> None:
-    middleware = PromptCachingMiddleware()
+    result = await _run_provider_cache(provider="anthropic")
 
-    class _AnthropicLike:
-        pass
-
-    _AnthropicLike.__module__ = "langchain_anthropic.chat_models"
-
-    class _Request:
-        def __init__(self) -> None:
-            self.model = _AnthropicLike()
-            self.system_message = SystemMessage(
-                content=[
-                    {"type": "text", "text": "base"},
-                    {"type": "text", "text": "persona"},
-                    {"type": "text", "text": "skills"},
-                    {"type": "text", "text": "memory"},
-                    {"type": "text", "text": "## MCP Tools (Deferred)\n\nDynamic deferred list."},
-                ]
-            )
-            self.tools = [_FakeTool(name=f"tool_{i}", description=f"tool {i}") for i in range(5)]
-
-        def override(self, **kwargs):
-            clone = _Request()
-            clone.model = kwargs.get("model", self.model)
-            clone.system_message = kwargs.get("system_message", self.system_message)
-            clone.tools = kwargs.get("tools", self.tools)
-            return clone
-
-    async def _handler(request):
-        return request
-
-    result = await middleware.awrap_model_call(_Request(), _handler)
-
-    system_breakpoints = sum(
-        1
-        for block in result.system_message.content
-        if isinstance(block, dict) and "cache_control" in block
-    )
-    tool_breakpoints = sum(
-        1
-        for tool in result.tools
-        if getattr(tool, "extras", None) and "cache_control" in tool.extras
-    )
-
-    assert system_breakpoints + tool_breakpoints == 4
-    assert result.system_message.content[0]["cache_control"] == {"type": "ephemeral"}
-    assert "cache_control" not in result.system_message.content[1]
-    assert result.system_message.content[2]["cache_control"] == {"type": "ephemeral"}
-    assert result.system_message.content[3]["cache_control"] == {"type": "ephemeral"}
-    assert "cache_control" not in result.system_message.content[4]
-    assert result.tools[-1].extras == {"cache_control": {"type": "ephemeral"}}
+    assert _explicit_breakpoint_count(result) + 1 == 4
 
 
 async def test_prompt_caching_preserves_stable_search_guide_and_tool_after_discovery() -> None:
     middleware = PromptCachingMiddleware()
 
     class _AnthropicLike:
-        pass
+        metadata = {"lambchat_provider": "anthropic"}
 
     _AnthropicLike.__module__ = "langchain_anthropic.chat_models"
 
@@ -298,14 +372,22 @@ async def test_prompt_caching_preserves_stable_search_guide_and_tool_after_disco
             self.tools = [
                 _FakeTool(name="read_file", description="stable read tool"),
                 _FakeTool(name="search_tools", description="stable search tool"),
-                _FakeTool(name="alpha:create", description="discovered schema"),
+                _FakeTool(
+                    name="alpha:create",
+                    description="discovered schema",
+                    extras={"_lambchat_prompt_cache_volatile": True},
+                ),
             ]
+            self.messages = []
+            self.model_settings = {}
 
         def override(self, **kwargs):
             clone = _Request()
             clone.model = kwargs.get("model", self.model)
             clone.system_message = kwargs.get("system_message", self.system_message)
             clone.tools = kwargs.get("tools", self.tools)
+            clone.messages = kwargs.get("messages", self.messages)
+            clone.model_settings = kwargs.get("model_settings", self.model_settings)
             return clone
 
     async def _handler(request):
@@ -318,10 +400,13 @@ async def test_prompt_caching_preserves_stable_search_guide_and_tool_after_disco
         for i, block in enumerate(result.system_message.content)
         if isinstance(block, dict) and "cache_control" in block
     ]
-    assert tagged_system_indices == [0, 2, 3]
+    assert tagged_system_indices == [3]
     assert result.tools[1].name == "search_tools"
     assert result.tools[2].name == "alpha:create"
-    assert result.tools[2].extras == {"cache_control": {"type": "ephemeral"}}
+    assert result.tools[2].extras == {
+        "_lambchat_prompt_cache_volatile": True,
+        "cache_control": {"type": "ephemeral"},
+    }
 
 
 async def test_prompt_caching_middleware_skips_non_anthropic_models() -> None:
@@ -332,12 +417,16 @@ async def test_prompt_caching_middleware_skips_non_anthropic_models() -> None:
             self.model = object()
             self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
             self.tools = [_FakeTool(name="alpha", description="a")]
+            self.messages = []
+            self.model_settings = {}
 
         def override(self, **kwargs):
             clone = _Request()
             clone.model = kwargs.get("model", self.model)
             clone.system_message = kwargs.get("system_message", self.system_message)
             clone.tools = kwargs.get("tools", self.tools)
+            clone.messages = kwargs.get("messages", self.messages)
+            clone.model_settings = kwargs.get("model_settings", self.model_settings)
             return clone
 
     async def _handler(request):
@@ -383,38 +472,6 @@ async def test_prompt_caching_middleware_tags_anthropic_wrapped_models() -> None
     assert isinstance(result.system_message.content, list)
     assert result.system_message.content[0]["cache_control"] == {"type": "ephemeral"}
     assert result.tools[0].extras == {"cache_control": {"type": "ephemeral"}}
-
-
-async def test_prompt_caching_middleware_skips_minimax_anthropic_passive_cache() -> None:
-    middleware = PromptCachingMiddleware()
-
-    class _MiniMaxAnthropicLike:
-        model = "MiniMax-M2.7"
-        anthropic_api_url = "https://api.minimaxi.com/anthropic"
-
-    _MiniMaxAnthropicLike.__module__ = "langchain_anthropic.chat_models"
-
-    class _Request:
-        def __init__(self) -> None:
-            self.model = _MiniMaxAnthropicLike()
-            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
-            self.tools = [_FakeTool(name="alpha", description="a")]
-
-        def override(self, **kwargs):
-            clone = _Request()
-            clone.model = kwargs.get("model", self.model)
-            clone.system_message = kwargs.get("system_message", self.system_message)
-            clone.tools = kwargs.get("tools", self.tools)
-            return clone
-
-    async def _handler(request):
-        return request
-
-    result = await middleware.awrap_model_call(_Request(), _handler)
-
-    assert isinstance(result.system_message.content, list)
-    assert "cache_control" not in result.system_message.content[0]
-    assert result.tools[0].extras in (None, {})
 
 
 def test_prompt_caching_middleware_uses_settings_for_cache_limits(monkeypatch) -> None:
@@ -506,7 +563,7 @@ async def test_tool_search_middleware_intercepts_registered_search_tool_with_own
     assert manager.discovered_names == ["alpha:create", "beta:list"]
 
 
-async def test_tool_search_middleware_injects_discovered_tools_as_cacheable() -> None:
+async def test_tool_search_middleware_injects_discovered_tools_as_volatile() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[
             _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
@@ -533,7 +590,7 @@ async def test_tool_search_middleware_injects_discovered_tools_as_cacheable() ->
     result = await middleware.awrap_model_call(_Request(), _handler)
     discovered_tool = next(tool for tool in result.tools if tool.name == "alpha:create")
 
-    assert "_lambchat_prompt_cache_volatile" not in (discovered_tool.extras or {})
+    assert discovered_tool.extras["_lambchat_prompt_cache_volatile"] is True
 
 
 async def test_tool_search_middleware_skips_duplicate_search_guide_when_already_present() -> None:
