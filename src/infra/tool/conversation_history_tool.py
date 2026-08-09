@@ -40,7 +40,10 @@ async def search_conversation_history(
     cursor: Annotated[str | None, "Opaque next_cursor from a prior result"] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Search the current user's visible conversation history and return run references."""
+    """Search the current user's visible final Q&A history. SOP: call this first,
+    inspect previews, then pass a returned session_id/run_id to
+    get_conversation_detail. If next_cursor is present, pass it unchanged to fetch
+    another page only when needed."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_result({"success": False, "error": "not_authenticated"})
@@ -74,7 +77,11 @@ async def get_conversation_detail(
     cursor: Annotated[str | None, "Opaque next_cursor for session paging"] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Read final user/assistant turns from one authorized historical session."""
+    """Read final user/assistant turns from one authorized historical session.
+    SOP: use session_id/run_id returned by search_conversation_history, or source_refs
+    returned by memory_recall. Provide run_id for one exact turn; omit it to page a
+    session and reuse next_cursor unchanged. Treat this tool as the source detail,
+    while memory text and search previews remain summaries."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_result({"success": False, "error": "not_authenticated"})

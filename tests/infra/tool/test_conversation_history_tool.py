@@ -90,3 +90,16 @@ def test_history_tool_factory_returns_both_tools() -> None:
         "search_conversation_history",
         "get_conversation_detail",
     ]
+
+
+def test_history_tool_descriptions_embed_the_lookup_sop() -> None:
+    search_description = history_tools.search_conversation_history.description
+    detail_description = history_tools.get_conversation_detail.description
+
+    assert "SOP" in search_description
+    assert "get_conversation_detail" in search_description
+    assert "next_cursor" in search_description
+    assert "SOP" in detail_description
+    assert "search_conversation_history" in detail_description
+    assert "memory_recall" in detail_description
+    assert "source_refs" in detail_description
