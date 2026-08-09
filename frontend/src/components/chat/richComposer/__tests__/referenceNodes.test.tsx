@@ -1,6 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -31,7 +37,7 @@ describe("rich composer reference nodes", () => {
     expect(screen.getByRole("button", { name: label })).toBeVisible();
   });
 
-  test("updates and removes a file reference atomically", () => {
+  test("hides trailing controls after upload and removes atomically", () => {
     const handle = createRef<RichChatComposerHandle>();
     render(<RichChatComposer ref={handle} ariaLabel="message" />);
 
@@ -51,11 +57,68 @@ describe("rich composer reference nodes", () => {
     expect(
       screen.getByRole("button", { name: "File notes.txt, ready" }),
     ).toBeVisible();
+    const fileNode = handle
+      .current!.getSnapshot()
+      .editorState.root?.children?.[0]?.children?.find(
+        (node) => node.type === "file-reference",
+      );
+    expect(fileNode).toMatchObject({ referenceNumber: 1 });
+    expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
+    expect(screen.getByText(/(?:Reference|引用) 1/)).toBeVisible();
+    expect(
+      document.querySelector(".composer-reference-chip__status"),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Remove notes.txt" }),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove notes.txt" }));
+    act(() => handle.current?.removeFileReference("ref-1"));
     expect(
       screen.queryByRole("button", { name: /File notes\.txt/ }),
     ).not.toBeInTheDocument();
+  });
+
+  test("keeps the Skill icon instead of rendering a remove cross", () => {
+    const handle = createRef<RichChatComposerHandle>();
+    render(<RichChatComposer ref={handle} ariaLabel="message" />);
+
+    act(() => handle.current?.insertSkill({ skillName: "writer", tags: [] }));
+
+    expect(screen.getByRole("button", { name: "Skill writer" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Remove writer" }),
+    ).not.toBeInTheDocument();
+    const paragraph =
+      handle.current!.getSnapshot().editorState.root?.children?.[0];
+    expect(paragraph?.children?.at(-1)).toMatchObject({
+      type: "text",
+      text: " ",
+    });
+  });
+
+  test("Backspace removes the whole atomic reference", async () => {
+    const handle = createRef<RichChatComposerHandle>();
+    render(<RichChatComposer ref={handle} ariaLabel="message" />);
+    act(() => {
+      handle.current?.insertFileReference({
+        referenceId: "ref-delete",
+        fileName: "delete-me.txt",
+        category: "document",
+        status: "ready",
+      });
+    });
+
+    act(() => {
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "message" }), {
+        key: "Backspace",
+      });
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /File delete-me\.txt/ }),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   test("exports readable plain text for reference nodes", () => {

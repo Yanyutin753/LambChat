@@ -89,7 +89,12 @@ describe("long text file reference workflow", () => {
     );
     const snapshot = handle.current!.getSnapshot();
 
-    fireEvent.click(screen.getByRole("button", { name: /^Remove long-text-/ }));
+    act(
+      () =>
+        handle.current?.removeFileReference(
+          latest!.projection.activeReferenceIds[0],
+        ),
+    );
     await waitFor(() =>
       expect(latest?.projection.activeReferenceIds).toEqual([]),
     );

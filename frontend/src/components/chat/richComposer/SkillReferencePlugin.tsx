@@ -1,6 +1,7 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createParagraphNode,
+  $createTextNode,
   $getRoot,
   $getSelection,
   $insertNodes,
@@ -35,7 +36,10 @@ export function SkillReferencePlugin() {
           if (root.getChildrenSize() === 0) root.append($createParagraphNode());
           selection = root.selectEnd();
         }
-        $insertNodes([$createSkillReferenceNode(descriptor)]);
+        $insertNodes([
+          $createSkillReferenceNode(descriptor),
+          $createTextNode(" "),
+        ]);
         return true;
       },
       COMMAND_PRIORITY_EDITOR,

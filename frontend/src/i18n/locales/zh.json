@@ -1249,6 +1249,7 @@
   "fileUpload": {
     "cancelUpload": "取消上传",
     "composerFileReference": "引用文件",
+    "composerReferenceNumber": "引用 {{index}}",
     "composerFileRemoved": "已移除文件引用",
     "composerRetry": "重试",
     "composerUploadFailed": "上传失败",

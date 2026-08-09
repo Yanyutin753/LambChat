@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  Check,
-  FileText,
-  LoaderCircle,
-  RotateCcw,
-  X,
-} from "lucide-react";
+import { AlertCircle, LoaderCircle, Paperclip, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FileReferenceDescriptor } from "./composerTypes";
 
@@ -16,43 +9,66 @@ const STATUS_LABELS = {
 } as const;
 
 interface FileReferenceChipProps extends FileReferenceDescriptor {
-  onRemove: () => void;
   onRetry?: () => void;
+  onClick?: () => void;
+  readOnly?: boolean;
 }
 
 export function FileReferenceChip({
   fileName,
+  referenceNumber = 1,
   status,
-  onRemove,
   onRetry,
+  onClick,
+  readOnly = false,
 }: FileReferenceChipProps) {
   const { t } = useTranslation();
+  const displayLabel = t("fileUpload.composerReferenceNumber", {
+    index: referenceNumber,
+    defaultValue: `Reference ${referenceNumber}`,
+  });
   const StatusIcon =
     status === "uploading"
       ? LoaderCircle
       : status === "failed"
         ? AlertCircle
-        : Check;
+        : null;
 
   return (
     <span
-      className={`composer-reference-chip composer-file-reference composer-file-reference--${status}`}
-      role="button"
-      tabIndex={0}
+      className={`skill-chip-node composer-reference-chip composer-file-reference composer-file-reference--${status}`}
+      role={!readOnly || onClick ? "button" : undefined}
+      tabIndex={!readOnly || onClick ? 0 : undefined}
       aria-label={`File ${fileName}, ${STATUS_LABELS[status]}`}
+      title={fileName}
       contentEditable={false}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
-      <FileText className="composer-reference-chip__icon" size={15} />
-      <span className="composer-reference-chip__label">{fileName}</span>
-      <StatusIcon
-        className={`composer-reference-chip__status${
-          status === "uploading"
-            ? " composer-reference-chip__status--spinning"
-            : ""
-        }`}
-        size={13}
-        aria-hidden="true"
-      />
+      <Paperclip className="composer-reference-chip__icon" size="1em" />
+      <span className="skill-chip-node-name composer-reference-chip__label">
+        {displayLabel}
+      </span>
+      {!readOnly && StatusIcon ? (
+        <StatusIcon
+          className={`composer-reference-chip__status${
+            status === "uploading"
+              ? " composer-reference-chip__status--spinning"
+              : ""
+          }`}
+          size={13}
+          aria-hidden="true"
+        />
+      ) : null}
       {status === "failed" && onRetry ? (
         <button
           type="button"
@@ -68,18 +84,6 @@ export function FileReferenceChip({
           <span>{t("fileUpload.composerRetry", "Retry")}</span>
         </button>
       ) : null}
-      <button
-        type="button"
-        className="composer-reference-chip__remove"
-        aria-label={`Remove ${fileName}`}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onRemove();
-        }}
-      >
-        <X size={12} aria-hidden="true" />
-      </button>
     </span>
   );
 }

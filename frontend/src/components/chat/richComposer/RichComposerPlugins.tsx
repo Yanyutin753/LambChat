@@ -33,6 +33,7 @@ import {
 } from "./nodes/referenceCommands";
 import { SkillReferencePlugin } from "./SkillReferencePlugin";
 import { FileReferencePlugin } from "./FileReferencePlugin";
+import { AtomicReferenceDeletionPlugin } from "./AtomicReferenceDeletionPlugin";
 
 function toSnapshot(editorState: EditorState): ComposerSnapshot {
   return {
@@ -199,6 +200,7 @@ export const RichComposerPlugins = forwardRef<
       />
       <SkillReferencePlugin />
       <FileReferencePlugin onRetry={onRetryFileReference} />
+      <AtomicReferenceDeletionPlugin />
       {longTextPaste ? <LongTextPastePlugin options={longTextPaste} /> : null}
     </>
   );

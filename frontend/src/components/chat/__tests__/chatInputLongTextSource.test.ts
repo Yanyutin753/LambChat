@@ -7,17 +7,31 @@ function readSource(relativePath: string): string {
 
 const chatInputSource = readSource("../ChatInput.tsx");
 const longTextSource = readSource("../longTextConversion.ts");
-const expandedSource = readSource("../ChatInputExpandedComposer.tsx");
 const attachmentsSource = readSource("../ChatInputAttachments.tsx");
 const sessionSource = readSource("../../../services/api/session.ts");
 
-test("ChatInput wires long-text conversion and expanded composer", () => {
+test("ChatInput uses one rich composer for inline long-text references", () => {
   expect(chatInputSource).toMatch(/useLongTextConversion/);
-  expect(chatInputSource).toMatch(/ChatInputExpandedComposer/);
+  expect(chatInputSource).toMatch(/RichChatComposer/);
+  expect(chatInputSource.match(/<RichChatComposer\s/g)).toHaveLength(1);
   expect(chatInputSource).toMatch(/showExpandButton/);
   expect(chatInputSource).toMatch(/onRestoreLongText/);
   expect(chatInputSource).toMatch(/prepareSubmit/);
-  expect(chatInputSource).toMatch(/maybeConvertInput/);
+  expect(chatInputSource).toMatch(
+    /buildLongTextClientMeta\(\s*payload\.originalText,\s*payload\.referenceId/,
+  );
+  expect(chatInputSource).toMatch(/visibleAttachments/);
+  expect(chatInputSource).not.toMatch(/maybeConvertInput/);
+  expect(chatInputSource).not.toMatch(/<textarea/);
+});
+
+test("rich composer loads outside the eager app bundle without losing the draft", () => {
+  expect(chatInputSource).toMatch(/lazy\(async \(\) =>/);
+  expect(chatInputSource).toMatch(
+    /import\("\.\/richComposer\/RichChatComposer"\)/,
+  );
+  expect(chatInputSource).toMatch(/<Suspense/);
+  expect(chatInputSource).toMatch(/initialPlainText=\{input\}/);
 });
 
 test("long text conversion keeps local original text for restore only", () => {
@@ -28,30 +42,18 @@ test("long text conversion keeps local original text for restore only", () => {
   expect(longTextSource).not.toMatch(/请查看附件中的长文本/);
 });
 
-test("expanded composer supports Esc collapse", () => {
-  expect(expandedSource).toMatch(/Escape/);
-  expect(expandedSource).toMatch(/onCollapse/);
-  expect(expandedSource).toMatch(/useBodyScrollLock/);
+test("expanded mode preserves the mounted rich editor and supports Esc", () => {
+  expect(chatInputSource).toMatch(/data-composer-expanded/);
+  expect(chatInputSource).toMatch(/useBodyScrollLock\(composerExpanded\)/);
+  expect(chatInputSource).toMatch(/event\.key !== "Escape"/);
+  expect(chatInputSource).toMatch(/enabled: !composerExpanded/);
+  expect(chatInputSource.match(/<RichChatComposer\s/g)).toHaveLength(1);
 });
 
-test("expanded composer uses mobile bottom sheet layout", () => {
-  expect(expandedSource).toMatch(/items-end sm:items-center/);
-  expect(expandedSource).toMatch(/rounded-t-2xl/);
-  expect(expandedSource).toMatch(/animate-slide-up-sheet/);
-  expect(expandedSource).toMatch(/useSwipeToClose/);
-  expect(expandedSource).toMatch(/dragHandleRef/);
-});
-
-test("expanded composer exposes collapse and send actions", () => {
-  expect(expandedSource).toMatch(/onSend\?:/);
-  expect(expandedSource).toMatch(/canSubmit/);
-  expect(expandedSource).toMatch(/isLoading/);
-  expect(expandedSource).toMatch(/chat\.send/);
-  expect(expandedSource).toMatch(/chat\.collapseComposer/);
-  expect(expandedSource).toMatch(/ArrowUp/);
-  expect(chatInputSource).toMatch(/canSubmit=\{canSubmit\}/);
-  expect(chatInputSource).toMatch(/isLoading=\{isLoading\}/);
-  expect(chatInputSource).toMatch(/onSend=\{handleSubmit\}/);
+test("expanded composer exposes an accessible collapse action", () => {
+  expect(chatInputSource).toMatch(/chat\.collapseComposer/);
+  expect(chatInputSource).toMatch(/setComposerExpanded\(false\)/);
+  expect(chatInputSource).toMatch(/<Minimize2/);
 });
 
 test("attachment cards expose restore-as-text for long text uploads", () => {
@@ -68,9 +70,14 @@ test("ChatInput stays modular under the 1000-line ceiling", () => {
   expect(chatInputSource.split("\n").length).toBeLessThan(1000);
   expect(
     existsSync(new URL("../ChatInputRunSkillsBar.tsx", import.meta.url)),
-  ).toBe(true);
+  ).toBe(false);
   expect(
     existsSync(new URL("../ChatInputExpandedComposer.tsx", import.meta.url)),
+  ).toBe(false);
+  expect(
+    existsSync(
+      new URL("../richComposer/RichChatComposer.tsx", import.meta.url),
+    ),
   ).toBe(true);
   expect(existsSync(new URL("../longTextConversion.ts", import.meta.url))).toBe(
     true,

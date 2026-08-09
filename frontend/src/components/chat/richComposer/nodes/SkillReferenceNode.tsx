@@ -3,7 +3,6 @@ import {
   $applyNodeReplacement,
   $createTextNode,
   DecoratorNode,
-  type LexicalEditor,
   type LexicalNode,
   type NodeKey,
   type SerializedLexicalNode,
@@ -80,7 +79,7 @@ export class SkillReferenceNode extends DecoratorNode<ReactNode> {
     return { skillName: self.__skillName, tags: [...self.__tags] };
   }
 
-  decorate(editor: LexicalEditor): ReactNode {
+  decorate(): ReactNode {
     const { skillName, tags } = this.getDescriptor();
     return (
       <span
@@ -90,13 +89,7 @@ export class SkillReferenceNode extends DecoratorNode<ReactNode> {
         aria-label={`Skill ${skillName}`}
         contentEditable={false}
       >
-        <SkillChip
-          name={skillName}
-          tags={tags}
-          onRemove={() => {
-            editor.update(() => this.getLatest().remove(), { discrete: true });
-          }}
-        />
+        <SkillChip name={skillName} tags={tags} />
       </span>
     );
   }

@@ -10,6 +10,16 @@ import {
 } from "../RichChatComposer";
 
 describe("RichChatComposer", () => {
+  test("hydrates an initial draft before the lazy editor becomes interactive", () => {
+    render(
+      <RichChatComposer ariaLabel="message" initialPlainText="保留的草稿" />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "message" })).toHaveTextContent(
+      "保留的草稿",
+    );
+  });
+
   test("keeps ordinary writing as plain text", async () => {
     const handle = createRef<RichChatComposerHandle>();
     let latest: RichChatComposerChange | undefined;

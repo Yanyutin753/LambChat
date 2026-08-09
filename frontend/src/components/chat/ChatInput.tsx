@@ -1,6 +1,15 @@
-import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  memo,
+  lazy,
+  Suspense,
+} from "react";
 import toast from "react-hot-toast";
-import { Ban, Maximize2 } from "lucide-react";
+import { Ban, Maximize2, Minimize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
 import { ImageViewer } from "../common";
@@ -12,10 +21,9 @@ import { useMentionSearch } from "../../hooks/useMentionSearch";
 import { resolveAgentDisplayName } from "../agent/agentCatalog";
 import { useTeamMentionSearch } from "../../hooks/useTeamMentionSearch";
 import { useInputHistory } from "../../hooks/useInputHistory";
-import { useTextareaResize } from "../../hooks/useTextareaResize";
-import { usePasteHandler } from "../../hooks/usePasteHandler";
-import { useChatInputKeyboard } from "../../hooks/useChatInputKeyboard";
 import { useLongTextConversion } from "../../hooks/useLongTextConversion";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
+import { isSendEnterKey } from "../../hooks/sendModifier";
 import { useAuth } from "../../hooks/useAuth";
 import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
@@ -25,21 +33,10 @@ import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
-import { ChatInputExpandedComposer } from "./ChatInputExpandedComposer";
-import { ChatInputRunSkillsBar } from "./ChatInputRunSkillsBar";
 import { resolveThinkingPresentation } from "./chatInputThinking";
-import { SkillSelector } from "../selectors/SkillSelector";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
-import { SlashDropdownMenu } from "./SlashDropdownMenu";
-import {
-  applySlashCommandSelection,
-  clearSlashCommandInput,
-  getMatchingSlashDropdownItems,
-  getSlashDropdownSections,
-  type SlashDropdownItem,
-} from "./chatInputSlashCommands";
-import { updateRunSkillNamesForSlashSelection } from "./runSkillSelection";
+import type { ChatInputSlashCommand } from "./chatInputSlashCommands";
 import {
   consumePendingSelectionActionPrompt,
   SELECTION_ACTION_EVENT,
@@ -49,6 +46,18 @@ import type { ChatInputProps } from "./chatInputTypes";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
 import type { MessageAttachment, PersonaPreset } from "../../types";
 import type { Team } from "../../types/team";
+import type {
+  LongTextPastePayload,
+  RichChatComposerChange,
+  RichChatComposerHandle,
+} from "./richComposer/RichChatComposer";
+import { buildLongTextClientMeta } from "./longTextConversion";
+import { uploadApi } from "../../services/api";
+
+const RichChatComposer = lazy(async () => {
+  const module = await import("./richComposer/RichChatComposer");
+  return { default: module.RichChatComposer };
+});
 
 export type { ChatInputProps } from "./chatInputTypes";
 
@@ -119,24 +128,25 @@ export const ChatInput = memo(function ChatInput({
 }: ChatInputProps) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
+  const inputValueRef = useRef("");
+  const composerRef = useRef<RichChatComposerHandle>(null);
+  const [activeReferenceIds, setActiveReferenceIds] = useState<string[]>([]);
+  const longTextResourcesRef = useRef(new Map<string, LongTextPastePayload>());
 
   // Consume external pendingInput: fill textarea and focus
   useEffect(() => {
     if (pendingInput) {
       setInput(pendingInput);
+      inputValueRef.current = pendingInput;
+      composerRef.current?.setPlainText(pendingInput);
       onPendingInputConsumed?.();
       requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          textarea.focus();
-          textarea.selectionStart = textarea.selectionEnd = pendingInput.length;
-        }
+        composerRef.current?.focus({ atEnd: true });
       });
     }
   }, [pendingInput, onPendingInputConsumed]);
 
   const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
-  const [runSkillSelectorOpen, setRunSkillSelectorOpen] = useState(false);
   const [runEnabledSkillNames, setRunEnabledSkillNames] = useState<
     string[] | null
   >(null);
@@ -149,7 +159,6 @@ export const ChatInput = memo(function ChatInput({
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [mentionPopupPlacement, setMentionPopupPlacement] =
@@ -165,50 +174,29 @@ export const ChatInput = memo(function ChatInput({
   const attachments = externalAttachments ?? internalAttachments;
   const setAttachments = externalOnAttachmentsChange ?? setInternalAttachments;
 
-  const { uploadFiles, uploadLimits, validateCount, cancelUpload } =
+  const { uploadFiles, uploadFile, uploadLimits, validateCount, cancelUpload } =
     useFileUpload({
       attachments,
       onAttachmentsChange: setAttachments,
     });
 
-  const { history, pushHistory, navigateUp, navigateDown } = useInputHistory();
+  const { pushHistory } = useInputHistory();
+  const scheduleTextareaResize = useCallback(() => undefined, []);
+  const showExpandButton = input.length > 120 || input.includes("\n");
+  const setComposerPlainText = useCallback((value: string) => {
+    inputValueRef.current = value;
+    setInput(value);
+    composerRef.current?.setPlainText(value);
+  }, []);
+  useBodyScrollLock(composerExpanded);
 
-  const { scheduleTextareaResize, showExpandButton } = useTextareaResize(
-    textareaRef,
-    input,
-  );
-
-  const {
-    convertTextToAttachment,
-    maybeConvertInput,
-    restoreLongTextAttachment,
-    prepareSubmit,
-  } = useLongTextConversion({
-    setInput,
+  const { restoreLongTextAttachment, prepareSubmit } = useLongTextConversion({
+    setInput: setComposerPlainText,
     setAttachments,
     uploadFiles,
     validateCount,
     scheduleTextareaResize,
     expanded: composerExpanded,
-  });
-
-  const handleLongTextPaste = useCallback(
-    (text: string) => {
-      // Expanded composer keeps long prompts editable as plain text.
-      if (composerExpanded) return false;
-      return convertTextToAttachment(text);
-    },
-    [composerExpanded, convertTextToAttachment],
-  );
-
-  const { handlePaste } = usePasteHandler({
-    textareaRef,
-    input,
-    setInput,
-    uploadFiles,
-    validateCount,
-    scheduleTextareaResize,
-    onLongTextPaste: handleLongTextPaste,
   });
 
   const mentionMode = currentAgent === "team" ? "team" : "persona";
@@ -259,54 +247,33 @@ export const ChatInput = memo(function ChatInput({
       return;
     const before = input.substring(0, mention.atIndex);
     const after = input.substring(mention.atIndex + mention.query.length + 1);
-    setInput(before + after);
+    setComposerPlainText(before + after);
     setCursorPosition(before.length || 0);
     requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.selectionStart = textarea.selectionEnd = before.length;
-        textarea.focus();
-        scheduleTextareaResize();
-      }
+      composerRef.current?.focus({ atEnd: true });
     });
     resetMention();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on preset selection
-  }, [selectedPersonaPresetId]);
+  }, [selectedPersonaPresetId, setComposerPlainText]);
 
   useEffect(() => {
     if (!onMentionQueryChange || !selectedTeamId || !mention.isActive) return;
     const before = input.substring(0, mention.atIndex);
     const after = input.substring(mention.atIndex + mention.query.length + 1);
-    setInput(before + after);
+    setComposerPlainText(before + after);
     setCursorPosition(before.length || 0);
     requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.selectionStart = textarea.selectionEnd = before.length;
-        textarea.focus();
-        scheduleTextareaResize();
-      }
+      composerRef.current?.focus({ atEnd: true });
     });
     resetMention();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on team selection
-  }, [selectedTeamId]);
+  }, [selectedTeamId, setComposerPlainText]);
 
   useEffect(() => {
     const applySelectionActionPrompt = (prompt: string) => {
-      setInput((previous) => {
-        const next = previous.trim()
-          ? `${previous.trim()}\n\n${prompt}`
-          : prompt;
-        setCursorPosition(next.length);
-        requestAnimationFrame(() => {
-          const textarea = textareaRef.current;
-          if (!textarea) return;
-          textarea.focus();
-          textarea.selectionStart = textarea.selectionEnd = next.length;
-          scheduleTextareaResize();
-        });
-        return next;
-      });
+      const separator = inputValueRef.current.trim() ? "\n\n" : "";
+      composerRef.current?.focus({ atEnd: true });
+      composerRef.current?.insertText(`${separator}${prompt}`);
     };
 
     const pendingPrompt = consumePendingSelectionActionPrompt();
@@ -324,7 +291,7 @@ export const ChatInput = memo(function ChatInput({
     return () => {
       window.removeEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
     };
-  }, [scheduleTextareaResize]);
+  }, []);
 
   // Ctrl+T / Cmd+T -> open team picker
   useEffect(() => {
@@ -343,6 +310,17 @@ export const ChatInput = memo(function ChatInput({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [currentAgent, onSelectTeam]);
+
+  useEffect(() => {
+    if (!composerExpanded) return;
+    const collapseOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setComposerExpanded(false);
+    };
+    document.addEventListener("keydown", collapseOnEscape);
+    return () => document.removeEventListener("keydown", collapseOnEscape);
+  }, [composerExpanded]);
 
   useEffect(() => {
     if (!mention.isActive) {
@@ -400,82 +378,13 @@ export const ChatInput = memo(function ChatInput({
     [skills, enableSkills],
   );
 
-  const slashDropdownItems = useMemo(
-    () =>
-      getMatchingSlashDropdownItems(
-        input,
-        cursorPosition,
-        enableSkills ? availableRunSkills : undefined,
-      ),
-    [input, cursorPosition, enableSkills, availableRunSkills],
-  );
-  const slashCommandOpen = slashDropdownItems.length > 0;
-  const slashDropdownSections = useMemo(
-    () => getSlashDropdownSections(slashDropdownItems),
-    [slashDropdownItems],
-  );
-
-  const [slashHighlightIndex, setSlashHighlightIndex] = useState(0);
-
-  const applySlashDropdownSelection = useCallback(
-    (item: SlashDropdownItem) => {
-      // ── Skill selection: require this skill for the next message ──
-      if (item.type === "skill") {
-        setRunEnabledSkillNames((current) => {
-          return updateRunSkillNamesForSlashSelection({
-            currentRunSkillNames: current,
-            availableSkillNames: availableRunSkills.map((s) => s.name),
-            selectedSkillName: item.skill.name,
-          });
-        });
-        const cleared = clearSlashCommandInput(input, cursorPosition);
-        setInput(cleared.input);
-        setCursorPosition(cleared.cursorPosition);
-        requestAnimationFrame(() => {
-          const textarea = textareaRef.current;
-          if (!textarea) return;
-          textarea.focus();
-          scheduleTextareaResize();
-        });
-        return;
-      }
-
-      // ── Built-in command handling ──
-      const command = item.command;
-      if (command.kind === "panel") {
-        setInput("");
-        setCursorPosition(0);
-        if (command.id === "tools") {
-          setActivePanel("tools");
-        } else if (command.id === "persona") {
-          setActivePanel("persona");
-        } else if (command.id === "team") {
-          setActivePanel("team");
-        } else if (command.id === "agent") {
-          setActivePanel("agent");
-        }
-        requestAnimationFrame(() => {
-          const textarea = textareaRef.current;
-          if (!textarea) return;
-          textarea.focus();
-          scheduleTextareaResize();
-        });
-        return;
-      }
-      // kind: "insert" (e.g. /goal)
-      const next = applySlashCommandSelection(input, cursorPosition, command);
-      setInput(next.input);
-      setCursorPosition(next.cursorPosition);
-      requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-        textarea.focus();
-        textarea.selectionStart = textarea.selectionEnd = next.cursorPosition;
-        scheduleTextareaResize();
-      });
-    },
-    [availableRunSkills, cursorPosition, input, scheduleTextareaResize],
-  );
+  const applySlashCommand = useCallback((command: ChatInputSlashCommand) => {
+    if (command.kind !== "panel") return;
+    if (command.id === "tools") setActivePanel("tools");
+    else if (command.id === "persona") setActivePanel("persona");
+    else if (command.id === "team") setActivePanel("team");
+    else if (command.id === "agent") setActivePanel("agent");
+  }, []);
 
   const applyMentionSelection = useCallback(
     (preset: PersonaPreset) => {
@@ -483,20 +392,15 @@ export const ChatInput = memo(function ChatInput({
       const before = input.substring(0, mention.atIndex);
       const after = input.substring(mention.atIndex + mention.query.length + 1);
       const newInput = before + after;
-      setInput(newInput);
+      setComposerPlainText(newInput);
       setCursorPosition(before.length || 0);
       requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          textarea.selectionStart = textarea.selectionEnd = before.length;
-          textarea.focus();
-          scheduleTextareaResize();
-        }
+        composerRef.current?.focus({ atEnd: true });
       });
       onUsePersonaPreset?.(preset);
       resetMention();
     },
-    [input, mention, onUsePersonaPreset, resetMention, scheduleTextareaResize],
+    [input, mention, onUsePersonaPreset, resetMention, setComposerPlainText],
   );
 
   const applyTeamMentionSelection = useCallback(
@@ -505,20 +409,116 @@ export const ChatInput = memo(function ChatInput({
       const before = input.substring(0, mention.atIndex);
       const after = input.substring(mention.atIndex + mention.query.length + 1);
       const newInput = before + after;
-      setInput(newInput);
+      setComposerPlainText(newInput);
       setCursorPosition(before.length || 0);
       requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          textarea.selectionStart = textarea.selectionEnd = before.length;
-          textarea.focus();
-          scheduleTextareaResize();
-        }
+        composerRef.current?.focus({ atEnd: true });
       });
       onSelectTeam?.(team.id);
       resetMention();
     },
-    [input, mention, onSelectTeam, resetMention, scheduleTextareaResize],
+    [input, mention, onSelectTeam, resetMention, setComposerPlainText],
+  );
+
+  const handleComposerChange = useCallback((change: RichChatComposerChange) => {
+    const { projection } = change;
+    inputValueRef.current = projection.message;
+    setInput(projection.message);
+    setCursorPosition(projection.message.length);
+    setActiveReferenceIds(projection.activeReferenceIds);
+    setRunEnabledSkillNames(
+      projection.enabledSkills.length > 0 ? projection.enabledSkills : null,
+    );
+  }, []);
+
+  const handleLongTextCreate = useCallback(
+    (payload: LongTextPastePayload) => {
+      longTextResourcesRef.current.set(payload.referenceId, payload);
+      uploadFile(
+        payload.file,
+        "document",
+        buildLongTextClientMeta(payload.originalText, payload.referenceId),
+      );
+      toast.success(t("chat.textAutoUploaded", "长文本已自动转为文件上传"));
+    },
+    [t, uploadFile],
+  );
+
+  const handleRetryFileReference = useCallback(
+    (referenceId: string) => {
+      const resource = longTextResourcesRef.current.get(referenceId);
+      if (!resource) return;
+      setAttachments((previous) =>
+        previous.filter(
+          (attachment) => attachment.composerReferenceId !== referenceId,
+        ),
+      );
+      composerRef.current?.updateFileReference({
+        referenceId,
+        status: "uploading",
+      });
+      uploadFile(
+        resource.file,
+        "document",
+        buildLongTextClientMeta(resource.originalText, referenceId),
+      );
+    },
+    [setAttachments, uploadFile],
+  );
+
+  const handleRestoreLongTextAttachment = useCallback(
+    (attachment: MessageAttachment) => {
+      const referenceId = attachment.composerReferenceId;
+      if (!referenceId) {
+        restoreLongTextAttachment(attachment);
+        return;
+      }
+      const resource = longTextResourcesRef.current.get(referenceId);
+      const originalText =
+        resource?.originalText ?? attachment.localOriginalText ?? "";
+      composerRef.current?.removeFileReference(referenceId);
+      if (originalText) composerRef.current?.insertText(originalText);
+      longTextResourcesRef.current.delete(referenceId);
+      setAttachments((previous) =>
+        previous.filter((item) => item.id !== attachment.id),
+      );
+      if (attachment.key && !attachment.isUploading) {
+        uploadApi.deleteFile(attachment.key).catch((error) => {
+          console.error("Failed to delete restored long text file:", error);
+        });
+      }
+    },
+    [restoreLongTextAttachment, setAttachments],
+  );
+
+  useEffect(() => {
+    for (const attachment of attachments) {
+      const referenceId = attachment.composerReferenceId;
+      if (!referenceId) continue;
+      composerRef.current?.updateFileReference({
+        referenceId,
+        fileName: attachment.name,
+        status: attachment.uploadError
+          ? "failed"
+          : attachment.isUploading
+            ? "uploading"
+            : "ready",
+      });
+    }
+  }, [attachments]);
+
+  const activeReferenceIdSet = useMemo(
+    () => new Set(activeReferenceIds),
+    [activeReferenceIds],
+  );
+  const visibleAttachments = useMemo(
+    () =>
+      attachments.filter(
+        (attachment) =>
+          !attachment.composerReferenceId ||
+          activeReferenceIdSet.has(attachment.composerReferenceId),
+      ),
+    [activeReferenceIdSet, attachments],
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -529,7 +529,7 @@ export const ChatInput = memo(function ChatInput({
       const runOptions = runEnabledSkillNames
         ? { enabledSkills: runEnabledSkillNames }
         : undefined;
-      const prepared = prepareSubmit(trimmed, attachments);
+      const prepared = prepareSubmit(trimmed, visibleAttachments);
       onSend(
         prepared.message,
         agentOptionValues,
@@ -540,54 +540,82 @@ export const ChatInput = memo(function ChatInput({
         pushHistory(trimmed);
       }
       setInput("");
+      inputValueRef.current = "";
+      composerRef.current?.setPlainText("");
+      setActiveReferenceIds([]);
+      longTextResourcesRef.current.clear();
       setRunEnabledSkillNames(null);
       setAttachments([]);
       setComposerExpanded(false);
-      requestAnimationFrame(() => {
-        if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-        }
-      });
     }
   };
 
-  const handleKeyDown = useChatInputKeyboard(
-    {
-      open: slashCommandOpen,
-      items: slashDropdownItems,
-      highlightIndex: slashHighlightIndex,
-      setHighlightIndex: setSlashHighlightIndex,
-      onSelect: applySlashDropdownSelection,
+  const handleComposerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) return;
+      if (mention.isActive) {
+        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+          event.preventDefault();
+          moveMentionHighlight(event.key === "ArrowUp" ? "up" : "down");
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          if (mentionMode === "team") {
+            const team = teamMentionSearch.teams[mention.highlightedIndex];
+            if (team) applyTeamMentionSelection(team);
+          } else {
+            const preset = mentionSearch.presets[mention.highlightedIndex];
+            if (preset) applyMentionSelection(preset);
+          }
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          resetMention();
+          return;
+        }
+      }
+      if (event.key !== "Enter") return;
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+      if (!isSendEnterKey(event)) return;
+      event.preventDefault();
+      if (isLoading) setStopConfirmOpen(true);
+      else event.currentTarget.closest("form")?.requestSubmit();
     },
-    {
-      active: mention.isActive,
-      mode: mentionMode,
-      highlightedIndex: mention.highlightedIndex,
-      moveHighlight: moveMentionHighlight,
-      teamItems: teamMentionSearch.teams,
-      personaItems: mentionSearch.presets,
-      onTeamSelect: applyTeamMentionSelection,
-      onPersonaSelect: applyMentionSelection,
-      reset: resetMention,
-    },
-    {
+    [
+      applyMentionSelection,
+      applyTeamMentionSelection,
       isLoading,
-      textareaRef,
-      input,
-      setInput,
-      setCursorPosition,
-      onSubmit: handleSubmit,
-      onSetStopConfirmOpen: setStopConfirmOpen,
-      navigateUp,
-      navigateDown,
-      historyLength: history.length,
-    },
+      mention.highlightedIndex,
+      mention.isActive,
+      mentionMode,
+      mentionSearch.presets,
+      moveMentionHighlight,
+      resetMention,
+      teamMentionSearch.teams,
+    ],
   );
 
-  const hasContent = (!!input.trim() || attachments.length > 0) && !disabled;
-  const hasUploadingAttachment = attachments.some((a) => a.isUploading);
+  const hasContent =
+    (!!input.trim() || visibleAttachments.length > 0) && !disabled;
+  const hasUploadingAttachment =
+    visibleAttachments.some((attachment) => attachment.isUploading) ||
+    activeReferenceIds.some(
+      (referenceId) =>
+        !attachments.some(
+          (attachment) => attachment.composerReferenceId === referenceId,
+        ),
+    );
+  const hasFailedAttachment = visibleAttachments.some(
+    (attachment) => attachment.uploadError,
+  );
   const canSubmit =
-    hasContent && canSend && !isLoading && !hasUploadingAttachment;
+    hasContent &&
+    canSend &&
+    !isLoading &&
+    !hasUploadingAttachment &&
+    !hasFailedAttachment;
   const composerPlaceholder = !canSend
     ? t("chat.noPermission")
     : mentionMode === "team"
@@ -616,39 +644,18 @@ export const ChatInput = memo(function ChatInput({
   const { label: thinkingLabel, level: thinkingLevel } =
     resolveThinkingPresentation(agentOptions, agentOptionValues, t);
 
-  const runSkillNameSet = useMemo(() => {
-    const initialNames =
-      runEnabledSkillNames ?? availableRunSkills.map((skill) => skill.name);
-    return new Set(initialNames);
-  }, [availableRunSkills, runEnabledSkillNames]);
-  const runSkillSelectorSkills = useMemo(
-    () =>
-      availableRunSkills.map((skill) => ({
-        ...skill,
-        enabled: runSkillNameSet.has(skill.name),
-      })),
-    [availableRunSkills, runSkillNameSet],
-  );
-  const runSkillEnabledCount = runSkillSelectorSkills.filter(
-    (skill) => skill.enabled,
-  ).length;
-  const updateRunSkillSelection = useCallback(
-    (updater: (current: Set<string>) => Set<string>) => {
-      setRunEnabledSkillNames((current) => {
-        const base = new Set(
-          current ?? availableRunSkills.map((skill) => skill.name),
-        );
-        return Array.from(updater(base));
-      });
-    },
-    [availableRunSkills],
-  );
-
   return (
     <div
       className="chat-input-shell sm:px-4 pb-3 sm:pb-5"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
+      {composerExpanded ? (
+        <div
+          className="fixed inset-0 z-[279] bg-black/45"
+          onClick={() => setComposerExpanded(false)}
+          aria-hidden="true"
+        />
+      ) : null}
       <form
         onSubmit={handleSubmit}
         className={
@@ -665,6 +672,7 @@ export const ChatInput = memo(function ChatInput({
           }`}
           data-mention-active={mention.isActive || undefined}
           data-drag-over={isDraggingOver || undefined}
+          data-composer-expanded={composerExpanded || undefined}
           style={{
             backgroundColor: "var(--theme-bg-card)",
           }}
@@ -712,60 +720,76 @@ export const ChatInput = memo(function ChatInput({
             )}
 
           <ChatInputAttachments
-            attachments={attachments}
+            attachments={visibleAttachments}
             onAttachmentsChange={setAttachments}
             onCancelUpload={cancelUpload}
             onImageViewerOpen={(url) => setImageViewerSrc(url)}
             maxFiles={uploadLimits?.maxFiles}
-            onRestoreLongText={restoreLongTextAttachment}
+            onRestoreLongText={handleRestoreLongTextAttachment}
+            onRemoveReference={(referenceId) =>
+              composerRef.current?.removeFileReference(referenceId)
+            }
+            onRetryUpload={(attachment) => {
+              if (attachment.composerReferenceId) {
+                handleRetryFileReference(attachment.composerReferenceId);
+              }
+            }}
           />
 
-          <div className="px-2.5 pt-1">
-            {runEnabledSkillNames && (
-              <ChatInputRunSkillsBar
-                skillNames={runEnabledSkillNames}
-                availableSkills={availableRunSkills}
-                onOpenSelector={() => setRunSkillSelectorOpen(true)}
-                onRemoveSkill={(skillName) => {
-                  updateRunSkillSelection((current) => {
-                    current.delete(skillName);
-                    return current;
-                  });
-                }}
-                onClear={() => setRunEnabledSkillNames(null)}
-              />
-            )}
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setCursorPosition(e.target.selectionStart);
-                  if (maybeConvertInput(next)) return;
-                  setInput(next);
-                }}
-                onClick={(e) => {
-                  setCursorPosition(e.currentTarget.selectionStart);
-                }}
-                onKeyUp={(e) => {
-                  setCursorPosition(e.currentTarget.selectionStart);
-                }}
-                onFocus={scheduleTextareaResize}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder={composerPlaceholder}
-                disabled={disabled || !canSend}
-                className={`bg-transparent outline-none w-full pt-[10px] resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[40px] sm:min-h-[44px] ${
-                  showExpandButton ? "pr-8" : "pr-1"
-                }`}
-                style={{
-                  color: "var(--theme-text)",
-                  paddingLeft: 4,
-                }}
-                rows={1}
-              />
-              {showExpandButton && (
+          <div className="chat-composer-editor-wrap px-2.5 pt-1">
+            {composerExpanded ? (
+              <div className="flex items-center justify-between border-b px-2 pb-3 pt-1">
+                <div>
+                  <div className="text-sm font-medium text-[var(--theme-text)]">
+                    {t("chat.expandedComposerTitle", "展开编辑")}
+                  </div>
+                  <div className="mt-0.5 text-xs text-[var(--theme-text-secondary)]">
+                    {t(
+                      "chat.expandedComposerHint",
+                      "适合编辑长提示词。Esc 收起，发送快捷键保持不变。",
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setComposerExpanded(false)}
+                  className="inline-flex size-8 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--theme-text)_8%,transparent)]"
+                  style={{ color: "var(--theme-text-secondary)" }}
+                  title={t("chat.collapseComposer", "收起")}
+                  aria-label={t("chat.collapseComposer", "收起")}
+                >
+                  <Minimize2 size={16} />
+                </button>
+              </div>
+            ) : null}
+            <div className="relative min-h-0 flex-1">
+              <Suspense
+                fallback={
+                  <div
+                    className="rich-chat-composer__editor"
+                    aria-hidden="true"
+                  />
+                }
+              >
+                <RichChatComposer
+                  ref={composerRef}
+                  ariaLabel={t("chat.messageInput", "Message")}
+                  initialPlainText={input}
+                  placeholder={composerPlaceholder}
+                  availableSkills={availableRunSkills}
+                  onApplySlashCommand={applySlashCommand}
+                  onChange={handleComposerChange}
+                  longTextPaste={{
+                    enabled: !composerExpanded,
+                    validateCount,
+                    onCreate: handleLongTextCreate,
+                  }}
+                  onRetryFileReference={handleRetryFileReference}
+                  onKeyDown={handleComposerKeyDown}
+                  disabled={disabled || !canSend}
+                />
+              </Suspense>
+              {!composerExpanded && showExpandButton ? (
                 <button
                   type="button"
                   onClick={() => setComposerExpanded(true)}
@@ -777,19 +801,9 @@ export const ChatInput = memo(function ChatInput({
                 >
                   <Maximize2 size={14} />
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
-          <SlashDropdownMenu
-            open={slashCommandOpen}
-            sections={slashDropdownSections}
-            items={slashDropdownItems}
-            runSkillNameSet={runSkillNameSet}
-            containerRef={containerRef}
-            onApplySelection={applySlashDropdownSelection}
-            highlightIndex={slashHighlightIndex}
-            onHighlightChange={setSlashHighlightIndex}
-          />
 
           <ChatInputToolbar
             activePanel={activePanel}
@@ -886,46 +900,6 @@ export const ChatInput = memo(function ChatInput({
         onToggleAgentOption={onToggleAgentOption}
       />
 
-      {enableSkills && (
-        <SkillSelector
-          skills={runSkillSelectorSkills}
-          onToggleSkill={async (name) => {
-            updateRunSkillSelection((current) => {
-              if (current.has(name)) {
-                current.delete(name);
-              } else {
-                current.add(name);
-              }
-              return current;
-            });
-            return true;
-          }}
-          onToggleCategory={async (category, enabled) => {
-            updateRunSkillSelection((current) => {
-              availableRunSkills
-                .filter((skill) => skill.source === category)
-                .forEach((skill) => {
-                  if (enabled) current.add(skill.name);
-                  else current.delete(skill.name);
-                });
-              return current;
-            });
-            return true;
-          }}
-          onToggleAll={async (enabled) => {
-            setRunEnabledSkillNames(
-              enabled ? availableRunSkills.map((skill) => skill.name) : [],
-            );
-            return true;
-          }}
-          enabledCount={runSkillEnabledCount}
-          totalCount={availableRunSkills.length}
-          isOpen={runSkillSelectorOpen}
-          onOpenChange={setRunSkillSelectorOpen}
-          toastOnToggle={false}
-        />
-      )}
-
       {showHelpMenu && <ChatInputHelpMenu className={helpMenuClassName} />}
 
       {imageViewerSrc && (
@@ -969,26 +943,6 @@ export const ChatInput = memo(function ChatInput({
         isOpen={contactAdminOpen}
         onClose={() => setContactAdminOpen(false)}
         reason="noPermission"
-      />
-
-      <ChatInputExpandedComposer
-        open={composerExpanded}
-        value={input}
-        disabled={disabled || !canSend}
-        canSubmit={canSubmit}
-        isLoading={isLoading}
-        hasUploadingAttachment={hasUploadingAttachment}
-        placeholder={composerPlaceholder}
-        onChange={(next) => {
-          if (maybeConvertInput(next)) return;
-          setInput(next);
-          setCursorPosition(next.length);
-        }}
-        onCollapse={() => setComposerExpanded(false)}
-        onSend={handleSubmit}
-        onStop={() => setStopConfirmOpen(true)}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
       />
     </div>
   );

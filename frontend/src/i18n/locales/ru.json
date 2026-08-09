@@ -1249,6 +1249,7 @@
   "fileUpload": {
     "cancelUpload": "Отменить загрузку",
     "composerFileReference": "Файл-ссылка",
+    "composerReferenceNumber": "Ссылка {{index}}",
     "composerFileRemoved": "Ссылка на файл удалена",
     "composerRetry": "Повторить",
     "composerUploadFailed": "Ошибка загрузки",

@@ -5,7 +5,9 @@ import {
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
-import { forwardRef, useCallback, useRef, useState } from "react";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $createParagraphNode, $createTextNode, $getRoot } from "lexical";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import type { SkillResponse } from "../../../types";
 import type { ChatInputSlashCommand } from "../chatInputSlashCommands";
 import type {
@@ -60,6 +62,7 @@ export interface RichChatComposerHandle {
 export interface RichChatComposerProps {
   ariaLabel: string;
   placeholder?: string;
+  initialPlainText?: string;
   className?: string;
   onChange?: (change: RichChatComposerChange) => void;
   onError?: (error: Error) => void;
@@ -67,6 +70,14 @@ export interface RichChatComposerProps {
   onApplySlashCommand?: (command: ChatInputSlashCommand) => void;
   longTextPaste?: LongTextPasteOptions;
   onRetryFileReference?: (referenceId: string) => void;
+  disabled?: boolean;
+  onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
+}
+
+function EditablePlugin({ disabled }: { disabled: boolean }) {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => editor.setEditable(!disabled), [disabled, editor]);
+  return null;
 }
 
 export const RichChatComposer = forwardRef<
@@ -76,6 +87,7 @@ export const RichChatComposer = forwardRef<
   {
     ariaLabel,
     placeholder,
+    initialPlainText = "",
     className,
     onChange,
     onError,
@@ -83,6 +95,8 @@ export const RichChatComposer = forwardRef<
     onApplySlashCommand,
     longTextPaste,
     onRetryFileReference,
+    disabled = false,
+    onKeyDown,
   },
   ref,
 ) {
@@ -107,6 +121,17 @@ export const RichChatComposer = forwardRef<
     onError(error: Error) {
       onError?.(error);
     },
+    editable: !disabled,
+    editorState: () => {
+      const root = $getRoot();
+      root.clear();
+      for (const line of initialPlainText.split("\n")) {
+        const paragraph = $createParagraphNode();
+        if (line) paragraph.append($createTextNode(line));
+        root.append(paragraph);
+      }
+      root.selectEnd();
+    },
   };
 
   return (
@@ -120,7 +145,9 @@ export const RichChatComposer = forwardRef<
             <ContentEditable
               className="rich-chat-composer__editor"
               aria-label={ariaLabel}
+              aria-disabled={disabled}
               spellCheck
+              onKeyDown={onKeyDown}
             />
           }
           placeholder={
@@ -143,6 +170,7 @@ export const RichChatComposer = forwardRef<
           longTextPaste={longTextPaste}
           onRetryFileReference={onRetryFileReference}
         />
+        <EditablePlugin disabled={disabled} />
       </div>
     </LexicalComposer>
   );

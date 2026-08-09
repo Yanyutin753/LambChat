@@ -1249,6 +1249,7 @@
   "fileUpload": {
     "cancelUpload": "Cancel upload",
     "composerFileReference": "Referenced file",
+    "composerReferenceNumber": "Reference {{index}}",
     "composerFileRemoved": "File reference removed",
     "composerRetry": "Retry",
     "composerUploadFailed": "Upload failed",

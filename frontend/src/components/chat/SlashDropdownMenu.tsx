@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Check, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { getCategoryIcon, nameToGradient } from "../common/cardUtils";
+import { getAnchoredSlashDropdownPlacement } from "./slashDropdownPlacement";
 import type {
   SlashDropdownItem,
   SlashDropdownSection,
@@ -33,6 +35,7 @@ export function SlashDropdownMenu({
   onHighlightChange,
 }: SlashDropdownMenuProps) {
   const { t } = useTranslation();
+  const popupRef = useRef<HTMLDivElement>(null);
 
   // Reset highlight when items change
   useEffect(() => {
@@ -42,13 +45,13 @@ export function SlashDropdownMenu({
   // Scroll highlighted item into view when navigating with arrow keys
   useEffect(() => {
     if (!open) return;
-    const el = containerRef.current?.querySelector(
+    const el = popupRef.current?.querySelector(
       `[data-slash-idx="${highlightIndex}"]`,
     );
     if (el) {
       (el as HTMLElement).scrollIntoView?.({ block: "nearest" });
     }
-  }, [open, highlightIndex, containerRef]);
+  }, [open, highlightIndex]);
 
   // Compute placement before any early return — hooks must not be called conditionally
   const placement = useStickyDropdownPosition(containerRef, open, (rect) => {
@@ -65,13 +68,31 @@ export function SlashDropdownMenu({
     };
   });
 
+  const estimatedMenuHeight = Math.min(
+    320,
+    16 + items.length * 40 + (sections.length > 1 ? sections.length * 30 : 0),
+  );
+  const viewportWidth =
+    typeof window === "undefined" ? 1024 : window.innerWidth;
+  const viewportHeight =
+    typeof window === "undefined"
+      ? 768
+      : window.visualViewport?.height ?? window.innerHeight;
+  const compactMobile = viewportWidth < 640;
+  const menuHeight = compactMobile
+    ? Math.min(estimatedMenuHeight, 240, Math.round(viewportHeight * 0.42))
+    : estimatedMenuHeight;
+  const menuWidth = compactMobile ? 288 : 320;
+  const viewportMargin = compactMobile ? 12 : 8;
   const anchoredPlacement = anchorRect
-    ? {
-        left: Math.max(8, Math.min(anchorRect.left, window.innerWidth - 328)),
-        top: anchorRect.bottom + 6,
-        width: Math.min(320, window.innerWidth - 16),
-        maxHeight: Math.min(320, window.innerHeight - anchorRect.bottom - 14),
-      }
+    ? getAnchoredSlashDropdownPlacement(
+        anchorRect,
+        viewportWidth,
+        viewportHeight,
+        menuHeight,
+        menuWidth,
+        viewportMargin,
+      )
     : null;
 
   if (!open) return null;
@@ -133,7 +154,7 @@ export function SlashDropdownMenu({
                     </span>
                     {item.command.fallbackDescription && (
                       <span
-                        className="min-w-0 flex-1 truncate"
+                        className="slash-command-description min-w-0 flex-1 truncate"
                         style={{ color: "var(--theme-text-secondary)" }}
                       >
                         {t(
@@ -182,43 +203,55 @@ export function SlashDropdownMenu({
       );
     });
 
-  // Fallback to absolute positioning when placement unavailable
+  // Render at the document root so transformed/stacked chat layouts cannot
+  // clip the menu or intercept its pointer events.
+  if (typeof document === "undefined") return null;
+
   if ("display" in placement && placement.display === "none") {
-    return (
+    return createPortal(
       <div
+        ref={popupRef}
         role="listbox"
         aria-label="Slash commands"
-        className="absolute bottom-full left-1 z-30 mb-2 w-72 sm:w-80 overflow-hidden rounded-xl border shadow-lg"
+        className="slash-command-menu fixed bottom-20 left-2 z-[350] overflow-hidden rounded-xl border shadow-lg"
         style={{
           backgroundColor: "var(--theme-bg-card)",
           borderColor: "var(--theme-border)",
           color: "var(--theme-text)",
-          maxHeight: 320,
+          width: menuWidth,
+          maxWidth: `calc(100vw - ${viewportMargin * 2}px)`,
+          maxHeight: menuHeight,
+          pointerEvents: "auto",
         }}
       >
         {renderSections()}
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  const resolvedPlacement = anchoredPlacement ?? placement;
+  return createPortal(
     <div
+      ref={popupRef}
       role="listbox"
       aria-label="Slash commands"
-      className="fixed z-[100] overflow-hidden rounded-xl border shadow-lg"
+      className="slash-command-menu fixed z-[350] overflow-hidden rounded-xl border shadow-lg"
       style={{
-        ...(anchoredPlacement ?? placement),
+        ...resolvedPlacement,
         backgroundColor: "var(--theme-bg-card)",
         borderColor: "var(--theme-border)",
         color: "var(--theme-text)",
+        pointerEvents: "auto",
       }}
     >
       <div
         className="overflow-y-auto"
-        style={{ maxHeight: placement.maxHeight }}
+        style={{ maxHeight: resolvedPlacement.maxHeight }}
       >
         {renderSections()}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

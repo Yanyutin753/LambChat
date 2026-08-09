@@ -1,6 +1,7 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createParagraphNode,
+  $createTextNode,
   $getRoot,
   $getSelection,
   $insertNodes,
@@ -19,6 +20,7 @@ import {
   RETRY_FILE_REFERENCE_COMMAND,
   UPDATE_FILE_REFERENCE_COMMAND,
 } from "./nodes/referenceCommands";
+import { removeReferenceWithSpacer } from "./referenceNodeRemoval";
 
 export function FileReferencePlugin({
   onRetry,
@@ -39,13 +41,26 @@ export function FileReferencePlugin({
           existing.selectNext();
           return true;
         }
+        const nextReferenceNumber =
+          Math.max(
+            0,
+            ...$nodesOfType(FileReferenceNode).map(
+              (node) => node.getDescriptor().referenceNumber ?? 0,
+            ),
+          ) + 1;
         let selection = $getSelection();
         if (!$isRangeSelection(selection)) {
           const root = $getRoot();
           if (root.getChildrenSize() === 0) root.append($createParagraphNode());
           selection = root.selectEnd();
         }
-        $insertNodes([$createFileReferenceNode(descriptor)]);
+        $insertNodes([
+          $createFileReferenceNode({
+            ...descriptor,
+            referenceNumber: descriptor.referenceNumber ?? nextReferenceNumber,
+          }),
+          $createTextNode(" "),
+        ]);
         return true;
       },
       COMMAND_PRIORITY_EDITOR,
@@ -59,7 +74,7 @@ export function FileReferencePlugin({
         const node = $nodesOfType(FileReferenceNode).find(
           (candidate) => candidate.getDescriptor().referenceId === referenceId,
         );
-        node?.remove();
+        if (node) removeReferenceWithSpacer(node);
         return node !== undefined;
       },
       COMMAND_PRIORITY_EDITOR,

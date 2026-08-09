@@ -24,6 +24,7 @@ export type SerializedFileReferenceNode = Spread<
 export class FileReferenceNode extends DecoratorNode<ReactNode> {
   __referenceId: string;
   __fileName: string;
+  __referenceNumber: number;
   __category: "document";
   __status: FileReferenceStatus;
 
@@ -45,6 +46,7 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
     return $createFileReferenceNode({
       referenceId: descriptor.referenceId ?? "",
       fileName: descriptor.fileName ?? "文件",
+      referenceNumber: descriptor.referenceNumber ?? 1,
       category: "document",
       status: descriptor.status ?? "ready",
     });
@@ -62,6 +64,7 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
     super(key);
     this.__referenceId = descriptor.referenceId;
     this.__fileName = descriptor.fileName;
+    this.__referenceNumber = descriptor.referenceNumber ?? 1;
     this.__category = descriptor.category;
     this.__status = descriptor.status;
   }
@@ -95,6 +98,7 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
     return {
       referenceId: self.__referenceId,
       fileName: self.__fileName,
+      referenceNumber: self.__referenceNumber,
       category: self.__category,
       status: self.__status,
     };
@@ -116,9 +120,6 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
     return (
       <FileReferenceChip
         {...descriptor}
-        onRemove={() => {
-          editor.update(() => this.getLatest().remove(), { discrete: true });
-        }}
         onRetry={
           descriptor.status === "failed"
             ? () =>

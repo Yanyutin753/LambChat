@@ -47,6 +47,26 @@ describe("rich composer slash Skill workflow", () => {
     expect(latest?.projection.enabledSkills).toEqual(["writer"]);
   });
 
+  test("renders above the app in a portal and supports pointer selection", () => {
+    const handle = createRef<RichChatComposerHandle>();
+    render(
+      <RichChatComposer
+        ref={handle}
+        ariaLabel="message"
+        availableSkills={[writerSkill]}
+      />,
+    );
+    act(() => handle.current?.insertText("/wri"));
+
+    const popup = screen.getByRole("listbox", { name: "Slash commands" });
+    expect(popup.parentElement).toBe(document.body);
+
+    fireEvent.mouseDown(screen.getByRole("option", { name: "writer" }));
+
+    expect(popup).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Skill writer" })).toBeVisible();
+  });
+
   test.each(["https://example.com", "a/b", "/home/user"])(
     "does not open for %s",
     (text) => {

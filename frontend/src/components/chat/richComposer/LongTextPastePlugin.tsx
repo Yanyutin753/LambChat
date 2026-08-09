@@ -1,12 +1,14 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $addUpdateTag,
+  $createTextNode,
   $getRoot,
   $getSelection,
   $isRangeSelection,
   COMMAND_PRIORITY_HIGH,
   PASTE_COMMAND,
   PASTE_TAG,
+  $nodesOfType,
 } from "lexical";
 import { useEffect, useState } from "react";
 import { uuid } from "../../../utils/uuid";
@@ -17,7 +19,10 @@ import {
 } from "../longTextConversion";
 import { cleanPastedHtml, turndown } from "../chatInputTurndown";
 import type { LongTextPasteOptions } from "./RichChatComposer";
-import { $createFileReferenceNode } from "./nodes/FileReferenceNode";
+import {
+  $createFileReferenceNode,
+  FileReferenceNode,
+} from "./nodes/FileReferenceNode";
 
 function getPastedText(clipboardData: DataTransfer): string {
   const html = clipboardData.getData("text/html");
@@ -62,13 +67,22 @@ export function LongTextPastePlugin({
 
         const referenceId = uuid();
         const file = createLongTextFile(pastedText, buildLongTextFileName());
+        const referenceNumber =
+          Math.max(
+            0,
+            ...$nodesOfType(FileReferenceNode).map(
+              (node) => node.getDescriptor().referenceNumber ?? 0,
+            ),
+          ) + 1;
         selection.insertNodes([
           $createFileReferenceNode({
             referenceId,
             fileName: file.name,
+            referenceNumber,
             category: "document",
             status: "uploading",
           }),
+          $createTextNode(" "),
         ]);
         options.onCreate({ referenceId, file, originalText: pastedText });
         setAnnouncement(`Inserted file reference ${file.name}`);

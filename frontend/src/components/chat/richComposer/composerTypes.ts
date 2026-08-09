@@ -3,6 +3,7 @@ export type FileReferenceStatus = "uploading" | "ready" | "failed";
 export interface FileReferenceDescriptor {
   referenceId: string;
   fileName: string;
+  referenceNumber?: number;
   category: "document";
   status: FileReferenceStatus;
 }
@@ -19,6 +20,7 @@ export interface SerializedComposerNode {
   children?: SerializedComposerNode[];
   referenceId?: string;
   fileName?: string;
+  referenceNumber?: number;
   category?: string;
   status?: FileReferenceStatus;
   skillName?: string;

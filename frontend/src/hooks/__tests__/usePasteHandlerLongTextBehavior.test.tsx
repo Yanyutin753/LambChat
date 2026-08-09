@@ -46,18 +46,14 @@ function paste(getData: (type: string) => string) {
   fireEvent.paste(textarea, { clipboardData: { files: [], getData } });
 }
 
-test("plain long-text paste converts the complete composer value", () => {
+test("plain long-text paste converts only the pasted fragment", () => {
   render(<PasteHarness />);
   paste((type) => (type === "text/plain" ? pastedText : ""));
-  expect(screen.getByLabelText("converted text")).toHaveTextContent(
-    `before${pastedText}after`,
-  );
+  expect(screen.getByLabelText("converted text").textContent).toBe(pastedText);
 });
 
-test("HTML long-text paste converts the complete composer value", () => {
+test("HTML long-text paste converts only the pasted fragment", () => {
   render(<PasteHarness />);
   paste((type) => (type === "text/html" ? `<p>${pastedText}</p>` : ""));
-  expect(screen.getByLabelText("converted text")).toHaveTextContent(
-    `before${pastedText}after`,
-  );
+  expect(screen.getByLabelText("converted text").textContent).toBe(pastedText);
 });

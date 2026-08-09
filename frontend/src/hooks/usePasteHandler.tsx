@@ -80,16 +80,7 @@ export function usePasteHandler({
         const markdownText = turndown.turndown(tempDiv);
 
         if (markdownText.length > PASTE_TEXT_THRESHOLD) {
-          const textarea = textareaRef.current;
-          const selectionStart = textarea?.selectionStart ?? input.length;
-          const selectionEnd = textarea?.selectionEnd ?? input.length;
-          const nextInput = buildPostPasteInput(
-            input,
-            markdownText,
-            selectionStart,
-            selectionEnd,
-          );
-          if (onLongTextPaste?.(nextInput)) return;
+          if (onLongTextPaste?.(markdownText)) return;
         }
 
         insertText(markdownText);
@@ -99,27 +90,11 @@ export function usePasteHandler({
       const plainText = clipboardData.getData("text/plain");
       if (plainText && plainText.length > PASTE_TEXT_THRESHOLD) {
         e.preventDefault();
-        const textarea = textareaRef.current;
-        const selectionStart = textarea?.selectionStart ?? input.length;
-        const selectionEnd = textarea?.selectionEnd ?? input.length;
-        const nextInput = buildPostPasteInput(
-          input,
-          plainText,
-          selectionStart,
-          selectionEnd,
-        );
-        if (onLongTextPaste?.(nextInput)) return;
+        if (onLongTextPaste?.(plainText)) return;
         insertText(plainText);
       }
     },
-    [
-      uploadFiles,
-      validateCount,
-      onLongTextPaste,
-      insertText,
-      input,
-      textareaRef,
-    ],
+    [uploadFiles, validateCount, onLongTextPaste, insertText],
   );
 
   return { handlePaste };

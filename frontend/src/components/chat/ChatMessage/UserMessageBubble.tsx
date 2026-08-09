@@ -11,6 +11,8 @@ import { getUserMessageActionButtonVisibilityClass } from "./userMessageBubbleSt
 import { copyToClipboard } from "../../../utils/clipboard";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { SkillChip } from "../SkillChip";
+import { FileReferenceChip } from "../richComposer/FileReferenceChip";
+import { splitUserMessageFileReferences } from "./userMessageFileReferences";
 
 // User message bubble component (with copy function, supports markdown rendering) - ChatGPT style
 export function UserMessageBubble({
@@ -38,6 +40,17 @@ export function UserMessageBubble({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleOpenAttachment = (attachment: MessageAttachment) => {
+    const isImage = attachment.mimeType?.startsWith("image/") && attachment.url;
+    if (isImage && attachment.url) {
+      const src = getFullUrl(attachment.url) ?? attachment.url;
+      sessionImageGallery?.openImage(src, attachment.name);
+      if (!sessionImageGallery) setImageViewerSrc(src);
+      return;
+    }
+    openAttachmentPreview(attachment, "user-message");
+  };
+
   // Render attachment preview - use file card style uniformly
   const renderAttachments = () => {
     if (!attachments || attachments.length === 0) return null;
@@ -45,26 +58,13 @@ export function UserMessageBubble({
     return (
       <div className="flex flex-row justify-end flex-wrap gap-2 sm:gap-3 mb-2">
         {attachments.map((attachment) => {
-          const isImage =
-            attachment.mimeType?.startsWith("image/") && attachment.url;
-
           return (
             <AttachmentCard
               key={attachment.id}
               attachment={attachment}
               variant="preview"
               size="default"
-              onClick={() => {
-                if (isImage && attachment.url) {
-                  const src = getFullUrl(attachment.url) ?? attachment.url;
-                  sessionImageGallery?.openImage(src, attachment.name);
-                  if (!sessionImageGallery) {
-                    setImageViewerSrc(src);
-                  }
-                } else {
-                  openAttachmentPreview(attachment, "user-message");
-                }
-              }}
+              onClick={() => handleOpenAttachment(attachment)}
             />
           );
         })}
@@ -74,6 +74,10 @@ export function UserMessageBubble({
 
   const hasAttachments = attachments && attachments.length > 0;
   const hasContent = content && content.trim().length > 0;
+  const inlineSegments = splitUserMessageFileReferences(
+    content ?? "",
+    attachments,
+  );
 
   return (
     <div className="w-full px-4 sm:px-6 py-4 group">
@@ -100,14 +104,32 @@ export function UserMessageBubble({
               >
                 {/* Skill chips - inline with content */}
                 {enabledSkills && enabledSkills.length > 0 && (
-                  <span className="skill-chip-row align-baseline mr-1.5">
+                  <span className="skill-chip-row align-baseline">
                     {enabledSkills.map((skillName) => (
                       <SkillChip key={skillName} name={skillName} tags={[]} />
                     ))}
                   </span>
                 )}
                 <span className="inline leading-relaxed min-w-0">
-                  <MarkdownContent content={content!} />
+                  {inlineSegments.map((segment, index) =>
+                    segment.kind === "file" ? (
+                      <FileReferenceChip
+                        key={`file-${segment.attachment.id}-${index}`}
+                        referenceId={`sent-${segment.attachment.id}`}
+                        fileName={segment.fileName}
+                        referenceNumber={segment.referenceNumber}
+                        category="document"
+                        status="ready"
+                        readOnly
+                        onClick={() => handleOpenAttachment(segment.attachment)}
+                      />
+                    ) : segment.value ? (
+                      <MarkdownContent
+                        key={`text-${index}`}
+                        content={segment.value}
+                      />
+                    ) : null,
+                  )}
                 </span>
               </div>
             </div>
