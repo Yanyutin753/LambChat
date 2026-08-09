@@ -6,6 +6,7 @@ LLM 客户端
 
 import asyncio
 import os
+import re
 from collections import OrderedDict
 from functools import lru_cache
 from typing import Any, Optional
@@ -24,6 +25,15 @@ from src.kernel.schemas.model import ModelConfig
 
 logger = get_logger(__name__)
 _close_tasks: set[asyncio.Future[None]] = set()
+
+_OPENAI_EXTENDED_CACHE_FAMILIES = (
+    "gpt-5.5",
+    "gpt-5.4",
+    "gpt-5.2",
+    "gpt-5.1",
+    "gpt-5",
+    "gpt-4.1",
+)
 
 # ── Provider 注册表 ──
 # 每个条目: provider_slug → (协议类型, 模型名前缀列表)
@@ -126,6 +136,30 @@ def _prompt_cache_key(provider: str, model_name: str) -> str:
     """Stable routing key for provider-side prompt cache locality."""
     safe_model = model_name.replace("/", ":")
     return f"lambchat:{provider}:{safe_model}"
+
+
+def _is_gpt_56_or_later(model_name: str) -> bool:
+    """Return whether an OpenAI model belongs to GPT-5.6 or a newer GPT family."""
+    match = re.match(r"^(?:chatgpt-)?gpt-(\d+)(?:\.(\d+))?", model_name.lower())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
+
+
+def _supports_openai_extended_cache(model_name: str) -> bool:
+    """Return whether OpenAI documents extended prompt-cache retention."""
+    name = model_name.lower()
+    return any(
+        name == family or name.startswith(f"{family}-")
+        for family in _OPENAI_EXTENDED_CACHE_FAMILIES
+    )
+
+
+def _merge_runtime_metadata(kwargs: dict[str, Any], provider: str) -> None:
+    """Preserve caller metadata while exposing the configured provider at runtime."""
+    metadata = dict(kwargs.pop("metadata", {}) or {})
+    metadata["lambchat_provider"] = provider
+    kwargs["metadata"] = metadata
 
 
 def _langchain_profile(profile: Optional[dict]) -> Optional[dict]:
@@ -235,6 +269,7 @@ class LLMClient:
         profile = _langchain_profile(profile)
 
         protocol = _resolve_protocol(provider)
+        _merge_runtime_metadata(kwargs, provider)
 
         if protocol == "anthropic":
             # 将 thinking config 转换为 Anthropic API 格式
@@ -318,10 +353,13 @@ class LLMClient:
                     provider,
                     model_name,
                 )
-        if protocol == "openai":
+        if provider == "openai":
             model_kwargs = dict(openai_kwargs.get("model_kwargs") or kwargs.pop("model_kwargs", {}))
             model_kwargs.setdefault("prompt_cache_key", _prompt_cache_key(provider, model_name))
-            model_kwargs.setdefault("prompt_cache_retention", "24h")
+            if _is_gpt_56_or_later(model_name):
+                kwargs.setdefault("prompt_cache_options", {"mode": "explicit"})
+            elif _supports_openai_extended_cache(model_name):
+                model_kwargs.setdefault("prompt_cache_retention", "24h")
             openai_kwargs["model_kwargs"] = model_kwargs
         if profile:
             openai_kwargs["profile"] = profile

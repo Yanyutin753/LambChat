@@ -1,38 +1,68 @@
+import pytest
+
 from src.infra.llm.client import LLMClient
 
 
-def test_openai_models_include_prompt_cache_routing_hints() -> None:
+def test_openai_gpt_54_uses_legacy_cache_hints_and_provider_metadata() -> None:
     model = LLMClient._create_model(
         "openai",
-        "gpt-4.1",
+        "gpt-5.4",
         temperature=0.7,
         api_key="sk-test",
     )
 
-    assert model.model_kwargs["prompt_cache_key"] == "lambchat:openai:gpt-4.1"
+    assert model.model_kwargs["prompt_cache_key"] == "lambchat:openai:gpt-5.4"
     assert model.model_kwargs["prompt_cache_retention"] == "24h"
+    assert model.metadata["lambchat_provider"] == "openai"
 
 
-def test_openai_compatible_models_receive_cache_params() -> None:
-    """All OpenAI-compatible providers (deepseek, qwen, etc.) get prompt cache hints."""
+def test_openai_gpt_56_uses_explicit_cache_mode() -> None:
     model = LLMClient._create_model(
-        "deepseek",
-        "deepseek-chat",
+        "openai",
+        "gpt-5.6",
         temperature=0.7,
         api_key="sk-test",
     )
 
-    assert model.model_kwargs["prompt_cache_key"] == "lambchat:deepseek:deepseek-chat"
-    assert model.model_kwargs["prompt_cache_retention"] == "24h"
+    assert model.model_kwargs["prompt_cache_key"] == "lambchat:openai:gpt-5.6"
+    assert model.prompt_cache_options == {"mode": "explicit"}
+    assert "prompt_cache_retention" not in model.model_kwargs
 
 
-def test_openai_compatible_qwen_receives_cache_params() -> None:
+@pytest.mark.parametrize(
+    ("provider", "model_name"),
+    [
+        ("deepseek", "deepseek-chat"),
+        ("qwen", "qwen-max"),
+        ("moonshot", "moonshot-v1"),
+    ],
+)
+def test_openai_compatible_providers_do_not_receive_openai_cache_extensions(
+    provider: str,
+    model_name: str,
+) -> None:
     model = LLMClient._create_model(
-        "qwen",
-        "qwen-max",
+        provider,
+        model_name,
+        temperature=0.7,
+        api_key="sk-test",
+        metadata={"request_scope": "test"},
+    )
+
+    assert "prompt_cache_key" not in model.model_kwargs
+    assert "prompt_cache_retention" not in model.model_kwargs
+    assert model.prompt_cache_options is None
+    assert model.metadata["request_scope"] == "test"
+    assert model.metadata["lambchat_provider"] == provider
+
+
+def test_unknown_openai_model_uses_key_without_speculative_retention() -> None:
+    model = LLMClient._create_model(
+        "openai",
+        "o4-mini",
         temperature=0.7,
         api_key="sk-test",
     )
 
-    assert model.model_kwargs["prompt_cache_key"] == "lambchat:qwen:qwen-max"
-    assert model.model_kwargs["prompt_cache_retention"] == "24h"
+    assert model.model_kwargs["prompt_cache_key"] == "lambchat:openai:o4-mini"
+    assert "prompt_cache_retention" not in model.model_kwargs

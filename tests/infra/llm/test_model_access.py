@@ -362,9 +362,9 @@ async def test_get_model_preserves_inferred_provider_for_known_unprefixed_model(
     await LLMClient.get_model(model="deepseek-v4-flash", api_key="sk-test")
 
     assert captured["model"] == "deepseek-v4-flash"
-    assert "model_kwargs" in captured
-    assert "prompt_cache_key" in captured["model_kwargs"]
-    assert captured["model_kwargs"]["prompt_cache_retention"] == "24h"
+    assert captured["metadata"]["lambchat_provider"] == "deepseek"
+    assert "prompt_cache_key" not in captured.get("model_kwargs", {})
+    assert "prompt_cache_retention" not in captured.get("model_kwargs", {})
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()
