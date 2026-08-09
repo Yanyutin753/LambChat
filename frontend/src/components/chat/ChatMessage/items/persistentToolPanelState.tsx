@@ -11,6 +11,8 @@ import { ToolResultPanel } from "./ToolResultPanel";
 import { closeCurrentToolPanel } from "./toolPanelRegistry";
 import { createSingletonStore } from "./createSingletonStore";
 import { setActiveRevealPreviewState } from "./activeRevealPreviewStore";
+import { ToolDurationFooter } from "./ToolDurationFooter";
+import { toolCallPanelStore } from "../toolCallPanelStore";
 import {
   registerPanelCapture,
   pushCurrentPanelToHistory,
@@ -119,10 +121,41 @@ function usePersistentToolPanel() {
   };
 }
 
+function useLiveToolPanelData(panelKey?: string) {
+  const toolCallId = panelKey?.startsWith("tool:")
+    ? panelKey.slice("tool:".length)
+    : null;
+  const [data, setData] = useState(() =>
+    toolCallId ? toolCallPanelStore.get(toolCallId) : undefined,
+  );
+
+  useEffect(() => {
+    if (!toolCallId) {
+      setData(undefined);
+      return;
+    }
+    const sync = () => setData(toolCallPanelStore.get(toolCallId));
+    sync();
+    return toolCallPanelStore.subscribe(toolCallId, sync);
+  }, [toolCallId]);
+
+  return data;
+}
+
 export function PersistentToolPanelHost() {
   const { panel, close } = usePersistentToolPanel();
+  const liveToolData = useLiveToolPanelData(panel?.panelKey);
 
   if (!panel) return null;
+
+  const footer = liveToolData ? (
+    <ToolDurationFooter
+      startedAt={liveToolData.startedAt}
+      completedAt={liveToolData.completedAt}
+    />
+  ) : (
+    panel.footer
+  );
 
   return createPortal(
     <ToolResultPanel
@@ -132,12 +165,12 @@ export function PersistentToolPanelHost() {
       automatic={panel.auto}
       title={panel.title}
       icon={panel.icon}
-      status={panel.status}
+      status={liveToolData?.status ?? panel.status}
       subtitle={panel.subtitle}
       viewMode={panel.viewMode}
       headerActions={panel.headerActions}
       customHeader={panel.customHeader}
-      footer={panel.footer}
+      footer={footer}
       overlayClass={panel.overlayClass}
       panelClass={panel.panelClass}
       mobileFillViewport={panel.mobileFillViewport}

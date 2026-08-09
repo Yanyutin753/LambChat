@@ -334,9 +334,6 @@ export function ToolCallItem({
   useEffect(() => {
     if (!storeData) return;
     toolCallPanelStore.set(storeData);
-    return () => {
-      toolCallPanelStore.delete(storeData.toolCallId);
-    };
   }, [storeData]);
 
   // If a panel is already open for this tool, update its status + footer reactively

@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
 
+import { createElement } from "react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import {
@@ -8,16 +10,20 @@ import {
 } from "../../../../common/rightPanelCoordinator";
 import { clearSidebarHistory } from "../sidebarHistoryStore";
 import { clearToolPanelRegistry } from "../toolPanelRegistry";
+import { toolCallPanelStore } from "../../toolCallPanelStore";
 import {
   closePersistentToolPanel,
   getPersistentToolPanelState,
   openPersistentToolPanel,
+  PersistentToolPanelHost,
   subscribePersistentToolPanel,
   updatePersistentToolPanel,
 } from "../persistentToolPanelState.tsx";
 
 beforeEach(() => {
+  cleanup();
   closePersistentToolPanel();
+  toolCallPanelStore.clear();
   clearSidebarHistory();
   clearToolPanelRegistry();
   resetRightPanelCoordinator();
@@ -93,4 +99,44 @@ test("automatic panels do not replace deliberate work in the shared lane", () =>
   });
 
   expect(getPersistentToolPanelState()).toBeNull();
+});
+
+test("updates tool panel chrome from durable data while its message row is off-screen", async () => {
+  toolCallPanelStore.set({
+    toolCallId: "tool-live",
+    toolName: "shell",
+    formattedToolName: "Shell",
+    args: { command: "printf done" },
+    isPending: true,
+    status: "loading",
+  });
+  openPersistentToolPanel({
+    title: "Shell",
+    status: "loading",
+    children: "waiting",
+    panelKey: "tool:tool-live",
+  });
+  render(createElement(PersistentToolPanelHost));
+
+  expect(
+    document.querySelector(".tool-console-header-icon .text-emerald-600"),
+  ).toBeNull();
+
+  toolCallPanelStore.set({
+    toolCallId: "tool-live",
+    toolName: "shell",
+    formattedToolName: "Shell",
+    args: { command: "printf done" },
+    result: "done",
+    success: true,
+    isPending: false,
+    completedAt: "2026-08-09T10:00:01.000Z",
+    status: "success",
+  });
+
+  await waitFor(() => {
+    expect(
+      document.querySelector(".tool-console-header-icon .text-emerald-600"),
+    ).not.toBeNull();
+  });
 });

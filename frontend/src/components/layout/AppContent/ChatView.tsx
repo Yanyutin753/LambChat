@@ -39,6 +39,10 @@ import {
   getVisibleActiveGoalForMessages,
 } from "../../chat/goalVisibility";
 import { sessionApi } from "../../../services/api";
+import {
+  syncToolCallPanelStore,
+  toolCallPanelStore,
+} from "../../chat/ChatMessage/toolCallPanelStore";
 
 const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
 
@@ -132,6 +136,14 @@ export function ChatView({
   const hasVisibleStreamingMessage = messages.some(
     (message) => message.role === "assistant" && message.isStreaming,
   );
+
+  useEffect(() => {
+    toolCallPanelStore.clear();
+  }, [sessionId]);
+
+  useEffect(() => {
+    syncToolCallPanelStore(messages);
+  }, [messages]);
 
   const showStreamingFooterSkeleton = shouldShowStreamingFooterSkeleton({
     connectionStatus,
