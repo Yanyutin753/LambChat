@@ -50,7 +50,7 @@ def _can_access_system_server(
 
 def _is_legacy_sandbox_server(doc: dict[str, Any] | None) -> bool:
     """Return whether a stored document belongs to the removed Sandbox MCP transport."""
-    return bool(doc) and doc.get("transport") == "sandbox"
+    return doc is not None and doc.get("transport") == "sandbox"
 
 
 def _supported_server_query(query: dict[str, Any] | None = None) -> dict[str, Any]:
