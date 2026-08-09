@@ -164,13 +164,38 @@ test("tool result panel uses refined professional chrome treatment", () => {
     /\.tool-console-header\s*\{[\s\S]*?padding-inline:/,
   );
   expect(componentsSource).toMatch(
-    /\.tool-console-actions\s*\{[\s\S]*?background:/,
-  );
-  expect(componentsSource).toMatch(
     /\.tool-console-resize-handle__rail\s*\{[\s\S]*?box-shadow:/,
   );
   expect(componentsSource).toMatch(
     /\.tool-console-body__loading\s*\{[\s\S]*?color-mix\(in srgb, var\(--theme-bg\) 92%, transparent\);/,
+  );
+});
+
+test("tool result actions stay compact and flat at every breakpoint", () => {
+  const componentSource = readFileSync(
+    new URL("../ToolResultPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  const componentsSource = readFileSync(
+    new URL("../../../../../styles/components.css", import.meta.url),
+    "utf8",
+  );
+  const toolbarButtonSource = readFileSync(
+    new URL("../../../../common/ui/ToolbarIconButton.tsx", import.meta.url),
+    "utf8",
+  );
+
+  expect(
+    componentSource.match(
+      /className="tool-console-actions flex items-center gap-1 shrink-0"/g,
+    ),
+  ).toHaveLength(2);
+  expect(componentsSource).not.toMatch(/\.tool-console-actions\s*\{/);
+  expect(componentsSource).toMatch(
+    /\.tool-console-actions\s*>\s*button\s*\{[\s\S]*?width:\s*2rem;[\s\S]*?height:\s*2rem;[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;/,
+  );
+  expect(toolbarButtonSource).toMatch(
+    /min-h-\[44px\] min-w-\[44px\] sm:size-8 sm:min-h-0 sm:min-w-0/,
   );
 });
 
