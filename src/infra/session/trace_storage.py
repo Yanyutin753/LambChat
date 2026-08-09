@@ -26,7 +26,8 @@ Trace Storage - 按 trace 聚合事件存储
 """
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Literal, Optional
 
 from src.infra.logging import get_logger
 from src.infra.session._trace_storage_support import (
@@ -66,6 +67,15 @@ logger = get_logger(__name__)
 
 _SESSION_EVENTS_BATCH_SIZE = 200
 SESSION_EVENT_FILTER_LIST_LIMIT = 100
+
+
+@dataclass(frozen=True)
+class SessionEventsSnapshot:
+    """A consistent history read plus any live-stream replay requirement."""
+
+    events: List[Dict[str, Any]]
+    history_mode: Literal["complete", "active_user_only"] = "complete"
+    stream_run_id: Optional[str] = None
 
 
 async def _write_usage_log(trace_id: str) -> None:
@@ -532,7 +542,7 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
             logger.error(f"Failed to list run summaries: {e}")
             return []
 
-    async def get_session_events(
+    async def _assemble_session_events_snapshot(
         self,
         session_id: str,
         event_types: Optional[List[str]] = None,
@@ -541,7 +551,8 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
         completed_only: bool = True,
         run_ids: Optional[List[str]] = None,
         max_events: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        active_run_id: Optional[str] = None,
+    ) -> SessionEventsSnapshot:
         """
         获取会话的所有事件（跨 traces 聚合）
 
@@ -570,8 +581,8 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
                 match_query["run_id"] = run_id
             if exclude_run_id:
                 match_query["run_id"] = {"$ne": exclude_run_id}
-            # 排除正在运行的 trace（只返回 running 状态以外的）
-            if completed_only:
+            # 快照需要同时观察 active trace 的状态；其余读取保持旧过滤语义。
+            if completed_only and not active_run_id:
                 match_query["status"] = {"$ne": "running"}
 
             if max_events is not None:
@@ -581,7 +592,7 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
                 )
 
             if max_events is not None and max_events <= 0:
-                return []
+                return SessionEventsSnapshot(events=[])
 
             cursor = self.collection.find(
                 match_query,
@@ -589,22 +600,44 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
                     "_id": 0,
                     "trace_id": 1,
                     "run_id": 1,
+                    "status": 1,
                     "started_at": 1,
+                    "events": 1,
                     "recommend_questions": 1,
                     "recommend_questions_updated_at": 1,
                 },
             ).sort("started_at", 1)
 
-            events: List[Dict[str, Any]] = []
+            traces: List[Dict[str, Any]] = []
             async for trace in cursor:
+                if completed_only and trace.get("status") == "running":
+                    if not active_run_id or trace.get("run_id") != active_run_id:
+                        continue
+                traces.append(trace)
+
+            events_by_trace = await self.read_trace_events_batch_compat(
+                traces,
+                event_types=event_types,
+            )
+            events: List[Dict[str, Any]] = []
+            history_mode: Literal["complete", "active_user_only"] = "complete"
+            stream_run_id: Optional[str] = None
+            for trace in traces:
                 trace_id = trace.get("trace_id")
                 if not trace_id:
                     continue
-                trace_events = await self.read_trace_events_compat(
-                    trace_id,
-                    event_types=event_types,
-                    max_events=None if max_events is None else max_events - len(events),
+                trace_events = list(events_by_trace.get(str(trace_id), []))
+                is_active_running = bool(
+                    active_run_id
+                    and trace.get("run_id") == active_run_id
+                    and trace.get("status") == "running"
                 )
+                if is_active_running:
+                    trace_events = [
+                        event for event in trace_events if event.get("event_type") == "user:message"
+                    ]
+                    history_mode = "active_user_only"
+                    stream_run_id = active_run_id
                 questions = _normalize_recommend_questions(trace.get("recommend_questions"))
                 recommendation_requested = not event_types or bool(
                     {"recommend:questions", "followup:questions"}.intersection(event_types)
@@ -644,15 +677,68 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
                         logger.debug(
                             f"Session {session_id} (run_id={run_id}) returned {len(events)} bounded events"
                         )
-                        return events
+                        return SessionEventsSnapshot(
+                            events=events,
+                            history_mode=history_mode,
+                            stream_run_id=stream_run_id,
+                        )
 
             logger.debug(
                 f"Session {session_id} (run_id={run_id}) returned {len(events)} bounded events"
             )
-            return events
+            return SessionEventsSnapshot(
+                events=events,
+                history_mode=history_mode,
+                stream_run_id=stream_run_id,
+            )
         except Exception as e:
             logger.error(f"Failed to get session events: {e}")
-            return []
+            return SessionEventsSnapshot(events=[])
+
+    async def get_session_events_snapshot(
+        self,
+        session_id: str,
+        event_types: Optional[List[str]] = None,
+        run_id: Optional[str] = None,
+        exclude_run_id: Optional[str] = None,
+        completed_only: bool = True,
+        run_ids: Optional[List[str]] = None,
+        max_events: Optional[int] = None,
+        active_run_id: Optional[str] = None,
+    ) -> SessionEventsSnapshot:
+        """Read history and classify whether the active run still needs SSE replay."""
+        return await self._assemble_session_events_snapshot(
+            session_id,
+            event_types,
+            run_id=run_id,
+            exclude_run_id=exclude_run_id,
+            completed_only=completed_only,
+            run_ids=run_ids,
+            max_events=max_events,
+            active_run_id=active_run_id,
+        )
+
+    async def get_session_events(
+        self,
+        session_id: str,
+        event_types: Optional[List[str]] = None,
+        run_id: Optional[str] = None,
+        exclude_run_id: Optional[str] = None,
+        completed_only: bool = True,
+        run_ids: Optional[List[str]] = None,
+        max_events: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get session events while preserving the legacy list-only contract."""
+        snapshot = await self._assemble_session_events_snapshot(
+            session_id,
+            event_types,
+            run_id=run_id,
+            exclude_run_id=exclude_run_id,
+            completed_only=completed_only,
+            run_ids=run_ids,
+            max_events=max_events,
+        )
+        return snapshot.events
 
     async def get_run_events(
         self,

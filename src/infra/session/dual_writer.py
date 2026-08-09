@@ -23,7 +23,11 @@ from pymongo.errors import BulkWriteError
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
-from src.infra.session.trace_storage import TraceStorage, get_trace_storage
+from src.infra.session.trace_storage import (
+    SessionEventsSnapshot,
+    TraceStorage,
+    get_trace_storage,
+)
 from src.infra.storage.redis import RedisStorage
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
@@ -882,6 +886,29 @@ class DualEventWriter:
             completed_only=completed_only,
             run_ids=run_ids,
             max_events=max_events,
+        )
+
+    async def read_session_events_snapshot(
+        self,
+        session_id: str,
+        event_types: Optional[List[str]] = None,
+        run_id: Optional[str] = None,
+        exclude_run_id: Optional[str] = None,
+        completed_only: bool = True,
+        run_ids: Optional[List[str]] = None,
+        max_events: Optional[int] = None,
+        active_run_id: Optional[str] = None,
+    ) -> SessionEventsSnapshot:
+        """Read a race-safe history snapshot for initial UI hydration."""
+        return await self.trace.get_session_events_snapshot(
+            session_id,
+            event_types,
+            run_id=run_id,
+            exclude_run_id=exclude_run_id,
+            completed_only=completed_only,
+            run_ids=run_ids,
+            max_events=max_events,
+            active_run_id=active_run_id,
         )
 
     async def get_stream_length(self, session_id: str, run_id: Optional[str] = None) -> int:

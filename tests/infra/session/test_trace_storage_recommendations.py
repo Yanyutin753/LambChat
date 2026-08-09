@@ -80,14 +80,16 @@ async def test_session_event_read_synthesizes_legacy_recommend_event_from_run_fi
     )
     storage = TraceStorage()
     storage._collection = collection
-    storage.read_trace_events_compat = AsyncMock(  # type: ignore[method-assign]
-        return_value=[
-            {
-                "event_type": "done",
-                "data": {},
-                "timestamp": "2026-08-09T00:00:30Z",
-            }
-        ]
+    storage.read_trace_events_batch_compat = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "trace-1": [
+                {
+                    "event_type": "done",
+                    "data": {},
+                    "timestamp": "2026-08-09T00:00:30Z",
+                }
+            ]
+        }
     )
 
     events = await storage.get_session_events("session-1")
@@ -113,14 +115,16 @@ async def test_session_event_read_keeps_legacy_recommend_event_without_duplicate
     )
     storage = TraceStorage()
     storage._collection = collection
-    storage.read_trace_events_compat = AsyncMock(  # type: ignore[method-assign]
-        return_value=[
-            {
-                "event_type": "followup:questions",
-                "data": {"questions": ["旧事件问题？"]},
-                "timestamp": "2026-08-09T00:00:30Z",
-            }
-        ]
+    storage.read_trace_events_batch_compat = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "trace-1": [
+                {
+                    "event_type": "followup:questions",
+                    "data": {"questions": ["旧事件问题？"]},
+                    "timestamp": "2026-08-09T00:00:30Z",
+                }
+            ]
+        }
     )
 
     events = await storage.get_session_events("session-1")
@@ -144,7 +148,9 @@ async def test_session_event_read_preserves_requested_legacy_followup_alias() ->
     )
     storage = TraceStorage()
     storage._collection = collection
-    storage.read_trace_events_compat = AsyncMock(return_value=[])  # type: ignore[method-assign]
+    storage.read_trace_events_batch_compat = AsyncMock(  # type: ignore[method-assign]
+        return_value={"trace-1": []}
+    )
 
     events = await storage.get_session_events(
         "session-1",
