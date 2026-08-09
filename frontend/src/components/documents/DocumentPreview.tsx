@@ -14,6 +14,7 @@ export default function DocumentPreview(props: DocumentPreviewProps) {
   return (
     <ToolResultPanel
       open={true}
+      automatic={state.automatic}
       onClose={state.onClose}
       registryKey={state.registryKey}
       viewMode={state.isMobile ? "center" : state.viewMode}

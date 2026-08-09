@@ -68,6 +68,7 @@ function collectImageNodes(
 
 function ProjectRevealPreviewPanel({
   project,
+  automatic = false,
   openInFullscreen = false,
   onClose,
   onUserInteraction,
@@ -75,6 +76,7 @@ function ProjectRevealPreviewPanel({
   footer,
 }: {
   project: ParsedProjectRevealData;
+  automatic?: boolean;
   openInFullscreen?: boolean;
   onClose: () => void;
   onUserInteraction?: () => void;
@@ -280,6 +282,7 @@ function ProjectRevealPreviewPanel({
     <>
       <ToolResultPanel
         open={true}
+        automatic={automatic}
         onClose={onClose}
         registryKey={registryKey}
         title={project.name || t("project.untitled")}
@@ -381,10 +384,12 @@ function ProjectRevealPreviewPanel({
 
 export function RevealPreviewHost({
   preview,
+  automatic = false,
   onClose,
   onUserInteraction,
 }: {
   preview: RevealPreviewRequest | null;
+  automatic?: boolean;
   onClose: () => void;
   onUserInteraction?: () => void;
 }) {
@@ -406,6 +411,7 @@ export function RevealPreviewHost({
         onUserInteraction={onUserInteraction}
         registryKey={`reveal-preview:${preview.previewKey}`}
         mobileFillViewport
+        automatic={automatic}
         footer={preview.footer}
       />
     );
@@ -420,6 +426,7 @@ export function RevealPreviewHost({
       onUserInteraction={onUserInteraction}
       registryKey={`reveal-preview:${preview.previewKey}`}
       footer={preview.footer}
+      automatic={automatic}
     />
   );
 }

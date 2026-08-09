@@ -373,6 +373,8 @@ export function ToolResultPanel({
             }
           : undefined
       }
+      onPointerDown={() => onUserInteraction?.()}
+      onKeyDownCapture={() => onUserInteraction?.()}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Desktop resize handle (sidebar only, not when using custom panelClass) */}

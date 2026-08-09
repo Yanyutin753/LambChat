@@ -224,6 +224,7 @@ export function ChatView({
   // --- Reveal preview ---
   const {
     activePreview,
+    activePreviewAutomatic,
     handleOpenPreview,
     handleClosePreview,
     handlePreviewInteraction,
@@ -543,6 +544,7 @@ export function ChatView({
 
       <RevealPreviewHost
         preview={activePreview}
+        automatic={activePreviewAutomatic}
         onClose={() => handleClosePreview(true)}
         onUserInteraction={handlePreviewInteraction}
       />
