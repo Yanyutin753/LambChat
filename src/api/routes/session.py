@@ -299,6 +299,10 @@ async def get_session_events(
         le=SESSION_EVENT_RESPONSE_LIMIT_MAX,
         description="最大返回事件数，不传则不限制",
     ),
+    include_active_user_message: bool = Query(
+        False,
+        description="包含活动 run 的用户消息，并返回是否需要继续 SSE 回放",
+    ),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -326,31 +330,48 @@ async def get_session_events(
     # 解析事件类型过滤
     types_list = _parse_event_types_filter(event_types)
 
-    # 重要：completed_only=True，确保正在运行的 trace 中的事件不要被返回，而是单独去请求/stream接口，避免重复返回事件，导致前端消息重复显示。
-    # 否则刷新页面时，当前 run 的 user:message 事件会丢失，导致消息合并
+    current_run_id = session.metadata.get("current_run_id") if session.metadata else None
     events_probe_limit = (limit + 1) if limit is not None else None
-    events = await dual_writer.read_session_events(
-        session_id,
-        types_list,
-        run_id=run_id,
-        exclude_run_id=exclude_run_id,
-        completed_only=True,
-        max_events=events_probe_limit,
-    )
+    history_mode = None
+    stream_run_id = None
+    if include_active_user_message:
+        snapshot = await dual_writer.read_session_events_snapshot(
+            session_id,
+            types_list,
+            run_id=run_id,
+            exclude_run_id=exclude_run_id,
+            completed_only=True,
+            max_events=events_probe_limit,
+            active_run_id=current_run_id,
+        )
+        events = snapshot.events
+        history_mode = snapshot.history_mode
+        stream_run_id = snapshot.stream_run_id
+    else:
+        # 兼容旧调用方：活动 trace 继续由 stream 单独读取，避免重复事件。
+        events = await dual_writer.read_session_events(
+            session_id,
+            types_list,
+            run_id=run_id,
+            exclude_run_id=exclude_run_id,
+            completed_only=True,
+            max_events=events_probe_limit,
+        )
     events_limited = limit is not None and len(events) > limit
     if events_limited:
         events = events[:limit]
 
-    # 获取 session 的 current_run_id 用于响应
-    current_run_id = session.metadata.get("current_run_id") if session.metadata else None
-
-    return {
+    response = {
         "events": events,
         "session_id": session_id,
         "run_id": run_id or current_run_id,
         "events_limited": events_limited,
         "events_limit": limit,
     }
+    if include_active_user_message:
+        response["history_mode"] = history_mode
+        response["stream_run_id"] = stream_run_id
+    return response
 
 
 @router.get("/{session_id}/runs")

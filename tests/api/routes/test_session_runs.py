@@ -43,6 +43,25 @@ class _FakeSessionEventsDualWriter:
         ]
 
 
+class _FakeSessionSnapshotDualWriter:
+    def __init__(self):
+        self.calls = []
+
+    async def read_session_events_snapshot(self, session_id: str, event_types=None, **kwargs):
+        self.calls.append(
+            {
+                "session_id": session_id,
+                "event_types": event_types,
+                **kwargs,
+            }
+        )
+        return SimpleNamespace(
+            events=[{"event_type": "user:message", "data": {"content": "active"}}],
+            history_mode="active_user_only",
+            stream_run_id="run-active",
+        )
+
+
 class _FakeTraceStorage:
     def __init__(self):
         self.calls = []
@@ -392,6 +411,7 @@ async def test_get_session_events_uses_bounded_history_read(
         run_id="run-1",
         exclude_run_id=None,
         limit=2,
+        include_active_user_message=False,
         user=SimpleNamespace(sub="user-1"),
     )
 
@@ -418,6 +438,57 @@ async def test_get_session_events_uses_bounded_history_read(
 
 
 @pytest.mark.asyncio
+async def test_get_session_events_opt_in_returns_race_safe_snapshot_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_routes = _load_session_routes_module(monkeypatch)
+    dual_writer_module = sys.modules["src.infra.session.dual_writer"]
+    dual_writer = _FakeSessionSnapshotDualWriter()
+
+    class _ActiveSessionManager:
+        async def get_session(self, session_id: str):
+            return SimpleNamespace(
+                user_id="user-1",
+                session_id=session_id,
+                metadata={"current_run_id": "run-active"},
+            )
+
+    monkeypatch.setattr(session_routes, "SessionManager", _ActiveSessionManager)
+    monkeypatch.setattr(dual_writer_module, "get_dual_writer", lambda: dual_writer)
+
+    response = await session_routes.get_session_events(
+        "session-1",
+        event_types="user:message,message:chunk,done",
+        run_id=None,
+        exclude_run_id=None,
+        limit=None,
+        include_active_user_message=True,
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    assert response == {
+        "events": [{"event_type": "user:message", "data": {"content": "active"}}],
+        "session_id": "session-1",
+        "run_id": "run-active",
+        "events_limited": False,
+        "events_limit": None,
+        "history_mode": "active_user_only",
+        "stream_run_id": "run-active",
+    }
+    assert dual_writer.calls == [
+        {
+            "session_id": "session-1",
+            "event_types": ["user:message", "message:chunk", "done"],
+            "run_id": None,
+            "exclude_run_id": None,
+            "completed_only": True,
+            "max_events": None,
+            "active_run_id": "run-active",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_get_session_events_bounds_event_type_query_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -435,6 +506,7 @@ async def test_get_session_events_bounds_event_type_query_list(
         run_id="run-1",
         exclude_run_id=None,
         limit=2,
+        include_active_user_message=False,
         user=SimpleNamespace(sub="user-1"),
     )
 
