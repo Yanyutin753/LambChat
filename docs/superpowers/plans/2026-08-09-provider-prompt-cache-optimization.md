@@ -4,7 +4,7 @@
 
 **Goal:** Improve and expose per-model prompt-cache reuse for every LambChat provider without changing prompt semantics, eager-loading deferred tools, or sending one provider's private cache fields to another.
 
-**Architecture:** `LLMClient` selects only documented provider wire options and records the configured provider slug as runtime metadata. A single LambChat-owned `PromptCachingMiddleware` then lays out deterministic system/tool/message breakpoints for OpenAI, Anthropic, and MiniMax while DeepSeek, Gemini, and other compatible providers use their native implicit caches over the same stable prefix. Provider usage is normalized once, aggregated per model, and shown only on the model ranking card.
+**Architecture:** `LLMClient` selects only documented provider wire options and records the configured provider slug as runtime metadata. A single LambChat-owned `PromptCachingMiddleware` then lays out deterministic system/tool/message breakpoints for OpenAI, Anthropic, and MiniMax M2 models while MiniMax M3, DeepSeek, Gemini, and other compatible providers use their native implicit caches over the same stable prefix. Provider usage is normalized once, aggregated per model, and shown only on the model ranking card.
 
 **Tech Stack:** Python 3.12, FastAPI/Pydantic, LangChain 1.5, DeepAgents 0.7.5, `langchain-openai` 1.4.1, `langchain-anthropic` 1.5.2, `langchain-google-genai` 4.3.1, MongoDB aggregation, pytest, React 19, TypeScript, Vitest, Tailwind CSS.
 
@@ -42,7 +42,8 @@
 | `openai`, documented older families | stable key + documented 24h retention | none | `cached_tokens` |
 | `openai`, other older families | stable key only | none | normalized OpenAI fields when present |
 | `anthropic` | runtime identity only | automatic conversation + stable system/core-tool/dynamic-tool breakpoints | cache creation/read fields |
-| `minimax` | runtime identity only | explicit stable system/core-tool/dynamic-tool/latest-message breakpoints | cache creation/read fields |
+| `minimax`, M2 series | runtime identity only | explicit stable system/core-tool/dynamic-tool/latest-message breakpoints | cache creation/read fields |
+| `minimax`, M3 and unknown future families | runtime identity only | passive cache over deterministic prefix; no M2-only fields | cache creation/read fields |
 | `deepseek` | no OpenAI private fields | implicit cache over deterministic prefix | `prompt_cache_hit_tokens` |
 | `google` / `gemini` | no manual cached-content object | implicit cache over deterministic prefix | `cache_read`, `cached_content_token_count`, `total_cached_tokens` |
 | every other compatible provider | no speculative cache extension | deterministic prefix only | standard fields plus documented aliases already normalized |
@@ -240,7 +241,7 @@ git commit -m "fix(agent): keep one prompt cache middleware owner"
 
 **Interfaces:**
 - Consumes: model metadata `lambchat_provider` from Task 1 and volatile tool extra `_lambchat_prompt_cache_volatile`.
-- Produces: `_runtime_provider(model: Any) -> str | None`, deterministic `stable_tools + volatile_tools`, Anthropic automatic-plus-explicit policy, MiniMax explicit-only policy, and GPT-5.6 stable system breakpoint.
+- Produces: `_runtime_provider(model: Any) -> str | None`, deterministic `stable_tools + volatile_tools`, Anthropic automatic-plus-explicit policy, MiniMax M2 explicit policy with M3/future passive fallback, and GPT-5.6+ stable system breakpoint.
 
 - [ ] **Step 1: Replace outdated tool-order and MiniMax-skip assertions with failing provider-policy tests**
 
@@ -369,7 +370,7 @@ system_slots = int(self._cacheable_system_block_count(request.system_message) > 
 assert automatic_slots + message_slots + tool_slots + system_slots <= 4
 ```
 
-For direct Anthropic, set `overrides["model_settings"]` to the existing settings plus `cache_control={"type": "ephemeral", "ttl": "5m"}`. For both Anthropic paths, tag only the final stable system block. For MiniMax, tag the last eligible text/content block in the latest message using `message.model_copy(update={"content": blocks})`; never set top-level `model_settings.cache_control`. Strip stale `cache_control`/`prompt_cache_breakpoint` tags before applying the selected policy.
+For direct Anthropic, set `overrides["model_settings"]` to the existing settings plus `cache_control={"type": "ephemeral", "ttl": "5m"}`. For both Anthropic paths, tag only the final stable system block. For MiniMax M2-series models, tag the last eligible text/content block in the latest message using `message.model_copy(update={"content": blocks})`; never set top-level `model_settings.cache_control`. MiniMax M3 and unknown future families use passive caching and receive no explicit tags. Strip stale `cache_control`/`prompt_cache_breakpoint` tags before applying the selected policy.
 
 For GPT-5.6+, put this LangChain OpenAI content extra only on the final stable system block:
 
@@ -387,7 +388,7 @@ For OpenAI pre-5.6, DeepSeek, Gemini, and other providers, do not add block-leve
 
 Run: `uv run pytest tests/infra/agent/test_prompt_caching_middleware.py -q`
 
-Expected: PASS; all test fixtures show stable tools first, deterministic volatile tails, no more than four breakpoints, direct Anthropic automatic mode, MiniMax explicit-only mode, and no private fields for implicit-cache providers.
+Expected: PASS; all test fixtures show stable tools first, deterministic volatile tails, no more than four breakpoints, direct Anthropic automatic mode, MiniMax M2 explicit mode, MiniMax M3 passive mode, and no private fields for implicit-cache providers.
 
 - [ ] **Step 7: Commit provider-aware middleware behavior**
 
@@ -861,7 +862,7 @@ Expected: OpenAI-only constructor fields are guarded by `provider == "openai"`; 
 
 - [ ] **Step 5: Record the rollout boundary in the handoff**
 
-Report automated validation separately from live provider validation. State that DeepSeek/Gemini use implicit caching, MiniMax is now explicit-only at the block level, and the configured `gpt-5.4` proxy still requires a user-authorized low-cost repeated-prefix request before claiming an external cache hit.
+Report automated validation separately from live provider validation. State that DeepSeek/Gemini use implicit caching, MiniMax M2 uses explicit block-level caching while M3 uses passive caching, and the configured `gpt-5.4` proxy still requires a user-authorized low-cost repeated-prefix request before claiming an external cache hit.
 
 - [ ] **Step 6: Confirm the verification phase created no uncommitted cache work**
 

@@ -16,15 +16,18 @@ def test_openai_gpt_54_uses_legacy_cache_hints_and_provider_metadata() -> None:
     assert model.metadata["lambchat_provider"] == "openai"
 
 
-def test_openai_gpt_56_uses_explicit_cache_mode() -> None:
+@pytest.mark.parametrize("model_name", ["gpt-5.6", "gpt-5.6-codex", "gpt-6"])
+def test_openai_gpt_56_and_future_gpt_families_use_explicit_cache_mode(
+    model_name: str,
+) -> None:
     model = LLMClient._create_model(
         "openai",
-        "gpt-5.6",
+        model_name,
         temperature=0.7,
         api_key="sk-test",
     )
 
-    assert model.model_kwargs["prompt_cache_key"] == "lambchat:openai:gpt-5.6"
+    assert model.model_kwargs["prompt_cache_key"] == f"lambchat:openai:{model_name}"
     assert model.prompt_cache_options == {"mode": "explicit"}
     assert "prompt_cache_retention" not in model.model_kwargs
 

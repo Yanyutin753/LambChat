@@ -59,17 +59,21 @@ Two alternatives were rejected:
 - Do not send OpenAI cache extensions to DeepSeek, Qwen, Moonshot, or other
   OpenAI-compatible providers.
 
-### Anthropic and Anthropic-compatible MiniMax
+### Anthropic and MiniMax
 
 - Preserve the runtime provider slug on the model instance so direct Anthropic and
   MiniMax can use different wire policies even though both are `ChatAnthropic`.
 - Direct Anthropic uses top-level automatic `cache_control` for the growing
   conversation plus explicit stable tool/system breakpoints. The automatic point
   consumes one of the four available write slots.
-- MiniMax Anthropic-compatible requests use explicit block-level `cache_control`.
-  The stable tool prefix, final stable system prefix, and latest eligible message
-  receive breakpoints; this matches MiniMax's documented explicit interface without
-  assuming that a proxy supports Anthropic's newer top-level automatic field.
+- MiniMax M2-series Anthropic-compatible requests use explicit block-level
+  `cache_control`. The stable tool prefix, final stable system prefix, and latest
+  eligible message receive breakpoints; this matches MiniMax's documented explicit
+  interface without assuming that a proxy supports Anthropic's newer top-level
+  automatic field.
+- MiniMax M3 uses its documented passive cache with no request changes. Unknown
+  future MiniMax families also default to passive/native caching until MiniMax
+  documents explicit support, preventing M2-only fields from breaking a new model.
 - Use at most four total automatic plus explicit breakpoints.
 - Reserve a breakpoint at the end of the stable core-tool prefix. When dynamically
   discovered tools exist, use a second tool breakpoint for the deterministically
@@ -99,6 +103,10 @@ Two alternatives were rejected:
 - Default to provider-native implicit behavior and exact-prefix stability.
 - Add explicit provider parameters only when the provider implementation and
   usage fields are documented and covered by tests.
+- Selecting an Anthropic-compatible transport does not by itself grant Anthropic
+  cache capabilities. Kimi, ZAI, and future compatible transports receive no
+  speculative `cache_control` fields merely because LangChain represents them as
+  `ChatAnthropic`.
 
 ## Prompt and Tool Ordering
 
@@ -166,9 +174,9 @@ Follow red-green-refactor for each behavior:
 1. model client tests prove OpenAI-only cache parameters, GPT-5.6 explicit mode,
    and no proprietary fields for DeepSeek/Qwen;
 2. prompt middleware tests prove exactly one Anthropic cache owner, direct Anthropic
-   automatic-plus-explicit budgeting, MiniMax explicit-only behavior, stable tools
-   before volatile tools, four-breakpoint budgeting, and OpenAI stable system
-   breakpoints;
+   automatic-plus-explicit budgeting, MiniMax M2 explicit behavior, MiniMax M3 and
+   future-family passive behavior, stable tools before volatile tools,
+   four-breakpoint budgeting, and OpenAI stable system breakpoints;
 3. agent source/behavior tests prove goal and auto-mode sections follow stable
    sandbox/environment sections in Fast, Search, Team, and subagents;
 4. event processor tests prove every raw usage alias is counted once;
@@ -203,9 +211,9 @@ Locale files are not required because the needed cache labels already exist.
   `prompt_cache_key`, write/read usage fields, and legacy retention policy.
 - Anthropic Prompt Caching: `tools → system → messages`, four breakpoints,
   20-block lookback, 5-minute/1-hour TTLs, and automatic plus explicit caching.
-- MiniMax Explicit Prompt Caching: block-level Anthropic-compatible
-  `cache_control`, cumulative prefixes, four breakpoints, 20-block lookback, and
-  cache creation/read usage fields.
+- MiniMax Prompt Caching: passive caching for M3 and the documented M2-series
+  explicit Anthropic-compatible `cache_control`, cumulative prefixes, four
+  breakpoints, 20-block lookback, and cache creation/read usage fields.
 - DeepSeek Context Caching: automatic disk cache, complete prefix-unit matching,
   best-effort retention, and `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`.
 - Gemini Context Caching: implicit caching for Gemini 2.5+, model-specific minimum
@@ -218,8 +226,9 @@ Locale files are not required because the needed cache labels already exist.
 
 - DeepAgents' built-in Anthropic cache middleware is excluded for LambChat's runtime
   providers, leaving exactly one cache owner.
-- MiniMax Anthropic-compatible requests contain valid explicit cache breakpoints and
-  no undocumented top-level automatic cache field.
+- MiniMax M2-series Anthropic-compatible requests contain valid explicit cache
+  breakpoints and no undocumented top-level automatic cache field; M3 and unknown
+  future families use passive caching without M2-only fields.
 - DeepSeek and other non-OpenAI compatible providers receive no OpenAI-only cache
   parameters.
 - GPT-5.4 retains compatible legacy hints; GPT-5.6 uses explicit cache policy and a

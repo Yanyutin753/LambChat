@@ -83,6 +83,12 @@ class PromptCachingMiddleware(AgentMiddleware):
                 return True
         return False
 
+    @staticmethod
+    def _supports_minimax_explicit_cache(model_name: str) -> bool:
+        """Return whether MiniMax documents Anthropic-style explicit caching."""
+        name = model_name.strip().lower()
+        return name == "minimax-m2" or name.startswith(("minimax-m2.", "minimax-m2-"))
+
     # ---- system message ---------------------------------------------------
 
     @staticmethod
@@ -293,10 +299,14 @@ class PromptCachingMiddleware(AgentMiddleware):
             return await handler(request.override(system_message=new_system))
 
         is_anthropic = self._is_anthropic_model(model)
-        if provider not in {"anthropic", "minimax"} and not is_anthropic:
+        if provider == "minimax" and not self._supports_minimax_explicit_cache(model_name):
             return await handler(request)
-
-        effective_provider = provider or "anthropic"
+        if provider in {"anthropic", "minimax"}:
+            effective_provider = provider
+        elif provider is None and is_anthropic:
+            effective_provider = "anthropic"
+        else:
+            return await handler(request)
 
         overrides: dict[str, Any] = {}
         system_enabled = self._max_cached_system_blocks > 0

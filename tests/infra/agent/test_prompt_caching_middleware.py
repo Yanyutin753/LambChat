@@ -95,19 +95,57 @@ def _explicit_breakpoint_count(request: _CacheRequest) -> int:
 
 
 async def test_direct_anthropic_uses_automatic_and_three_explicit_breakpoints() -> None:
-    result = await _run_provider_cache(provider="anthropic")
+    result = await _run_provider_cache(provider="anthropic", model_name="claude-opus-5")
 
     assert result.model_settings["cache_control"] == {"type": "ephemeral", "ttl": "5m"}
     assert _explicit_breakpoint_count(result) == 3
 
 
-async def test_minimax_uses_four_explicit_breakpoints_without_automatic_mode() -> None:
-    result = await _run_provider_cache(provider="minimax", model_name="MiniMax-M2.7")
+@pytest.mark.parametrize(
+    "model_name",
+    ["MiniMax-M2", "MiniMax-M2.1", "MiniMax-M2.5", "MiniMax-M2.7"],
+)
+async def test_minimax_m2_series_uses_four_explicit_breakpoints_without_automatic_mode(
+    model_name: str,
+) -> None:
+    result = await _run_provider_cache(provider="minimax", model_name=model_name)
 
     assert "cache_control" not in result.model_settings
     assert _explicit_breakpoint_count(result) == 4
     assert isinstance(result.messages[-1].content, list)
     assert result.messages[-1].content[-1]["cache_control"] == {"type": "ephemeral"}
+
+
+@pytest.mark.parametrize("model_name", ["MiniMax-M3", "MiniMax-M4"])
+async def test_latest_and_future_minimax_models_use_passive_caching(
+    model_name: str,
+) -> None:
+    result = await _run_provider_cache(provider="minimax", model_name=model_name)
+
+    assert result.model_settings == {}
+    assert _explicit_breakpoint_count(result) == 0
+    assert isinstance(result.messages[-1].content, str)
+
+
+@pytest.mark.parametrize(
+    ("provider", "model_name"),
+    [("kimi", "kimi-k2.5"), ("zai", "glm-5.2")],
+)
+async def test_other_anthropic_compatible_providers_get_no_speculative_cache_control(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: str,
+    model_name: str,
+) -> None:
+    monkeypatch.setattr(
+        PromptCachingMiddleware,
+        "_is_anthropic_model",
+        staticmethod(lambda _model: True),
+    )
+
+    result = await _run_provider_cache(provider=provider, model_name=model_name)
+
+    assert result.model_settings == {}
+    assert _explicit_breakpoint_count(result) == 0
 
 
 async def test_gpt_56_marks_only_the_final_stable_system_block() -> None:
@@ -125,9 +163,32 @@ async def test_gpt_56_marks_only_the_final_stable_system_block() -> None:
     assert _explicit_breakpoint_count(result) == 1
 
 
-@pytest.mark.parametrize("provider", ["deepseek", "google", "qwen"])
-async def test_implicit_cache_providers_receive_no_explicit_breakpoints(provider: str) -> None:
-    result = await _run_provider_cache(provider=provider)
+async def test_future_gpt_family_marks_the_final_stable_system_block() -> None:
+    result = await _run_provider_cache(
+        provider="openai",
+        model_name="gpt-6",
+        with_volatile_tool=False,
+    )
+
+    assert result.system_message.content[1]["extras"] == {
+        "prompt_cache_breakpoint": {"mode": "explicit"}
+    }
+    assert _explicit_breakpoint_count(result) == 1
+
+
+@pytest.mark.parametrize(
+    ("provider", "model_name"),
+    [
+        ("deepseek", "deepseek-v4-flash"),
+        ("google", "gemini-3.5-flash"),
+        ("qwen", "qwen3.7-max"),
+    ],
+)
+async def test_implicit_cache_providers_receive_no_explicit_breakpoints(
+    provider: str,
+    model_name: str,
+) -> None:
+    result = await _run_provider_cache(provider=provider, model_name=model_name)
 
     assert _explicit_breakpoint_count(result) == 0
     assert result.model_settings == {}
