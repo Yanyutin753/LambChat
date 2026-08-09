@@ -62,24 +62,23 @@ test("PPT preview does not rerender slides from resize measurements", () => {
   expect(previewSource).toMatch(/\[arrayBuffer\]/);
 });
 
-test("PPT preview zooms and pans rendered slides without rotation controls", () => {
-  expect(previewSource).toMatch(/from\s+"\.{2}\/\.{2}\/common\/ViewerToolbar"/);
-  expect(previewSource).toMatch(/showRotation=\{false\}/);
-  expect(previewSource).toMatch(
-    /addEventListener\("wheel",\s*handleNativeWheel/,
+test("PPT preview uses the shared scrollable document reader", () => {
+  expect(previewSource).toMatch(/DocumentViewerFrame/);
+  expect(previewSource).toMatch(/ScaledDocumentContent/);
+  expect(previewSource).not.toMatch(/addEventListener\("wheel"/);
+  expect(previewSource).not.toMatch(/handleNativeWheel/);
+  expect(previewSource).not.toMatch(/event\.preventDefault\(\)/);
+  expect(previewSource).not.toMatch(/handleMouseDown|onMouseDown=/);
+  expect(previewSource).not.toMatch(
+    /handleTouchStart|handleTouchMove|handleTouchEnd/,
   );
-  expect(previewSource).toMatch(/passive:\s*false/);
-  expect(previewSource).toMatch(/event\.preventDefault\(\)/);
-  expect(previewSource).toMatch(/onMouseDown=\{handleMouseDown\}/);
-  expect(previewSource).toMatch(/transformOrigin:\s*"top center"/);
-  expect(previewSource).toMatch(/left:\s*"50%"/);
+  expect(previewSource).not.toMatch(/position\.x|position\.y/);
 });
 
 test("PPT preview treats 100 percent zoom as fitting the sidebar width", () => {
-  expect(previewSource).toMatch(/ResizeObserver/);
-  expect(previewSource).toMatch(/viewportWidth/);
-  expect(previewSource).toMatch(/fitScale/);
-  expect(previewSource).toMatch(/PPT_VIEWPORT_HORIZONTAL_PADDING/);
-  expect(previewSource).toMatch(/fitScale \* scale/);
-  expect(previewSource).toMatch(/scale=\{scale\}/);
+  expect(previewSource).toMatch(
+    /DocumentViewerFrame\s+naturalWidth=\{PPT_PREVIEW_WIDTH\}/,
+  );
+  expect(previewSource).toMatch(/displayScale/);
+  expect(previewSource).toMatch(/naturalHeight=\{contentHeight\}/);
 });
