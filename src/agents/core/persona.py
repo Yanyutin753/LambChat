@@ -25,6 +25,14 @@ _register_harness_profile = (
     getattr(_deepagents, "register_harness_profile", None) if _deepagents is not None else None
 )
 
+_AnthropicPromptCachingMiddleware: Any
+try:
+    from langchain_anthropic.middleware import (
+        AnthropicPromptCachingMiddleware as _AnthropicPromptCachingMiddleware,
+    )
+except ImportError:  # pragma: no cover - compatibility with older provider packages
+    _AnthropicPromptCachingMiddleware = None
+
 
 DEFAULT_ROLE = "You are an intelligent assistant with tools and skills."
 
@@ -70,9 +78,26 @@ Read enough context to understand existing patterns, act, and keep working until
 
 _BEHAVIOR_GUIDE = _build_behavior_guide()
 
+
+def _build_harness_profile() -> Any:
+    """Build the shared runtime profile with LambChat as the sole cache owner."""
+    if _HarnessProfile is None:  # pragma: no cover - guarded by import-time registration
+        raise RuntimeError("deepagents HarnessProfile is unavailable")
+
+    excluded_middleware = (
+        frozenset({_AnthropicPromptCachingMiddleware})
+        if _AnthropicPromptCachingMiddleware is not None
+        else frozenset()
+    )
+    return _HarnessProfile(
+        base_system_prompt=_BEHAVIOR_GUIDE,
+        excluded_middleware=excluded_middleware,
+    )
+
+
 if _HarnessProfile is not None and _register_harness_profile is not None:
     # Register on import — this is idempotent (additive merge).
-    _profile = _HarnessProfile(base_system_prompt=_BEHAVIOR_GUIDE)
+    _profile = _build_harness_profile()
     for _provider in _HARNESS_PROFILE_PROVIDERS:
         _register_harness_profile(_provider, _profile)
 
