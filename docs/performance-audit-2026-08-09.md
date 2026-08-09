@@ -127,6 +127,20 @@ The final backend run used 45.66 seconds wall time and 838,824 KiB peak RSS. The
 | Deployment protection | Nginx gzip level 4, immutable `/assets` and `/icons` caching, upstream keepalive 32, and SSE buffering disabled |
 | Container resources | Compose application memory limit 2 GiB; Kubernetes requests 200m CPU/512 MiB and limits 2 CPU/4 GiB |
 
+## Final integrated verification
+
+| Gate | Final result |
+| --- | --- |
+| `make check-all` | Exit 0: all pre-commit hooks, Mypy, frontend/backend tests, Python package build, and frontend production build passed |
+| Backend tests | 2,408 passed, 1 skipped, 41 warnings in 36.62 seconds |
+| Frontend tests | 283 files and 1,069 tests passed in 10.38 seconds |
+| Frontend lint | Exit 0 with the same 4 pre-existing warnings and no errors |
+| Final frontend build | 7,581 modules; 41.74 seconds wall time; 2,890,696 KiB peak RSS |
+| Final eager budget | 471,475 / 512,000 gzip bytes |
+| Final precache budget | 62 entries; 4,088,516 / 4,194,304 raw bytes |
+
+The final build still reports generic warnings for individually large lazy chunks. These chunks are excluded from the eager and install-time paths by the deterministic graph and precache budgets, so further splitting is deferred until a route-specific browser trace shows a user-visible bottleneck.
+
 ## Findings ledger
 
 | ID | Surface | Evidence | Impact | Decision | Verification |
