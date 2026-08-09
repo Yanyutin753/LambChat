@@ -53,6 +53,8 @@ type ToolbarProps = Pick<
   | "exitFullscreen"
 >;
 
+const TOOLBAR_ICON_SIZE = 16;
+
 export default function DocumentPreviewToolbar({
   t,
   data,
@@ -116,7 +118,7 @@ export default function DocumentPreviewToolbar({
   return (
     <div
       ref={toolbarRef}
-      className="document-preview-toolbar flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--theme-border)] overflow-hidden [&_button>svg]:size-5 sm:[&_button>svg]:size-4"
+      className="document-preview-toolbar flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--theme-border)] overflow-hidden"
     >
       {effectiveOnBack && (
         <ToolbarIconButton
@@ -124,7 +126,7 @@ export default function DocumentPreviewToolbar({
             effectiveOnBack();
           }}
           title={t("common.back", "Back")}
-          icon={<BackIcon size={16} />}
+          icon={<BackIcon size={TOOLBAR_ICON_SIZE} />}
         />
       )}
       <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} compact />
@@ -150,14 +152,20 @@ export default function DocumentPreviewToolbar({
           </span>
         </div>
       </div>
-      <div className="document-preview-toolbar-actions ml-auto flex items-center gap-2.5 sm:gap-1 relative z-10 shrink-0">
+      <div className="document-preview-toolbar-actions ml-auto flex items-center gap-1 relative z-10 shrink-0">
         {markdownFile && data?.content && (
           <ToolbarIconButton
             onClick={() => {
               setViewSource(!viewSource);
             }}
             title={viewSource ? t("documents.preview") : t("documents.source")}
-            icon={viewSource ? <Eye size={16} /> : <Code2 size={16} />}
+            icon={
+              viewSource ? (
+                <Eye size={TOOLBAR_ICON_SIZE} />
+              ) : (
+                <Code2 size={TOOLBAR_ICON_SIZE} />
+              )
+            }
           />
         )}
         <ToolbarIconButton
@@ -175,7 +183,13 @@ export default function DocumentPreviewToolbar({
               ? t("documents.centerView", "Center view")
               : t("documents.sidebarView", "Sidebar view")
           }
-          icon={isSidebar ? <Columns2 size={16} /> : <PanelRight size={16} />}
+          icon={
+            isSidebar ? (
+              <Columns2 size={TOOLBAR_ICON_SIZE} />
+            ) : (
+              <PanelRight size={TOOLBAR_ICON_SIZE} />
+            )
+          }
         />
         <ToolbarIconButton
           onClick={() => {
@@ -190,7 +204,13 @@ export default function DocumentPreviewToolbar({
               ? t("documents.exitFullscreen")
               : t("documents.fullscreen")
           }
-          icon={isFullscreen ? <Shrink size={16} /> : <Expand size={16} />}
+          icon={
+            isFullscreen ? (
+              <Shrink size={TOOLBAR_ICON_SIZE} />
+            ) : (
+              <Expand size={TOOLBAR_ICON_SIZE} />
+            )
+          }
         />
         {(data?.content ||
           s3Key ||
@@ -203,7 +223,7 @@ export default function DocumentPreviewToolbar({
                 handleDownload();
               }}
               title={t("documents.download")}
-              icon={<Download size={16} />}
+              icon={<Download size={TOOLBAR_ICON_SIZE} />}
             />
             {fileUrl && (
               <ToolbarIconButton
@@ -214,11 +234,11 @@ export default function DocumentPreviewToolbar({
                 icon={
                   linkCopied ? (
                     <Check
-                      size={16}
+                      size={TOOLBAR_ICON_SIZE}
                       className="text-green-500 dark:text-green-400"
                     />
                   ) : (
-                    <Share2 size={16} />
+                    <Share2 size={TOOLBAR_ICON_SIZE} />
                   )
                 }
               />
@@ -232,11 +252,11 @@ export default function DocumentPreviewToolbar({
                 icon={
                   copied ? (
                     <Check
-                      size={16}
+                      size={TOOLBAR_ICON_SIZE}
                       className="text-green-500 dark:text-green-400"
                     />
                   ) : (
-                    <Copy size={16} />
+                    <Copy size={TOOLBAR_ICON_SIZE} />
                   )
                 }
               />
@@ -249,7 +269,7 @@ export default function DocumentPreviewToolbar({
           }}
           title={t("common.close")}
           aria-label={t("common.close")}
-          icon={<X size={16} />}
+          icon={<X size={TOOLBAR_ICON_SIZE} />}
         />
       </div>
     </div>

@@ -14,12 +14,12 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
       typeof fallback === "string" ? fallback : key) as ComponentProps<
       typeof DocumentPreviewToolbar
     >["t"],
-    data: null,
+    data: { content: "preview content", path: fileName },
     copied: false,
     viewSource: false,
     isSidebar: true,
     isFullscreen: false,
-    markdownFile: false,
+    markdownFile: true,
     codeFile: false,
     hasTextContent: false,
     displaySize: 0,
@@ -31,11 +31,11 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
     s3Key: "documents/file.docx",
     signedUrl: undefined,
     externalImageUrl: undefined,
-    resolvedUrl: null,
+    resolvedUrl: "https://example.test/file.docx",
     unsupportedPreviewFile: false,
     onUserInteraction: undefined,
     onClose: vi.fn(),
-    effectiveOnBack: undefined,
+    effectiveOnBack: vi.fn(),
     handleCopy: vi.fn(),
     handleDownload: vi.fn(),
     toolbarRef: createRef<HTMLDivElement>(),
@@ -52,9 +52,10 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
   const fileInfoBlock = title.parentElement;
   const fileIcon = fileInfoBlock?.previousElementSibling;
   const actionGroup = fileInfoBlock?.nextElementSibling;
+  const toolbarIcons = toolbar?.querySelectorAll("button svg") ?? [];
 
   expect(toolbar).toBeInTheDocument();
-  expect(toolbar).toHaveClass(
+  expect(toolbar).not.toHaveClass(
     "[&_button>svg]:size-5",
     "sm:[&_button>svg]:size-4",
   );
@@ -72,4 +73,9 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
     "sm:gap-1",
     "shrink-0",
   );
+  expect(toolbarIcons).toHaveLength(8);
+  toolbarIcons.forEach((icon) => {
+    expect(icon).toHaveAttribute("width", "16");
+    expect(icon).toHaveAttribute("height", "16");
+  });
 });

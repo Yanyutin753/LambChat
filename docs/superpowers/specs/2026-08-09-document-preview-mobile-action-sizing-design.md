@@ -18,7 +18,7 @@ Make the document preview header actions comfortably visible and consistently sp
 ## Mobile Layout
 
 - Give the back button and every right-side action a scoped 32 px square button box.
-- Render toolbar button SVGs at 20 px below the `sm` breakpoint.
+- Render every toolbar button SVG at 16 px at every breakpoint.
 - Use 10 px spacing between adjacent right-side actions.
 - Keep the right action group non-shrinking while the file-information block remains the element that yields space and truncates.
 
