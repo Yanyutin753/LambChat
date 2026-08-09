@@ -96,6 +96,11 @@ class UsageRankingItem(BaseModel):
     requests: int = 0
     tokens: int = 0
     duration: float = 0.0
+    input_tokens: int = 0
+    cache_creation_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_read_share: float = 0.0
+    zero_cache_requests: int = 0
 
 
 class UsageDashboardResponse(BaseModel):

@@ -101,6 +101,11 @@ class _FakeUsageStorage:
                     "requests": 2,
                     "tokens": 100,
                     "duration": 120.0,
+                    "input_tokens": 80,
+                    "cache_creation_tokens": 5,
+                    "cache_read_tokens": 60,
+                    "cache_read_share": 0.75,
+                    "zero_cache_requests": 1,
                 }
             ],
         }
@@ -220,6 +225,9 @@ async def test_get_usage_dashboard_restricts_non_admin_to_current_user(monkeypat
 
     assert response.summary.total_requests == 2
     assert response.daily[0].date == "2026-06-14"
+    assert response.top_models[0].cache_read_tokens == 60
+    assert response.top_models[0].cache_read_share == 0.75
+    assert response.top_agents[0].cache_read_tokens == 0
     assert storage.calls[-1]["user_id"] == "user-1"
     assert storage.calls[-1]["search"] is None
     assert storage.calls[-1]["start_date"] == "2026-06-07T12:00:00+00:00"

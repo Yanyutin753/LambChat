@@ -410,7 +410,7 @@ class UsageStorage:
                     "personas": self._ranking_pipeline(
                         "persona_preset_id", name_field="persona_preset_name"
                     ),
-                    "models": self._ranking_pipeline("model"),
+                    "models": self._ranking_pipeline("model", include_cache_metrics=True),
                     "users": self._ranking_pipeline("user_id", name_field="username"),
                     "sources": self._ranking_pipeline(
                         "source",
@@ -437,6 +437,7 @@ class UsageStorage:
         limit: int = USAGE_RANKING_LIMIT,
         fallback_id: str | None = None,
         include_empty: bool = False,
+        include_cache_metrics: bool = False,
     ) -> list[Dict[str, Any]]:
         group_id: Any = f"${field}"
         if fallback_id:
@@ -455,6 +456,28 @@ class UsageStorage:
         }
         if name_field:
             group["name"] = {"$first": f"${name_field}"}
+        if include_cache_metrics:
+            group.update(
+                {
+                    "input_tokens": {"$sum": "$input_tokens"},
+                    "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
+                    "cache_read_tokens": {"$sum": "$cache_read_tokens"},
+                    "zero_cache_requests": {
+                        "$sum": {
+                            "$cond": [
+                                {
+                                    "$lte": [
+                                        {"$ifNull": ["$cache_read_tokens", 0]},
+                                        0,
+                                    ]
+                                },
+                                1,
+                                0,
+                            ]
+                        }
+                    },
+                }
+            )
         pipeline: list[Dict[str, Any]] = []
         if not include_empty:
             pipeline.append({"$match": {field: {"$nin": [None, ""]}}})
@@ -573,12 +596,19 @@ def _empty_stats() -> Dict[str, Any]:
 
 def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
     item_id = str(doc.get("_id") or "")
+    input_tokens = _as_int(doc.get("input_tokens"))
+    cache_read_tokens = _as_int(doc.get("cache_read_tokens"))
     return {
         "id": item_id,
         "name": str(doc.get("name") or item_id or "Unknown"),
         "requests": _as_int(doc.get("requests")),
         "tokens": _as_int(doc.get("tokens")),
         "duration": _as_float(doc.get("duration")),
+        "input_tokens": input_tokens,
+        "cache_creation_tokens": _as_int(doc.get("cache_creation_tokens")),
+        "cache_read_tokens": cache_read_tokens,
+        "cache_read_share": cache_read_tokens / input_tokens if input_tokens else 0.0,
+        "zero_cache_requests": _as_int(doc.get("zero_cache_requests")),
     }
 
 

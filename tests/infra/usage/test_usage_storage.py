@@ -437,7 +437,26 @@ class _DashboardFakeCollection:
                         }
                     ],
                     "models": [
-                        {"_id": "openai/gpt-5", "requests": 2, "tokens": 150, "duration": 60.0}
+                        {
+                            "_id": "openai/gpt-5",
+                            "requests": 2,
+                            "tokens": 150,
+                            "duration": 60.0,
+                            "input_tokens": 70,
+                            "cache_creation_tokens": 5,
+                            "cache_read_tokens": 20,
+                            "zero_cache_requests": 1,
+                        },
+                        {
+                            "_id": "openai/o4-mini",
+                            "requests": 1,
+                            "tokens": 10,
+                            "duration": 2.0,
+                            "input_tokens": 0,
+                            "cache_creation_tokens": 0,
+                            "cache_read_tokens": 0,
+                            "zero_cache_requests": 1,
+                        },
                     ],
                     "users": [
                         {
@@ -499,7 +518,19 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
     assert dashboard["top_agents"][0]["name"] == "Team Agent"
     assert dashboard["top_teams"][0]["id"] == "team-1"
     assert dashboard["top_personas"][0]["name"] == "Researcher"
-    assert dashboard["top_models"][0]["name"] == "openai/gpt-5"
+    assert dashboard["top_models"][0] == {
+        "id": "openai/gpt-5",
+        "name": "openai/gpt-5",
+        "requests": 2,
+        "tokens": 150,
+        "duration": 60.0,
+        "input_tokens": 70,
+        "cache_creation_tokens": 5,
+        "cache_read_tokens": 20,
+        "cache_read_share": 20 / 70,
+        "zero_cache_requests": 1,
+    }
+    assert dashboard["top_models"][1]["cache_read_share"] == 0.0
     assert dashboard["top_users"][0]["name"] == "Ada"
     assert dashboard["sources"][0]["id"] == "scheduled_task"
     assert dashboard["triggers"][0]["id"] == "cron"
@@ -509,3 +540,6 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
     assert match_stage["$match"]["started_at"]["$gte"] == datetime(2026, 6, 1, tzinfo=timezone.utc)
     pipeline_text = str(collection.aggregate_pipelines[0])
     assert "scheduled_task_id" in pipeline_text
+    assert "cache_creation_tokens" in pipeline_text
+    assert "cache_read_tokens" in pipeline_text
+    assert "zero_cache_requests" in pipeline_text
