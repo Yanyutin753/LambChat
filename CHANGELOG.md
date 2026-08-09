@@ -1,5 +1,34 @@
 # Changelog
 
+## v2.5.5 (2026-08-09)
+
+### ✨ New Features
+
+- Add progressive tool and skill discovery with pinyin-aware search, deferred system tools, and runtime harness provider registration.
+- Add provider-neutral lazy sandbox initialization, Search Agent on-demand sandbox startup, and sandbox ID visibility in readiness feedback.
+- Add background artifact delivery and recommendation generation with persisted, run-scoped results.
+- Improve project sharing and downloads, long-text composition, image tooling, and chat message presentation.
+
+### 🐛 Bug Fixes
+
+- Apply CJK Markdown delimiter parsing consistently across rendered chat content.
+- Preserve structured DeepAgents backend failures and v0.7 tool-result compatibility.
+- Harden sandbox creation, cancellation, event ordering, cleanup, and background task isolation.
+- Redact sensitive paths and connection details, validate image data URLs, and close related security edge cases.
+
+### ♻️ Refactors
+
+- Migrate sandbox and skill backends to the DeepAgents v0.7 protocol while preserving legacy compatibility boundaries.
+- Remove the legacy sandbox MCP transport and compact dynamic prompts and tool schemas.
+- Split oversized backend modules and consolidate shared agent workflows.
+
+### 🧪 Tests & Infrastructure
+
+- Expand regression coverage for sandbox lifecycle, backend result formats, prompt discovery, background delivery, and Mongo-backed tests.
+- Improve deterministic test configuration and runtime cleanup behavior.
+
+---
+
 ## v2.5.4 (2026-07-12)
 
 ### ✨ New Features

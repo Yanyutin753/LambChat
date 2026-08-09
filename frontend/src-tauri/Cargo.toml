@@ -1,6 +1,6 @@
 [package]
 name = "lambchat"
-version = "2.5.3"
+version = "2.5.5"
 description = "LambChat desktop app"
 authors = ["LambChat"]
 license = ""
