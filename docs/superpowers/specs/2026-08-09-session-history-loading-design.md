@@ -1,103 +1,104 @@
-# Session History Loading Optimization Design
+# Session History Loading UX Optimization Design
 
 ## Goal
 
-Make opening an existing session feel immediate while still loading and displaying the complete session history. A running session must never reveal an assistant placeholder before its corresponding user message.
+Make opening an existing session feel immediate while still loading and displaying its complete history. Loading must be visually stable, and a running session must never reveal a real assistant placeholder before its corresponding user message.
+
+The work is frontend- and user-experience-led. Backend changes are limited to the two things the frontend cannot solve alone: returning the persisted user message for an active run and avoiding run-by-run database latency.
 
 ## Root causes
 
-The current frontend waits for `mark-read`, then fetches the session, then blocks first render on the slowest of events, status, and feedback. The session, events, and status routes each repeat session lookup and authorization work. Clicking a sidebar item also delays the route update until history finishes loading.
+The frontend currently waits for `mark-read`, then fetches the session, then blocks first render on the slowest of events, status, and feedback. The session detail and events requests could start together, while mark-read and feedback do not need to gate display. Clicking a sidebar item also delays URL navigation until history finishes, making the interface feel unresponsive even before network latency is considered.
 
-The storage path first lists all traces and then reads every trace sequentially. Chunked traces require multiple MongoDB probes per trace, so latency grows with the number of runs even when the total event payload is modest.
+For an active run, the events route excludes the running trace. The initial user message is already persisted there, but the frontend cannot see it after refresh. `prepareMessagesForRunningRun` then creates an empty streaming assistant message even when no user message for that run exists, producing the observed assistant-only state.
 
-For an active run, the events route excludes the running trace. The initial user message is already persisted in that trace, but the frontend cannot see it after a refresh. `prepareMessagesForRunningRun` then creates an empty streaming assistant message even when no user message for that run exists, producing the observed assistant-only state.
+The storage path compounds the visible delay by first listing traces and then reading every trace sequentially. Chunked traces require multiple MongoDB probes per trace, so the events request becomes slower as the number of runs grows even when the complete message history is small.
 
 ## Chosen approach
 
-Keep the product's full-history behavior. Replace the multi-request critical path with one full-history bootstrap request, batch event reads across every trace, and move nonessential work out of the rendering gate. This retains all messages instead of introducing pagination, truncation, or a "load older" interaction.
+Keep the product's full-history behavior and existing endpoints. Restructure the frontend loading state machine so only essential data gates the stable reveal, add explicit cancellation and immediate navigation, and enforce user-before-assistant ordering. Extend the existing events request with a narrowly scoped active-user option and batch its storage reads.
 
-### Bootstrap API
+No pagination, truncation, "load older" control, cache invalidation layer, or replacement bootstrap endpoint is introduced.
 
-Add `GET /api/sessions/{session_id}/history` with an optional `run_id` query parameter. The response contains:
+## Frontend loading experience
 
-```json
-{
-  "session": {},
-  "events": [],
-  "active_run": {
-    "run_id": "...",
-    "status": "running",
-    "error": null
-  }
-}
-```
+### Immediate selection feedback
 
-`session` is the same normalized session representation returned by the existing session detail route. `events` contains the complete chronological history. `active_run` is null when there is no selected/current run and otherwise describes the run requested by `run_id` or the session's `current_run_id`.
+Selecting a sidebar session immediately:
 
-The route performs one session lookup and ownership check. For the current run, status and error come from the already loaded session metadata when available. A non-current requested run may use the existing task status query internally, but it does not add another client round trip.
+1. marks the navigation as internal,
+2. navigates to `/chat/{session_id}`,
+3. aborts the previous history request and SSE connection,
+4. clears the previous conversation frame, and
+5. displays the existing alternating user/assistant conversation skeleton.
 
-Existing session detail, events, and status endpoints remain supported for other consumers. The new endpoint is an additive optimized read contract.
+The skeleton is the only message-area content exposed during the full-history transition. Real messages are committed once as one complete reconstructed list, then the existing Virtuoso history-settling overlay remains until bottom measurement is stable. The UI never progressively reveals a partial set of real history.
 
-### Batched event storage reads
+The URL effect must not issue a duplicate load for this internal navigation. A failed load keeps the selected URL and shows the existing localized request error rather than silently returning to the previous session.
 
-Add a batch-compatible trace event reader used by full session history:
+### Short critical path
 
-1. Query all matching trace summaries once in chronological order, including legacy embedded `events` needed for compatibility.
-2. Query all chunk documents for those trace IDs once, ordered by trace and `chunk_index`.
-3. Group chunks in memory and reconstruct each trace in chronological sequence.
-4. When a trace has chunks beginning after sequence 1, preserve the legacy prefix below the first chunk sequence.
-5. Apply event-type filters, event limits, recommendation synthesis, and run metadata with the same semantics as the existing per-trace reader.
+`useAgent.loadHistory` starts the session-detail request and full events request concurrently. Both accept the same history `AbortSignal`. The normal critical path awaits only these two essential reads.
 
-This changes the normal full-history read from a number of MongoDB round trips proportional to the run count to a constant number of collection reads. It must support sessions containing only legacy traces, only chunked traces, or a mixture of both.
+`mark-read` starts without being awaited. Feedback starts without being awaited and is applied later to matching run messages only if the history request is still current. Neither failure changes the history loading result.
 
-No event count limit or pagination is added to the new history endpoint. The existing response-limit behavior on the old events endpoint is unchanged.
+For the common current-run case, task status comes from the session metadata already returned by the session-detail request. A `run_id` URL parameter that differs from `metadata.current_run_id` is historical context and must never inherit the current run's status or trigger SSE reconnection. If current-run metadata has no usable status, the existing status endpoint may be used as a fallback after the essential requests; it must not delay display of completed history.
 
-### Active-run message consistency
+The frontend treats `queued`, `pending`, `starting`, `running`, `cancelling`, and `recovering` as nonterminal states. It reconnects SSE only for the session's actual `current_run_id`; terminal or historical runs do not reconnect.
 
-When `active_run.status` is one of `queued`, `pending`, `starting`, `running`, `cancelling`, or `recovering`, the bootstrap history includes the active trace's persisted `user:message` event but excludes its assistant/tool lifecycle events. Those events continue through SSE and therefore are not duplicated by the bootstrap response.
+### Cancellation and stale-result isolation
 
-All other traces contribute their complete event history. The active user event is merged by chronological event identity so a status transition during the request cannot duplicate it.
+History HTTP requests use a dedicated abort controller separate from the long-lived SSE controller. Starting another load aborts both the previous history request and previous SSE connection. The existing monotonically increasing request ID remains a second guard.
 
-The frontend may create or mark a streaming assistant message only when a user message for the same run already exists. If the active user event is unexpectedly absent, the UI keeps the history/skeleton state free of an assistant-only bubble and connects to SSE. The SSE `user:message` handler inserts the user message first and, only then, creates the matching assistant stream target when it is missing. Later assistant events therefore have a target without violating message order.
+An aborted or stale request cannot set session identity, configuration, messages, goals, feedback, errors, loading flags, or an SSE connection. `AbortError` is silent; a current non-abort failure uses the existing localized request failure state.
 
-Queued and other nonterminal states receive the same reconnect treatment as `pending` and `running`; terminal states do not reconnect.
+## User-before-assistant invariant
 
-### Frontend loading flow
+The events request opts into receiving the active run's persisted `user:message`, while active assistant/tool lifecycle events remain excluded because SSE owns them.
 
-`sessionApi.getHistory` accepts an `AbortSignal`. `useAgent.loadHistory` owns a history-request abort controller separate from the long-lived SSE controller. Starting another session load aborts the previous HTTP request in addition to retaining the existing request-ID stale-result guard.
+History reconstruction may create or mark a streaming assistant message only when a user message for the same run already exists. `prepareMessagesForRunningRun` therefore returns a stream target without inserting an assistant bubble when the matching user is absent.
 
-The critical path is:
+As a defensive fallback, the SSE `user:message` handler performs one atomic state update: it inserts or reconciles the user message first, then creates the matching streaming assistant target only if it does not already exist. The next assistant event can therefore update that target without any render containing an assistant-only pair.
 
-1. Clear the old message frame and show the history skeleton.
-2. Start the bootstrap request.
-3. Start `mark-read` and feedback reads without awaiting them.
-4. Reconstruct and commit all history as soon as bootstrap completes.
-5. Restore session configuration and connect SSE for a nonterminal active run.
-6. Apply feedback to matching run messages later, only if the same history request is still current.
+User-message deduplication remains based on persisted `message_id` and `run_id`; content comparison remains only a legacy fallback. Baseline timestamps and processed-event state are installed before SSE starts so the active user event is not duplicated when the stream replays it.
 
-Sidebar selection navigates to `/chat/{session_id}` immediately and then loads history. Existing internal-navigation guards prevent the URL effect from issuing a duplicate request. Failed loads retain the selected URL and show the existing localized request error instead of silently returning to the previous session.
+## Minimal backend support
 
-The existing skeleton and history-scroll settling behavior stays in place so the complete Virtuoso list is not exposed mid-measurement. The optimization shortens the time before that single stable reveal; it does not progressively reveal partial history.
+### Active user event option
 
-## Error and race behavior
+Extend `GET /api/sessions/{session_id}/events` and `sessionApi.getEvents` with an additive boolean option such as `include_active_user_message`.
 
-- An aborted or stale bootstrap request cannot set messages, session configuration, errors, loading state, feedback, or an SSE connection.
-- Mark-read and feedback failures are best-effort and do not delay or fail history display.
-- A bootstrap failure clears the loading state and uses the existing localized request failure message.
-- SSE is started only after the baseline event timestamp and processed-event state are installed, preserving duplicate suppression.
-- Switching sessions aborts both the old history request and the old SSE connection.
+When enabled and session metadata identifies a nonterminal current run, the response contains:
+
+- complete events for all other traces, and
+- only `user:message` events for the current active run.
+
+It excludes all other active-run events. If the active trace becomes terminal during the read, events are merged by trace/run and event sequence so the user message is present once and the complete terminal trace is not duplicated. The option defaults to false so existing API consumers retain current behavior.
+
+### Batched full-history storage read
+
+The optimized events path:
+
+1. queries matching trace documents once in chronological order, including legacy embedded events needed for compatibility;
+2. queries all chunk documents for those trace IDs once;
+3. groups chunks in memory and reconstructs each trace in chronological sequence;
+4. preserves a legacy prefix when chunks begin after sequence 1; and
+5. applies existing event filters, limits, recommendation synthesis, and run metadata.
+
+This replaces MongoDB round trips proportional to run count with a constant number of reads. It must support all-legacy, all-chunked, and mixed sessions. The new frontend path requests all events with no limit, preserving complete-history behavior. Existing limit semantics remain unchanged for other consumers.
 
 ## Compatibility and scope
 
-- Full session history remains the user-visible behavior.
-- Legacy embedded trace events, chunked events, mixed migrations, recommendation compatibility events, feedback, goals, attachments, approvals, and run-based SSE reconstruction remain supported.
-- Existing API consumers do not need to migrate.
-- This work does not add caching, prefetch-on-hover, history pagination, message truncation, or database migration. Those features are unnecessary for the reported session sizes and would introduce invalidation or interaction complexity.
+- Session history remains fully displayed in one stable reveal.
+- The existing session detail, events, status, mark-read, feedback, and SSE endpoints remain available.
+- Legacy embedded events, chunked events, mixed migrations, recommendations, feedback, goals, attachments, approvals, cancellation, and run-based SSE reconstruction remain supported.
+- The existing conversation skeleton and Virtuoso settling behavior are retained and refined through state timing rather than visually redesigned.
+- No database migration, pagination, message truncation, hover prefetch, or persistent frontend cache is added.
 
 ## Verification
 
-Backend tests cover the bootstrap response, one ownership lookup, current-run status selection, all nonterminal statuses, active user inclusion without active assistant duplication, batch query counts, chronological ordering, event filters, recommendation synthesis, and legacy/chunked/mixed trace compatibility.
+Frontend tests cover immediate navigation, one load per selection, concurrent essential requests, nonblocking mark-read and feedback, abort propagation, stale-result isolation, one-shot complete-history commit, all nonterminal states, historical `run_id` isolation, absence of assistant-only placeholders, atomic SSE fallback insertion, user-message deduplication, and delayed feedback applying only to the active session.
 
-Frontend tests cover the single-request critical path, nonblocking mark-read and feedback, request cancellation and stale-result isolation, immediate navigation, complete history reconstruction, queued/running reconnects, active user-before-assistant ordering, absence of assistant-only placeholders, SSE fallback insertion, and delayed feedback application to only the active session.
+Backend tests cover the additive active-user option, one active user with no active assistant events, status-transition deduplication, batch query counts, chronological ordering, limits and filters, recommendation synthesis, and legacy/chunked/mixed compatibility.
 
-Focused frontend and backend suites run first. Final verification includes frontend lint/build/tests and the repository's cross-stack checks appropriate to the touched API, storage, and UI paths.
+Focused frontend tests run after each TDD cycle. Final verification includes the relevant backend suite, full frontend tests, frontend lint and build, then cross-stack checks appropriate to the touched API, storage, and UI paths.
