@@ -1,5 +1,10 @@
 # Long-text paste content design
 
+> Superseded by
+> `docs/superpowers/specs/2026-08-09-rich-chat-composer-design.md`. The complete
+> composer value must not be moved into the generated file; only the pasted
+> long-text fragment becomes an attachment.
+
 ## Problem
 
 When the composer already contains a draft and the user pastes more than the
