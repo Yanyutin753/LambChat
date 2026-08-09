@@ -56,6 +56,21 @@ The complete backend suite is a correctness and trend baseline, not a production
 
 The eager JavaScript budget is 500 KiB gzip and the precache budget is 4 MiB raw. Both budgets fail at baseline.
 
+### Frontend after bundle/PWA optimization
+
+| Metric | Result | Change from baseline |
+| --- | --- | --- |
+| Full suite | 282 test files and 1,060 tests passed | 17 deterministic regression tests added |
+| PWA/cache compatibility | 6 files and 18 tests passed | Navigation fallback and runtime-cache exclusions preserved |
+| Production build | 7,580 modules; timed wall clock 43.61 seconds | 20.6 percent lower wall time; trend only |
+| Build peak RSS | 3,151,016 KiB | 0.4 percent higher; within host variance |
+| Eager JavaScript | 471,443 gzip bytes | 171,016 bytes and 26.6 percent lower; passes 512,000-byte gate |
+| Workbox precache | 62 entries; 4,087,514 raw bytes | 247 fewer entries and about 78 percent fewer bytes; passes 4,194,304-byte gate |
+| Build warnings | No cross-chunk cycle; generic large-lazy-chunk warning remains | Cycle removed; optional heavy features remain runtime-loaded |
+| Lint | Exit 0 with the same 4 existing warnings | No new lint warning |
+
+Mermaid, CodeMirror, Sandpack, KaTeX font files, and the social preview image are not promoted into the eager/precache paths. Fonts and other lazy static assets remain covered by the service worker's bounded `StaleWhileRevalidate` runtime cache. The offline document, web manifest, favicon, declared application icons, entry graph, and first-level route shells remain precached.
+
 ### Other surfaces
 
 | Metric | Baseline |
@@ -71,9 +86,9 @@ The eager JavaScript budget is 500 KiB gzip and the precache budget is 4 MiB raw
 
 | ID | Surface | Evidence | Impact | Decision | Verification |
 | --- | --- | --- | --- | --- | --- |
-| F-001 | Web chunk graph | Production build reports a cross-chunk circular dependency around `openSubagentPanelByAgentId` and `SubagentBlocks.tsx` | Can produce fragile initialization order and prevents a clean build signal | optimized | Scheduled by the frontend bundle/PWA plan; baseline warning reproduced |
-| F-002 | Web initial load | Mermaid is forced into an eager modulepreload; eager JavaScript is 642,459 gzip bytes, including 171,536 bytes for Mermaid | Initial download, parse, and evaluation exceed the 500 KiB budget | optimized | Scheduled by the frontend bundle/PWA plan; exact emitted-file calculation captured |
-| F-003 | PWA install/update | Workbox precaches 309 entries totaling 18,153.33 KiB | Large first install and service-worker update transfer exceeds the 4 MiB budget | optimized | Scheduled by the frontend bundle/PWA plan; Workbox baseline captured |
+| F-001 | Web chunk graph | Production build reported a cross-chunk circular dependency around `openSubagentPanelByAgentId` and `SubagentBlocks.tsx` | Could produce fragile initialization order and prevented a clean build signal | optimized | Direct defining-module import plus deferred heavy panel content; final build has no circular warning |
+| F-002 | Web initial load | Mermaid was forced into an eager modulepreload; eager JavaScript was 642,459 gzip bytes, including 171,536 bytes for Mermaid | Initial download, parse, and evaluation exceeded the 500 KiB budget | optimized | Mermaid, CodeMirror, and Sandpack manual promotion removed; final eager graph is 471,443 gzip bytes |
+| F-003 | PWA install/update | Workbox precached 309 entries totaling 18,153.33 KiB | Large first install and service-worker update transfer exceeded the 4 MiB budget | optimized | Route-shell manifest transform produces 62 entries and 4,087,514 bytes; deterministic build gate passes |
 | F-004 | Frontend quality signal | ESLint emits four existing unused-variable warnings while returning success | No measured runtime cost; warning noise can hide future findings | deferred | Not performance-significant and outside this optimization scope |
 | B-001 | Session run summaries | `list_run_summaries` calls `get_first_trace_event` inside the trace loop when preview data is absent | Up to one extra trace/chunk read per returned run | optimized | Scheduled by the existing session-history plan; query-count proof required |
 | B-002 | Team persona hydration | `_hydrate_member_roles` and active-member validation call persona `get_by_id` inside member loops | Database query count grows with member count | optimized | Scheduled by the team persona batching plan; single-query proof required |
@@ -89,7 +104,7 @@ The eager JavaScript budget is 500 KiB gzip and the precache budget is 4 MiB raw
 | D-002 | Container deployment | Multi-stage image, frozen dependency installs, uv cache mount, health probes, and explicit resource bounds are present | Build reuse and runtime resource containment are configured | already protected | Direct inspection of Docker, Compose, and Kubernetes manifests |
 | DOC-001 | Documentation build | VitePress excludes plans, superpowers artifacts, and images from source-page processing; local search is the only material build plugin | No independent hot path or duplicate heavy plugin found | already protected | Config and lockfile inspection; documentation images are not part of frontend app precache |
 | T-001 | Tests/build tooling | Full suites pass and build scripts use deterministic uv/pnpm entry points | Provides reproducible regression gates; wall/RSS remain trend metrics | already protected | Baseline commands completed successfully |
-| A-001 | Static assets | Public assets total 2.31 MiB; the 708,744-byte social image is the largest | Assets are costly only when fetched or precached; current PWA policy precaches too broadly | optimized | Addressed through F-003 runtime caching; source image quality is preserved |
+| A-001 | Static assets | Public assets total 2.31 MiB; the 708,744-byte social image is the largest | Assets are costly only when fetched or precached; the baseline PWA policy precached too broadly | optimized | F-003 leaves non-shell assets in bounded runtime caching while preserving source quality |
 
 ## Environment-dependent follow-up
 
