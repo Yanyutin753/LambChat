@@ -2,12 +2,14 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from langchain.tools import ToolRuntime
 
 from src.infra.session.conversation_history import (
     ConversationHistoryInvalidArgumentError,
     ConversationHistoryNotFoundError,
 )
 from src.infra.tool import conversation_history_tool as history_tools
+from src.infra.tool.mcp_client import MCPToolWithRetry
 
 
 class _Runtime:
@@ -103,3 +105,39 @@ def test_history_tool_descriptions_embed_the_lookup_sop() -> None:
     assert "search_conversation_history" in detail_description
     assert "memory_recall" in detail_description
     assert "source_refs" in detail_description
+
+
+@pytest.mark.asyncio
+async def test_search_history_runs_through_internal_mcp_wrapper(monkeypatch) -> None:
+    calls = []
+
+    class _Service:
+        async def search(self, user_id, query, limit=10, cursor=None):
+            calls.append((user_id, query, limit, cursor))
+            return {"success": True, "items": [], "next_cursor": None}
+
+    monkeypatch.setattr(history_tools, "ConversationHistoryService", _Service)
+    wrapped = MCPToolWithRetry(
+        history_tools.search_conversation_history,
+        max_retries=1,
+        user_id="user-1",
+        server_name="lambchat_internal",
+    )
+    runtime = ToolRuntime(
+        state={},
+        context=None,
+        config={"configurable": {"context": SimpleNamespace(user_id="user-1")}},
+        stream_writer=lambda _value: None,
+        tool_call_id="tool-call-1",
+        store=None,
+        tools=[],
+    )
+
+    result = json.loads(
+        await wrapped.ainvoke(
+            {"query": "自我介绍", "limit": 10, "runtime": runtime},
+        )
+    )
+
+    assert result["success"] is True
+    assert calls == [("user-1", "自我介绍", 10, None)]

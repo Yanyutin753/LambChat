@@ -247,7 +247,9 @@ class MCPToolWithRetry(BaseTool):
 
         # Coerce JSON-array-string args back to lists before delegating, so
         # remote MCP servers receive properly typed values (issue #198).
-        kwargs = _normalize_json_array_args(kwargs, self.args_schema)
+        # Use the public call schema so LangChain removes injected-only fields
+        # such as ToolRuntime before Pydantic generates JSON Schema.
+        kwargs = _normalize_json_array_args(kwargs, self.tool_call_schema)
 
         last_error: Exception | None = None
         for attempt in range(self._max_retries):
