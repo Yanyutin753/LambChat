@@ -5,10 +5,10 @@
 LambChat 现已具备**单会话维度**的分享能力：
 
 - `SharedSession` 记录分享（`share_id` 为 12 字符 URL-safe token），支持 `share_type=full`（全量）/`partial`（按 `run_ids` 选部分），可见性 `visibility=public` / `authenticated`。
-- 管理接口在 [src/api/routes/share.py](../src/api/routes/share.py)，权限 `session:share`，公开读走 `GET /api/share/public/{share_id}`，SSR `/shared/{share_id}` 注入 SEO（[src/api/main.py](../src/api/main.py)）。
-- 存储层 [src/infra/share/storage.py](../src/infra/share/storage.py) 基于 MongoDB 集合 `shared_sessions`。
+- 管理接口在 [src/api/routes/share.py](https://github.com/Yanyutin753/LambChat/blob/main/src/api/routes/share.py)，权限 `session:share`，公开读走 `GET /api/share/public/{share_id}`，SSR `/shared/{share_id}` 注入 SEO（[src/api/main.py](https://github.com/Yanyutin753/LambChat/blob/main/src/api/main.py)）。
+- 存储层 [src/infra/share/storage.py](https://github.com/Yanyutin753/LambChat/blob/main/src/infra/share/storage.py) 基于 MongoDB 集合 `shared_sessions`。
 
-同时平台已有 **Project（项目）** 概念：项目是"会话的文件夹"，会话通过 `session.metadata.project_id` 归属项目（[src/kernel/schemas/project.py](../src/kernel/schemas/project.py)），可经 `SessionStorage.list_ids_by_project(project_id, user_id)`（[src/infra/session/storage.py](../src/infra/session/storage.py)）批量枚举成员。
+同时平台已有 **Project（项目）** 概念：项目是"会话的文件夹"，会话通过 `session.metadata.project_id` 归属项目（[src/kernel/schemas/project.py](https://github.com/Yanyutin753/LambChat/blob/main/src/kernel/schemas/project.py)），可经 `SessionStorage.list_ids_by_project(project_id, user_id)`（[src/infra/session/storage.py](https://github.com/Yanyutin753/LambChat/blob/main/src/infra/session/storage.py)）批量枚举成员。
 
 缺口：用户只能逐个会话分享，无法"一次分享整个项目"或"分享项目内若干会话的集合"。本方案在不破坏现有单会话分享的前提下，扩展出**项目维度分享**。
 
@@ -46,7 +46,7 @@ D1 的语义对照表：
 
 ## 数据模型变更
 
-### 枚举与快照（[src/kernel/schemas/share.py](../src/kernel/schemas/share.py)）
+### 枚举与快照（[src/kernel/schemas/share.py](https://github.com/Yanyutin753/LambChat/blob/main/src/kernel/schemas/share.py)）
 
 ```python
 class ShareScope(str, Enum):
@@ -164,7 +164,7 @@ async def _validate_project_share(data: ShareCreate, user: TokenPayload) -> Proj
 
 > **越权防护**：partial 模式必须校验所选 `session_ids` 当前确实属于该项目且项目属于当前用户，防止把他人会话塞进自己的项目分享。
 
-## 存储层变更（[src/infra/share/storage.py](../src/infra/share/storage.py)）
+## 存储层变更（[src/infra/share/storage.py](https://github.com/Yanyutin753/LambChat/blob/main/src/infra/share/storage.py)）
 
 - `create()`：写入 `share_scope / project_id / session_ids / project_snapshot`。
 - `ensure_indexes()`：新增稀疏索引 `create_index("project_id", sparse=True)`，仅对项目分享生效，不影响老数据。
@@ -270,7 +270,7 @@ async def count_session_events(
 > 实现走与 `read_session_events` 相同的存储（事件/checkpoint 索引），仅返回计数，避免 manifest 把全量事件读进内存。
 > 若 P3 前需先上线，可临时令 `event_count` 返回 `None`，前端不展示计数，后续补齐。
 
-## SSR / SEO（[src/api/main.py](../src/api/main.py) `serve_shared_page`）
+## SSR / SEO（[src/api/main.py](https://github.com/Yanyutin753/LambChat/blob/main/src/api/main.py) `serve_shared_page`）
 
 `/shared/{share_id}` 内部调用统一公开读（`user=None`），按 `share_scope` 分流：
 
@@ -287,7 +287,7 @@ async def count_session_events(
 
 ## 清理策略（项目/会话删除联动）
 
-修改 [src/api/routes/project.py](../src/api/routes/project.py) `delete_project`：
+修改 [src/api/routes/project.py](https://github.com/Yanyutin753/LambChat/blob/main/src/api/routes/project.py) `delete_project`：
 
 - **full（实时）项目分享**：项目删除后内容失效 → **删除**该项目的所有 full 分享记录（`delete_by_project` 中按 `share_type=full` 过滤）。
 - **partial（快照）项目分享**：内容已冻结、`project_snapshot` 自包含 → **保留**，链接仍可用（展示冻结的项目名/图标）。
