@@ -172,6 +172,48 @@ test("creates a new streaming assistant for a running run after the latest user 
   ]);
 });
 
+test("atomically inserts an SSE user before its streaming assistant without duplicates", () => {
+  const ctx = createContext([], null);
+  const event: StreamEvent = {
+    event: "user:message",
+    data: JSON.stringify({
+      content: "active question",
+      run_id: "run-active",
+    }),
+  };
+
+  handleStreamEvent(
+    event,
+    "assistant-active",
+    "redis-user-1",
+    "2026-08-09T00:00:00.000Z",
+    ctx,
+  );
+
+  expect(ctx.setMessagesCalls()).toBe(1);
+  expect(
+    ctx.messages().map((message) => [message.id, message.role, message.runId]),
+  ).toEqual([
+    ["run-active:user", "user", "run-active"],
+    ["assistant-active", "assistant", "run-active"],
+  ]);
+
+  handleStreamEvent(
+    event,
+    "assistant-active",
+    "redis-user-2",
+    "2026-08-09T00:00:00.000Z",
+    ctx,
+  );
+
+  expect(
+    ctx.messages().map((message) => [message.id, message.role, message.runId]),
+  ).toEqual([
+    ["run-active:user", "user", "run-active"],
+    ["assistant-active", "assistant", "run-active"],
+  ]);
+});
+
 test("user cancel marks message cancelled without closing the SSE connection", () => {
   const ctx = createContext(
     [

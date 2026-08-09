@@ -389,7 +389,7 @@ export function handleStreamEvent(
 
 function handleUserMessage(
   data: EventData,
-  _messageId: string,
+  messageId: string,
   eventTimestamp: string | undefined,
   ctx: EventHandlerContext,
 ): void {
@@ -408,65 +408,106 @@ function handleUserMessage(
   const enabledSkills = Array.isArray(data.enabled_skills)
     ? data.enabled_skills
     : undefined;
+  const runId =
+    typeof data.run_id === "string" && data.run_id.trim()
+      ? data.run_id
+      : undefined;
 
   if (userContent) {
     ctx.setMessages((prev) => {
-      if (prev.length === 0) {
-        const newUserMessage: Message = {
-          id: resolvedMessageId,
-          role: "user",
-          content: userContent,
-          timestamp: eventTimestamp ? parseDate(eventTimestamp) : new Date(),
-          attachments: userAttachments,
-          enabledSkills,
-        };
-        return [...prev, newUserMessage];
-      }
-      const existingUserMsg = prev.find(
-        (m) => m.role === "user" && m.content === userContent,
+      let existingUserIndex = prev.findIndex(
+        (candidate) =>
+          candidate.role === "user" &&
+          (candidate.id === resolvedMessageId ||
+            (runId != null && candidate.runId === runId)),
       );
-      if (existingUserMsg) return prev;
+      if (existingUserIndex === -1) {
+        existingUserIndex = prev.findIndex(
+          (candidate) =>
+            candidate.role === "user" && candidate.content === userContent,
+        );
+      }
 
       const optimisticContent = extractOptimisticContent(userContent);
-      if (optimisticContent) {
+      if (existingUserIndex === -1 && optimisticContent) {
         for (let index = prev.length - 1; index >= 0; index -= 1) {
           const candidate = prev[index];
           if (
             candidate?.role === "user" &&
             candidate.content === optimisticContent
           ) {
-            const updatedMessages = [...prev];
-            updatedMessages[index] = {
-              ...candidate,
-              content: userContent,
-              attachments:
-                userAttachments.length > 0
-                  ? userAttachments
-                  : candidate.attachments,
-              enabledSkills,
-            };
-            return updatedMessages;
+            existingUserIndex = index;
+            break;
           }
         }
       }
 
-      const newUserMessage: Message = {
-        id: resolvedMessageId,
-        role: "user",
-        content: userContent,
-        timestamp: eventTimestamp ? parseDate(eventTimestamp) : new Date(),
-        attachments: userAttachments,
-        enabledSkills,
-      };
-      const streamingAssistantIndex = prev.findIndex(
-        (m) => m.role === "assistant" && m.isStreaming,
+      const messagesWithoutTarget = prev.filter(
+        (candidate) =>
+          !(candidate.role === "assistant" && candidate.id === messageId),
       );
-      if (streamingAssistantIndex !== -1) {
-        const newMessages = [...prev];
-        newMessages.splice(streamingAssistantIndex, 0, newUserMessage);
-        return newMessages;
+      const existingTarget = prev.find(
+        (candidate) =>
+          candidate.role === "assistant" && candidate.id === messageId,
+      );
+      let userMessage: Message;
+      if (existingUserIndex !== -1) {
+        const existingUser = prev[existingUserIndex];
+        userMessage = {
+          ...existingUser,
+          content: userContent,
+          runId: runId ?? existingUser.runId,
+          attachments:
+            userAttachments.length > 0
+              ? userAttachments
+              : existingUser.attachments,
+          enabledSkills,
+        };
+        const indexWithoutTarget = messagesWithoutTarget.findIndex(
+          (candidate) => candidate.id === existingUser.id,
+        );
+        messagesWithoutTarget[indexWithoutTarget] = userMessage;
+      } else {
+        userMessage = {
+          id: resolvedMessageId,
+          role: "user",
+          content: userContent,
+          timestamp: eventTimestamp ? parseDate(eventTimestamp) : new Date(),
+          attachments: userAttachments,
+          enabledSkills,
+          runId,
+        };
+        const streamingAssistantIndex = messagesWithoutTarget.findIndex(
+          (candidate) =>
+            candidate.role === "assistant" && candidate.isStreaming,
+        );
+        const insertionIndex =
+          streamingAssistantIndex === -1
+            ? messagesWithoutTarget.length
+            : streamingAssistantIndex;
+        messagesWithoutTarget.splice(insertionIndex, 0, userMessage);
       }
-      return [...prev, newUserMessage];
+
+      const assistant: Message = existingTarget
+        ? {
+            ...existingTarget,
+            isStreaming: true,
+            runId: runId ?? existingTarget.runId,
+          }
+        : {
+            id: messageId,
+            role: "assistant",
+            content: "",
+            timestamp: eventTimestamp ? parseDate(eventTimestamp) : new Date(),
+            parts: [],
+            isStreaming: true,
+            runId,
+          };
+      const userIndex = messagesWithoutTarget.findIndex(
+        (candidate) => candidate.id === userMessage.id,
+      );
+      messagesWithoutTarget.splice(userIndex + 1, 0, assistant);
+      return messagesWithoutTarget;
     });
   }
 }

@@ -345,12 +345,8 @@ export function useSessionSync({
       try {
         const requestId = ++selectSessionRequestIdRef.current;
         isInternalNavRef.current = true;
+        navigate(`/chat/${selectedSessionId}`);
         const config = await loadHistory(selectedSessionId);
-
-        // 恢复配置
-        if (config && onConfigRestoredRef.current) {
-          onConfigRestoredRef.current(config);
-        }
 
         const latestPathname =
           typeof window !== "undefined" ? window.location.pathname : "";
@@ -362,7 +358,10 @@ export function useSessionSync({
           return;
         }
 
-        navigate(`/chat/${selectedSessionId}`);
+        // 恢复配置
+        if (config && onConfigRestoredRef.current) {
+          onConfigRestoredRef.current(config);
+        }
       } catch (err) {
         console.error("[handleSelectSession] Error:", err);
       }

@@ -6,7 +6,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
-import { uuid } from "../utils/uuid";
 import type {
   Message,
   AgentInfo,
@@ -50,6 +49,10 @@ import { planGoalSubmission } from "./useAgent/goalCommands";
 import { translateBackendError } from "../utils/backendErrors";
 import { dispatchSessionTitleUpdated } from "../utils/sessionTitleEvents";
 import { resolveAvailableAgentId } from "./useAgent/agentSelection";
+import {
+  applyFeedbackToMessages,
+  resolveHistoryStreamRunId,
+} from "./useAgent/historyLoadState";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
@@ -101,6 +104,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
+  const historyAbortControllerRef = useRef<AbortController | null>(null);
+  const sseGenerationRef = useRef(0);
   const pendingProjectIdRef = useRef<string | null>(null);
   const autoExpandProjectIdRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
@@ -173,6 +178,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     (): SSEConnectionContext => ({
       ...createEventHandlerContext(),
       abortControllerRef,
+      sseGenerationRef,
       isConnectingRef,
       streamingMessageIdRef,
       reconnectTimeoutRef,
@@ -290,6 +296,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      historyAbortControllerRef.current?.abort();
+      sseGenerationRef.current += 1;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -303,7 +311,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       loadHistoryRequestIdRef.current += 1;
       const requestId = loadHistoryRequestIdRef.current;
       const isStaleHistoryLoad = () =>
-        requestId !== loadHistoryRequestIdRef.current;
+        requestId !== loadHistoryRequestIdRef.current || signal.aborted;
+
+      historyAbortControllerRef.current?.abort();
+      const historyAbortController = new AbortController();
+      historyAbortControllerRef.current = historyAbortController;
+      const signal = historyAbortController.signal;
+      sseGenerationRef.current += 1;
 
       if (isLoadingHistoryRef.current) {
         console.log(
@@ -327,18 +341,27 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
-      const markReadPromise = sessionApi
-        .markRead(targetSessionId)
-        .catch(() => {});
+      void sessionApi.markRead(targetSessionId).catch(() => {});
+      const feedbackPromise = canReadFeedback
+        ? feedbackApi
+            .list(0, 100, undefined, undefined, targetSessionId)
+            .catch((e) => {
+              console.warn("[loadHistory] Failed to load feedback:", e);
+              return null;
+            })
+        : Promise.resolve(null);
 
       // Clear approvals before loading new session
       options?.onClearApprovals?.();
 
       try {
-        await markReadPromise;
-        if (isStaleHistoryLoad()) return null;
-
-        const sessionData = await sessionApi.get(targetSessionId);
+        const [sessionData, eventsData] = await Promise.all([
+          sessionApi.get(targetSessionId, { signal }),
+          sessionApi.getEvents(targetSessionId, {
+            include_active_user_message: true,
+            signal,
+          }),
+        ]);
         if (isStaleHistoryLoad()) return null;
 
         if (sessionData) {
@@ -382,159 +405,74 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           };
           setGoalModeEnabled(false);
 
-          // 并行发起 events、status 和 feedback 请求，减少串行等待时间
-          const eventsPromise = sessionApi.getEvents(targetSessionId);
-          const statusPromise = currentRunId
-            ? sessionApi.getStatus(targetSessionId, currentRunId).catch((e) => {
-                console.warn("[loadHistory] Failed to check status:", e);
-                return null;
-              })
-            : Promise.resolve(null);
-          const feedbackPromise = canReadFeedback
-            ? feedbackApi
-                .list(0, 100, undefined, undefined, targetSessionId)
-                .catch((e) => {
-                  console.warn("[loadHistory] Failed to load feedback:", e);
-                  return null;
-                })
-            : Promise.resolve(null);
+          const historyEvents = (eventsData.events || []) as HistoryEvent[];
+          let reconstructedMessages = reconstructMessagesFromEvents(
+            historyEvents,
+            processedEventIdsRef.current,
+            { options, activeSubagentStack: activeSubagentStackRef.current },
+          );
+          const lastTimestamp = getLastEventTimestamp(historyEvents);
+          lastHistoryTimestampRef.current = lastTimestamp;
 
-          const [eventsData, statusData, feedbackList] = await Promise.all([
-            eventsPromise,
-            statusPromise,
-            feedbackPromise,
-          ]);
+          const restoredGoal = extractGoalFromEvents(historyEvents);
+          const restoredGoalsByRun = extractGoalsByRunFromEvents(historyEvents);
+          const streamRunId = resolveHistoryStreamRunId(
+            eventsData.stream_run_id,
+            targetRunId,
+          );
+          let streamingMessageId: string | null = null;
+          if (streamRunId) {
+            const prepared = prepareMessagesForRunningRun(
+              reconstructedMessages,
+              streamRunId,
+              undefined,
+              messagesRef.current,
+            );
+            reconstructedMessages = prepared.messages;
+            streamingMessageId = prepared.streamingMessageId;
+          }
+
           if (isStaleHistoryLoad()) return null;
+          setCurrentRunId(currentRunId);
+          setActiveGoal(restoredGoal);
+          setGoalsByRunId(restoredGoalsByRun);
+          setMessages(reconstructedMessages);
 
-          let isTaskRunning = false;
-          if (statusData) {
-            isTaskRunning =
-              statusData.status === "pending" ||
-              statusData.status === "running";
+          void feedbackPromise.then((feedbackList) => {
+            if (!feedbackList || isStaleHistoryLoad()) return;
+            setMessages((previous) =>
+              applyFeedbackToMessages(previous, feedbackList.items),
+            );
+          });
+
+          if (streamRunId && streamingMessageId) {
+            isReconnectFromHistoryRef.current = false;
+            const ctx = createSSEContext();
+            void connectToSSE(
+              targetSessionId,
+              streamRunId,
+              streamingMessageId,
+              ctx,
+            ).catch((e) => {
+              console.warn("[loadHistory] SSE reconnect failed:", e);
+            });
           }
-
-          if (eventsData.events && eventsData.events.length > 0) {
-            let reconstructedMessages = reconstructMessagesFromEvents(
-              eventsData.events as HistoryEvent[],
-              processedEventIdsRef.current,
-              { options, activeSubagentStack: activeSubagentStackRef.current },
-            );
-
-            // Apply feedback (already loaded in parallel)
-            if (feedbackList && feedbackList.items.length > 0) {
-              const feedbackMap = new Map(
-                feedbackList.items.map((f) => [
-                  f.run_id,
-                  { feedback: f.rating, feedbackId: f.id },
-                ]),
-              );
-              reconstructedMessages = reconstructedMessages.map((msg) => {
-                if (msg.runId) {
-                  const feedbackInfo = feedbackMap.get(msg.runId);
-                  if (feedbackInfo) {
-                    return {
-                      ...msg,
-                      feedback: feedbackInfo.feedback,
-                      feedbackId: feedbackInfo.feedbackId,
-                    };
-                  }
-                }
-                return msg;
-              });
-            }
-
-            const lastTimestamp = getLastEventTimestamp(
-              eventsData.events as HistoryEvent[],
-            );
-            if (lastTimestamp) {
-              lastHistoryTimestampRef.current = lastTimestamp;
-            }
-            if (isStaleHistoryLoad()) return null;
-
-            // Reconstruct active goal from history events (goal:start / goal:end)
-            const restoredGoal = extractGoalFromEvents(
-              eventsData.events as HistoryEvent[],
-            );
-            if (isStaleHistoryLoad()) return null;
-            setActiveGoal(restoredGoal);
-            setGoalsByRunId(
-              extractGoalsByRunFromEvents(eventsData.events as HistoryEvent[]),
-            );
-
-            // When the task is still running, target the assistant message for
-            // that same run. If history has the user message but no assistant
-            // events yet, append a fresh assistant bubble after the latest user.
-            if (isTaskRunning && currentRunId) {
-              setCurrentRunId(currentRunId);
-
-              const prepared = prepareMessagesForRunningRun(
-                reconstructedMessages,
-                currentRunId,
-                undefined,
-                messagesRef.current,
-              );
-              reconstructedMessages = prepared.messages;
-              const streamingMessageId = prepared.streamingMessageId;
-
-              setMessages(reconstructedMessages);
-
-              // Fire-and-forget SSE reconnect so that loadHistory
-              // returns sessionConfig immediately, allowing the caller
-              // (useSessionSync) to restore model selection and other UI
-              // state without being blocked by the long-lived connection.
-              isReconnectFromHistoryRef.current = false;
-              const ctx = createSSEContext();
-              connectToSSE(
-                targetSessionId,
-                currentRunId,
-                streamingMessageId,
-                ctx,
-              ).catch((e) => {
-                console.warn("[loadHistory] SSE reconnect failed:", e);
-              });
-            } else {
-              setMessages(reconstructedMessages);
-            }
-          } else {
-            setMessages([]);
-            setActiveGoal(null);
-            setGoalsByRunId({});
-
-            if (isTaskRunning && currentRunId) {
-              setCurrentRunId(currentRunId);
-              isReconnectFromHistoryRef.current = false;
-
-              const streamingMessageId = uuid();
-              const prepared = prepareMessagesForRunningRun(
-                [],
-                currentRunId,
-                () => streamingMessageId,
-                messagesRef.current,
-              );
-              setMessages(prepared.messages);
-              // Fire-and-forget SSE reconnect (same reason as above).
-              const ctx = createSSEContext();
-              connectToSSE(
-                targetSessionId,
-                currentRunId,
-                streamingMessageId,
-                ctx,
-              ).catch((e) => {
-                console.warn("[loadHistory] SSE reconnect failed:", e);
-              });
-            }
-          }
-
-          // Return sessionConfig *before* any SSE reconnect so that the
-          // caller can immediately restore model selection / agent / config.
 
           return sessionConfig;
         }
       } catch (err) {
-        if (isStaleHistoryLoad()) return null;
+        if (
+          isStaleHistoryLoad() ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return null;
+        }
         console.error("Failed to load session:", err);
         setError(i18n.t("chat.requestFailed"));
       } finally {
+        if (historyAbortControllerRef.current === historyAbortController) {
+          historyAbortControllerRef.current = null;
+        }
         if (!isStaleHistoryLoad()) {
           setIsLoading(false);
           setIsLoadingHistory(false);
@@ -557,6 +495,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     ) => {
       if (!content.trim()) return;
       loadHistoryRequestIdRef.current += 1;
+      historyAbortControllerRef.current?.abort();
+      historyAbortControllerRef.current = null;
 
       const goalPlan = planGoalSubmission(content, goalModeEnabled);
       if (goalPlan.handledWithoutSend) {
@@ -871,6 +811,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const clearMessages = useCallback(() => {
     loadHistoryRequestIdRef.current += 1;
     streamVersionRef.current += 1;
+    sseGenerationRef.current += 1;
+    historyAbortControllerRef.current?.abort();
+    historyAbortControllerRef.current = null;
     setMessages([]);
     setIsLoading(false);
     setIsLoadingHistory(false);

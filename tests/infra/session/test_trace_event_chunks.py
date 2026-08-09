@@ -12,9 +12,19 @@ from src.infra.session.trace_storage import TraceStorage
 class _AsyncCursor:
     def __init__(self, docs: list[dict[str, Any]]) -> None:
         self.docs = docs
-        self.sort_args: tuple[str, int] | None = None
+        self.sort_args: tuple[str, int] | list[tuple[str, int]] | None = None
 
-    def sort(self, key: str, direction: int):
+    def sort(self, key, direction: int | None = None):
+        if isinstance(key, list):
+            self.sort_args = key
+            for sort_key, sort_direction in reversed(key):
+                self.docs.sort(
+                    key=lambda item: item.get(sort_key, 0),
+                    reverse=sort_direction < 0,
+                )
+            return self
+
+        assert direction is not None
         self.sort_args = (key, direction)
         self.docs.sort(key=lambda item: item.get(key, 0), reverse=direction < 0)
         return self
@@ -67,6 +77,7 @@ class _FakeChunkCollection:
         self.inserted_docs: list[dict[str, Any]] = []
         self.update_calls: list[tuple[dict[str, Any], dict[str, Any], bool]] = []
         self.update_many_calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        self.find_count = 0
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
         del projection
@@ -77,7 +88,13 @@ class _FakeChunkCollection:
 
     def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
         del projection
-        docs = [chunk for chunk in self.chunks if chunk.get("trace_id") == query.get("trace_id")]
+        self.find_count += 1
+        trace_selector = query.get("trace_id")
+        if isinstance(trace_selector, dict) and "$in" in trace_selector:
+            trace_ids = set(trace_selector["$in"])
+            docs = [chunk for chunk in self.chunks if chunk.get("trace_id") in trace_ids]
+        else:
+            docs = [chunk for chunk in self.chunks if chunk.get("trace_id") == trace_selector]
         return _AsyncCursor(docs)
 
     async def delete_many(self, query: dict[str, Any]):
@@ -133,6 +150,27 @@ class _FakeSessionTraceCollection(_FakeTraceCollection):
 
     def find(self, query: dict[str, Any], projection: dict[str, Any]):
         self.find_calls.append((query, projection))
+        docs = []
+        for trace in self.traces:
+            if trace.get("session_id") != query.get("session_id"):
+                continue
+            matches = True
+            for key in ("run_id", "status"):
+                if key not in query:
+                    continue
+                selector = query[key]
+                value = trace.get(key)
+                if isinstance(selector, dict) and "$in" in selector:
+                    matches = value in selector["$in"]
+                elif isinstance(selector, dict) and "$ne" in selector:
+                    matches = value != selector["$ne"]
+                else:
+                    matches = value == selector
+                if not matches:
+                    break
+            if matches:
+                docs.append(trace)
+        self.cursor = _SessionTraceCursor(docs)
         return self.cursor
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
@@ -365,6 +403,103 @@ async def test_read_trace_events_compat_filters_and_only_limits_when_requested()
 
     assert [event["data"]["content"] for event in all_events] == ["a", "c"]
     assert [event["data"]["content"] for event in limited_events] == ["a"]
+
+
+@pytest.mark.asyncio
+async def test_read_trace_events_batch_compat_reads_all_traces_with_one_chunk_query() -> None:
+    storage = TraceStorage()
+    chunk_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "chunked",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [_event("message", "new", 1)],
+            }
+        ]
+    )
+    storage._chunks_collection = chunk_collection
+
+    events_by_trace = await storage.read_trace_events_batch_compat(
+        [
+            {"trace_id": "legacy", "events": [_event("message", "old", 1)]},
+            {"trace_id": "chunked", "events": []},
+        ]
+    )
+
+    assert [event["data"]["content"] for event in events_by_trace["legacy"]] == ["old"]
+    assert [event["data"]["content"] for event in events_by_trace["chunked"]] == ["new"]
+    assert chunk_collection.find_count == 1
+
+
+@pytest.mark.asyncio
+async def test_read_trace_events_batch_compat_preserves_mixed_legacy_prefix_once() -> None:
+    storage = TraceStorage()
+    storage._chunks_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "mixed",
+                "chunk_index": 0,
+                "start_seq": 3,
+                "events": [_event("message", "three", 3)],
+            }
+        ]
+    )
+
+    events_by_trace = await storage.read_trace_events_batch_compat(
+        [
+            {
+                "trace_id": "mixed",
+                "events": [
+                    _event("user:message", "one", 1),
+                    _event("message", "two", 2),
+                    _event("message", "duplicate-three", 3),
+                ],
+            }
+        ]
+    )
+
+    assert [event["data"]["content"] for event in events_by_trace["mixed"]] == [
+        "one",
+        "two",
+        "three",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_read_trace_events_batch_compat_filters_each_trace_without_reordering() -> None:
+    storage = TraceStorage()
+    storage._chunks_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "trace-a",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [
+                    _event("message", "a-one", 1),
+                    _event("thinking", "a-two", 2),
+                    _event("message", "a-three", 3),
+                ],
+            },
+            {
+                "trace_id": "trace-b",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [_event("message", "b-one", 1)],
+            },
+        ]
+    )
+
+    events_by_trace = await storage.read_trace_events_batch_compat(
+        [{"trace_id": "trace-a"}, {"trace_id": "trace-b"}],
+        event_types=["message"],
+    )
+
+    assert [event["data"]["content"] for event in events_by_trace["trace-a"]] == [
+        "a-one",
+        "a-three",
+    ]
+    assert [event["data"]["content"] for event in events_by_trace["trace-b"]] == ["b-one"]
 
 
 @pytest.mark.asyncio
@@ -746,12 +881,157 @@ async def test_get_session_events_reads_chunks_across_traces_in_started_order() 
                 "_id": 0,
                 "trace_id": 1,
                 "run_id": 1,
+                "status": 1,
                 "started_at": 1,
+                "events": 1,
                 "recommend_questions": 1,
                 "recommend_questions_updated_at": 1,
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_snapshot_returns_active_user_and_requires_stream_replay() -> None:
+    storage = TraceStorage()
+    trace_collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-old",
+                "session_id": "session-1",
+                "run_id": "run-old",
+                "status": "completed",
+                "started_at": "2026-04-25T00:01:00Z",
+            },
+            {
+                "trace_id": "trace-active",
+                "session_id": "session-1",
+                "run_id": "run-active",
+                "status": "running",
+                "started_at": "2026-04-25T00:02:00Z",
+            },
+        ]
+    )
+    chunk_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "trace-old",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [
+                    _event("user:message", "old-user", 1),
+                    _event("message:chunk", "old-assistant", 2),
+                ],
+            },
+            {
+                "trace_id": "trace-active",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [
+                    _event("user:message", "active-user", 1),
+                    _event("message:chunk", "active-assistant", 2),
+                ],
+            },
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+
+    snapshot = await storage.get_session_events_snapshot(
+        "session-1",
+        active_run_id="run-active",
+    )
+
+    assert snapshot.history_mode == "active_user_only"
+    assert snapshot.stream_run_id == "run-active"
+    assert [(event["run_id"], event["event_type"]) for event in snapshot.events] == [
+        ("run-old", "user:message"),
+        ("run-old", "message:chunk"),
+        ("run-active", "user:message"),
+    ]
+    assert len(trace_collection.find_calls) == 1
+    assert chunk_collection.find_count == 1
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_snapshot_returns_complete_trace_after_terminal_transition() -> (
+    None
+):
+    storage = TraceStorage()
+    storage._collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-active",
+                "session_id": "session-1",
+                "run_id": "run-active",
+                "status": "completed",
+                "started_at": "2026-04-25T00:02:00Z",
+                "events": [
+                    _event("user:message", "active-user", 1),
+                    _event("message:chunk", "active-assistant", 2),
+                    _event("done", "done", 3),
+                ],
+            }
+        ]
+    )
+    storage._chunks_collection = _FakeChunkCollection()
+
+    snapshot = await storage.get_session_events_snapshot(
+        "session-1",
+        active_run_id="run-active",
+    )
+
+    assert snapshot.history_mode == "complete"
+    assert snapshot.stream_run_id is None
+    assert [event["event_type"] for event in snapshot.events] == [
+        "user:message",
+        "message:chunk",
+        "done",
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("kwargs", "expected_selector", "expected_runs"),
+    [
+        ({"run_id": "run-b"}, "run-b", ["run-b"]),
+        ({"run_ids": ["run-a"]}, {"$in": ["run-a"]}, ["run-a"]),
+        ({"exclude_run_id": "run-a"}, {"$ne": "run-a"}, ["run-b"]),
+    ],
+)
+async def test_get_session_events_snapshot_preserves_run_selectors(
+    kwargs: dict[str, Any],
+    expected_selector: Any,
+    expected_runs: list[str],
+) -> None:
+    storage = TraceStorage()
+    trace_collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-a",
+                "session_id": "session-1",
+                "run_id": "run-a",
+                "status": "completed",
+                "started_at": "2026-04-25T00:01:00Z",
+                "events": [_event("message", "a", 1)],
+            },
+            {
+                "trace_id": "trace-b",
+                "session_id": "session-1",
+                "run_id": "run-b",
+                "status": "completed",
+                "started_at": "2026-04-25T00:02:00Z",
+                "events": [_event("message", "b", 1)],
+            },
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = _FakeChunkCollection()
+
+    snapshot = await storage.get_session_events_snapshot("session-1", **kwargs)
+
+    assert [event["run_id"] for event in snapshot.events] == expected_runs
+    assert trace_collection.find_calls[0][0]["run_id"] == expected_selector
 
 
 @pytest.mark.asyncio
@@ -784,24 +1064,26 @@ async def test_get_session_events_applies_explicit_limit_across_chunks() -> None
 
 
 @pytest.mark.asyncio
-async def test_get_session_events_passes_remaining_limit_to_trace_reads() -> None:
+async def test_get_session_events_uses_one_batch_read_and_applies_limit() -> None:
     class _TraceStorage(TraceStorage):
         def __init__(self) -> None:
             super().__init__()
-            self.read_limits: list[int | None] = []
+            self.batch_reads: list[list[str]] = []
 
-        async def read_trace_events_compat(
+        async def read_trace_events_batch_compat(
             self,
-            trace_id: str,
+            trace_docs: list[dict[str, Any]],
             event_types: list[str] | None = None,
-            max_events: int | None = None,
-        ) -> list[dict[str, Any]]:
-            del trace_id, event_types
-            self.read_limits.append(max_events)
-            return [
-                _event("message", "a", 1),
-                _event("message", "b", 2),
-            ]
+        ) -> dict[str, list[dict[str, Any]]]:
+            del event_types
+            trace_ids = [str(trace["trace_id"]) for trace in trace_docs]
+            self.batch_reads.append(trace_ids)
+            return {
+                "trace-1": [
+                    _event("message", "a", 1),
+                    _event("message", "b", 2),
+                ]
+            }
 
     storage = _TraceStorage()
     storage._collection = _FakeSessionTraceCollection(
@@ -819,5 +1101,5 @@ async def test_get_session_events_passes_remaining_limit_to_trace_reads() -> Non
 
     events = await storage.get_session_events("session-1", max_events=1)
 
-    assert storage.read_limits == [1]
+    assert storage.batch_reads == [["trace-1"]]
     assert [event["data"]["content"] for event in events] == ["a"]

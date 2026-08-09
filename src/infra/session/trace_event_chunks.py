@@ -120,6 +120,88 @@ class TraceEventChunkMixin:
                 break
         return events
 
+    async def read_trace_events_batch_compat(
+        self,
+        trace_docs: List[Dict[str, Any]],
+        event_types: Optional[List[str]] = None,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Read legacy/chunk events for many traces with one chunk query."""
+        event_types = trace_storage_helpers._bounded_unique_strings(
+            event_types,
+            trace_storage_helpers.SESSION_EVENT_FILTER_LIST_LIMIT,
+        )
+        allowed_types = set(event_types)
+        trace_ids = [
+            str(trace_doc.get("trace_id") or "")
+            for trace_doc in trace_docs
+            if trace_doc.get("trace_id")
+        ]
+        if not trace_ids:
+            return {}
+
+        chunks_by_trace: Dict[str, List[Dict[str, Any]]] = {trace_id: [] for trace_id in trace_ids}
+        cursor = self.chunks_collection.find(
+            {"trace_id": {"$in": trace_ids}},
+            {
+                "_id": 0,
+                "trace_id": 1,
+                "chunk_index": 1,
+                "start_seq": 1,
+                "events": 1,
+            },
+        ).sort([("trace_id", 1), ("chunk_index", 1)])
+        async for chunk in cursor:
+            trace_id = str(chunk.get("trace_id") or "")
+            if trace_id in chunks_by_trace:
+                chunks_by_trace[trace_id].append(chunk)
+
+        def _accepts(event: Dict[str, Any]) -> bool:
+            return not allowed_types or event.get("event_type") in allowed_types
+
+        events_by_trace: Dict[str, List[Dict[str, Any]]] = {}
+        for trace_doc in trace_docs:
+            trace_id = str(trace_doc.get("trace_id") or "")
+            if not trace_id:
+                continue
+
+            chunks = chunks_by_trace.get(trace_id, [])
+            first_chunk_start_seq: int | None = None
+            if chunks:
+                first_chunk = chunks[0]
+                first_chunk_start_seq = int(
+                    first_chunk.get("start_seq")
+                    or min(
+                        (
+                            trace_storage_helpers._event_seq(event, index + 1)
+                            for index, event in enumerate(first_chunk.get("events", []) or [])
+                        ),
+                        default=1,
+                    )
+                )
+
+            events: List[Dict[str, Any]] = []
+            for index, event in enumerate(trace_doc.get("events", []) or [], start=1):
+                if (
+                    first_chunk_start_seq is not None
+                    and trace_storage_helpers._event_seq(event, index) >= first_chunk_start_seq
+                ):
+                    continue
+                if _accepts(event):
+                    events.append(event)
+
+            for chunk in chunks:
+                chunk_events = sorted(
+                    enumerate(chunk.get("events", []) or []),
+                    key=lambda item: trace_storage_helpers._event_seq(item[1], item[0]),
+                )
+                for _index, event in chunk_events:
+                    if _accepts(event):
+                        events.append(event)
+
+            events_by_trace[trace_id] = events
+
+        return events_by_trace
+
     async def replace_trace_events_with_chunks(
         self,
         trace_doc: Dict[str, Any],

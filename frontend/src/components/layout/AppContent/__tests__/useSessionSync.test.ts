@@ -105,3 +105,25 @@ test("session selection does not issue page-level scroll resets", () => {
 
   expect(source).not.toMatch(/window\.scrollTo/);
 });
+
+test("session selection navigates immediately before loading history", () => {
+  const source = readFileSync(
+    resolve(__dirname, "../useSessionSync.ts"),
+    "utf8",
+  );
+  const start = source.indexOf("const handleSelectSession = useCallback");
+  const end = source.indexOf("// Handle new session", start);
+  const body = source.slice(start, end);
+  const internalNavigationIndex = body.indexOf(
+    "isInternalNavRef.current = true",
+  );
+  const navigateIndex = body.indexOf("navigate(`/chat/${selectedSessionId}`)");
+  const loadIndex = body.indexOf("await loadHistory(selectedSessionId)");
+
+  expect(internalNavigationIndex).toBeGreaterThan(-1);
+  expect(navigateIndex).toBeGreaterThan(internalNavigationIndex);
+  expect(loadIndex).toBeGreaterThan(navigateIndex);
+  expect(
+    body.match(/navigate\(`\/chat\/\$\{selectedSessionId\}`\)/g),
+  ).toHaveLength(1);
+});

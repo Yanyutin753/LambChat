@@ -170,10 +170,14 @@ export const sessionApi = {
   /**
    * Get a session
    */
-  async get(sessionId: string): Promise<BackendSession | null> {
+  async get(
+    sessionId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<BackendSession | null> {
     try {
       return await authFetch<BackendSession>(
         `${API_BASE}/api/sessions/${sessionId}`,
+        { signal: options?.signal },
       );
     } catch (error) {
       if ((error as Error).message.includes("404")) {
@@ -192,6 +196,8 @@ export const sessionApi = {
       event_types?: string[];
       run_id?: string;
       exclude_run_id?: string;
+      include_active_user_message?: boolean;
+      signal?: AbortSignal;
     },
   ): Promise<SessionEventsResponse & { run_id?: string }> {
     const searchParams = new URLSearchParams();
@@ -204,11 +210,16 @@ export const sessionApi = {
     if (options?.exclude_run_id) {
       searchParams.set("exclude_run_id", options.exclude_run_id);
     }
+    if (options?.include_active_user_message) {
+      searchParams.set("include_active_user_message", "true");
+    }
 
     const url = `${API_BASE}/api/sessions/${sessionId}/events${
       searchParams.toString() ? `?${searchParams}` : ""
     }`;
-    return authFetch<SessionEventsResponse & { run_id?: string }>(url);
+    return authFetch<SessionEventsResponse & { run_id?: string }>(url, {
+      signal: options?.signal,
+    });
   },
 
   /**
