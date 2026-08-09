@@ -301,10 +301,15 @@ export async function extractExcelEmbeddedImages(
       const mediaEntry = mediaPath ? zip.file(mediaPath) : null;
       if (!mimeType || !mediaEntry) continue;
 
-      const { relationshipId: _relationshipId, ...image } = parsed;
       try {
         images.push({
-          ...image,
+          id: parsed.id,
+          name: parsed.name,
+          description: parsed.description,
+          from: parsed.from,
+          to: parsed.to,
+          extent: parsed.extent,
+          order: parsed.order,
           mimeType,
           blob: await readBlob(mediaEntry, mimeType),
         });
