@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RightPanelLayoutSnapshot } from "../../../hooks/rightPanelLayout";
+import { getRightPanelLayoutSnapshot } from "../../../hooks/rightPanelWidthEvents";
 import { useVersion } from "../../../hooks/useVersion";
 import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "../../../hooks/useAuth";
 import { authApi } from "../../../services/api";
@@ -9,14 +11,10 @@ import {
   getAppToastSidebarOffset,
 } from "./appToastLayout";
 import type { TabType } from "./types";
-import { subscribePersistentToolPanel } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import {
-  nextTempAutoCollapsed,
-  nextUserOverrode,
-  notifyRightPanelWidthChanged,
-  readDomRightPanelWidthPct,
+  MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
   RIGHT_PANEL_WIDTH_CHANGED_EVENT,
-  WIDE_RIGHT_PANEL_THRESHOLD_PCT,
+  shouldTemporarilyCollapseNavigation,
 } from "./rightPanelAutoCollapse";
 
 interface AppContentProps {
@@ -38,31 +36,31 @@ export function AppContent({ activeTab }: AppContentProps) {
   // Temporary in-memory-only collapse (right panel wide open)
   const [tempAutoCollapsed, setTempAutoCollapsed] = useState(false);
   const userOverrodeRef = useRef(false);
+  const activeRightPanelLayoutRef = useRef<RightPanelLayoutSnapshot | null>(
+    getRightPanelLayoutSnapshot(),
+  );
 
   // Effective collapsed state: persisted OR temporary
   const effectiveCollapsed = sidebarCollapsed || tempAutoCollapsed;
 
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  const syncTempAutoCollapse = useCallback(() => {
-    const isDesktop = window.matchMedia("(min-width: 640px)").matches;
-    const rightPanelWidthPct = readDomRightPanelWidthPct();
-    const wideOpen = rightPanelWidthPct >= WIDE_RIGHT_PANEL_THRESHOLD_PCT;
+  const syncTempAutoCollapse = useCallback(
+    (layout: RightPanelLayoutSnapshot | null) => {
+      activeRightPanelLayoutRef.current = layout;
+      if (!layout?.open) userOverrodeRef.current = false;
 
-    userOverrodeRef.current = nextUserOverrode({
-      userOverrode: userOverrodeRef.current,
-      wideOpen,
-      userExpanded: false,
-    });
-
-    setTempAutoCollapsed(
-      nextTempAutoCollapsed({
-        isDesktop,
-        rightPanelWidthPct,
-        userOverrode: userOverrodeRef.current,
-      }),
-    );
-  }, []);
+      setTempAutoCollapsed(
+        shouldTemporarilyCollapseNavigation({
+          layout,
+          minimumWorkspaceWithNavigationPx:
+            MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+          userOverrode: userOverrodeRef.current,
+        }),
+      );
+    },
+    [],
+  );
 
   const handleSetSidebarCollapsed = useCallback(
     (collapsed: boolean | ((prev: boolean) => boolean)) => {
@@ -75,13 +73,13 @@ export function AppContent({ activeTab }: AppContentProps) {
 
       // User manually expanded while the right panel is wide — stick open
       if (!next) {
-        const wideOpen =
-          readDomRightPanelWidthPct() >= WIDE_RIGHT_PANEL_THRESHOLD_PCT;
-        userOverrodeRef.current = nextUserOverrode({
-          userOverrode: userOverrodeRef.current,
-          wideOpen,
-          userExpanded: true,
+        const wouldAutoCollapse = shouldTemporarilyCollapseNavigation({
+          layout: activeRightPanelLayoutRef.current,
+          minimumWorkspaceWithNavigationPx:
+            MINIMUM_WORKSPACE_WITH_NAVIGATION_PX,
+          userOverrode: false,
         });
+        if (wouldAutoCollapse) userOverrodeRef.current = true;
         setTempAutoCollapsed(false);
       }
 
@@ -93,36 +91,25 @@ export function AppContent({ activeTab }: AppContentProps) {
     [],
   );
 
-  // Temporary auto-collapse: right panel is wide, collapse sidebar visually
+  // Temporary auto-collapse: preserve enough workspace beside one active panel
   // but do NOT persist — restore automatically when right panel closes/narrows
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 640px)");
-
-    const unsubPanel = subscribePersistentToolPanel(syncTempAutoCollapse);
-
-    const attrObserver = new MutationObserver(syncTempAutoCollapse);
-    attrObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-sidebar-preview", "data-editor-sidebar"],
-    });
-
-    const handleWidthChanged = () => syncTempAutoCollapse();
+    const handleWidthChanged = (event: Event) => {
+      syncTempAutoCollapse(
+        (event as CustomEvent<RightPanelLayoutSnapshot | null>).detail,
+      );
+    };
     window.addEventListener(
       RIGHT_PANEL_WIDTH_CHANGED_EVENT,
       handleWidthChanged,
     );
-    mq.addEventListener("change", handleWidthChanged);
-
-    syncTempAutoCollapse();
+    syncTempAutoCollapse(getRightPanelLayoutSnapshot());
 
     return () => {
-      unsubPanel();
-      attrObserver.disconnect();
       window.removeEventListener(
         RIGHT_PANEL_WIDTH_CHANGED_EVENT,
         handleWidthChanged,
       );
-      mq.removeEventListener("change", handleWidthChanged);
     };
   }, [syncTempAutoCollapse]);
 
@@ -140,13 +127,13 @@ export function AppContent({ activeTab }: AppContentProps) {
       setTempAutoCollapsed(false);
       // Re-evaluate after metadata restore in case a wide panel is open
       queueMicrotask(() => {
-        notifyRightPanelWidthChanged();
+        syncTempAutoCollapse(activeRightPanelLayoutRef.current);
       });
     };
     window.addEventListener("sidebar-collapsed-changed", handler);
     return () =>
       window.removeEventListener("sidebar-collapsed-changed", handler);
-  }, []);
+  }, [syncTempAutoCollapse]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;

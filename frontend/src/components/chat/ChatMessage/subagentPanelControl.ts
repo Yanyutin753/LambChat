@@ -5,30 +5,47 @@ export type SubagentPanelStatus =
   | "error"
   | "cancelled";
 
-let subagentPanelAutoOpenDismissed = false;
+const autoOpenedKeys = new Set<string>();
+const dismissedKeys = new Set<string>();
 
-export function isSubagentPanelAutoOpenDismissed(): boolean {
-  return subagentPanelAutoOpenDismissed;
+export function markSubagentPanelAutoOpened(key: string): void {
+  autoOpenedKeys.add(key);
 }
 
-export function dismissSubagentPanelAutoOpen(): void {
-  subagentPanelAutoOpenDismissed = true;
+export function hasSubagentPanelAutoOpened(key: string): boolean {
+  return autoOpenedKeys.has(key);
 }
 
-export function resetSubagentPanelAutoOpenDismissal(): void {
-  subagentPanelAutoOpenDismissed = false;
+export function dismissSubagentPanelAutoOpen(key: string): void {
+  dismissedKeys.add(key);
+}
+
+export function isSubagentPanelAutoOpenDismissed(key: string): boolean {
+  return dismissedKeys.has(key);
+}
+
+export function resetSubagentPanelAutoOpenState(key: string): void {
+  autoOpenedKeys.delete(key);
+  dismissedKeys.delete(key);
 }
 
 export function shouldAutoOpenSubagentPanel({
   status,
-  anyPanelOpen,
-  autoOpenDismissed = false,
+  laneOccupied,
+  alreadyAutoOpened,
+  autoOpenDismissed,
 }: {
   status: SubagentPanelStatus;
-  anyPanelOpen: boolean;
-  autoOpenDismissed?: boolean;
+  laneOccupied: boolean;
+  alreadyAutoOpened: boolean;
+  autoOpenDismissed: boolean;
 }): boolean {
-  return status === "running" && !anyPanelOpen && !autoOpenDismissed;
+  return (
+    status === "running" &&
+    !laneOccupied &&
+    !alreadyAutoOpened &&
+    !autoOpenDismissed
+  );
 }
 
 export function shouldExpandSubagentProcessByDefault(

@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import { BackIcon } from "../../../common/BackIcon";
 import {
@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, ToolbarIconButton } from "../../../common";
+import {
+  useRightPanelEntry,
+  useRightPanelFocus,
+} from "../../../common/useRightPanelEntry";
 
 import { useSidebarPanel } from "../../../../hooks/useSidebarPanel";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
@@ -28,7 +32,7 @@ export { closeCurrentToolPanel } from "./toolPanelRegistry";
 
 const WIDTH_STORAGE_KEY = "sidebar-preview-width";
 const WIDTH_CSS_VAR = "--sidebar-preview-width";
-const DEFAULT_WIDTH_PCT = 60;
+const DEFAULT_WIDTH_PCT = 48;
 
 interface ToolResultPanelProps {
   open: boolean;
@@ -70,6 +74,8 @@ interface ToolResultPanelProps {
   mobileFillViewport?: boolean;
   /** When provided, a back button is shown in the header */
   onBack?: () => void;
+  /** Automatic panels yield to any deliberate or already-open panel. */
+  automatic?: boolean;
 }
 
 const statusConfig: Record<
@@ -126,9 +132,10 @@ export function ToolResultPanel({
   hideViewToggle = false,
   onViewModeChange,
   onBack,
-  mobileFillViewport,
+  automatic = false,
 }: ToolResultPanelProps) {
   const { t } = useTranslation();
+  const titleId = useId();
   const [internalViewMode, setInternalViewMode] = useState<
     "sidebar" | "center"
   >(externalViewMode ?? "sidebar");
@@ -145,9 +152,6 @@ export function ToolResultPanel({
     });
   }, []);
 
-  const effectiveOnBack =
-    onBack ?? (historyAvailable ? goBackSidebar : undefined);
-
   // Only use external viewMode when fully controlled (has onChange callback)
   // Otherwise treat externalViewMode as initial value and manage internally
   const isViewModeControlled = !!(externalViewMode && onViewModeChange);
@@ -156,6 +160,9 @@ export function ToolResultPanel({
     : internalViewMode;
   const effectiveIsFullscreen = externalIsFullscreen ?? internalIsFullscreen;
   const isFullscreen = effectiveIsFullscreen;
+  const viewMode = effectiveViewMode;
+  const isCenter = viewMode === "center";
+  const isSidebar = !isCenter;
 
   const handleUserClose = useCallback(() => {
     onUserClose?.();
@@ -163,27 +170,53 @@ export function ToolResultPanel({
     onClose();
   }, [onUserClose, onClose]);
 
+  const entry = useRightPanelEntry({
+    open,
+    onClose,
+    kind: "content",
+    automatic,
+  });
+
+  const effectiveOnBack =
+    onBack ??
+    (historyAvailable ? goBackSidebar : undefined) ??
+    (entry.hasPrevious ? onClose : undefined);
+
   const {
     isMobile,
     animateIn,
     sidebarWidth,
     panelRef,
     indicatorRef,
-    dragHandleRef,
-    swipeElementRef,
+    presentation,
     isResizing,
     justResized,
     handleResizeStart,
+    resizeSeparatorProps,
   } = useSidebarPanel({
-    open,
+    open: entry.active,
     onClose: handleUserClose,
+    kind: "content",
     widthStorageKey: WIDTH_STORAGE_KEY,
     widthCssVar: WIDTH_CSS_VAR,
     defaultWidthPct: DEFAULT_WIDTH_PCT,
+    minPanelPx: 360,
     dataAttr: "data-sidebar-preview",
+    presentationOverride: isFullscreen
+      ? "fullscreen"
+      : isCenter
+        ? "overlay"
+        : undefined,
   });
 
-  const viewMode = effectiveViewMode;
+  useRightPanelFocus({
+    open,
+    active: entry.active,
+    automatic,
+    presentation,
+    panelRef,
+    openerRef: entry.openerRef,
+  });
 
   const handleToggleViewMode = useCallback(() => {
     onUserInteraction?.();
@@ -243,13 +276,13 @@ export function ToolResultPanel({
 
   // Register as the active panel (singleton — closes any previous panel)
   useEffect(() => {
-    if (!open) return;
+    if (!entry.active) return;
     return registerToolPanel(
       panelOwnerRef.current,
       () => latestOnCloseRef.current(),
       registryKey,
     );
-  }, [open, registryKey]);
+  }, [entry.active, registryKey]);
 
   useEffect(() => {
     if (!open) {
@@ -287,8 +320,6 @@ export function ToolResultPanel({
   if (!open) return null;
 
   const cfg = statusConfig[status];
-  const isCenter = viewMode === "center";
-  const isSidebar = !isCenter;
   const hasCustomHeader = !!customHeader;
 
   const panelMode = isFullscreen
@@ -306,36 +337,20 @@ export function ToolResultPanel({
           ? panelClass
           : isFullscreen
             ? "min-h-full min-w-full h-full w-full"
-            : isMobile && mobileFillViewport
-              ? "h-full"
-              : isMobile
-                ? `max-h-[92dvh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] ${
+            : isMobile
+              ? "h-full min-h-full min-w-full w-full overflow-hidden"
+              : isCenter
+                ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:h-[80dvh] sm:rounded-2xl sm:my-auto"}`
+                : `h-full relative rounded-l-xl overflow-hidden shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
                     animateIn
-                      ? "animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)_backwards]"
+                      ? "animate-[slide-in-right_200ms_ease-out_backwards]"
                       : ""
                   }`
-                : isCenter
-                  ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:h-[80dvh] sm:rounded-2xl sm:my-auto"}`
-                  : `h-full relative rounded-l-xl overflow-hidden shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
-                      animateIn
-                        ? "animate-[slide-in-right_200ms_ease-out_backwards]"
-                        : ""
-                    }`
       }`}
       data-tool-panel-mode={panelMode}
       ref={(el) => {
-        // Merge refs
-        if (isMobile) {
-          (panelRef as React.MutableRefObject<HTMLDivElement | null>).current =
-            el;
-          (
-            swipeElementRef as React.MutableRefObject<HTMLElement | null>
-          ).current = el;
-        }
-        if (!isMobile && isSidebar && !panelClass) {
-          (panelRef as React.MutableRefObject<HTMLDivElement | null>).current =
-            el;
-        }
+        (panelRef as React.MutableRefObject<HTMLDivElement | null>).current =
+          el;
         if (typeof panelElementRef === "function") {
           panelElementRef(el);
         } else if (panelElementRef) {
@@ -344,22 +359,26 @@ export function ToolResultPanel({
           ).current = el;
         }
       }}
-      {...(isSidebar && !isMobile ? { "data-sidebar-panel": "" } : {})}
+      {...(isSidebar && presentation === "docked"
+        ? { "data-sidebar-panel": "" }
+        : {})}
+      tabIndex={-1}
       style={
-        isSidebar && !isMobile && !panelClass
+        isSidebar && presentation !== "fullscreen" && !panelClass
           ? {
+              width: `${sidebarWidth}%`,
               maxWidth: `${sidebarWidth}%`,
               minWidth: "min(25vw, 400px)",
               ...(animateIn ? {} : { transform: "translateX(100%)" }),
             }
-          : !animateIn && !panelClass && isMobile
-            ? { transform: "translateY(100%)" }
-            : undefined
+          : undefined
       }
+      onPointerDown={() => onUserInteraction?.()}
+      onKeyDownCapture={() => onUserInteraction?.()}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Desktop resize handle (sidebar only, not when using custom panelClass) */}
-      {isSidebar && !isMobile && !panelClass && (
+      {isSidebar && presentation === "docked" && !panelClass && (
         <>
           <div
             ref={indicatorRef}
@@ -374,6 +393,8 @@ export function ToolResultPanel({
           />
           <div
             className="tool-console-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
+            aria-label={t("common.resizePanel", "Resize panel")}
+            {...resizeSeparatorProps}
             onMouseDown={handleResize}
           >
             <div className="tool-console-resize-handle__rail absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 rounded-full bg-transparent transition-colors duration-200" />
@@ -391,12 +412,6 @@ export function ToolResultPanel({
               : "bg-gradient-to-r from-theme-bg-subtle to-theme-bg-card"
           }`}
         >
-          {/* Mobile drag handle */}
-          {isMobile && !isFullscreen && (
-            <div ref={dragHandleRef} className="flex justify-center pt-4 pb-2">
-              <div className="mobile-drag-handle w-9 h-1 rounded-full bg-theme-text-tertiary" />
-            </div>
-          )}
           {hasCustomHeader ? (
             customHeader
           ) : (
@@ -408,6 +423,7 @@ export function ToolResultPanel({
                   onClick={() => {
                     effectiveOnBack();
                   }}
+                  aria-label={t("common.back", "Back")}
                   title={t("common.back", "Back")}
                   icon={<BackIcon size={16} />}
                 />
@@ -434,6 +450,7 @@ export function ToolResultPanel({
               {title && (
                 <div className="tool-console-title-row flex items-end gap-2 min-w-0 flex-1 overflow-hidden">
                   <h3
+                    id={titleId}
                     className="tool-console-title min-w-0 max-w-[40%] truncate font-medium text-sm text-theme-text"
                     title={title}
                   >
@@ -489,7 +506,7 @@ export function ToolResultPanel({
 
               {/* Center / Fullscreen / Close */}
               {!hideViewToggle && (
-                <div className="tool-console-actions flex items-center gap-px sm:gap-1 shrink-0">
+                <div className="tool-console-actions flex items-center gap-2 sm:gap-1 shrink-0">
                   <ToolbarIconButton
                     variant="muted"
                     onClick={() => {
@@ -534,7 +551,7 @@ export function ToolResultPanel({
                 </div>
               )}
               {hideViewToggle && (
-                <div className="tool-console-actions flex items-center gap-px sm:gap-1 shrink-0">
+                <div className="tool-console-actions flex items-center gap-2 sm:gap-1 shrink-0">
                   <ToolbarIconButton
                     variant="muted"
                     onClick={() => {
@@ -586,6 +603,16 @@ export function ToolResultPanel({
 
   return createPortal(
     <div
+      data-right-panel-root
+      data-panel-kind="content"
+      data-panel-presentation={presentation}
+      hidden={!entry.active}
+      aria-hidden={!entry.active ? true : undefined}
+      inert={!entry.active ? true : undefined}
+      role={presentation === "docked" ? "complementary" : "dialog"}
+      aria-modal={presentation === "docked" ? undefined : true}
+      aria-labelledby={title ? titleId : undefined}
+      aria-label={title ? undefined : t("documents.preview", "Content preview")}
       className={`fixed inset-0 z-[200] flex flex-col ${
         isFullscreen
           ? "bg-transparent pointer-events-none"
@@ -595,13 +622,15 @@ export function ToolResultPanel({
           ? overlayClass
           : isFullscreen
             ? "bg-transparent pointer-events-none"
-            : isMobile && mobileFillViewport
-              ? "bg-black/50"
-              : isMobile
-                ? "bg-black/50 items-end justify-end"
+            : presentation === "fullscreen"
+              ? "bg-theme-bg-card"
+              : presentation === "overlay"
+                ? isCenter
+                  ? "items-center justify-center bg-black/70"
+                  : "items-end justify-stretch bg-black/50"
                 : isCenter
                   ? "sm:items-center sm:justify-center bg-black/70"
-                  : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
+                  : "bg-transparent pointer-events-none items-end justify-stretch"
       }`}
       onClick={() => {
         if (!isResizing.current && !justResized.current) handleUserClose();

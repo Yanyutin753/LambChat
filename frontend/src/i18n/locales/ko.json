@@ -817,6 +817,7 @@
     "clear": "지우기",
     "clearAll": "모두 지우기",
     "close": "닫기",
+    "resizePanel": "패널 너비 조절",
     "collapse": "접기",
     "confirm": "확인",
     "confirmAction": "작업 확인",

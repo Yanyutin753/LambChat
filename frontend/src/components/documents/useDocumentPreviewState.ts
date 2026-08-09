@@ -63,6 +63,7 @@ export interface DocumentPreviewProps {
   registryKey?: string;
   onBack?: () => void;
   mobileFillViewport?: boolean;
+  automatic?: boolean;
   footer?: ReactNode;
 }
 
@@ -506,6 +507,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     onUserInteraction: props.onUserInteraction,
     registryKey: props.registryKey,
     mobileFillViewport: props.mobileFillViewport,
+    automatic: props.automatic,
     footer: props.footer,
     s3Key,
     signedUrl,

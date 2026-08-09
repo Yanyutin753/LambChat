@@ -1,63 +1,60 @@
+import { expect, test } from "vitest";
+
 import {
   dismissSubagentPanelAutoOpen,
+  hasSubagentPanelAutoOpened,
   isSubagentPanelAutoOpenDismissed,
-  resetSubagentPanelAutoOpenDismissal,
+  markSubagentPanelAutoOpened,
+  resetSubagentPanelAutoOpenState,
   shouldAutoOpenSubagentPanel,
   shouldExpandSubagentProcessByDefault,
 } from "../subagentPanelControl.ts";
 
-test("auto-opens a running subagent only when no panel is already open", () => {
-  expect(
-    shouldAutoOpenSubagentPanel({
-      status: "running",
-      anyPanelOpen: false,
-    }),
-  ).toBe(true);
+test("tracks automatic opening and dismissal per subagent panel key", () => {
+  resetSubagentPanelAutoOpenState("subagent:a");
+  resetSubagentPanelAutoOpenState("subagent:b");
+  markSubagentPanelAutoOpened("subagent:a");
+  dismissSubagentPanelAutoOpen("subagent:a");
 
-  expect(
-    shouldAutoOpenSubagentPanel({
-      status: "running",
-      anyPanelOpen: true,
-    }),
-  ).toBe(false);
+  expect(hasSubagentPanelAutoOpened("subagent:a")).toBe(true);
+  expect(isSubagentPanelAutoOpenDismissed("subagent:a")).toBe(true);
+  expect(hasSubagentPanelAutoOpened("subagent:b")).toBe(false);
+  expect(isSubagentPanelAutoOpenDismissed("subagent:b")).toBe(false);
 });
 
-test("does not auto-open completed or failed subagents", () => {
+test("allows a running subagent only once while the lane is empty", () => {
+  expect(
+    shouldAutoOpenSubagentPanel({
+      status: "running",
+      laneOccupied: false,
+      alreadyAutoOpened: false,
+      autoOpenDismissed: false,
+    }),
+  ).toBe(true);
+  expect(
+    shouldAutoOpenSubagentPanel({
+      status: "running",
+      laneOccupied: false,
+      alreadyAutoOpened: true,
+      autoOpenDismissed: false,
+    }),
+  ).toBe(false);
+  expect(
+    shouldAutoOpenSubagentPanel({
+      status: "running",
+      laneOccupied: true,
+      alreadyAutoOpened: false,
+      autoOpenDismissed: false,
+    }),
+  ).toBe(false);
   expect(
     shouldAutoOpenSubagentPanel({
       status: "complete",
-      anyPanelOpen: false,
+      laneOccupied: false,
+      alreadyAutoOpened: false,
+      autoOpenDismissed: false,
     }),
   ).toBe(false);
-
-  expect(
-    shouldAutoOpenSubagentPanel({
-      status: "error",
-      anyPanelOpen: false,
-    }),
-  ).toBe(false);
-});
-
-test("does not auto-open after the user dismisses an auto-opened subagent panel", () => {
-  expect(
-    shouldAutoOpenSubagentPanel({
-      status: "running",
-      anyPanelOpen: false,
-      autoOpenDismissed: true,
-    }),
-  ).toBe(false);
-});
-
-test("tracks whether subagent panel auto-open has been dismissed", () => {
-  resetSubagentPanelAutoOpenDismissal();
-  expect(isSubagentPanelAutoOpenDismissed()).toBe(false);
-
-  dismissSubagentPanelAutoOpen();
-
-  expect(isSubagentPanelAutoOpenDismissed()).toBe(true);
-
-  resetSubagentPanelAutoOpenDismissal();
-  expect(isSubagentPanelAutoOpenDismissed()).toBe(false);
 });
 
 test("expands the subagent process section by default while running", () => {

@@ -61,25 +61,47 @@ test("editor sidebar desktop chrome matches tool sidebar treatment", () => {
     /\.editor-sidebar\s*\{[\s\S]*?background:\s*linear-gradient/,
   );
   expect(editorRule).toMatch(
-    /width:\s*calc\(var\(--editor-sidebar-width,\s*30%\) - 1\.5rem\);/,
+    /width:\s*calc\(var\(--editor-sidebar-width,\s*34%\) - 1\.5rem\);/,
   );
   expect(editorRule).toMatch(/--right-sidebar-height:\s*calc\(/);
 });
 
-test("generic sidebar preview panels reserve the same chrome inset", () => {
+test("the app reserves space for one active docked right-panel lane", () => {
   const baseSource = readFileSync(
     new URL("../base.css", import.meta.url),
     "utf8",
   );
-  const match = baseSource.match(
-    /\[data-sidebar-panel\]\s*\{([\s\S]*?)\n\s*\}/,
+  expect(baseSource).toMatch(
+    /html\[data-right-panel-presentation="docked"\]\s+#root\s*\{[\s\S]*?max-width:\s*calc\(100% - var\(--right-panel-active-width, 0px\)\)/,
   );
-  const rule = match?.[1] ?? "";
+  expect(baseSource).not.toMatch(
+    /data-sidebar-preview="open"\]\[data-editor-sidebar="open"/,
+  );
+});
 
-  expect(rule).toMatch(
-    /width:\s*calc\(var\(--sidebar-preview-width, 60%\) - 1\.5rem\) !important;/,
+test("small-screen right panels fill the viewport instead of acting like sheets", () => {
+  const mobileRule = cssRule(".editor-sidebar--mobile");
+
+  expect(mobileRule).toMatch(/top:\s*var\(--app-safe-area-top-active/);
+  expect(mobileRule).toMatch(/height:\s*auto/);
+  expect(mobileRule).toMatch(/max-height:\s*none/);
+  expect(mobileRule).toMatch(/border-radius:\s*0/);
+  expect(componentsSource).toMatch(
+    /\[data-right-panel-root\]\[data-panel-presentation="fullscreen"\][\s\S]*?inset:\s*0/,
   );
-  expect(rule).toMatch(
-    /max-width:\s*calc\(var\(--sidebar-preview-width, 60%\) - 1\.5rem\) !important;/,
+});
+
+test("right panel resizing exposes visible hover and keyboard focus states", () => {
+  expect(componentsSource).toMatch(
+    /:where\(\.right-panel-resize-handle, \.tool-console-resize-handle\):focus-visible[\s\S]*?outline:/,
+  );
+});
+
+test("right panel motion respects reduced-motion preferences", () => {
+  expect(componentsSource).toMatch(
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.editor-sidebar[\s\S]*?animation:\s*none/,
+  );
+  expect(componentsSource).toMatch(
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.tool-console-body__content[\s\S]*?transition-duration:\s*0\.01ms/,
   );
 });

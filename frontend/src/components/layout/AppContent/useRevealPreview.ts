@@ -28,9 +28,15 @@ import {
 } from "../../chat/ChatMessage/items/activeRevealPreviewStore";
 import { shouldInterceptFilePreviewLink } from "../../chat/ChatMessage/items/revealPreviewLinks";
 import { shouldOpenExternalNavigationPreview } from "./externalNavigationState";
+import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
+import {
+  getRightPanelPresentation,
+  shouldAllowAutomaticRightPanel,
+} from "../../../hooks/rightPanelLayout";
 
 export interface RevealPreviewReturn {
   activePreview: RevealPreviewRequest | null;
+  activePreviewAutomatic: boolean;
   handleOpenPreview: (
     preview: RevealPreviewRequest,
     source?: RevealPreviewOpenSource,
@@ -71,6 +77,9 @@ export function useRevealPreview(
   });
   const externalPreviewActiveRef = useRef(false);
   const activePreview = activePreviewStateRef.current?.request ?? null;
+  const activePreviewAutomatic =
+    activePreviewStateRef.current?.source === "auto" &&
+    !activePreviewStateRef.current.userInteracted;
 
   if (observedStreamingSessionIdRef.current !== sessionId) {
     observedStreamingSessionIdRef.current = sessionId;
@@ -122,6 +131,16 @@ export function useRevealPreview(
     ) => {
       // Block auto-open when an external navigation preview is active
       if (source === "auto" && externalPreviewActiveRef.current) {
+        return false;
+      }
+
+      if (
+        source === "auto" &&
+        !shouldAllowAutomaticRightPanel({
+          presentation: getRightPanelPresentation(window.innerWidth),
+          laneOccupied: hasOpenRightPanel(),
+        })
+      ) {
         return false;
       }
 
@@ -293,6 +312,7 @@ export function useRevealPreview(
 
   return {
     activePreview,
+    activePreviewAutomatic,
     handleOpenPreview,
     handleClosePreview,
     handlePreviewInteraction,

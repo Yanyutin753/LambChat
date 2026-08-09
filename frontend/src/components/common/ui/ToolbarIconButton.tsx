@@ -14,10 +14,13 @@ function cx(...classes: Array<string | false | null | undefined>): string {
 
 const variants: Record<ToolbarIconButtonVariant, string> = {
   stone:
-    "flex shrink-0 items-center justify-center size-8 rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer",
+    "rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60",
   muted:
-    "flex shrink-0 items-center justify-center size-8 rounded-xl text-stone-400 dark:text-stone-500 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer",
+    "rounded-xl text-stone-400 dark:text-stone-500 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60",
 };
+
+const shared =
+  "flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] sm:size-8 sm:min-h-0 sm:min-w-0 transition-all duration-200 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-bg-card)]";
 
 export function ToolbarIconButton({
   icon,
@@ -30,7 +33,7 @@ export function ToolbarIconButton({
   return (
     <button
       type={type}
-      className={cx(variants[variant], className)}
+      className={cx(shared, variants[variant], className)}
       onClick={(e) => {
         e.stopPropagation();
         onClick?.(e);

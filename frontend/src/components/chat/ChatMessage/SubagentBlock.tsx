@@ -10,6 +10,11 @@ import {
 } from "lucide-react";
 import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
 import { useTranslation } from "react-i18next";
+import { hasOpenRightPanel } from "../../common/rightPanelCoordinator";
+import {
+  getRightPanelPresentation,
+  shouldAllowAutomaticRightPanel,
+} from "../../../hooks/rightPanelLayout";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { PersonaAvatarIcon } from "../../persona/PersonaAvatarIcon";
 import type { MessagePart } from "../../../types";
@@ -24,8 +29,10 @@ import {
 } from "./subagentPanelStore";
 import {
   dismissSubagentPanelAutoOpen,
+  hasSubagentPanelAutoOpened,
   isSubagentPanelAutoOpenDismissed,
-  resetSubagentPanelAutoOpenDismissal,
+  markSubagentPanelAutoOpened,
+  resetSubagentPanelAutoOpenState,
   shouldAutoOpenSubagentPanel,
 } from "./subagentPanelControl";
 import { buildSubagentPanelState } from "./subagentPanelState";
@@ -115,7 +122,7 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
     return true;
   }
 
-  resetSubagentPanelAutoOpenDismissal();
+  resetSubagentPanelAutoOpenState(panelKey);
   openPersistentToolPanel({
     title: formattedAgentName,
     icon: <Bot size={16} />,
@@ -123,7 +130,7 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
     panelKey,
     children: <DeferredSubagentPanelContent agentId={agentId} />,
     footer: createSubagentPanelFooter(subtitle),
-    onUserClose: dismissSubagentPanelAutoOpen,
+    onUserClose: () => dismissSubagentPanelAutoOpen(panelKey),
   });
 
   return true;
@@ -200,7 +207,7 @@ export function SubagentBlock({
       status: effectiveStatus as SubagentPanelData["status"],
     });
 
-    // Auto-open only when no panel is open; multiple running subagents should not steal focus.
+    // Background activity may surface once, only in an empty docked lane.
     if (isPersistentToolPanelOpen(panelKey)) {
       updatePersistentToolPanel(
         (prev) => ({
@@ -210,23 +217,33 @@ export function SubagentBlock({
         }),
         panelKey,
       );
-    } else if (
-      shouldAutoOpenSubagentPanel({
-        status: effectiveStatus,
-        anyPanelOpen: isPersistentToolPanelOpen(),
-        autoOpenDismissed: isSubagentPanelAutoOpenDismissed(),
-      })
-    ) {
-      openPersistentToolPanel({
-        title: formattedAgentName,
-        icon: <RoleIcon size={16} />,
-        status: panelStatus,
-        panelKey,
-        children: <DeferredSubagentPanelContent agentId={agent_id} />,
-        footer: createSubagentPanelFooter(subtitle),
-        auto: true,
-        onUserClose: dismissSubagentPanelAutoOpen,
+    } else {
+      const laneOccupied = hasOpenRightPanel();
+      const allowAutomaticPanel = shouldAllowAutomaticRightPanel({
+        presentation: getRightPanelPresentation(window.innerWidth),
+        laneOccupied,
       });
+      if (
+        allowAutomaticPanel &&
+        shouldAutoOpenSubagentPanel({
+          status: effectiveStatus,
+          laneOccupied,
+          alreadyAutoOpened: hasSubagentPanelAutoOpened(panelKey),
+          autoOpenDismissed: isSubagentPanelAutoOpenDismissed(panelKey),
+        })
+      ) {
+        markSubagentPanelAutoOpened(panelKey);
+        openPersistentToolPanel({
+          title: formattedAgentName,
+          icon: <RoleIcon size={16} />,
+          status: panelStatus,
+          panelKey,
+          children: <DeferredSubagentPanelContent agentId={agent_id} />,
+          footer: createSubagentPanelFooter(subtitle),
+          auto: true,
+          onUserClose: () => dismissSubagentPanelAutoOpen(panelKey),
+        });
+      }
     }
   }, [
     agent_id,
@@ -255,7 +272,7 @@ export function SubagentBlock({
   }, [agent_id]);
 
   const handleOpenInPanel = useCallback(() => {
-    resetSubagentPanelAutoOpenDismissal();
+    resetSubagentPanelAutoOpenState(panelKey);
     openPersistentToolPanel({
       title: formattedAgentName,
       icon: <RoleIcon size={16} />,
@@ -263,7 +280,7 @@ export function SubagentBlock({
       panelKey,
       children: <DeferredSubagentPanelContent agentId={agent_id} />,
       footer: createSubagentPanelFooter(subtitle),
-      onUserClose: dismissSubagentPanelAutoOpen,
+      onUserClose: () => dismissSubagentPanelAutoOpen(panelKey),
     });
   }, [formattedAgentName, RoleIcon, panelStatus, subtitle, panelKey, agent_id]);
 

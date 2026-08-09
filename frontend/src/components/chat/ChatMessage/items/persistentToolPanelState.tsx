@@ -2,7 +2,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
-import { isMobileDevice } from "../../../../utils/mobile";
+import { hasOpenRightPanel } from "../../../common/rightPanelCoordinator";
+import {
+  getRightPanelPresentation,
+  shouldAllowAutomaticRightPanel,
+} from "../../../../hooks/rightPanelLayout";
 import { ToolResultPanel } from "./ToolResultPanel";
 import { closeCurrentToolPanel } from "./toolPanelRegistry";
 import { createSingletonStore } from "./createSingletonStore";
@@ -70,7 +74,15 @@ export function isPersistentToolPanelOpen(panelKey?: string): boolean {
 }
 
 export function openPersistentToolPanel(panel: PersistentToolPanelState): void {
-  if (panel.auto && isMobileDevice()) return;
+  if (
+    panel.auto &&
+    !shouldAllowAutomaticRightPanel({
+      presentation: getRightPanelPresentation(window.innerWidth),
+      laneOccupied: hasOpenRightPanel(),
+    })
+  ) {
+    return;
+  }
   pushCurrentPanelToHistory();
   closeCurrentToolPanel();
   panelStore.set(panel);
@@ -117,6 +129,7 @@ export function PersistentToolPanelHost() {
       open={true}
       onClose={close}
       registryKey={`persistent:${panel.panelKey ?? panel.title}`}
+      automatic={panel.auto}
       title={panel.title}
       icon={panel.icon}
       status={panel.status}

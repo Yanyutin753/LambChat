@@ -1,11 +1,16 @@
-import { useCallback } from "react";
+import { useCallback, useId } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
+
 import { useSidebarPanel } from "../../hooks/useSidebarPanel";
+import { BackIcon } from "./BackIcon";
+import { ToolbarIconButton } from "./ui/ToolbarIconButton";
+import { useRightPanelEntry, useRightPanelFocus } from "./useRightPanelEntry";
 
 const STORAGE_KEY = "editor-sidebar-width";
 const CSS_VAR = "--editor-sidebar-width";
-const DEFAULT_WIDTH = 30;
+const DEFAULT_WIDTH = 34;
 
 export interface EditorSidebarProps {
   open: boolean;
@@ -15,7 +20,7 @@ export interface EditorSidebarProps {
   icon?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  /** "default" (30%) | "wide" (larger min-width) */
+  /** "default" (34%) | "wide" (larger min-width) */
   width?: "default" | "wide";
   defaultWidthPct?: number;
   widthStorageKey?: string;
@@ -33,67 +38,89 @@ export function EditorSidebar({
   defaultWidthPct = DEFAULT_WIDTH,
   widthStorageKey = STORAGE_KEY,
 }: EditorSidebarProps) {
-  const {
-    isMobile,
-    animateIn,
-    panelRef,
-    indicatorRef,
-    dragHandleRef,
-    swipeElementRef,
-    justResized,
-    handleResizeStart,
-  } = useSidebarPanel({
+  const { t } = useTranslation();
+  const titleId = useId();
+  const entry = useRightPanelEntry({
     open,
     onClose,
+    kind: "editor",
+  });
+  const shell = useSidebarPanel({
+    open: entry.active,
+    onClose,
+    kind: "editor",
     widthStorageKey,
     widthCssVar: CSS_VAR,
     defaultWidthPct,
+    minPanelPx: width === "wide" ? 400 : 320,
     dataAttr: "data-editor-sidebar",
   });
 
+  useRightPanelFocus({
+    open,
+    active: entry.active,
+    automatic: false,
+    presentation: shell.presentation,
+    panelRef: shell.panelRef,
+    openerRef: entry.openerRef,
+  });
+
   const handleOverlayClick = useCallback(() => {
-    if (justResized.current) return;
+    if (shell.justResized.current) return;
     onClose();
-  }, [onClose, justResized]);
+  }, [onClose, shell.justResized]);
 
   if (!open) return null;
 
+  const isDocked = shell.presentation === "docked";
+  const isFullscreen = shell.presentation === "fullscreen";
+  const closeLabel = t("common.close", "Close");
+  const backLabel = t("common.back", "Back");
+  const resizeLabel = t("common.resizePanel", "Resize panel");
+
   return createPortal(
     <>
-      {/* Overlay */}
-      <div
-        className={`editor-sidebar-overlay ${
-          animateIn ? "editor-sidebar-overlay--visible" : ""
-        }`}
-        onClick={handleOverlayClick}
-      />
+      {!isDocked && (
+        <div
+          className={`editor-sidebar-overlay ${
+            shell.animateIn ? "editor-sidebar-overlay--visible" : ""
+          }`}
+          hidden={!entry.active}
+          aria-hidden="true"
+          onClick={handleOverlayClick}
+        />
+      )}
 
-      {/* Panel */}
       <div
-        ref={(el) => {
-          (panelRef as React.MutableRefObject<HTMLDivElement | null>).current =
-            el;
-          (
-            swipeElementRef as React.MutableRefObject<HTMLElement | null>
-          ).current = el;
-        }}
-        className={`editor-sidebar ${
-          isMobile ? "editor-sidebar--mobile" : "editor-sidebar--sidebar"
+        ref={shell.panelRef}
+        data-right-panel-root
+        data-panel-kind="editor"
+        data-panel-presentation={shell.presentation}
+        hidden={!entry.active}
+        aria-hidden={!entry.active ? true : undefined}
+        inert={!entry.active ? true : undefined}
+        role={isDocked ? "complementary" : "dialog"}
+        aria-modal={isDocked ? undefined : true}
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className={`editor-sidebar right-panel-shell right-panel-shell--${
+          shell.presentation
+        } ${
+          isFullscreen ? "editor-sidebar--mobile" : "editor-sidebar--sidebar"
         } ${width === "wide" ? "editor-sidebar--wide" : ""} ${
-          animateIn ? "editor-sidebar--animate-in" : ""
+          shell.animateIn ? "editor-sidebar--animate-in" : ""
         }`}
         style={
-          !isMobile
-            ? { width: `var(${CSS_VAR}, ${DEFAULT_WIDTH}%)` }
-            : undefined
+          isFullscreen
+            ? undefined
+            : { width: `var(${CSS_VAR}, ${DEFAULT_WIDTH}%)` }
         }
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Desktop resize handle */}
-        {!isMobile && (
+        {isDocked && (
           <>
             <div
-              ref={indicatorRef}
+              ref={shell.indicatorRef}
               className="hidden sm:block fixed top-0 bottom-0 z-[301] pointer-events-none"
               style={{
                 display: "none",
@@ -104,25 +131,33 @@ export function EditorSidebar({
               }}
             />
             <div
-              className="hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
-              onMouseDown={handleResizeStart}
+              className="right-panel-resize-handle hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
+              aria-label={resizeLabel}
+              {...shell.resizeSeparatorProps}
+              onMouseDown={shell.handleResizeStart}
             >
               <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full bg-transparent group-hover:bg-[var(--theme-primary)]/50 transition-colors duration-200" />
             </div>
           </>
         )}
 
-        {/* Header */}
         <div className="flex flex-col shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-800 dark:to-[#292524]">
-          {/* Mobile drag handle */}
-          {isMobile && (
-            <div ref={dragHandleRef} className="editor-sidebar-drag-handle" />
-          )}
           <div className="editor-sidebar-header">
             <div className="editor-sidebar-header-left">
+              {entry.hasPrevious && (
+                <ToolbarIconButton
+                  variant="muted"
+                  onClick={onClose}
+                  aria-label={backLabel}
+                  title={backLabel}
+                  icon={<BackIcon size={16} />}
+                />
+              )}
               {icon && <div className="editor-sidebar-header-icon">{icon}</div>}
               <div className="min-w-0">
-                <div className="editor-sidebar-header-title">{title}</div>
+                <div id={titleId} className="editor-sidebar-header-title">
+                  {title}
+                </div>
                 {subtitle && (
                   <div className="editor-sidebar-header-subtitle">
                     {subtitle}
@@ -130,16 +165,19 @@ export function EditorSidebar({
                 )}
               </div>
             </div>
-            <button onClick={onClose} className="editor-sidebar-close-btn">
-              <X size={15} />
-            </button>
+            <ToolbarIconButton
+              variant="muted"
+              onClick={onClose}
+              className="editor-sidebar-close-btn"
+              aria-label={closeLabel}
+              title={closeLabel}
+              icon={<X size={16} />}
+            />
           </div>
         </div>
 
-        {/* Body */}
         <div className="editor-sidebar-body">{children}</div>
 
-        {/* Footer (outside scroll area) */}
         {footer && <div className="editor-sidebar-footer">{footer}</div>}
       </div>
     </>,
