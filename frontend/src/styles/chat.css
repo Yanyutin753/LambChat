@@ -183,6 +183,133 @@
   color: var(--theme-text-secondary);
 }
 
+/* ─── Rich Chat Composer ─── */
+.rich-chat-composer {
+  position: relative;
+  width: 100%;
+}
+
+.rich-chat-composer__editor {
+  width: 100%;
+  min-height: 2.75rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: 0.65rem 0.75rem;
+  color: var(--theme-text-primary);
+  font: inherit;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.rich-chat-composer__paragraph {
+  margin: 0;
+}
+
+.rich-chat-composer__placeholder {
+  position: absolute;
+  top: 0.65rem;
+  left: 0.75rem;
+  color: var(--theme-text-tertiary);
+  pointer-events: none;
+  user-select: none;
+}
+
+.composer-reference-node {
+  display: inline;
+}
+
+.composer-reference-chip,
+.composer-skill-reference {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -0.18em;
+  margin: 0 0.16rem;
+  border-radius: 0.5rem;
+}
+
+.composer-reference-chip {
+  gap: 0.28rem;
+  max-width: min(20rem, 72vw);
+  min-height: 1.65rem;
+  padding: 0.15rem 0.28rem 0.15rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--theme-primary) 10%, transparent);
+  color: var(--theme-primary);
+  cursor: default;
+  user-select: none;
+}
+
+.composer-reference-chip:focus-visible,
+.composer-skill-reference:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--theme-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.composer-reference-chip__icon,
+.composer-reference-chip__status {
+  flex: none;
+}
+
+.composer-reference-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  line-height: 1.25rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-file-reference--failed {
+  border-color: color-mix(in srgb, var(--theme-error) 32%, transparent);
+  background: color-mix(in srgb, var(--theme-error) 9%, transparent);
+  color: var(--theme-error);
+}
+
+.composer-reference-chip__status--spinning {
+  animation: composer-reference-spin 0.85s linear infinite;
+}
+
+.composer-reference-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: currentColor;
+  opacity: 0.64;
+}
+
+.composer-reference-chip__remove:hover,
+.composer-reference-chip__remove:focus-visible {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  opacity: 1;
+}
+
+.composer-skill-reference {
+  padding: 0.12rem 0.35rem 0.12rem 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--theme-primary) 7%, transparent);
+  user-select: none;
+}
+
+@keyframes composer-reference-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-reference-chip__status--spinning {
+    animation: none;
+  }
+}
+
 .user-message-inline-markdown .markdown-preview {
   display: inline;
   margin: 0;

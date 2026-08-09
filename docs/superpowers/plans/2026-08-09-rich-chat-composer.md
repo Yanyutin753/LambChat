@@ -157,7 +157,7 @@ export interface ComposerProjection {
 
 Run the Step 3 command. Expected: all contract tests pass.
 
-- [ ] **Step 6: Commit the contracts**
+- [x] **Step 6: Commit the contracts**
 
 ```bash
 git add frontend/package.json pnpm-lock.yaml frontend/src/components/chat/richComposer docs/superpowers/plans/2026-08-09-rich-chat-composer.md
@@ -183,7 +183,7 @@ git commit -m "feat(chat): add rich composer contracts"
 - Consumes: Task 1 descriptors and snapshot/projection functions.
 - Produces: `RichChatComposerHandle`, `RichChatComposerProps`, `INSERT_FILE_REFERENCE_COMMAND`, `INSERT_SKILL_REFERENCE_COMMAND`, `REMOVE_FILE_REFERENCE_COMMAND`, and `UPDATE_FILE_REFERENCE_COMMAND`.
 
-- [ ] **Step 1: Write failing editor behavior tests**
+- [x] **Step 1: Write failing editor behavior tests**
 
 Render the real editor in jsdom. Tests must type ordinary text with
 `userEvent.type`, insert nodes through commands exposed by a ref, and assert the
@@ -205,7 +205,7 @@ a file node's uploading/ready/failed labels, duplicate Skill insertion focusing
 the existing node, arrow navigation around a node, whole-node deletion, and
 plain-text clipboard export.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -215,7 +215,7 @@ cd frontend && pnpm exec vitest run src/components/chat/richComposer/__tests__/R
 
 Expected: FAIL because the editor surface and nodes do not exist.
 
-- [ ] **Step 3: Implement node commands and serialized nodes**
+- [x] **Step 3: Implement node commands and serialized nodes**
 
 `referenceCommands.ts` exports typed Lexical commands:
 
@@ -234,7 +234,7 @@ Both node classes extend an inline Lexical decorator node, implement versioned
 JSON import/export, `isInline(): true`, readable `getTextContent()`, and React
 decoration. Node DOM is atomic and uses `contentEditable={false}`.
 
-- [ ] **Step 4: Implement `RichChatComposer`**
+- [x] **Step 4: Implement `RichChatComposer`**
 
 Expose this ref contract:
 
@@ -263,14 +263,14 @@ plain-text theme and render the placeholder only for an empty document. Use
 `LexicalErrorBoundary`; retain the last valid snapshot before reporting an editor
 error to the application boundary.
 
-- [ ] **Step 5: Add accessible visual treatment**
+- [x] **Step 5: Add accessible visual treatment**
 
 Use existing theme variables. File references use a blue/theme-primary tinted
 background, `FileText`, progress/error icon, visible focus ring, and localized
 labels. Skill references reuse `SkillChip`. Do not animate position or modify
 ordinary paragraph typography.
 
-- [ ] **Step 6: Run tests and verify GREEN**
+- [x] **Step 6: Run tests and verify GREEN**
 
 Run the Step 2 command. Expected: all editor/node tests pass without act or
 contentEditable warnings.
