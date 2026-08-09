@@ -20,6 +20,7 @@ import type {
 import { FileReferenceNode } from "./nodes/FileReferenceNode";
 import { SkillReferenceNode } from "./nodes/SkillReferenceNode";
 import { RichComposerPlugins } from "./RichComposerPlugins";
+import type { ComposerArrowDirection } from "./ArrowKeyPlugin";
 
 export interface LongTextPastePayload {
   referenceId: string;
@@ -72,6 +73,10 @@ export interface RichChatComposerProps {
   onRetryFileReference?: (referenceId: string) => void;
   disabled?: boolean;
   onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
+  onArrowKey?: (
+    direction: ComposerArrowDirection,
+    editor: HTMLElement,
+  ) => boolean;
 }
 
 function EditablePlugin({ disabled }: { disabled: boolean }) {
@@ -97,6 +102,7 @@ export const RichChatComposer = forwardRef<
     onRetryFileReference,
     disabled = false,
     onKeyDown,
+    onArrowKey,
   },
   ref,
 ) {
@@ -169,6 +175,7 @@ export const RichChatComposer = forwardRef<
           enabledSkillNames={enabledSkillNames}
           longTextPaste={longTextPaste}
           onRetryFileReference={onRetryFileReference}
+          onArrowKey={onArrowKey}
         />
         <EditablePlugin disabled={disabled} />
       </div>

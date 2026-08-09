@@ -34,6 +34,7 @@ import {
 import { SkillReferencePlugin } from "./SkillReferencePlugin";
 import { FileReferencePlugin } from "./FileReferencePlugin";
 import { AtomicReferenceDeletionPlugin } from "./AtomicReferenceDeletionPlugin";
+import { ArrowKeyPlugin, type ComposerArrowDirection } from "./ArrowKeyPlugin";
 
 function toSnapshot(editorState: EditorState): ComposerSnapshot {
   return {
@@ -76,6 +77,10 @@ interface RichComposerPluginsProps {
   enabledSkillNames?: readonly string[];
   longTextPaste?: LongTextPasteOptions;
   onRetryFileReference?: (referenceId: string) => void;
+  onArrowKey?: (
+    direction: ComposerArrowDirection,
+    editor: HTMLElement,
+  ) => boolean;
 }
 
 export const RichComposerPlugins = forwardRef<
@@ -91,6 +96,7 @@ export const RichComposerPlugins = forwardRef<
     enabledSkillNames = [],
     longTextPaste,
     onRetryFileReference,
+    onArrowKey,
   },
   ref,
 ) {
@@ -201,6 +207,7 @@ export const RichComposerPlugins = forwardRef<
       <SkillReferencePlugin />
       <FileReferencePlugin onRetry={onRetryFileReference} />
       <AtomicReferenceDeletionPlugin />
+      <ArrowKeyPlugin onArrowKey={onArrowKey} />
       {longTextPaste ? <LongTextPastePlugin options={longTextPaste} /> : null}
     </>
   );

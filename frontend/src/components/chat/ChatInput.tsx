@@ -53,6 +53,8 @@ import type {
 } from "./richComposer/RichChatComposer";
 import { buildLongTextClientMeta } from "./longTextConversion";
 import { uploadApi } from "../../services/api";
+import { getComposerCaretBoundary } from "./chatInputCaret";
+import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
 
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
@@ -180,7 +182,8 @@ export const ChatInput = memo(function ChatInput({
       onAttachmentsChange: setAttachments,
     });
 
-  const { pushHistory } = useInputHistory();
+  const { pushHistory, navigateUp, navigateDown, isBrowsing } =
+    useInputHistory();
   const scheduleTextareaResize = useCallback(() => undefined, []);
   const showExpandButton = input.length > 120 || input.includes("\n");
   const setComposerPlainText = useCallback((value: string) => {
@@ -555,11 +558,6 @@ export const ChatInput = memo(function ChatInput({
       // Lexical prevents Enter before this React handler runs, so
       // defaultPrevented cannot distinguish editor handling from send intent.
       if (mention.isActive) {
-        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-          event.preventDefault();
-          moveMentionHighlight(event.key === "ArrowUp" ? "up" : "down");
-          return;
-        }
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
           if (mentionMode === "team") {
@@ -577,12 +575,14 @@ export const ChatInput = memo(function ChatInput({
           return;
         }
       }
-      if (event.key !== "Enter") return;
-      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-      if (!isSendEnterKey(event)) return;
-      event.preventDefault();
-      if (isLoading) setStopConfirmOpen(true);
-      else event.currentTarget.closest("form")?.requestSubmit();
+      if (event.key === "Enter") {
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (!isSendEnterKey(event)) return;
+        event.preventDefault();
+        if (isLoading) setStopConfirmOpen(true);
+        else event.currentTarget.closest("form")?.requestSubmit();
+        return;
+      }
     },
     [
       applyMentionSelection,
@@ -592,9 +592,41 @@ export const ChatInput = memo(function ChatInput({
       mention.isActive,
       mentionMode,
       mentionSearch.presets,
-      moveMentionHighlight,
       resetMention,
       teamMentionSearch.teams,
+    ],
+  );
+
+  const handleComposerArrowKey = useCallback(
+    (direction: ComposerArrowDirection, editor: HTMLElement) => {
+      if (mention.isActive) {
+        moveMentionHighlight(direction);
+        return true;
+      }
+
+      if (!isBrowsing && input.includes("\n")) {
+        const boundary = getComposerCaretBoundary(editor);
+        if (!(direction === "up" ? boundary.atStart : boundary.atEnd)) {
+          return false;
+        }
+      }
+
+      const historyValue =
+        direction === "up" ? navigateUp(input) : navigateDown();
+      if (historyValue === null) return false;
+
+      setComposerPlainText(historyValue);
+      requestAnimationFrame(() => composerRef.current?.focus({ atEnd: true }));
+      return true;
+    },
+    [
+      input,
+      isBrowsing,
+      mention.isActive,
+      moveMentionHighlight,
+      navigateDown,
+      navigateUp,
+      setComposerPlainText,
     ],
   );
 
@@ -787,6 +819,7 @@ export const ChatInput = memo(function ChatInput({
                   }}
                   onRetryFileReference={handleRetryFileReference}
                   onKeyDown={handleComposerKeyDown}
+                  onArrowKey={handleComposerArrowKey}
                   disabled={disabled || !canSend}
                 />
               </Suspense>
