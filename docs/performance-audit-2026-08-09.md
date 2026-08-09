@@ -71,6 +71,23 @@ The eager JavaScript budget is 500 KiB gzip and the precache budget is 4 MiB raw
 
 Mermaid, CodeMirror, Sandpack, KaTeX font files, and the social preview image are not promoted into the eager/precache paths. Fonts and other lazy static assets remain covered by the service worker's bounded `StaleWhileRevalidate` runtime cache. The offline document, web manifest, favicon, declared application icons, entry graph, and first-level route shells remain precached.
 
+### Session-history loading after optimization
+
+| Metric/invariant | Result |
+| --- | --- |
+| Database reads for a multi-run snapshot | One trace query plus one chunk query, independent of the number of returned traces |
+| Legacy/chunk compatibility | Mixed legacy prefixes and chunk events are merged once in sequence order |
+| Active run race | Running trace contributes only its user message and returns `stream_run_id`; terminal trace returns the complete snapshot |
+| Frontend critical path | Session metadata and events load concurrently; mark-read and feedback no longer gate the stable message reveal |
+| Stale work isolation | History HTTP requests use a per-load abort controller; SSE uses a generation plus local abort controller |
+| User-visible ordering | Same-run user is installed atomically before the streaming assistant target, with duplicate suppression |
+| Navigation | URL changes before awaiting history loading |
+| Focused backend verification | 45 passed in 0.57 seconds |
+| Focused frontend verification | 6 files and 41 tests passed |
+| Integrated frontend verification | 283 files and 1,069 tests passed; production budget build passed |
+
+The post-integration frontend artifact budgets remain green at 471,475 eager gzip bytes and 62 precache entries totaling 4,088,516 raw bytes.
+
 ### Other surfaces
 
 | Metric | Baseline |
@@ -90,7 +107,7 @@ Mermaid, CodeMirror, Sandpack, KaTeX font files, and the social preview image ar
 | F-002 | Web initial load | Mermaid was forced into an eager modulepreload; eager JavaScript was 642,459 gzip bytes, including 171,536 bytes for Mermaid | Initial download, parse, and evaluation exceeded the 500 KiB budget | optimized | Mermaid, CodeMirror, and Sandpack manual promotion removed; final eager graph is 471,443 gzip bytes |
 | F-003 | PWA install/update | Workbox precached 309 entries totaling 18,153.33 KiB | Large first install and service-worker update transfer exceeded the 4 MiB budget | optimized | Route-shell manifest transform produces 62 entries and 4,087,514 bytes; deterministic build gate passes |
 | F-004 | Frontend quality signal | ESLint emits four existing unused-variable warnings while returning success | No measured runtime cost; warning noise can hide future findings | deferred | Not performance-significant and outside this optimization scope |
-| B-001 | Session run summaries | `list_run_summaries` calls `get_first_trace_event` inside the trace loop when preview data is absent | Up to one extra trace/chunk read per returned run | optimized | Scheduled by the existing session-history plan; query-count proof required |
+| B-001 | Session history reads | Baseline history assembly performed per-trace compatibility reads; summary fallback also called `get_first_trace_event` inside its loop | Trace/chunk query count could grow with returned runs | optimized | Batched compatibility read uses one trace query and one chunk query; race-safe snapshot and 45 focused tests pass |
 | B-002 | Team persona hydration | `_hydrate_member_roles` and active-member validation call persona `get_by_id` inside member loops | Database query count grows with member count | optimized | Scheduled by the team persona batching plan; single-query proof required |
 | B-003 | Local-reference upload fallback | `_resolve_local_references` awaits upload work sequentially for each bounded local reference | Independent backend/storage I/O can add linearly to reveal-file latency | optimized | Qualifies for a scoped phase-5 TDD addendum; upload limit provides a concurrency bound |
 | B-004 | Ruff comprehension suggestions | 31 `PERF` findings are local loop/comprehension rewrites without profiling evidence | Likely negligible compared with I/O and may reduce readability for async cursors | deferred | Full static scan recorded; evidence gate rejects speculative mechanical rewrites |
