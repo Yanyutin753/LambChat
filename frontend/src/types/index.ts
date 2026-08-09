@@ -118,6 +118,7 @@ export type {
   SessionWithMessages,
   SessionListResponse,
   SSEEventRecord,
+  SessionHistoryMode,
   SessionEventsResponse,
 } from "./session";
 
