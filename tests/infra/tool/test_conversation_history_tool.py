@@ -3,12 +3,15 @@ from types import SimpleNamespace
 
 import pytest
 from langchain.tools import ToolRuntime
+from langchain_core.messages import ToolMessage
 
+from src.infra.agent.middleware.tool_interception import ToolSearchMiddleware
 from src.infra.session.conversation_history import (
     ConversationHistoryInvalidArgumentError,
     ConversationHistoryNotFoundError,
 )
 from src.infra.tool import conversation_history_tool as history_tools
+from src.infra.tool.deferred_manager import DeferredToolManager
 from src.infra.tool.mcp_client import MCPToolWithRetry
 
 
@@ -141,3 +144,55 @@ async def test_search_history_runs_through_internal_mcp_wrapper(monkeypatch) -> 
 
     assert result["success"] is True
     assert calls == [("user-1", "自我介绍", 10, None)]
+
+
+@pytest.mark.asyncio
+async def test_deferred_search_history_receives_agent_tool_runtime(monkeypatch) -> None:
+    calls = []
+
+    class _Service:
+        async def search(self, user_id, query, limit=10, cursor=None):
+            calls.append((user_id, query, limit, cursor))
+            return {"success": True, "items": [], "next_cursor": None}
+
+    monkeypatch.setattr(history_tools, "ConversationHistoryService", _Service)
+    wrapped = MCPToolWithRetry(
+        history_tools.search_conversation_history,
+        max_retries=1,
+        user_id="user-1",
+        server_name="lambchat_internal",
+    )
+    manager = DeferredToolManager(
+        all_deferred_tools=[],
+        deferred_system_tools=[wrapped],
+        session_id="session-1",
+        pre_discovered_names=["search_conversation_history"],
+    )
+    middleware = ToolSearchMiddleware(deferred_manager=manager)
+    runtime = ToolRuntime(
+        state={},
+        context=None,
+        config={"configurable": {"context": SimpleNamespace(user_id="user-1")}},
+        stream_writer=lambda _value: None,
+        tool_call_id="tool-call-1",
+        store=None,
+        tools=[],
+    )
+    request = SimpleNamespace(
+        tool_call={
+            "name": "search_conversation_history",
+            "id": "tool-call-1",
+            "args": {"query": "介绍 自己 信息", "limit": 10},
+        },
+        tool=None,
+        runtime=runtime,
+    )
+
+    async def _handler(_request):
+        raise AssertionError("discovered deferred tool should execute directly")
+
+    result = await middleware.awrap_tool_call(request, _handler)
+
+    assert isinstance(result, ToolMessage)
+    assert json.loads(result.content)["success"] is True
+    assert calls == [("user-1", "介绍 自己 信息", 10, None)]

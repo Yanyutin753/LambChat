@@ -10,7 +10,7 @@ import os
 import uuid
 from collections.abc import Awaitable, Callable
 from tempfile import SpooledTemporaryFile
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -19,6 +19,7 @@ from langchain.agents.middleware.types import (
     ModelResponse,
     ResponseT,
 )
+from langchain.tools import ToolRuntime
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
@@ -189,6 +190,17 @@ async def _json_dumps_for_tool_message(value: Any) -> str:
         ensure_ascii=False,
         default=str,
     )
+
+
+def _tool_accepts_runtime(tool: BaseTool) -> bool:
+    """Return whether a deferred tool declares an injected ToolRuntime field."""
+    args_schema = getattr(tool, "args_schema", None)
+    model_fields = getattr(args_schema, "model_fields", {})
+    runtime_field = model_fields.get("runtime")
+    if runtime_field is None:
+        return False
+    annotation = getattr(runtime_field, "annotation", None)
+    return annotation is ToolRuntime or ToolRuntime in get_args(annotation)
 
 
 # ---------------------------------------------------------------------------
@@ -644,7 +656,10 @@ class ToolSearchMiddleware(AgentMiddleware):
             tool = self._deferred_manager.get_tool(tool_name)
             if tool is not None:
                 try:
-                    args = request.tool_call.get("args", {})
+                    args = dict(request.tool_call.get("args", {}) or {})
+                    runtime = getattr(request, "runtime", None)
+                    if runtime is not None and _tool_accepts_runtime(tool):
+                        args["runtime"] = runtime
                     result = await tool.ainvoke(args)
 
                     # MCP tools with response_format="content_and_artifact"
