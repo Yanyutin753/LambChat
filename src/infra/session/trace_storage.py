@@ -191,6 +191,25 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
                 name="status_merged_idx",
                 background=True,
             )
+            await collection.create_index(
+                [
+                    ("user_id", 1),
+                    ("conversation_search.version", 1),
+                    ("conversation_search.terms", 1),
+                    ("completed_at", -1),
+                ],
+                name="user_conversation_terms_completed_idx",
+                background=True,
+            )
+            await collection.create_index(
+                [
+                    ("conversation_search.version", 1),
+                    ("status", 1),
+                    ("updated_at", 1),
+                ],
+                name="conversation_backfill_idx",
+                background=True,
+            )
             chunks_collection = self.chunks_collection
             await chunks_collection.create_index(
                 [("trace_id", 1), ("chunk_index", 1)],
