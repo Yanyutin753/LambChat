@@ -1,0 +1,189 @@
+/** @vitest-environment jsdom */
+
+import { useState, type ReactNode } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, test, vi } from "vitest";
+
+import { resetRightPanelCoordinator } from "../rightPanelCoordinator";
+import { useRightPanelEntry } from "../useRightPanelEntry";
+import { useSidebarPanel } from "../../../hooks/useSidebarPanel";
+
+function installMatchMedia(width: number): void {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width,
+  });
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query.includes("min-width: 1200px")
+      ? width >= 1200
+      : query.includes("max-width: 639px")
+        ? width <= 639
+        : false,
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+}
+
+beforeEach(() => {
+  resetRightPanelCoordinator();
+  localStorage.clear();
+  installMatchMedia(1440);
+});
+
+function TestPanel({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+}) {
+  const entry = useRightPanelEntry({ open, onClose, kind: "editor" });
+  if (!open) return null;
+
+  return (
+    <section
+      data-right-panel-root
+      hidden={!entry.active}
+      inert={!entry.active ? true : undefined}
+      aria-label={title}
+    >
+      {children}
+    </section>
+  );
+}
+
+test("exposes only the top registered entry and restores the prior entry", async () => {
+  const firstClose = vi.fn();
+  const secondClose = vi.fn();
+  const view = render(
+    <>
+      <TestPanel open onClose={firstClose} title="First">
+        first
+      </TestPanel>
+      <TestPanel open onClose={secondClose} title="Second">
+        second
+      </TestPanel>
+    </>,
+  );
+
+  expect(
+    screen.getByText("first").closest("[data-right-panel-root]"),
+  ).toHaveAttribute("hidden");
+  expect(screen.getByText("second")).toBeInTheDocument();
+
+  view.rerender(
+    <>
+      <TestPanel open onClose={firstClose} title="First">
+        first
+      </TestPanel>
+      <TestPanel open={false} onClose={secondClose} title="Second">
+        second
+      </TestPanel>
+    </>,
+  );
+
+  expect(
+    (await screen.findByText("first")).closest("[data-right-panel-root]"),
+  ).not.toHaveAttribute("hidden");
+});
+
+test("keeps hidden editor DOM mounted so draft state survives Back", async () => {
+  function Draft() {
+    const [value, setValue] = useState("");
+    return (
+      <input
+        aria-label="draft"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+      />
+    );
+  }
+
+  const user = userEvent.setup();
+  const view = render(
+    <>
+      <TestPanel open onClose={vi.fn()} title="First">
+        <Draft />
+      </TestPanel>
+      <TestPanel open={false} onClose={vi.fn()} title="Second">
+        second
+      </TestPanel>
+    </>,
+  );
+  await user.type(screen.getByRole("textbox", { name: "draft" }), "kept");
+
+  view.rerender(
+    <>
+      <TestPanel open onClose={vi.fn()} title="First">
+        <Draft />
+      </TestPanel>
+      <TestPanel open onClose={vi.fn()} title="Second">
+        second
+      </TestPanel>
+    </>,
+  );
+  view.rerender(
+    <>
+      <TestPanel open onClose={vi.fn()} title="First">
+        <Draft />
+      </TestPanel>
+      <TestPanel open={false} onClose={vi.fn()} title="Second">
+        second
+      </TestPanel>
+    </>,
+  );
+
+  expect(screen.getByRole("textbox", { name: "draft" })).toHaveValue("kept");
+});
+
+function SidebarPanelHarness() {
+  const panel = useSidebarPanel({
+    open: true,
+    onClose: vi.fn(),
+    kind: "content",
+    widthStorageKey: "test-right-panel-width",
+    widthCssVar: "--test-right-panel-width",
+    defaultWidthPct: 48,
+    minPanelPx: 320,
+    minMainPx: 560,
+  });
+
+  return (
+    <div
+      ref={panel.panelRef}
+      data-testid="panel"
+      data-presentation={panel.presentation}
+      data-width={panel.sidebarWidth}
+    >
+      <div data-testid="separator" {...panel.resizeSeparatorProps} />
+    </div>
+  );
+}
+
+test("clamps an unsafe stored width and supports accessible keyboard resizing", () => {
+  installMatchMedia(1200);
+  localStorage.setItem("test-right-panel-width", "75");
+  render(<SidebarPanelHarness />);
+
+  expect(screen.getByTestId("panel")).toHaveAttribute(
+    "data-presentation",
+    "docked",
+  );
+  expect(screen.getByTestId("panel")).toHaveAttribute("data-width", "53");
+  expect(localStorage.getItem("test-right-panel-width")).toBe("75");
+
+  const separator = screen.getByRole("separator");
+  fireEvent.keyDown(separator, { key: "ArrowLeft" });
+  expect(screen.getByTestId("panel")).toHaveAttribute("data-width", "52");
+  expect(localStorage.getItem("test-right-panel-width")).toBe("52");
+
+  fireEvent.keyDown(separator, { key: "Home" });
+  expect(screen.getByTestId("panel")).toHaveAttribute("data-width", "48");
+  expect(localStorage.getItem("test-right-panel-width")).toBe("48");
+});
