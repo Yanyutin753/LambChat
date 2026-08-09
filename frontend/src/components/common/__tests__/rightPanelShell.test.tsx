@@ -359,3 +359,36 @@ test("tool Back closes only the top panel and reveals prior work", async () => {
   );
   expect(screen.queryByText("preview body")).not.toBeInTheDocument();
 });
+
+test("Escape closes only the active panel and restores the prior panel", async () => {
+  const editorClose = vi.fn();
+
+  function Harness() {
+    const [toolOpen, setToolOpen] = useState(true);
+    return (
+      <>
+        <EditorSidebar open onClose={editorClose} title="Editor">
+          preserved draft
+        </EditorSidebar>
+        <ToolResultPanel
+          open={toolOpen}
+          onClose={() => setToolOpen(false)}
+          title="Preview"
+        >
+          active preview
+        </ToolResultPanel>
+      </>
+    );
+  }
+
+  render(<Harness />);
+  fireEvent.keyDown(document, { key: "Escape" });
+
+  await waitFor(() =>
+    expect(
+      screen.getByText("preserved draft").closest("[data-right-panel-root]"),
+    ).not.toHaveAttribute("hidden"),
+  );
+  expect(editorClose).not.toHaveBeenCalled();
+  expect(screen.queryByText("active preview")).not.toBeInTheDocument();
+});
