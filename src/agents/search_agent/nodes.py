@@ -411,9 +411,22 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     logger.info("[SearchAgent] astream_events completed")
 
     if settings.ENABLE_MEMORY and context.user_id:
+        from src.infra.logging.context import TraceContext
         from src.infra.memory.tools import schedule_auto_memory_capture
+        from src.kernel.schemas.conversation_history import ConversationSourceRef
 
-        schedule_auto_memory_capture(context.user_id, user_input)
+        request_context = TraceContext.get_request_context()
+        source_refs = (
+            [
+                ConversationSourceRef(
+                    session_id=request_context.session_id,
+                    run_id=request_context.run_id,
+                )
+            ]
+            if request_context.session_id and request_context.run_id
+            else None
+        )
+        schedule_auto_memory_capture(context.user_id, user_input, source_refs=source_refs)
 
     # 持久化已发现的延迟工具名（跨 turn 恢复，分布式安全）
     session_id = state.get("session_id", "")

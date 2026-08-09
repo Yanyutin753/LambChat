@@ -4,7 +4,7 @@ import asyncio
 import inspect
 import uuid
 from datetime import timedelta
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -32,9 +32,12 @@ from src.infra.memory.client.native.summaries import (
     llm_enrich_memory,
 )
 from src.infra.memory.client.types import MemoryType
+from src.infra.session.conversation_history import ConversationHistoryService
+from src.infra.session.conversation_history_index import merge_source_refs
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
+from src.kernel.schemas.conversation_history import ConversationSourceRef
 
 logger = get_logger(__name__)
 
@@ -165,6 +168,7 @@ class NativeMemoryBackend(MemoryBackend):
         summary: Optional[str] = None,
         tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
+        source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
     ) -> dict[str, Any]:
         # --- Validation (relaxed for manual retention — trust user intent) ---
         if len(content.strip()) < 5:
@@ -211,6 +215,7 @@ class NativeMemoryBackend(MemoryBackend):
             "updated_at": 1,
             "content_storage_mode": 1,
             "content_store_key": 1,
+            "source_refs": 1,
         }
         if existing_memory_id:
             forced_match = await self._collection.find_one(
@@ -230,7 +235,11 @@ class NativeMemoryBackend(MemoryBackend):
             if existing_match and "content_storage_mode" not in existing_match:
                 full_doc = await self._collection.find_one(
                     {"user_id": user_id, "memory_id": existing_match["memory_id"]},
-                    {"content_storage_mode": 1, "content_store_key": 1},
+                    {
+                        "content_storage_mode": 1,
+                        "content_store_key": 1,
+                        "source_refs": 1,
+                    },
                 )
                 if full_doc:
                     existing_match.update(full_doc)
@@ -239,6 +248,22 @@ class NativeMemoryBackend(MemoryBackend):
         is_update = existing_match is not None
         _existing: dict[str, Any] = existing_match if is_update else {}  # type: ignore[assignment]
         memory_id = _existing["memory_id"] if is_update else uuid.uuid4().hex
+        merged_source_refs = merge_source_refs(
+            _existing.get("source_refs") or [],
+            source_refs if source_refs is not None else [],
+        )
+        if source_refs is not None:
+            try:
+                merged_source_refs = await ConversationHistoryService().validate_source_refs(
+                    user_id, merged_source_refs
+                )
+            except Exception as exc:
+                self._logger.warning(
+                    "[NativeMemory] Source reference validation failed: %s",
+                    type(exc).__name__,
+                )
+                merged_source_refs = []
+        source_ref_docs = [ref.model_dump() for ref in merged_source_refs]
         content_fields, embedding = await asyncio.gather(
             build_content_fields(self, user_id, memory_id, content),
             self._maybe_embed(content),
@@ -256,6 +281,7 @@ class NativeMemoryBackend(MemoryBackend):
                         "tags": tags,
                         "embedding": embedding,
                         "updated_at": now,
+                        "source_refs": source_ref_docs,
                         **content_fields,
                     }
                 },
@@ -290,6 +316,7 @@ class NativeMemoryBackend(MemoryBackend):
             "updated_at": now,
             "accessed_at": now,
             "access_count": 0,
+            "source_refs": source_ref_docs,
         }
         doc.update(content_fields)
 
@@ -347,7 +374,12 @@ class NativeMemoryBackend(MemoryBackend):
             release_lock=release_consolidation_lock,
         )
 
-    async def auto_retain_from_text(self, user_id: str, text: str) -> dict[str, Any]:
+    async def auto_retain_from_text(
+        self,
+        user_id: str,
+        text: str,
+        source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
+    ) -> dict[str, Any]:
         if not text.strip():
             return {"success": True, "stored": 0, "candidates": 0}
 
@@ -418,15 +450,16 @@ class NativeMemoryBackend(MemoryBackend):
                 title = title or enriched["title"]
                 summary = summary or enriched["summary"]
                 tags = tags or enriched["tags"]
-            result = await self.retain(
-                user_id,
-                content,
-                context=args.get("context"),
-                title=title,
-                summary=summary,
-                tags=tags,
-                existing_memory_id=args.get("existing_memory_id"),
-            )
+            retain_kwargs = {
+                "context": args.get("context"),
+                "title": title,
+                "summary": summary,
+                "tags": tags,
+                "existing_memory_id": args.get("existing_memory_id"),
+            }
+            if source_refs is not None:
+                retain_kwargs["source_refs"] = source_refs
+            result = await self.retain(user_id, content, **retain_kwargs)
             if result.get("success"):
                 if result.get("memory_id") and self._collection is not None:
                     await self._collection.update_one(

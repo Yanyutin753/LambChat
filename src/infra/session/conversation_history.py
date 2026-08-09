@@ -7,7 +7,7 @@ import base64
 import binascii
 import json
 from datetime import datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
@@ -375,7 +375,7 @@ class ConversationHistoryService:
     async def validate_source_refs(
         self,
         user_id: str,
-        refs: list[ConversationSourceRef | dict[str, str]],
+        refs: Sequence[ConversationSourceRef | dict[str, str]],
     ) -> list[ConversationSourceRef]:
         """Return only references owned by the user and safe for history access."""
         normalized: list[ConversationSourceRef] = []

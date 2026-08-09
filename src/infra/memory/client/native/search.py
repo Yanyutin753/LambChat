@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 import httpx
 
+from src.infra.logging import get_logger
 from src.infra.memory.client.native.content import hydrate_formatted_memory
 from src.infra.memory.client.native.models import (
     STOPWORDS,
@@ -16,11 +17,14 @@ from src.infra.memory.client.native.models import (
     cosine_similarity,
     has_cjk,
 )
+from src.infra.session.conversation_history import ConversationHistoryService
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
+from src.kernel.schemas.conversation_history import ConversationSourceRef
 
 NATIVE_MEMORY_RECALL_MAX_RESULTS = 20
 NATIVE_MEMORY_RECALL_QUERY_MAX_CHARS = 2_000
+logger = get_logger(__name__)
 
 
 def _clip_recall_query(query: str) -> str:
@@ -117,6 +121,7 @@ def format_memory(doc: dict, score: float, now: datetime | None = None) -> dict:
         "source": doc.get("source", "manual"),
         "storage_mode": doc.get("content_storage_mode", "inline"),
         "content_store_key": doc.get("content_store_key"),
+        "source_refs": doc.get("source_refs") or [],
         "created_at": doc["created_at"].isoformat()
         if isinstance(doc["created_at"], datetime)
         else str(doc["created_at"]),
@@ -179,6 +184,7 @@ async def recent_context_fallback(
                 "content_store_key": 1,
                 "created_at": 1,
                 "updated_at": 1,
+                "source_refs": 1,
             },
         )
         .sort("updated_at", -1)
@@ -240,6 +246,7 @@ async def keyword_fallback(
         "content_store_key": 1,
         "created_at": 1,
         "updated_at": 1,
+        "source_refs": 1,
     }
     try:
         cursor = collection.find(base, _projection)
@@ -299,6 +306,7 @@ async def vector_search(
         "created_at": 1,
         "updated_at": 1,
         "embedding": 1,
+        "source_refs": 1,
     }
     scan_limit = min(limit * 3, 100)
     cursor = backend._collection.find(base, projection).sort("updated_at", -1).limit(scan_limit)
@@ -444,6 +452,55 @@ def rrf_merge(
     return [entry["data"] for entry in merged[:max_results]]
 
 
+async def validate_memory_source_refs(
+    user_id: str, memories: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Reauthorize recalled conversation pointers without dropping the memory."""
+    normalized_by_memory: list[list[ConversationSourceRef]] = []
+    all_refs: list[ConversationSourceRef] = []
+    for memory in memories:
+        normalized: list[ConversationSourceRef] = []
+        for raw_ref in memory.get("source_refs") or []:
+            try:
+                ref = (
+                    raw_ref
+                    if isinstance(raw_ref, ConversationSourceRef)
+                    else ConversationSourceRef.model_validate(raw_ref)
+                )
+            except Exception:
+                continue
+            normalized.append(ref)
+            all_refs.append(ref)
+        normalized_by_memory.append(normalized)
+
+    if not all_refs:
+        return [{**memory, "source_refs": []} for memory in memories]
+
+    try:
+        allowed_refs = await ConversationHistoryService().validate_source_refs(user_id, all_refs)
+    except Exception as exc:
+        logger.warning(
+            "[NativeMemory] Recalled source reference validation failed: %s",
+            type(exc).__name__,
+        )
+        allowed_refs = []
+    allowed_pairs = {(ref.session_id, ref.run_id) for ref in allowed_refs}
+
+    validated: list[dict[str, Any]] = []
+    for memory, refs in zip(memories, normalized_by_memory, strict=True):
+        validated.append(
+            {
+                **memory,
+                "source_refs": [
+                    ref.model_dump()
+                    for ref in refs
+                    if (ref.session_id, ref.run_id) in allowed_pairs
+                ],
+            }
+        )
+    return validated
+
+
 async def recall_memories(
     backend,
     user_id: str,
@@ -485,6 +542,7 @@ async def recall_memories(
         if min_score > 0:
             memories = [m for m in memories if m.get("score", 1.0) >= min_score]
         memories = await _hydrate_memories_limited(backend, memories)
+        memories = await validate_memory_source_refs(user_id, memories)
 
         if touch_access:
             await backend._update_access_stats([m["memory_id"] for m in memories], user_id)

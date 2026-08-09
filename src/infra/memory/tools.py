@@ -9,7 +9,7 @@ are identical regardless of which memory provider is active.
 import asyncio
 import json
 import uuid
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, Sequence
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
@@ -28,6 +28,7 @@ from src.infra.memory.compaction_agent import (
 )
 from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
 from src.kernel.config import settings
+from src.kernel.schemas.conversation_history import ConversationSourceRef
 
 logger = get_logger(__name__)
 
@@ -171,6 +172,10 @@ async def memory_retain(
         Optional[str],
         "Optional existing memory ID to update instead of relying on fuzzy deduplication.",
     ] = None,
+    source_refs: Annotated[
+        Optional[list[ConversationSourceRef]],
+        "Conversation sources for this memory. Use only session_id/run_id pairs returned by conversation history tools or memory_recall; never invent IDs.",
+    ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
@@ -181,6 +186,9 @@ async def memory_retain(
     context, feedback, or external references. Use explicit context labels such as
     `user_identity`, `project_constraint`, `project_status`, `feedback_rule`, or
     `reference_link` instead of vague buckets like `user_preferences`.
+    When a durable fact came from conversation history, preserve its authorized
+    `source_refs`. Later, memory_recall returns these pointers and the SOP is to call
+    get_conversation_detail for the original final answer.
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -199,6 +207,7 @@ async def memory_retain(
             summary=summary,
             tags=tags,
             existing_memory_id=existing_memory_id,
+            source_refs=source_refs,
         )
         return await _json_dumps_result(result)
     except Exception as e:
@@ -221,6 +230,10 @@ async def memory_recall(
 
     Use this tool to recall previously stored information. The search is
     semantic and will find memories that are conceptually related to the query.
+    SOP for evidence: when a recalled memory contains `source_refs`, use each
+    authorized `session_id` and `run_id` with get_conversation_detail to inspect
+    the original final answer. Treat the memory as a locator/summary and the
+    conversation detail as the source of truth.
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -305,7 +318,11 @@ def _auto_capture_task_done(user_id: str, task: asyncio.Task) -> None:
     _background_task_error(task)
 
 
-async def _auto_retain_user_memory(user_id: str, user_input: str) -> None:
+async def _auto_retain_user_memory(
+    user_id: str,
+    user_input: str,
+    source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
+) -> None:
     if not user_id or not user_input.strip():
         return
     lock = _auto_capture_user_locks.get(user_id)
@@ -325,7 +342,12 @@ async def _auto_retain_user_memory(user_id: str, user_input: str) -> None:
                 if backend is None:
                     return
                 if hasattr(backend, "auto_retain_from_text"):
-                    result = await backend.auto_retain_from_text(user_id, user_input)
+                    if source_refs is None:
+                        result = await backend.auto_retain_from_text(user_id, user_input)
+                    else:
+                        result = await backend.auto_retain_from_text(
+                            user_id, user_input, source_refs
+                        )
                     stored = 0
                     if isinstance(result, dict):
                         stored = int(result.get("stored") or 0)
@@ -357,13 +379,24 @@ async def _auto_retain_user_memory(user_id: str, user_input: str) -> None:
         _cleanup_local_auto_capture_lock(user_id, lock)
 
 
-async def _auto_retain_user_memory_detached(user_id: str, user_input: str) -> None:
+async def _auto_retain_user_memory_detached(
+    user_id: str,
+    user_input: str,
+    source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
+) -> None:
     """Run background memory capture without inheriting the chat trace parent."""
     with tracing_context(parent=False):
-        await _auto_retain_user_memory(user_id, user_input)
+        if source_refs is None:
+            await _auto_retain_user_memory(user_id, user_input)
+        else:
+            await _auto_retain_user_memory(user_id, user_input, source_refs)
 
 
-def schedule_auto_memory_capture(user_id: str, user_input: str) -> None:
+def schedule_auto_memory_capture(
+    user_id: str,
+    user_input: str,
+    source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
+) -> None:
     """Best-effort background capture of durable user memories from latest input."""
     try:
         loop = asyncio.get_running_loop()
@@ -387,7 +420,11 @@ def schedule_auto_memory_capture(user_id: str, user_input: str) -> None:
 
     clipped_input = _clip_auto_capture_input(user_input)
     logger.info("[Memory] Scheduling auto-retain for user %s", user_id)
-    task = loop.create_task(_auto_retain_user_memory_detached(user_id, clipped_input))
+    if source_refs is None:
+        coro = _auto_retain_user_memory_detached(user_id, clipped_input)
+    else:
+        coro = _auto_retain_user_memory_detached(user_id, clipped_input, source_refs)
+    task = loop.create_task(coro)
     _auto_capture_tasks_by_user[user_id] = task
     _background_tasks.add(task)
     task.add_done_callback(lambda done: _auto_capture_task_done(user_id, done))

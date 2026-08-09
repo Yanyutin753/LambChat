@@ -8,9 +8,10 @@ Currently only the native MongoDB-backed backend is supported.
 import asyncio
 import random
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 from src.infra.logging import get_logger
+from src.kernel.schemas.conversation_history import ConversationSourceRef
 
 logger = get_logger(__name__)
 
@@ -129,6 +130,7 @@ class MemoryBackend(ABC):
         summary: Optional[str] = None,
         tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
+        source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
     ) -> dict[str, Any]:
         """Store a memory."""
         ...

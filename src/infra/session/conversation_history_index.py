@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 from src.infra.session.search_index import (
     MAX_SESSION_SEARCH_TERMS,
@@ -107,8 +107,8 @@ def _coerce_source_ref(value: ConversationSourceRef | dict[str, str]) -> Convers
 
 
 def merge_source_refs(
-    existing: list[ConversationSourceRef | dict[str, str]] | None,
-    incoming: list[ConversationSourceRef | dict[str, str]] | None,
+    existing: Sequence[ConversationSourceRef | dict[str, str]] | None,
+    incoming: Sequence[ConversationSourceRef | dict[str, str]] | None,
     *,
     limit: int = MEMORY_SOURCE_REFS_MAX,
 ) -> list[ConversationSourceRef]:

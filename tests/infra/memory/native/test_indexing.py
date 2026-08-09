@@ -142,6 +142,7 @@ async def test_build_memory_index_omits_internal_ids_but_keeps_age_metadata(monk
     docs = [
         {
             "memory_id": "fresh-private-id",
+            "source_refs": [{"session_id": "private-session-id", "run_id": "private-run-id"}],
             "memory_type": "user",
             "title": "Current preference",
             "summary": "Current preference",
@@ -169,3 +170,5 @@ async def test_build_memory_index_omits_internal_ids_but_keeps_age_metadata(monk
         "- Older preference (stale:32d)\n"
         "\n</memory_index>"
     )
+    assert "private-session-id" not in index
+    assert "private-run-id" not in index

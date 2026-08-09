@@ -53,6 +53,17 @@ def test_native_memory_guide_preserves_compact_behavior_contract() -> None:
     assert len(NATIVE_MEMORY_GUIDE) <= 960
 
 
+def test_memory_recall_description_embeds_source_lookup_sop() -> None:
+    from src.infra.memory import tools as memory_tools
+
+    description = memory_tools.memory_recall.description
+
+    assert "source_refs" in description
+    assert "get_conversation_detail" in description
+    assert "session_id" in description
+    assert "run_id" in description
+
+
 @pytest.mark.asyncio
 async def test_memory_recall_offloads_result_json(monkeypatch):
     from src.infra.memory import tools as memory_tools
@@ -118,6 +129,68 @@ async def test_memory_retain_offloads_error_result_json(monkeypatch):
 
     assert result == {"success": False, "error": "User not authenticated"}
     assert json.dumps in calls
+
+
+@pytest.mark.asyncio
+async def test_memory_retain_forwards_source_refs(monkeypatch):
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def retain(self, *args, **kwargs):
+            seen["args"] = args
+            seen["kwargs"] = kwargs
+            return {"success": True}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+
+    result = json.loads(
+        await memory_tools.memory_retain.coroutine(
+            "The user prefers raw SQL.",
+            source_refs=[{"session_id": "session-1", "run_id": "run-1"}],
+            runtime=_Runtime("u1"),
+        )
+    )
+
+    assert result == {"success": True}
+    assert seen["kwargs"]["source_refs"] == [{"session_id": "session-1", "run_id": "run-1"}]
+
+
+@pytest.mark.asyncio
+async def test_auto_memory_capture_forwards_current_source_refs(monkeypatch):
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        name = "native"
+
+        async def auto_retain_from_text(self, user_id, user_input, source_refs=None):
+            seen["call"] = (user_id, user_input, source_refs)
+            return {"stored": 0}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_acquire(_user_id, _instance_id):
+        return "acquired"
+
+    async def fake_release(_user_id, _instance_id):
+        return None
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(
+        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
+
+    refs = [{"session_id": "session-1", "run_id": "run-1"}]
+    await memory_tools._auto_retain_user_memory("u1", "hello", source_refs=refs)
+
+    assert seen["call"] == ("u1", "hello", refs)
 
 
 @pytest.mark.asyncio
