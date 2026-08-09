@@ -3,10 +3,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
-  calculateDocumentFitScale,
   DocumentViewerFrame,
   ScaledDocumentContent,
 } from "../DocumentViewerFrame";
+import { calculateDocumentFitScale } from "../documentViewerLayout";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({

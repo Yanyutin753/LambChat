@@ -9,11 +9,11 @@ import {
 } from "react";
 import { ViewerToolbar } from "../../common/ViewerToolbar";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { calculateDocumentFitScale } from "./documentViewerLayout";
 
 const DEFAULT_MIN_ZOOM = 0.5;
 const DEFAULT_MAX_ZOOM = 3;
 const DEFAULT_ZOOM_STEP = 0.2;
-const DOCUMENT_HORIZONTAL_PADDING = 40;
 
 export interface DocumentViewerLayout {
   zoom: number;
@@ -38,18 +38,6 @@ interface ScaledDocumentContentProps {
   contentRef?: Ref<HTMLDivElement>;
   className?: string;
   children?: ReactNode;
-}
-
-export function calculateDocumentFitScale(
-  viewportWidth: number,
-  naturalWidth: number,
-  horizontalPadding = DOCUMENT_HORIZONTAL_PADDING,
-): number {
-  if (viewportWidth <= 0 || naturalWidth <= 0) return 1;
-  return Math.min(
-    1,
-    Math.max(0.1, (viewportWidth - horizontalPadding) / naturalWidth),
-  );
 }
 
 function clamp(value: number, min: number, max: number) {
