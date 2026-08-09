@@ -7,7 +7,7 @@ import base64
 import binascii
 import json
 from datetime import datetime, timedelta
-from typing import Any, Literal, Sequence
+from typing import Any, Literal, Sequence, TypeGuard
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
@@ -135,7 +135,7 @@ def _cursor_clause(timestamp: datetime, trace_id: str, *, field: str) -> dict[st
     }
 
 
-def _is_visible_session(session: Session | None, user_id: str) -> bool:
+def _is_visible_session(session: Session | None, user_id: str) -> TypeGuard[Session]:
     if session is None or session.user_id != user_id:
         return False
     metadata = session.metadata or {}
