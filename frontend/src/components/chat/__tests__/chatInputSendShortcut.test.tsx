@@ -44,6 +44,8 @@ async function sendDraft(modifier: "ctrl" | "shift") {
 
   const editor = await screen.findByRole("textbox");
   expect(editor).toHaveTextContent("hello");
+  editor.focus();
+  expect(editor).toHaveFocus();
   fireEvent.keyDown(editor, {
     key: "Enter",
     code: "Enter",
