@@ -1,5 +1,39 @@
 # Changelog
 
+## v2.5.6 (2026-08-09)
+
+### ✨ New Features
+
+- Add unified right sidebar UX with coordinated panel stack, responsive layout, and shared lifecycle management.
+- Add race-safe session history snapshots with opt-in state, batched trace event reads, and navigation-before-load optimization.
+- Add rich chat composer with atomic node contracts, inline skill nodes, long-text-as-file references, and input history with keyboard navigation.
+- Add unified document viewer supporting DOCX, PDF, PPTX, and Excel previews with embedded OOXML worksheet image extraction.
+- Add per-model cache rate display with aggregated usage metrics and provider-scoped prompt cache optimization.
+- Add deferred conversation history access tools with per-run search projections, indexing, and authorized conversation search/paging.
+- Link durable memories to conversation runs with lifecycle-preserved conversation refs.
+
+### 🐛 Bug Fixes
+
+- Fix mobile layout: standardize toolbar icon sizes, flatten tool console actions, contain nested file-panel rows, and compress preview headers.
+- Fix deferred system tools: inject runtime correctly and exclude runtime from MCP call schema.
+- Fix prompt cache: single middleware owner, provider-scoped options, and cache policy adaptation for latest models.
+- Fix Excel preview: contain malformed drawings and position worksheet images correctly.
+- Fix chat: include draft in long-text paste attachment and preserve workspace beside right panels.
+
+### ♻️ Refactors
+
+- Remove legacy todo middleware and isolate document viewer layout helpers.
+- Place volatile prompt sections last and optimize cache breakpoints by provider.
+- Migrate PPTX, PDF, and DOCX previews to a shared reader framework.
+
+### 🧪 Tests & Infrastructure
+
+- Add deterministic frontend artifact budgets and session event fake alignment with batch reads.
+- Cover active panel escape behavior and chatInput focus/keyboard shortcut tests.
+- Establish full repository performance audit with frontend shell and PWA precache budgeting.
+
+---
+
 ## v2.5.5 (2026-08-09)
 
 ### ✨ New Features
