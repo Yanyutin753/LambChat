@@ -69,8 +69,7 @@ test("document preview toolbar enlarges mobile actions beside compressible file 
   expect(actionGroup).toHaveClass(
     "document-preview-toolbar-actions",
     "ml-auto",
-    "gap-2.5",
-    "sm:gap-1",
+    "gap-1",
     "shrink-0",
   );
   expect(toolbarIcons).toHaveLength(8);
