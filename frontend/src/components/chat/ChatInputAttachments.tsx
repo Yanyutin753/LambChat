@@ -21,6 +21,8 @@ interface ChatInputAttachmentsProps {
   onAddMore?: () => void;
   /** Restore a long-text attachment back into the composer input. */
   onRestoreLongText?: (attachment: MessageAttachment) => void;
+  onRemoveReference?: (referenceId: string) => void;
+  onRetryUpload?: (attachment: MessageAttachment) => void;
 }
 
 export function ChatInputAttachments({
@@ -29,9 +31,14 @@ export function ChatInputAttachments({
   onCancelUpload,
   onImageViewerOpen,
   onRestoreLongText,
+  onRemoveReference,
+  onRetryUpload,
 }: ChatInputAttachmentsProps) {
   const handleRemove = useCallback(
     (attachment: MessageAttachment) => {
+      if (attachment.composerReferenceId) {
+        onRemoveReference?.(attachment.composerReferenceId);
+      }
       onAttachmentsChange((prev) => prev.filter((a) => a.id !== attachment.id));
       if (attachment.key && !attachment.isUploading) {
         uploadApi.deleteFile(attachment.key).catch((error) => {
@@ -39,7 +46,7 @@ export function ChatInputAttachments({
         });
       }
     },
-    [onAttachmentsChange],
+    [onAttachmentsChange, onRemoveReference],
   );
 
   if (attachments.length === 0) return null;
@@ -68,6 +75,11 @@ export function ChatInputAttachments({
             onCancel={
               attachment.isUploading
                 ? () => onCancelUpload(attachment.id)
+                : undefined
+            }
+            onRetry={
+              attachment.uploadError && onRetryUpload
+                ? () => onRetryUpload(attachment)
                 : undefined
             }
             onSendAsText={

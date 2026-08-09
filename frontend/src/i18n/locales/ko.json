@@ -1248,6 +1248,11 @@
   },
   "fileUpload": {
     "cancelUpload": "업로드 취소",
+    "composerFileReference": "참조 파일",
+    "composerFileRemoved": "파일 참조가 삭제됨",
+    "composerRetry": "다시 시도",
+    "composerUploadFailed": "업로드 실패",
+    "composerUploading": "업로드 중",
     "categories": {
       "${category}": "{{category}}",
       "audio": "오디오",

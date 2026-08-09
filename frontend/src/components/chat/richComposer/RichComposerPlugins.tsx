@@ -6,18 +6,10 @@ import {
   $createTextNode,
   $getRoot,
   $getSelection,
-  $insertNodes,
   $isRangeSelection,
-  $nodesOfType,
-  COMMAND_PRIORITY_EDITOR,
   type EditorState,
 } from "lexical";
-import {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useLayoutEffect,
-} from "react";
+import { forwardRef, useCallback, useImperativeHandle } from "react";
 import { projectComposerSnapshot } from "./composerProjection";
 import type {
   ComposerSnapshot,
@@ -29,12 +21,10 @@ import type {
   RichChatComposerHandle,
 } from "./RichChatComposer";
 import type { AvailableComposerSkill } from "./RichChatComposer";
+import type { LongTextPasteOptions } from "./RichChatComposer";
 import type { ChatInputSlashCommand } from "../chatInputSlashCommands";
 import { SlashCommandPlugin } from "./SlashCommandPlugin";
-import {
-  $createFileReferenceNode,
-  FileReferenceNode,
-} from "./nodes/FileReferenceNode";
+import { LongTextPastePlugin } from "./LongTextPastePlugin";
 import {
   INSERT_FILE_REFERENCE_COMMAND,
   INSERT_SKILL_REFERENCE_COMMAND,
@@ -42,6 +32,7 @@ import {
   UPDATE_FILE_REFERENCE_COMMAND,
 } from "./nodes/referenceCommands";
 import { SkillReferencePlugin } from "./SkillReferencePlugin";
+import { FileReferencePlugin } from "./FileReferencePlugin";
 
 function toSnapshot(editorState: EditorState): ComposerSnapshot {
   return {
@@ -82,6 +73,8 @@ interface RichComposerPluginsProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   onApplySlashCommand?: (command: ChatInputSlashCommand) => void;
   enabledSkillNames?: readonly string[];
+  longTextPaste?: LongTextPasteOptions;
+  onRetryFileReference?: (referenceId: string) => void;
 }
 
 export const RichComposerPlugins = forwardRef<
@@ -95,59 +88,12 @@ export const RichComposerPlugins = forwardRef<
     containerRef,
     onApplySlashCommand,
     enabledSkillNames = [],
+    longTextPaste,
+    onRetryFileReference,
   },
   ref,
 ) {
   const [editor] = useLexicalComposerContext();
-
-  useLayoutEffect(() => {
-    return editor.registerCommand(
-      INSERT_FILE_REFERENCE_COMMAND,
-      (descriptor) => {
-        const existing = $nodesOfType(FileReferenceNode).find(
-          (node) => node.getDescriptor().referenceId === descriptor.referenceId,
-        );
-        if (existing) {
-          existing.updateDescriptor(descriptor);
-          existing.selectNext();
-          return true;
-        }
-        ensureRangeSelection();
-        $insertNodes([$createFileReferenceNode(descriptor)]);
-        return true;
-      },
-      COMMAND_PRIORITY_EDITOR,
-    );
-  }, [editor]);
-
-  useLayoutEffect(() => {
-    return editor.registerCommand(
-      REMOVE_FILE_REFERENCE_COMMAND,
-      (referenceId) => {
-        const node = $nodesOfType(FileReferenceNode).find(
-          (candidate) => candidate.getDescriptor().referenceId === referenceId,
-        );
-        node?.remove();
-        return node !== undefined;
-      },
-      COMMAND_PRIORITY_EDITOR,
-    );
-  }, [editor]);
-
-  useLayoutEffect(() => {
-    return editor.registerCommand(
-      UPDATE_FILE_REFERENCE_COMMAND,
-      (update) => {
-        const node = $nodesOfType(FileReferenceNode).find(
-          (candidate) =>
-            candidate.getDescriptor().referenceId === update.referenceId,
-        );
-        node?.updateDescriptor(update);
-        return node !== undefined;
-      },
-      COMMAND_PRIORITY_EDITOR,
-    );
-  }, [editor]);
 
   const emitChange = useCallback(
     (editorState: EditorState) => {
@@ -252,6 +198,8 @@ export const RichComposerPlugins = forwardRef<
         onApplyCommand={onApplySlashCommand}
       />
       <SkillReferencePlugin />
+      <FileReferencePlugin onRetry={onRetryFileReference} />
+      {longTextPaste ? <LongTextPastePlugin options={longTextPaste} /> : null}
     </>
   );
 });

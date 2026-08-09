@@ -285,6 +285,25 @@
   opacity: 0.64;
 }
 
+.composer-reference-chip__retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  color: currentColor;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.composer-reference-chip__retry:hover,
+.composer-reference-chip__retry:focus-visible {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
 .composer-reference-chip__remove:hover,
 .composer-reference-chip__remove:focus-visible {
   background: color-mix(in srgb, currentColor 10%, transparent);

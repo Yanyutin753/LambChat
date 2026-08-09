@@ -19,6 +19,18 @@ import { FileReferenceNode } from "./nodes/FileReferenceNode";
 import { SkillReferenceNode } from "./nodes/SkillReferenceNode";
 import { RichComposerPlugins } from "./RichComposerPlugins";
 
+export interface LongTextPastePayload {
+  referenceId: string;
+  file: File;
+  originalText: string;
+}
+
+export interface LongTextPasteOptions {
+  enabled: boolean;
+  validateCount: (count: number) => boolean;
+  onCreate: (payload: LongTextPastePayload) => void;
+}
+
 export interface RichChatComposerChange {
   snapshot: ComposerSnapshot;
   projection: ComposerProjection;
@@ -53,6 +65,8 @@ export interface RichChatComposerProps {
   onError?: (error: Error) => void;
   availableSkills?: readonly AvailableComposerSkill[];
   onApplySlashCommand?: (command: ChatInputSlashCommand) => void;
+  longTextPaste?: LongTextPasteOptions;
+  onRetryFileReference?: (referenceId: string) => void;
 }
 
 export const RichChatComposer = forwardRef<
@@ -67,6 +81,8 @@ export const RichChatComposer = forwardRef<
     onError,
     availableSkills,
     onApplySlashCommand,
+    longTextPaste,
+    onRetryFileReference,
   },
   ref,
 ) {
@@ -124,6 +140,8 @@ export const RichChatComposer = forwardRef<
           containerRef={containerRef}
           onApplySlashCommand={onApplySlashCommand}
           enabledSkillNames={enabledSkillNames}
+          longTextPaste={longTextPaste}
+          onRetryFileReference={onRetryFileReference}
         />
       </div>
     </LexicalComposer>

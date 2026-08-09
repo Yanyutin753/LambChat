@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { X, Loader2, Type } from "lucide-react";
+import { AlertCircle, Loader2, RotateCcw, Type, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import type { MessageAttachment } from "../../types";
@@ -52,6 +52,8 @@ export interface AttachmentCardProps {
   isUploading?: boolean;
   /** Restore long-text attachment back to composer input */
   onSendAsText?: () => void;
+  /** Retry a failed upload without discarding the local file resource. */
+  onRetry?: () => void;
 }
 
 export const AttachmentCard = memo(function AttachmentCard({
@@ -63,6 +65,7 @@ export const AttachmentCard = memo(function AttachmentCard({
   size = "default",
   isUploading = false,
   onSendAsText,
+  onRetry,
 }: AttachmentCardProps) {
   const { t } = useTranslation();
   const {
@@ -86,6 +89,7 @@ export const AttachmentCard = memo(function AttachmentCard({
   const isExcalidraw = isExcalidrawFile(fileExt) && Boolean(attachmentUrl);
   const isThumbnail = isImage || isExcalidraw;
   const isCompact = size === "compact";
+  const isFailed = Boolean(attachment.uploadError);
 
   const handleClick = () => {
     onClick?.();
@@ -113,6 +117,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           "hover:-translate-y-0.5",
           "active:scale-[0.98]",
           isUploading && !onCancel && "pointer-events-none",
+          isFailed && "border-red-300/70 dark:border-red-700/70",
         )}
       >
         {/* 图标/图片 */}
@@ -128,6 +133,8 @@ export const AttachmentCard = memo(function AttachmentCard({
         >
           {isUploading ? (
             <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
+          ) : isFailed ? (
+            <AlertCircle size={18} className="text-red-500" />
           ) : isImage ? (
             <ImageWithSkeleton
               src={attachmentUrl}
@@ -151,7 +158,9 @@ export const AttachmentCard = memo(function AttachmentCard({
             <span className="text-xs text-stone-400 dark:text-stone-500 truncate">
               {isUploading
                 ? `${attachment.uploadProgress ?? 0}%`
-                : formatFileSize(attachment.size)}
+                : isFailed
+                  ? t("fileUpload.composerUploadFailed", "Upload failed")
+                  : formatFileSize(attachment.size)}
             </span>
 
             {/* 仍以文本发送 / 删除/取消 */}
@@ -198,21 +207,41 @@ export const AttachmentCard = memo(function AttachmentCard({
                     <X size={12} />
                   </button>
                 ) : (
-                  onRemove && (
-                    <button
-                      type="button"
-                      onClick={handleRemove}
-                      className={clsx(
-                        "size-5 rounded-md flex items-center justify-center",
-                        "text-stone-400 dark:text-stone-500",
-                        "transition-all duration-200",
-                        "hover:bg-red-100/80 dark:hover:bg-red-900/40",
-                        "hover:text-red-500 dark:hover:text-red-400",
-                      )}
-                    >
-                      <X size={12} />
-                    </button>
-                  )
+                  <>
+                    {isFailed && onRetry ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRetry();
+                        }}
+                        className={clsx(
+                          "h-5 px-1.5 rounded-md flex items-center gap-1",
+                          "text-red-500 dark:text-red-400 text-[10px] font-medium",
+                          "hover:bg-red-100/80 dark:hover:bg-red-900/40",
+                        )}
+                        title={t("fileUpload.composerRetry", "Retry")}
+                      >
+                        <RotateCcw size={11} />
+                        <span>{t("fileUpload.composerRetry", "Retry")}</span>
+                      </button>
+                    ) : null}
+                    {onRemove ? (
+                      <button
+                        type="button"
+                        onClick={handleRemove}
+                        className={clsx(
+                          "size-5 rounded-md flex items-center justify-center",
+                          "text-stone-400 dark:text-stone-500",
+                          "transition-all duration-200",
+                          "hover:bg-red-100/80 dark:hover:bg-red-900/40",
+                          "hover:text-red-500 dark:hover:text-red-400",
+                        )}
+                      >
+                        <X size={12} />
+                      </button>
+                    ) : null}
+                  </>
                 )}
               </div>
             )}

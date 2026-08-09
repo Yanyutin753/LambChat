@@ -1248,6 +1248,11 @@
   },
   "fileUpload": {
     "cancelUpload": "Отменить загрузку",
+    "composerFileReference": "Файл-ссылка",
+    "composerFileRemoved": "Ссылка на файл удалена",
+    "composerRetry": "Повторить",
+    "composerUploadFailed": "Ошибка загрузки",
+    "composerUploading": "Загрузка",
     "categories": {
       "${category}": "{{category}}",
       "audio": "аудио",

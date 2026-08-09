@@ -1,4 +1,12 @@
-import { AlertCircle, Check, FileText, LoaderCircle, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  FileText,
+  LoaderCircle,
+  RotateCcw,
+  X,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { FileReferenceDescriptor } from "./composerTypes";
 
 const STATUS_LABELS = {
@@ -9,13 +17,16 @@ const STATUS_LABELS = {
 
 interface FileReferenceChipProps extends FileReferenceDescriptor {
   onRemove: () => void;
+  onRetry?: () => void;
 }
 
 export function FileReferenceChip({
   fileName,
   status,
   onRemove,
+  onRetry,
 }: FileReferenceChipProps) {
+  const { t } = useTranslation();
   const StatusIcon =
     status === "uploading"
       ? LoaderCircle
@@ -42,6 +53,21 @@ export function FileReferenceChip({
         size={13}
         aria-hidden="true"
       />
+      {status === "failed" && onRetry ? (
+        <button
+          type="button"
+          className="composer-reference-chip__retry"
+          aria-label={t("fileUpload.composerRetry", "Retry upload")}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onRetry();
+          }}
+        >
+          <RotateCcw size={12} aria-hidden="true" />
+          <span>{t("fileUpload.composerRetry", "Retry")}</span>
+        </button>
+      ) : null}
       <button
         type="button"
         className="composer-reference-chip__remove"

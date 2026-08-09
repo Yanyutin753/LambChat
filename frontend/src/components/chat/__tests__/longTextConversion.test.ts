@@ -64,6 +64,8 @@ test("stripLocalAttachmentFields removes restore-only fields before submit", () 
       localOriginalText: "secret long text",
       isUploading: false,
       uploadProgress: 100,
+      composerReferenceId: "ref-1",
+      uploadError: "local only",
     }),
   ]);
   expect(cleaned[0]).toEqual({
@@ -77,6 +79,8 @@ test("stripLocalAttachmentFields removes restore-only fields before submit", () 
   });
   expect(cleaned[0]).not.toHaveProperty("localOriginalText");
   expect(cleaned[0]).not.toHaveProperty("fromLongText");
+  expect(cleaned[0]).not.toHaveProperty("composerReferenceId");
+  expect(cleaned[0]).not.toHaveProperty("uploadError");
 });
 
 test("prepareLongTextSubmit keeps empty body when only long text attachment exists", () => {

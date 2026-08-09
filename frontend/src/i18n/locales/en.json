@@ -1248,6 +1248,11 @@
   },
   "fileUpload": {
     "cancelUpload": "Cancel upload",
+    "composerFileReference": "Referenced file",
+    "composerFileRemoved": "File reference removed",
+    "composerRetry": "Retry",
+    "composerUploadFailed": "Upload failed",
+    "composerUploading": "Uploading",
     "categories": {
       "${category}": "{{category}}",
       "audio": "audio",

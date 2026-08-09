@@ -25,6 +25,11 @@ export interface UseFileUploadOptions {
   ) => void;
 }
 
+export type UploadClientMeta = Pick<
+  MessageAttachment,
+  "fromLongText" | "localOriginalText" | "composerReferenceId"
+>;
+
 function getFileCategory(file: File): FileCategory {
   const type = file.type.toLowerCase();
   if (type.startsWith("image/")) return "image";
@@ -144,14 +149,7 @@ export function useFileUpload({
 
   /** Upload a single file with progress tracking */
   const uploadFile = useCallback(
-    (
-      file: File,
-      category?: FileCategory,
-      clientMeta?: Pick<
-        MessageAttachment,
-        "fromLongText" | "localOriginalText"
-      >,
-    ) => {
+    (file: File, category?: FileCategory, clientMeta?: UploadClientMeta) => {
       const fileCategory = category || getFileCategory(file);
 
       // Compress images before upload
@@ -281,13 +279,23 @@ export function useFileUpload({
               return;
             }
             console.error("Upload failed:", error);
-            toast.error(
+            const message =
               error instanceof Error
                 ? error.message
-                : t("fileUpload.uploadFailed"),
-            );
+                : t("fileUpload.uploadFailed");
+            toast.error(message);
             onAttachmentsChange((prev: MessageAttachment[]) =>
-              prev.filter((a) => a.id !== tempId),
+              clientMeta?.composerReferenceId
+                ? prev.map((attachment) =>
+                    attachment.id === tempId
+                      ? {
+                          ...attachment,
+                          isUploading: false,
+                          uploadError: message,
+                        }
+                      : attachment,
+                  )
+                : prev.filter((attachment) => attachment.id !== tempId),
             );
           });
       });
@@ -300,10 +308,7 @@ export function useFileUpload({
     (
       files: FileList | File[],
       category?: FileCategory,
-      clientMeta?: Pick<
-        MessageAttachment,
-        "fromLongText" | "localOriginalText"
-      >,
+      clientMeta?: UploadClientMeta,
     ) => {
       const fileArray = Array.from(files);
       if (fileArray.length === 0) return;

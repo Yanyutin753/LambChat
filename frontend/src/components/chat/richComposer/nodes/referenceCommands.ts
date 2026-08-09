@@ -20,3 +20,7 @@ export const UPDATE_FILE_REFERENCE_COMMAND = createCommand<{
   status: FileReferenceStatus;
   fileName?: string;
 }>("UPDATE_FILE_REFERENCE_COMMAND");
+
+export const RETRY_FILE_REFERENCE_COMMAND = createCommand<string>(
+  "RETRY_FILE_REFERENCE_COMMAND",
+);

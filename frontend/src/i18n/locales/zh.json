@@ -1248,6 +1248,11 @@
   },
   "fileUpload": {
     "cancelUpload": "取消上传",
+    "composerFileReference": "引用文件",
+    "composerFileRemoved": "已移除文件引用",
+    "composerRetry": "重试",
+    "composerUploadFailed": "上传失败",
+    "composerUploading": "上传中",
     "categories": {
       "${category}": "{{category}}",
       "audio": "音频",

@@ -2,7 +2,7 @@
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   RichChatComposer,
   type RichChatComposerHandle,
@@ -123,5 +123,29 @@ describe("rich composer reference nodes", () => {
     expect(
       screen.queryByRole("button", { name: /legacy\.txt/ }),
     ).not.toBeInTheDocument();
+  });
+
+  test("offers retry for a failed file reference", () => {
+    const handle = createRef<RichChatComposerHandle>();
+    const onRetry = vi.fn();
+    render(
+      <RichChatComposer
+        ref={handle}
+        ariaLabel="message"
+        onRetryFileReference={onRetry}
+      />,
+    );
+    act(() => {
+      handle.current?.insertFileReference({
+        referenceId: "ref-failed",
+        fileName: "notes.txt",
+        category: "document",
+        status: "failed",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry upload" }));
+
+    expect(onRetry).toHaveBeenCalledWith("ref-failed");
   });
 });

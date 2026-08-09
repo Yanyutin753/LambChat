@@ -1248,6 +1248,11 @@
   },
   "fileUpload": {
     "cancelUpload": "アップロードをキャンセル",
+    "composerFileReference": "参照ファイル",
+    "composerFileRemoved": "ファイル参照を削除しました",
+    "composerRetry": "再試行",
+    "composerUploadFailed": "アップロード失敗",
+    "composerUploading": "アップロード中",
     "categories": {
       "${category}": "{{category}}",
       "audio": "音声",

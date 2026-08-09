@@ -63,6 +63,8 @@ export function stripLocalAttachmentFields(
       fromLongText: _fromLongText,
       uploadProgress: _uploadProgress,
       isUploading: _isUploading,
+      composerReferenceId: _composerReferenceId,
+      uploadError: _uploadError,
       ...rest
     } = attachment;
     return rest;
@@ -102,9 +104,14 @@ export function shouldSkipLongTextConversion({
 
 export function buildLongTextClientMeta(
   originalText: string,
-): Pick<MessageAttachment, "fromLongText" | "localOriginalText"> {
+  composerReferenceId?: string,
+): Pick<
+  MessageAttachment,
+  "fromLongText" | "localOriginalText" | "composerReferenceId"
+> {
   return {
     fromLongText: true,
     localOriginalText: originalText,
+    composerReferenceId,
   };
 }

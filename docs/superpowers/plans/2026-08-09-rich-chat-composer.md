@@ -350,7 +350,7 @@ in Task 5.
 Run the Step 2 command. Expected: all slash boundary, keyboard, and Skill state
 tests pass.
 
-- [ ] **Step 6: Commit the Skill workflow**
+- [x] **Step 6: Commit the Skill workflow**
 
 ```bash
 git add frontend/src/components/chat/richComposer frontend/src/components/chat/SlashDropdownMenu.tsx frontend/src/components/chat/__tests__/chatInputSlashCommands.test.ts frontend/src/styles/components.css
@@ -382,7 +382,7 @@ git commit -m "feat(chat): insert skills as inline composer nodes"
 - Consumes: Task 2 file commands, existing upload service, `PASTE_TEXT_THRESHOLD`, Turndown cleanup, and attachment preview.
 - Produces: `DraftAttachmentResource`, `DraftAttachmentAction`, `reduceDraftAttachments`, `useDraftAttachmentRegistry`, retry/remove/cleanup commands.
 
-- [ ] **Step 1: Write failing registry reducer tests**
+- [x] **Step 1: Write failing registry reducer tests**
 
 Define literal state transitions:
 
@@ -407,7 +407,7 @@ expect(restored.resources["ref-1"].active).toBe(true);
 Cover ready, failed, retry, final attachment replacement, inactive cleanup, and
 ordinary card-only attachments.
 
-- [ ] **Step 2: Write failing long-paste editor tests**
+- [x] **Step 2: Write failing long-paste editor tests**
 
 With an editor containing `beforeSELECTEDafter`, select `SELECTED` and paste a
 fragment of `PASTE_TEXT_THRESHOLD + 1` characters. Assert:
@@ -420,7 +420,7 @@ fragment of `PASTE_TEXT_THRESHOLD + 1` characters. Assert:
 - expanded mode inserts editable text instead of a file node;
 - short and ordinary file paste keep existing behavior.
 
-- [ ] **Step 3: Run registry and workflow tests and verify RED**
+- [x] **Step 3: Run registry and workflow tests and verify RED**
 
 Run:
 
@@ -430,7 +430,7 @@ cd frontend && pnpm exec vitest run src/components/chat/richComposer/__tests__/d
 
 Expected: FAIL because the registry and paste plugin do not exist.
 
-- [ ] **Step 4: Implement the pure registry and upload adapter**
+- [x] **Step 4: Implement the pure registry and upload adapter**
 
 Use these stable fields:
 
@@ -450,7 +450,7 @@ strip it before API submit. Add a focused upload adapter that reports progress,
 ready, failure, and abort to the registry without removing a failed resource.
 Existing ordinary upload behavior stays unchanged.
 
-- [ ] **Step 5: Implement long-text paste and file synchronization**
+- [x] **Step 5: Implement long-text paste and file synchronization**
 
 Intercept paste only when the editor is not expanded and normalized pasted text
 exceeds the existing threshold. Validate attachment count before preventing the
@@ -462,14 +462,14 @@ Card removal dispatches `REMOVE_FILE_REFERENCE_COMMAND`; projection changes call
 Cleanup deletes only inactive uploaded resources when the draft is sent, cleared,
 or discarded.
 
-- [ ] **Step 6: Add localized accessible states**
+- [x] **Step 6: Add localized accessible states**
 
 Add equivalent keys in every locale for `引用文件`, `上传中`, `上传失败`, `重试`,
 and removal announcements. The node uses text/icon/status together and exposes
 button names that editor tests can query. A polite ARIA live region announces
 insertion, upload failure, retry, and removal without moving focus.
 
-- [ ] **Step 7: Run tests and verify GREEN**
+- [x] **Step 7: Run tests and verify GREEN**
 
 Run the Step 3 command plus:
 

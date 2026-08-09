@@ -26,6 +26,10 @@ export interface MessageAttachment {
    * Must be stripped before API submit.
    */
   fromLongText?: boolean;
+  /** Client-only: links an attachment card to an inline composer node. */
+  composerReferenceId?: string;
+  /** Client-only: keeps a failed upload visible so the user can retry it. */
+  uploadError?: string;
 }
 
 // Upload state for tracking progress

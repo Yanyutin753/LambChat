@@ -14,6 +14,7 @@ import type {
   FileReferenceDescriptor,
   FileReferenceStatus,
 } from "../composerTypes";
+import { RETRY_FILE_REFERENCE_COMMAND } from "./referenceCommands";
 
 export type SerializedFileReferenceNode = Spread<
   FileReferenceDescriptor,
@@ -118,6 +119,15 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
         onRemove={() => {
           editor.update(() => this.getLatest().remove(), { discrete: true });
         }}
+        onRetry={
+          descriptor.status === "failed"
+            ? () =>
+                editor.dispatchCommand(
+                  RETRY_FILE_REFERENCE_COMMAND,
+                  descriptor.referenceId,
+                )
+            : undefined
+        }
       />
     );
   }
