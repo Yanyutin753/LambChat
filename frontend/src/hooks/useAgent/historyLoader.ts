@@ -414,6 +414,18 @@ export function prepareMessagesForRunningRun(
     .reverse()
     .find((message) => message.role === "assistant" && message.runId === runId);
 
+  const hasRunUser = messagesWithPendingUser.some(
+    (message) => message.role === "user" && message.runId === runId,
+  );
+  if (!hasRunUser) {
+    return {
+      streamingMessageId: existingAssistant?.id ?? createId(),
+      messages: messagesWithPendingUser.filter(
+        (message) => !(message.role === "assistant" && message.runId === runId),
+      ),
+    };
+  }
+
   if (existingAssistant) {
     return {
       streamingMessageId: existingAssistant.id,
