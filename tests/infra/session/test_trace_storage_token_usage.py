@@ -156,6 +156,18 @@ class _FakeSessionEventsAggregationCollection:
                     "trace_id": "trace-1",
                     "run_id": "run-1",
                     "started_at": "2026-04-25T00:00:00Z",
+                    "events": [
+                        {
+                            "event_type": "user:message",
+                            "data": {"content": "hello"},
+                            "timestamp": "2026-04-25T00:00:00Z",
+                        },
+                        {
+                            "event_type": "done",
+                            "data": {},
+                            "timestamp": "2026-04-25T00:00:01Z",
+                        },
+                    ],
                 }
             ]
         )
@@ -219,6 +231,18 @@ class _NoMaterializeSessionEventsCollection(_FakeSessionEventsAggregationCollect
                     "trace_id": "trace-1",
                     "run_id": "run-1",
                     "started_at": "2026-04-25T00:00:00Z",
+                    "events": [
+                        {
+                            "event_type": "user:message",
+                            "data": {"content": "hello"},
+                            "timestamp": "2026-04-25T00:00:00Z",
+                        },
+                        {
+                            "event_type": "done",
+                            "data": {},
+                            "timestamp": "2026-04-25T00:00:01Z",
+                        },
+                    ],
                 }
             ]
         )
@@ -246,6 +270,9 @@ class _FakeTraceEventAggregationCollection:
 
 
 class _FakeEmptyChunkCollection:
+    def find(self, *args, **kwargs):
+        return _FakeTraceCursor([])
+
     async def find_one(self, *args, **kwargs):
         return None
 
@@ -442,7 +469,9 @@ async def test_get_session_events_uses_server_side_limit_when_max_events_is_set(
                 "_id": 0,
                 "trace_id": 1,
                 "run_id": 1,
+                "status": 1,
                 "started_at": 1,
+                "events": 1,
                 "recommend_questions": 1,
                 "recommend_questions_updated_at": 1,
             },
