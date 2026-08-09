@@ -552,7 +552,8 @@ export const ChatInput = memo(function ChatInput({
 
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.defaultPrevented) return;
+      // Lexical prevents Enter before this React handler runs, so
+      // defaultPrevented cannot distinguish editor handling from send intent.
       if (mention.isActive) {
         if (event.key === "ArrowUp" || event.key === "ArrowDown") {
           event.preventDefault();
