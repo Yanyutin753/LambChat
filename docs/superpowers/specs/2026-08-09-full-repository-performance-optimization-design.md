@@ -51,11 +51,40 @@ Static-only optimization was rejected because it rewards micro-edits without pro
 benefit. Critical-path-only profiling was rejected because it would not provide the requested
 whole-repository coverage.
 
+## Phase 0: Whole-Repository Inventory and Triage
+
+Create the skeleton of `docs/performance-audit-2026-08-09.md` before the first optimization.
+Populate its inventory and initial findings first, update it after every workstream, and finalize
+it in workstream 4. This ordering ensures later workstreams are selected from a complete inventory
+instead of discovering omitted areas after implementation.
+
+The inventory has these explicit surfaces:
+
+| Surface | Included paths and artifacts | Audit treatment |
+| --- | --- | --- |
+| Backend application | `src/**/*.py`, `main.py`, `run.py` | Async/blocking-I/O scan, repeated-I/O and allocation review, storage query/index review, runtime critical paths |
+| Backend operational scripts | `scripts/**/*.py` | Blocking work, batch bounds, memory behavior, migration/verification scaling |
+| Web frontend | `frontend/src/**/*.{ts,tsx,css}`, `frontend/vite.config.ts`, frontend scripts and manifests | Render/network review, lazy boundaries, worker/service-worker behavior, bundle graph and asset budgets |
+| Native clients | `frontend/src-tauri/**`, Android app source/configuration, iOS App source/project configuration | Startup, packaging, bridge calls, duplicated assets, release-build configuration |
+| Deployment and serving | `deploy/**`, `k8s/**`, `nginx/**`, container files | Compression, caching, worker/process settings, resource limits, health and proxy behavior |
+| Documentation tooling | Docs build configuration, docs scripts, and package manifests | Build-time plugins, asset processing, duplicated heavy dependencies |
+| Tests and build tooling | `tests/**`, frontend tests, `Makefile`, `pyproject.toml`, root/frontend/docs package manifests | Slow-test evidence, redundant work, missing deterministic performance guards |
+| Static and binary assets | Frontend public assets and docs images | Size, duplication, precache and compression treatment only |
+
+Generated or third-party trees (`.venv`, `node_modules`, `dist`, native build outputs, coverage and
+cache directories) are not source-audited. Generated `dist` is still measured as an artifact,
+and lockfiles are inspected for dependency/bundle consequences rather than reviewed line by line.
+Markdown product content is not treated as executable code; its build configuration and asset
+weight are included.
+
+Every inventory row records its scan or measurement command, findings, and disposition. An empty
+row is not coverage evidence.
+
 ## Workstream Boundaries and Order
 
-The program has four ordered workstreams. Each workstream receives its own TDD tasks and focused
-verification in the implementation plan. A later workstream must re-read the current branch
-before editing because other work is being committed concurrently.
+After phase 0, the program has four ordered workstreams. Each workstream receives its own TDD
+tasks and focused verification in the implementation plan. A later workstream must re-read the
+current branch before editing because other work is being committed concurrently.
 
 ### 1. Frontend Loading, Bundling, and PWA Caching
 
@@ -78,6 +107,20 @@ Deterministic targets:
   and modulepreload graph.
 - The Workbox precache manifest totals at most 4 MiB of uncompressed build artifacts.
 - Existing route and feature behavior remains unchanged.
+
+The artifact checker uses one measurement protocol on every run:
+
+- Parse the completed `dist/index.html`, collect the module entry script plus all
+  `rel="modulepreload"` JavaScript URLs, resolve and deduplicate their files, gzip each file with
+  Node `zlib.gzipSync` at level 9, and sum the compressed byte lengths.
+- Install a pure Workbox `manifestTransform` helper in the Vite PWA configuration. It receives the
+  exact manifest entries that will be injected, deduplicates entry URLs, resolves each URL under
+  `dist`, and sums the on-disk uncompressed byte lengths. The helper returns the unchanged filtered
+  manifest plus count/byte statistics, and the build fails when the approved precache budget is
+  exceeded.
+- Unit tests exercise HTML URL extraction, deduplication, missing-file errors, gzip calculation,
+  and precache-manifest counting without requiring a production build. The production build is
+  the integration check.
 
 Build wall time and peak RSS remain trend measurements, not CI pass/fail gates, because shared
 machine load makes them noisy. They must be reported before and after, and a regression above
@@ -133,7 +176,7 @@ all of these gates:
 Comprehension rewrites and similar micro-optimizations are deferred unless profiling shows they
 matter in a hot loop.
 
-### 4. Regression Budgets and Audit Report
+### 4. Regression Budgets and Audit Report Finalization
 
 Add deterministic checks that protect the resources optimized above:
 
@@ -144,8 +187,9 @@ Add deterministic checks that protect the resources optimized above:
 - Wall-clock and memory baselines are recorded for trend comparison but not enforced as flaky CI
   thresholds.
 
-Create `docs/performance-audit-2026-08-09.md` as the whole-repository audit ledger. It groups
-findings by backend API/agents/storage/tasks, frontend loading/rendering/network/PWA, and tooling.
+Finalize the audit ledger created in phase 0. It retains the explicit inventory table and groups
+findings by backend API/agents/storage/tasks, frontend loading/rendering/network/PWA, native
+clients, deployment/serving, operational scripts, docs tooling, assets, and test/build tooling.
 Every finding has evidence, impact, disposition, and verification. Allowed dispositions are:
 
 - optimized;
@@ -228,7 +272,7 @@ the baseline and records any environmental limitations.
 
 The program is complete only when:
 
-1. The full source inventory is represented in the audit report.
+1. Every phase-0 inventory row contains current evidence and is represented in the audit report.
 2. Every identified candidate has evidence and a disposition.
 3. All confirmed high-priority findings in this design are optimized or proven already resolved
    by concurrent work.
