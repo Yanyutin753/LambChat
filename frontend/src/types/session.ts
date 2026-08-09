@@ -58,6 +58,10 @@ export interface SSEEventRecord {
   run_id?: string;
 }
 
+export type SessionHistoryMode = "complete" | "active_user_only";
+
 export interface SessionEventsResponse {
   events: SSEEventRecord[];
+  history_mode?: SessionHistoryMode;
+  stream_run_id?: string | null;
 }
