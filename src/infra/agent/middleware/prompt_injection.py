@@ -54,6 +54,29 @@ class SectionPromptMiddleware(AgentMiddleware):
         return await handler(request)
 
 
+class VolatileSectionPromptMiddleware(AgentMiddleware):
+    """Append run-varying goal and execution-mode sections after stable context."""
+
+    def __init__(self, *, sections: list[str] | tuple[str, ...]) -> None:
+        super().__init__()
+        self._sections = tuple(
+            _normalize_prompt_text(section) for section in sections if section.strip()
+        )
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        if not self._sections:
+            return await handler(request)
+
+        blocks = _system_message_to_blocks(request.system_message)
+        blocks.extend({"type": "text", "text": section} for section in self._sections)
+        request = request.override(system_message=SystemMessage(content=blocks))
+        return await handler(request)
+
+
 class MemoryIndexMiddleware(AgentMiddleware):
     """Injects the native memory index into the system prompt at request time.
 

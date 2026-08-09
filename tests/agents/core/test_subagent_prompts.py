@@ -201,7 +201,7 @@ def test_dynamic_prompt_middleware_order_is_canonical() -> None:
         assert -1 < env < memory < deferred < cache
 
 
-def test_static_prompt_order_places_goal_and_mode_before_runtime() -> None:
+def test_static_prompt_order_places_runtime_before_goal_and_mode() -> None:
     from inspect import getsource
 
     from src.agents.search_agent.nodes import agent_node
@@ -209,7 +209,9 @@ def test_static_prompt_order_places_goal_and_mode_before_runtime() -> None:
 
     for node in (agent_node, team_router_node):
         source = getsource(node)
-        goal = source.rfind("goal_section")
-        mode = source.rfind("AUTO_MODE_PROMPT_SECTION")
         runtime = source.rfind("RUNTIME_SECTION.format")
-        assert -1 < goal < mode < runtime
+        stable = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
+        env = source.rfind("EnvVarPromptMiddleware")
+        volatile = source.rfind("VolatileSectionPromptMiddleware")
+        memory = source.rfind("MemoryIndexMiddleware")
+        assert -1 < runtime < stable < env < volatile < memory

@@ -4,6 +4,7 @@ import pytest
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
+from src.infra.agent import middleware as middleware_package
 from src.infra.agent.middleware import (
     PromptCachingMiddleware,
     SectionPromptMiddleware,
@@ -801,3 +802,43 @@ async def test_section_prompt_middleware_appends_separate_blocks() -> None:
 
     assert isinstance(result.content, list)
     assert [block["text"] for block in result.content] == ["base", "skills block", "memory block"]
+
+
+async def test_volatile_sections_append_after_session_stable_sections() -> None:
+    middleware_type = getattr(middleware_package, "VolatileSectionPromptMiddleware", None)
+    assert middleware_type is not None
+
+    middleware = middleware_type(
+        sections=[
+            "## Active Goal\nObjective: ship",
+            "### Auto Mode (Autonomous Execution)",
+        ]
+    )
+
+    class _Request:
+        def __init__(self) -> None:
+            self.system_message = SystemMessage(
+                content=[
+                    {"type": "text", "text": "base"},
+                    {"type": "text", "text": "## Sandbox Runtime\nwork_dir: /workspace"},
+                    {"type": "text", "text": "## Available Environment Variables\n- TOKEN"},
+                ]
+            )
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            return clone
+
+    async def _handler(request):
+        return request.system_message
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert [block["text"].splitlines()[0] for block in result.content] == [
+        "base",
+        "## Sandbox Runtime",
+        "## Available Environment Variables",
+        "## Active Goal",
+        "### Auto Mode (Autonomous Execution)",
+    ]

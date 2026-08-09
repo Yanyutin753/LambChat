@@ -9,6 +9,7 @@ from src.infra.agent.middleware.prompt_injection import (
     EnvVarPromptMiddleware,
     MemoryIndexMiddleware,
     SectionPromptMiddleware,
+    VolatileSectionPromptMiddleware,
 )
 from src.infra.agent.middleware.retry import (
     EmptyContentRetryMiddleware,
@@ -35,6 +36,7 @@ __all__ = [
     "ModelFallbackMiddleware",
     "PromptCachingMiddleware",
     "SectionPromptMiddleware",
+    "VolatileSectionPromptMiddleware",
     "SubagentActivityMiddleware",
     "SubagentResultHandoffMiddleware",
     "ToolResultBinaryMiddleware",

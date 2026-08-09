@@ -67,6 +67,7 @@ from src.infra.agent.middleware import (
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
+    VolatileSectionPromptMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
 )
@@ -764,18 +765,18 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         )
         if s
     ]
-    active_goal = configurable.get("active_goal")
-    goal_section = build_goal_prompt_section(active_goal)
-    if goal_section:
-        _prompt_sections.append(goal_section)
-    if configurable.get("auto_mode"):
-        _prompt_sections.append(AUTO_MODE_PROMPT_SECTION)
     if sandbox_backend and sandbox_work_dir:
         _prompt_sections.append(TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+    active_goal = configurable.get("active_goal")
+    goal_section = build_goal_prompt_section(active_goal)
+    auto_section = AUTO_MODE_PROMPT_SECTION if configurable.get("auto_mode") else None
+    _volatile_sections = [section for section in (goal_section, auto_section) if section]
+    if _volatile_sections:
+        user_middleware.append(VolatileSectionPromptMiddleware(sections=_volatile_sections))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
