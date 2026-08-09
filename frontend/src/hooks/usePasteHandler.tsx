@@ -14,7 +14,20 @@ export interface UsePasteHandlerOptions {
   validateCount: (count: number) => boolean;
   scheduleTextareaResize: () => void;
   /** Convert oversized pasted text into a long-text attachment. */
-  onLongTextPaste?: (text: string, preserveText?: string) => boolean;
+  onLongTextPaste?: (text: string) => boolean;
+}
+
+export function buildPostPasteInput(
+  input: string,
+  pastedText: string,
+  selectionStart: number,
+  selectionEnd: number,
+): string {
+  return (
+    input.substring(0, selectionStart) +
+    pastedText +
+    input.substring(selectionEnd)
+  );
 }
 
 export function usePasteHandler({
@@ -68,11 +81,15 @@ export function usePasteHandler({
 
         if (markdownText.length > PASTE_TEXT_THRESHOLD) {
           const textarea = textareaRef.current;
-          const before = textarea
-            ? input.substring(0, textarea.selectionStart)
-            : input;
-          const after = textarea ? input.substring(textarea.selectionEnd) : "";
-          if (onLongTextPaste?.(markdownText, before + after)) return;
+          const selectionStart = textarea?.selectionStart ?? input.length;
+          const selectionEnd = textarea?.selectionEnd ?? input.length;
+          const nextInput = buildPostPasteInput(
+            input,
+            markdownText,
+            selectionStart,
+            selectionEnd,
+          );
+          if (onLongTextPaste?.(nextInput)) return;
         }
 
         insertText(markdownText);
@@ -83,11 +100,15 @@ export function usePasteHandler({
       if (plainText && plainText.length > PASTE_TEXT_THRESHOLD) {
         e.preventDefault();
         const textarea = textareaRef.current;
-        const before = textarea
-          ? input.substring(0, textarea.selectionStart)
-          : input;
-        const after = textarea ? input.substring(textarea.selectionEnd) : "";
-        if (onLongTextPaste?.(plainText, before + after)) return;
+        const selectionStart = textarea?.selectionStart ?? input.length;
+        const selectionEnd = textarea?.selectionEnd ?? input.length;
+        const nextInput = buildPostPasteInput(
+          input,
+          plainText,
+          selectionStart,
+          selectionEnd,
+        );
+        if (onLongTextPaste?.(nextInput)) return;
         insertText(plainText);
       }
     },
