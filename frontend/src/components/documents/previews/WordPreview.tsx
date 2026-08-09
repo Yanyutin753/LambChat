@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { FileText, AlertCircle } from "lucide-react";
-import { LoadingSpinner } from "../../common/LoadingSpinner";
 import DOMPurify from "dompurify";
 import {
   decodeTextLikeArrayBuffer,
@@ -8,11 +7,19 @@ import {
   extractDocxTextFallback,
   isDocxZipArrayBuffer,
 } from "./wordPreviewUtils";
-import { renderDocxPreviewHtml } from "./wordPreviewRenderer";
+import {
+  measureDocxPreview,
+  renderDocxPreviewHtml,
+  type DocxPreviewSize,
+} from "./wordPreviewRenderer";
 import {
   extractLegacyDocText,
   isLegacyDocArrayBuffer,
 } from "./legacyDocPreviewUtils";
+import {
+  DocumentViewerFrame,
+  ScaledDocumentContent,
+} from "./DocumentViewerFrame";
 
 interface WordPreviewProps {
   arrayBuffer: ArrayBuffer;
@@ -21,6 +28,18 @@ interface WordPreviewProps {
 
 // Custom styles for Word document content
 const wordContentStyles = `
+  .docx-preview-content .docx-wrapper {
+    width: max-content;
+    background: transparent;
+    padding: 0;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .docx-preview-content .docx-wrapper > section.docx {
+    margin: 0;
+    background: white;
+    box-shadow: 0 10px 28px rgba(28, 25, 23, 0.16), 0 0 0 1px rgba(28, 25, 23, 0.08);
+  }
   .word-preview-content {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     line-height: 1.7;
@@ -28,21 +47,6 @@ const wordContentStyles = `
   }
   .word-preview-content.dark {
     color: #e5e7eb;
-  }
-  .word-preview-content .docx-wrapper {
-    background: transparent;
-    padding: 0;
-  }
-  .word-preview-content .docx {
-    background: transparent;
-    color: inherit;
-    max-width: 100%;
-  }
-  .word-preview-content section.docx {
-    width: auto !important;
-    min-height: auto !important;
-    padding: 0 !important;
-    box-shadow: none !important;
   }
   .word-preview-content h1 {
     font-size: 2rem;
@@ -200,6 +204,11 @@ const wordContentStyles = `
   }
 `;
 
+const DEFAULT_DOCX_SIZE: DocxPreviewSize = {
+  width: 816,
+  height: 1056,
+};
+
 const WordPreview = memo(function WordPreview({
   arrayBuffer,
   t,
@@ -208,6 +217,7 @@ const WordPreview = memo(function WordPreview({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [renderedWithDocxPreview, setRenderedWithDocxPreview] = useState(false);
+  const [docxSize, setDocxSize] = useState<DocxPreviewSize>(DEFAULT_DOCX_SIZE);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   // Detect dark mode
@@ -263,6 +273,7 @@ const WordPreview = memo(function WordPreview({
         setError(null);
         setHtml("");
         setRenderedWithDocxPreview(false);
+        setDocxSize(DEFAULT_DOCX_SIZE);
         if (contentRef.current) {
           contentRef.current.innerHTML = "";
         }
@@ -305,6 +316,10 @@ const WordPreview = memo(function WordPreview({
           setHtml(renderResult.html);
           setRenderedWithDocxPreview(false);
         } else {
+          const measuredSize = measureDocxPreview(container);
+          if (measuredSize) {
+            setDocxSize(measuredSize);
+          }
           setRenderedWithDocxPreview(true);
         }
         setError(null);
@@ -402,38 +417,35 @@ const WordPreview = memo(function WordPreview({
     );
   }
 
+  if (loading || renderedWithDocxPreview) {
+    return (
+      <DocumentViewerFrame
+        naturalWidth={docxSize.width}
+        loading={loading}
+        ariaLabel={t("documents.wordPreviewTitle") || "Word preview"}
+      >
+        {({ displayScale }) => (
+          <ScaledDocumentContent
+            naturalWidth={docxSize.width}
+            naturalHeight={docxSize.height}
+            displayScale={displayScale}
+            contentRef={contentRef}
+            className="docx-preview-content"
+          />
+        )}
+      </DocumentViewerFrame>
+    );
+  }
+
   return (
-    <div className="relative h-full overflow-auto bg-stone-200 dark:bg-stone-950">
-      {loading && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center min-h-[300px] gap-4 bg-stone-200/90 dark:bg-stone-950/90">
-          <div className="relative">
-            <LoadingSpinner size="lg" />
-            <div className="absolute inset-0 animate-ping opacity-20">
-              <LoadingSpinner size="lg" static />
-            </div>
-          </div>
-          <p className="text-sm text-stone-500 dark:text-stone-400">
-            {t("documents.loading") || "Loading document..."}
-          </p>
-        </div>
-      )}
-      <div className="max-w-[816px] mx-auto">
-        <div className="bg-white dark:bg-stone-900 shadow-lg rounded-sm border border-stone-300/60 dark:border-stone-700/60">
-          <div className="px-4 py-6 min-h-[1056px]">
-            <div
-              ref={contentRef}
-              className={`word-preview-content ${isDark ? "dark" : ""} ${
-                renderedWithDocxPreview ? "" : "hidden"
-              }`}
-            />
-            {!renderedWithDocxPreview && processedHtml && (
-              <div
-                className={`word-preview-content ${isDark ? "dark" : ""}`}
-                dangerouslySetInnerHTML={{ __html: processedHtml }}
-              />
-            )}
-          </div>
-        </div>
+    <div className="h-full overflow-auto bg-stone-200 px-3 py-4 dark:bg-stone-950 sm:px-5 sm:py-5">
+      <div className="mx-auto min-h-full max-w-3xl rounded-sm border border-stone-300/60 bg-white px-4 py-6 shadow-lg dark:border-stone-700/60 dark:bg-stone-900 sm:px-8 sm:py-10">
+        {processedHtml && (
+          <div
+            className={`word-preview-content ${isDark ? "dark" : ""}`}
+            dangerouslySetInnerHTML={{ __html: processedHtml }}
+          />
+        )}
       </div>
     </div>
   );

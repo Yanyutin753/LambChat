@@ -1,12 +1,32 @@
 import {
   createWordPreviewRendererOptions,
+  measureDocxPreview,
   renderDocxPreviewHtml,
 } from "../wordPreviewRenderer.ts";
 
-test("disables altChunk rendering by default for DOCX previews", () => {
+test("preserves DOCX page geometry while disabling unsafe altChunk rendering", () => {
   const options = createWordPreviewRendererOptions();
 
-  expect(options.renderAltChunks).toBe(false);
+  expect(options).toMatchObject({
+    inWrapper: true,
+    ignoreWidth: false,
+    ignoreHeight: false,
+    renderAltChunks: false,
+  });
+});
+
+test("measures generated DOCX page width and continuous wrapper height", () => {
+  const page = { offsetWidth: 816 } as HTMLElement;
+  const wrapper = { scrollHeight: 2112 } as HTMLElement;
+  const container = {
+    querySelector: (selector: string) =>
+      selector === "section.docx" ? page : wrapper,
+  } as unknown as HTMLElement;
+
+  expect(measureDocxPreview(container)).toEqual({
+    width: 816,
+    height: 2112,
+  });
 });
 
 test("renders with docx-preview before using mammoth fallback", async () => {

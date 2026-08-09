@@ -42,8 +42,8 @@ const mammothStyleMap = [
 export function createWordPreviewRendererOptions(): Partial<DocxPreviewOptions> {
   return {
     className: "docx",
-    inWrapper: false,
-    ignoreWidth: true,
+    inWrapper: true,
+    ignoreWidth: false,
     ignoreHeight: false,
     ignoreFonts: false,
     breakPages: true,
@@ -56,6 +56,22 @@ export function createWordPreviewRendererOptions(): Partial<DocxPreviewOptions> 
     renderAltChunks: false,
     useBase64URL: true,
   };
+}
+
+export interface DocxPreviewSize {
+  width: number;
+  height: number;
+}
+
+export function measureDocxPreview(
+  container: HTMLElement,
+): DocxPreviewSize | null {
+  const firstPage = container.querySelector<HTMLElement>("section.docx");
+  const wrapper = container.querySelector<HTMLElement>(".docx-wrapper");
+  const width = firstPage?.offsetWidth ?? 0;
+  const height = wrapper?.scrollHeight ?? 0;
+
+  return width > 0 && height > 0 ? { width, height } : null;
 }
 
 export async function renderDocxPreviewHtml({
