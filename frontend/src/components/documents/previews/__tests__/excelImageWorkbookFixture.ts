@@ -11,6 +11,7 @@ export interface ExcelImageFixtureOptions {
   pictureName?: string;
   pictureDescription?: string;
   includeMalformedSibling?: boolean;
+  pictures?: ExcelImageFixtureOptions[];
 }
 
 export const ONE_CELL_ANCHOR_XML = `
@@ -42,8 +43,73 @@ function renderAnchor(options: ExcelImageFixtureOptions): string {
     )
     .replace(
       "Fixture description",
-      xmlAttribute(options.pictureDescription ?? "Fixture description"),
+      xmlAttribute(
+        options.pictureDescription ??
+          (options.pictureName ? "" : "Fixture description"),
+      ),
     );
+}
+
+async function attachPicture(
+  zip: JSZip,
+  options: ExcelImageFixtureOptions,
+  drawingNumber: number,
+): Promise<void> {
+  const sheetNumber = (options.sheetIndex ?? 0) + 1;
+  const sheetPath = `xl/worksheets/sheet${sheetNumber}.xml`;
+  const sheetEntry = zip.file(sheetPath);
+  if (!sheetEntry) throw new Error(`Missing fixture worksheet ${sheetPath}`);
+  const sheetXml = await sheetEntry.async("string");
+  zip.file(
+    sheetPath,
+    sheetXml.replace(
+      "</worksheet>",
+      `<drawing r:id="rIdDrawing${drawingNumber}"/></worksheet>`,
+    ),
+  );
+  zip.file(
+    `xl/worksheets/_rels/sheet${sheetNumber}.xml.rels`,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+        <Relationship Id="rIdDrawing${drawingNumber}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${drawingNumber}.xml"/>
+      </Relationships>`,
+  );
+
+  const malformedSibling = options.includeMalformedSibling
+    ? "<xdr:oneCellAnchor><xdr:pic><xdr:blipFill><a:blip/></xdr:blipFill></xdr:pic></xdr:oneCellAnchor>"
+    : "";
+  zip.file(
+    `xl/drawings/drawing${drawingNumber}.xml`,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+        ${malformedSibling}${renderAnchor(options)}
+      </xdr:wsDr>`,
+  );
+  const targetMode = options.targetMode
+    ? ` TargetMode="${options.targetMode}"`
+    : "";
+  const mediaPath = options.mediaPath ?? `xl/media/image${drawingNumber}.png`;
+  const mediaName = mediaPath.split("/").pop() ?? `image${drawingNumber}.png`;
+  zip.file(
+    `xl/drawings/_rels/drawing${drawingNumber}.xml.rels`,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+        <Relationship Id="rIdImage1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${xmlAttribute(
+          options.relationshipTarget ?? `../media/${mediaName}`,
+        )}"${targetMode}/>
+      </Relationships>`,
+  );
+  zip.file(
+    mediaPath,
+    options.mediaBytes ??
+      new Uint8Array(
+        drawingNumber === 1
+          ? [137, 80, 78, 71]
+          : [137, 80, 78, 71, drawingNumber],
+      ),
+  );
 }
 
 export async function buildExcelImageWorkbook(
@@ -63,54 +129,10 @@ export async function buildExcelImageWorkbook(
 
   const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
   const zip = await JSZip.loadAsync(bytes);
-  const sheetNumber = (options.sheetIndex ?? 0) + 1;
-  const sheetPath = `xl/worksheets/sheet${sheetNumber}.xml`;
-  const sheetEntry = zip.file(sheetPath);
-  if (!sheetEntry) throw new Error(`Missing fixture worksheet ${sheetPath}`);
-  const sheetXml = await sheetEntry.async("string");
-  zip.file(
-    sheetPath,
-    sheetXml.replace(
-      "</worksheet>",
-      '<drawing r:id="rIdDrawing1"/></worksheet>',
-    ),
-  );
-  zip.file(
-    `xl/worksheets/_rels/sheet${sheetNumber}.xml.rels`,
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-      <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-        <Relationship Id="rIdDrawing1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
-      </Relationships>`,
-  );
-
-  const malformedSibling = options.includeMalformedSibling
-    ? "<xdr:oneCellAnchor><xdr:pic><xdr:blipFill><a:blip/></xdr:blipFill></xdr:pic></xdr:oneCellAnchor>"
-    : "";
-  zip.file(
-    "xl/drawings/drawing1.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-      <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
-        xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-        xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-        ${malformedSibling}${renderAnchor(options)}
-      </xdr:wsDr>`,
-  );
-  const targetMode = options.targetMode
-    ? ` TargetMode="${options.targetMode}"`
-    : "";
-  zip.file(
-    "xl/drawings/_rels/drawing1.xml.rels",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-      <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-        <Relationship Id="rIdImage1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${xmlAttribute(
-          options.relationshipTarget ?? "../media/image1.png",
-        )}"${targetMode}/>
-      </Relationships>`,
-  );
-  zip.file(
-    options.mediaPath ?? "xl/media/image1.png",
-    options.mediaBytes ?? new Uint8Array([137, 80, 78, 71]),
-  );
+  const pictures = options.pictures ?? [options];
+  for (const [index, picture] of pictures.entries()) {
+    await attachPicture(zip, picture, index + 1);
+  }
 
   return zip.generateAsync({ type: "arraybuffer" });
 }

@@ -1,5 +1,22 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+import {
+  extractExcelEmbeddedImages,
+  type ExcelEmbeddedImage,
+} from "./excelEmbeddedImages";
+import {
+  getExcelGridExtent,
+  resolveExcelImageRect,
+  type ExcelImageRect,
+} from "./excelImageLayout";
 import { worksheetToDisplayRows } from "./excelPreviewData";
 import "../../../styles/excel-preview.css";
 
@@ -45,6 +62,11 @@ interface ExcelPreviewProps {
 interface SheetData {
   name: string;
   data: string[][];
+  images: ExcelPreviewImage[];
+}
+
+interface ExcelPreviewImage extends ExcelEmbeddedImage {
+  url: string;
 }
 
 function colLabel(index: number): string {
@@ -64,7 +86,7 @@ function isNumeric(v: unknown): boolean {
 
 const ExcelPreview = memo(function ExcelPreview({
   arrayBuffer,
-  fileName: _fileName,
+  fileName,
   t,
 }: ExcelPreviewProps) {
   const [sheets, setSheets] = useState<SheetData[]>([]);
@@ -76,41 +98,86 @@ const ExcelPreview = memo(function ExcelPreview({
     col: number;
   } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const gridSurfaceRef = useRef<HTMLDivElement>(null);
+  const [imageRects, setImageRects] = useState<Map<string, ExcelImageRect>>(
+    () => new Map(),
+  );
   const { progress, hasOverflow } = useScrollIndicator(scrollContainerRef);
 
   useEffect(() => {
+    let cancelled = false;
+    const objectUrls: string[] = [];
+
     const parseExcel = async () => {
+      setLoading(true);
+      setActiveSheet(0);
+      setHoveredCell(null);
       try {
         const XLSX = await import("xlsx");
         const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        let imagesBySheet = new Map<string, ExcelEmbeddedImage[]>();
+        try {
+          imagesBySheet = await extractExcelEmbeddedImages(
+            arrayBuffer,
+            fileName,
+          );
+        } catch {
+          imagesBySheet = new Map();
+        }
+        if (cancelled) return;
+
         const sheetData = workbook.SheetNames.map((name) => {
           const sheet = workbook.Sheets[name];
-          return { name, data: worksheetToDisplayRows(sheet, XLSX.utils) };
+          const images = (imagesBySheet.get(name) ?? []).flatMap((image) => {
+            try {
+              const url = URL.createObjectURL(image.blob);
+              objectUrls.push(url);
+              return [{ ...image, url }];
+            } catch {
+              return [];
+            }
+          });
+          return {
+            name,
+            data: worksheetToDisplayRows(sheet, XLSX.utils),
+            images,
+          };
         });
         setSheets(sheetData);
         setError(null);
       } catch (err) {
+        if (cancelled) return;
         console.error("Excel parse error:", err);
         setError(
           err instanceof Error ? err.message : t("documents.excelParseError"),
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     parseExcel();
-  }, [arrayBuffer, t]);
+
+    return () => {
+      cancelled = true;
+      for (const url of objectUrls) URL.revokeObjectURL(url);
+    };
+  }, [arrayBuffer, fileName, t]);
 
   const currentSheet = sheets[activeSheet];
 
-  const totalRows = useMemo(() => {
-    if (!currentSheet) return 0;
-    return currentSheet.data.length;
+  const gridExtent = useMemo(() => {
+    if (!currentSheet) return { rows: 0, cols: 0 };
+    return getExcelGridExtent(currentSheet.data, currentSheet.images);
   }, [currentSheet]);
+  const totalRows = gridExtent.rows;
+  const totalCols = gridExtent.cols;
 
-  const totalCols = useMemo(() => {
-    if (!currentSheet || currentSheet.data.length === 0) return 0;
-    return currentSheet.data[0].length;
+  const populatedCols = useMemo(() => {
+    if (!currentSheet) return 0;
+    return currentSheet.data.reduce(
+      (maximum, row) => Math.max(maximum, row.length),
+      0,
+    );
   }, [currentSheet]);
 
   // First row is header, rest is data
@@ -123,6 +190,41 @@ const ExcelPreview = memo(function ExcelPreview({
     if (!currentSheet || currentSheet.data.length <= 1) return [];
     return currentSheet.data.slice(1);
   }, [currentSheet]);
+
+  useLayoutEffect(() => {
+    const surface = gridSurfaceRef.current;
+    if (!surface || !currentSheet) {
+      setImageRects(new Map());
+      return;
+    }
+
+    const update = () => {
+      const columnStarts = Array.from({ length: totalCols }, (_, index) => {
+        const element = surface.querySelector<HTMLElement>(
+          `[data-excel-column-index="${index}"]`,
+        );
+        return element?.offsetLeft ?? 0;
+      });
+      const rowStarts = Array.from({ length: totalRows }, (_, index) => {
+        const element = surface.querySelector<HTMLElement>(
+          `[data-excel-row-index="${index}"]`,
+        );
+        return element?.offsetTop ?? 0;
+      });
+      const metrics = { columnStarts, rowStarts };
+      const next = new Map<string, ExcelImageRect>();
+      for (const image of currentSheet.images) {
+        const rect = resolveExcelImageRect(image, metrics);
+        if (rect) next.set(image.id, rect);
+      }
+      setImageRects(next);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(surface);
+    return () => observer.disconnect();
+  }, [currentSheet, totalCols, totalRows]);
 
   const handleCellHover = useCallback((rowIndex: number, colIndex: number) => {
     setHoveredCell({ row: rowIndex, col: colIndex });
@@ -253,104 +355,138 @@ const ExcelPreview = memo(function ExcelPreview({
         ref={scrollContainerRef}
         className="flex-1 overflow-auto relative overscroll-x-contain [-webkit-overflow-scrolling:touch] excel-preview-scroll border-x border-stone-300 dark:border-stone-600"
       >
-        <table className="border-collapse w-max min-w-full text-[13px]">
-          {/* Column headers row */}
-          <thead>
-            <tr className="sticky top-0 z-10">
-              {/* Top-left corner */}
-              <th className="sticky left-0 z-20 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-[11px] text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border-r border-b border-stone-300 dark:border-stone-600 select-none" />
-              {/* Column letters */}
-              {Array.from({ length: totalCols }, (_, i) => (
-                <th
-                  key={i}
-                  className={`min-w-[60px] sm:min-w-[80px] h-6 px-0 py-0 text-center text-[11px] font-normal text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none leading-6 ${
-                    hoveredCell?.col === i
-                      ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
-                      : ""
-                  }`}
-                >
-                  {colLabel(i)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: displayRows }, (_, rawRowIndex) => {
-              const isHeader = rawRowIndex === 0;
-              const rowIndex = isHeader ? -1 : rawRowIndex - 1; // -1 for header in getCellValue
-              const isRowHovered =
-                hoveredCell && !isHeader && hoveredCell.row === rawRowIndex - 1;
-
-              return (
-                <tr key={rawRowIndex}>
-                  {/* Row number */}
-                  <td
-                    className={`sticky left-0 z-10 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-[11px] bg-stone-100 dark:bg-stone-800 border-r border-b border-stone-300 dark:border-stone-600 select-none tabular-nums leading-6 touch-none [box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.06)] dark:[box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.3)] ${
-                      isHeader
-                        ? "text-stone-400 dark:text-stone-500"
-                        : isRowHovered
-                          ? "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/40"
-                          : "text-stone-500 dark:text-stone-400"
+        <div ref={gridSurfaceRef} className="relative w-max min-w-full">
+          <table className="border-collapse w-max min-w-full text-[13px]">
+            {/* Column headers row */}
+            <thead>
+              <tr className="sticky top-0 z-10">
+                {/* Top-left corner */}
+                <th className="sticky left-0 z-20 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-[11px] text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border-r border-b border-stone-300 dark:border-stone-600 select-none" />
+                {/* Column letters */}
+                {Array.from({ length: totalCols }, (_, i) => (
+                  <th
+                    key={i}
+                    data-excel-column-index={i}
+                    className={`min-w-[60px] sm:min-w-[80px] h-6 px-0 py-0 text-center text-[11px] font-normal text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none leading-6 ${
+                      hoveredCell?.col === i
+                        ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
+                        : ""
                     }`}
                   >
-                    {isHeader ? "" : rawRowIndex}
-                  </td>
-                  {/* Cells */}
-                  {Array.from({ length: totalCols }, (_, colIndex) => {
-                    const value = getCellValue(rowIndex, colIndex);
-                    const num = isNumeric(value);
-                    const isCellHovered =
-                      hoveredCell &&
-                      !isHeader &&
-                      hoveredCell.row === rawRowIndex - 1 &&
-                      hoveredCell.col === colIndex;
+                    {colLabel(i)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: displayRows }, (_, rawRowIndex) => {
+                const isHeader = rawRowIndex === 0;
+                const rowIndex = isHeader ? -1 : rawRowIndex - 1; // -1 for header in getCellValue
+                const isRowHovered =
+                  hoveredCell &&
+                  !isHeader &&
+                  hoveredCell.row === rawRowIndex - 1;
 
-                    // Header cells use th-style, data cells use td-style
-                    if (isHeader) {
+                return (
+                  <tr key={rawRowIndex}>
+                    {/* Row number */}
+                    <td
+                      data-excel-row-index={rawRowIndex}
+                      className={`sticky left-0 z-10 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-[11px] bg-stone-100 dark:bg-stone-800 border-r border-b border-stone-300 dark:border-stone-600 select-none tabular-nums leading-6 touch-none [box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.06)] dark:[box-shadow:2px_0_4px_-1px_rgba(0,0,0,0.3)] ${
+                        isHeader
+                          ? "text-stone-400 dark:text-stone-500"
+                          : isRowHovered
+                            ? "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/40"
+                            : "text-stone-500 dark:text-stone-400"
+                      }`}
+                    >
+                      {isHeader ? "" : rawRowIndex}
+                    </td>
+                    {/* Cells */}
+                    {Array.from({ length: totalCols }, (_, colIndex) => {
+                      const value = getCellValue(rowIndex, colIndex);
+                      const num = isNumeric(value);
+                      const isCellHovered =
+                        hoveredCell &&
+                        !isHeader &&
+                        hoveredCell.row === rawRowIndex - 1 &&
+                        hoveredCell.col === colIndex;
+
+                      // Header cells use th-style, data cells use td-style
+                      if (isHeader) {
+                        return (
+                          <th
+                            key={colIndex}
+                            onMouseEnter={() => handleCellHover(0, colIndex)}
+                            onMouseLeave={handleCellLeave}
+                            className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-300 dark:border-stone-600 whitespace-nowrap text-left font-semibold text-stone-700 dark:text-stone-300 bg-stone-50 dark:bg-stone-800/60 ${
+                              isCellHovered
+                                ? "!outline outline-2 outline-stone-500 dark:outline-stone-400 outline-offset-[-1px] bg-stone-100/60 dark:bg-stone-800/40 !border-stone-400 dark:!border-stone-500"
+                                : ""
+                            }`}
+                          >
+                            {value || " "}
+                          </th>
+                        );
+                      }
+
                       return (
-                        <th
+                        <td
                           key={colIndex}
-                          onMouseEnter={() => handleCellHover(0, colIndex)}
+                          onMouseEnter={() =>
+                            handleCellHover(rawRowIndex - 1, colIndex)
+                          }
                           onMouseLeave={handleCellLeave}
-                          className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-300 dark:border-stone-600 whitespace-nowrap text-left font-semibold text-stone-700 dark:text-stone-300 bg-stone-50 dark:bg-stone-800/60 ${
+                          className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-200 dark:border-stone-700/80 whitespace-nowrap text-stone-800 dark:text-stone-200 ${
+                            num
+                              ? "text-right tabular-nums font-mono"
+                              : "text-left"
+                          } ${
                             isCellHovered
                               ? "!outline outline-2 outline-stone-500 dark:outline-stone-400 outline-offset-[-1px] bg-stone-100/60 dark:bg-stone-800/40 !border-stone-400 dark:!border-stone-500"
-                              : ""
+                              : isRowHovered
+                                ? "bg-stone-50/70 dark:bg-stone-800/30"
+                                : ""
                           }`}
                         >
                           {value || " "}
-                        </th>
+                        </td>
                       );
-                    }
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
 
-                    return (
-                      <td
-                        key={colIndex}
-                        onMouseEnter={() =>
-                          handleCellHover(rawRowIndex - 1, colIndex)
-                        }
-                        onMouseLeave={handleCellLeave}
-                        className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-200 dark:border-stone-700/80 whitespace-nowrap text-stone-800 dark:text-stone-200 ${
-                          num
-                            ? "text-right tabular-nums font-mono"
-                            : "text-left"
-                        } ${
-                          isCellHovered
-                            ? "!outline outline-2 outline-stone-500 dark:outline-stone-400 outline-offset-[-1px] bg-stone-100/60 dark:bg-stone-800/40 !border-stone-400 dark:!border-stone-500"
-                            : isRowHovered
-                              ? "bg-stone-50/70 dark:bg-stone-800/30"
-                              : ""
-                        }`}
-                      >
-                        {value || " "}
-                      </td>
-                    );
-                  })}
-                </tr>
+          <div
+            className="absolute inset-0 z-[5] pointer-events-none"
+            aria-label="Worksheet images"
+          >
+            {currentSheet?.images.map((image) => {
+              const rect = imageRects.get(image.id);
+              if (!rect) return null;
+              return (
+                <img
+                  key={image.id}
+                  data-excel-embedded-image
+                  src={image.url}
+                  alt={image.description || image.name}
+                  className="absolute max-w-none select-none"
+                  style={{
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height,
+                    objectFit: "fill",
+                    zIndex: image.order,
+                  }}
+                  draggable={false}
+                />
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        </div>
 
         {/* Empty state */}
         {totalRows === 0 && (
@@ -384,7 +520,7 @@ const ExcelPreview = memo(function ExcelPreview({
           )}
           {t("documents.excelRowsAndCols", {
             rows: dataRows.length,
-            cols: totalCols,
+            cols: populatedCols,
           })}
         </span>
         <div className="flex items-center gap-3">
