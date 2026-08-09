@@ -18,34 +18,23 @@ test("PDF preview renders all pages in a continuous scroll surface", () => {
   expect(source).toMatch(/numPages/);
   expect(source).toMatch(/Array\.from\(\{\s*length:\s*numPages\s*\}/);
   expect(source).toMatch(/pageNumber=\{pageNumber \+ 1\}/);
-  expect(source).toMatch(/overflow-auto/);
+  expect(source).toMatch(/DocumentViewerFrame/);
 });
 
-test("PDF preview keeps zoom controls without page navigation controls", () => {
-  expect(source).toMatch(/zoomIn/);
-  expect(source).toMatch(/zoomOut/);
-  expect(source).toMatch(/fitWidth/);
+test("PDF preview uses shared fit-relative zoom controls without page navigation", () => {
+  expect(source).toMatch(/DocumentViewerFrame/);
   expect(source).not.toMatch(/goToPrevPage|goToNextPage/);
   expect(source).not.toMatch(/ChevronLeft|ChevronRight/);
   expect(source).not.toMatch(/previousPage|nextPage/);
+  expect(source).not.toMatch(/Maximize2|Minus|Plus/);
 });
 
-test("PDF preview captures wheel zoom locally instead of letting the page zoom", () => {
-  expect(source).toMatch(/handleWheel/);
-  expect(source).toMatch(/event\.(?:ctrlKey|metaKey)/);
-  expect(source).toMatch(/event\.preventDefault\(\)/);
-  expect(source).toMatch(/onWheel=\{handleWheel\}/);
-});
-
-test("PDF preview supports ImageViewer-style mobile gestures", () => {
-  expect(source).toMatch(/getPinchDistance/);
-  expect(source).toMatch(/handleTouchStart/);
-  expect(source).toMatch(/handleTouchMove/);
-  expect(source).toMatch(/handleTouchEnd/);
-  expect(source).toMatch(/handleDoubleTapZoom/);
-  expect(source).toMatch(/touchAction:\s*"none"/);
-  expect(source).toMatch(/scrollLeft/);
-  expect(source).toMatch(/scrollTop/);
+test("PDF preview leaves wheel, pointer, and touch movement to native scrolling", () => {
+  expect(source).not.toMatch(/handleWheel|onWheel=/);
+  expect(source).not.toMatch(/handleDoubleTapZoom|onDoubleClick=/);
+  expect(source).not.toMatch(/handleTouchStart|handleTouchMove|handleTouchEnd/);
+  expect(source).not.toMatch(/touchAction:\s*"none"/);
+  expect(source).not.toMatch(/event\.preventDefault\(\)/);
 });
 
 test("PDF preview keeps a user-facing fallback when rendering fails", () => {
