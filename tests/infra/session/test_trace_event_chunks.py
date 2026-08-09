@@ -150,6 +150,27 @@ class _FakeSessionTraceCollection(_FakeTraceCollection):
 
     def find(self, query: dict[str, Any], projection: dict[str, Any]):
         self.find_calls.append((query, projection))
+        docs = []
+        for trace in self.traces:
+            if trace.get("session_id") != query.get("session_id"):
+                continue
+            matches = True
+            for key in ("run_id", "status"):
+                if key not in query:
+                    continue
+                selector = query[key]
+                value = trace.get(key)
+                if isinstance(selector, dict) and "$in" in selector:
+                    matches = value in selector["$in"]
+                elif isinstance(selector, dict) and "$ne" in selector:
+                    matches = value != selector["$ne"]
+                else:
+                    matches = value == selector
+                if not matches:
+                    break
+            if matches:
+                docs.append(trace)
+        self.cursor = _SessionTraceCursor(docs)
         return self.cursor
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
@@ -860,12 +881,157 @@ async def test_get_session_events_reads_chunks_across_traces_in_started_order() 
                 "_id": 0,
                 "trace_id": 1,
                 "run_id": 1,
+                "status": 1,
                 "started_at": 1,
+                "events": 1,
                 "recommend_questions": 1,
                 "recommend_questions_updated_at": 1,
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_snapshot_returns_active_user_and_requires_stream_replay() -> None:
+    storage = TraceStorage()
+    trace_collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-old",
+                "session_id": "session-1",
+                "run_id": "run-old",
+                "status": "completed",
+                "started_at": "2026-04-25T00:01:00Z",
+            },
+            {
+                "trace_id": "trace-active",
+                "session_id": "session-1",
+                "run_id": "run-active",
+                "status": "running",
+                "started_at": "2026-04-25T00:02:00Z",
+            },
+        ]
+    )
+    chunk_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "trace-old",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [
+                    _event("user:message", "old-user", 1),
+                    _event("message:chunk", "old-assistant", 2),
+                ],
+            },
+            {
+                "trace_id": "trace-active",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [
+                    _event("user:message", "active-user", 1),
+                    _event("message:chunk", "active-assistant", 2),
+                ],
+            },
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+
+    snapshot = await storage.get_session_events_snapshot(
+        "session-1",
+        active_run_id="run-active",
+    )
+
+    assert snapshot.history_mode == "active_user_only"
+    assert snapshot.stream_run_id == "run-active"
+    assert [(event["run_id"], event["event_type"]) for event in snapshot.events] == [
+        ("run-old", "user:message"),
+        ("run-old", "message:chunk"),
+        ("run-active", "user:message"),
+    ]
+    assert len(trace_collection.find_calls) == 1
+    assert chunk_collection.find_count == 1
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_snapshot_returns_complete_trace_after_terminal_transition() -> (
+    None
+):
+    storage = TraceStorage()
+    storage._collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-active",
+                "session_id": "session-1",
+                "run_id": "run-active",
+                "status": "completed",
+                "started_at": "2026-04-25T00:02:00Z",
+                "events": [
+                    _event("user:message", "active-user", 1),
+                    _event("message:chunk", "active-assistant", 2),
+                    _event("done", "done", 3),
+                ],
+            }
+        ]
+    )
+    storage._chunks_collection = _FakeChunkCollection()
+
+    snapshot = await storage.get_session_events_snapshot(
+        "session-1",
+        active_run_id="run-active",
+    )
+
+    assert snapshot.history_mode == "complete"
+    assert snapshot.stream_run_id is None
+    assert [event["event_type"] for event in snapshot.events] == [
+        "user:message",
+        "message:chunk",
+        "done",
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("kwargs", "expected_selector", "expected_runs"),
+    [
+        ({"run_id": "run-b"}, "run-b", ["run-b"]),
+        ({"run_ids": ["run-a"]}, {"$in": ["run-a"]}, ["run-a"]),
+        ({"exclude_run_id": "run-a"}, {"$ne": "run-a"}, ["run-b"]),
+    ],
+)
+async def test_get_session_events_snapshot_preserves_run_selectors(
+    kwargs: dict[str, Any],
+    expected_selector: Any,
+    expected_runs: list[str],
+) -> None:
+    storage = TraceStorage()
+    trace_collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-a",
+                "session_id": "session-1",
+                "run_id": "run-a",
+                "status": "completed",
+                "started_at": "2026-04-25T00:01:00Z",
+                "events": [_event("message", "a", 1)],
+            },
+            {
+                "trace_id": "trace-b",
+                "session_id": "session-1",
+                "run_id": "run-b",
+                "status": "completed",
+                "started_at": "2026-04-25T00:02:00Z",
+                "events": [_event("message", "b", 1)],
+            },
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = _FakeChunkCollection()
+
+    snapshot = await storage.get_session_events_snapshot("session-1", **kwargs)
+
+    assert [event["run_id"] for event in snapshot.events] == expected_runs
+    assert trace_collection.find_calls[0][0]["run_id"] == expected_selector
 
 
 @pytest.mark.asyncio
@@ -898,24 +1064,26 @@ async def test_get_session_events_applies_explicit_limit_across_chunks() -> None
 
 
 @pytest.mark.asyncio
-async def test_get_session_events_passes_remaining_limit_to_trace_reads() -> None:
+async def test_get_session_events_uses_one_batch_read_and_applies_limit() -> None:
     class _TraceStorage(TraceStorage):
         def __init__(self) -> None:
             super().__init__()
-            self.read_limits: list[int | None] = []
+            self.batch_reads: list[list[str]] = []
 
-        async def read_trace_events_compat(
+        async def read_trace_events_batch_compat(
             self,
-            trace_id: str,
+            trace_docs: list[dict[str, Any]],
             event_types: list[str] | None = None,
-            max_events: int | None = None,
-        ) -> list[dict[str, Any]]:
-            del trace_id, event_types
-            self.read_limits.append(max_events)
-            return [
-                _event("message", "a", 1),
-                _event("message", "b", 2),
-            ]
+        ) -> dict[str, list[dict[str, Any]]]:
+            del event_types
+            trace_ids = [str(trace["trace_id"]) for trace in trace_docs]
+            self.batch_reads.append(trace_ids)
+            return {
+                "trace-1": [
+                    _event("message", "a", 1),
+                    _event("message", "b", 2),
+                ]
+            }
 
     storage = _TraceStorage()
     storage._collection = _FakeSessionTraceCollection(
@@ -933,5 +1101,5 @@ async def test_get_session_events_passes_remaining_limit_to_trace_reads() -> Non
 
     events = await storage.get_session_events("session-1", max_events=1)
 
-    assert storage.read_limits == [1]
+    assert storage.batch_reads == [["trace-1"]]
     assert [event["data"]["content"] for event in events] == ["a"]
