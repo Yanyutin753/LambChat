@@ -68,8 +68,12 @@ test("toolbar icon button centralizes shared panel toolbar button behavior", () 
   expect(toolbarIconButton).toMatch(
     /flex shrink-0 items-center justify-center/,
   );
-  expect(toolbarIconButton).toMatch(/size-8 rounded-lg/);
-  expect(toolbarIconButton).toMatch(/size-8 rounded-xl/);
+  expect(toolbarIconButton).toMatch(
+    /min-h-\[44px\].*min-w-\[44px\].*sm:size-8/,
+  );
+  expect(toolbarIconButton).toMatch(/focus-visible:ring-2/);
+  expect(toolbarIconButton).toMatch(/rounded-lg/);
+  expect(toolbarIconButton).toMatch(/rounded-xl/);
 
   expect(documentToolbar).toMatch(/import \{[\s\S]*ToolbarIconButton/);
   expect(toolResultPanel).toMatch(/import \{[\s\S]*ToolbarIconButton/);

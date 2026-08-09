@@ -78,3 +78,30 @@ test("the app reserves space for one active docked right-panel lane", () => {
     /data-sidebar-preview="open"\]\[data-editor-sidebar="open"/,
   );
 });
+
+test("small-screen right panels fill the viewport instead of acting like sheets", () => {
+  const mobileRule = cssRule(".editor-sidebar--mobile");
+
+  expect(mobileRule).toMatch(/top:\s*var\(--app-safe-area-top-active/);
+  expect(mobileRule).toMatch(/height:\s*auto/);
+  expect(mobileRule).toMatch(/max-height:\s*none/);
+  expect(mobileRule).toMatch(/border-radius:\s*0/);
+  expect(componentsSource).toMatch(
+    /\[data-right-panel-root\]\[data-panel-presentation="fullscreen"\][\s\S]*?inset:\s*0/,
+  );
+});
+
+test("right panel resizing exposes visible hover and keyboard focus states", () => {
+  expect(componentsSource).toMatch(
+    /:where\(\.right-panel-resize-handle, \.tool-console-resize-handle\):focus-visible[\s\S]*?outline:/,
+  );
+});
+
+test("right panel motion respects reduced-motion preferences", () => {
+  expect(componentsSource).toMatch(
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.editor-sidebar[\s\S]*?animation:\s*none/,
+  );
+  expect(componentsSource).toMatch(
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.tool-console-body__content[\s\S]*?transition-duration:\s*0\.01ms/,
+  );
+});

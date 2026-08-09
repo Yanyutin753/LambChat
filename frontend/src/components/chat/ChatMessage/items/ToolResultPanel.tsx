@@ -506,7 +506,7 @@ export function ToolResultPanel({
 
               {/* Center / Fullscreen / Close */}
               {!hideViewToggle && (
-                <div className="tool-console-actions flex items-center gap-px sm:gap-1 shrink-0">
+                <div className="tool-console-actions flex items-center gap-2 sm:gap-1 shrink-0">
                   <ToolbarIconButton
                     variant="muted"
                     onClick={() => {
@@ -551,7 +551,7 @@ export function ToolResultPanel({
                 </div>
               )}
               {hideViewToggle && (
-                <div className="tool-console-actions flex items-center gap-px sm:gap-1 shrink-0">
+                <div className="tool-console-actions flex items-center gap-2 sm:gap-1 shrink-0">
                   <ToolbarIconButton
                     variant="muted"
                     onClick={() => {
