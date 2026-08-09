@@ -224,7 +224,12 @@ export async function extractExcelEmbeddedImages(
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
   if (!OOXML_EXTENSIONS.has(extension)) return new Map();
 
-  const zip = await JSZip.loadAsync(arrayBuffer);
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(arrayBuffer);
+  } catch {
+    return new Map();
+  }
   const workbookPath = "xl/workbook.xml";
   const workbook = await readXml(zip, workbookPath);
   const workbookRelationships = await readXml(

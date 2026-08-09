@@ -65,3 +65,73 @@ test("normalizes a two-cell picture anchor", async () => {
   });
   expect(picture?.extent).toBeUndefined();
 });
+
+test("bypasses drawing extraction for legacy XLS before reading the package", async () => {
+  const result = await extractExcelEmbeddedImages(
+    new Uint8Array([1, 2, 3]).buffer,
+    "legacy.xls",
+  );
+
+  expect(result.size).toBe(0);
+});
+
+test("treats a non-ZIP OOXML input as cell-only preview data", async () => {
+  const result = await extractExcelEmbeddedImages(
+    new TextEncoder().encode("not a ZIP package").buffer,
+    "renamed.xlsx",
+  );
+
+  expect(result.size).toBe(0);
+});
+
+test.each([
+  {
+    name: "external target",
+    target: "https://example.com/image.png",
+    mode: "External" as const,
+    mediaPath: "xl/media/image1.png",
+  },
+  {
+    name: "path escaping package root",
+    target: "../../../outside.png",
+    mode: undefined,
+    mediaPath: "outside.png",
+  },
+  {
+    name: "missing package entry",
+    target: "../media/missing.png",
+    mode: undefined,
+    mediaPath: "xl/media/different.png",
+  },
+  {
+    name: "unsupported WMF",
+    target: "../media/image1.wmf",
+    mode: undefined,
+    mediaPath: "xl/media/image1.wmf",
+  },
+])(
+  "ignores $name without failing worksheet extraction",
+  async ({ target, mode, mediaPath }) => {
+    const buffer = await buildExcelImageWorkbook({
+      relationshipTarget: target,
+      targetMode: mode,
+      mediaPath,
+    });
+
+    const result = await extractExcelEmbeddedImages(buffer, "report.xlsx");
+
+    expect(result.size).toBe(0);
+  },
+);
+
+test("keeps valid pictures when a sibling anchor is malformed", async () => {
+  const buffer = await buildExcelImageWorkbook({
+    includeMalformedSibling: true,
+  });
+
+  const result = await extractExcelEmbeddedImages(buffer, "report.xlsx");
+
+  expect(result.get("Summary")?.map((picture) => picture.name)).toEqual([
+    "Fixture picture",
+  ]);
+});
