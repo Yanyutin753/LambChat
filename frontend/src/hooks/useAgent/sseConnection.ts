@@ -23,6 +23,7 @@ import type { Message, ConnectionStatus } from "../../types";
  */
 export interface SSEConnectionContext extends EventHandlerContext {
   abortControllerRef: React.MutableRefObject<AbortController | null>;
+  sseGenerationRef: React.MutableRefObject<number>;
   isConnectingRef: React.MutableRefObject<boolean>;
   streamingMessageIdRef: React.MutableRefObject<string | null>;
   reconnectTimeoutRef: React.MutableRefObject<ReturnType<
@@ -102,28 +103,37 @@ export async function connectToSSE(
   messageId: string,
   ctx: SSEConnectionContext,
   hasRetried = false,
+  connectionGeneration?: number,
 ): Promise<void> {
   const {
     abortControllerRef,
+    sseGenerationRef,
     isConnectingRef,
     streamingMessageIdRef,
     setConnectionStatus,
     retryCountRef,
   } = ctx;
 
-  if (isConnectingRef.current) {
+  if (connectionGeneration == null && isConnectingRef.current) {
     console.log("[SSE] Connection already in progress, skipping...");
     return;
   }
+  const generation = connectionGeneration ?? sseGenerationRef.current + 1;
+  if (connectionGeneration == null) {
+    sseGenerationRef.current = generation;
+  }
+  const isCurrentConnection = () => sseGenerationRef.current === generation;
+  if (!isCurrentConnection()) return;
+
   isConnectingRef.current = true;
   streamingMessageIdRef.current = messageId;
 
-  if (abortControllerRef.current) {
-    abortControllerRef.current.abort();
-  }
-  abortControllerRef.current = new AbortController();
+  abortControllerRef.current?.abort();
+  const connectionAbortController = new AbortController();
+  abortControllerRef.current = connectionAbortController;
 
   const token = await getValidAccessToken();
+  if (!isCurrentConnection()) return;
   const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -145,9 +155,10 @@ export async function connectToSSE(
       ),
       {
         headers,
-        signal: abortControllerRef.current.signal,
+        signal: connectionAbortController.signal,
         openWhenHidden: true,
         onopen: async (response) => {
+          if (!isCurrentConnection()) return;
           if (response.status === 401) {
             if (hasRetried) {
               // refreshAccessToken() in the first attempt already handled redirect
@@ -162,7 +173,8 @@ export async function connectToSSE(
             } catch {
               throw new Error("SSE unauthorized: token refresh failed");
             }
-            abortControllerRef.current?.abort();
+            if (!isCurrentConnection()) return;
+            connectionAbortController.abort();
             isConnectingRef.current = false;
             await connectToSSE(
               targetSessionId,
@@ -170,6 +182,7 @@ export async function connectToSSE(
               messageId,
               ctx,
               true,
+              generation,
             );
             return;
           }
@@ -181,6 +194,7 @@ export async function connectToSSE(
           retryCountRef.current = 0;
         },
         onmessage: (event) => {
+          if (!isCurrentConnection()) return;
           if (event.event === "ping") return;
           const eventId = event.id || uuid();
           let parsedData: Record<string, unknown>;
@@ -208,10 +222,12 @@ export async function connectToSSE(
           handleStreamEvent(streamEvent, messageId, eventId, timestamp, ctx);
         },
         onerror: (err) => {
+          if (!isCurrentConnection()) return;
           console.error("[SSE] Connection error:", err);
           setConnectionStatus("reconnecting");
         },
         onclose: () => {
+          if (!isCurrentConnection()) return;
           console.log("[SSE] Connection closed");
           const closeAction = getSSECloseAction({ receivedTerminalEvent });
           if (closeAction === "retry") {
@@ -236,6 +252,7 @@ export async function connectToSSE(
       },
     );
   } catch (err) {
+    if (!isCurrentConnection()) return;
     if (err instanceof Error && err.name === "AbortError") {
       console.log("[SSE] Connection aborted");
       return;
@@ -243,7 +260,9 @@ export async function connectToSSE(
     console.error("[SSE] Connection error:", err);
     setConnectionStatus("disconnected");
   } finally {
-    isConnectingRef.current = false;
+    if (isCurrentConnection()) {
+      isConnectingRef.current = false;
+    }
   }
 }
 
