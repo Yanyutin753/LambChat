@@ -6,6 +6,7 @@ the heavier event-specific work to focused helper modules.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 from io import StringIO
 from typing import Any
 
@@ -63,6 +64,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_token_usage_emitted",
         "_output_buffer_chars",
         "_presenter_emit",
+        "_before_tool_start",
         "_base_url",
         "_chunk_buffer",
         "_summary_chunk_buffer",
@@ -83,6 +85,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         base_url: str = "",
         subagent_display_names: dict[str, str] | None = None,
         subagent_avatars: dict[str, str] | None = None,
+        before_tool_start: Callable[[str, dict[str, Any]], Awaitable[None]] | None = None,
     ):
         self.presenter = presenter
         self.checkpoint_to_agent: dict[str, tuple[str, str]] = {}
@@ -101,6 +104,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self.total_cache_read_tokens = 0
         self._token_usage_emitted = False
         self._presenter_emit = presenter.emit
+        self._before_tool_start = before_tool_start
         self._chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
         self._summary_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
         self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)

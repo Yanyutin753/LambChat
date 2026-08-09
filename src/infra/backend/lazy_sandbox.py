@@ -30,6 +30,17 @@ from src.infra.logging import get_logger
 from src.kernel.config import settings
 
 PUBLIC_SANDBOX_ROOT = "/workspace"
+_ROUTED_STORAGE_ROOTS = ("/skills", "/memories")
+_SANDBOX_TOOL_PATH_ARGS = {
+    "ls": "path",
+    "read_file": "file_path",
+    "write_file": "file_path",
+    "edit_file": "file_path",
+    "delete": "file_path",
+    "glob": "path",
+    "grep": "path",
+}
+_ALWAYS_SANDBOX_TOOLS = frozenset(("execute", "upload_url_to_sandbox"))
 logger = get_logger(__name__)
 
 
@@ -111,6 +122,40 @@ class LazySandboxBackend(BaseSandbox):
         if self._delegate is None:
             raise RuntimeError("Lazy sandbox is not initialized; use async operations first")
         return self._delegate
+
+    @staticmethod
+    def _is_routed_storage_path(path: object) -> bool:
+        if not isinstance(path, str):
+            return False
+        return any(path == root or path.startswith(f"{root}/") for root in _ROUTED_STORAGE_ROOTS)
+
+    def _tool_uses_default_sandbox(
+        self,
+        tool_name: str,
+        tool_input: dict[str, object],
+    ) -> bool:
+        if tool_name in _ALWAYS_SANDBOX_TOOLS:
+            return True
+        path_arg = _SANDBOX_TOOL_PATH_ARGS.get(tool_name)
+        if path_arg is None:
+            return False
+        return not self._is_routed_storage_path(tool_input.get(path_arg))
+
+    async def before_tool_start(
+        self,
+        tool_name: str,
+        tool_input: dict[str, object],
+    ) -> None:
+        """Publish lazy sandbox lifecycle events before its first public tool event."""
+        if not self._tool_uses_default_sandbox(tool_name, tool_input):
+            return
+        try:
+            await self._ensure_ready()
+        except SandboxInitializationError:
+            # The initialization task has already attempted sandbox:error. The
+            # concurrently executing tool will surface the same failure in its
+            # normal tool:result event.
+            return
 
     def _with_workspace_env(self, command: str) -> str:
         actual_work_dir = shlex.quote(self._require_actual_work_dir())

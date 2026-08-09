@@ -632,6 +632,63 @@ async def test_search_stream_first_write_initializes_after_pre_tool_content_once
 
 
 @pytest.mark.asyncio
+async def test_search_stream_waits_for_sandbox_ready_before_first_tool_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timeline: list[str] = []
+    manager = _GatedRecordingManager(_RecordingSandbox())
+    model = _ScriptedChatModel(mode="write-file")
+    model.reset()
+    _patch_graph_dependencies(
+        monkeypatch,
+        model=model,
+        manager_factory=lambda: manager,
+        timeline=timeline,
+    )
+    presenter = _TimelinePresenter(timeline)
+    agent = SearchAgent()
+
+    async def run_agent() -> None:
+        async for event in agent._stream(
+            "write a file",
+            "session-1",
+            user_id="user-1",
+            presenter=presenter,
+            agent_options={
+                "_resolved_fallback_model": None,
+                "_resolved_supports_vision": False,
+                "_resolved_image_url_to_base64": False,
+            },
+        ):
+            timeline.append(f"yield:{event['event']}")
+
+    run_task = asyncio.create_task(run_agent())
+    await asyncio.wait_for(manager.entered.wait(), timeout=1)
+
+    try:
+        for _ in range(100):
+            if "tool:start" in timeline:
+                break
+            await asyncio.sleep(0)
+        assert "tool:start" not in timeline
+    finally:
+        manager.release.set()
+        await run_task
+
+    ordered_events = [
+        item
+        for item in timeline
+        if item in {"sandbox:starting", "sandbox:ready", "tool:start", "tool:result"}
+    ]
+    assert ordered_events == [
+        "sandbox:starting",
+        "sandbox:ready",
+        "tool:start",
+        "tool:result",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_search_stream_model_exception_closes_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

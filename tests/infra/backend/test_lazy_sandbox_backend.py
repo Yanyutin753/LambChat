@@ -412,6 +412,41 @@ def test_construction_does_not_obtain_manager_and_exposes_public_workspace() -> 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("file_path", ["/skills/demo/SKILL.md", "/memories", "/memories/note.md"])
+async def test_before_tool_start_keeps_routed_file_tools_sandbox_free(
+    file_path: str,
+) -> None:
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    manager = _Manager(provider)
+    presenter = _Presenter()
+    backend = _lazy(manager, presenter=presenter)
+
+    await backend.before_tool_start("write_file", {"file_path": file_path})
+
+    assert manager.calls == []
+    assert presenter.attempts == []
+
+
+@pytest.mark.asyncio
+async def test_before_tool_start_waits_for_public_initialization_error() -> None:
+    provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
+    manager = _Manager(provider, failure=RuntimeError("provider unavailable"))
+    presenter = _Presenter()
+    backend = _lazy(manager, presenter=presenter)
+
+    await backend.before_tool_start(
+        "write_file",
+        {"file_path": "/workspace/session-1/report.txt", "content": "report"},
+    )
+
+    assert manager.calls == [("session-1", "user-1")]
+    assert presenter.attempts == [
+        ("starting",),
+        ("error", SandboxInitializationError.PUBLIC_MESSAGE),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_first_file_operation_maps_public_workspace_and_result() -> None:
     provider = _RecordingSandbox(work_dir="/remote/home/sessions/session-1")
     manager = _Manager(provider)

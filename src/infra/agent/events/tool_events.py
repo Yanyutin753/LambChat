@@ -51,6 +51,7 @@ def _parse_tool_result_json(raw: str) -> Any | None:
 
 class ToolEventMixin:
     _presenter_emit: Any
+    _before_tool_start: Any
     presenter: Any
     _base_url: str
     _started_tool_call_ids: set[str]
@@ -116,6 +117,9 @@ class ToolEventMixin:
                     },
                 ],
             }
+
+        if self._before_tool_start is not None:
+            await self._before_tool_start(tool_name, inp)
 
         self._started_tool_call_ids.add(tool_call_id)
         await self._presenter_emit(

@@ -383,7 +383,13 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
     logger.info("[SearchAgent] Creating AgentEventProcessor")
-    event_processor = AgentEventProcessor(presenter, base_url=configurable.get("base_url", ""))
+    event_processor = AgentEventProcessor(
+        presenter,
+        base_url=configurable.get("base_url", ""),
+        before_tool_start=(
+            sandbox_backend.before_tool_start if sandbox_backend is not None else None
+        ),
+    )
 
     logger.info("[SearchAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
