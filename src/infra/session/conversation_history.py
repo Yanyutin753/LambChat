@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import json
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Any, Literal
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.logging import get_logger
 from src.infra.session.conversation_history_index import (
     CONVERSATION_SEARCH_INDEX_VERSION,
     build_conversation_search_payload,
@@ -29,6 +31,9 @@ SESSION_LOOKUP_BATCH_SIZE = 100
 BACKFILL_BATCH_MAX = 100
 BACKFILL_SKIP_RECENT_SECONDS = 120
 
+logger = get_logger(__name__)
+_conversation_index_tasks: set[asyncio.Task[bool]] = set()
+
 
 class ConversationHistoryError(Exception):
     """Base class for stable conversation-history tool error categories."""
@@ -40,6 +45,35 @@ class ConversationHistoryInvalidArgumentError(ConversationHistoryError):
 
 class ConversationHistoryNotFoundError(ConversationHistoryError):
     """Raised for missing and unauthorized resources alike."""
+
+
+def _conversation_index_task_done(task: asyncio.Task[bool]) -> None:
+    _conversation_index_tasks.discard(task)
+    if task.cancelled():
+        return
+    try:
+        error = task.exception()
+    except asyncio.CancelledError:
+        return
+    if error is not None:
+        logger.warning(
+            "Conversation trace indexing failed: error_type=%s",
+            type(error).__name__,
+        )
+
+
+def schedule_conversation_trace_index(trace_storage: Any, trace_id: str) -> None:
+    """Schedule best-effort trace indexing without delaying terminal delivery."""
+    if not trace_id:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    service = ConversationHistoryService(trace_storage=trace_storage)
+    task = loop.create_task(service.index_trace(trace_id))
+    _conversation_index_tasks.add(task)
+    task.add_done_callback(_conversation_index_task_done)
 
 
 def _bounded_limit(value: int | None) -> int:

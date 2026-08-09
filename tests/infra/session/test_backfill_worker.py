@@ -4,7 +4,10 @@ import asyncio
 
 import pytest
 
-from src.infra.session.backfill import SessionSearchBackfillWorker
+from src.infra.session.backfill import (
+    ConversationHistoryBackfillWorker,
+    SessionSearchBackfillWorker,
+)
 
 
 class _FakeRedis:
@@ -47,6 +50,16 @@ class _SlowStorage:
         self.calls += 1
         await asyncio.sleep(0.03)
         return 1 if self.calls == 1 else 0
+
+
+class _FakeHistoryService:
+    def __init__(self, batches: list[int]) -> None:
+        self._batches = list(batches)
+        self.calls: list[int] = []
+
+    async def backfill_indexes(self, batch_size: int = 100) -> int:
+        self.calls.append(batch_size)
+        return self._batches.pop(0) if self._batches else 0
 
 
 @pytest.mark.asyncio
@@ -109,3 +122,21 @@ async def test_backfill_worker_renews_lock_while_batch_is_running() -> None:
     assert storage.calls == 1
     assert len(redis_client.set_calls) >= 1
     assert len(redis_client.eval_calls) >= 2
+
+
+@pytest.mark.asyncio
+async def test_conversation_backfill_uses_distinct_lock_and_runs_batches() -> None:
+    redis_client = _FakeRedis(acquire=True)
+    service = _FakeHistoryService([3, 1, 0])
+    worker = ConversationHistoryBackfillWorker(
+        service=service,
+        redis_client=redis_client,
+        batch_size=5,
+        batch_delay_seconds=0,
+    )
+
+    rebuilt = await worker.run_until_complete()
+
+    assert rebuilt == 4
+    assert service.calls == [5, 5, 5]
+    assert redis_client.set_calls[0][0][0] == "conversation:search_backfill:lock"

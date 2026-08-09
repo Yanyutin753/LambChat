@@ -555,20 +555,27 @@ async def lifespan(app: FastAPI):
     app.state.legacy_encryption_migration_task = asyncio.create_task(_migrate_legacy_encryption())
 
     # 初始化 SessionStorage 搜索索引，并异步回填历史会话
-    from src.infra.session.backfill import SessionSearchBackfillWorker
+    from src.infra.session.backfill import (
+        ConversationHistoryBackfillWorker,
+        SessionSearchBackfillWorker,
+    )
 
     async def _backfill_session_search():
         worker = SessionSearchBackfillWorker()
+        conversation_worker = ConversationHistoryBackfillWorker()
         try:
             delay = getattr(settings, "SESSION_SEARCH_BACKFILL_STARTUP_DELAY_SECONDS", 30.0)
             if delay > 0:
                 await asyncio.sleep(delay)
             rebuilt = await worker.run_until_complete()
             logger.info("Session search backfill finished, rebuilt %s sessions", rebuilt)
+            indexed = await conversation_worker.run_until_complete()
+            logger.info("Conversation search backfill finished, indexed %s traces", indexed)
         except Exception as e:
             logger.warning("Session search backfill failed: %s", e)
         finally:
             await worker.close()
+            await conversation_worker.close()
             await memory_monitor.reset_baseline()
             logger.info("Memory monitor baseline reset after session search backfill")
 

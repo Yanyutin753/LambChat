@@ -13,6 +13,7 @@ from src.infra.storage.redis import create_redis_client
 logger = get_logger(__name__)
 
 BACKFILL_LOCK_KEY = "session:search_backfill:lock"
+CONVERSATION_BACKFILL_LOCK_KEY = "conversation:search_backfill:lock"
 BACKFILL_LOCK_TTL_SECONDS = 30
 BACKFILL_BATCH_SIZE = 20
 BACKFILL_BATCH_DELAY_SECONDS = 0.25
@@ -54,6 +55,7 @@ class SessionSearchBackfillWorker:
         self._batch_delay_seconds = batch_delay_seconds
         self._lock_ttl_seconds = lock_ttl_seconds
         self._renew_interval_seconds = renew_interval_seconds
+        self._lock_key = BACKFILL_LOCK_KEY
         self._lock_value: str | None = None
         self._instance_id = str(uuid.uuid4())
         self._renew_task: asyncio.Task[None] | None = None
@@ -66,7 +68,7 @@ class SessionSearchBackfillWorker:
 
         self._start_lock_renewal()
         try:
-            return await self._storage.backfill_search_indexes(batch_size=self._batch_size)
+            return await self._run_batch()
         finally:
             await self._stop_lock_renewal()
             await self._release_lock()
@@ -91,12 +93,15 @@ class SessionSearchBackfillWorker:
             except Exception:
                 return
 
+    async def _run_batch(self) -> int:
+        return await self._storage.backfill_search_indexes(batch_size=self._batch_size)
+
     async def _acquire_lock(self) -> bool:
         redis_client = self._get_redis()
         try:
             self._lock_value = self._instance_id
             acquired = await redis_client.set(
-                BACKFILL_LOCK_KEY,
+                self._lock_key,
                 self._lock_value,
                 nx=True,
                 ex=self._lock_ttl_seconds,
@@ -140,7 +145,7 @@ class SessionSearchBackfillWorker:
             renewed = await redis_client.eval(
                 _RENEW_LOCK_LUA,
                 1,
-                BACKFILL_LOCK_KEY,
+                self._lock_key,
                 lock_value,
                 self._lock_ttl_seconds,
             )  # type: ignore[misc]
@@ -156,7 +161,7 @@ class SessionSearchBackfillWorker:
         if redis_client is None or not lock_value:
             return
         try:
-            await redis_client.eval(_RELEASE_LOCK_LUA, 1, BACKFILL_LOCK_KEY, lock_value)  # type: ignore[misc]
+            await redis_client.eval(_RELEASE_LOCK_LUA, 1, self._lock_key, lock_value)  # type: ignore[misc]
         except Exception as exc:
             logger.warning("Failed to release session backfill lock: %s", exc)
 
@@ -164,3 +169,17 @@ class SessionSearchBackfillWorker:
         if self._redis is None:
             self._redis = create_redis_client(isolated_pool=True)
         return self._redis
+
+
+class ConversationHistoryBackfillWorker(SessionSearchBackfillWorker):
+    """Backfill versioned per-run conversation search projections."""
+
+    def __init__(self, *, service: Any | None = None, **kwargs: Any) -> None:
+        from src.infra.session.conversation_history import ConversationHistoryService
+
+        self._service = service or ConversationHistoryService()
+        super().__init__(**kwargs)
+        self._lock_key = CONVERSATION_BACKFILL_LOCK_KEY
+
+    async def _run_batch(self) -> int:
+        return await self._service.backfill_indexes(batch_size=self._batch_size)

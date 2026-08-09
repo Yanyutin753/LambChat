@@ -312,6 +312,12 @@ class TraceStorageWriteMixin:
                 asyncio.create_task(_write_usage_log(trace_id))
             if result.modified_count > 0 and self._merger is not None:
                 self._merger.schedule_merge_once()
+            if result.modified_count > 0:
+                from src.infra.session.conversation_history import (
+                    schedule_conversation_trace_index,
+                )
+
+                schedule_conversation_trace_index(self, trace_id)
             return result.modified_count > 0
         except Exception as e:
             logger.error(f"Failed to complete trace {trace_id}: {e}")
