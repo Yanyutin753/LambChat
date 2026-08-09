@@ -38,7 +38,6 @@ from src.agents.core.subagent_prompts import (
     get_memory_guide,
 )
 from src.agents.core.thinking import build_thinking_config
-from src.agents.core.todo_middleware import create_todo_middleware
 from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT,
@@ -215,7 +214,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     def _build_subagent_middleware(subagent_type: str) -> list:
         mw = [
-            create_todo_middleware(),
             *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
             ToolResultBinaryMiddleware(base_url=search_base_url),
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
@@ -332,7 +330,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
-    user_middleware.append(create_todo_middleware())
 
     # KV cache: tag final system block + last tool AFTER all dynamic injection
     user_middleware.append(PromptCachingMiddleware())

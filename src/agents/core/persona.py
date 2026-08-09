@@ -6,11 +6,7 @@
 
 最终 system message 结构：
   [Block 0] SANDBOX/DEFAULT/FAST_SYSTEM_PROMPT + BEHAVIOR_GUIDE      ← 全局稳定
-  [Block 1-3] deepagents 内部 (write_todos, conventions, task)        ← 全局稳定
-  [Block 4]   ## Persona (角色 + 行为合并)                             ← 同 persona 缓存命中
-  [Block 5]   Skills                                                  ← 同 session 缓存命中
-  [Block 6]   Memory guide                                            ← 同用户缓存命中
-  [Block 7+]  Memory index / Tool search                              ← 每 turn 变化
+  [Block 1+] Persona / Skills / Memory / dynamic middleware sections
 """
 
 import importlib

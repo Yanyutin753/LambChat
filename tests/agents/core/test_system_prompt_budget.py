@@ -5,7 +5,6 @@ from src.agents.core.prompt_policy import (
     SUBAGENT_DISPATCH_POLICY,
     WORKFLOW_POLICY,
 )
-from src.agents.core.todo_middleware import create_todo_middleware
 from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
 from src.infra.skill.loader import format_skills_prompt
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE
@@ -26,7 +25,6 @@ def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
         format_skills_prompt(skills),
         NATIVE_MEMORY_GUIDE,
         DEFERRED_TOOL_SEARCH_GUIDE,
-        create_todo_middleware().system_prompt,
     )
 
     # Pre-change owned sample: 8,274. Required saving: 2,232 characters.

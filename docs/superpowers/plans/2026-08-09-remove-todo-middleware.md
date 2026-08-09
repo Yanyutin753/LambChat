@@ -21,6 +21,7 @@
 
 **Files:**
 - Modify: `tests/agents/test_todo_middleware_registration.py`
+- Modify: `tests/agents/core/test_system_prompt_budget.py`
 - Modify: `src/agents/fast_agent/nodes.py`
 - Modify: `src/agents/search_agent/nodes.py`
 - Modify: `src/agents/team_agent/nodes.py`
@@ -90,6 +91,8 @@ from every main-agent stack. Do not move or otherwise edit adjacent middleware.
 
 Delete `src/agents/core/todo_middleware.py` because it has no remaining callers.
 
+In `tests/agents/core/test_system_prompt_budget.py`, delete the `create_todo_middleware` import and remove `create_todo_middleware().system_prompt` from `blocks`.
+
 In `src/agents/core/persona.py`, replace the stale block map with:
 
 ```python
@@ -114,6 +117,7 @@ Run:
 
 ```bash
 uv run pytest \
+  tests/agents/core/test_system_prompt_budget.py \
   tests/agents/test_disabled_skills_config_propagation.py \
   tests/agents/test_team_agent_sandbox_support.py \
   tests/agents/test_todo_middleware_registration.py -q
@@ -132,12 +136,12 @@ Expected: all selected tests pass and Ruff reports no errors.
 Run:
 
 ```bash
-rg -n "write_todos|TodoListMiddleware|create_todo_middleware|todo_middleware" src tests
+rg -n "TodoListMiddleware|create_todo_middleware|todo_middleware" src/agents tests/agents
 git diff --check
 git status --short
 ```
 
-Expected: no matches in `src` or `tests`; no whitespace errors; only intended backend/test changes plus the user's pre-existing unrelated files appear in status.
+Expected: matches only in the negative registration test itself; no production Agent registrations, no whitespace errors, and only intended backend/test changes plus the user's pre-existing unrelated files appear in status. Historical `write_todos` event rendering remains outside the Agent registration scope.
 
 - [ ] **Step 7: Commit the implementation**
 
@@ -148,6 +152,7 @@ git add \
   src/agents/fast_agent/nodes.py \
   src/agents/search_agent/nodes.py \
   src/agents/team_agent/nodes.py \
+  tests/agents/core/test_system_prompt_budget.py \
   tests/agents/test_todo_middleware_registration.py
 git commit -m "refactor: remove todo middleware"
 ```

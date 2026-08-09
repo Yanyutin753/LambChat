@@ -9,9 +9,12 @@ Remove `TodoListMiddleware` from every user-facing LambChat agent so neither mai
 - Remove `create_todo_middleware()` from the fast, search, and team agent middleware stacks.
 - Remove the shared `src/agents/core/todo_middleware.py` helper once it has no callers.
 - Remove stale prompt-architecture comments that claim `write_todos` is part of the DeepAgents stack.
+- Remove the deleted helper from the owned system-prompt budget sample.
 - Replace the existing positive registration regression with a negative regression covering all three agent implementations and both main/subagent stacks.
 
 The memory-compaction agent and goal rubric agent are unchanged because they do not register the todo middleware today. No feature flag or compatibility shim will remain.
+
+The event presenter retains its defensive handling for historical `write_todos` events. That compatibility path does not register the tool or add todo state, and keeps old persisted event streams renderable.
 
 ## Behavior
 
