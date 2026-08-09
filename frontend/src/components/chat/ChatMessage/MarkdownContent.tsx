@@ -1,6 +1,5 @@
 import ReactMarkdown from "react-markdown";
 import toast from "react-hot-toast";
-import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -12,6 +11,7 @@ import { getFullUrl } from "../../../services/api/config";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { DeferredCodeMirrorViewer } from "../../common/DeferredCodeMirrorViewer";
 import { ImageViewer } from "../../common";
+import { cjkGfmRemarkPlugins } from "../../common/markdownRemarkPlugins";
 import { createHeadingAnchorId } from "../../layout/AppContent/messageOutline";
 import { getFileLinkInfo } from "../../documents/utils";
 import { setActiveRevealPreviewState } from "./items/activeRevealPreviewStore";
@@ -326,7 +326,7 @@ export const MarkdownContent = memo(function MarkdownContent({
       aria-busy={isStreaming || undefined}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+        remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
           // Headings with anchor links

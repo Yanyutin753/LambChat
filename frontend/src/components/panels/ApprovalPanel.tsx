@@ -15,12 +15,12 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import type { PendingApproval, FormField } from "../../types";
 import { ScheduledTaskApprovalContent } from "./ScheduledTaskApprovalContent";
 import { Checkbox } from "../common/Checkbox";
 import { Input, Select, Textarea } from "../common";
+import { cjkGfmRemarkPlugins } from "../common/markdownRemarkPlugins";
 import { authFetch } from "../../services/api/fetch";
 import { buildApiUrl } from "../../services/api/config";
 import { parseDate } from "../../utils/datetime";
@@ -545,7 +545,9 @@ export function ApprovalPanel({
                   }
                 />
               ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                <ReactMarkdown
+                  remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks]}
+                >
                   {currentApproval.message}
                 </ReactMarkdown>
               )}
