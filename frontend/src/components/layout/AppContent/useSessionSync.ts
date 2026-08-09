@@ -257,7 +257,9 @@ export function useSessionSync({
 
     if (isLoadingRef.current || sessionId === urlSessionId) {
       if (isNewSessionRef.current) isNewSessionRef.current = false;
-      if (isInternalNavRef.current) isInternalNavRef.current = false;
+      if (isInternalNavRef.current && sessionId === urlSessionId) {
+        isInternalNavRef.current = false;
+      }
       return;
     }
 
@@ -267,7 +269,6 @@ export function useSessionSync({
     }
 
     if (isInternalNavRef.current) {
-      isInternalNavRef.current = false;
       return;
     }
 
@@ -300,7 +301,7 @@ export function useSessionSync({
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
   useEffect(() => {
-    if (isSyncingRef.current) return;
+    if (isSyncingRef.current || isInternalNavRef.current) return;
 
     const action = getSessionRouteSyncAction({
       activeTab,

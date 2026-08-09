@@ -223,44 +223,6 @@ async function extractI18nKeys() {
     0,
   );
 
-  // Add new keys to en.json
-  for (const key of newEnKeys) {
-    setNestedValue(translations.en, key, key);
-    console.log(`➕ Added to en.json: ${key}`);
-  }
-
-  // Add missing keys to other languages (marked as needing translation)
-  for (const [lang, missingKeys] of Object.entries(missingKeysByLang)) {
-    const placeholder = lang === "zh" ? `【待翻译】` : `[TODO]`;
-    for (const key of missingKeys) {
-      setNestedValue(translations[lang], key, `${placeholder}${key}`);
-      console.log(`⚠️  Added to ${lang}.json (needs translation): ${key}`);
-    }
-  }
-
-  // Sort keys recursively
-  function sortObjectKeys(
-    obj: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const sorted: Record<string, unknown> = {};
-    for (const key of Object.keys(obj).sort()) {
-      if (typeof obj[key] === "object" && obj[key] !== null) {
-        sorted[key] = sortObjectKeys(obj[key] as Record<string, unknown>);
-      } else {
-        sorted[key] = obj[key];
-      }
-    }
-    return sorted;
-  }
-
-  // Write updated translations
-  for (const [lang, filePath] of Object.entries(localeFiles)) {
-    fs.writeFileSync(
-      filePath,
-      JSON.stringify(sortObjectKeys(translations[lang]), null, 2) + "\n",
-    );
-  }
-
   // ---- Completeness check: all locales must have exactly the same keys as en.json ----
   const enKeySet = existingKeys.en;
   let completenessOk = true;
