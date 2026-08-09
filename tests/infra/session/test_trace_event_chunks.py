@@ -12,9 +12,19 @@ from src.infra.session.trace_storage import TraceStorage
 class _AsyncCursor:
     def __init__(self, docs: list[dict[str, Any]]) -> None:
         self.docs = docs
-        self.sort_args: tuple[str, int] | None = None
+        self.sort_args: tuple[str, int] | list[tuple[str, int]] | None = None
 
-    def sort(self, key: str, direction: int):
+    def sort(self, key, direction: int | None = None):
+        if isinstance(key, list):
+            self.sort_args = key
+            for sort_key, sort_direction in reversed(key):
+                self.docs.sort(
+                    key=lambda item: item.get(sort_key, 0),
+                    reverse=sort_direction < 0,
+                )
+            return self
+
+        assert direction is not None
         self.sort_args = (key, direction)
         self.docs.sort(key=lambda item: item.get(key, 0), reverse=direction < 0)
         return self
@@ -67,6 +77,7 @@ class _FakeChunkCollection:
         self.inserted_docs: list[dict[str, Any]] = []
         self.update_calls: list[tuple[dict[str, Any], dict[str, Any], bool]] = []
         self.update_many_calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        self.find_count = 0
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
         del projection
@@ -77,7 +88,13 @@ class _FakeChunkCollection:
 
     def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
         del projection
-        docs = [chunk for chunk in self.chunks if chunk.get("trace_id") == query.get("trace_id")]
+        self.find_count += 1
+        trace_selector = query.get("trace_id")
+        if isinstance(trace_selector, dict) and "$in" in trace_selector:
+            trace_ids = set(trace_selector["$in"])
+            docs = [chunk for chunk in self.chunks if chunk.get("trace_id") in trace_ids]
+        else:
+            docs = [chunk for chunk in self.chunks if chunk.get("trace_id") == trace_selector]
         return _AsyncCursor(docs)
 
     async def delete_many(self, query: dict[str, Any]):
@@ -365,6 +382,103 @@ async def test_read_trace_events_compat_filters_and_only_limits_when_requested()
 
     assert [event["data"]["content"] for event in all_events] == ["a", "c"]
     assert [event["data"]["content"] for event in limited_events] == ["a"]
+
+
+@pytest.mark.asyncio
+async def test_read_trace_events_batch_compat_reads_all_traces_with_one_chunk_query() -> None:
+    storage = TraceStorage()
+    chunk_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "chunked",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [_event("message", "new", 1)],
+            }
+        ]
+    )
+    storage._chunks_collection = chunk_collection
+
+    events_by_trace = await storage.read_trace_events_batch_compat(
+        [
+            {"trace_id": "legacy", "events": [_event("message", "old", 1)]},
+            {"trace_id": "chunked", "events": []},
+        ]
+    )
+
+    assert [event["data"]["content"] for event in events_by_trace["legacy"]] == ["old"]
+    assert [event["data"]["content"] for event in events_by_trace["chunked"]] == ["new"]
+    assert chunk_collection.find_count == 1
+
+
+@pytest.mark.asyncio
+async def test_read_trace_events_batch_compat_preserves_mixed_legacy_prefix_once() -> None:
+    storage = TraceStorage()
+    storage._chunks_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "mixed",
+                "chunk_index": 0,
+                "start_seq": 3,
+                "events": [_event("message", "three", 3)],
+            }
+        ]
+    )
+
+    events_by_trace = await storage.read_trace_events_batch_compat(
+        [
+            {
+                "trace_id": "mixed",
+                "events": [
+                    _event("user:message", "one", 1),
+                    _event("message", "two", 2),
+                    _event("message", "duplicate-three", 3),
+                ],
+            }
+        ]
+    )
+
+    assert [event["data"]["content"] for event in events_by_trace["mixed"]] == [
+        "one",
+        "two",
+        "three",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_read_trace_events_batch_compat_filters_each_trace_without_reordering() -> None:
+    storage = TraceStorage()
+    storage._chunks_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "trace-a",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [
+                    _event("message", "a-one", 1),
+                    _event("thinking", "a-two", 2),
+                    _event("message", "a-three", 3),
+                ],
+            },
+            {
+                "trace_id": "trace-b",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [_event("message", "b-one", 1)],
+            },
+        ]
+    )
+
+    events_by_trace = await storage.read_trace_events_batch_compat(
+        [{"trace_id": "trace-a"}, {"trace_id": "trace-b"}],
+        event_types=["message"],
+    )
+
+    assert [event["data"]["content"] for event in events_by_trace["trace-a"]] == [
+        "a-one",
+        "a-three",
+    ]
+    assert [event["data"]["content"] for event in events_by_trace["trace-b"]] == ["b-one"]
 
 
 @pytest.mark.asyncio
