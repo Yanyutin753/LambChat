@@ -353,3 +353,33 @@ async def test_upsert_by_value_does_not_overwrite_different_provider() -> None:
     ]
     assert collection.updated_queries == []
     assert collection.inserted_docs[0]["provider"] == "azure"
+
+
+class _ExistsCollection:
+    """Fake collection recording count_documents calls (for exists checks)."""
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        self.count_calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
+
+    async def count_documents(self, query: dict[str, Any], **kwargs):
+        self.count_calls.append((query, kwargs))
+        return self.count
+
+
+@pytest.mark.asyncio
+async def test_exists_uses_count_documents_with_limit_and_avoids_loading_doc() -> None:
+    storage = ModelStorage()
+
+    # 存在：count=1 → True，用 count_documents(limit=1)，不读取整文档（含加密 api_key）
+    present = _ExistsCollection(count=1)
+    storage._collection = present
+    assert await storage.exists("openai/gpt-4.1") is True
+    query, kwargs = present.count_calls[0]
+    assert query == {"value": "openai/gpt-4.1"}
+    assert kwargs.get("limit") == 1
+
+    # 不存在：count=0 → False
+    absent = _ExistsCollection(count=0)
+    storage._collection = absent
+    assert await storage.exists("missing/model") is False

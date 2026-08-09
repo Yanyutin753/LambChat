@@ -324,8 +324,9 @@ class ModelStorage:
         Returns:
             是否存在
         """
-        doc = await self._get_collection().find_one({"value": value})
-        return doc is not None
+        # P2-12: 仅判存在性，count_documents + limit 避免读取整文档（含加密 api_key）
+        count = await self._get_collection().count_documents({"value": value}, limit=1)
+        return count > 0
 
     @staticmethod
     def _upsert_identity_filter(model: ModelConfig) -> dict[str, Any]:

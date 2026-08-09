@@ -92,6 +92,36 @@ async def test_mongodb_storage_keys_uses_projection_anchored_regex_and_limit() -
     assert collection.last_cursor.limit_value == 1000
 
 
+class _CountDocumentsCollection:
+    """Fake collection recording count_documents calls (for exists checks)."""
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        self.count_calls: list[tuple[dict, dict]] = []
+
+    async def count_documents(self, query: dict, **kwargs):
+        self.count_calls.append((query, kwargs))
+        return self.count
+
+
+@pytest.mark.asyncio
+async def test_mongodb_storage_exists_uses_count_documents_with_limit() -> None:
+    storage = MongoDBStorage(collection_name="storage")
+
+    # 存在：count=1 → True，用 count_documents(limit=1) 不读取整文档
+    present = _CountDocumentsCollection(count=1)
+    storage._collection = present
+    assert await storage.exists("some-key") is True
+    query, kwargs = present.count_calls[0]
+    assert query == {"_id": "some-key"}
+    assert kwargs.get("limit") == 1
+
+    # 不存在：count=0 → False
+    absent = _CountDocumentsCollection(count=0)
+    storage._collection = absent
+    assert await storage.exists("missing-key") is False
+
+
 @pytest.mark.asyncio
 async def test_approval_storage_list_pending_applies_default_limit() -> None:
     storage = ApprovalStorage()
