@@ -5,7 +5,9 @@ import {
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
-import { forwardRef, useCallback, useRef } from "react";
+import { forwardRef, useCallback, useRef, useState } from "react";
+import type { SkillResponse } from "../../../types";
+import type { ChatInputSlashCommand } from "../chatInputSlashCommands";
 import type {
   ComposerProjection,
   ComposerSnapshot,
@@ -21,6 +23,11 @@ export interface RichChatComposerChange {
   snapshot: ComposerSnapshot;
   projection: ComposerProjection;
 }
+
+export type AvailableComposerSkill = Pick<
+  SkillResponse,
+  "name" | "description" | "tags"
+>;
 
 export interface RichChatComposerHandle {
   focus(options?: { atEnd?: boolean }): void;
@@ -44,19 +51,32 @@ export interface RichChatComposerProps {
   className?: string;
   onChange?: (change: RichChatComposerChange) => void;
   onError?: (error: Error) => void;
+  availableSkills?: readonly AvailableComposerSkill[];
+  onApplySlashCommand?: (command: ChatInputSlashCommand) => void;
 }
 
 export const RichChatComposer = forwardRef<
   RichChatComposerHandle,
   RichChatComposerProps
 >(function RichChatComposer(
-  { ariaLabel, placeholder, className, onChange, onError },
+  {
+    ariaLabel,
+    placeholder,
+    className,
+    onChange,
+    onError,
+    availableSkills,
+    onApplySlashCommand,
+  },
   ref,
 ) {
   const lastSnapshotRef = useRef<ComposerSnapshot | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [enabledSkillNames, setEnabledSkillNames] = useState<string[]>([]);
   const handleChange = useCallback(
     (change: RichChatComposerChange) => {
       lastSnapshotRef.current = change.snapshot;
+      setEnabledSkillNames(change.projection.enabledSkills);
       onChange?.(change);
     },
     [onChange],
@@ -75,7 +95,10 @@ export const RichChatComposer = forwardRef<
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className={`rich-chat-composer${className ? ` ${className}` : ""}`}>
+      <div
+        ref={containerRef}
+        className={`rich-chat-composer${className ? ` ${className}` : ""}`}
+      >
         <PlainTextPlugin
           contentEditable={
             <ContentEditable
@@ -97,6 +120,10 @@ export const RichChatComposer = forwardRef<
           ref={ref}
           onChange={handleChange}
           onError={onError}
+          availableSkills={availableSkills}
+          containerRef={containerRef}
+          onApplySlashCommand={onApplySlashCommand}
+          enabledSkillNames={enabledSkillNames}
         />
       </div>
     </LexicalComposer>

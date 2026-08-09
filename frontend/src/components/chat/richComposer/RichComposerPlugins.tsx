@@ -28,20 +28,20 @@ import type {
   RichChatComposerChange,
   RichChatComposerHandle,
 } from "./RichChatComposer";
+import type { AvailableComposerSkill } from "./RichChatComposer";
+import type { ChatInputSlashCommand } from "../chatInputSlashCommands";
+import { SlashCommandPlugin } from "./SlashCommandPlugin";
 import {
   $createFileReferenceNode,
   FileReferenceNode,
 } from "./nodes/FileReferenceNode";
-import {
-  $createSkillReferenceNode,
-  SkillReferenceNode,
-} from "./nodes/SkillReferenceNode";
 import {
   INSERT_FILE_REFERENCE_COMMAND,
   INSERT_SKILL_REFERENCE_COMMAND,
   REMOVE_FILE_REFERENCE_COMMAND,
   UPDATE_FILE_REFERENCE_COMMAND,
 } from "./nodes/referenceCommands";
+import { SkillReferencePlugin } from "./SkillReferencePlugin";
 
 function toSnapshot(editorState: EditorState): ComposerSnapshot {
   return {
@@ -78,12 +78,26 @@ function replaceDocumentWithPlainText(text: string) {
 interface RichComposerPluginsProps {
   onChange?: (change: RichChatComposerChange) => void;
   onError?: (error: Error) => void;
+  availableSkills?: readonly AvailableComposerSkill[];
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  onApplySlashCommand?: (command: ChatInputSlashCommand) => void;
+  enabledSkillNames?: readonly string[];
 }
 
 export const RichComposerPlugins = forwardRef<
   RichChatComposerHandle,
   RichComposerPluginsProps
->(function RichComposerPlugins({ onChange, onError }, ref) {
+>(function RichComposerPlugins(
+  {
+    onChange,
+    onError,
+    availableSkills = [],
+    containerRef,
+    onApplySlashCommand,
+    enabledSkillNames = [],
+  },
+  ref,
+) {
   const [editor] = useLexicalComposerContext();
 
   useLayoutEffect(() => {
@@ -100,25 +114,6 @@ export const RichComposerPlugins = forwardRef<
         }
         ensureRangeSelection();
         $insertNodes([$createFileReferenceNode(descriptor)]);
-        return true;
-      },
-      COMMAND_PRIORITY_EDITOR,
-    );
-  }, [editor]);
-
-  useLayoutEffect(() => {
-    return editor.registerCommand(
-      INSERT_SKILL_REFERENCE_COMMAND,
-      (descriptor) => {
-        const existing = $nodesOfType(SkillReferenceNode).find(
-          (node) => node.getDescriptor().skillName === descriptor.skillName,
-        );
-        if (existing) {
-          existing.selectNext();
-          return true;
-        }
-        ensureRangeSelection();
-        $insertNodes([$createSkillReferenceNode(descriptor)]);
         return true;
       },
       COMMAND_PRIORITY_EDITOR,
@@ -250,6 +245,13 @@ export const RichComposerPlugins = forwardRef<
         ignoreSelectionChange
         ignoreHistoryMergeTagChange
       />
+      <SlashCommandPlugin
+        availableSkills={availableSkills}
+        enabledSkillNames={enabledSkillNames}
+        containerRef={containerRef}
+        onApplyCommand={onApplySlashCommand}
+      />
+      <SkillReferencePlugin />
     </>
   );
 });

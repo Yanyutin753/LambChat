@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Target, Wrench, User, Users, Bot } from "lucide-react";
 import type { SkillResponse } from "../../types";
+import { findSlashTrigger } from "./richComposer/slashTrigger";
 
 export interface ChatInputSlashCommand {
   id: "goal" | "tools" | "persona" | "team" | "agent";
@@ -80,10 +81,7 @@ export function getSlashCommandQuery(
   input: string,
   cursorPosition: number,
 ): string | null {
-  const beforeCursor = input.slice(0, cursorPosition);
-  if (!beforeCursor.startsWith("/")) return null;
-  if (beforeCursor.includes(" ") || beforeCursor.includes("\n")) return null;
-  return beforeCursor.slice(1).toLowerCase();
+  return findSlashTrigger(input, cursorPosition)?.query.toLowerCase() ?? null;
 }
 
 /**
@@ -177,13 +175,16 @@ export function applySlashCommandSelection(
   cursorPosition: number,
   command: ChatInputSlashCommand,
 ): { input: string; cursorPosition: number } {
-  const beforeCursor = input.slice(0, cursorPosition);
-  const afterCursor = input.slice(cursorPosition);
-  const commandStart = beforeCursor.startsWith("/") ? 0 : cursorPosition;
-  const nextInput = `${input.slice(0, commandStart)}${
+  const trigger = findSlashTrigger(input, cursorPosition);
+  if (!trigger) return { input, cursorPosition };
+  const afterCursor = input.slice(trigger.to);
+  const normalizedAfterCursor = afterCursor.startsWith(" ")
+    ? afterCursor.slice(1)
+    : afterCursor;
+  const nextInput = `${input.slice(0, trigger.from)}${
     command.command
-  } ${afterCursor}`;
-  const nextCursorPosition = commandStart + command.command.length + 1;
+  } ${normalizedAfterCursor}`;
+  const nextCursorPosition = trigger.from + command.command.length + 1;
   return { input: nextInput, cursorPosition: nextCursorPosition };
 }
 
@@ -194,11 +195,11 @@ export function clearSlashCommandInput(
   input: string,
   cursorPosition: number,
 ): { input: string; cursorPosition: number } {
-  const beforeCursor = input.slice(0, cursorPosition);
-  if (beforeCursor.startsWith("/")) {
+  const trigger = findSlashTrigger(input, cursorPosition);
+  if (trigger) {
     return {
-      input: input.slice(cursorPosition),
-      cursorPosition: 0,
+      input: `${input.slice(0, trigger.from)}${input.slice(trigger.to)}`,
+      cursorPosition: trigger.from,
     };
   }
   return { input, cursorPosition };

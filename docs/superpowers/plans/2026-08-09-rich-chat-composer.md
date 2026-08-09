@@ -275,7 +275,7 @@ ordinary paragraph typography.
 Run the Step 2 command. Expected: all editor/node tests pass without act or
 contentEditable warnings.
 
-- [ ] **Step 7: Commit the editor foundation**
+- [x] **Step 7: Commit the editor foundation**
 
 ```bash
 git add frontend/src/components/chat/richComposer frontend/src/styles/components.css
@@ -297,7 +297,7 @@ git commit -m "feat(chat): add atomic rich composer nodes"
 - Consumes: Task 1 `findSlashTrigger`, Task 2 editor commands, existing `SlashDropdownItem` and `SkillResponse`.
 - Produces: `SlashCommandContext { range, query, anchorRect }`, `onInsertSkill(skill)`, and document-derived `enabledSkills`.
 
-- [ ] **Step 1: Write failing slash/Skill integration tests**
+- [x] **Step 1: Write failing slash/Skill integration tests**
 
 Test the real editor plus dropdown:
 
@@ -316,7 +316,7 @@ Also assert no popup for `https://`, `a/b`, and `/home/user`; Escape preserves
 text; Tab inserts; toolbar selection uses the last caret; deleting/undoing a
 Skill node updates `enabledSkills`; IME Enter never chooses or submits.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -326,7 +326,7 @@ cd frontend && pnpm exec vitest run src/components/chat/richComposer/__tests__/s
 
 Expected: new workflow tests fail because the plugin is absent.
 
-- [ ] **Step 3: Implement the slash context plugin**
+- [x] **Step 3: Implement the slash context plugin**
 
 On Lexical updates, read the collapsed range selection, derive text from the
 current text run before the caret, call `findSlashTrigger`, and emit the popup
@@ -337,7 +337,7 @@ On selection, remove exactly `range.from..range.to` and dispatch the selected
 built-in command or `INSERT_SKILL_REFERENCE_COMMAND`. Position the existing
 dropdown from the DOM range rectangle instead of textarea offsets.
 
-- [ ] **Step 4: Replace next-run Skill array authority with document nodes**
+- [x] **Step 4: Replace next-run Skill array authority with document nodes**
 
 The rich composer receives available Skills and exposes toolbar insertion through
 its imperative handle. Toolbar insertion restores the last saved Lexical
@@ -345,7 +345,7 @@ selection before dispatching the insert command. The plugin emits unique
 `enabledSkills` directly from document nodes; `ChatInput` consumes that projection
 in Task 5.
 
-- [ ] **Step 5: Run tests and verify GREEN**
+- [x] **Step 5: Run tests and verify GREEN**
 
 Run the Step 2 command. Expected: all slash boundary, keyboard, and Skill state
 tests pass.

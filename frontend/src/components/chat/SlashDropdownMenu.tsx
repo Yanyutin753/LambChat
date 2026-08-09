@@ -15,6 +15,7 @@ export interface SlashDropdownMenuProps {
   items: SlashDropdownItem[];
   runSkillNameSet: Set<string>;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  anchorRect?: DOMRect | null;
   onApplySelection: (item: SlashDropdownItem) => void;
   highlightIndex: number;
   onHighlightChange: React.Dispatch<React.SetStateAction<number>>;
@@ -26,6 +27,7 @@ export function SlashDropdownMenu({
   items,
   runSkillNameSet,
   containerRef,
+  anchorRect,
   onApplySelection,
   highlightIndex,
   onHighlightChange,
@@ -44,7 +46,7 @@ export function SlashDropdownMenu({
       `[data-slash-idx="${highlightIndex}"]`,
     );
     if (el) {
-      el.scrollIntoView({ block: "nearest" });
+      (el as HTMLElement).scrollIntoView?.({ block: "nearest" });
     }
   }, [open, highlightIndex, containerRef]);
 
@@ -62,6 +64,15 @@ export function SlashDropdownMenu({
       maxHeight: pos.maxHeight,
     };
   });
+
+  const anchoredPlacement = anchorRect
+    ? {
+        left: Math.max(8, Math.min(anchorRect.left, window.innerWidth - 328)),
+        top: anchorRect.bottom + 6,
+        width: Math.min(320, window.innerWidth - 16),
+        maxHeight: Math.min(320, window.innerHeight - anchorRect.bottom - 14),
+      }
+    : null;
 
   if (!open) return null;
 
@@ -176,6 +187,7 @@ export function SlashDropdownMenu({
     return (
       <div
         role="listbox"
+        aria-label="Slash commands"
         className="absolute bottom-full left-1 z-30 mb-2 w-72 sm:w-80 overflow-hidden rounded-xl border shadow-lg"
         style={{
           backgroundColor: "var(--theme-bg-card)",
@@ -192,9 +204,10 @@ export function SlashDropdownMenu({
   return (
     <div
       role="listbox"
+      aria-label="Slash commands"
       className="fixed z-[100] overflow-hidden rounded-xl border shadow-lg"
       style={{
-        ...placement,
+        ...(anchoredPlacement ?? placement),
         backgroundColor: "var(--theme-bg-card)",
         borderColor: "var(--theme-border)",
         color: "var(--theme-text)",

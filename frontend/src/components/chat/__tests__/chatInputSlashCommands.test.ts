@@ -66,8 +66,11 @@ test("finds panel commands while typing a slash command prefix", () => {
   ).toEqual(["tools", "team"]);
 });
 
-test("does not show slash commands after text content has started", () => {
-  expect(getSlashCommandQuery("please /go", 10)).toBe(null);
+test("shows slash commands after whitespace but not inside ordinary text", () => {
+  expect(getSlashCommandQuery("please /go", 10)).toBe("go");
+  expect(getSlashCommandQuery("please/go", 9)).toBe(null);
+  expect(getSlashCommandQuery("https://example.com", 8)).toBe(null);
+  expect(getSlashCommandQuery("/home/user", 10)).toBe(null);
   expect(getMatchingSlashCommands("/goal write docs", 16)).toEqual([]);
 });
 
@@ -77,6 +80,19 @@ test("selecting goal command inserts a trailing space for direct goal text", () 
   ).toEqual({
     input: "/goal ",
     cursorPosition: 6,
+  });
+});
+
+test("selecting a command replaces only the active slash token", () => {
+  expect(
+    applySlashCommandSelection(
+      "请用 /go 继续",
+      6,
+      CHAT_INPUT_SLASH_COMMANDS[0],
+    ),
+  ).toEqual({
+    input: "请用 /goal 继续",
+    cursorPosition: 9,
   });
 });
 
@@ -94,6 +110,10 @@ test("clears slash prefix from input", () => {
   expect(clearSlashCommandInput("hello", 5)).toEqual({
     input: "hello",
     cursorPosition: 5,
+  });
+  expect(clearSlashCommandInput("请用 /deep-research", 17)).toEqual({
+    input: "请用 ",
+    cursorPosition: 3,
   });
 });
 
