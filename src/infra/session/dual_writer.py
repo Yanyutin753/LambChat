@@ -638,6 +638,15 @@ class DualEventWriter:
         """
         return await self.trace.complete_trace(trace_id, status, metadata)
 
+    async def set_run_recommend_questions(
+        self,
+        session_id: str,
+        run_id: str,
+        questions: List[str],
+    ) -> bool:
+        """Persist recommendations on the trace associated with one run."""
+        return await self.trace.set_run_recommend_questions(session_id, run_id, questions)
+
     async def _write_to_redis_direct(
         self,
         stream_key: str,

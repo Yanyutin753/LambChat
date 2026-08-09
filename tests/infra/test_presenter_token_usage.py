@@ -65,6 +65,10 @@ class _FakeDualWriter:
         self.events.append(kwargs)
         return True
 
+    async def set_run_recommend_questions(self, **kwargs):
+        self.recommend_questions = kwargs
+        return True
+
     async def flush_mongo_buffer(self):
         return None
 
@@ -112,6 +116,54 @@ async def test_emit_recommend_questions_is_idempotent(monkeypatch) -> None:
     ]
     assert len(recommend_events) == 1
     assert recommend_events[0]["data"]["questions"] == ["下一步我应该怎么做？"]
+
+
+async def test_publish_recommend_questions_persists_run_field_and_sends_websocket(
+    monkeypatch,
+) -> None:
+    writer = _FakeDualWriter()
+    websocket_messages = []
+
+    class _WebSocketManager:
+        async def send_to_user_with_broadcast(self, user_id, message):
+            websocket_messages.append((user_id, message))
+            return 1
+
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    monkeypatch.setattr(
+        "src.infra.websocket.get_connection_manager",
+        lambda: _WebSocketManager(),
+    )
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+        user_id="user-1",
+    )
+
+    await presenter.publish_recommend_questions(["问题一？", "问题二？"])
+
+    assert writer.recommend_questions == {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "questions": ["问题一？", "问题二？"],
+    }
+    assert websocket_messages == [
+        (
+            "user-1",
+            {
+                "type": "recommend:questions",
+                "data": {
+                    "session_id": "session-1",
+                    "run_id": "run-1",
+                    "questions": ["问题一？", "问题二？"],
+                },
+            },
+        )
+    ]
+    assert not [event for event in writer.events if event["event_type"] == "recommend:questions"]
 
 
 async def test_complete_does_not_duplicate_existing_token_usage(monkeypatch) -> None:

@@ -252,6 +252,7 @@ export interface UseAgentReturn {
     attachments?: MessageAttachment[],
     runOptions?: { enabledSkills?: string[] },
   ) => Promise<void>;
+  applyRecommendQuestions: (runId: string, questions: string[]) => void;
   clearActiveGoal: () => void;
   stopGeneration: () => Promise<void>;
   clearMessages: () => void;

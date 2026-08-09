@@ -16,6 +16,7 @@ from src.agents.core.recommendations import (
     format_history_from_messages,
     generate_recommend_questions,
     schedule_recommend_questions,
+    schedule_recommend_questions_from_state,
 )
 from src.agents.fast_agent.graph import FastAgent
 from src.agents.search_agent.graph import SearchAgent
@@ -29,6 +30,9 @@ class _FakePresenter:
     async def emit_recommend_questions(self, questions):
         self.questions = questions
         return {"event": "recommend:questions", "data": {"questions": questions}}
+
+    async def publish_recommend_questions(self, questions):
+        self.questions = questions
 
 
 class _RecordingBuilder:
@@ -346,6 +350,58 @@ async def test_schedule_recommend_questions_offloads_history_formatting(monkeypa
 
     assert calls == [format_history_from_messages]
     assert presenter.questions == ["问题一？", "问题二？", "问题三？"]
+
+
+async def test_schedule_from_state_uses_final_output_without_blocking_caller(monkeypatch) -> None:
+    generation_started = asyncio.Event()
+    release_generation = asyncio.Event()
+    captured = {}
+
+    class _Graph:
+        async def aget_state(self, _config):
+            return type(
+                "_State",
+                (),
+                {"values": {"messages": [{"role": "user", "content": "历史问题"}]}},
+            )()
+
+    async def fake_generate_recommend_questions(
+        user_input: str,
+        output_text: str = "",
+        history_context: str = "",
+    ):
+        captured.update(
+            user_input=user_input,
+            output_text=output_text,
+            history_context=history_context,
+        )
+        generation_started.set()
+        await release_generation.wait()
+        return ["问题一？"]
+
+    monkeypatch.setattr(
+        "src.agents.core.recommendations.generate_recommend_questions",
+        fake_generate_recommend_questions,
+    )
+    presenter = _FakePresenter()
+
+    task = schedule_recommend_questions_from_state(
+        presenter,
+        "当前问题",
+        "最终回答",
+        _Graph(),
+        {"configurable": {}},
+    )
+    await generation_started.wait()
+
+    assert task.done() is False
+    assert captured["user_input"] == "当前问题"
+    assert captured["output_text"] == "最终回答"
+    assert "历史问题" in captured["history_context"]
+
+    release_generation.set()
+    await task
+    assert presenter.questions == ["问题一？"]
 
 
 def test_build_recommend_prompt_stays_under_token_budget() -> None:

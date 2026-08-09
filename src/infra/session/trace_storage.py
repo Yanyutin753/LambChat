@@ -42,6 +42,7 @@ TRACE_EVENTS_DEFAULT_LIMIT = 1000
 TRACE_EVENTS_READ_LIMIT = 5000
 TRACE_LIST_LIMIT = 100
 _USAGE_LOGS_ENABLED = True  # 是否在 trace 完成时写入 usage_logs 集合
+_RECOMMEND_QUESTIONS_LIMIT = 3
 
 
 async def _write_usage_log(trace_id: str) -> None:
@@ -148,6 +149,26 @@ def _bounded_unique_strings(
         if len(bounded) >= limit:
             break
     return bounded
+
+
+def _normalize_recommend_questions(value: Any) -> List[str]:
+    """Normalize current and defensive legacy run-field shapes."""
+    if isinstance(value, dict):
+        value = value.get("questions")
+    if not isinstance(value, (list, tuple)):
+        return []
+
+    questions: List[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        question = item.strip()
+        if not question:
+            continue
+        questions.append(question)
+        if len(questions) >= _RECOMMEND_QUESTIONS_LIMIT:
+            break
+    return questions
 
 
 class TraceStorage(TraceEventChunkMixin):
@@ -375,6 +396,46 @@ class TraceStorage(TraceEventChunkMixin):
             return result.modified_count > 0
         except Exception as e:
             logger.error(f"Failed to append event to trace {trace_id}: {e}")
+            return False
+
+    async def set_run_recommend_questions(
+        self,
+        session_id: str,
+        run_id: str,
+        questions: List[str],
+    ) -> bool:
+        """Persist bounded recommendations on the trace identified by a run."""
+        normalized = _normalize_recommend_questions(questions)
+        if not session_id or not run_id or not normalized:
+            return False
+
+        try:
+            await self.ensure_indexes_if_needed()
+            now = utc_now()
+            result = await self.collection.update_one(
+                {"session_id": session_id, "run_id": run_id},
+                {
+                    "$set": {
+                        "recommend_questions": normalized,
+                        "recommend_questions_updated_at": now,
+                        "updated_at": now,
+                    }
+                },
+            )
+            if result.modified_count == 0:
+                logger.warning(
+                    "Recommendation trace not found or unchanged: session=%s, run_id=%s",
+                    session_id,
+                    run_id,
+                )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.warning(
+                "Failed to persist recommendations: session=%s, run_id=%s, error=%s",
+                session_id,
+                run_id,
+                e,
+            )
             return False
 
     async def _ensure_token_usage_event(self, trace_id: str) -> None:
@@ -774,6 +835,7 @@ class TraceStorage(TraceEventChunkMixin):
             "status": 1,
             "event_count": 1,
             "first_user_message_preview": 1,
+            "recommend_questions": 1,
         }
 
         try:
@@ -812,6 +874,9 @@ class TraceStorage(TraceEventChunkMixin):
                         "status": trace.get("status"),
                         "event_count": trace.get("event_count", 0),
                         "user_message": user_message,
+                        "recommend_questions": _normalize_recommend_questions(
+                            trace.get("recommend_questions")
+                        ),
                     }
                 )
             return summaries
@@ -877,6 +942,8 @@ class TraceStorage(TraceEventChunkMixin):
                     "trace_id": 1,
                     "run_id": 1,
                     "started_at": 1,
+                    "recommend_questions": 1,
+                    "recommend_questions_updated_at": 1,
                 },
             ).sort("started_at", 1)
 
@@ -890,6 +957,30 @@ class TraceStorage(TraceEventChunkMixin):
                     event_types=event_types,
                     max_events=None if max_events is None else max_events - len(events),
                 )
+                questions = _normalize_recommend_questions(trace.get("recommend_questions"))
+                recommendation_requested = not event_types or bool(
+                    {"recommend:questions", "followup:questions"}.intersection(event_types)
+                )
+                has_legacy_recommendation = any(
+                    event.get("event_type") in {"recommend:questions", "followup:questions"}
+                    for event in trace_events
+                )
+                if questions and recommendation_requested and not has_legacy_recommendation:
+                    compatibility_event_type = "recommend:questions"
+                    if (
+                        event_types
+                        and "recommend:questions" not in event_types
+                        and "followup:questions" in event_types
+                    ):
+                        compatibility_event_type = "followup:questions"
+                    trace_events.append(
+                        {
+                            "event_type": compatibility_event_type,
+                            "data": {"questions": questions},
+                            "timestamp": trace.get("recommend_questions_updated_at")
+                            or trace.get("started_at"),
+                        }
+                    )
                 for event in trace_events:
                     item = {
                         "trace_id": trace_id,

@@ -27,6 +27,7 @@ import {
   type UseAgentReturn,
   type ActiveGoalSpec,
 } from "./useAgent/types";
+import { applyRecommendQuestionsToMessages } from "./useAgent/recommendQuestionsUpdate";
 import {
   reconstructMessagesFromEvents,
   getLastEventTimestamp,
@@ -918,6 +919,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setSelectedTeamId(teamId);
   }, []);
 
+  const applyRecommendQuestions = useCallback(
+    (runId: string, questions: string[]) => {
+      setMessages((previous) =>
+        applyRecommendQuestionsToMessages(previous, runId, questions),
+      );
+    },
+    [],
+  );
+
   // Reconnect function (managed by useSSEReconnect hook)
   const handleReconnectSSE = useSSEReconnect({
     createSSEContext,
@@ -948,6 +958,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isInitializingSandbox,
     sandboxError,
     sendMessage,
+    applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,
     clearMessages,

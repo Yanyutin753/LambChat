@@ -545,6 +545,14 @@ async def recommendation_node(
     return {}
 
 
+async def _publish_recommend_questions(presenter: Any, questions: list[str]) -> None:
+    publish = getattr(presenter, "publish_recommend_questions", None)
+    if callable(publish):
+        await publish(questions)
+        return
+    await presenter.emit_recommend_questions(questions)
+
+
 def schedule_recommend_questions(
     presenter: Any,
     user_input: str,
@@ -568,7 +576,7 @@ def schedule_recommend_questions(
             history_context=history_context,
         )
         if questions:
-            await presenter.emit_recommend_questions(questions)
+            await _publish_recommend_questions(presenter, questions)
 
     return _schedule_recommend_background_task(run)
 
@@ -576,6 +584,7 @@ def schedule_recommend_questions(
 def schedule_recommend_questions_from_state(
     presenter: Any,
     user_input: str,
+    output_text: str,
     inner_graph: Any,
     inner_config: Any,
 ) -> asyncio.Task[None]:
@@ -592,13 +601,18 @@ def schedule_recommend_questions_from_state(
         except Exception as exc:
             logger.debug("Failed to read recommendation state messages: %s", exc)
 
-        try:
-            schedule_recommend_questions(
-                presenter,
-                user_input,
-                messages=history_messages,
-            )
-        except Exception as exc:
-            logger.debug("Failed to schedule recommended questions: %s", exc)
+        history_context = await run_blocking_io(
+            format_history_from_messages,
+            history_messages,
+            current_user_input=user_input,
+            current_output=output_text,
+        )
+        questions = await generate_recommend_questions(
+            user_input,
+            output_text=output_text,
+            history_context=history_context,
+        )
+        if questions:
+            await _publish_recommend_questions(presenter, questions)
 
     return _schedule_recommend_background_task(run, failure_level="debug")

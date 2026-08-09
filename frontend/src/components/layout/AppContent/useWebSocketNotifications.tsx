@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { X } from "lucide-react";
-import { useWebSocket } from "../../../hooks/useWebSocket";
+import {
+  useWebSocket,
+  type RecommendQuestionsNotification,
+} from "../../../hooks/useWebSocket";
 import { useBrowserNotification } from "../../../hooks/useBrowserNotification";
 import { sessionApi } from "../../../services/api";
 import { appNotificationService } from "../../../services/notifications/appNotificationService";
@@ -26,22 +29,29 @@ interface UseWebSocketNotificationsOptions {
     isFavorite?: boolean,
     scheduledTaskId?: string | null,
   ) => void;
+  onRecommendQuestions?: (notification: RecommendQuestionsNotification) => void;
 }
 
 export function useWebSocketNotifications({
   sessionId,
   enabled = true,
   onSessionUnread,
+  onRecommendQuestions,
 }: UseWebSocketNotificationsOptions) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { notify, isSupported, permission } = useBrowserNotification();
   const onSessionUnreadRef = useRef(onSessionUnread);
   onSessionUnreadRef.current = onSessionUnread;
+  const onRecommendQuestionsRef = useRef(onRecommendQuestions);
+  onRecommendQuestionsRef.current = onRecommendQuestions;
 
   // WebSocket for task completion notifications
   useWebSocket({
     enabled,
+    onRecommendQuestions: (notification) => {
+      onRecommendQuestionsRef.current?.(notification);
+    },
     onTaskComplete: async (notification: {
       data: {
         session_id: string;

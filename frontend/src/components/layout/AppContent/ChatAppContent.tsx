@@ -176,6 +176,7 @@ export function ChatAppContent({
     activeGoal,
     goalsByRunId,
     sendMessage,
+    applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,
     clearMessages,
@@ -607,6 +608,13 @@ export function ChatAppContent({
   useWebSocketNotifications({
     sessionId,
     enabled: isAuthenticated,
+    onRecommendQuestions: (notification) => {
+      if (notification.data.session_id !== sessionId) return;
+      applyRecommendQuestions(
+        notification.data.run_id,
+        notification.data.questions,
+      );
+    },
     onSessionUnread: (sid, count, projectId, isFavorite, scheduledTaskId) => {
       sidebarRef.current?.updateSessionUnread(
         sid,

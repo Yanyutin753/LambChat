@@ -396,6 +396,19 @@ async def get_session_runs(
             if user_message and len(user_message) > 20:
                 user_message = user_message[:17] + "..."
 
+        raw_recommend_questions = trace.get("recommend_questions")
+        if isinstance(raw_recommend_questions, dict):
+            raw_recommend_questions = raw_recommend_questions.get("questions")
+        recommend_questions = (
+            [
+                question.strip()
+                for question in raw_recommend_questions
+                if isinstance(question, str) and question.strip()
+            ][:3]
+            if isinstance(raw_recommend_questions, list)
+            else []
+        )
+
         return {
             "run_id": run_id,
             "trace_id": trace.get("trace_id"),
@@ -405,6 +418,7 @@ async def get_session_runs(
             "status": trace.get("status"),
             "event_count": trace.get("event_count", 0),
             "user_message": user_message,
+            "recommend_questions": recommend_questions,
         }
 
     if trace_id:

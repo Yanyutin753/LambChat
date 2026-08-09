@@ -20,9 +20,46 @@ export interface TaskCompleteNotification {
   };
 }
 
-interface UseWebSocketOptions {
+export interface RecommendQuestionsNotification {
+  type: "recommend:questions";
+  data: {
+    session_id: string;
+    run_id: string;
+    questions: string[];
+  };
+}
+
+export interface WebSocketMessageHandlers {
   onTaskComplete?: (notification: TaskCompleteNotification) => void;
+  onRecommendQuestions?: (notification: RecommendQuestionsNotification) => void;
+}
+
+interface UseWebSocketOptions extends WebSocketMessageHandlers {
   enabled?: boolean;
+}
+
+export function dispatchWebSocketMessage(
+  message: unknown,
+  handlers: WebSocketMessageHandlers,
+): void {
+  if (!message || typeof message !== "object" || !("type" in message)) return;
+  const typedMessage = message as { type?: unknown };
+  if (typedMessage.type === "task:complete") {
+    handlers.onTaskComplete?.(message as TaskCompleteNotification);
+  } else if (typedMessage.type === "recommend:questions") {
+    const data = (message as { data?: unknown }).data;
+    if (!data || typeof data !== "object") return;
+    const payload = data as Record<string, unknown>;
+    if (
+      typeof payload.session_id !== "string" ||
+      typeof payload.run_id !== "string" ||
+      !Array.isArray(payload.questions) ||
+      !payload.questions.every((question) => typeof question === "string")
+    ) {
+      return;
+    }
+    handlers.onRecommendQuestions?.(message as RecommendQuestionsNotification);
+  }
 }
 
 // Exponential backoff configuration
@@ -33,12 +70,13 @@ const MAX_AUTH_FAILURES = 3; // Switch to long interval after this many consecut
 const AUTH_FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown after max failures
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { onTaskComplete, enabled = true } = options;
+  const { onTaskComplete, onRecommendQuestions, enabled = true } = options;
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const onTaskCompleteRef = useRef(onTaskComplete);
+  const onRecommendQuestionsRef = useRef(onRecommendQuestions);
   const isMountedRef = useRef(true);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -55,6 +93,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   useEffect(() => {
     onTaskCompleteRef.current = onTaskComplete;
   }, [onTaskComplete]);
+
+  useEffect(() => {
+    onRecommendQuestionsRef.current = onRecommendQuestions;
+  }, [onRecommendQuestions]);
 
   const connect = useCallback(async () => {
     // Prevent multiple simultaneous connection attempts
@@ -146,9 +188,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
           console.log("[WebSocket] Received:", message);
 
-          if (message.type === "task:complete" && onTaskCompleteRef.current) {
-            onTaskCompleteRef.current(message);
-          }
+          dispatchWebSocketMessage(message, {
+            onTaskComplete: onTaskCompleteRef.current,
+            onRecommendQuestions: onRecommendQuestionsRef.current,
+          });
         } catch (e) {
           console.error("[WebSocket] Failed to parse message:", e);
         }

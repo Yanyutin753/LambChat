@@ -330,6 +330,7 @@ async def test_list_run_summaries_uses_first_user_message_preview() -> None:
             "status": "completed",
             "event_count": 3,
             "user_message": "a message longer ...",
+            "recommend_questions": [],
         }
     ]
     assert storage.collection.find_calls == [
@@ -345,6 +346,7 @@ async def test_list_run_summaries_uses_first_user_message_preview() -> None:
                 "status": 1,
                 "event_count": 1,
                 "first_user_message_preview": 1,
+                "recommend_questions": 1,
             },
         )
     ]
@@ -436,7 +438,14 @@ async def test_get_session_events_uses_server_side_limit_when_max_events_is_set(
                 "run_id": {"$in": ["run-1"]},
                 "status": {"$ne": "running"},
             },
-            {"_id": 0, "trace_id": 1, "run_id": 1, "started_at": 1},
+            {
+                "_id": 0,
+                "trace_id": 1,
+                "run_id": 1,
+                "started_at": 1,
+                "recommend_questions": 1,
+                "recommend_questions_updated_at": 1,
+            },
         )
     ]
 

@@ -747,6 +747,8 @@ async def test_get_session_events_reads_chunks_across_traces_in_started_order() 
                 "trace_id": 1,
                 "run_id": 1,
                 "started_at": 1,
+                "recommend_questions": 1,
+                "recommend_questions_updated_at": 1,
             },
         )
     ]

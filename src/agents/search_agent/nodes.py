@@ -385,16 +385,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     logger.info("[SearchAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(presenter, base_url=configurable.get("base_url", ""))
 
-    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS:
-        from src.agents.core.recommendations import schedule_recommend_questions_from_state
-
-        schedule_recommend_questions_from_state(
-            presenter,
-            recommendation_input,
-            inner_graph,
-            inner_config,
-        )
-
     logger.info("[SearchAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
     try:
@@ -436,6 +426,20 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     output_text = event_processor.output_text
     event_processor.clear()
+
+    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS:
+        try:
+            from src.agents.core.recommendations import schedule_recommend_questions_from_state
+
+            schedule_recommend_questions_from_state(
+                presenter,
+                recommendation_input,
+                output_text,
+                inner_graph,
+                inner_config,
+            )
+        except Exception as exc:
+            logger.debug("Failed to schedule recommended questions: %s", exc)
 
     return {"output": output_text}
 

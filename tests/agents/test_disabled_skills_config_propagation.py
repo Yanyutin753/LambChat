@@ -325,7 +325,7 @@ async def test_fast_agent_node_reads_existing_state_messages_for_recommendations
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_node_passes_existing_state_messages_to_concurrent_recommendations(
+async def test_fast_agent_node_schedules_recommendations_with_final_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
@@ -339,15 +339,21 @@ async def test_fast_agent_node_passes_existing_state_messages_to_concurrent_reco
     _FakeEventProcessor.next_output_text = "assistant answer"
     calls = []
 
-    def fake_schedule_recommend_questions(presenter, user_input, output_text="", messages=None):
-        calls.append((presenter, user_input, output_text, messages))
+    def fake_schedule_recommend_questions_from_state(
+        presenter,
+        user_input,
+        output_text,
+        inner_graph,
+        inner_config,
+    ):
+        calls.append((presenter, user_input, output_text, inner_graph, inner_config))
 
     import src.agents.core.recommendations as recommendations
 
     monkeypatch.setattr(
         recommendations,
-        "schedule_recommend_questions",
-        fake_schedule_recommend_questions,
+        "schedule_recommend_questions_from_state",
+        fake_schedule_recommend_questions_from_state,
     )
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
@@ -372,7 +378,9 @@ async def test_fast_agent_node_passes_existing_state_messages_to_concurrent_reco
     )
     await asyncio.sleep(0)
 
-    assert calls == [(presenter, "hello", "", ["history message"])]
+    assert len(calls) == 1
+    assert calls[0][0:4] == (presenter, "hello", "assistant answer", fake_graph)
+    assert calls[0][4] == fake_graph.captured_inner_config
 
 
 @pytest.mark.asyncio

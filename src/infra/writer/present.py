@@ -161,6 +161,42 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         self._recommend_questions_recorded = True
         return event
 
+    async def publish_recommend_questions(self, questions: Sequence[str]) -> None:
+        """Persist run recommendations and publish them after the SSE stream closes."""
+        if self._recommend_questions_recorded:
+            return
+        normalized = [question.strip() for question in questions if question.strip()][:3]
+        if not normalized:
+            return
+
+        dual_writer = await self._get_dual_writer()
+        if dual_writer and self.config.session_id:
+            await dual_writer.set_run_recommend_questions(
+                session_id=self.config.session_id,
+                run_id=self.run_id,
+                questions=normalized,
+            )
+
+        if self.config.user_id and self.config.session_id:
+            try:
+                from src.infra.websocket import get_connection_manager
+
+                await get_connection_manager().send_to_user_with_broadcast(
+                    self.config.user_id,
+                    {
+                        "type": "recommend:questions",
+                        "data": {
+                            "session_id": self.config.session_id,
+                            "run_id": self.run_id,
+                            "questions": normalized,
+                        },
+                    },
+                )
+            except Exception as exc:
+                logger.debug("Failed to publish recommended questions over WebSocket: %s", exc)
+
+        self._recommend_questions_recorded = True
+
     async def emit_user_message(
         self,
         content: str,

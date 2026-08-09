@@ -858,16 +858,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         subagent_avatars=subagent_avatars,
     )
 
-    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS:
-        from src.agents.core.recommendations import schedule_recommend_questions_from_state
-
-        schedule_recommend_questions_from_state(
-            presenter,
-            recommendation_input,
-            inner_graph,
-            inner_config,
-        )
-
     logger.info("[TeamAgent] Starting astream_events")
     try:
         async with isolated_nested_graph_run():
@@ -911,5 +901,19 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     output_text = event_processor.output_text
     event_processor.clear()
+
+    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS:
+        try:
+            from src.agents.core.recommendations import schedule_recommend_questions_from_state
+
+            schedule_recommend_questions_from_state(
+                presenter,
+                recommendation_input,
+                output_text,
+                inner_graph,
+                inner_config,
+            )
+        except Exception as exc:
+            logger.debug("Failed to schedule recommended questions: %s", exc)
 
     return {"output": output_text}

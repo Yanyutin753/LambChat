@@ -270,6 +270,7 @@ async def test_get_session_runs_can_filter_by_trace_id(monkeypatch: pytest.Monke
                 "completed_at": "2026-04-25T00:01:00Z",
                 "status": "completed",
                 "event_count": 3,
+                "recommend_questions": ["下一步做什么？"],
             }
         ),
     )
@@ -289,6 +290,7 @@ async def test_get_session_runs_can_filter_by_trace_id(monkeypatch: pytest.Monke
     assert response["runs"][0]["run_id"] == "run-2"
     assert response["runs"][0]["trace_id"] == "trace-2"
     assert response["runs"][0]["user_message"] == "hello world"
+    assert response["runs"][0]["recommend_questions"] == ["下一步做什么？"]
     assert trace_storage.calls == [
         {"trace_id": "trace-2", "event_types": ["user:message"]},
     ]
