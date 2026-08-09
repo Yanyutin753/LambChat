@@ -82,6 +82,11 @@ export interface UsageRankingItem {
   requests: number;
   tokens: number;
   duration: number;
+  input_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
+  cache_read_share: number;
+  zero_cache_requests: number;
 }
 
 export interface UsageDashboardResponse {

@@ -372,6 +372,7 @@ export function UsagePanel() {
               icon={DatabaseZap}
               items={dashboard.top_models}
               emptyLabel={t("usage.empty.model")}
+              showCacheMetrics
             />
             {isAdmin && (
               <RankingList

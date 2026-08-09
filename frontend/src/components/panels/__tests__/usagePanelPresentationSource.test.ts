@@ -11,6 +11,11 @@ const usageTableSource = readFileSync(
   "utf8",
 );
 
+const rankingSource = readFileSync(
+  join(import.meta.dirname, "../UsagePanel/RankingCards.tsx"),
+  "utf8",
+);
+
 const insightSource = readFileSync(
   join(import.meta.dirname, "../UsagePanel/InsightStrip.tsx"),
   "utf8",
@@ -59,4 +64,16 @@ test("usage visual accents use theme colors instead of hard-coded chart palette"
   expect(trendSource).not.toMatch(/#3b82f6|#06b6d4|bg-blue-500/);
   expect(trendSource).toMatch(/var\(--theme-primary\)/);
   expect(trendSource).toMatch(/var\(--usage-chart-secondary\)/);
+});
+
+test("model ranking alone exposes per-model cache diagnostics", () => {
+  expect(rankingSource).toMatch(/showCacheMetrics\?: boolean/);
+  expect(rankingSource).toMatch(/usage\.cacheHitRate/);
+  expect(rankingSource).toMatch(/pct\(item\.cache_read_share\)/);
+  expect(rankingSource).toMatch(/usage\.cacheRead/);
+  expect(rankingSource).toMatch(/fmt\(item\.cache_read_tokens\)/);
+  expect(usagePanelSource.match(/showCacheMetrics/g)).toHaveLength(1);
+  expect(usagePanelSource).toMatch(
+    /title=\{modelRankingTitle\}[\s\S]*?showCacheMetrics/,
+  );
 });

@@ -40,11 +40,13 @@ export function RankingList({
   icon: Icon,
   items,
   emptyLabel,
+  showCacheMetrics = false,
 }: {
   title: string;
   icon: LucideIcon;
   items: UsageRankingItem[];
   emptyLabel: string;
+  showCacheMetrics?: boolean;
 }) {
   const { t } = useTranslation();
   const maxTokens = Math.max(...items.map((i) => i.tokens), 1);
@@ -97,6 +99,16 @@ export function RankingList({
                 </span>
                 <span>{fmtDur(item.duration)}</span>
               </div>
+              {showCacheMetrics && (
+                <div className="mt-1 flex flex-wrap justify-between gap-x-2 text-[10px] text-theme-text-tertiary">
+                  <span>
+                    {t("usage.cacheHitRate")}: {pct(item.cache_read_share)}
+                  </span>
+                  <span>
+                    {t("usage.cacheRead")}: {fmt(item.cache_read_tokens)}
+                  </span>
+                </div>
+              )}
             </div>
           ))
         )}
