@@ -7,16 +7,20 @@ interface FileIconProps {
   icon: LucideIcon;
   bg?: string;
   color?: string;
+  compact?: boolean;
 }
 
 export function FileIcon({
   icon: Icon,
   bg = "bg-blue-100 dark:bg-blue-900/40",
   color = "text-blue-600 dark:text-blue-400",
+  compact = false,
 }: FileIconProps) {
   return (
     <div
-      className={`flex items-center justify-center size-10 rounded-lg shrink-0 ${bg}`}
+      className={`flex items-center justify-center ${
+        compact ? "size-8" : "size-10"
+      } rounded-lg shrink-0 ${bg}`}
     >
       <Icon size={18} className={color} />
     </div>

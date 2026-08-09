@@ -127,8 +127,8 @@ export default function DocumentPreviewToolbar({
           icon={<BackIcon size={16} />}
         />
       )}
-      <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} />
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} compact />
+      <div className="flex-[0_1_clamp(7rem,28%,12rem)] min-w-0 overflow-hidden">
         <h3
           className="text-[13px] sm:text-sm font-medium text-[var(--theme-text)] truncate"
           title={fileName}
@@ -150,7 +150,7 @@ export default function DocumentPreviewToolbar({
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-2 sm:gap-1 relative z-10 shrink-0">
+      <div className="ml-auto flex items-center gap-2 sm:gap-1 relative z-10 shrink-0">
         {markdownFile && data?.content && (
           <ToolbarIconButton
             onClick={() => {
