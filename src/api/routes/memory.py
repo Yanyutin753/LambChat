@@ -12,12 +12,17 @@ from fastapi.responses import StreamingResponse
 
 from src.api.deps import get_current_user_required
 from src.infra.async_utils.blocking import run_blocking_io
+from src.infra.logging import get_logger
 from src.infra.memory.client.types import MemoryType
+from src.infra.session.conversation_history import ConversationHistoryService
+from src.infra.session.conversation_history_index import merge_source_refs
 from src.infra.utils.datetime import parse_iso, to_iso, utc_now, utc_now_iso
 from src.kernel.config import settings
+from src.kernel.schemas.conversation_history import ConversationSourceRef
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 _VALID_MEMORY_TYPES = {mt.value for mt in MemoryType}
 _VALID_SOURCES = {"manual", "auto_retained", "imported", "consolidated"}
@@ -130,7 +135,34 @@ def _memory_projection() -> dict[str, int]:
         "updated_at": 1,
         "accessed_at": 1,
         "access_count": 1,
+        "source_refs": 1,
     }
+
+
+async def _validated_source_ref_docs(user_id: str, raw_refs: Any) -> list[dict[str, str]]:
+    normalized: list[ConversationSourceRef] = []
+    if isinstance(raw_refs, list):
+        for raw_ref in raw_refs:
+            try:
+                normalized.append(
+                    raw_ref
+                    if isinstance(raw_ref, ConversationSourceRef)
+                    else ConversationSourceRef.model_validate(raw_ref)
+                )
+            except Exception:
+                continue
+    normalized = merge_source_refs([], normalized)
+    if not normalized:
+        return []
+    try:
+        allowed = await ConversationHistoryService().validate_source_refs(user_id, normalized)
+    except Exception as exc:
+        logger.warning(
+            "Memory API source reference validation failed: error_type=%s",
+            type(exc).__name__,
+        )
+        return []
+    return [ref.model_dump() for ref in allowed]
 
 
 def _json_iterencode_chunks(encoder: json.JSONEncoder, value: Any) -> list[str]:
@@ -187,6 +219,7 @@ async def list_memories(
                 "created_at": 1,
                 "updated_at": 1,
                 "access_count": 1,
+                "source_refs": 1,
             },
         )
         .sort("updated_at", -1)
@@ -196,6 +229,7 @@ async def list_memories(
 
     memories = []
     async for doc in cursor:
+        source_refs = await _validated_source_ref_docs(user.sub, doc.get("source_refs"))
         memory = {
             "memory_id": doc["memory_id"],
             "title": doc.get("title", ""),
@@ -208,6 +242,7 @@ async def list_memories(
             "updated_at": doc.get("updated_at"),
             "access_count": doc.get("access_count", 0),
             "has_full_content": doc.get("content_storage_mode") == "store",
+            "source_refs": source_refs,
         }
         memories.append(memory)
 
@@ -244,6 +279,7 @@ async def create_memory(
     summary = _clean_text(payload.get("summary") or content, 300)
     tags = _clean_tags(payload.get("tags"))
     now = utc_now()
+    source_refs = await _validated_source_ref_docs(user.sub, payload.get("source_refs"))
 
     content_fields = await build_content_fields(backend, user.sub, memory_id, content)
     embedding = None
@@ -265,6 +301,7 @@ async def create_memory(
         "updated_at": now,
         "accessed_at": now,
         "access_count": 0,
+        "source_refs": source_refs,
         **content_fields,
     }
 
@@ -303,7 +340,11 @@ async def update_memory(
 
     existing = await backend._collection.find_one(
         {"user_id": user.sub, "memory_id": memory_id},
-        {"content_storage_mode": 1, "content_store_key": 1},
+        {
+            "content_storage_mode": 1,
+            "content_store_key": 1,
+            "source_refs": 1,
+        },
     )
     if not existing:
         raise HTTPException(status_code=404, detail="Memory not found")
@@ -330,6 +371,10 @@ async def update_memory(
                 detail=f"Invalid source. Must be one of: {', '.join(sorted(_VALID_SOURCES))}",
             )
         update["source"] = src
+    if "source_refs" in payload:
+        update["source_refs"] = await _validated_source_ref_docs(
+            user.sub, payload.get("source_refs")
+        )
 
     content = payload.get("content")
     if content is not None:
@@ -408,6 +453,7 @@ async def export_memories(
         first = True
         async for doc in cursor:
             content = await hydrate_memory_text(backend, doc)
+            source_refs = await _validated_source_ref_docs(user.sub, doc.get("source_refs"))
             content_original_chars = len(content)
             max_content_chars = _get_memory_export_content_max_chars()
             content_truncated = content_original_chars > max_content_chars
@@ -426,6 +472,7 @@ async def export_memories(
                 "updated_at": to_iso(doc.get("updated_at")),
                 "accessed_at": to_iso(doc.get("accessed_at")),
                 "access_count": doc.get("access_count", 0),
+                "source_refs": source_refs,
             }
             if content_truncated:
                 item["content_truncated"] = True
@@ -492,6 +539,7 @@ async def import_memories(
         title = _clean_text(raw.get("title") or "Imported memory", 80)
         summary = _clean_text(raw.get("summary") or content, 300)
         tags = _clean_tags(raw.get("tags"))
+        source_refs = await _validated_source_ref_docs(user.sub, raw.get("source_refs"))
 
         existing_doc = await backend._collection.find_one(
             {"user_id": user.sub, "memory_id": memory_id},
@@ -539,6 +587,7 @@ async def import_memories(
             "updated_at": updated_at,
             "accessed_at": accessed_at,
             "access_count": access_count,
+            "source_refs": source_refs,
             **content_fields,
         }
 
@@ -602,12 +651,14 @@ async def get_memory(
             "created_at": 1,
             "updated_at": 1,
             "access_count": 1,
+            "source_refs": 1,
         },
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Memory not found")
 
     full_content = await hydrate_memory_text(backend, doc)
+    source_refs = await _validated_source_ref_docs(user.sub, doc.get("source_refs"))
 
     return {
         "memory_id": doc["memory_id"],
@@ -621,6 +672,7 @@ async def get_memory(
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
         "access_count": doc.get("access_count", 0),
+        "source_refs": source_refs,
     }
 
 

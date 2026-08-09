@@ -20,8 +20,10 @@ from src.infra.memory.client.native.summaries import (
     llm_enrich_memory,
 )
 from src.infra.memory.client.types import MemoryType
+from src.infra.session.conversation_history_index import merge_source_refs
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
+from src.kernel.schemas.conversation_history import ConversationSourceRef
 
 logger = get_logger(__name__)
 
@@ -330,6 +332,20 @@ async def _llm_batch_consolidate(backend, memories: list[dict], expected_type: s
             return None
 
         now = utc_now()
+        batch_source_refs: list[ConversationSourceRef] = []
+        for memory in memories:
+            for raw_ref in memory.get("source_refs") or []:
+                try:
+                    batch_source_refs.append(
+                        raw_ref
+                        if isinstance(raw_ref, ConversationSourceRef)
+                        else ConversationSourceRef.model_validate(raw_ref)
+                    )
+                except Exception:
+                    continue
+        consolidated_source_refs = [
+            ref.model_dump() for ref in merge_source_refs([], batch_source_refs)
+        ]
         enrich_results = await _enrich_items_limited(backend, parsed)
 
         docs = []
@@ -359,6 +375,7 @@ async def _llm_batch_consolidate(backend, memories: list[dict], expected_type: s
                     "updated_at": now,
                     "accessed_at": now,
                     "access_count": 0,
+                    "source_refs": consolidated_source_refs,
                     **content_fields,
                 }
             )

@@ -132,18 +132,21 @@ async def test_llm_batch_consolidate_uses_store_for_long_content(monkeypatch):
                 "user_id": "u1",
                 "content": "old",
                 "created_at": None,
+                "source_refs": [{"session_id": "s1", "run_id": "r1"}],
             },
             {
                 "memory_id": "m2",
                 "user_id": "u1",
                 "content": "old2",
                 "created_at": None,
+                "source_refs": [{"session_id": "s2", "run_id": "r2"}],
             },
             {
                 "memory_id": "m3",
                 "user_id": "u1",
                 "content": "old3",
                 "created_at": None,
+                "source_refs": [{"session_id": "s1", "run_id": "r1"}],
             },
         ],
         expected_type="user",
@@ -154,6 +157,10 @@ async def test_llm_batch_consolidate_uses_store_for_long_content(monkeypatch):
     assert docs[0]["content_store_key"] is not None
     assert docs[0]["content"].endswith("...")
     assert docs[0]["source"] == "consolidated"
+    assert docs[0]["source_refs"] == [
+        {"session_id": "s2", "run_id": "r2"},
+        {"session_id": "s1", "run_id": "r1"},
+    ]
 
 
 @pytest.mark.asyncio
