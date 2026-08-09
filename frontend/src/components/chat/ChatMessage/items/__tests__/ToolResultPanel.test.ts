@@ -19,13 +19,9 @@ test("mobile tool result panel slide-in keeps the sheet opaque", () => {
   );
 });
 
-test("mobile swipe-to-close is limited to the explicit drag handle", () => {
+test("mobile tool panels use a full workspace without swipe-to-close", () => {
   const componentSource = readFileSync(
     new URL("../ToolResultPanel.tsx", import.meta.url),
-    "utf8",
-  );
-  const swipeHookSource = readFileSync(
-    new URL("../../../../../hooks/useSwipeToClose.ts", import.meta.url),
     "utf8",
   );
   const sidebarPanelHookSource = readFileSync(
@@ -33,11 +29,9 @@ test("mobile swipe-to-close is limited to the explicit drag handle", () => {
     "utf8",
   );
 
-  expect(swipeHookSource).toMatch(
-    /dragHandleRef\?: RefObject<HTMLElement \| null>/,
-  );
-  expect(sidebarPanelHookSource).toMatch(/dragHandleRef,\s*\}\);/);
-  expect(componentSource).toMatch(/ref=\{dragHandleRef\}/);
+  expect(sidebarPanelHookSource).not.toMatch(/useSwipeToClose/);
+  expect(componentSource).not.toMatch(/ref=\{dragHandleRef\}/);
+  expect(componentSource).toMatch(/isMobile\s*\?\s*"h-full min-h-full/);
 });
 
 test("explicit close button reports a user close before closing the panel", () => {
@@ -51,7 +45,7 @@ test("explicit close button reports a user close before closing the panel", () =
     /const handleUserClose = useCallback\(\(\) => \{\s*onUserClose\?\.\(\);\s*clearSidebarHistory\(\);\s*onClose\(\);/s,
   );
   expect(componentSource).toMatch(
-    /useSidebarPanel\(\{\s*open,\s*onClose: handleUserClose,/s,
+    /useSidebarPanel\(\{\s*open: entry\.active,\s*onClose: handleUserClose,/s,
   );
 });
 

@@ -8,6 +8,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { resetRightPanelCoordinator } from "../rightPanelCoordinator";
 import { useRightPanelEntry } from "../useRightPanelEntry";
 import { useSidebarPanel } from "../../../hooks/useSidebarPanel";
+import { ToolResultPanel } from "../../chat/ChatMessage/items/ToolResultPanel";
 import { EditorSidebar } from "../EditorSidebar";
 
 function installMatchMedia(width: number): void {
@@ -261,4 +262,91 @@ test("manual close restores focus to the opening trigger", async () => {
   await user.click(screen.getByRole("button", { name: /close/i }));
 
   await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+test("a tool panel hides an editor and closing it restores the editor", async () => {
+  const toolClose = vi.fn();
+  const view = render(
+    <>
+      <EditorSidebar open onClose={vi.fn()} title="Editor">
+        draft
+      </EditorSidebar>
+      <ToolResultPanel open onClose={toolClose} title="Preview">
+        preview
+      </ToolResultPanel>
+    </>,
+  );
+
+  expect(
+    screen.getByText("draft").closest("[data-right-panel-root]"),
+  ).toHaveAttribute("hidden");
+  expect(
+    screen.getByText("preview").closest("[data-right-panel-root]"),
+  ).not.toHaveAttribute("hidden");
+
+  view.rerender(
+    <>
+      <EditorSidebar open onClose={vi.fn()} title="Editor">
+        draft
+      </EditorSidebar>
+      <ToolResultPanel open={false} onClose={toolClose} title="Preview">
+        preview
+      </ToolResultPanel>
+    </>,
+  );
+
+  expect(
+    (await screen.findByText("draft")).closest("[data-right-panel-root]"),
+  ).not.toHaveAttribute("hidden");
+});
+
+test("automatic tool panels do not replace a deliberate editor", () => {
+  render(
+    <>
+      <EditorSidebar open onClose={vi.fn()} title="Editor">
+        draft
+      </EditorSidebar>
+      <ToolResultPanel automatic open onClose={vi.fn()} title="Auto">
+        auto
+      </ToolResultPanel>
+    </>,
+  );
+
+  expect(
+    screen.getByText("draft").closest("[data-right-panel-root]"),
+  ).not.toHaveAttribute("hidden");
+  expect(
+    screen.getByText("auto").closest("[data-right-panel-root]"),
+  ).toHaveAttribute("hidden");
+});
+
+test("tool Back closes only the top panel and reveals prior work", async () => {
+  function Harness() {
+    const [toolOpen, setToolOpen] = useState(true);
+    return (
+      <>
+        <EditorSidebar open onClose={vi.fn()} title="Editor">
+          saved draft
+        </EditorSidebar>
+        <ToolResultPanel
+          open={toolOpen}
+          onClose={() => setToolOpen(false)}
+          title="Preview"
+        >
+          preview body
+        </ToolResultPanel>
+      </>
+    );
+  }
+
+  const user = userEvent.setup();
+  render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "Back" }));
+
+  await waitFor(() =>
+    expect(
+      screen.getByText("saved draft").closest("[data-right-panel-root]"),
+    ).not.toHaveAttribute("hidden"),
+  );
+  expect(screen.queryByText("preview body")).not.toBeInTheDocument();
 });

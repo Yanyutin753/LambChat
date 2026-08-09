@@ -124,8 +124,11 @@ export function useSidebarPanel({
   );
   const [animateIn, setAnimateIn] = useState(false);
 
+  const responsivePresentation = getRightPanelPresentation(viewportWidth);
   const presentation =
-    presentationOverride ?? getRightPanelPresentation(viewportWidth);
+    responsivePresentation === "fullscreen"
+      ? "fullscreen"
+      : presentationOverride ?? responsivePresentation;
   const isMobile = presentation === "fullscreen";
   const panelKind: RightPanelKind =
     kind ?? (dataAttr === "data-editor-sidebar" ? "editor" : "content");
