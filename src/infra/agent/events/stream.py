@@ -16,6 +16,47 @@ def _first_int(*values: Any) -> int | None:
     return None
 
 
+def _usage_sources(response: Any) -> list[Any]:
+    """Return normalized usage first, followed by raw provider fallbacks."""
+    sources: list[Any] = []
+    usage_metadata = getattr(response, "usage_metadata", None)
+    if usage_metadata is not None:
+        sources.append(usage_metadata)
+
+    for container_name in ("response_metadata", "metadata"):
+        container = getattr(response, container_name, None)
+        if not container:
+            continue
+        raw_usage = get_value(container, "token_usage", None) or get_value(container, "usage", None)
+        if raw_usage is not None and all(raw_usage is not source for source in sources):
+            sources.append(raw_usage)
+    return sources
+
+
+def _first_usage_int(sources: list[Any], aliases: tuple[str, ...]) -> int | None:
+    for source in sources:
+        value = _first_int(*(get_value(source, alias, None) for alias in aliases))
+        if value is not None:
+            return value
+    return None
+
+
+def _first_cache_usage_int(sources: list[Any], aliases: tuple[str, ...]) -> int | None:
+    """Read one semantic cache metric without summing equivalent aliases."""
+    for source in sources:
+        for details_name in ("input_token_details", "prompt_tokens_details"):
+            details = get_value(source, details_name, None)
+            if not details:
+                continue
+            value = _first_int(*(get_value(details, alias, None) for alias in aliases))
+            if value is not None:
+                return value
+        value = _first_int(*(get_value(source, alias, None) for alias in aliases))
+        if value is not None:
+            return value
+    return None
+
+
 class StreamEventMixin:
     _chunk_buffer: TextChunkBuffer
     _summary_chunk_buffer: TextChunkBuffer
@@ -149,32 +190,21 @@ class StreamEventMixin:
         if not response:
             return
 
-        usage = getattr(response, "usage_metadata", None)
-        if usage is None:
-            response_metadata = getattr(response, "response_metadata", None)
-            if response_metadata:
-                usage = response_metadata.get("token_usage") or response_metadata.get("usage")
-        if usage is None:
-            metadata = getattr(response, "metadata", None)
-            if metadata:
-                usage = metadata.get("token_usage") or metadata.get("usage")
-
-        if usage is None:
+        usage_sources = _usage_sources(response)
+        if not usage_sources:
             return
 
-        input_tok = _first_int(
-            get_value(usage, "input_tokens", None),
-            get_value(usage, "prompt_tokens", None),
-            get_value(usage, "prompt_token_count", None),
+        input_tok = _first_usage_int(
+            usage_sources,
+            ("input_tokens", "prompt_tokens", "prompt_token_count"),
         )
-        output_tok = _first_int(
-            get_value(usage, "output_tokens", None),
-            get_value(usage, "completion_tokens", None),
-            get_value(usage, "candidates_token_count", None),
+        output_tok = _first_usage_int(
+            usage_sources,
+            ("output_tokens", "completion_tokens", "candidates_token_count"),
         )
-        total_tok = _first_int(
-            get_value(usage, "total_tokens", None),
-            get_value(usage, "total_token_count", None),
+        total_tok = _first_usage_int(
+            usage_sources,
+            ("total_tokens", "total_token_count"),
         )
 
         if isinstance(input_tok, int):
@@ -184,29 +214,21 @@ class StreamEventMixin:
         if isinstance(total_tok, int):
             self.total_tokens += total_tok
 
-        input_details = get_value(usage, "input_token_details", {})
-        if not input_details:
-            input_details = get_value(usage, "prompt_tokens_details", {})
-        cache_creation = None
-        cache_read = None
-        if input_details:
-            cache_creation = _first_int(
-                get_value(input_details, "cache_creation", None),
-                get_value(input_details, "cache_creation_input_tokens", None),
-            )
-            cache_read = _first_int(
-                get_value(input_details, "cache_read", None),
-                get_value(input_details, "cached_tokens", None),
-                get_value(input_details, "cached_content_token_count", None),
-            )
-
-        if cache_read is None:
-            cache_read = _first_int(
-                get_value(usage, "cached_content_token_count", None),
-                get_value(usage, "cache_read_input_tokens", None),
-            )
-        if cache_creation is None:
-            cache_creation = _first_int(get_value(usage, "cache_creation_input_tokens", None))
+        cache_creation = _first_cache_usage_int(
+            usage_sources,
+            ("cache_creation", "cache_creation_input_tokens", "cache_write_tokens"),
+        )
+        cache_read = _first_cache_usage_int(
+            usage_sources,
+            (
+                "cache_read",
+                "cached_tokens",
+                "cache_read_input_tokens",
+                "prompt_cache_hit_tokens",
+                "cached_content_token_count",
+                "total_cached_tokens",
+            ),
+        )
 
         if cache_creation is not None:
             self.total_cache_creation_tokens += cache_creation
