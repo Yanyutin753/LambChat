@@ -121,6 +121,35 @@ test("prepareMessagesForRunningRun does not duplicate the optimistic user messag
   ]);
 });
 
+test("prepareMessagesForRunningRun does not reveal a running assistant before its user message", () => {
+  const result = prepareMessagesForRunningRun(
+    [],
+    "run-active",
+    () => "assistant-active",
+  );
+
+  expect(result.streamingMessageId).toBe("assistant-active");
+  expect(result.messages).toEqual([]);
+});
+
+test("prepareMessagesForRunningRun removes an existing same-run assistant when its user is absent", () => {
+  const result = prepareMessagesForRunningRun(
+    [
+      {
+        id: "assistant-active",
+        role: "assistant",
+        content: "partial",
+        timestamp: new Date("2026-08-09T00:00:00.000Z"),
+        runId: "run-active",
+      },
+    ],
+    "run-active",
+  );
+
+  expect(result.streamingMessageId).toBe("assistant-active");
+  expect(result.messages).toEqual([]);
+});
+
 test("reconstructMessagesFromEvents ignores goal update events as message content", () => {
   const messages = reconstructMessagesFromEvents(
     [
