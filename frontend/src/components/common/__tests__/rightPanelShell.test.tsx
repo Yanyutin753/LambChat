@@ -179,6 +179,15 @@ test("clamps an unsafe stored width and supports accessible keyboard resizing", 
   );
   expect(screen.getByTestId("panel")).toHaveAttribute("data-width", "53");
   expect(localStorage.getItem("test-right-panel-width")).toBe("75");
+  expect(document.documentElement).toHaveAttribute(
+    "data-right-panel-presentation",
+    "docked",
+  );
+  expect(
+    document.documentElement.style.getPropertyValue(
+      "--right-panel-active-width",
+    ),
+  ).toBe("636px");
 
   const separator = screen.getByRole("separator");
   fireEvent.keyDown(separator, { key: "ArrowLeft" });

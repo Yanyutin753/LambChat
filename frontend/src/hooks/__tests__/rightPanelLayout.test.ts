@@ -9,6 +9,7 @@ import {
   type RightPanelLayoutSnapshot,
 } from "../rightPanelLayout";
 import {
+  getRightPanelLayoutSnapshot,
   notifyRightPanelWidthChanged,
   RIGHT_PANEL_WIDTH_CHANGED_EVENT,
 } from "../rightPanelWidthEvents";
@@ -112,4 +113,8 @@ test("publishes the active layout snapshot with the width event", () => {
 
   expect(listener).toHaveBeenCalledOnce();
   expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual(snapshot);
+  expect(getRightPanelLayoutSnapshot()).toEqual(snapshot);
+
+  notifyRightPanelWidthChanged(null, target);
+  expect(getRightPanelLayoutSnapshot()).toBeNull();
 });

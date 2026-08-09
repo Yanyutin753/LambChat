@@ -71,6 +71,7 @@ const _compressCounts = new Map<string, number>();
 let _modalCount = 0;
 let _previousBodyOverflow = "";
 let _previousBodyPaddingRight = "";
+let _activeLayoutOwner: symbol | null = null;
 
 function getWidthBounds({
   viewportWidth,
@@ -123,6 +124,7 @@ export function useSidebarPanel({
     }),
   );
   const [animateIn, setAnimateIn] = useState(false);
+  const layoutOwner = useRef(Symbol("right-panel-layout")).current;
 
   const responsivePresentation = getRightPanelPresentation(viewportWidth);
   const presentation =
@@ -207,22 +209,43 @@ export function useSidebarPanel({
 
   useLayoutEffect(() => {
     document.documentElement.style.setProperty(widthCssVar, `${sidebarWidth}%`);
-    notifyRightPanelWidthChanged(
-      open
-        ? {
-            open: true,
-            kind: panelKind,
-            presentation,
-            widthPct: sidebarWidth,
-            widthPx:
-              presentation === "fullscreen"
-                ? viewportWidth
-                : Math.round((viewportWidth * sidebarWidth) / 100),
-            viewportWidth,
-          }
-        : null,
+  }, [sidebarWidth, widthCssVar]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const widthPx =
+      presentation === "fullscreen"
+        ? viewportWidth
+        : Math.round((viewportWidth * sidebarWidth) / 100);
+    _activeLayoutOwner = layoutOwner;
+    document.documentElement.setAttribute(
+      "data-right-panel-presentation",
+      presentation,
     );
-  }, [open, panelKind, presentation, sidebarWidth, viewportWidth, widthCssVar]);
+    document.documentElement.style.setProperty(
+      "--right-panel-active-width",
+      `${widthPx}px`,
+    );
+    notifyRightPanelWidthChanged({
+      open: true,
+      kind: panelKind,
+      presentation,
+      widthPct: sidebarWidth,
+      widthPx,
+      viewportWidth,
+    });
+
+    return () => {
+      if (_activeLayoutOwner !== layoutOwner) return;
+      _activeLayoutOwner = null;
+      document.documentElement.removeAttribute("data-right-panel-presentation");
+      document.documentElement.style.removeProperty(
+        "--right-panel-active-width",
+      );
+      notifyRightPanelWidthChanged(null);
+    };
+  }, [layoutOwner, open, panelKind, presentation, sidebarWidth, viewportWidth]);
 
   useLayoutEffect(() => {
     if (!open) return;

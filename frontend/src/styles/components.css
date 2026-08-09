@@ -1449,7 +1449,7 @@
       var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px)) -
       1.5rem
   );
-  width: calc(var(--editor-sidebar-width, 30%) - 1.5rem);
+  width: calc(var(--editor-sidebar-width, 34%) - 1.5rem);
   min-width: 18rem;
   max-width: calc(75vw - 1.5rem);
   transform: translateX(100%);
@@ -3162,8 +3162,8 @@
 }
 
 .tool-console-panel[data-tool-panel-mode="sidebar"][data-sidebar-panel] {
-  width: calc(var(--sidebar-preview-width, 60%) - 1.5rem) !important;
-  max-width: calc(var(--sidebar-preview-width, 60%) - 1.5rem) !important;
+  width: calc(var(--sidebar-preview-width, 48%) - 1.5rem) !important;
+  max-width: calc(var(--sidebar-preview-width, 48%) - 1.5rem) !important;
 }
 
 .tool-console-chrome {

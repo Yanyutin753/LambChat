@@ -61,25 +61,20 @@ test("editor sidebar desktop chrome matches tool sidebar treatment", () => {
     /\.editor-sidebar\s*\{[\s\S]*?background:\s*linear-gradient/,
   );
   expect(editorRule).toMatch(
-    /width:\s*calc\(var\(--editor-sidebar-width,\s*30%\) - 1\.5rem\);/,
+    /width:\s*calc\(var\(--editor-sidebar-width,\s*34%\) - 1\.5rem\);/,
   );
   expect(editorRule).toMatch(/--right-sidebar-height:\s*calc\(/);
 });
 
-test("generic sidebar preview panels reserve the same chrome inset", () => {
+test("the app reserves space for one active docked right-panel lane", () => {
   const baseSource = readFileSync(
     new URL("../base.css", import.meta.url),
     "utf8",
   );
-  const match = baseSource.match(
-    /\[data-sidebar-panel\]\s*\{([\s\S]*?)\n\s*\}/,
+  expect(baseSource).toMatch(
+    /html\[data-right-panel-presentation="docked"\]\s+#root\s*\{[\s\S]*?max-width:\s*calc\(100% - var\(--right-panel-active-width, 0px\)\)/,
   );
-  const rule = match?.[1] ?? "";
-
-  expect(rule).toMatch(
-    /width:\s*calc\(var\(--sidebar-preview-width, 60%\) - 1\.5rem\) !important;/,
-  );
-  expect(rule).toMatch(
-    /max-width:\s*calc\(var\(--sidebar-preview-width, 60%\) - 1\.5rem\) !important;/,
+  expect(baseSource).not.toMatch(
+    /data-sidebar-preview="open"\]\[data-editor-sidebar="open"/,
   );
 });

@@ -1,27 +1,27 @@
-/* When DocumentPreview sidebar is open, compress the main app layout */
-@media (min-width: 640px) {
+/* Reserve workspace for the single active docked right-panel lane. */
+@media (min-width: 1200px) {
   #root {
     transition: max-width 300ms ease-out;
   }
-  html[data-sidebar-preview="open"],
-  html[data-sidebar-preview="open"] body {
+  html[data-right-panel-presentation="docked"],
+  html[data-right-panel-presentation="docked"] body {
     background: var(--theme-bg);
   }
-  html[data-sidebar-preview="open"] body::before {
+  html[data-right-panel-presentation="docked"] body::before {
     content: "";
     position: fixed;
     inset: 0 0 0 auto;
-    width: var(--sidebar-preview-width, 60%);
+    width: var(--right-panel-active-width, 0px);
     background: var(--theme-bg);
     pointer-events: none;
     z-index: 199;
   }
-  html[data-sidebar-preview="open"] #root {
-    max-width: calc(100% - var(--sidebar-preview-width, 60%)) !important;
+  html[data-right-panel-presentation="docked"] #root {
+    max-width: calc(100% - var(--right-panel-active-width, 0px)) !important;
   }
-  /* Fixed/absolute elements inside #root must also yield space for the sidebar panel */
-  html[data-sidebar-preview="open"] #root [data-yields-sidebar] {
-    right: var(--sidebar-preview-width, 60%) !important;
+  html[data-right-panel-presentation="docked"] #root [data-yields-sidebar],
+  html[data-right-panel-presentation="docked"] body > [data-yields-sidebar] {
+    right: var(--right-panel-active-width, 0px) !important;
   }
   [data-yields-sidebar] {
     transition: right 300ms ease-out;
@@ -39,63 +39,14 @@
       left 300ms ease-out,
       right 300ms ease-out;
   }
-  html[data-sidebar-preview="open"] .app-toaster {
-    right: calc(var(--sidebar-preview-width, 60%) + 16px) !important;
+  html[data-right-panel-presentation="docked"] .app-toaster {
+    right: calc(var(--right-panel-active-width, 0px) + 16px) !important;
   }
-  html[data-sidebar-preview="open"] body > .chat-input-help-menu {
+  html[data-right-panel-presentation="docked"] body > .chat-input-help-menu {
     opacity: 0;
     pointer-events: none;
     transform: translateY(0.25rem);
     visibility: hidden;
-  }
-  /* Sidebar panel uses percentage width on desktop */
-  [data-sidebar-panel] {
-    width: calc(var(--sidebar-preview-width, 60%) - 1.5rem) !important;
-    max-width: calc(var(--sidebar-preview-width, 60%) - 1.5rem) !important;
-  }
-}
-
-/* When EditorSidebar is open, compress the main app layout */
-@media (min-width: 640px) {
-  html[data-editor-sidebar="open"] #root {
-    max-width: calc(100% - var(--editor-sidebar-width, 30%)) !important;
-  }
-  html[data-editor-sidebar="open"] #root [data-yields-sidebar] {
-    right: var(--editor-sidebar-width, 30%) !important;
-  }
-  /* Portals rendered outside #root (e.g. PersonaPresetSelector) */
-  html[data-editor-sidebar="open"] body > [data-yields-sidebar] {
-    right: var(--editor-sidebar-width, 30%) !important;
-  }
-  html[data-editor-sidebar="open"] .app-toaster {
-    right: calc(var(--editor-sidebar-width, 30%) + 16px) !important;
-  }
-  html[data-editor-sidebar="open"] body > .chat-input-help-menu {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(0.25rem);
-    visibility: hidden;
-  }
-
-  /* When both sidebars are open, compress #root for the combined width */
-  html[data-sidebar-preview="open"][data-editor-sidebar="open"] #root {
-    max-width: calc(
-      100% - var(--sidebar-preview-width, 60%) -
-        var(--editor-sidebar-width, 30%)
-    ) !important;
-  }
-  html[data-sidebar-preview="open"][data-editor-sidebar="open"]
-    #root
-    [data-yields-sidebar] {
-    right: calc(
-      var(--sidebar-preview-width, 60%) + var(--editor-sidebar-width, 30%)
-    ) !important;
-  }
-  html[data-sidebar-preview="open"][data-editor-sidebar="open"] .app-toaster {
-    right: calc(
-      var(--sidebar-preview-width, 60%) + var(--editor-sidebar-width, 30%) +
-        16px
-    ) !important;
   }
 }
 
@@ -220,15 +171,17 @@ html.allow-scroll #root {
   scrollbar-gutter: auto;
 }
 
-html.allow-scroll[data-sidebar-preview="open"],
-html.allow-scroll[data-sidebar-preview="open"] body,
-html.allow-scroll[data-sidebar-preview="open"] #root {
+html.allow-scroll[data-right-panel-presentation="docked"],
+html.allow-scroll[data-right-panel-presentation="docked"] body,
+html.allow-scroll[data-right-panel-presentation="docked"] #root {
   scrollbar-width: none;
 }
 
-html.allow-scroll[data-sidebar-preview="open"]::-webkit-scrollbar,
-html.allow-scroll[data-sidebar-preview="open"] body::-webkit-scrollbar,
-html.allow-scroll[data-sidebar-preview="open"] #root::-webkit-scrollbar {
+html.allow-scroll[data-right-panel-presentation="docked"]::-webkit-scrollbar,
+html.allow-scroll[data-right-panel-presentation="docked"]
+  body::-webkit-scrollbar,
+html.allow-scroll[data-right-panel-presentation="docked"]
+  #root::-webkit-scrollbar {
   width: 0;
   height: 0;
   display: none;
