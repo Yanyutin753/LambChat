@@ -167,6 +167,41 @@ test("folder download appears immediately before the expansion chevron", () => {
   expect(folderDownload.nextElementSibling).toBe(folderChevron);
 });
 
+test("keeps long nested folder rows inside the panel width boundary", () => {
+  const longFolderName = "3cd5f740-c3d3-4556-b1d7-5bb3b601e20a";
+  openAllFilesPanel([
+    filePart({
+      id: "file:report",
+      name: "report.pdf",
+      path: `/workspace/${longFolderName}/LambChat/report.pdf`,
+      signedUrl: "/api/upload/file/report",
+    }),
+  ]);
+
+  fireEvent.click(screen.getByRole("button", { name: "workspace" }));
+  const folderButton = screen.getByRole("button", { name: longFolderName });
+  const folderRow = folderButton.parentElement;
+  const folderNode = folderRow?.parentElement;
+  const panelScroller = folderRow?.closest(".overflow-y-auto");
+
+  expect(panelScroller).toHaveClass(
+    "min-w-0",
+    "max-w-full",
+    "overflow-x-hidden",
+  );
+  expect(folderNode).toHaveClass("min-w-0", "max-w-full");
+  expect(folderRow).toHaveClass("min-w-0", "max-w-full", "overflow-hidden");
+
+  fireEvent.click(folderButton);
+  expect(folderRow?.nextElementSibling).toHaveClass("min-w-0", "max-w-full");
+  expect(
+    screen.getByRole("button", { name: `Export ZIP: ${longFolderName}` }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: `Collapse: ${longFolderName}` }),
+  ).toBeInTheDocument();
+});
+
 test("folder expansion chevron toggles the folder", () => {
   openAllFilesPanel([
     filePart({

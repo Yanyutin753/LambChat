@@ -228,8 +228,8 @@ function TreeDirRow({
   }`;
 
   return (
-    <div>
-      <div className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors group">
+    <div className="min-w-0 max-w-full">
+      <div className="flex min-w-0 max-w-full w-full items-center gap-3 overflow-hidden px-3 py-2.5 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800/60 transition-colors group">
         <button
           type="button"
           aria-expanded={expanded}
@@ -309,7 +309,9 @@ function TreeDirRow({
         </button>
       </div>
       {expanded && (
-        <div className={clsx(depth === 0 ? "pl-2" : "pl-4")}>
+        <div
+          className={clsx("min-w-0 max-w-full", depth === 0 ? "pl-2" : "pl-4")}
+        >
           {node.children.map((child, i) =>
             child.kind === "dir" ? (
               <TreeDirRow
@@ -614,7 +616,7 @@ export function RevealArtifactsSummary({
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-1.5">
+          <div className="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto p-1.5">
             {projects.length > 0 && (
               <section>
                 <SectionTitle count={projects.length}>
