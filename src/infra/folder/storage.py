@@ -4,9 +4,12 @@ from typing import Optional
 
 from bson import ObjectId
 
+from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 from src.kernel.schemas.project import Project, ProjectCreate, ProjectUpdate
+
+logger = get_logger(__name__)
 
 PROJECT_LIST_LIMIT = 100
 DEFAULT_PROJECT_ICON = "💬"
@@ -36,14 +39,33 @@ class ProjectStorage:
         return self._collection
 
     async def ensure_indexes(self) -> None:
-        """Create indexes for the projects collection."""
-        from src.infra.logging import get_logger
+        """创建索引（含 P2-10 partial 唯一索引，消除 check-then-insert 竞态）。
 
-        logger = get_logger(__name__)
+        - project_user_type_idx：通用 (user_id, type) 查询索引
+        - project_user_favorites_uniq：每用户最多一个 favorites（partial 唯一）
+        - project_user_name_type_channel_uniq：自动创建的 channel 项目每用户每 name 唯一（partial 唯一）
+
+        并发安全依赖 partial 唯一索引；ensure_favorites_project /
+        get_or_create_by_name 捕获 DuplicateKeyError 回查已存在文档。
+        """
         try:
             await self.collection.create_index(
                 [("user_id", 1), ("type", 1)],
                 name="project_user_type_idx",
+                background=True,
+            )
+            await self.collection.create_index(
+                [("user_id", 1), ("type", 1)],
+                name="project_user_favorites_uniq",
+                unique=True,
+                partialFilterExpression={"type": "favorites"},
+                background=True,
+            )
+            await self.collection.create_index(
+                [("user_id", 1), ("name", 1), ("type", 1)],
+                name="project_user_name_type_channel_uniq",
+                unique=True,
+                partialFilterExpression={"type": "channel"},
                 background=True,
             )
             logger.info("Project storage indexes ensured")
@@ -159,6 +181,8 @@ class ProjectStorage:
         Returns the favorites project.
         """
         # Check if favorites project already exists
+        from pymongo.errors import DuplicateKeyError
+
         existing = await self.get_by_type(user_id, "favorites")
         if existing:
             return existing
@@ -174,11 +198,16 @@ class ProjectStorage:
             "created_at": now,
             "updated_at": now,
         }
-
-        result = await self.collection.insert_one(project_dict)
-        project_dict["id"] = str(result.inserted_id)
-
-        return Project(**project_dict)
+        try:
+            result = await self.collection.insert_one(project_dict)
+            project_dict["id"] = str(result.inserted_id)
+            return Project(**project_dict)
+        except DuplicateKeyError:
+            # 并发：另一请求已建 favorites，回查返回已存在（幂等）
+            existing = await self.get_by_type(user_id, "favorites")
+            if existing:
+                return existing
+            raise
 
     async def get_or_create_by_name(
         self, user_id: str, name: str, project_type: str = "channel", icon: str = "💬"
@@ -186,10 +215,13 @@ class ProjectStorage:
         """Get or create a project by name for a user.
 
         Used by channels (e.g. Feishu) to auto-create a project for organizing conversations.
+        并发安全：依赖 project_user_name_type_channel_uniq partial 唯一索引（type=channel）；
+        insert 冲突时回查已存在文档。其它 type 无唯一索引保护。
         """
-        project_dict = await self.collection.find_one(
-            {"user_id": user_id, "name": name, "type": project_type}
-        )
+        from pymongo.errors import DuplicateKeyError
+
+        query = {"user_id": user_id, "name": name, "type": project_type}
+        project_dict = await self.collection.find_one(query)
         if project_dict:
             project_dict["id"] = str(project_dict.pop("_id"))
             return Project(**project_dict)
@@ -204,9 +236,17 @@ class ProjectStorage:
             "created_at": now,
             "updated_at": now,
         }
-        result = await self.collection.insert_one(project_dict)
-        project_dict["id"] = str(result.inserted_id)
-        return Project(**project_dict)
+        try:
+            result = await self.collection.insert_one(project_dict)
+            project_dict["id"] = str(result.inserted_id)
+            return Project(**project_dict)
+        except DuplicateKeyError:
+            # 并发：另一请求已建同 (user,name,type)，回查返回已存在（幂等）
+            project_dict = await self.collection.find_one(query)
+            if project_dict:
+                project_dict["id"] = str(project_dict.pop("_id"))
+                return Project(**project_dict)
+            raise
 
 
 # Singleton instance
