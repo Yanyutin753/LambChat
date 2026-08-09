@@ -3,6 +3,12 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import {
+  createPerformanceManifestTransform,
+  EAGER_JAVASCRIPT_BUDGET_BYTES,
+  PRECACHE_ADDITIONAL_ENTRIES,
+  PRECACHE_BUDGET_BYTES,
+} from "./scripts/performanceBudget";
 
 // Available agents (sync with backend)
 const AGENT_IDS = ["default", "api", "data_pipeline", "simple_workflow"];
@@ -92,6 +98,17 @@ export default defineConfig({
           "**/*.{js,css,html,ico,png,svg,webp,avif,woff,woff2,json}",
         ],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        additionalManifestEntries: PRECACHE_ADDITIONAL_ENTRIES,
+        manifestTransforms: [
+          createPerformanceManifestTransform({
+            distDir: path.resolve(__dirname, "dist"),
+            readText: (filePath) => fs.readFileSync(filePath, "utf8"),
+            readBytes: (filePath) => fs.readFileSync(filePath),
+            log: (message) => console.info(message),
+            eagerJavaScriptBudgetBytes: EAGER_JAVASCRIPT_BUDGET_BYTES,
+            precacheBudgetBytes: PRECACHE_BUDGET_BYTES,
+          }),
+        ],
       },
       includeManifestIcons: false,
       devOptions: {
@@ -131,21 +148,11 @@ export default defineConfig({
     drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
   },
   build: {
+    manifest: true,
     rollupOptions: {
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-codemirror": [
-            "@uiw/react-codemirror",
-            "@codemirror/lang-css",
-            "@codemirror/lang-html",
-            "@codemirror/lang-javascript",
-            "@codemirror/lang-json",
-            "@codemirror/lang-markdown",
-            "@codemirror/lang-python",
-            "@codemirror/lang-sql",
-            "@codemirror/lang-yaml",
-          ],
           "vendor-markdown": [
             "react-markdown",
             "remark-gfm",
@@ -154,8 +161,6 @@ export default defineConfig({
             "rehype-katex",
             "rehype-highlight",
           ],
-          "vendor-sandpack": ["@codesandbox/sandpack-react"],
-          "vendor-mermaid": ["mermaid"],
           "vendor-katex": ["katex"],
           "vendor-i18n": ["i18next", "react-i18next"],
         },

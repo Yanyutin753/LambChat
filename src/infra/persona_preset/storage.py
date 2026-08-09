@@ -11,6 +11,7 @@ from src.kernel.config import settings
 _SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]+")
 _SEARCH_HAS_LITERAL_RE = re.compile(r"[A-Za-z0-9_\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]")
 PERSONA_PRESET_LIST_LIMIT = 200
+PERSONA_PRESET_BATCH_LOOKUP_LIMIT = 4_000
 
 
 def _build_persona_search_terms(text: str | None) -> list[str]:
@@ -145,6 +146,33 @@ class PersonaPresetStorage:
             return None
         doc = await self.collection.find_one({"_id": query_id})
         return self._to_model_dict(doc) if doc else None
+
+    async def get_by_ids(self, preset_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch a bounded, deduplicated set of presets in one MongoDB query."""
+        object_ids: list[ObjectId] = []
+        seen: set[ObjectId] = set()
+        for preset_id in preset_ids:
+            if not isinstance(preset_id, str) or not ObjectId.is_valid(preset_id):
+                continue
+            object_id = ObjectId(preset_id)
+            if object_id in seen:
+                continue
+            seen.add(object_id)
+            object_ids.append(object_id)
+            if len(object_ids) >= PERSONA_PRESET_BATCH_LOOKUP_LIMIT:
+                break
+
+        if not object_ids:
+            return {}
+
+        docs = await self.collection.find({"_id": {"$in": object_ids}}).to_list(
+            length=len(object_ids)
+        )
+        result: dict[str, dict[str, Any]] = {}
+        for doc in docs:
+            preset_id = str(doc["_id"])
+            result[preset_id] = self._to_model_dict(doc)
+        return result
 
     # ── User preference helpers (stored in user metadata) ──
 

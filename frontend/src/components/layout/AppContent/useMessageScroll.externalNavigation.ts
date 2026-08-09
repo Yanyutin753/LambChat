@@ -1,7 +1,7 @@
 import type { Message } from "../../../types";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 import { parseProjectRevealSummary } from "../../chat/ChatMessage/items/revealPreviewData";
-import { openSubagentPanelByAgentId } from "../../chat/ChatMessage/SubagentBlocks";
+import { openSubagentPanelByAgentId } from "../../chat/ChatMessage/SubagentBlock";
 import { isPersistentToolPanelOpen } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import {
   createSubagentAnchorOwnerId,

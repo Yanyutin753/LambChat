@@ -33,7 +33,7 @@ import {
   getSubagentAvatarImageUrl,
   getSubagentRoleIconMeta,
 } from "./subagentRoleMeta";
-import { SubagentPanelContent } from "./SubagentPanelContent";
+import { DeferredSubagentPanelContent } from "./DeferredSubagentPanelContent";
 
 function SubagentStatusIcon({
   status,
@@ -121,7 +121,7 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
     icon: <Bot size={16} />,
     status: panelStatus,
     panelKey,
-    children: <SubagentPanelContent agentId={agentId} />,
+    children: <DeferredSubagentPanelContent agentId={agentId} />,
     footer: createSubagentPanelFooter(subtitle),
     onUserClose: dismissSubagentPanelAutoOpen,
   });
@@ -222,7 +222,7 @@ export function SubagentBlock({
         icon: <RoleIcon size={16} />,
         status: panelStatus,
         panelKey,
-        children: <SubagentPanelContent agentId={agent_id} />,
+        children: <DeferredSubagentPanelContent agentId={agent_id} />,
         footer: createSubagentPanelFooter(subtitle),
         auto: true,
         onUserClose: dismissSubagentPanelAutoOpen,
@@ -261,7 +261,7 @@ export function SubagentBlock({
       icon: <RoleIcon size={16} />,
       status: panelStatus,
       panelKey,
-      children: <SubagentPanelContent agentId={agent_id} />,
+      children: <DeferredSubagentPanelContent agentId={agent_id} />,
       footer: createSubagentPanelFooter(subtitle),
       onUserClose: dismissSubagentPanelAutoOpen,
     });

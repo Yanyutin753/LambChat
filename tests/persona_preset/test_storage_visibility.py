@@ -222,6 +222,84 @@ async def test_list_visible_reuses_preference_lookup_when_filtering_preferences(
 
 
 @pytest.mark.asyncio
+async def test_get_by_ids_deduplicates_valid_ids_and_uses_one_query() -> None:
+    first_id = ObjectId()
+    second_id = ObjectId()
+    calls: list[tuple[dict, int]] = []
+
+    class _Cursor:
+        async def to_list(self, *, length: int):
+            calls.append((query, length))
+            return [
+                {"_id": second_id, "name": "Second"},
+                {"_id": first_id, "name": "First"},
+            ]
+
+    class _Collection:
+        def find(self, value):
+            nonlocal query
+            query = value
+            return _Cursor()
+
+    query: dict = {}
+    storage = PersonaPresetStorage()
+    storage._collection = _Collection()
+
+    result = await storage.get_by_ids([str(first_id), "invalid", str(second_id), str(first_id)])
+
+    assert calls == [({"_id": {"$in": [first_id, second_id]}}, 2)]
+    assert list(result) == [str(second_id), str(first_id)]
+    assert result[str(first_id)]["name"] == "First"
+
+
+@pytest.mark.asyncio
+async def test_get_by_ids_skips_query_when_no_ids_are_valid() -> None:
+    class _Collection:
+        def find(self, _query):
+            raise AssertionError("invalid identifiers must not reach MongoDB")
+
+    storage = PersonaPresetStorage()
+    storage._collection = _Collection()
+
+    assert await storage.get_by_ids(["", "invalid", None]) == {}
+
+
+@pytest.mark.asyncio
+async def test_get_by_ids_bounds_the_lookup_set() -> None:
+    captured_length = 0
+
+    class _Cursor:
+        async def to_list(self, *, length: int):
+            nonlocal captured_length
+            captured_length = length
+            return []
+
+    class _Collection:
+        def find(self, _query):
+            return _Cursor()
+
+    storage = PersonaPresetStorage()
+    storage._collection = _Collection()
+
+    await storage.get_by_ids([str(ObjectId()) for _ in range(4_001)])
+
+    assert captured_length == 4_000
+
+
+@pytest.mark.asyncio
+async def test_get_by_ids_propagates_storage_failures() -> None:
+    class _Collection:
+        def find(self, _query):
+            raise RuntimeError("database unavailable")
+
+    storage = PersonaPresetStorage()
+    storage._collection = _Collection()
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await storage.get_by_ids([str(ObjectId())])
+
+
+@pytest.mark.asyncio
 async def test_persona_preset_storage_close_clears_collection_references() -> None:
     storage = PersonaPresetStorage()
     storage._collection = object()

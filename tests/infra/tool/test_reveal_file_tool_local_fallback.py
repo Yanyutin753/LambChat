@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import gc
 import json
 import weakref
@@ -874,3 +875,60 @@ async def test_resolve_local_references_caps_uploaded_resources(
     assert "https://app.example.com/chart-0.png" in text
     assert "https://app.example.com/chart-1.png" in text
     assert "./chart-2.png" in text
+
+
+@pytest.mark.asyncio
+async def test_resolve_local_references_uploads_with_bounded_overlap_and_isolates_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started: list[str] = []
+    active = 0
+    max_active = 0
+    release = asyncio.Event()
+    markdown = "\n".join(f"![chart {index}](./chart-{index}.png)" for index in range(5))
+
+    async def _upload_local_resource(
+        local_path: str,
+        file_dir,
+        backend,
+        storage,
+        base_url,
+    ) -> str | None:
+        nonlocal active, max_active
+        del file_dir, backend, storage, base_url
+        started.append(local_path)
+        active += 1
+        max_active = max(max_active, active)
+        await release.wait()
+        active -= 1
+        if local_path == "./chart-1.png":
+            return None
+        return f"https://app.example.com/{local_path.lstrip('./')}"
+
+    monkeypatch.setattr(reveal_file_tool, "_LOCAL_REF_UPLOAD_CONCURRENCY", 2, raising=False)
+    monkeypatch.setattr(reveal_file_tool, "_upload_local_resource", _upload_local_resource)
+
+    resolve_task = asyncio.create_task(
+        reveal_file_tool._resolve_local_references(
+            markdown.encode(),
+            "/workspace",
+            backend=object(),
+            storage=object(),
+            base_url="https://app.example.com",
+        )
+    )
+    for _ in range(10):
+        if len(started) >= 2:
+            break
+        await asyncio.sleep(0)
+    started_before_release = list(started)
+    release.set()
+    resolved = await resolve_task
+
+    assert started_before_release == ["./chart-0.png", "./chart-1.png"]
+    assert max_active == 2
+    text = resolved.decode()
+    assert text.index("chart-0.png") < text.index("chart-1.png") < text.index("chart-2.png")
+    assert "https://app.example.com/chart-0.png" in text
+    assert "![chart 1](./chart-1.png)" in text
+    assert "https://app.example.com/chart-2.png" in text

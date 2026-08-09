@@ -32,25 +32,31 @@ class TeamManager:
 
     # ── Internal helpers ──
 
-    async def _hydrate_member_display_metadata(self, team: TeamResponse) -> TeamResponse:
-        """Fill role_name, role_avatar, role_tags from persona presets."""
+    @staticmethod
+    def _hydrate_team_from_personas(
+        team: TeamResponse,
+        personas: dict[str, dict],
+    ) -> TeamResponse:
+        """Fill member display metadata from an already-loaded persona map."""
         hydrated_members = []
         for member in team.members:
+            preset = personas.get(member.persona_preset_id)
+            if not preset:
+                hydrated_members.append(member)
+                continue
             try:
-                preset = await self.persona_manager.storage.get_by_id(member.persona_preset_id)
-                if preset:
-                    member = TeamMemberResponse(
-                        member_id=member.member_id,
-                        persona_preset_id=member.persona_preset_id,
-                        agent_id=member.agent_id,
-                        model_id=member.model_id,
-                        role_name=preset.get("name", member.role_name),
-                        role_avatar=preset.get("avatar", member.role_avatar),
-                        role_tags=preset.get("tags", member.role_tags),
-                        role_instructions=member.role_instructions,
-                        position=member.position,
-                        enabled=member.enabled,
-                    )
+                member = TeamMemberResponse(
+                    member_id=member.member_id,
+                    persona_preset_id=member.persona_preset_id,
+                    agent_id=member.agent_id,
+                    model_id=member.model_id,
+                    role_name=preset.get("name", member.role_name),
+                    role_avatar=preset.get("avatar", member.role_avatar),
+                    role_tags=preset.get("tags", member.role_tags),
+                    role_instructions=member.role_instructions,
+                    position=member.position,
+                    enabled=member.enabled,
+                )
             except Exception:
                 logger.warning(
                     "Failed to hydrate member %s (preset %s)",
@@ -59,6 +65,32 @@ class TeamManager:
                 )
             hydrated_members.append(member)
         return team.model_copy(update={"members": hydrated_members})
+
+    async def _hydrate_teams_member_display_metadata(
+        self,
+        teams: list[TeamResponse],
+    ) -> list[TeamResponse]:
+        """Hydrate all teams through one persona preset lookup."""
+        preset_ids: list[str] = []
+        seen: set[str] = set()
+        for team in teams:
+            for member in team.members:
+                preset_id = member.persona_preset_id
+                if preset_id in seen:
+                    continue
+                seen.add(preset_id)
+                preset_ids.append(preset_id)
+
+        try:
+            personas = await self.persona_manager.storage.get_by_ids(preset_ids)
+        except Exception:
+            logger.warning("Failed to hydrate team member metadata", exc_info=True)
+            return teams
+        return [self._hydrate_team_from_personas(team, personas) for team in teams]
+
+    async def _hydrate_member_display_metadata(self, team: TeamResponse) -> TeamResponse:
+        """Hydrate one team through the shared batch path."""
+        return (await self._hydrate_teams_member_display_metadata([team]))[0]
 
     async def _validate_member_model_access(
         self,
@@ -217,9 +249,7 @@ class TeamManager:
             q=q,
             tag=tag,
         )
-        hydrated = []
-        for team in teams:
-            hydrated.append(await self._hydrate_member_display_metadata(team))
+        hydrated = await self._hydrate_teams_member_display_metadata(teams)
         return TeamListResponse(teams=hydrated, total=total, skip=skip, limit=limit)
 
     async def update_preference(

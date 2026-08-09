@@ -45,6 +45,7 @@ def mock_persona_manager():
     pm = MagicMock()
     pm.storage = MagicMock()
     pm.storage.get_by_id = AsyncMock(return_value=None)
+    pm.storage.get_by_ids = AsyncMock(return_value={})
     return pm
 
 
@@ -422,6 +423,106 @@ async def test_get_team_raises_not_found(manager, mock_storage):
 
     with pytest.raises(NotFoundError):
         await manager.get_team("nonexistent", owner_user_id="user-1")
+
+
+@pytest.mark.asyncio
+async def test_list_teams_hydrates_all_members_with_one_batch_query(
+    manager, mock_storage, mock_persona_manager
+):
+    teams = [
+        _make_team(
+            team_id="team-1",
+            members=[TeamMemberResponse(member_id="m-1", persona_preset_id="preset-1")],
+        ),
+        _make_team(
+            team_id="team-2",
+            members=[TeamMemberResponse(member_id="m-2", persona_preset_id="preset-2")],
+        ),
+    ]
+    mock_storage.list_teams = AsyncMock(return_value=(teams, 2))
+    mock_persona_manager.storage.get_by_ids = AsyncMock(
+        return_value={
+            "preset-1": {"name": "Planner", "avatar": "plan.png", "tags": ["plan"]},
+            "preset-2": {"name": "Writer", "avatar": "write.png", "tags": ["write"]},
+        }
+    )
+
+    result = await manager.list_teams(owner_user_id="user-1")
+
+    mock_persona_manager.storage.get_by_ids.assert_awaited_once_with(["preset-1", "preset-2"])
+    assert [team.id for team in result.teams] == ["team-1", "team-2"]
+    assert [team.members[0].role_name for team in result.teams] == ["Planner", "Writer"]
+
+
+@pytest.mark.asyncio
+async def test_team_hydration_deduplicates_presets_in_first_seen_order(
+    manager, mock_persona_manager
+):
+    teams = [
+        _make_team(
+            team_id="team-1",
+            members=[
+                TeamMemberResponse(member_id="m-1", persona_preset_id="preset-2"),
+                TeamMemberResponse(member_id="m-2", persona_preset_id="preset-1"),
+            ],
+        ),
+        _make_team(
+            team_id="team-2",
+            members=[TeamMemberResponse(member_id="m-3", persona_preset_id="preset-2")],
+        ),
+    ]
+
+    result = await manager._hydrate_teams_member_display_metadata(teams)
+
+    mock_persona_manager.storage.get_by_ids.assert_awaited_once_with(["preset-2", "preset-1"])
+    assert [team.id for team in result] == ["team-1", "team-2"]
+    assert [member.member_id for team in result for member in team.members] == [
+        "m-1",
+        "m-2",
+        "m-3",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_team_hydration_preserves_members_with_missing_or_invalid_presets(
+    manager, mock_persona_manager
+):
+    members = [
+        TeamMemberResponse(
+            member_id="m-invalid",
+            persona_preset_id="invalid",
+            role_name="Original Invalid",
+            role_avatar="invalid.png",
+            role_tags=["original"],
+        ),
+        TeamMemberResponse(
+            member_id="m-missing",
+            persona_preset_id="missing",
+            role_name="Original Missing",
+        ),
+    ]
+    team = _make_team(members=members)
+
+    result = await manager._hydrate_teams_member_display_metadata([team])
+
+    assert result[0].members == members
+
+
+@pytest.mark.asyncio
+async def test_team_hydration_returns_original_teams_when_batch_lookup_fails(
+    manager, mock_persona_manager, caplog
+):
+    teams = [
+        _make_team(members=[TeamMemberResponse(member_id="m-1", persona_preset_id="preset-1")])
+    ]
+    mock_persona_manager.storage.get_by_ids = AsyncMock(
+        side_effect=RuntimeError("database unavailable")
+    )
+
+    result = await manager._hydrate_teams_member_display_metadata(teams)
+
+    assert result is teams
+    assert "Failed to hydrate team member metadata" in caplog.text
 
 
 @pytest.mark.asyncio

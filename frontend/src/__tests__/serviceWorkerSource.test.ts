@@ -6,6 +6,8 @@ const source = readFileSync(resolve(import.meta.dirname, "../sw.ts"), "utf8");
 test("service worker uses Workbox precaching with an injected Vite manifest", () => {
   expect(source).toMatch(/precacheAndRoute\(self\.__WB_MANIFEST\)/);
   expect(source).toMatch(/cleanupOutdatedCaches\(\)/);
+  expect(source).toMatch(/new NetworkFirst\(/);
+  expect(source).toMatch(/new StaleWhileRevalidate\(/);
 });
 
 test("service worker keeps dynamic LambChat backends out of runtime caches", () => {

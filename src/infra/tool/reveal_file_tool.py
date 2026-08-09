@@ -23,6 +23,7 @@ Reveal File 工具
 - 使用 asyncio.Lock 防止并发初始化
 """
 
+import asyncio
 import inspect
 import json
 import mimetypes
@@ -66,6 +67,7 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
 _UPLOAD_SPOOL_MEMORY_LIMIT = 2 * 1024 * 1024
 _LOCAL_REF_RESOLUTION_MAX_BYTES = 2 * 1024 * 1024
 _LOCAL_REF_UPLOAD_LIMIT = 20
+_LOCAL_REF_UPLOAD_CONCURRENCY = 4
 _DEFAULT_REVEAL_FILE_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
 
 # 文件类型分类
@@ -557,6 +559,42 @@ async def _upload_local_resource(
         return None
 
 
+async def _upload_local_references_bounded(
+    paths: list[str],
+    file_dir: str,
+    backend: Any,
+    storage: Any,
+    base_url: str,
+) -> list[Optional[str]]:
+    """Upload local references with a fixed-size worker pool and stable results."""
+    if not paths:
+        return []
+
+    results: list[Optional[str]] = [None] * len(paths)
+    next_index = 0
+    lock = asyncio.Lock()
+    worker_count = min(max(int(_LOCAL_REF_UPLOAD_CONCURRENCY), 1), len(paths))
+
+    async def _worker() -> None:
+        nonlocal next_index
+        while True:
+            async with lock:
+                if next_index >= len(paths):
+                    return
+                index = next_index
+                next_index += 1
+            results[index] = await _upload_local_resource(
+                paths[index],
+                file_dir,
+                backend,
+                storage,
+                base_url,
+            )
+
+    await asyncio.gather(*(_worker() for _ in range(worker_count)))
+    return results
+
+
 async def _resolve_local_references(
     content: bytes,
     file_dir: str,
@@ -612,8 +650,14 @@ async def _resolve_local_references(
 
     # 批量上传
     path_to_url: dict[str, str] = {}
-    for ref_path in unique_paths:
-        url = await _upload_local_resource(ref_path, file_dir, backend, storage, base_url)
+    urls = await _upload_local_references_bounded(
+        unique_paths,
+        file_dir,
+        backend,
+        storage,
+        base_url,
+    )
+    for ref_path, url in zip(unique_paths, urls):
         if url:
             path_to_url[ref_path] = url
 
