@@ -8,105 +8,102 @@ export interface ModelSelection {
   modelValue: string;
 }
 
-interface ResolveDefaultModelSelectionArgs {
+interface ModelSelectionCandidate {
+  modelId?: string;
+  modelValue?: string;
+}
+
+interface ResolveModelSelectionArgs {
   availableModels?: ModelSelectionOption[] | null;
-  storedDefaultId?: string;
-  storedDefaultValue?: string;
-  fallbackDefaultValue?: string;
+  sessionModelId?: string;
+  sessionModelValue?: string;
+  userDefaultId?: string;
+  userDefaultValue?: string;
+  systemDefaultId?: string;
+  systemDefaultValue?: string;
 }
 
-interface ReconcileCurrentModelSelectionArgs
-  extends ResolveDefaultModelSelectionArgs {
-  currentModelId?: string;
-  currentModelValue?: string;
-}
+const EMPTY_SELECTION: ModelSelection = {
+  modelId: "",
+  modelValue: "",
+};
 
-function emptySelection(fallbackDefaultValue?: string): ModelSelection {
+function normalizeCandidate({
+  modelId,
+  modelValue,
+}: ModelSelectionCandidate): ModelSelection {
   return {
-    modelId: "",
-    modelValue: fallbackDefaultValue || "",
+    modelId: modelId?.trim() || "",
+    modelValue: modelValue?.trim() || "",
   };
 }
 
-export function resolveDefaultModelSelection({
-  availableModels,
-  storedDefaultId,
-  storedDefaultValue,
-  fallbackDefaultValue,
-}: ResolveDefaultModelSelectionArgs): ModelSelection {
-  if (!availableModels || availableModels.length === 0) {
-    return {
-      modelId: storedDefaultId || "",
-      modelValue: storedDefaultValue || fallbackDefaultValue || "",
-    };
-  }
+function firstRawCandidate(
+  candidates: ModelSelectionCandidate[],
+): ModelSelection {
+  return (
+    candidates.map(normalizeCandidate).find((item) => {
+      return item.modelId || item.modelValue;
+    }) ?? EMPTY_SELECTION
+  );
+}
 
-  if (storedDefaultId) {
-    const byId = availableModels.find((model) => model.id === storedDefaultId);
-    if (byId) {
-      return { modelId: byId.id, modelValue: byId.value };
-    }
-  }
+function resolveCandidate(
+  availableModels: ModelSelectionOption[],
+  candidate: ModelSelectionCandidate,
+): ModelSelection | null {
+  const normalized = normalizeCandidate(candidate);
 
-  if (storedDefaultValue) {
-    const byValue = availableModels.find(
-      (model) => model.value === storedDefaultValue,
+  if (normalized.modelId) {
+    const idMatch = availableModels.find(
+      (model) => model.id === normalized.modelId,
     );
-    if (byValue) {
-      return { modelId: byValue.id, modelValue: byValue.value };
+    if (idMatch) {
+      return { modelId: idMatch.id, modelValue: idMatch.value };
     }
+  }
+
+  if (!normalized.modelValue) return null;
+
+  const valueMatches = availableModels.filter(
+    (model) => model.value === normalized.modelValue,
+  );
+  if (valueMatches.length !== 1) return null;
+
+  return {
+    modelId: valueMatches[0].id,
+    modelValue: valueMatches[0].value,
+  };
+}
+
+export function resolveModelSelection({
+  availableModels,
+  sessionModelId,
+  sessionModelValue,
+  userDefaultId,
+  userDefaultValue,
+  systemDefaultId,
+  systemDefaultValue,
+}: ResolveModelSelectionArgs): ModelSelection {
+  const candidates = [
+    { modelId: sessionModelId, modelValue: sessionModelValue },
+    { modelId: userDefaultId, modelValue: userDefaultValue },
+    { modelId: systemDefaultId, modelValue: systemDefaultValue },
+  ];
+
+  if (availableModels == null) {
+    return firstRawCandidate(candidates);
+  }
+
+  if (availableModels.length === 0) {
+    return EMPTY_SELECTION;
+  }
+
+  for (const candidate of candidates) {
+    const resolved = resolveCandidate(availableModels, candidate);
+    if (resolved) return resolved;
   }
 
   const firstModel = availableModels[0];
-  return firstModel
-    ? { modelId: firstModel.id, modelValue: firstModel.value }
-    : emptySelection(fallbackDefaultValue);
-}
-
-export function reconcileCurrentModelSelection({
-  availableModels,
-  currentModelId,
-  currentModelValue,
-  storedDefaultId,
-  storedDefaultValue,
-  fallbackDefaultValue,
-}: ReconcileCurrentModelSelectionArgs): ModelSelection {
-  if (!availableModels || availableModels.length === 0) {
-    return {
-      modelId: currentModelId || "",
-      modelValue:
-        currentModelValue || storedDefaultValue || fallbackDefaultValue || "",
-    };
-  }
-
-  if (currentModelId) {
-    const currentById = availableModels.find(
-      (model) => model.id === currentModelId,
-    );
-    if (currentById) {
-      return {
-        modelId: currentById.id,
-        modelValue: currentById.value,
-      };
-    }
-  }
-
-  if (currentModelValue) {
-    const currentByValue = availableModels.find(
-      (model) => model.value === currentModelValue,
-    );
-    if (currentByValue) {
-      return {
-        modelId: currentByValue.id,
-        modelValue: currentByValue.value,
-      };
-    }
-  }
-
-  return resolveDefaultModelSelection({
-    availableModels,
-    storedDefaultId,
-    storedDefaultValue,
-    fallbackDefaultValue,
-  });
+  return { modelId: firstModel.id, modelValue: firstModel.value };
 }

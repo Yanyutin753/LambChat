@@ -31,6 +31,7 @@ interface SettingsContextValue {
   error: string | null;
   savingKeys: Set<string>;
   availableModels: AvailableModel[] | null;
+  systemDefaultModelId: string;
   defaultModel: string;
   pinnedModelIds: string[];
   togglePinnedModel: (modelId: string) => void;
@@ -93,7 +94,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             })),
           );
         } else {
-          setDbModels(null);
+          setDbModels([]);
         }
       })
       .catch(() => {
@@ -128,7 +129,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Auto-clean orphaned pinned IDs (models that were deleted)
   const cleanedPinnedIds = useMemo(() => {
-    if (!dbModels || pinnedModelIds.length === 0) return pinnedModelIds;
+    if (!dbModels || dbModels.length === 0 || pinnedModelIds.length === 0) {
+      return pinnedModelIds;
+    }
     const validIds = new Set(dbModels.map((m) => m.id));
     const cleaned = pinnedModelIds.filter((id) => validIds.has(id));
     return cleaned;
@@ -160,6 +163,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     enableSkills: getBooleanSetting("ENABLE_SKILLS"),
     enableMemory: getBooleanSetting("ENABLE_MEMORY"),
     availableModels,
+    systemDefaultModelId: adminDefaultModelId,
     defaultModel,
     pinnedModelIds: cleanedPinnedIds,
     togglePinnedModel,
