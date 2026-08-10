@@ -33,9 +33,11 @@ import {
 } from "./externalNavigationState";
 import { resolveModelSelection, type ModelSelection } from "./modelSelection";
 import {
+  applyLatestSessionLoadResult,
   getRestoredModelSelection,
   isLatestSessionLoad,
   shouldApplyRestoredModelSelection,
+  withoutModelSelection,
 } from "./sessionState";
 import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
@@ -432,7 +434,7 @@ export function ChatAppContent({
       : undefined,
     personaPresetId: sessionConfig.personaPresetId,
     agentOptions: {
-      ...agentOptionValues,
+      ...withoutModelSelection(agentOptionValues),
       ...(currentModelValue ? { model: currentModelValue } : {}),
       ...(currentModelId ? { model_id: currentModelId } : {}),
     },
@@ -740,26 +742,38 @@ export function ChatAppContent({
 
       console.log("[AppContent] Restoring session config:", config);
 
+      const restoredModelSelection = getRestoredModelSelection(config);
+      const restoredAgentOptions = withoutModelSelection(
+        config.agent_options ?? {},
+      );
+
       if (config.agent_id) {
         switchAgent(config.agent_id);
       }
 
-      restoreSessionConfig(config);
+      restoreSessionConfig({
+        ...config,
+        ...(config.agent_options
+          ? { agent_options: restoredAgentOptions }
+          : {}),
+      });
 
       // Fetch latest persona snapshot by ID (API-first for normal views;
       // shared page uses its own SharedPage component and is unaffected).
       // The snapshot in metadata serves as a fallback until the API responds.
       if (config.persona_preset_id) {
-        personaPresetApi
-          .use(config.persona_preset_id)
-          .then((snapshot) => {
+        void applyLatestSessionLoadResult({
+          load: personaPresetApi.use(config.persona_preset_id),
+          restoredLoadId: loadId,
+          getActiveLoadId: () => activeSessionLoadRef.current?.loadId ?? null,
+          apply: (snapshot) => {
             if (snapshot) {
               setPersonaPreset(config.persona_preset_id!, snapshot);
             }
-          })
-          .catch(() => {
-            /* preset may have been deleted — keep metadata snapshot */
-          });
+          },
+        }).catch(() => {
+          /* preset may have been deleted — keep metadata snapshot */
+        });
       }
 
       if (config.team_id) {
@@ -769,9 +783,8 @@ export function ChatAppContent({
       }
 
       if (config.agent_options) {
-        restoreAgentOptions(config.agent_options);
+        restoreAgentOptions(restoredAgentOptions);
 
-        const restoredModelSelection = getRestoredModelSelection(config);
         if (
           (restoredModelSelection.modelId ||
             restoredModelSelection.modelValue) &&

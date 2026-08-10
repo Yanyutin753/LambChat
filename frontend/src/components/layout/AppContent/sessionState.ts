@@ -12,6 +12,31 @@ export function isLatestSessionLoad({
   return activeLoadId !== null && restoredLoadId === activeLoadId;
 }
 
+export async function applyLatestSessionLoadResult<T>({
+  load,
+  restoredLoadId,
+  getActiveLoadId,
+  apply,
+}: {
+  load: Promise<T>;
+  restoredLoadId: number;
+  getActiveLoadId: () => number | null;
+  apply: (value: T) => void;
+}): Promise<boolean> {
+  const value = await load;
+  if (
+    !isLatestSessionLoad({
+      restoredLoadId,
+      activeLoadId: getActiveLoadId(),
+    })
+  ) {
+    return false;
+  }
+
+  apply(value);
+  return true;
+}
+
 export function shouldApplyRestoredModelSelection({
   restoredLoadId,
   activeLoadId,
@@ -77,4 +102,13 @@ export function getRestoredModelSelection(
     modelId,
     modelValue,
   };
+}
+
+export function withoutModelSelection(
+  options: Record<string, boolean | string | number>,
+): Record<string, boolean | string | number> {
+  const result = { ...options };
+  delete result.model;
+  delete result.model_id;
+  return result;
 }

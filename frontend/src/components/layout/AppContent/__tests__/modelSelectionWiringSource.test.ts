@@ -22,6 +22,12 @@ test("a successful empty model response remains distinct from unresolved loading
   expect(settingsSource).toMatch(/else\s*\{\s*setDbModels\(\[\]\)/);
 });
 
+test("an empty access-filtered model list does not clear persisted pins", () => {
+  expect(settingsSource).toMatch(
+    /if\s*\(\s*!dbModels\s*\|\|\s*dbModels\.length\s*===\s*0[\s\S]*return pinnedModelIds/,
+  );
+});
+
 test("chat resolves explicit session, user, and system model sources", () => {
   expect(chatSource).toMatch(/systemDefaultModelId/);
   expect(chatSource).toMatch(
@@ -46,4 +52,16 @@ test("chat rejects stale restores and protects model choices made during loading
   expect(chatSource).toMatch(/isLatestSessionLoad\(\{/);
   expect(chatSource).toMatch(/shouldApplyRestoredModelSelection\(\{/);
   expect(chatSource).toMatch(/modelSelectionRevisionRef\.current\s*\+=\s*1/);
+});
+
+test("canonical model state is the only source of submitted agent model fields", () => {
+  expect(chatSource).toMatch(/withoutModelSelection\(agentOptionValues\)/);
+  expect(chatSource).toMatch(/restoreAgentOptions\(restoredAgentOptions\)/);
+});
+
+test("nested async session restoration rechecks the active load", () => {
+  expect(chatSource).toMatch(/applyLatestSessionLoadResult\(\{/);
+  expect(chatSource).toMatch(
+    /getActiveLoadId:\s*\(\)\s*=>\s*activeSessionLoadRef\.current\?\.loadId/,
+  );
 });
