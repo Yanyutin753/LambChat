@@ -22,6 +22,7 @@ import type {
 } from "./RichChatComposer";
 import type { AvailableComposerSkill } from "./RichChatComposer";
 import type { LongTextPasteOptions } from "./RichChatComposer";
+import type { FilePasteOptions } from "./RichChatComposer";
 import type { ChatInputSlashCommand } from "../chatInputSlashCommands";
 import { SlashCommandPlugin } from "./SlashCommandPlugin";
 import { LongTextPastePlugin } from "./LongTextPastePlugin";
@@ -35,6 +36,7 @@ import { SkillReferencePlugin } from "./SkillReferencePlugin";
 import { FileReferencePlugin } from "./FileReferencePlugin";
 import { AtomicReferenceDeletionPlugin } from "./AtomicReferenceDeletionPlugin";
 import { ArrowKeyPlugin, type ComposerArrowDirection } from "./ArrowKeyPlugin";
+import { FilePastePlugin } from "./FilePastePlugin";
 
 function toSnapshot(editorState: EditorState): ComposerSnapshot {
   return {
@@ -75,6 +77,7 @@ interface RichComposerPluginsProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   onApplySlashCommand?: (command: ChatInputSlashCommand) => void;
   enabledSkillNames?: readonly string[];
+  filePaste?: FilePasteOptions;
   longTextPaste?: LongTextPasteOptions;
   onRetryFileReference?: (referenceId: string) => void;
   onArrowKey?: (
@@ -94,6 +97,7 @@ export const RichComposerPlugins = forwardRef<
     containerRef,
     onApplySlashCommand,
     enabledSkillNames = [],
+    filePaste,
     longTextPaste,
     onRetryFileReference,
     onArrowKey,
@@ -208,6 +212,7 @@ export const RichComposerPlugins = forwardRef<
       <FileReferencePlugin onRetry={onRetryFileReference} />
       <AtomicReferenceDeletionPlugin />
       <ArrowKeyPlugin onArrowKey={onArrowKey} />
+      {filePaste ? <FilePastePlugin options={filePaste} /> : null}
       {longTextPaste ? <LongTextPastePlugin options={longTextPaste} /> : null}
     </>
   );

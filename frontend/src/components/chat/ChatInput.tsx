@@ -824,6 +824,7 @@ export const ChatInput = memo(function ChatInput({
                   availableSkills={availableRunSkills}
                   onApplySlashCommand={applySlashCommand}
                   onChange={handleComposerChange}
+                  filePaste={{ validateCount, onFiles: uploadFiles }}
                   longTextPaste={{
                     enabled: !composerExpanded,
                     validateCount,
