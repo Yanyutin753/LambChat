@@ -16,6 +16,17 @@ import {
   shouldAutoScrollAfterViewportChange,
   startVirtuosoScrollToBottom,
 } from "../messageScrollUtils.ts";
+import { afterEach, beforeEach, vi } from "vitest";
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  if (!vi.isFakeTimers()) return;
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
 
 test("keeps asking Virtuoso to scroll until the scroller reaches the bottom", async () => {
   const scrollCalls: Array<{ top: number; behavior: string }> = [];
@@ -40,7 +51,7 @@ test("keeps asking Virtuoso to scroll until the scroller reaches the bottom", as
     maxAttempts: 5,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await vi.advanceTimersByTimeAsync(20);
   stop();
 
   expect(scrollCalls.length >= 2).toBeTruthy();
@@ -70,7 +81,7 @@ test("forces the physical scroller during a preferred bottom lock even when Virt
     maxAttempts: 1,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 5));
+  await vi.advanceTimersByTimeAsync(5);
   stop();
 
   expect(scroller.scrollTop).toBe(scroller.scrollHeight);
@@ -209,7 +220,7 @@ test("keeps Virtuoso synced while physically pinning the scroller during a botto
     maxAttempts: 5,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await vi.advanceTimersByTimeAsync(20);
   stop();
 
   expect(scrollToIndexCalls > 0).toBeTruthy();
@@ -319,7 +330,7 @@ test("prefers Virtuoso scrolling without nudging the footer sentinel when handle
     maxDurationMs: 20,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 5));
+  await vi.advanceTimersByTimeAsync(5);
 
   expect(virtuosoScrolls > 0).toBeTruthy();
   expect(footerScrolls).toBe(0);
@@ -350,7 +361,7 @@ test("prefers Virtuoso autoscrollToBottom when the handle supports it", async ()
     maxAttempts: 5,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await vi.advanceTimersByTimeAsync(20);
 
   expect(autoScrollCalls > 0).toBeTruthy();
   expect(scrollToCalls).toBe(0);
@@ -378,7 +389,7 @@ test("does not settle early just because the scroller is within the breathing ro
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 130));
+  await vi.advanceTimersByTimeAsync(130);
 
   expect(completionReason).not.toBe("settled");
 });
@@ -406,10 +417,10 @@ test("waits for the configured stable height window before settling", async () =
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 160));
+  await vi.advanceTimersByTimeAsync(160);
   expect(completionReason).toBe(null);
 
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await vi.advanceTimersByTimeAsync(100);
   expect(completionReason).toBe("settled");
 });
 
@@ -438,7 +449,7 @@ test("honors the configured maxAttempts instead of retrying until the time budge
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  await vi.advanceTimersByTimeAsync(80);
 
   expect(completionReason).toBe("max-attempts");
   expect(scrollCalls).toBe(3);
@@ -481,7 +492,7 @@ test("keeps bottom locked when observed layout changes", async () => {
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await vi.advanceTimersByTimeAsync(30);
   expect(observedTarget).toBe(scroller);
 
   scroller.scrollHeight = 700;
@@ -534,7 +545,7 @@ test("keeps the resize observer alive past the normal time budget while a stream
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  await vi.advanceTimersByTimeAsync(60);
   expect(completionReason).toBe(null);
   expect(disconnected).toBe(false);
 
@@ -544,7 +555,7 @@ test("keeps the resize observer alive past the normal time budget while a stream
 
   keepStreamingLock = false;
 
-  await new Promise((resolve) => setTimeout(resolve, 40));
+  await vi.advanceTimersByTimeAsync(40);
   expect(completionReason).toBe("settled");
   expect(disconnected).toBe(true);
 });
@@ -585,18 +596,18 @@ test("extends the settle window when observed layout changes keep arriving durin
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 25));
+  await vi.advanceTimersByTimeAsync(25);
   scroller.scrollHeight = 700;
   resizeCallback();
 
-  await new Promise((resolve) => setTimeout(resolve, 25));
+  await vi.advanceTimersByTimeAsync(25);
   scroller.scrollHeight = 900;
   resizeCallback();
 
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await vi.advanceTimersByTimeAsync(10);
   expect(completionReason).toBe(null);
 
-  await new Promise((resolve) => setTimeout(resolve, 40));
+  await vi.advanceTimersByTimeAsync(40);
   expect(completionReason).toBe("settled");
   expect(scroller.scrollTop).toBe(800);
 });
@@ -638,7 +649,7 @@ test("keeps history bottom lock alive for late layout shifts after the first set
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 45));
+  await vi.advanceTimersByTimeAsync(45);
   expect(completionReason).toBe(null);
 
   scroller.scrollHeight = 900;
@@ -646,7 +657,7 @@ test("keeps history bottom lock alive for late layout shifts after the first set
 
   expect(scroller.scrollTop).toBe(800);
 
-  await new Promise((resolve) => setTimeout(resolve, 130));
+  await vi.advanceTimersByTimeAsync(130);
   expect(completionReason).toBe("settled");
 });
 
@@ -680,7 +691,7 @@ test("reports the first stable bottom before the post-settle observation window 
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 45));
+  await vi.advanceTimersByTimeAsync(45);
 
   expect(initialSettleCalls).toBe(1);
   expect(completeCalls).toBe(0);
@@ -725,13 +736,13 @@ test("does not keep extending post-settle observation on repeated layout changes
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 35));
+  await vi.advanceTimersByTimeAsync(35);
   expect(completionReason).toBe(null);
 
   for (let i = 0; i < 3; i += 1) {
     scroller.scrollHeight += 100;
     resizeCallback();
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await vi.advanceTimersByTimeAsync(25);
   }
 
   expect(completionReason).toBe("settled");
@@ -783,7 +794,7 @@ test("keeps default bottom lock alive briefly for post-stream layout shifts", as
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 45));
+  await vi.advanceTimersByTimeAsync(45);
   expect(completionReason).toBe(null);
 
   scroller.scrollHeight = 900;
@@ -820,11 +831,11 @@ test("recovers an unexpected top jump during the post-stream bottom lock", async
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 45));
+  await vi.advanceTimersByTimeAsync(45);
   expect(completionReason).toBe(null);
 
   scroller.scrollTop = 0;
-  await new Promise((resolve) => setTimeout(resolve, 15));
+  await vi.advanceTimersByTimeAsync(15);
 
   expect(scroller.scrollTop).toBe(400);
   expect(completionReason).toBe(null);
@@ -867,7 +878,7 @@ test("does not pull back to bottom after the user leaves bottom during history s
     },
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 45));
+  await vi.advanceTimersByTimeAsync(45);
   expect(completionReason).toBe(null);
 
   scroller.scrollTop = 360;

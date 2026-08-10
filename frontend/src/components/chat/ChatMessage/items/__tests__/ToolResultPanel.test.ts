@@ -185,11 +185,24 @@ test("tool result actions stay compact and flat at every breakpoint", () => {
     "utf8",
   );
 
-  expect(
-    componentSource.match(
-      /className="tool-console-actions flex items-center gap-1 shrink-0"/g,
+  const actionClassNames = Array.from(
+    componentSource.matchAll(
+      /className="([^"]*\btool-console-actions\b[^"]*)"/g,
     ),
-  ).toHaveLength(2);
+    (match) => match[1].trim().split(/\s+/),
+  );
+  expect(actionClassNames).toHaveLength(2);
+  for (const classNames of actionClassNames) {
+    expect(classNames).toEqual(
+      expect.arrayContaining([
+        "tool-console-actions",
+        "flex",
+        "items-center",
+        "gap-1",
+        "shrink-0",
+      ]),
+    );
+  }
   expect(componentsSource).not.toMatch(/\.tool-console-actions\s*\{/);
   expect(componentsSource).toMatch(
     /\.tool-console-actions\s*>\s*button\s*\{[\s\S]*?width:\s*2rem;[\s\S]*?height:\s*2rem;[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;/,
