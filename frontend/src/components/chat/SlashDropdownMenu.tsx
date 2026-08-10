@@ -19,6 +19,7 @@ export interface SlashDropdownMenuProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   anchorRect?: DOMRect | null;
   onApplySelection: (item: SlashDropdownItem) => void;
+  onDismiss?: () => void;
   highlightIndex: number;
   onHighlightChange: React.Dispatch<React.SetStateAction<number>>;
 }
@@ -31,6 +32,7 @@ export function SlashDropdownMenu({
   containerRef,
   anchorRect,
   onApplySelection,
+  onDismiss,
   highlightIndex,
   onHighlightChange,
 }: SlashDropdownMenuProps) {
@@ -52,6 +54,17 @@ export function SlashDropdownMenu({
       (el as HTMLElement).scrollIntoView?.({ block: "nearest" });
     }
   }, [open, highlightIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Node && popupRef.current?.contains(target)) return;
+      onDismiss?.();
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [onDismiss, open]);
 
   // Compute placement before any early return — hooks must not be called conditionally
   const placement = useStickyDropdownPosition(containerRef, open, (rect) => {
