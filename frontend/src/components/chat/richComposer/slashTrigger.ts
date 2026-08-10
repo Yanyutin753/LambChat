@@ -4,6 +4,15 @@ export interface SlashTrigger {
   query: string;
 }
 
+export function getSlashTokenId(
+  nodeKey: string,
+  text: string,
+  from: number,
+): string {
+  const slashWord = /^\/[^/\s]*/.exec(text.slice(from))?.[0] ?? "";
+  return `${nodeKey}:${from}:${slashWord}`;
+}
+
 export function findSlashTrigger(
   text: string,
   caretOffset: number,

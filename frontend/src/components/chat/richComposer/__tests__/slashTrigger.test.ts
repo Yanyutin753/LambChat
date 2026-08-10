@@ -1,4 +1,4 @@
-import { findSlashTrigger } from "../slashTrigger";
+import { findSlashTrigger, getSlashTokenId } from "../slashTrigger";
 
 test.each([
   ["/wri", 4, { from: 0, to: 4, query: "wri" }],
@@ -23,4 +23,15 @@ test.each([
 
 test("does not trigger when the caret is outside the command token", () => {
   expect(findSlashTrigger("/writer later", 13)).toBeNull();
+});
+
+test("builds slash token identity from the complete slash word", () => {
+  expect(getSlashTokenId("node-1", "/wri", 0)).toBe("node-1:0:/wri");
+  expect(getSlashTokenId("node-1", "前缀 /wri 后缀", 3)).toBe("node-1:3:/wri");
+});
+
+test("changes slash token identity when the slash word changes", () => {
+  expect(getSlashTokenId("node-1", "/wri", 0)).not.toBe(
+    getSlashTokenId("node-1", "/write", 0),
+  );
 });
