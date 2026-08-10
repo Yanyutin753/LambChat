@@ -34,6 +34,11 @@ export interface LongTextPasteOptions {
   onCreate: (payload: LongTextPastePayload) => void;
 }
 
+export interface FilePasteOptions {
+  validateCount: (count: number) => boolean;
+  onFiles: (files: FileList | File[]) => void;
+}
+
 export interface RichChatComposerChange {
   snapshot: ComposerSnapshot;
   projection: ComposerProjection;
@@ -69,6 +74,7 @@ export interface RichChatComposerProps {
   onError?: (error: Error) => void;
   availableSkills?: readonly AvailableComposerSkill[];
   onApplySlashCommand?: (command: ChatInputSlashCommand) => void;
+  filePaste?: FilePasteOptions;
   longTextPaste?: LongTextPasteOptions;
   onRetryFileReference?: (referenceId: string) => void;
   disabled?: boolean;
@@ -98,6 +104,7 @@ export const RichChatComposer = forwardRef<
     onError,
     availableSkills,
     onApplySlashCommand,
+    filePaste,
     longTextPaste,
     onRetryFileReference,
     disabled = false,
@@ -189,6 +196,7 @@ export const RichChatComposer = forwardRef<
           containerRef={containerRef}
           onApplySlashCommand={onApplySlashCommand}
           enabledSkillNames={enabledSkillNames}
+          filePaste={filePaste}
           longTextPaste={longTextPaste}
           onRetryFileReference={onRetryFileReference}
           onArrowKey={onArrowKey}
