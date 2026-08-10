@@ -2,7 +2,7 @@
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   RichChatComposer,
   type RichChatComposerChange,
@@ -108,6 +108,74 @@ describe("rich composer slash Skill workflow", () => {
     expect(screen.getByRole("textbox", { name: "message" })).toHaveTextContent(
       "/wri",
     );
+  });
+
+  test("an editor press keeps the unchanged slash token dismissed", () => {
+    const handle = createRef<RichChatComposerHandle>();
+    render(
+      <RichChatComposer
+        ref={handle}
+        ariaLabel="message"
+        availableSkills={[writerSkill]}
+      />,
+    );
+    act(() => handle.current?.insertText("/wri"));
+    const editor = screen.getByRole("textbox", { name: "message" });
+
+    fireEvent.mouseDown(editor);
+
+    expect(
+      screen.queryByRole("listbox", { name: "Slash commands" }),
+    ).not.toBeInTheDocument();
+    expect(editor).toHaveTextContent("/wri");
+  });
+
+  test("editing a dismissed slash token allows matching to resume", () => {
+    const handle = createRef<RichChatComposerHandle>();
+    render(
+      <RichChatComposer
+        ref={handle}
+        ariaLabel="message"
+        availableSkills={[writerSkill]}
+      />,
+    );
+    act(() => handle.current?.insertText("/wri"));
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "message" }), {
+      key: "Escape",
+    });
+
+    act(() => handle.current?.insertText("t"));
+
+    expect(
+      screen.getByRole("listbox", { name: "Slash commands" }),
+    ).toBeVisible();
+  });
+
+  test("an outside action closes the menu and still receives its click", () => {
+    const handle = createRef<RichChatComposerHandle>();
+    const onClick = vi.fn();
+    render(
+      <>
+        <RichChatComposer
+          ref={handle}
+          ariaLabel="message"
+          availableSkills={[writerSkill]}
+        />
+        <button type="button" onClick={onClick}>
+          Outside action
+        </button>
+      </>,
+    );
+    act(() => handle.current?.insertText("/wri"));
+    const action = screen.getByRole("button", { name: "Outside action" });
+
+    fireEvent.mouseDown(action);
+    fireEvent.click(action);
+
+    expect(
+      screen.queryByRole("listbox", { name: "Slash commands" }),
+    ).not.toBeInTheDocument();
+    expect(onClick).toHaveBeenCalledOnce();
   });
 
   test("a second slash closes the popup", () => {

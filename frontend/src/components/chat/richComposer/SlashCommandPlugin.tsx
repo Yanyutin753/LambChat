@@ -23,7 +23,7 @@ import {
 } from "../chatInputSlashCommands";
 import type { AvailableComposerSkill } from "./RichChatComposer";
 import { INSERT_SKILL_REFERENCE_COMMAND } from "./nodes/referenceCommands";
-import { findSlashTrigger } from "./slashTrigger";
+import { findSlashTrigger, getSlashTokenId } from "./slashTrigger";
 
 interface SlashCommandContext {
   nodeKey: NodeKey;
@@ -85,19 +85,27 @@ export function SlashCommandPlugin({
     return editor.registerUpdateListener(({ editorState }) => {
       const nextContext = editorState.read<SlashCommandContext | null>(() => {
         const selection = $getSelection();
-        if (!$isRangeSelection(selection) || !selection.isCollapsed())
+        if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+          dismissedTokenRef.current = null;
           return null;
+        }
         const anchorNode = selection.anchor.getNode();
-        if (!$isTextNode(anchorNode)) return null;
+        if (!$isTextNode(anchorNode)) {
+          dismissedTokenRef.current = null;
+          return null;
+        }
         const caretOffset = selection.anchor.offset;
-        const trigger = findSlashTrigger(
-          anchorNode.getTextContent(),
-          caretOffset,
+        const text = anchorNode.getTextContent();
+        const trigger = findSlashTrigger(text, caretOffset);
+        if (!trigger) {
+          dismissedTokenRef.current = null;
+          return null;
+        }
+        const tokenId = getSlashTokenId(
+          anchorNode.getKey(),
+          text,
+          trigger.from,
         );
-        if (!trigger) return null;
-        const tokenId = `${anchorNode.getKey()}:${trigger.from}:${anchorNode
-          .getTextContent()
-          .slice(trigger.from, trigger.to)}`;
         if (dismissedTokenRef.current === tokenId) return null;
         dismissedTokenRef.current = null;
         return {
@@ -143,6 +151,12 @@ export function SlashCommandPlugin({
     [context, editor, onApplyCommand],
   );
 
+  const dismissMenu = useCallback(() => {
+    if (!context) return;
+    dismissedTokenRef.current = context.tokenId;
+    setContext(null);
+  }, [context]);
+
   useEffect(() => {
     const moveHighlight = (delta: number, event: KeyboardEvent) => {
       if (!open) return false;
@@ -178,14 +192,21 @@ export function SlashCommandPlugin({
         (event) => {
           if (!open || !context) return false;
           event.preventDefault();
-          dismissedTokenRef.current = context.tokenId;
-          setContext(null);
+          dismissMenu();
           return true;
         },
         COMMAND_PRIORITY_HIGH,
       ),
     );
-  }, [applySelection, context, editor, highlightIndex, items, open]);
+  }, [
+    applySelection,
+    context,
+    dismissMenu,
+    editor,
+    highlightIndex,
+    items,
+    open,
+  ]);
 
   return (
     <>
@@ -197,6 +218,7 @@ export function SlashCommandPlugin({
         containerRef={containerRef}
         anchorRect={context?.anchorRect ?? null}
         onApplySelection={applySelection}
+        onDismiss={dismissMenu}
         highlightIndex={highlightIndex}
         onHighlightChange={setHighlightIndex}
       />
