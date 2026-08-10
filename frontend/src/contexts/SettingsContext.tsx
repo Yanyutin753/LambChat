@@ -31,6 +31,7 @@ interface SettingsContextValue {
   error: string | null;
   savingKeys: Set<string>;
   availableModels: AvailableModel[] | null;
+  systemDefaultModelId: string;
   defaultModel: string;
   pinnedModelIds: string[];
   togglePinnedModel: (modelId: string) => void;
@@ -93,7 +94,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             })),
           );
         } else {
-          setDbModels(null);
+          setDbModels([]);
         }
       })
       .catch(() => {
@@ -160,6 +161,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     enableSkills: getBooleanSetting("ENABLE_SKILLS"),
     enableMemory: getBooleanSetting("ENABLE_MEMORY"),
     availableModels,
+    systemDefaultModelId: adminDefaultModelId,
     defaultModel,
     pinnedModelIds: cleanedPinnedIds,
     togglePinnedModel,
