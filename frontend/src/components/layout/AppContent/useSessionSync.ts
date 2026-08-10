@@ -310,7 +310,7 @@ export function useSessionSync({
       .finally(() => {
         isLoadingRef.current = false;
       });
-  }, [urlSessionId, sessionId, activeTab, location.search]);
+  }, [urlSessionId, sessionId, activeTab, location.search, beginSessionLoad]);
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
   useEffect(() => {
