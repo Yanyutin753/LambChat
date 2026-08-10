@@ -23,19 +23,6 @@ interface ResolveModelSelectionArgs {
   systemDefaultValue?: string;
 }
 
-interface LegacyResolveDefaultModelSelectionArgs {
-  availableModels?: ModelSelectionOption[] | null;
-  storedDefaultId?: string;
-  storedDefaultValue?: string;
-  fallbackDefaultValue?: string;
-}
-
-interface LegacyReconcileCurrentModelSelectionArgs
-  extends LegacyResolveDefaultModelSelectionArgs {
-  currentModelId?: string;
-  currentModelValue?: string;
-}
-
 const EMPTY_SELECTION: ModelSelection = {
   modelId: "",
   modelValue: "",
@@ -119,38 +106,4 @@ export function resolveModelSelection({
 
   const firstModel = availableModels[0];
   return { modelId: firstModel.id, modelValue: firstModel.value };
-}
-
-// Temporary compatibility wrappers while ChatAppContent migrates to explicit
-// session/user/system provenance.
-export function resolveDefaultModelSelection({
-  availableModels,
-  storedDefaultId,
-  storedDefaultValue,
-  fallbackDefaultValue,
-}: LegacyResolveDefaultModelSelectionArgs): ModelSelection {
-  return resolveModelSelection({
-    availableModels,
-    userDefaultId: storedDefaultId,
-    userDefaultValue: storedDefaultValue,
-    systemDefaultValue: fallbackDefaultValue,
-  });
-}
-
-export function reconcileCurrentModelSelection({
-  availableModels,
-  currentModelId,
-  currentModelValue,
-  storedDefaultId,
-  storedDefaultValue,
-  fallbackDefaultValue,
-}: LegacyReconcileCurrentModelSelectionArgs): ModelSelection {
-  return resolveModelSelection({
-    availableModels,
-    sessionModelId: currentModelId,
-    sessionModelValue: currentModelValue,
-    userDefaultId: storedDefaultId,
-    userDefaultValue: storedDefaultValue,
-    systemDefaultValue: fallbackDefaultValue,
-  });
 }

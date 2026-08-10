@@ -31,11 +31,12 @@ import {
   getExternalNavigationTargetFile,
   shouldScrollToBottomAfterExternalNavigation,
 } from "./externalNavigationState";
+import { resolveModelSelection, type ModelSelection } from "./modelSelection";
 import {
-  reconcileCurrentModelSelection,
-  resolveDefaultModelSelection,
-} from "./modelSelection";
-import { getRestoredModelSelection } from "./sessionState";
+  getRestoredModelSelection,
+  isLatestSessionLoad,
+  shouldApplyRestoredModelSelection,
+} from "./sessionState";
 import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
 import { AppShell } from "./AppShell";
@@ -70,7 +71,8 @@ export function ChatAppContent({
   const { t } = useTranslation();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { enableSkills, availableModels, defaultModel } = useSettingsContext();
+  const { enableSkills, availableModels, systemDefaultModelId, defaultModel } =
+    useSettingsContext();
   const { hasPermission, isAuthenticated } = useAuth();
 
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
@@ -284,9 +286,23 @@ export function ChatAppContent({
   const [currentModelValue, setCurrentModelValue] = useState<string>(
     () => localStorage.getItem("defaultModel") || defaultModel,
   );
+  const [sessionModelSelection, setSessionModelSelection] =
+    useState<ModelSelection | null>(null);
 
-  const isSessionRestoredRef = useRef(false);
+  const modelSelectionRevisionRef = useRef(0);
+  const activeSessionLoadRef = useRef<{
+    loadId: number;
+    revisionAtLoadStart: number;
+  } | null>(null);
   const lastTeamRouteRequestRef = useRef<string | null>(null);
+
+  const handleSessionLoadStart = useCallback((loadId: number) => {
+    activeSessionLoadRef.current = {
+      loadId,
+      revisionAtLoadStart: modelSelectionRevisionRef.current,
+    };
+    setSessionModelSelection(null);
+  }, []);
 
   // Restore persona from localStorage when navigating from /persona page
   useEffect(() => {
@@ -353,26 +369,24 @@ export function ChatAppContent({
   }, [location.state, searchParams, selectTeam, setSearchParams, switchAgent]);
 
   useEffect(() => {
-    if (isSessionRestoredRef.current) return;
-    const nextSelection = reconcileCurrentModelSelection({
-      availableModels,
-      currentModelId,
-      currentModelValue,
-      storedDefaultId: localStorage.getItem("defaultModelId") || "",
-      storedDefaultValue: localStorage.getItem("defaultModel") || "",
-      fallbackDefaultValue: defaultModel,
+    const nextSelection = resolveModelSelection({
+      availableModels: filteredModels,
+      sessionModelId: sessionModelSelection?.modelId,
+      sessionModelValue: sessionModelSelection?.modelValue,
+      userDefaultId: localStorage.getItem("defaultModelId") || "",
+      userDefaultValue: localStorage.getItem("defaultModel") || "",
+      systemDefaultId: systemDefaultModelId,
+      systemDefaultValue: defaultModel,
     });
 
-    if (nextSelection.modelId && nextSelection.modelId !== currentModelId) {
-      setCurrentModelId(nextSelection.modelId);
-    }
-    if (
-      nextSelection.modelValue &&
-      nextSelection.modelValue !== currentModelValue
-    ) {
-      setCurrentModelValue(nextSelection.modelValue);
-    }
-  }, [availableModels, currentModelId, currentModelValue, defaultModel]);
+    setCurrentModelId(nextSelection.modelId);
+    setCurrentModelValue(nextSelection.modelValue);
+  }, [
+    defaultModel,
+    filteredModels,
+    sessionModelSelection,
+    systemDefaultModelId,
+  ]);
 
   useEffect(() => {
     handleToggleAgentOption("model", currentModelValue);
@@ -400,6 +414,8 @@ export function ChatAppContent({
 
   const handleSelectModel = useCallback(
     (modelId: string, modelValue: string) => {
+      modelSelectionRevisionRef.current += 1;
+      setSessionModelSelection({ modelId, modelValue });
       setCurrentModelId(modelId);
       setCurrentModelValue(modelValue);
     },
@@ -697,21 +713,32 @@ export function ChatAppContent({
   }, [sessionId, externalNavigationTargetFile?.traceId]);
 
   const handleConfigRestored = useCallback(
-    (config: {
-      agent_id?: string;
-      agent_options?: Record<string, boolean | string | number>;
-      disabled_skills?: string[];
-      enabled_skills?: string[];
-      persona_preset_id?: string;
-      persona_preset_name?: string;
-      persona_snapshot?: import("../../../types").PersonaPresetSnapshot;
-      disabled_mcp_tools?: string[];
-      disabled_tools?: string[];
-      team_id?: string;
-    }) => {
-      console.log("[AppContent] Restoring session config:", config);
+    (
+      config: {
+        agent_id?: string;
+        agent_options?: Record<string, boolean | string | number>;
+        disabled_skills?: string[];
+        enabled_skills?: string[];
+        persona_preset_id?: string;
+        persona_preset_name?: string;
+        persona_snapshot?: import("../../../types").PersonaPresetSnapshot;
+        disabled_mcp_tools?: string[];
+        disabled_tools?: string[];
+        team_id?: string;
+      },
+      loadId: number,
+    ) => {
+      const activeLoad = activeSessionLoadRef.current;
+      if (
+        !isLatestSessionLoad({
+          restoredLoadId: loadId,
+          activeLoadId: activeLoad?.loadId ?? null,
+        })
+      ) {
+        return;
+      }
 
-      isSessionRestoredRef.current = true;
+      console.log("[AppContent] Restoring session config:", config);
 
       if (config.agent_id) {
         switchAgent(config.agent_id);
@@ -745,11 +772,17 @@ export function ChatAppContent({
         restoreAgentOptions(config.agent_options);
 
         const restoredModelSelection = getRestoredModelSelection(config);
-        if (restoredModelSelection.modelId) {
-          setCurrentModelId(restoredModelSelection.modelId);
-        }
-        if (restoredModelSelection.modelValue) {
-          setCurrentModelValue(restoredModelSelection.modelValue);
+        if (
+          (restoredModelSelection.modelId ||
+            restoredModelSelection.modelValue) &&
+          shouldApplyRestoredModelSelection({
+            restoredLoadId: loadId,
+            activeLoadId: activeLoad?.loadId ?? null,
+            revisionAtLoadStart: activeLoad?.revisionAtLoadStart ?? -1,
+            currentRevision: modelSelectionRevisionRef.current,
+          })
+        ) {
+          setSessionModelSelection(restoredModelSelection);
         }
       }
     },
@@ -767,15 +800,21 @@ export function ChatAppContent({
     sessionId,
     loadHistory,
     clearMessages,
+    onSessionLoadStart: handleSessionLoadStart,
     onConfigRestored: handleConfigRestored,
   });
 
   const handleNewSessionWithReset = useCallback(() => {
-    const nextSelection = resolveDefaultModelSelection({
-      availableModels,
-      storedDefaultId: localStorage.getItem("defaultModelId") || "",
-      storedDefaultValue: localStorage.getItem("defaultModel") || "",
-      fallbackDefaultValue: defaultModel,
+    activeSessionLoadRef.current = null;
+    modelSelectionRevisionRef.current += 1;
+    setSessionModelSelection(null);
+
+    const nextSelection = resolveModelSelection({
+      availableModels: filteredModels,
+      userDefaultId: localStorage.getItem("defaultModelId") || "",
+      userDefaultValue: localStorage.getItem("defaultModel") || "",
+      systemDefaultId: systemDefaultModelId,
+      systemDefaultValue: defaultModel,
     });
 
     handleNewSession();
@@ -786,11 +825,12 @@ export function ChatAppContent({
     setCurrentModelId(nextSelection.modelId);
     setCurrentModelValue(nextSelection.modelValue);
   }, [
-    availableModels,
     defaultModel,
+    filteredModels,
     handleNewSession,
     resetToDefaults,
     resetAgentOptionDefaults,
+    systemDefaultModelId,
   ]);
 
   const handleMobileClose = useCallback(
