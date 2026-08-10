@@ -16,7 +16,8 @@ interface UseSessionSyncOptions {
     targetRunId?: string,
   ) => Promise<SessionConfig | null>;
   clearMessages: () => void;
-  onConfigRestored?: (config: SessionConfig) => void;
+  onSessionLoadStart?: (loadId: number) => void;
+  onConfigRestored?: (config: SessionConfig, loadId: number) => void;
 }
 
 interface UseSessionSyncReturn {
@@ -153,6 +154,7 @@ export function useSessionSync({
   sessionId,
   loadHistory,
   clearMessages,
+  onSessionLoadStart,
   onConfigRestored,
 }: UseSessionSyncOptions): UseSessionSyncReturn {
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
@@ -168,6 +170,7 @@ export function useSessionSync({
   const isNewSessionRef = useRef(false);
   const initialUrlSyncPendingRef = useRef(false);
   const selectSessionRequestIdRef = useRef(0);
+  const sessionLoadIdRef = useRef(0);
   // Track a single sync delay timeout for cleanup on unmount
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -178,6 +181,14 @@ export function useSessionSync({
   // Ref to store onConfigRestored callback
   const onConfigRestoredRef = useRef(onConfigRestored);
   onConfigRestoredRef.current = onConfigRestored;
+  const onSessionLoadStartRef = useRef(onSessionLoadStart);
+  onSessionLoadStartRef.current = onSessionLoadStart;
+
+  const beginSessionLoad = useCallback(() => {
+    const loadId = ++sessionLoadIdRef.current;
+    onSessionLoadStartRef.current?.(loadId);
+    return loadId;
+  }, []);
 
   // Use ref to store location pathname to avoid triggering on every render
   const locationPathRef = useRef(location.pathname);
@@ -214,13 +225,14 @@ export function useSessionSync({
     if (urlSessionId && !isSyncingRef.current) {
       isSyncingRef.current = true;
       initialUrlSyncPendingRef.current = true;
+      const loadId = beginSessionLoad();
       loadHistory(
         urlSessionId,
         getTargetRunIdFromSearch(locationSearchRef.current),
       )
         .then((config) => {
           if (config && onConfigRestoredRef.current) {
-            onConfigRestoredRef.current(config);
+            onConfigRestoredRef.current(config, loadId);
           }
         })
         .finally(() => {
@@ -287,11 +299,12 @@ export function useSessionSync({
     }
 
     isLoadingRef.current = true;
+    const loadId = beginSessionLoad();
     loadHistoryRef
       .current(urlSessionId, getTargetRunIdFromSearch(location.search))
       .then((config) => {
         if (config && onConfigRestoredRef.current) {
-          onConfigRestoredRef.current(config);
+          onConfigRestoredRef.current(config, loadId);
         }
       })
       .finally(() => {
@@ -347,6 +360,7 @@ export function useSessionSync({
         const requestId = ++selectSessionRequestIdRef.current;
         isInternalNavRef.current = true;
         navigate(`/chat/${selectedSessionId}`);
+        const loadId = beginSessionLoad();
         const config = await loadHistory(selectedSessionId);
 
         const latestPathname =
@@ -361,13 +375,13 @@ export function useSessionSync({
 
         // 恢复配置
         if (config && onConfigRestoredRef.current) {
-          onConfigRestoredRef.current(config);
+          onConfigRestoredRef.current(config, loadId);
         }
       } catch (err) {
         console.error("[handleSelectSession] Error:", err);
       }
     },
-    [navigate, loadHistory],
+    [beginSessionLoad, navigate, loadHistory],
   );
 
   // Handle new session - clear messages and navigate to /chat immediately.
