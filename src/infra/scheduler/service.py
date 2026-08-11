@@ -499,30 +499,32 @@ class ScheduledTaskService:
         pending_claims = list(task.pending_attachment_claim_keys)
         if pending_claims:
             live_keys = set(task.attachment_keys)
-            rollback_keys = [key for key in pending_claims if key not in live_keys]
-            if rollback_keys:
-                file_records = FileRecordStorage()
-                await file_records.adopt_scheduled_task_reference_generation(
-                    rollback_keys,
-                    task.owner_id,
+            file_records = FileRecordStorage()
+            for offset in range(0, len(pending_claims), REFERENCE_KEYS_MAX):
+                chunk = pending_claims[offset : offset + REFERENCE_KEYS_MAX]
+                rollback_keys = [key for key in chunk if key not in live_keys]
+                if rollback_keys:
+                    await file_records.adopt_scheduled_task_reference_generation(
+                        rollback_keys,
+                        task.owner_id,
+                        task.id,
+                        mutation_generation=fence.generation,
+                    )
+                    await file_records.release_scheduled_task_references(
+                        rollback_keys,
+                        task.owner_id,
+                        task.id,
+                        mutation_generation=fence.generation,
+                    )
+                cleared = await storage.clear_pending_attachment_claims(
                     task.id,
-                    mutation_generation=fence.generation,
+                    chunk,
+                    fence=fence,
                 )
-                await file_records.release_scheduled_task_references(
-                    rollback_keys,
-                    task.owner_id,
-                    task.id,
-                    mutation_generation=fence.generation,
-                )
-            cleared = await storage.clear_pending_attachment_claims(
-                task.id,
-                pending_claims,
-                fence=fence,
-            )
-            if not cleared:
-                raise RuntimeError(
-                    f"Scheduled task attachment mutation fence was lost for {task.id}"
-                )
+                if not cleared:
+                    raise RuntimeError(
+                        f"Scheduled task attachment mutation fence was lost for {task.id}"
+                    )
             task = task.model_copy(update={"pending_attachment_claim_keys": []})
 
         if task.status == ScheduledTaskStatus.DELETED:

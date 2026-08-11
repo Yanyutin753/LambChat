@@ -1132,6 +1132,78 @@ async def test_pending_attachment_release_retry_keeps_failed_chunk_durable(
 
 
 @pytest.mark.asyncio
+async def test_pending_attachment_claim_retry_keeps_failed_chunk_durable(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old_a = [f"a-{index}" for index in range(100)]
+    old_b = [f"b-{index}" for index in range(100)]
+    task = _make_task(pending_attachment_claim_keys=old_a + old_b)
+    fence = service_module.AttachmentMutationFence("mutation-token", 3)
+    adopted_chunks: list[list[str]] = []
+    released_chunks: list[list[str]] = []
+    cleared_chunks: list[list[str]] = []
+    fail_b = True
+
+    class _FileRecords:
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert len(keys) <= service_module.REFERENCE_KEYS_MAX
+            assert mutation_generation == fence.generation
+            adopted_chunks.append(list(keys))
+            return len(keys)
+
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            nonlocal fail_b
+            assert len(keys) <= service_module.REFERENCE_KEYS_MAX
+            assert mutation_generation == fence.generation
+            released_chunks.append(list(keys))
+            if keys == old_b and fail_b:
+                raise RuntimeError("file record write interrupted")
+            return len(keys)
+
+    async def _clear(_task_id: str, keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 3)
+        cleared_chunks.append(list(keys))
+        return True
+
+    mock_storage.clear_pending_attachment_claims.side_effect = _clear
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords())
+
+    with pytest.raises(RuntimeError, match="write interrupted"):
+        await service._reconcile_attachment_task(mock_storage, task, fence)
+
+    assert adopted_chunks == [old_a, old_b]
+    assert released_chunks == [old_a, old_b]
+    assert cleared_chunks == [old_a]
+
+    fail_b = False
+    await service._reconcile_attachment_task(
+        mock_storage,
+        task.model_copy(update={"pending_attachment_claim_keys": old_b}),
+        fence,
+    )
+
+    assert adopted_chunks == [old_a, old_b, old_b]
+    assert released_chunks == [old_a, old_b, old_b]
+    assert cleared_chunks == [old_a, old_b]
+
+
+@pytest.mark.asyncio
 async def test_reconcile_attachment_references_removes_interrupted_create(
     service: ScheduledTaskService,
     mock_storage: AsyncMock,

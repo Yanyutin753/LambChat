@@ -255,7 +255,7 @@ class FileRecordStorage:
         *,
         mutation_generation: int,
     ) -> list[str]:
-        """Idempotently claim one definition reference per scheduled task and key."""
+        """Claim a live task reference only at or above its durable generation fence."""
         task_id = _scheduled_task_reference_id(task_id)
         if mutation_generation < 1:
             raise ValueError("mutation_generation must be positive")
@@ -298,14 +298,43 @@ class FileRecordStorage:
                                 }
                             },
                         ],
-                        "scheduled_task_reference_generations": {
-                            "$not": {
-                                "$elemMatch": {
-                                    "task_id": task_id,
-                                    "generation": {"$gt": mutation_generation},
+                        "$and": [
+                            {
+                                "scheduled_task_reference_generations": {
+                                    "$not": {
+                                        "$elemMatch": {
+                                            "task_id": task_id,
+                                            "generation": {"$gt": mutation_generation},
+                                        }
+                                    }
                                 }
-                            }
-                        },
+                            },
+                            {
+                                "$or": [
+                                    {
+                                        "scheduled_task_reference_generations": {
+                                            "$not": {
+                                                "$elemMatch": {
+                                                    "task_id": task_id,
+                                                    "generation": {
+                                                        "$gte": mutation_generation
+                                                    },
+                                                }
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "scheduled_task_reference_ids": task_id,
+                                        "scheduled_task_reference_generations": {
+                                            "$elemMatch": {
+                                                "task_id": task_id,
+                                                "generation": mutation_generation,
+                                            }
+                                        },
+                                    },
+                                ]
+                            },
+                        ],
                     },
                     [
                         {
@@ -365,13 +394,15 @@ class FileRecordStorage:
         *,
         mutation_generation: int,
     ) -> int:
-        """Fence existing task references without creating missing references."""
+        """Advance the task high-water mark without creating a live reference."""
         task_id = _scheduled_task_reference_id(task_id)
         if mutation_generation < 1:
             raise ValueError("mutation_generation must be positive")
         unique_keys = _bounded_unique_keys(keys)
         if not unique_keys:
             return 0
+        if len(unique_keys) != len({str(key).strip() for key in keys if key and str(key).strip()}):
+            raise AttachmentClaimError()
         await self.ensure_indexes_if_needed()
         existing_generations = {
             "$ifNull": ["$scheduled_task_reference_generations", []]
@@ -390,7 +421,6 @@ class FileRecordStorage:
                     "key": key,
                     "uploaded_by": uploaded_by,
                     "deleting_at": {"$exists": False},
-                    "scheduled_task_reference_ids": task_id,
                     "scheduled_task_reference_generations": {
                         "$not": {
                             "$elemMatch": {
@@ -448,7 +478,7 @@ class FileRecordStorage:
         *,
         mutation_generation: int,
     ) -> int:
-        """Idempotently release a scheduled task's definition references."""
+        """Release live references while retaining their generation tombstones."""
         task_id = _scheduled_task_reference_id(task_id)
         if mutation_generation < 1:
             raise ValueError("mutation_generation must be positive")
@@ -495,18 +525,6 @@ class FileRecordStorage:
                                     {"$ifNull": ["$scheduled_task_reference_ids", []]},
                                     [task_id],
                                 ]
-                            },
-                            "scheduled_task_reference_generations": {
-                                "$filter": {
-                                    "input": {
-                                        "$ifNull": [
-                                            "$scheduled_task_reference_generations",
-                                            [],
-                                        ]
-                                    },
-                                    "as": "lease",
-                                    "cond": {"$ne": ["$$lease.task_id", task_id]},
-                                }
                             },
                             "updated_at": now,
                         }
