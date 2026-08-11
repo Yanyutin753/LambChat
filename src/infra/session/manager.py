@@ -12,6 +12,9 @@ from typing import Any, List, Optional
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.cancellation import drain_task
+from src.infra.session.session_clear_release_operations import (
+    ATTACHMENT_CLEAR_RELEASE_HEARTBEAT_SECONDS,
+)
 from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import (
     ATTACHMENT_CLEAR_TERMINAL_STATUSES,
@@ -256,7 +259,8 @@ class SessionManager:
                 or raw_group.get("kind") not in {"parent", "chunk"}
                 or raw_group.get("document_id") is None
                 or raw_group.get("updated_at") is None
-                or raw_group.get("status") not in {"pending", "deleted", "released", "survivor"}
+                or raw_group.get("status")
+                not in {"pending", "deleted", "releasing", "released", "survivor"}
                 or not isinstance(raw_group.get("counts"), dict)
                 or raw_group.get("release_operation_id") != f"{operation_id}:{group_id}"
             ):
@@ -286,6 +290,87 @@ class SessionManager:
         if grouped_counts != counts:
             raise SessionError("attachment_clear_operation_invalid")
         return operation_id, uploaded_by, groups
+
+    async def _finish_attachment_clear_group_release(
+        self,
+        session_id: str,
+        operation_id: str,
+        uploaded_by: str,
+        group_id: str,
+        group: dict[str, Any],
+    ) -> None:
+        owner_token = uuid.uuid4().hex
+        owner = await self.storage.claim_attachment_clear_group_release(
+            session_id,
+            operation_id,
+            group_id,
+            owner_token,
+        )
+        if not isinstance(owner, dict) or owner.get("token") != owner_token:
+            raise SessionError("attachment_clear_group_release_in_progress")
+        owner_epoch = owner.get("epoch")
+        if not isinstance(owner_epoch, int) or owner_epoch < 1:
+            raise SessionError("attachment_clear_group_release_owner_invalid")
+        owner_lost = asyncio.Event()
+
+        async def _heartbeat() -> None:
+            while True:
+                await asyncio.sleep(ATTACHMENT_CLEAR_RELEASE_HEARTBEAT_SECONDS)
+                if not await self.storage.renew_attachment_clear_group_release(
+                    session_id,
+                    operation_id,
+                    group_id,
+                    owner_token=owner_token,
+                    owner_epoch=owner_epoch,
+                ):
+                    owner_lost.set()
+                    return
+
+        heartbeat = asyncio.create_task(_heartbeat())
+        try:
+            keys = list(group["counts"])
+            if not await self._file_record_storage.adopt_release_operation_epoch(
+                keys,
+                operation_id=group["release_operation_id"],
+                owner_epoch=owner_epoch,
+                uploaded_by=uploaded_by,
+            ):
+                raise SessionError("attachment_release_epoch_adopt_failed")
+            if group["counts"]:
+                await self._file_record_storage.release_reference_counts(
+                    group["counts"],
+                    operation_id=group["release_operation_id"],
+                    uploaded_by=uploaded_by,
+                    owner_epoch=owner_epoch,
+                )
+            if owner_lost.is_set() or not await self.storage.set_attachment_clear_group_status(
+                session_id,
+                operation_id,
+                group_id,
+                expected_status="releasing",
+                status="released",
+                owner_token=owner_token,
+                owner_epoch=owner_epoch,
+            ):
+                raise SessionError("attachment_clear_group_release_owner_lost")
+            if not await self._file_record_storage.forget_release_operation(
+                keys,
+                operation_id=group["release_operation_id"],
+                owner_epoch=owner_epoch,
+                uploaded_by=uploaded_by,
+            ):
+                raise SessionError("attachment_release_marker_cleanup_failed")
+            group.update(
+                {
+                    "status": "released",
+                    "release_owner_token": owner_token,
+                    "release_owner_epoch": owner_epoch,
+                    "_release_marker_cleaned": True,
+                }
+            )
+        finally:
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
 
     async def _get_or_begin_attachment_clear_operation(
         self,
@@ -349,30 +434,28 @@ class SessionManager:
                 ):
                     raise SessionError("attachment_clear_group_persist_failed")
                 group["status"] = delete_status
-            if group["status"] == "deleted":
-                if group["counts"]:
-                    await self._file_record_storage.release_reference_counts(
-                        group["counts"],
-                        operation_id=group["release_operation_id"],
-                        uploaded_by=uploaded_by,
+            if group["status"] in {"deleted", "releasing"}:
+                release_task = asyncio.create_task(
+                    self._finish_attachment_clear_group_release(
+                        session_id,
+                        operation_id,
+                        uploaded_by,
+                        group_id,
+                        group,
                     )
-                if not await self.storage.set_attachment_clear_group_status(
-                    session_id,
-                    operation_id,
-                    group_id,
-                    expected_status="deleted",
-                    status="released",
+                )
+                await drain_task(release_task)
+            if group["status"] == "released" and not group.get("_release_marker_cleaned"):
+                owner_epoch = group.get("release_owner_epoch")
+                if not isinstance(owner_epoch, int) or owner_epoch < 1:
+                    raise SessionError("attachment_clear_group_release_owner_invalid")
+                if not await self._file_record_storage.forget_release_operation(
+                    list(group["counts"]),
+                    operation_id=group["release_operation_id"],
+                    owner_epoch=owner_epoch,
+                    uploaded_by=uploaded_by,
                 ):
-                    raise SessionError("attachment_clear_group_persist_failed")
-                group["status"] = "released"
-            if group[
-                "status"
-            ] == "released" and not await self._file_record_storage.forget_release_operation(
-                list(group["counts"]),
-                operation_id=group["release_operation_id"],
-                uploaded_by=uploaded_by,
-            ):
-                raise SessionError("attachment_release_marker_cleanup_failed")
+                    raise SessionError("attachment_release_marker_cleanup_failed")
         if not await self.storage.complete_attachment_clear_operation(session_id, operation_id):
             raise SessionError("attachment_clear_operation_complete_failed")
         released_keys = {

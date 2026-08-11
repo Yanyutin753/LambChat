@@ -388,21 +388,131 @@ class _ManyScheduledTaskFenceCollection:
 
 class _ReleaseMarkerCleanupCollection:
     def __init__(self, *, lose_reply: bool = False) -> None:
-        self.markers: dict[str, set[str]] = {"key-a": set()}
+        self.records: dict[str, dict] = {
+            "key-a": {
+                "key": "key-a",
+                "uploaded_by": "owner-a",
+                "reference_count": 1,
+                "session_release_operations": [],
+                "session_release_epoch_high_water": 0,
+            }
+        }
         self.lose_reply = lose_reply
 
-    async def update_many(self, query: dict, update: dict):
-        operation_id = update["$pull"]["applied_release_operations"]
+    @staticmethod
+    def _operation(value: object) -> dict | None:
+        if isinstance(value, dict):
+            if isinstance(value.get("operation_id"), str) and isinstance(value.get("epoch"), int):
+                return value
+            for nested in value.values():
+                found = _ReleaseMarkerCleanupCollection._operation(nested)
+                if found is not None:
+                    return found
+        elif isinstance(value, list):
+            for nested in value:
+                found = _ReleaseMarkerCleanupCollection._operation(nested)
+                if found is not None:
+                    return found
+        return None
+
+    @staticmethod
+    def _decrement(value: object) -> int | None:
+        if isinstance(value, dict):
+            subtract = value.get("$subtract")
+            if isinstance(subtract, list) and len(subtract) == 2 and isinstance(subtract[1], int):
+                return subtract[1]
+            for nested in value.values():
+                found = _ReleaseMarkerCleanupCollection._decrement(nested)
+                if found is not None:
+                    return found
+        elif isinstance(value, list):
+            for nested in value:
+                found = _ReleaseMarkerCleanupCollection._decrement(nested)
+                if found is not None:
+                    return found
+        return None
+
+    async def find_one_and_update(self, query: dict, update: list[dict], **_kwargs):
+        record = self.records.get(query["key"])
+        if record is None or "deleting_at" in record:
+            return None
+        previous = deepcopy(record)
+        exact = query.get("session_release_operations", {}).get("$elemMatch")
+        if exact is not None:
+            operation = next(
+                (
+                    item
+                    for item in record["session_release_operations"]
+                    if item["operation_id"] == exact["operation_id"]
+                    and item["epoch"] == exact["epoch"]
+                ),
+                None,
+            )
+            if operation is None:
+                return None
+            if not operation["applied"]:
+                decrement = self._decrement(update)
+                assert decrement is not None
+                record["reference_count"] = max(0, record["reference_count"] - decrement)
+                operation["applied"] = True
+            return previous
+
+        incoming = self._operation(update)
+        assert incoming is not None
+        current = next(
+            (
+                item
+                for item in record["session_release_operations"]
+                if item["operation_id"] == incoming["operation_id"]
+            ),
+            None,
+        )
+        if current is None:
+            if incoming["epoch"] <= record.get("session_release_epoch_high_water", 0):
+                return None
+            record["session_release_operations"].append({**incoming, "applied": False})
+        elif current["epoch"] <= incoming["epoch"]:
+            current["epoch"] = incoming["epoch"]
+        else:
+            return None
+        return previous
+
+    async def update_many(self, query: dict, _update: object):
+        exact = query["session_release_operations"]["$elemMatch"]
         for key in query["key"]["$in"]:
-            self.markers.setdefault(key, set()).discard(operation_id)
+            record = self.records.get(key)
+            if record is None:
+                continue
+            record["session_release_operations"] = [
+                operation
+                for operation in record["session_release_operations"]
+                if not (
+                    operation["operation_id"] == exact["operation_id"]
+                    and operation["epoch"] == exact["epoch"]
+                    and operation["applied"] is True
+                )
+            ]
+            record["session_release_epoch_high_water"] = max(
+                record.get("session_release_epoch_high_water", 0), exact["epoch"]
+            )
         if self.lose_reply:
             self.lose_reply = False
             raise ConnectionError("marker cleanup reply lost")
         return SimpleNamespace(modified_count=1)
 
     async def count_documents(self, query: dict, **_kwargs) -> int:
-        operation_id = query["applied_release_operations"]
-        return int(any(operation_id in self.markers.get(key, set()) for key in query["key"]["$in"]))
+        exact = query["session_release_operations"]["$elemMatch"]
+        return int(
+            any(
+                any(
+                    operation["operation_id"] == exact["operation_id"]
+                    and operation["epoch"] == exact["epoch"]
+                    and operation["applied"] is True
+                    for operation in self.records.get(key, {}).get("session_release_operations", [])
+                )
+                for key in query["key"]["$in"]
+            )
+        )
 
 
 async def _noop_async() -> None:
@@ -538,134 +648,78 @@ async def test_release_owned_references_is_owner_scoped_positive_and_delays_clea
 
 @pytest.mark.asyncio
 async def test_release_reference_counts_clamps_each_key_and_delays_only_zero_records() -> None:
-    class _CountedReleaseCollection(_LifecycleCollection):
-        def __init__(self) -> None:
-            super().__init__()
-            self.records = {
-                "key-a": {"key": "key-a", "reference_count": 2, "cleanup_after": "old-a"},
-                "key-b": {"key": "key-b", "reference_count": 5, "cleanup_after": "old-b"},
-                "tombstoned": {
-                    "key": "tombstoned",
-                    "reference_count": 4,
-                    "cleanup_after": "old-t",
-                    "deleting_at": "reserved",
-                },
-            }
-
-        async def find_one_and_update(self, query: dict, update: list[dict], **kwargs):
-            self.find_one_and_update_calls.append((query, update, kwargs))
-            record = self.records.get(query["key"])
-            if record is None or "deleting_at" in record:
-                return None
-
-            count_expression = update[0]["$set"]["reference_count"]
-            decrement = count_expression["$max"][1]["$subtract"][1]
-            record["reference_count"] = max(0, record["reference_count"] - decrement)
-            record["updated_at"] = update[0]["$set"]["updated_at"]
-            cleanup_expression = update[1]["$set"]["cleanup_after"]
-            if record["reference_count"] == 0:
-                record["cleanup_after"] = cleanup_expression["$cond"][1]
-            return record.copy()
-
-    collection = _CountedReleaseCollection()
+    collection = _ReleaseMarkerCleanupCollection()
+    collection.records["key-a"]["reference_count"] = 2
+    collection.records["key-b"] = deepcopy(collection.records["key-a"])
+    collection.records["key-b"].update({"key": "key-b", "reference_count": 5})
     storage = FileRecordStorage()
     storage._collection = collection
     storage.ensure_indexes_if_needed = _noop_async
 
+    assert await storage.adopt_release_operation_epoch(
+        ["key-a", "key-b"],
+        operation_id="clear-1",
+        owner_epoch=7,
+        uploaded_by="owner-a",
+    )
     released = await storage.release_reference_counts(
-        {" key-a ": 3, "key-b": 2, "tombstoned": 1, "missing": 4, "": 1, "skip": 0},
+        {" key-a ": 3, "key-b": 2, "": 1, "skip": 0},
         operation_id="clear-1",
         uploaded_by="owner-a",
+        owner_epoch=7,
     )
 
     assert released == 2
     assert collection.records["key-a"]["reference_count"] == 0
-    assert collection.records["key-a"]["cleanup_after"] > collection.records["key-a"][
-        "updated_at"
-    ] + timedelta(minutes=1)
     assert collection.records["key-b"]["reference_count"] == 3
-    assert collection.records["key-b"]["cleanup_after"] == "old-b"
-    assert collection.records["tombstoned"] == {
-        "key": "tombstoned",
-        "reference_count": 4,
-        "cleanup_after": "old-t",
-        "deleting_at": "reserved",
-    }
-    assert [call[0] for call in collection.find_one_and_update_calls] == [
-        {
-            "key": "key-a",
-            "uploaded_by": "owner-a",
-            "deleting_at": {"$exists": False},
-            "applied_release_operations": {"$ne": "clear-1"},
-        },
-        {
-            "key": "key-b",
-            "uploaded_by": "owner-a",
-            "deleting_at": {"$exists": False},
-            "applied_release_operations": {"$ne": "clear-1"},
-        },
-        {
-            "key": "tombstoned",
-            "uploaded_by": "owner-a",
-            "deleting_at": {"$exists": False},
-            "applied_release_operations": {"$ne": "clear-1"},
-        },
-        {
-            "key": "missing",
-            "uploaded_by": "owner-a",
-            "deleting_at": {"$exists": False},
-            "applied_release_operations": {"$ne": "clear-1"},
-        },
-    ]
-    assert collection.find_one_and_update_calls[0][1][0]["$set"]["reference_count"] == {
-        "$max": [0, {"$subtract": [{"$ifNull": ["$reference_count", 0]}, 3]}]
-    }
 
 
 @pytest.mark.asyncio
 async def test_release_reference_counts_retries_partial_failure_without_double_decrement() -> None:
-    class _RetryCollection(_LifecycleCollection):
+    class _RetryCollection(_ReleaseMarkerCleanupCollection):
         def __init__(self) -> None:
             super().__init__()
-            self.records = {
-                "key-a": {"reference_count": 2, "applied_release_operations": []},
-                "key-b": {"reference_count": 2, "applied_release_operations": []},
-            }
+            self.records["key-a"]["reference_count"] = 2
+            self.records["key-b"] = deepcopy(self.records["key-a"])
+            self.records["key-b"]["key"] = "key-b"
             self.fail_key_b_once = True
 
         async def find_one_and_update(self, query: dict, update: list[dict], **kwargs):
-            key = query["key"]
-            if key == "key-b" and self.fail_key_b_once:
+            if (
+                query["key"] == "key-b"
+                and "session_release_operations" in query
+                and self.fail_key_b_once
+            ):
                 self.fail_key_b_once = False
                 raise RuntimeError("write interrupted")
-            record = self.records[key]
-            operation_id = query["applied_release_operations"]["$ne"]
-            if operation_id in record["applied_release_operations"]:
-                return None
-            decrement = update[0]["$set"]["reference_count"]["$max"][1]["$subtract"][1]
-            record["reference_count"] = max(0, record["reference_count"] - decrement)
-            record["applied_release_operations"].append(operation_id)
-            return record.copy()
+            return await super().find_one_and_update(query, update, **kwargs)
 
     collection = _RetryCollection()
     storage = FileRecordStorage()
     storage._collection = collection
     storage.ensure_indexes_if_needed = _noop_async
 
+    assert await storage.adopt_release_operation_epoch(
+        ["key-a", "key-b"], operation_id="clear-1", owner_epoch=7, uploaded_by="owner-a"
+    )
     with pytest.raises(RuntimeError, match="write interrupted"):
         await storage.release_reference_counts(
-            {"key-a": 1, "key-b": 1}, operation_id="clear-1", uploaded_by="owner-a"
+            {"key-a": 1, "key-b": 1},
+            operation_id="clear-1",
+            uploaded_by="owner-a",
+            owner_epoch=7,
         )
 
     released = await storage.release_reference_counts(
-        {"key-a": 1, "key-b": 1}, operation_id="clear-1", uploaded_by="owner-a"
+        {"key-a": 1, "key-b": 1},
+        operation_id="clear-1",
+        uploaded_by="owner-a",
+        owner_epoch=7,
     )
 
     assert released == 1
-    assert collection.records == {
-        "key-a": {"reference_count": 1, "applied_release_operations": ["clear-1"]},
-        "key-b": {"reference_count": 1, "applied_release_operations": ["clear-1"]},
-    }
+    assert collection.records["key-a"]["reference_count"] == 1
+    assert collection.records["key-b"]["reference_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -675,8 +729,12 @@ async def test_release_reference_counts_is_scoped_to_the_session_owner() -> None
     storage._collection = collection
     storage.ensure_indexes_if_needed = _noop_async
 
+    collection.claim_results = [{"key": "key-a"}]
     await storage.release_reference_counts(
-        {"key-a": 1}, operation_id="clear-1", uploaded_by="owner-a"
+        {"key-a": 1},
+        operation_id="clear-1",
+        uploaded_by="owner-a",
+        owner_epoch=7,
     )
 
     assert collection.find_one_and_update_calls[0][0]["uploaded_by"] == "owner-a"
@@ -1010,25 +1068,103 @@ async def test_completed_release_operation_markers_remain_bounded_and_retry_repl
     storage = FileRecordStorage()
     storage._collection = collection
     storage.ensure_indexes_if_needed = _noop_async
+    collection.records["key-a"]["reference_count"] = 1200
 
     for index in range(1100):
         operation_id = f"clear-{index}"
-        collection.markers["key-a"].add(operation_id)
-        assert await storage.forget_release_operation(
-            ["key-a"], operation_id=operation_id, uploaded_by="owner-a"
+        owner_epoch = index + 1
+        assert await storage.adopt_release_operation_epoch(
+            ["key-a"],
+            operation_id=operation_id,
+            owner_epoch=owner_epoch,
+            uploaded_by="owner-a",
         )
-    assert collection.markers["key-a"] == set()
+        await storage.release_reference_counts(
+            {"key-a": 1},
+            operation_id=operation_id,
+            owner_epoch=owner_epoch,
+            uploaded_by="owner-a",
+        )
+        assert await storage.forget_release_operation(
+            ["key-a"],
+            operation_id=operation_id,
+            owner_epoch=owner_epoch,
+            uploaded_by="owner-a",
+        )
+    assert collection.records["key-a"]["session_release_operations"] == []
+    assert collection.records["key-a"]["session_release_epoch_high_water"] == 1100
+    assert not await storage.adopt_release_operation_epoch(
+        ["key-a"], operation_id="clear-0", owner_epoch=1, uploaded_by="owner-a"
+    )
+    assert (
+        await storage.release_reference_counts(
+            {"key-a": 1},
+            operation_id="clear-0",
+            owner_epoch=1,
+            uploaded_by="owner-a",
+        )
+        == 0
+    )
 
-    collection.markers["key-a"].add("reply-lost")
+    assert await storage.adopt_release_operation_epoch(
+        ["key-a"], operation_id="reply-lost", owner_epoch=1101, uploaded_by="owner-a"
+    )
+    await storage.release_reference_counts(
+        {"key-a": 1},
+        operation_id="reply-lost",
+        owner_epoch=1101,
+        uploaded_by="owner-a",
+    )
     collection.lose_reply = True
     with pytest.raises(ConnectionError, match="marker cleanup reply lost"):
         await storage.forget_release_operation(
-            ["key-a"], operation_id="reply-lost", uploaded_by="owner-a"
+            ["key-a"],
+            operation_id="reply-lost",
+            owner_epoch=1101,
+            uploaded_by="owner-a",
         )
     assert await storage.forget_release_operation(
-        ["key-a"], operation_id="reply-lost", uploaded_by="owner-a"
+        ["key-a"],
+        operation_id="reply-lost",
+        owner_epoch=1101,
+        uploaded_by="owner-a",
     )
-    assert collection.markers["key-a"] == set()
+    assert collection.records["key-a"]["session_release_operations"] == []
+
+
+@pytest.mark.asyncio
+async def test_release_epoch_takeover_preserves_already_applied_decrement() -> None:
+    collection = _ReleaseMarkerCleanupCollection()
+    collection.records["key-a"]["reference_count"] = 2
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    assert await storage.adopt_release_operation_epoch(
+        ["key-a"], operation_id="clear-1", owner_epoch=1, uploaded_by="owner-a"
+    )
+    assert (
+        await storage.release_reference_counts(
+            {"key-a": 1},
+            operation_id="clear-1",
+            owner_epoch=1,
+            uploaded_by="owner-a",
+        )
+        == 1
+    )
+    assert await storage.adopt_release_operation_epoch(
+        ["key-a"], operation_id="clear-1", owner_epoch=2, uploaded_by="owner-a"
+    )
+    assert (
+        await storage.release_reference_counts(
+            {"key-a": 1},
+            operation_id="clear-1",
+            owner_epoch=2,
+            uploaded_by="owner-a",
+        )
+        == 0
+    )
+    assert collection.records["key-a"]["reference_count"] == 1
 
 
 @pytest.mark.asyncio

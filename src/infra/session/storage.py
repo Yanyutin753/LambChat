@@ -50,6 +50,7 @@ class SessionStorage(SessionAttachmentOperationsMixin):
 
     def __init__(self):
         self._collection = None
+        self._attachment_metadata_collection = None
 
     @property
     def collection(self):
@@ -61,6 +62,17 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             db = client[settings.MONGODB_DB]
             self._collection = db[settings.MONGODB_SESSIONS_COLLECTION]
         return self._collection
+
+    @property
+    def attachment_metadata_collection(self):
+        """Mongo-authoritative counters for globally ordered session attachment work."""
+        if self._attachment_metadata_collection is None:
+            from src.infra.storage.mongodb import get_mongo_client
+
+            client = get_mongo_client()
+            db = client[settings.MONGODB_DB]
+            self._attachment_metadata_collection = db["session_attachment_metadata"]
+        return self._attachment_metadata_collection
 
     async def ensure_indexes_if_needed(self):
         """Ensure session indexes exist."""

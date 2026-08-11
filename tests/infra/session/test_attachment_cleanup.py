@@ -293,6 +293,23 @@ class _FilterAwareCollection:
         return {document["_id"] for document in self.documents}
 
 
+class _ReleaseEpochMetadata:
+    def __init__(self, *, lose_replies: int = 0) -> None:
+        self.epoch = 0
+        self.lose_replies = lose_replies
+
+    async def update_one(self, _query: dict, update: dict, **_kwargs):
+        self.epoch = max(self.epoch, int(update["$max"]["epoch"]))
+        return SimpleNamespace(modified_count=1)
+
+    async def find_one_and_update(self, _query: dict, update: dict, **_kwargs):
+        self.epoch += int(update["$inc"]["epoch"])
+        if self.lose_replies:
+            self.lose_replies -= 1
+            raise ConnectionError("release epoch reply lost")
+        return {"epoch": self.epoch}
+
+
 class _FileRecordStorage:
     def __init__(self) -> None:
         self.released_counts: list[Counter[str]] = []
@@ -301,17 +318,43 @@ class _FileRecordStorage:
         self.release_error: Exception | None = None
         self.forget_error: Exception | None = None
         self.forgot_operation_ids: list[str] = []
+        self.live_operations: dict[str, tuple[int, bool]] = {}
+
+    async def adopt_release_operation_epoch(
+        self,
+        _keys: list[str],
+        *,
+        operation_id: str,
+        owner_epoch: int,
+        uploaded_by: str,
+    ) -> bool:
+        assert uploaded_by == "owner-a"
+        current = self.live_operations.get(operation_id)
+        if current is not None and current[0] > owner_epoch:
+            return False
+        self.live_operations[operation_id] = (
+            owner_epoch,
+            current[1] if current is not None else operation_id in self.applied_operation_ids,
+        )
+        return True
 
     async def release_reference_counts(
-        self, counts: Counter[str], *, operation_id: str, uploaded_by: str
+        self,
+        counts: Counter[str],
+        *,
+        operation_id: str,
+        uploaded_by: str,
+        owner_epoch: int,
     ) -> int:
         assert uploaded_by == "owner-a"
         if self.release_error:
             raise self.release_error
         self.operation_ids.append(operation_id)
-        if operation_id in self.applied_operation_ids:
+        operation = self.live_operations.get(operation_id)
+        if operation != (owner_epoch, False):
             return 0
         self.applied_operation_ids.add(operation_id)
+        self.live_operations[operation_id] = (owner_epoch, True)
         self.released_counts.append(counts)
         return len(counts)
 
@@ -320,12 +363,15 @@ class _FileRecordStorage:
         keys: object,
         *,
         operation_id: str,
+        owner_epoch: int,
         uploaded_by: str,
     ) -> bool:
         assert uploaded_by == "owner-a"
         if self.forget_error:
             raise self.forget_error
-        self.applied_operation_ids.discard(operation_id)
+        if self.live_operations.get(operation_id) == (owner_epoch, True):
+            self.live_operations.pop(operation_id)
+            self.applied_operation_ids.discard(operation_id)
         self.forgot_operation_ids.append(operation_id)
         return True
 
@@ -402,6 +448,7 @@ class _SessionOperationStorage:
         self.server_operation: dict | None = None
         self.operation_number = 0
         self.delete_operation: dict | None = None
+        self.release_epoch = 0
 
     async def get_by_session_id(self, session_id: str):
         return SimpleNamespace(id=session_id, metadata=self.metadata.copy())
@@ -472,12 +519,45 @@ class _SessionOperationStorage:
         *,
         expected_status: str,
         status: str,
+        owner_token: str | None = None,
+        owner_epoch: int | None = None,
     ) -> bool:
         assert self.server_operation and operation_id == self.server_operation["id"]
         group = self.server_operation["groups"][group_id]
         if group["status"] != expected_status:
             return False
+        if owner_token is not None and (
+            group.get("release_owner_token") != owner_token
+            or group.get("release_owner_epoch") != owner_epoch
+        ):
+            return False
         group["status"] = status
+        return True
+
+    async def claim_attachment_clear_group_release(
+        self,
+        _session_id: str,
+        operation_id: str,
+        group_id: str,
+        owner_token: str,
+    ) -> dict | None:
+        assert self.server_operation and self.server_operation["id"] == operation_id
+        group = self.server_operation["groups"][group_id]
+        if group.get("status") not in {"deleted", "releasing"}:
+            return None
+        if group.get("release_owner_token") == owner_token:
+            return {"token": owner_token, "epoch": group["release_owner_epoch"]}
+        self.release_epoch += 1
+        group.update(
+            {
+                "status": "releasing",
+                "release_owner_token": owner_token,
+                "release_owner_epoch": self.release_epoch,
+            }
+        )
+        return {"token": owner_token, "epoch": self.release_epoch}
+
+    async def renew_attachment_clear_group_release(self, *_args, **_kwargs) -> bool:
         return True
 
     async def complete_attachment_clear_operation(
@@ -660,7 +740,7 @@ async def test_clear_session_messages_persists_deleted_group_when_counted_releas
 
     assert trace_storage.deleted_session_ids == ["session-1"]
     assert manager.storage.server_operation is not None
-    assert manager.storage.server_operation["groups"]["parent-0"]["status"] == "deleted"
+    assert manager.storage.server_operation["groups"]["parent-0"]["status"] == "releasing"
 
     file_records.release_error = None
     assert await manager.clear_session_messages("session-1") == 1
@@ -696,6 +776,102 @@ async def test_clear_session_messages_retries_marker_cleanup_without_releasing_t
     assert file_records.released_counts == [Counter({"attachments/u1/a.png": 1})]
     assert file_records.forgot_operation_ids == ["server-operation-1:parent-0"]
     assert manager.storage.server_operation is None
+
+
+@pytest.mark.asyncio
+async def test_late_first_clear_cannot_decrement_after_second_caller_compacts_marker() -> None:
+    storage = _SessionOperationStorage()
+    trace_storage = _TraceStorage()
+    trace_storage.events = [
+        {
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "attachments/u1/a.png"}]},
+        }
+    ]
+    first_release_started = asyncio.Event()
+    resume_first_release = asyncio.Event()
+
+    class _DelayedFirstRelease(_FileRecordStorage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.reference_count = 2
+            self.release_calls = 0
+
+        async def release_reference_counts(
+            self,
+            counts: Counter[str],
+            *,
+            operation_id: str,
+            uploaded_by: str,
+            owner_epoch: int,
+        ) -> int:
+            self.release_calls += 1
+            if self.release_calls == 1:
+                first_release_started.set()
+                await resume_first_release.wait()
+            released = await super().release_reference_counts(
+                counts,
+                operation_id=operation_id,
+                uploaded_by=uploaded_by,
+                owner_epoch=owner_epoch,
+            )
+            if released:
+                self.reference_count -= sum(counts.values())
+            return released
+
+    file_records = _DelayedFirstRelease()
+    first = SessionManager()
+    second = SessionManager()
+    for manager in (first, second):
+        manager.storage = storage
+        manager._trace_storage = trace_storage
+        manager._file_record_storage = file_records
+
+    first_call = asyncio.create_task(first.clear_session_messages("session-1"))
+    await asyncio.wait_for(first_release_started.wait(), timeout=1)
+    assert await second.clear_session_messages("session-1") == 1
+    resume_first_release.set()
+    first_result = await asyncio.gather(first_call, return_exceptions=True)
+
+    assert isinstance(first_result[0], BaseException)
+    assert file_records.reference_count == 1
+    assert file_records.applied_operation_ids == set()
+
+
+@pytest.mark.asyncio
+async def test_repeated_cancellation_cannot_interrupt_fenced_group_release() -> None:
+    release_started = asyncio.Event()
+    finish_release = asyncio.Event()
+
+    class _BlockingRelease(_FileRecordStorage):
+        async def release_reference_counts(self, *args, **kwargs) -> int:
+            release_started.set()
+            await finish_release.wait()
+            return await super().release_reference_counts(*args, **kwargs)
+
+    file_records = _BlockingRelease()
+    trace_storage = _TraceStorage()
+    trace_storage.events = [
+        {
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "attachments/u1/a.png"}]},
+        }
+    ]
+    manager = SessionManager()
+    manager.storage = _SessionOperationStorage()
+    manager._trace_storage = trace_storage
+    manager._file_record_storage = file_records
+
+    clear_task = asyncio.create_task(manager.clear_session_messages("session-1"))
+    await asyncio.wait_for(release_started.wait(), timeout=1)
+    clear_task.cancel()
+    await asyncio.sleep(0)
+    clear_task.cancel()
+    finish_release.set()
+
+    assert await clear_task == 1
+    assert file_records.released_counts == [Counter({"attachments/u1/a.png": 1})]
+    assert file_records.live_operations == {}
 
 
 @pytest.mark.asyncio
@@ -1075,6 +1251,145 @@ async def test_object_id_session_clear_operation_persists_and_completes_exact_sn
 
 
 @pytest.mark.asyncio
+async def test_clear_group_release_epochs_are_global_idempotent_and_takeover_expired_owner() -> (
+    None
+):
+    now = datetime.now(timezone.utc)
+
+    def _document(session_id: str, operation_id: str) -> dict:
+        return {
+            "session_id": session_id,
+            "attachment_clear_operation": {
+                "id": operation_id,
+                "groups": {"parent-0": {"status": "deleted"}},
+            },
+        }
+
+    collection = _FilterAwareCollection(
+        [_document("session-1", "clear-1"), _document("session-2", "clear-2")]
+    )
+    metadata = _ReleaseEpochMetadata()
+    storage = SessionStorage()
+    storage._collection = collection
+    storage._attachment_metadata_collection = metadata
+
+    first = await storage.claim_attachment_clear_group_release(
+        "session-1", "clear-1", "parent-0", "owner-a"
+    )
+    retry = await storage.claim_attachment_clear_group_release(
+        "session-1", "clear-1", "parent-0", "owner-a"
+    )
+    second = await storage.claim_attachment_clear_group_release(
+        "session-2", "clear-2", "parent-0", "owner-b"
+    )
+
+    assert first == retry == {"token": "owner-a", "epoch": 1}
+    assert second == {"token": "owner-b", "epoch": 2}
+
+    group = collection.documents[0]["attachment_clear_operation"]["groups"]["parent-0"]
+    group["release_owner_expires_at"] = now - timedelta(seconds=1)
+    takeover = await storage.claim_attachment_clear_group_release(
+        "session-1", "clear-1", "parent-0", "owner-c"
+    )
+
+    assert takeover == {"token": "owner-c", "epoch": 3}
+    assert not await storage.set_attachment_clear_group_status(
+        "session-1",
+        "clear-1",
+        "parent-0",
+        expected_status="releasing",
+        status="released",
+        owner_token="owner-a",
+        owner_epoch=1,
+    )
+    assert await storage.set_attachment_clear_group_status(
+        "session-1",
+        "clear-1",
+        "parent-0",
+        expected_status="releasing",
+        status="released",
+        owner_token="owner-c",
+        owner_epoch=3,
+    )
+
+
+@pytest.mark.asyncio
+async def test_clear_group_release_counter_reply_loss_consumes_gap() -> None:
+    collection = _FilterAwareCollection(
+        [
+            {
+                "session_id": "session-1",
+                "attachment_clear_operation": {
+                    "id": "clear-1",
+                    "groups": {"parent-0": {"status": "deleted"}},
+                },
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+    storage._attachment_metadata_collection = _ReleaseEpochMetadata(lose_replies=1)
+
+    with pytest.raises(ConnectionError, match="release epoch reply lost"):
+        await storage.claim_attachment_clear_group_release(
+            "session-1", "clear-1", "parent-0", "owner-a"
+        )
+
+    claimed = await storage.claim_attachment_clear_group_release(
+        "session-1", "clear-1", "parent-0", "owner-a"
+    )
+    assert claimed == {"token": "owner-a", "epoch": 2}
+
+
+@pytest.mark.asyncio
+async def test_clear_group_release_recovers_exact_binding_after_reply_loss() -> None:
+    class _LoseBindingReply(_FilterAwareCollection):
+        def __init__(self, documents: list[dict[str, Any]]) -> None:
+            super().__init__(documents)
+            self.lose_reply = True
+
+        async def find_one_and_update(self, query: dict, update: dict | list[dict], **kwargs):
+            result = await super().find_one_and_update(query, update, **kwargs)
+            if (
+                self.lose_reply
+                and result is not None
+                and any(
+                    key.endswith(".release_owner_epoch")
+                    for key in (update.get("$set", {}) if isinstance(update, dict) else {})
+                )
+            ):
+                self.lose_reply = False
+                raise ConnectionError("binding reply lost")
+            return result
+
+    collection = _LoseBindingReply(
+        [
+            {
+                "session_id": "session-1",
+                "attachment_clear_operation": {
+                    "id": "clear-1",
+                    "groups": {"parent-0": {"status": "deleted"}},
+                },
+            }
+        ]
+    )
+    metadata = _ReleaseEpochMetadata()
+    storage = SessionStorage()
+    storage._collection = collection
+    storage._attachment_metadata_collection = metadata
+
+    claimed = await storage.claim_attachment_clear_group_release(
+        "session-1", "clear-1", "parent-0", "owner-a"
+    )
+    retried = await storage.claim_attachment_clear_group_release(
+        "session-1", "clear-1", "parent-0", "owner-a"
+    )
+
+    assert claimed == retried == {"token": "owner-a", "epoch": 1}
+    assert metadata.epoch == 1
+
+
+@pytest.mark.asyncio
 async def test_cleanup_snapshot_deletes_every_terminal_parent_and_only_its_exact_chunks() -> None:
     cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
     before = cutoff - timedelta(minutes=1)
@@ -1377,7 +1692,12 @@ async def test_clear_preserves_chunk_created_after_exact_snapshot() -> None:
 
     class _AppendAfterSnapshotFileRecords(_FileRecordStorage):
         async def release_reference_counts(
-            self, counts: Counter[str], *, operation_id: str, uploaded_by: str
+            self,
+            counts: Counter[str],
+            *,
+            operation_id: str,
+            uploaded_by: str,
+            owner_epoch: int,
         ) -> int:
             chunks.documents.append(
                 {
@@ -1397,6 +1717,7 @@ async def test_clear_preserves_chunk_created_after_exact_snapshot() -> None:
                 counts,
                 operation_id=operation_id,
                 uploaded_by=uploaded_by,
+                owner_epoch=owner_epoch,
             )
 
     manager = SessionManager()

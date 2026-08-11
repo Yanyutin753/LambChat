@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from bson import ObjectId
 
 from src.infra.logging import get_logger
+from src.infra.session.session_clear_release_operations import SessionClearReleaseOperationsMixin
 from src.infra.utils.datetime import utc_now
 
 logger = get_logger(__name__)
@@ -155,11 +156,12 @@ def _trace_cleanup_guard_snapshot_query(
     return query
 
 
-class SessionAttachmentOperationsMixin:
+class SessionAttachmentOperationsMixin(SessionClearReleaseOperationsMixin):
     """Attachment lifecycle state composed into the public SessionStorage class."""
 
     if TYPE_CHECKING:
         collection: Any
+        attachment_metadata_collection: Any
 
         async def ensure_indexes_if_needed(self) -> None: ...
 
@@ -347,6 +349,8 @@ class SessionAttachmentOperationsMixin:
         *,
         expected_status: str,
         status: str,
+        owner_token: str | None = None,
+        owner_epoch: int | None = None,
     ) -> bool:
         """Persist one group's monotonic clear state transition."""
         field = "attachment_clear_operation"
@@ -358,6 +362,14 @@ class SessionAttachmentOperationsMixin:
                     **identity,
                     f"{field}.id": operation_id,
                     group_status: expected_status,
+                    **(
+                        {
+                            f"{field}.groups.{group_id}.release_owner_token": owner_token,
+                            f"{field}.groups.{group_id}.release_owner_epoch": owner_epoch,
+                        }
+                        if owner_token is not None and owner_epoch is not None
+                        else {}
+                    ),
                 },
                 {
                     "$set": {

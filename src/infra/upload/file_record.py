@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pymongo import ReturnDocument
 
+from src.infra.upload.file_record_cleanup_operations import FileRecordCleanupOperationsMixin
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
@@ -99,13 +100,13 @@ def _scheduled_task_reference_state(task_id: str) -> tuple[dict, dict, dict, dic
     return existing_ids, other_live_generations, high_water, live_generations
 
 
-class FileRecordStorage:
+class FileRecordStorage(FileRecordCleanupOperationsMixin):
     """Storage layer for file records, keyed by content hash."""
 
     REFERENCE_KEYS_MAX = REFERENCE_KEYS_MAX
 
     def __init__(self):
-        self._collection = None
+        self._collection: Any = None
         self._indexes_task: asyncio.Task[None] | None = None
 
     @property
@@ -583,14 +584,17 @@ class FileRecordStorage:
         *,
         operation_id: str,
         uploaded_by: str,
+        owner_epoch: int,
     ) -> int:
-        """Atomically release each requested count while preserving cleanup grace."""
+        """Release counts only through the exact live operation epoch."""
         normalized_counts = _positive_reference_counts(counts)
         if not normalized_counts:
             return 0
         operation_id = operation_id.strip()
         if not operation_id:
             raise ValueError("operation_id is required for counted reference release")
+        if owner_epoch < 1:
+            raise ValueError("owner_epoch must be positive")
 
         await self.ensure_indexes_if_needed()
         now = utc_now()
@@ -602,21 +606,99 @@ class FileRecordStorage:
                     "key": key,
                     "uploaded_by": uploaded_by,
                     "deleting_at": {"$exists": False},
-                    "applied_release_operations": {"$ne": operation_id},
+                    "session_release_operations": {
+                        "$elemMatch": {
+                            "operation_id": operation_id,
+                            "epoch": owner_epoch,
+                        }
+                    },
                 },
                 [
                     {
                         "$set": {
                             "reference_count": {
-                                "$max": [
-                                    0,
+                                "$cond": [
                                     {
-                                        "$subtract": [
-                                            {"$ifNull": ["$reference_count", 0]},
-                                            count,
+                                        "$anyElementTrue": {
+                                            "$map": {
+                                                "input": {
+                                                    "$ifNull": [
+                                                        "$session_release_operations",
+                                                        [],
+                                                    ]
+                                                },
+                                                "as": "operation",
+                                                "in": {
+                                                    "$and": [
+                                                        {
+                                                            "$eq": [
+                                                                "$$operation.operation_id",
+                                                                operation_id,
+                                                            ]
+                                                        },
+                                                        {
+                                                            "$eq": [
+                                                                "$$operation.epoch",
+                                                                owner_epoch,
+                                                            ]
+                                                        },
+                                                        {
+                                                            "$eq": [
+                                                                "$$operation.applied",
+                                                                True,
+                                                            ]
+                                                        },
+                                                    ]
+                                                },
+                                            }
+                                        }
+                                    },
+                                    {"$ifNull": ["$reference_count", 0]},
+                                    {
+                                        "$max": [
+                                            0,
+                                            {
+                                                "$subtract": [
+                                                    {"$ifNull": ["$reference_count", 0]},
+                                                    count,
+                                                ]
+                                            },
                                         ]
                                     },
                                 ]
+                            },
+                            "session_release_operations": {
+                                "$map": {
+                                    "input": {"$ifNull": ["$session_release_operations", []]},
+                                    "as": "operation",
+                                    "in": {
+                                        "$cond": [
+                                            {
+                                                "$and": [
+                                                    {
+                                                        "$eq": [
+                                                            "$$operation.operation_id",
+                                                            operation_id,
+                                                        ]
+                                                    },
+                                                    {
+                                                        "$eq": [
+                                                            "$$operation.epoch",
+                                                            owner_epoch,
+                                                        ]
+                                                    },
+                                                ]
+                                            },
+                                            {
+                                                "$mergeObjects": [
+                                                    "$$operation",
+                                                    {"applied": True},
+                                                ]
+                                            },
+                                            "$$operation",
+                                        ]
+                                    },
+                                }
                             },
                             "updated_at": now,
                         }
@@ -632,28 +714,154 @@ class FileRecordStorage:
                             }
                         }
                     },
-                    {
-                        "$set": {
-                            "applied_release_operations": {
-                                "$setUnion": [
-                                    {"$ifNull": ["$applied_release_operations", []]},
-                                    [operation_id],
-                                ]
-                            }
-                        }
-                    },
                 ],
-                return_document=ReturnDocument.AFTER,
+                return_document=ReturnDocument.BEFORE,
             )
             if record is not None:
-                released += 1
+                was_applied = any(
+                    operation.get("operation_id") == operation_id
+                    and operation.get("epoch") == owner_epoch
+                    and operation.get("applied") is True
+                    for operation in record.get("session_release_operations", [])
+                    if isinstance(operation, dict)
+                )
+                if not was_applied:
+                    released += 1
         return released
+
+    async def adopt_release_operation_epoch(
+        self,
+        keys: list[str],
+        *,
+        operation_id: str,
+        owner_epoch: int,
+        uploaded_by: str,
+    ) -> bool:
+        """Create or advance the bounded live marker for a clear-group owner."""
+        unique_keys = list(
+            dict.fromkeys(str(key).strip() for key in keys if key and str(key).strip())
+        )
+        operation_id = operation_id.strip()
+        if not operation_id or owner_epoch < 1:
+            raise ValueError("operation_id and positive owner_epoch are required")
+        if not unique_keys:
+            return True
+        await self.ensure_indexes_if_needed()
+        existing_operations = {"$ifNull": ["$session_release_operations", []]}
+        matching_operations = {
+            "$filter": {
+                "input": existing_operations,
+                "as": "operation",
+                "cond": {"$eq": ["$$operation.operation_id", operation_id]},
+            }
+        }
+        other_operations = {
+            "$filter": {
+                "input": existing_operations,
+                "as": "operation",
+                "cond": {"$ne": ["$$operation.operation_id", operation_id]},
+            }
+        }
+        for key in unique_keys:
+            previous = await self.collection.find_one_and_update(
+                {
+                    "key": key,
+                    "uploaded_by": uploaded_by,
+                    "deleting_at": {"$exists": False},
+                    "$expr": {
+                        "$or": [
+                            {
+                                "$and": [
+                                    {"$gt": [{"$size": matching_operations}, 0]},
+                                    {
+                                        "$lte": [
+                                            {
+                                                "$max": {
+                                                    "$map": {
+                                                        "input": matching_operations,
+                                                        "as": "operation",
+                                                        "in": "$$operation.epoch",
+                                                    }
+                                                }
+                                            },
+                                            owner_epoch,
+                                        ]
+                                    },
+                                ]
+                            },
+                            {
+                                "$and": [
+                                    {"$eq": [{"$size": matching_operations}, 0]},
+                                    {
+                                        "$gt": [
+                                            owner_epoch,
+                                            {
+                                                "$ifNull": [
+                                                    "$session_release_epoch_high_water",
+                                                    0,
+                                                ]
+                                            },
+                                        ]
+                                    },
+                                ]
+                            },
+                        ]
+                    },
+                },
+                [
+                    {
+                        "$set": {
+                            "session_release_operations": {
+                                "$concatArrays": [
+                                    other_operations,
+                                    [
+                                        {
+                                            "operation_id": operation_id,
+                                            "epoch": owner_epoch,
+                                            "applied": {
+                                                "$or": [
+                                                    {
+                                                        "$anyElementTrue": {
+                                                            "$map": {
+                                                                "input": matching_operations,
+                                                                "as": "operation",
+                                                                "in": "$$operation.applied",
+                                                            }
+                                                        }
+                                                    },
+                                                    {
+                                                        "$in": [
+                                                            operation_id,
+                                                            {
+                                                                "$ifNull": [
+                                                                    "$applied_release_operations",
+                                                                    [],
+                                                                ]
+                                                            },
+                                                        ]
+                                                    },
+                                                ]
+                                            },
+                                        }
+                                    ],
+                                ]
+                            },
+                            "updated_at": utc_now(),
+                        }
+                    }
+                ],
+                return_document=ReturnDocument.BEFORE,
+            )
+            if previous is None:
+                return False
+        return True
 
     async def forget_release_operation(
         self,
         keys: list[str],
         *,
         operation_id: str,
+        owner_epoch: int,
         uploaded_by: str,
     ) -> bool:
         """Remove a completed session-release marker and verify no marker remains."""
@@ -663,20 +871,76 @@ class FileRecordStorage:
         operation_id = operation_id.strip()
         if not operation_id:
             raise ValueError("operation_id is required for release marker cleanup")
+        if owner_epoch < 1:
+            raise ValueError("owner_epoch must be positive")
         if not unique_keys:
             return True
 
         await self.ensure_indexes_if_needed()
         for offset in range(0, len(unique_keys), REFERENCE_KEYS_MAX):
             chunk = unique_keys[offset : offset + REFERENCE_KEYS_MAX]
-            marker_query = {
+            marker_query: dict[str, Any] = {
                 "key": {"$in": chunk},
                 "uploaded_by": uploaded_by,
-                "applied_release_operations": operation_id,
+                "session_release_operations": {
+                    "$elemMatch": {
+                        "operation_id": operation_id,
+                        "epoch": owner_epoch,
+                        "applied": True,
+                    }
+                },
             }
             await self.collection.update_many(
                 marker_query,
-                {"$pull": {"applied_release_operations": operation_id}},
+                [
+                    {
+                        "$set": {
+                            "session_release_operations": {
+                                "$filter": {
+                                    "input": {"$ifNull": ["$session_release_operations", []]},
+                                    "as": "operation",
+                                    "cond": {
+                                        "$not": [
+                                            {
+                                                "$and": [
+                                                    {
+                                                        "$eq": [
+                                                            "$$operation.operation_id",
+                                                            operation_id,
+                                                        ]
+                                                    },
+                                                    {
+                                                        "$eq": [
+                                                            "$$operation.epoch",
+                                                            owner_epoch,
+                                                        ]
+                                                    },
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                }
+                            },
+                            "session_release_epoch_high_water": {
+                                "$max": [
+                                    {
+                                        "$ifNull": [
+                                            "$session_release_epoch_high_water",
+                                            0,
+                                        ]
+                                    },
+                                    owner_epoch,
+                                ]
+                            },
+                            "applied_release_operations": {
+                                "$setDifference": [
+                                    {"$ifNull": ["$applied_release_operations", []]},
+                                    [operation_id],
+                                ]
+                            },
+                        }
+                    }
+                ],
             )
             if await self.collection.count_documents(marker_query, limit=1):
                 return False
@@ -705,138 +969,3 @@ class FileRecordStorage:
             },
         )
         return result.modified_count
-
-    async def schedule_owned_cleanup(self, key: str, uploaded_by: str) -> bool:
-        """Give an owned, unused record a conservative cleanup deadline."""
-        await self.ensure_indexes_if_needed()
-        now = utc_now()
-        record = await self.collection.find_one_and_update(
-            {
-                "key": key,
-                "uploaded_by": uploaded_by,
-                "reference_count": 0,
-                "deleting_at": {"$exists": False},
-            },
-            {"$set": {"cleanup_after": now + CLEANUP_GRACE_PERIOD, "updated_at": now}},
-            return_document=ReturnDocument.AFTER,
-        )
-        return record is not None
-
-    async def refresh_owned_cleanup(self, key: str, uploaded_by: str) -> bool:
-        """Refresh an owner's cleanup grace period when its draft record is reused."""
-        await self.ensure_indexes_if_needed()
-        now = utc_now()
-        result = await self.collection.update_one(
-            {
-                "key": key,
-                "uploaded_by": uploaded_by,
-                "deleting_at": {"$exists": False},
-            },
-            {"$set": {"cleanup_after": now + CLEANUP_GRACE_PERIOD, "updated_at": now}},
-        )
-        return result.modified_count > 0
-
-    async def tombstone_cleanup_batch(self, *, limit: int = CLEANUP_BATCH_SIZE) -> list[dict]:
-        """Atomically reserve overdue, unused records for object deletion."""
-        await self.ensure_indexes_if_needed()
-        claimed: list[dict] = []
-        now = utc_now()
-        bounded_limit = max(0, min(int(limit), CLEANUP_BATCH_SIZE))
-        for _ in range(bounded_limit):
-            record = await self.collection.find_one_and_update(
-                {
-                    "reference_count": 0,
-                    "cleanup_after": {"$lte": now},
-                    "$or": [
-                        {"deleting_at": {"$exists": False}},
-                        {"deleting_at": {"$lte": now - CLEANUP_TOMBSTONE_LEASE_PERIOD}},
-                    ],
-                },
-                {"$set": {"deleting_at": now, "updated_at": now}},
-                return_document=ReturnDocument.AFTER,
-            )
-            if record is None:
-                break
-            claimed.append(record)
-        return claimed
-
-    async def finalize_tombstone_cleanup(self, record: dict) -> bool:
-        """Remove a successfully deleted object record while preserving ownership scope."""
-        await self.ensure_indexes_if_needed()
-        result = await self.collection.delete_one(
-            {
-                "key": record["key"],
-                "uploaded_by": record["uploaded_by"],
-                "deleting_at": record["deleting_at"],
-            }
-        )
-        return result.deleted_count > 0
-
-    async def clear_tombstone(self, record: dict) -> bool:
-        """Make an object-delete failure eligible for a later cleanup retry."""
-        await self.ensure_indexes_if_needed()
-        result = await self.collection.update_one(
-            {
-                "key": record["key"],
-                "uploaded_by": record["uploaded_by"],
-                "deleting_at": record["deleting_at"],
-            },
-            {"$unset": {"deleting_at": ""}, "$set": {"updated_at": utc_now()}},
-        )
-        return result.modified_count > 0
-
-    async def cleanup_scheduled_records(self, object_storage: Any) -> int:
-        """Delete tombstoned objects, clearing the tombstone when deletion fails."""
-        deleted = 0
-        for record in await self.tombstone_cleanup_batch():
-            try:
-                await object_storage.delete_file(record["key"])
-            except asyncio.CancelledError:
-                await asyncio.shield(self.clear_tombstone(record))
-                raise
-            except Exception:
-                await self.clear_tombstone(record)
-                continue
-            if await self.finalize_tombstone_cleanup(record):
-                deleted += 1
-        return deleted
-
-    async def delete_by_key(self, key: str, uploaded_by: str | None = None) -> bool:
-        """Delete a file record by storage key.
-
-        Args:
-            key: Storage object key.
-            uploaded_by: Required owner scope; an omitted owner never deletes.
-
-        Returns:
-            True if a document was deleted, False otherwise.
-        """
-        await self.ensure_indexes_if_needed()
-        if uploaded_by is None:
-            return False
-        result = await self.collection.delete_one({"key": key, "uploaded_by": uploaded_by})
-        return result.deleted_count > 0
-
-    async def delete_by_hash(self, file_hash: str, uploaded_by: str) -> bool:
-        """Delete a file record by content hash.
-
-        Args:
-            file_hash: SHA-256 hex digest.
-            uploaded_by: User ID that owns the content hash.
-
-        Returns:
-            True if a document was deleted, False otherwise.
-        """
-        await self.ensure_indexes_if_needed()
-        result = await self.collection.delete_one({"hash": file_hash, "uploaded_by": uploaded_by})
-        return result.deleted_count > 0
-
-    async def close(self) -> None:
-        task = self._indexes_task
-        self._indexes_task = None
-        if task is not None and not task.done():
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-        if hasattr(self, "_indexes_ensured"):
-            delattr(self, "_indexes_ensured")
-        self._collection = None
