@@ -205,6 +205,70 @@ async def test_release_owned_references_is_owner_scoped_positive_and_delays_clea
 
 
 @pytest.mark.asyncio
+async def test_release_reference_counts_clamps_each_key_and_delays_only_zero_records() -> None:
+    class _CountedReleaseCollection(_LifecycleCollection):
+        def __init__(self) -> None:
+            super().__init__()
+            self.records = {
+                "key-a": {"key": "key-a", "reference_count": 2, "cleanup_after": "old-a"},
+                "key-b": {"key": "key-b", "reference_count": 5, "cleanup_after": "old-b"},
+                "tombstoned": {
+                    "key": "tombstoned",
+                    "reference_count": 4,
+                    "cleanup_after": "old-t",
+                    "deleting_at": "reserved",
+                },
+            }
+
+        async def find_one_and_update(self, query: dict, update: list[dict], **kwargs):
+            self.find_one_and_update_calls.append((query, update, kwargs))
+            record = self.records.get(query["key"])
+            if record is None or "deleting_at" in record:
+                return None
+
+            count_expression = update[0]["$set"]["reference_count"]
+            decrement = count_expression["$max"][1]["$subtract"][1]
+            record["reference_count"] = max(0, record["reference_count"] - decrement)
+            record["updated_at"] = update[0]["$set"]["updated_at"]
+            cleanup_expression = update[1]["$set"]["cleanup_after"]
+            if record["reference_count"] == 0:
+                record["cleanup_after"] = cleanup_expression["$cond"][1]
+            return record.copy()
+
+    collection = _CountedReleaseCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    released = await storage.release_reference_counts(
+        {" key-a ": 3, "key-b": 2, "tombstoned": 1, "missing": 4, "": 1, "skip": 0}
+    )
+
+    assert released == 2
+    assert collection.records["key-a"]["reference_count"] == 0
+    assert collection.records["key-a"]["cleanup_after"] > collection.records["key-a"][
+        "updated_at"
+    ] + timedelta(minutes=1)
+    assert collection.records["key-b"]["reference_count"] == 3
+    assert collection.records["key-b"]["cleanup_after"] == "old-b"
+    assert collection.records["tombstoned"] == {
+        "key": "tombstoned",
+        "reference_count": 4,
+        "cleanup_after": "old-t",
+        "deleting_at": "reserved",
+    }
+    assert [call[0] for call in collection.find_one_and_update_calls] == [
+        {"key": "key-a", "deleting_at": {"$exists": False}},
+        {"key": "key-b", "deleting_at": {"$exists": False}},
+        {"key": "tombstoned", "deleting_at": {"$exists": False}},
+        {"key": "missing", "deleting_at": {"$exists": False}},
+    ]
+    assert collection.find_one_and_update_calls[0][1][0]["$set"]["reference_count"] == {
+        "$max": [0, {"$subtract": [{"$ifNull": ["$reference_count", 0]}, 3]}]
+    }
+
+
+@pytest.mark.asyncio
 async def test_schedule_owned_zero_reference_cleanup_never_matches_foreign_or_referenced_records() -> (
     None
 ):

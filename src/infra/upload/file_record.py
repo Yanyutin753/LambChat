@@ -1,8 +1,9 @@
 """File record storage for content-hash based deduplication."""
 
 import asyncio
+from collections import Counter
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 from pymongo import ReturnDocument
 
@@ -33,6 +34,17 @@ def _bounded_unique_keys(keys: list[str], *, limit: int = REFERENCE_KEYS_MAX) ->
         if len(unique_keys) >= limit:
             break
     return unique_keys
+
+
+def _positive_reference_counts(counts: Mapping[str, int]) -> Counter[str]:
+    """Normalize positive release counts without applying a per-call key cap."""
+    normalized: Counter[str] = Counter()
+    for key, count in counts.items():
+        clean = str(key).strip() if key else ""
+        if not clean or count <= 0:
+            continue
+        normalized[clean] += count
+    return normalized
 
 
 class FileRecordStorage:
@@ -239,6 +251,54 @@ class FileRecordStorage:
             {"$inc": {"reference_count": -1}, "$set": {"updated_at": utc_now()}},
         )
         return result.modified_count
+
+    async def release_reference_counts(self, counts: Mapping[str, int]) -> int:
+        """Atomically release each requested count while preserving cleanup grace."""
+        normalized_counts = _positive_reference_counts(counts)
+        if not normalized_counts:
+            return 0
+
+        await self.ensure_indexes_if_needed()
+        now = utc_now()
+        cleanup_after = now + CLEANUP_GRACE_PERIOD
+        released = 0
+        for key, count in normalized_counts.items():
+            record = await self.collection.find_one_and_update(
+                {"key": key, "deleting_at": {"$exists": False}},
+                [
+                    {
+                        "$set": {
+                            "reference_count": {
+                                "$max": [
+                                    0,
+                                    {
+                                        "$subtract": [
+                                            {"$ifNull": ["$reference_count", 0]},
+                                            count,
+                                        ]
+                                    },
+                                ]
+                            },
+                            "updated_at": now,
+                        }
+                    },
+                    {
+                        "$set": {
+                            "cleanup_after": {
+                                "$cond": [
+                                    {"$eq": ["$reference_count", 0]},
+                                    cleanup_after,
+                                    "$cleanup_after",
+                                ]
+                            }
+                        }
+                    },
+                ],
+                return_document=ReturnDocument.AFTER,
+            )
+            if record is not None:
+                released += 1
+        return released
 
     async def release_owned_references(self, keys: list[str], uploaded_by: str) -> int:
         """Roll back owned positive references and retain a conservative cleanup grace."""

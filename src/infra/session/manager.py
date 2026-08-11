@@ -3,6 +3,7 @@
 """
 
 import uuid
+from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -17,7 +18,6 @@ from src.infra.storage.checkpoint import (
     delete_checkpoints_for_thread,
     seed_checkpoint_from_messages,
 )
-from src.infra.storage.s3.service import get_or_init_storage, get_s3_enabled
 from src.infra.upload.file_record import FileRecordStorage
 from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.exceptions import NotFoundError, SessionError
@@ -123,51 +123,38 @@ class SessionManager:
         """Update metadata fields without materializing the full session."""
         return await self.storage.update_metadata_only(session_id, metadata)
 
-    async def _collect_user_attachment_keys(self, session_id: str) -> list[str]:
-        """Collect unique attachment keys from persisted user messages in a session."""
+    async def _collect_user_attachment_reference_counts(self, session_id: str) -> Counter[str]:
+        """Count attachment keys once per persisted user message in a session."""
         events = await self.trace_storage.get_session_events(
             session_id,
             event_types=["user:message"],
             completed_only=False,
             max_events=SESSION_ATTACHMENT_EVENT_SCAN_LIMIT,
         )
-        keys: set[str] = set()
+        counts: Counter[str] = Counter()
         for event in events:
             if event.get("event_type") != "user:message":
                 continue
-            data = event.get("data", {})
-            for attachment in data.get("attachments") or []:
-                key = str(attachment.get("key", "")).strip()
-                if key:
-                    keys.add(key)
-        return sorted(keys)
-
-    async def _cleanup_unreferenced_files(self, keys: list[str]) -> int:
-        """Delete backing files and records for keys whose references reached zero."""
-        if not keys:
-            return 0
-
-        storage = await get_or_init_storage() if get_s3_enabled() else None
-        deleted = 0
-        for key in keys:
-            record = await self._file_record_storage.find_by_key(key)
-            if record is None or record.get("reference_count", 0) > 0:
+            data = event.get("data") or {}
+            if not isinstance(data, dict):
                 continue
-
-            if storage is not None:
-                await storage.delete_file(key)
-            await self._file_record_storage.delete_by_key(key)
-            deleted += 1
-
-        return deleted
+            message_keys: set[str] = set()
+            for attachment in data.get("attachments") or []:
+                if not isinstance(attachment, dict):
+                    continue
+                raw_key = attachment.get("key")
+                key = str(raw_key).strip() if raw_key else ""
+                if key:
+                    message_keys.add(key)
+            counts.update(message_keys)
+        return counts
 
     async def clear_session_messages(self, session_id: str) -> int:
         """Release attachment references and remove all traces for a session."""
-        attachment_keys = await self._collect_user_attachment_keys(session_id)
-        await self._file_record_storage.release_references(attachment_keys)
-        await self._cleanup_unreferenced_files(attachment_keys)
+        attachment_counts = await self._collect_user_attachment_reference_counts(session_id)
+        await self._file_record_storage.release_reference_counts(attachment_counts)
         await self.trace_storage.delete_session_traces(session_id)
-        return len(attachment_keys)
+        return len(attachment_counts)
 
     async def delete_session(self, session_id: str) -> bool:
         """删除会话（同时删除关联的 traces）"""

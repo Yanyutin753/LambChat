@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import Counter
+
 import pytest
 
 from src.infra.session.manager import SessionManager
@@ -7,77 +9,83 @@ from src.infra.session.manager import SessionManager
 
 class _FileRecordStorage:
     def __init__(self) -> None:
-        self.deleted_keys: list[str] = []
+        self.released_counts: list[Counter[str]] = []
+        self.release_error: Exception | None = None
 
-    async def release_references(self, _keys: list[str]) -> int:
-        return 0
-
-    async def find_by_key(self, key: str) -> dict:
-        return {"key": key, "reference_count": 0}
-
-    async def delete_by_key(self, key: str) -> bool:
-        self.deleted_keys.append(key)
-        return True
+    async def release_reference_counts(self, counts: Counter[str]) -> int:
+        if self.release_error:
+            raise self.release_error
+        self.released_counts.append(counts)
+        return len(counts)
 
 
 class _TraceStorage:
     def __init__(self) -> None:
         self.get_session_events_calls: list[tuple[str, dict]] = []
+        self.deleted_session_ids: list[str] = []
+        self.events: list[dict] = []
 
     async def get_session_events(self, _session_id: str, **kwargs) -> list[dict]:
         self.get_session_events_calls.append((_session_id, kwargs))
-        return []
+        return self.events
 
-    async def delete_session_traces(self, _session_id: str) -> int:
+    async def delete_session_traces(self, session_id: str) -> int:
+        self.deleted_session_ids.append(session_id)
         return 0
 
 
 @pytest.mark.asyncio
-async def test_cleanup_unreferenced_files_skips_storage_when_s3_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_clear_session_messages_releases_each_key_once_per_user_message() -> None:
     manager = SessionManager()
     file_records = _FileRecordStorage()
+    trace_storage = _TraceStorage()
+    trace_storage.events = [
+        {
+            "event_type": "user:message",
+            "data": {
+                "attachments": [
+                    {"key": "attachments/u1/a.png"},
+                    {"key": "attachments/u1/a.png"},
+                    {"key": " attachments/u1/b.txt "},
+                ]
+            },
+        },
+        {
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "attachments/u1/a.png"}]},
+        },
+    ]
     manager._file_record_storage = file_records
+    manager._trace_storage = trace_storage
 
-    monkeypatch.setattr("src.infra.session.manager.get_s3_enabled", lambda: False)
+    released = await manager.clear_session_messages("session-1")
 
-    async def fail_get_or_init_storage():
-        raise AssertionError("S3 storage should not be used when S3 is disabled")
-
-    monkeypatch.setattr("src.infra.session.manager.get_or_init_storage", fail_get_or_init_storage)
-
-    cleaned = await manager._cleanup_unreferenced_files(["attachments/u1/missing.png"])
-
-    assert cleaned == 1
-    assert file_records.deleted_keys == ["attachments/u1/missing.png"]
+    assert released == 2
+    assert file_records.released_counts == [
+        Counter({"attachments/u1/a.png": 2, "attachments/u1/b.txt": 1})
+    ]
+    assert trace_storage.deleted_session_ids == ["session-1"]
 
 
 @pytest.mark.asyncio
-async def test_cleanup_unreferenced_files_uses_initialized_storage_when_s3_enabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_clear_session_messages_preserves_traces_when_counted_release_fails() -> None:
     manager = SessionManager()
     file_records = _FileRecordStorage()
+    file_records.release_error = RuntimeError("database unavailable")
+    trace_storage = _TraceStorage()
+    trace_storage.events = [
+        {
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "attachments/u1/a.png"}]},
+        }
+    ]
     manager._file_record_storage = file_records
-    deleted_storage_keys: list[str] = []
+    manager._trace_storage = trace_storage
 
-    class _Storage:
-        async def delete_file(self, key: str) -> bool:
-            deleted_storage_keys.append(key)
-            return True
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await manager.clear_session_messages("session-1")
 
-    async def get_or_init_storage():
-        return _Storage()
-
-    monkeypatch.setattr("src.infra.session.manager.get_s3_enabled", lambda: True)
-    monkeypatch.setattr("src.infra.session.manager.get_or_init_storage", get_or_init_storage)
-
-    cleaned = await manager._cleanup_unreferenced_files(["attachments/u1/file.png"])
-
-    assert cleaned == 1
-    assert deleted_storage_keys == ["attachments/u1/file.png"]
-    assert file_records.deleted_keys == ["attachments/u1/file.png"]
+    assert trace_storage.deleted_session_ids == []
 
 
 @pytest.mark.asyncio
@@ -156,7 +164,7 @@ async def test_delete_session_cleans_checkpoints_after_session_document_delete(
 
 
 @pytest.mark.asyncio
-async def test_collect_user_attachment_keys_uses_bounded_user_message_query() -> None:
+async def test_collect_user_attachment_reference_counts_uses_bounded_user_message_query() -> None:
     manager = SessionManager()
 
     class _AttachmentTraceStorage:
@@ -180,14 +188,19 @@ async def test_collect_user_attachment_keys_uses_bounded_user_message_query() ->
                     "event_type": "assistant:message",
                     "data": {"attachments": [{"key": "attachments/u1/ignored.png"}]},
                 },
+                {
+                    "event_type": "user:message",
+                    "data": {"attachments": [{"key": "attachments/u1/a.png"}, {"key": ""}]},
+                },
+                {"event_type": "user:message", "data": ["malformed"]},
             ]
 
     trace_storage = _AttachmentTraceStorage()
     manager._trace_storage = trace_storage
 
-    keys = await manager._collect_user_attachment_keys("session-1")
+    counts = await manager._collect_user_attachment_reference_counts("session-1")
 
-    assert keys == ["attachments/u1/a.png", "attachments/u1/b.txt"]
+    assert counts == Counter({"attachments/u1/a.png": 2, "attachments/u1/b.txt": 1})
     assert trace_storage.calls == [
         (
             "session-1",
