@@ -29,6 +29,13 @@ class TraceStorageWriteMixin:
 
         async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool: ...
 
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool: ...
+
         async def release_session_trace_write(self, session_id: str, lease_id: str) -> None: ...
 
         async def _has_event_chunks(self, trace_id: str) -> bool: ...
@@ -101,18 +108,18 @@ class TraceStorageWriteMixin:
             inserted_id: Any | None = None
             inserted_trace_was_discarded = False
 
-            async def _discard_inserted_trace() -> None:
+            async def _discard_inserted_trace() -> bool:
                 nonlocal inserted_trace_was_discarded
                 if inserted_id is None or inserted_trace_was_discarded:
-                    return
-                await self.collection.delete_one(
-                    {
-                        "_id": inserted_id,
-                        "trace_id": trace_id,
-                        "session_id": session_id,
-                    }
+                    return False
+                inserted_trace_was_discarded = (
+                    await self.discard_session_trace_writes_after_lease_loss(
+                        session_id,
+                        lease_id,
+                        [trace_id],
+                    )
                 )
-                inserted_trace_was_discarded = True
+                return inserted_trace_was_discarded
 
             async def _insert_and_finalize_trace() -> bool:
                 nonlocal inserted_id
@@ -127,11 +134,11 @@ class TraceStorageWriteMixin:
 
                 inserted_id = result.inserted_id
                 if not await self.validate_session_trace_write(session_id, lease_id):
-                    await _discard_inserted_trace()
-                    logger.warning(
-                        "Discarded trace %s after session writer lease was lost",
-                        trace_id,
-                    )
+                    if await _discard_inserted_trace():
+                        logger.warning(
+                            "Discarded trace %s after session writer lease was lost",
+                            trace_id,
+                        )
                     return False
                 await self.collection.update_one(
                     {
@@ -161,8 +168,7 @@ class TraceStorageWriteMixin:
                         )
                         if lease_is_valid:
                             return True
-                        await _discard_inserted_trace()
-                        if inserted_id is not None:
+                        if await _discard_inserted_trace():
                             logger.warning(
                                 "Discarded trace %s after session writer lease was lost",
                                 trace_id,

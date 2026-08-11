@@ -2109,7 +2109,7 @@ async def test_trace_writer_lease_renewal_and_exact_release_keep_live_writer_fen
 
 
 @pytest.mark.asyncio
-async def test_create_trace_compensates_a_late_insert_after_lease_loss_and_session_delete(
+async def test_create_trace_compensates_a_late_insert_after_session_is_delete_fenced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def _skip_session_indexes(_storage: SessionStorage) -> None:
@@ -2144,6 +2144,7 @@ async def test_create_trace_compensates_a_late_insert_after_lease_loss_and_sessi
     session_storage._collection = session_collection
     trace_storage = TraceStorage()
     trace_storage._collection = trace_collection
+    trace_storage._chunks_collection = _FilterAwareCollection([])
     trace_storage._session_storage = session_storage
 
     writer = asyncio.create_task(
@@ -2155,7 +2156,6 @@ async def test_create_trace_compensates_a_late_insert_after_lease_loss_and_sessi
     )
     claim = await session_storage.claim_attachment_delete_operation("session-1")
     assert claim is not None and claim["acquired"] is True
-    assert await session_storage.delete_claimed_session("session-1", claim["id"]) is True
     for _attempt in range(1000):
         if writer.cancelling():
             break
@@ -2166,6 +2166,77 @@ async def test_create_trace_compensates_a_late_insert_after_lease_loss_and_sessi
 
     assert await writer is False
     assert trace_collection.documents == []
+    assert session_collection.documents[0]["attachment_delete_operation"]["id"] == claim["id"]
+
+
+@pytest.mark.asyncio
+async def test_create_trace_keeps_new_writer_events_when_expired_lease_is_not_delete_fenced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_session_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    async def _skip_trace_indexes(_storage: TraceStorage) -> None:
+        return None
+
+    class _BlockingMarkerCleanupCollection(_FilterAwareCollection):
+        def __init__(self) -> None:
+            super().__init__([])
+            self.cleanup_started = asyncio.Event()
+            self.allow_cleanup = asyncio.Event()
+
+        async def insert_one(self, document: dict[str, Any]):
+            return await super().insert_one({**document, "_id": "shared-trace"})
+
+        async def update_one(self, query: dict[str, Any], update: dict, **kwargs):
+            if "_session_trace_write_lease_id" in update.get("$unset", {}):
+                self.cleanup_started.set()
+                await self.allow_cleanup.wait()
+            return await super().update_one(query, update, **kwargs)
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_session_indexes)
+    monkeypatch.setattr(TraceStorage, "ensure_indexes_if_needed", _skip_trace_indexes)
+    session_collection = _FilterAwareCollection(
+        [{"_id": "session-doc", "session_id": "session-1", "user_id": "owner-a"}]
+    )
+    trace_collection = _BlockingMarkerCleanupCollection()
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage = TraceStorage()
+    trace_storage._collection = trace_collection
+    trace_storage._chunks_collection = _FilterAwareCollection([])
+    trace_storage._session_storage = session_storage
+
+    writer_a = asyncio.create_task(
+        trace_storage.create_trace("trace-shared", "session-1", user_id="owner-a")
+    )
+    await trace_collection.cleanup_started.wait()
+    lease_a = session_collection.documents[0]["trace_writer_leases"][0]["id"]
+    session_collection.documents[0]["trace_writer_leases"][0]["expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=1)
+    )
+    lease_b = await session_storage.acquire_trace_write("session-1")
+    assert isinstance(lease_b, str) and lease_b != lease_a
+    assert await trace_storage.append_event(
+        "trace-shared",
+        "message:chunk",
+        {"content": "new-writer-event"},
+    ) is True
+
+    writer_a.cancel()
+    trace_collection.allow_cleanup.set()
+    writer_result = await writer_a
+    documents_after_recovery = deepcopy(trace_collection.documents)
+    await session_storage.release_trace_write("session-1", lease_b)
+
+    assert writer_result is False
+    assert len(documents_after_recovery) == 1
+    assert documents_after_recovery[0]["events"][0]["data"] == {
+        "content": "new-writer-event"
+    }
+    assert documents_after_recovery[0]["event_count"] == 1
+    assert "_session_trace_write_lease_id" not in documents_after_recovery[0]
+    assert "attachment_delete_operation" not in session_collection.documents[0]
 
 
 @pytest.mark.asyncio
@@ -2207,6 +2278,7 @@ async def test_create_trace_compensates_when_lease_is_lost_during_marker_cleanup
     session_storage._collection = session_collection
     trace_storage = TraceStorage()
     trace_storage._collection = trace_collection
+    trace_storage._chunks_collection = _FilterAwareCollection([])
     trace_storage._session_storage = session_storage
 
     writer = asyncio.create_task(
@@ -2238,6 +2310,9 @@ async def test_create_trace_survives_repeated_cancellation_until_insert_is_compe
     async def _skip_trace_indexes(_storage: TraceStorage) -> None:
         return None
 
+    async def _session_is_fenced(_session_id: str, _lease_id: str) -> bool:
+        return True
+
     class _BlockingTraceCollection(_FilterAwareCollection):
         def __init__(self) -> None:
             super().__init__([])
@@ -2260,6 +2335,10 @@ async def test_create_trace_survives_repeated_cancellation_until_insert_is_compe
         def __init__(self) -> None:
             super().__init__()
             self._collection = _BlockingTraceCollection()
+            self._chunks_collection = _FilterAwareCollection([])
+            self._session_storage = SimpleNamespace(
+                trace_write_session_is_fenced_or_missing=_session_is_fenced,
+            )
             self.owner: asyncio.Task[Any] | None = None
             self.second_cancel_turn_completed = asyncio.Event()
             self.second_cancel_scheduled = False
