@@ -57,12 +57,11 @@ import type {
 import { buildLongTextClientMeta } from "./longTextConversion";
 import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
-
+import { applyAcceptedDraftCleanup, captureSubmittedDraft } from "./acceptedDraftCleanup";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
   return { default: module.RichChatComposer };
 });
-
 export type { ChatInputProps } from "./chatInputTypes";
 
 export const ChatInput = memo(function ChatInput({
@@ -136,7 +135,6 @@ export const ChatInput = memo(function ChatInput({
   const composerRef = useRef<RichChatComposerHandle>(null);
   const [activeReferenceIds, setActiveReferenceIds] = useState<string[]>([]);
   const longTextResourcesRef = useRef(new Map<string, LongTextPastePayload>());
-
   // Consume external pendingInput: fill textarea and focus
   useEffect(() => {
     if (pendingInput) {
@@ -530,6 +528,11 @@ export const ChatInput = memo(function ChatInput({
         ? { enabledSkills: runEnabledSkillNames }
         : undefined;
       const prepared = prepareSubmit(trimmed, visibleAttachments);
+      const submittedDraft = captureSubmittedDraft(
+        composerRef.current?.getSnapshot() ?? null,
+        visibleAttachments,
+        activeReferenceIds,
+      );
       if (trimmed) {
         pushHistory(trimmed);
       }
@@ -539,16 +542,17 @@ export const ChatInput = memo(function ChatInput({
         prepared.attachments,
         runOptions,
         {
-          onAccepted: () => {
-            setInput("");
-            inputValueRef.current = "";
-            composerRef.current?.setPlainText("");
-            setActiveReferenceIds([]);
-            longTextResourcesRef.current.clear();
-            setRunEnabledSkillNames(null);
-            setAttachments([]);
-            setComposerExpanded(false);
-          },
+          onAccepted: () =>
+            applyAcceptedDraftCleanup(submittedDraft, {
+              composer: composerRef.current,
+              inputValueRef,
+              longTextResources: longTextResourcesRef.current,
+              setInput,
+              setActiveReferenceIds,
+              setRunEnabledSkillNames,
+              setAttachments,
+              setComposerExpanded,
+            }),
         },
       );
     }
