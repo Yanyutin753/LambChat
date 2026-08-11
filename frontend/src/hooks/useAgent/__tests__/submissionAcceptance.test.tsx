@@ -89,11 +89,8 @@ test("accepted draft cleanup cannot turn an accepted POST into a send failure", 
   expect(result.current.error).toBeNull();
 });
 
-test.each([
-  ["invalid attachment 422", new Error("Invalid or unavailable attachment")],
-  ["network rejection", new TypeError("Failed to fetch")],
-])("%s keeps the draft callback untouched", async (_name, rejection) => {
-  submitChat.mockRejectedValueOnce(rejection);
+test("network rejection keeps the draft callback untouched", async () => {
+  submitChat.mockRejectedValueOnce(new TypeError("Failed to fetch"));
   const onAccepted = vi.fn();
   const onRejected = vi.fn();
   const { result } = renderHook(() => useAgent());
@@ -112,6 +109,34 @@ test.each([
   expect(onAccepted).not.toHaveBeenCalled();
   expect(onRejected).toHaveBeenCalledOnce();
   expect(result.current.error).not.toBeNull();
+  expect(connectToSSE).not.toHaveBeenCalled();
+});
+
+test("invalid attachment rejection keeps the draft and exposes an actionable error", async () => {
+  submitChat.mockRejectedValueOnce(new Error("invalid_attachments"));
+  const onAccepted = vi.fn();
+  const onRejected = vi.fn();
+  const { result } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+
+  await act(async () => {
+    await result.current.sendMessage(
+      "keep attachment draft",
+      undefined,
+      undefined,
+      undefined,
+      { onAccepted, onRejected },
+    );
+  });
+
+  expect(onAccepted).not.toHaveBeenCalled();
+  expect(onRejected).toHaveBeenCalledOnce();
+  expect(result.current.error).toBe(
+    "One or more attachments are no longer available. Remove them and upload them again.",
+  );
+  expect(result.current.messages.at(-1)?.content).toBe(
+    "Error: One or more attachments are no longer available. Remove them and upload them again.",
+  );
   expect(connectToSSE).not.toHaveBeenCalled();
 });
 

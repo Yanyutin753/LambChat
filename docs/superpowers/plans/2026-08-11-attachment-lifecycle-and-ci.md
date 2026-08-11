@@ -31,12 +31,12 @@ Use red-green-refactor to make every chat, long-text, rich-composer, and schedul
 
 **Interface:** A backend response shaped as `{"detail":{"error":"invalid_attachments"}}` must become the localized `backendErrors.invalidAttachments` message. `useAgent.sendMessage` must keep invoking the rejection callback, retain the rejected draft, and expose the actionable message instead of raw JSON.
 
-- [ ] Add a failing API-boundary test for extracting `detail.error` from the real `authFetch` path.
-- [ ] Add a failing translation test for the stable `invalid_attachments` code.
-- [ ] Tighten the submission rejection test to require the actionable message and preserved draft callback.
-- [ ] Run the three focused tests and confirm each fails because the new contract is missing.
-- [ ] Implement `detail.error` extraction, the stable error mapping, and all five locale strings.
-- [ ] Re-run the focused tests, frontend lint, and frontend build.
+- [x] Add a failing API-boundary test for extracting `detail.error` from the real `authFetch` path.
+- [x] Add a failing translation test for the stable `invalid_attachments` code.
+- [x] Tighten the submission rejection test to require the actionable message and preserved draft callback.
+- [x] Run the three focused tests and confirm each fails because the new contract is missing.
+- [x] Implement `detail.error` extraction, the stable error mapping, and all five locale strings.
+- [x] Re-run the focused tests, frontend lint, and frontend build.
 
 ## Task 5: Restore the CI line budget
 

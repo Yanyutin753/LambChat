@@ -392,6 +392,7 @@
     "fileUploadNoPermission": "{{category}} 파일을 업로드할 권한이 없습니다.",
     "fileUrlFailed": "파일 URL 생성에 실패했습니다.",
     "instanceNameRequired": "인스턴스 이름은 필수입니다.",
+    "invalidAttachments": "하나 이상의 첨부 파일을 더 이상 사용할 수 없습니다. 삭제한 후 다시 업로드해 주세요.",
     "invalidCredentials": "사용자 이름 또는 비밀번호가 올바르지 않습니다.",
     "invalidDisabledTools": "비활성화 도구 목록이 올바르지 않습니다.",
     "invalidEnvKeyFormat": "환경 변수 키 형식이 올바르지 않습니다.",

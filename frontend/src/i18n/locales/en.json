@@ -392,6 +392,7 @@
     "fileUploadNoPermission": "You do not have permission to upload {{category}} files.",
     "fileUrlFailed": "Failed to generate file URL.",
     "instanceNameRequired": "Instance name is required.",
+    "invalidAttachments": "One or more attachments are no longer available. Remove them and upload them again.",
     "invalidCredentials": "Invalid username or password.",
     "invalidDisabledTools": "Invalid disabled tools list.",
     "invalidEnvKeyFormat": "Invalid environment variable key format.",

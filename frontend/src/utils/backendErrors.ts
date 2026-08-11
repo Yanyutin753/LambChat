@@ -9,6 +9,7 @@ const BACKEND_ERROR_KEYS: Record<string, string> = {
   model_not_found: "errors.modelNotFound",
   model_disabled: "errors.modelDisabled",
   model_not_allowed: "errors.modelNotAllowed",
+  invalid_attachments: "backendErrors.invalidAttachments",
 
   // Stable HTTPException detail strings
   未提供认证信息: "backendErrors.authMissing",

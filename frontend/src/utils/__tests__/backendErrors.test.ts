@@ -16,6 +16,9 @@ test("translates shared backend error codes", () => {
   expect(translateBackendError("File not found", t)).toBe(
     "translated:backendErrors.fileNotFound",
   );
+  expect(translateBackendError("invalid_attachments", t)).toBe(
+    "translated:backendErrors.invalidAttachments",
+  );
 });
 
 test("translates backend error patterns", () => {

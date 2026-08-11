@@ -89,9 +89,11 @@ export async function authFetch<T>(
     // 处理 detail 为对象或字符串的情况
     let errorMessage: string;
     if (typeof errorData.detail === "object" && errorData.detail !== null) {
-      // 如果 detail 是对象，提取 message 字段
+      // Structured API errors use either a human message or a stable error code.
       errorMessage =
-        errorData.detail.message || JSON.stringify(errorData.detail);
+        errorData.detail.message ||
+        errorData.detail.error ||
+        JSON.stringify(errorData.detail);
     } else {
       errorMessage =
         errorData.detail || `Request failed: ${response.statusText}`;

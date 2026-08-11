@@ -392,6 +392,7 @@
     "fileUploadNoPermission": "{{category}} ファイルをアップロードする権限がありません。",
     "fileUrlFailed": "ファイルURLの生成に失敗しました。",
     "instanceNameRequired": "インスタンス名は必須です。",
+    "invalidAttachments": "1つ以上の添付ファイルが利用できなくなっています。削除して再度アップロードしてください。",
     "invalidCredentials": "ユーザー名またはパスワードが正しくありません。",
     "invalidDisabledTools": "無効な無効化ツール一覧です。",
     "invalidEnvKeyFormat": "環境変数キーの形式が無効です。",
