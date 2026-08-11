@@ -427,6 +427,12 @@ def _startup_index_initializers():
         await MCPStorage().ensure_indexes()
         logger.info("MCPStorage indexes initialized")
 
+    async def _init_file_record_storage() -> None:
+        from src.infra.upload.file_record import FileRecordStorage
+
+        await FileRecordStorage().initialize_indexes()
+        logger.info("FileRecordStorage indexes initialized")
+
     return [
         ("agent_config_storage", _init_agent_config_storage),
         ("model_storage", _init_model_storage),
@@ -444,6 +450,7 @@ def _startup_index_initializers():
         ("persona_preset_storage", _init_persona_preset_storage),
         ("role_storage", _init_role_storage),
         ("mcp_storage", _init_mcp_storage),
+        ("file_record_storage", _init_file_record_storage),
     ]
 
 
