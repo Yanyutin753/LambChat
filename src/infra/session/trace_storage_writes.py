@@ -23,9 +23,9 @@ class TraceStorageWriteMixin:
 
         async def ensure_indexes_if_needed(self) -> None: ...
 
-        async def acquire_session_trace_write(self, session_id: str) -> bool: ...
+        async def acquire_session_trace_write(self, session_id: str) -> str | None: ...
 
-        async def release_session_trace_write(self, session_id: str) -> None: ...
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None: ...
 
         async def _has_event_chunks(self, trace_id: str) -> bool: ...
 
@@ -71,7 +71,8 @@ class TraceStorageWriteMixin:
         """
         from pymongo.errors import DuplicateKeyError
 
-        if not await self.acquire_session_trace_write(session_id):
+        lease_id = await self.acquire_session_trace_write(session_id)
+        if not lease_id:
             logger.warning("Trace creation rejected by session delete fence: %s", session_id)
             return False
         try:
@@ -112,7 +113,7 @@ class TraceStorageWriteMixin:
                 traceback.print_exc()
                 return False
         finally:
-            await self.release_session_trace_write(session_id)
+            await self.release_session_trace_write(session_id, lease_id)
 
     async def append_event(
         self,
