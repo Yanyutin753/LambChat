@@ -66,7 +66,7 @@ function pasteText(editor: HTMLElement, text: string): void {
   fireEvent(editor, paste);
 }
 
-test("acceptance removes submitted inline text but preserves a new inline resource", async () => {
+test("the outbox removes submitted inline text and acceptance preserves a new inline resource", async () => {
   const onSend = vi.fn();
   render(
     <ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} />,
@@ -83,12 +83,17 @@ test("acceptance removes submitted inline text but preserves a new inline resour
   );
   fireEvent.submit(editor.closest("form")!);
   expect(onSend).toHaveBeenCalledOnce();
+  await waitFor(() =>
+    expect(
+      screen.queryAllByRole("button", { name: /send as text instead/i }),
+    ).toHaveLength(0),
+  );
 
   pasteText(editor, pendingText);
   await waitFor(() =>
     expect(
       screen.getAllByRole("button", { name: /send as text instead/i }),
-    ).toHaveLength(2),
+    ).toHaveLength(1),
   );
 
   const submissionCallbacks = onSend.mock.calls[0]?.[4] as {

@@ -57,7 +57,7 @@ import type {
 import { buildLongTextClientMeta } from "./longTextConversion";
 import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
-import { applyAcceptedDraftCleanup, captureSubmittedDraft } from "./acceptedDraftCleanup";
+import { moveSubmittedDraftToOutbox, restoreRejectedDraft } from "./acceptedDraftCleanup";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
   return { default: module.RichChatComposer };
@@ -524,35 +524,35 @@ export const ChatInput = memo(function ChatInput({
     if (!canSend) return;
     if (canSubmit) {
       const trimmed = input.trim();
-      const runOptions = runEnabledSkillNames
-        ? { enabledSkills: runEnabledSkillNames }
-        : undefined;
+      const runOptions = runEnabledSkillNames ? { enabledSkills: runEnabledSkillNames } : undefined;
+      const composer = composerRef.current;
+      if (!composer) return;
       const prepared = prepareSubmit(trimmed, visibleAttachments);
-      const submittedDraft = captureSubmittedDraft(
-        composerRef.current?.getSnapshot() ?? null,
+      const draftState = {
+        composer,
+        inputValueRef,
+        longTextResources: longTextResourcesRef.current,
+        setInput,
+        setActiveReferenceIds,
+        setRunEnabledSkillNames,
+        setAttachments,
+        setComposerExpanded,
+      };
+      const submittedDraft = moveSubmittedDraftToOutbox(
+        composer.getSnapshot(),
         visibleAttachments,
         activeReferenceIds,
+        draftState,
       );
-      if (trimmed) {
-        pushHistory(trimmed);
-      }
+      if (trimmed) pushHistory(trimmed);
       onSend(
         prepared.message,
         agentOptionValues,
         prepared.attachments,
         runOptions,
         {
-          onAccepted: () =>
-            applyAcceptedDraftCleanup(submittedDraft, {
-              composer: composerRef.current,
-              inputValueRef,
-              longTextResources: longTextResourcesRef.current,
-              setInput,
-              setActiveReferenceIds,
-              setRunEnabledSkillNames,
-              setAttachments,
-              setComposerExpanded,
-            }),
+          onAccepted: () => undefined,
+          onRejected: () => restoreRejectedDraft(submittedDraft, draftState),
         },
       );
     }

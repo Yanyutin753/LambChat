@@ -4,19 +4,17 @@ import { Paperclip, Image, Video, Music, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
-import { useFileUpload } from "../../hooks/useFileUpload";
+import type { useFileUpload } from "../../hooks/useFileUpload";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { getFileUploadDropdownStyle } from "./fileUploadDropdownStyle";
-import type { MessageAttachment, FileCategory } from "../../types";
+import type { FileCategory } from "../../types";
 import { Permission } from "../../types";
 
 interface FileUploadButtonProps {
-  attachments?: MessageAttachment[];
-  onAttachmentsChange?: (
-    attachments:
-      | MessageAttachment[]
-      | ((prev: MessageAttachment[]) => MessageAttachment[]),
-  ) => void;
+  uploadController: Pick<
+    ReturnType<typeof useFileUpload>,
+    "uploadLimits" | "uploadFiles"
+  >;
 }
 
 // Permission mapping
@@ -48,8 +46,7 @@ const CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
 };
 
 export const FileUploadButton = memo(function FileUploadButton({
-  attachments = [],
-  onAttachmentsChange,
+  uploadController,
 }: FileUploadButtonProps) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
@@ -61,10 +58,7 @@ export const FileUploadButton = memo(function FileUploadButton({
     null,
   );
 
-  const { uploadLimits, uploadFiles } = useFileUpload({
-    attachments,
-    onAttachmentsChange: onAttachmentsChange!,
-  });
+  const { uploadLimits, uploadFiles } = uploadController;
 
   // Get available categories based on permissions
   const availableCategories = Object.keys(CATEGORY_PERMISSIONS).filter((cat) =>

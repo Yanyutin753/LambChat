@@ -65,6 +65,16 @@ function notifySubmissionAccepted(
   }
 }
 
+function notifySubmissionRejected(
+  submissionCallbacks?: ChatSubmissionCallbacks,
+): void {
+  try {
+    submissionCallbacks?.onRejected?.();
+  } catch (error) {
+    console.error("Failed to restore rejected chat draft:", error);
+  }
+}
+
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
   const canReadFeedback = hasAnyPermission([
@@ -505,7 +515,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       runOptions?: { enabledSkills?: string[] },
       submissionCallbacks?: ChatSubmissionCallbacks,
     ) => {
-      if (!content.trim()) return;
+      if (!content.trim()) {
+        notifySubmissionRejected(submissionCallbacks);
+        return;
+      }
       loadHistoryRequestIdRef.current += 1;
       historyAbortControllerRef.current?.abort();
       historyAbortControllerRef.current = null;
@@ -514,6 +527,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       if (goalPlan.handledWithoutSend) {
         if (goalPlan.errorKey) {
           setError(i18n.t(goalPlan.errorKey, "Please enter a goal"));
+          notifySubmissionRejected(submissionCallbacks);
           return;
         }
         setGoalModeEnabled(goalPlan.nextGoalModeEnabled);
@@ -530,6 +544,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         console.log(
           "[sendMessage] Already sending, ignoring duplicate request",
         );
+        notifySubmissionRejected(submissionCallbacks);
         return;
       }
       isSendingRef.current = true;
@@ -556,6 +571,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setIsLoading(true);
       setError(null);
       let finalAssistantMessageId = assistantMessageId;
+      let submissionAccepted = false;
 
       try {
         // 用户发送消息时标记当前 session 为已读
@@ -610,6 +626,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const newSessionId = submitData.session_id;
         const newRunId = submitData.run_id;
         const projectId = pendingProjectIdRef.current;
+        submissionAccepted = true;
         notifySubmissionAccepted(submissionCallbacks);
 
         if (goalForRun) {
@@ -753,6 +770,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           ctx,
         );
       } catch (err) {
+        if (!submissionAccepted) {
+          notifySubmissionRejected(submissionCallbacks);
+        }
         if (err instanceof Error && err.name === "AbortError") {
           return;
         }

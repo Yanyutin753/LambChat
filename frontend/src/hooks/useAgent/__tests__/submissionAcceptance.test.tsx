@@ -70,6 +70,7 @@ afterEach(() => {
 });
 
 test("accepted draft cleanup cannot turn an accepted POST into a send failure", async () => {
+  const onRejected = vi.fn();
   const { result } = renderHook(() => useAgent());
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
 
@@ -78,10 +79,12 @@ test("accepted draft cleanup cannot turn an accepted POST into a send failure", 
       onAccepted: () => {
         throw new Error("cleanup exploded");
       },
+      onRejected,
     });
   });
 
   expect(connectToSSE).toHaveBeenCalledTimes(1);
+  expect(onRejected).not.toHaveBeenCalled();
   expect(result.current.error).toBeNull();
 });
 
@@ -91,6 +94,7 @@ test.each([
 ])("%s keeps the draft callback untouched", async (_name, rejection) => {
   submitChat.mockRejectedValueOnce(rejection);
   const onAccepted = vi.fn();
+  const onRejected = vi.fn();
   const { result } = renderHook(() => useAgent());
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
 
@@ -100,11 +104,12 @@ test.each([
       undefined,
       undefined,
       undefined,
-      { onAccepted },
+      { onAccepted, onRejected },
     );
   });
 
   expect(onAccepted).not.toHaveBeenCalled();
+  expect(onRejected).toHaveBeenCalledOnce();
   expect(result.current.error).not.toBeNull();
   expect(connectToSSE).not.toHaveBeenCalled();
 });
@@ -120,6 +125,7 @@ test.each(["started", "queued"])(
       ...(status === "queued" ? { queue_position: 2 } : {}),
     });
     const onAccepted = vi.fn();
+    const onRejected = vi.fn();
     const { result } = renderHook(() => useAgent());
     await waitFor(() => expect(result.current.currentAgent).toBe("default"));
 
@@ -129,11 +135,12 @@ test.each(["started", "queued"])(
         undefined,
         undefined,
         undefined,
-        { onAccepted },
+        { onAccepted, onRejected },
       );
     });
 
     expect(onAccepted).toHaveBeenCalledOnce();
+    expect(onRejected).not.toHaveBeenCalled();
     expect(connectToSSE).toHaveBeenCalledOnce();
   },
 );
@@ -147,7 +154,9 @@ test("a duplicate submit ignored while POST is pending cannot clear another draf
       }),
   );
   const firstAccepted = vi.fn();
+  const firstRejected = vi.fn();
   const duplicateAccepted = vi.fn();
+  const duplicateRejected = vi.fn();
   const { result } = renderHook(() => useAgent());
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
 
@@ -158,7 +167,7 @@ test("a duplicate submit ignored while POST is pending cannot clear another draf
       undefined,
       undefined,
       undefined,
-      { onAccepted: firstAccepted },
+      { onAccepted: firstAccepted, onRejected: firstRejected },
     );
   });
   await waitFor(() => expect(submitChat).toHaveBeenCalledOnce());
@@ -169,10 +178,11 @@ test("a duplicate submit ignored while POST is pending cannot clear another draf
       undefined,
       undefined,
       undefined,
-      { onAccepted: duplicateAccepted },
+      { onAccepted: duplicateAccepted, onRejected: duplicateRejected },
     );
   });
   expect(duplicateAccepted).not.toHaveBeenCalled();
+  expect(duplicateRejected).toHaveBeenCalledOnce();
   expect(submitChat).toHaveBeenCalledOnce();
 
   resolveSubmit?.({
@@ -185,5 +195,27 @@ test("a duplicate submit ignored while POST is pending cannot clear another draf
     await firstSend;
   });
   expect(firstAccepted).toHaveBeenCalledOnce();
+  expect(firstRejected).not.toHaveBeenCalled();
   expect(duplicateAccepted).not.toHaveBeenCalled();
+});
+
+test("a local goal validation error rejects the staged draft", async () => {
+  const onAccepted = vi.fn();
+  const onRejected = vi.fn();
+  const { result } = renderHook(() => useAgent());
+  await waitFor(() => expect(result.current.currentAgent).toBe("default"));
+
+  await act(async () => {
+    await result.current.sendMessage(
+      "/goal",
+      undefined,
+      undefined,
+      undefined,
+      { onAccepted, onRejected },
+    );
+  });
+
+  expect(onAccepted).not.toHaveBeenCalled();
+  expect(onRejected).toHaveBeenCalledOnce();
+  expect(submitChat).not.toHaveBeenCalled();
 });

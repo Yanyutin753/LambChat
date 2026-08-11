@@ -164,10 +164,11 @@ export function TaskFormModal({
   const [isSaving, setIsSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const isTeamAgent = agentId === "team";
-  const { cancelUpload } = useFileUpload({
+  const uploadController = useFileUpload({
     attachments,
     onAttachmentsChange: setAttachments,
   });
+  const { cancelUpload } = uploadController;
   const hasUploadingAttachment = attachments.some((item) => item.isUploading);
 
   useEffect(() => {
@@ -566,8 +567,7 @@ export function TaskFormModal({
                 {t("chat.attachments")}
               </label>
               <FileUploadButton
-                attachments={attachments}
-                onAttachmentsChange={setAttachments}
+                uploadController={uploadController}
               />
             </div>
             {attachments.length > 0 && (

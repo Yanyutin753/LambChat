@@ -278,6 +278,7 @@ export interface UseAgentReturn {
 
 export interface ChatSubmissionCallbacks {
   onAccepted: () => void;
+  onRejected?: () => void;
 }
 
 // Session configuration restored from metadata
