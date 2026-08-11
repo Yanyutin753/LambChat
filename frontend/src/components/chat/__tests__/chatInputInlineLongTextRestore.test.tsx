@@ -7,9 +7,12 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { MessageAttachment } from "../../../types";
+
+const uploadProbe = vi.hoisted(() => ({ referenceIds: [] as string[] }));
 
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ hasPermission: () => true }),
@@ -17,8 +20,10 @@ vi.mock("../../../hooks/useAuth", () => ({
 
 vi.mock("../../../hooks/useFileUpload", () => ({
   useFileUpload: ({
+    attachments,
     onAttachmentsChange,
   }: {
+    attachments: MessageAttachment[];
     onAttachmentsChange: (
       update: (previous: MessageAttachment[]) => MessageAttachment[],
     ) => void;
@@ -30,6 +35,7 @@ vi.mock("../../../hooks/useFileUpload", () => ({
       clientMeta: Partial<MessageAttachment>,
     ) => {
       void category;
+      uploadProbe.referenceIds.push(clientMeta.composerReferenceId ?? "");
       queueMicrotask(() =>
         onAttachmentsChange((previous) => [
           ...previous,
@@ -46,7 +52,7 @@ vi.mock("../../../hooks/useFileUpload", () => ({
       );
     },
     uploadLimits: null,
-    validateCount: () => true,
+    validateCount: (count: number) => attachments.length + count <= 1,
     cancelUpload: vi.fn(),
   }),
 }));
@@ -66,7 +72,55 @@ function pasteText(editor: HTMLElement, text: string): void {
   fireEvent(editor, paste);
 }
 
+test("removing an inline long-text card releases its draft state before the next submit", async () => {
+  uploadProbe.referenceIds.length = 0;
+  const onSend = vi.fn();
+  render(
+    <ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} />,
+  );
+  const editor = await screen.findByRole("textbox");
+  const firstText = `discarded inline ${"x".repeat(3100)}`;
+  const secondText = `submitted inline ${"y".repeat(3100)}`;
+
+  pasteText(editor, firstText);
+  const firstRestore = await screen.findByRole("button", {
+    name: /send as text instead/i,
+  });
+  const firstCard = firstRestore.closest(".attachment-card-enter");
+  expect(firstCard).not.toBeNull();
+  fireEvent.click(
+    within(firstCard as HTMLElement).getAllByRole("button").at(-1)!,
+  );
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: /send as text instead/i }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("button", { name: /File .* ready/i })).toBeNull();
+
+  pasteText(editor, secondText);
+  await screen.findByRole("button", { name: /send as text instead/i });
+  expect(uploadProbe.referenceIds).toHaveLength(2);
+
+  fireEvent.submit(editor.closest("form")!);
+  expect(onSend).toHaveBeenCalledOnce();
+  expect(onSend.mock.calls[0]?.[2]).toEqual([
+    expect.objectContaining({
+      key: `uploads/${uploadProbe.referenceIds[1]}`,
+    }),
+  ]);
+  expect(onSend.mock.calls[0]?.[2]).not.toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: `uploads/${uploadProbe.referenceIds[0]}`,
+      }),
+    ]),
+  );
+});
+
 test("the outbox removes submitted inline text and acceptance preserves a new inline resource", async () => {
+  uploadProbe.referenceIds.length = 0;
   const onSend = vi.fn();
   render(
     <ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} />,

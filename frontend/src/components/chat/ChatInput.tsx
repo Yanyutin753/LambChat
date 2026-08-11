@@ -63,7 +63,6 @@ const RichChatComposer = lazy(async () => {
   return { default: module.RichChatComposer };
 });
 export type { ChatInputProps } from "./chatInputTypes";
-
 export const ChatInput = memo(function ChatInput({
   onSend,
   onStop,
@@ -773,9 +772,10 @@ export const ChatInput = memo(function ChatInput({
             onImageViewerOpen={(url) => setImageViewerSrc(url)}
             maxFiles={uploadLimits?.maxFiles}
             onRestoreLongText={handleRestoreLongTextAttachment}
-            onRemoveReference={(referenceId) =>
-              composerRef.current?.removeFileReference(referenceId)
-            }
+            onRemoveReference={(referenceId) => {
+              longTextResourcesRef.current.delete(referenceId);
+              composerRef.current?.removeFileReference(referenceId);
+            }}
             onRetryUpload={(attachment) => {
               if (attachment.composerReferenceId) {
                 handleRetryFileReference(attachment.composerReferenceId);

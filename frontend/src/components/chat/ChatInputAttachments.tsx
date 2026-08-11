@@ -37,7 +37,6 @@ export function ChatInputAttachments({
     (attachment: MessageAttachment) => {
       if (attachment.composerReferenceId) {
         onRemoveReference?.(attachment.composerReferenceId);
-        return;
       }
       onAttachmentsChange((prev) => prev.filter((a) => a.id !== attachment.id));
     },
