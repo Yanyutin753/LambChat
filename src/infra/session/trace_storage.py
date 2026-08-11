@@ -27,7 +27,7 @@ Trace Storage - 按 trace 聚合事件存储
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, AsyncIterator, Dict, List, Literal, Optional
 
 from src.infra.logging import get_logger
 from src.infra.session._trace_storage_support import (
@@ -759,6 +759,105 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
         )
         return snapshot.events
 
+    async def iter_session_events_for_cleanup(
+        self,
+        session_id: str,
+        *,
+        event_types: Optional[List[str]] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Strictly stream session events for destructive lifecycle operations.
+
+        Unlike the legacy read API, this path propagates storage failures so a
+        caller cannot mistake an unavailable trace store for an empty session.
+        It yields one trace at a time rather than materializing the session's
+        complete event history.
+        """
+        allowed_types = set(_bounded_unique_strings(event_types, SESSION_EVENT_FILTER_LIST_LIMIT))
+        cursor = self.collection.find(
+            {"session_id": session_id},
+            {
+                "_id": 0,
+                "trace_id": 1,
+                "run_id": 1,
+                "started_at": 1,
+                "events": 1,
+            },
+        ).sort("started_at", 1)
+
+        async for trace in cursor:
+            trace_id = str(trace.get("trace_id") or "")
+            if not trace_id:
+                continue
+            first_chunk = None
+            first_chunk_cursor = (
+                self.chunks_collection.find(
+                    {"trace_id": trace_id},
+                    {"_id": 0, "chunk_index": 1, "start_seq": 1, "events": 1},
+                )
+                .sort("chunk_index", 1)
+                .limit(1)
+            )
+            async for chunk in first_chunk_cursor:
+                first_chunk = chunk
+                break
+
+            if first_chunk:
+                first_chunk_start_seq = int(
+                    first_chunk.get("start_seq")
+                    or min(
+                        (
+                            _event_seq(event, index + 1)
+                            for index, event in enumerate(first_chunk.get("events", []) or [])
+                        ),
+                        default=1,
+                    )
+                )
+                for index, event in enumerate(trace.get("events", []) or [], start=1):
+                    if _event_seq(event, index) >= first_chunk_start_seq:
+                        continue
+                    if allowed_types and event.get("event_type") not in allowed_types:
+                        continue
+                    yield {
+                        "trace_id": trace_id,
+                        "run_id": trace.get("run_id"),
+                        "event_type": event.get("event_type"),
+                        "data": event.get("data", {}),
+                        "timestamp": event.get("timestamp"),
+                        **({"seq": event["seq"]} if "seq" in event else {}),
+                    }
+                async for chunk in self.chunks_collection.find(
+                    {"trace_id": trace_id},
+                    {"_id": 0, "chunk_index": 1, "events": 1},
+                ).sort("chunk_index", 1):
+                    for _index, event in sorted(
+                        enumerate(chunk.get("events", []) or []),
+                        key=lambda item: _event_seq(item[1], item[0]),
+                    ):
+                        if allowed_types and event.get("event_type") not in allowed_types:
+                            continue
+                        yield {
+                            "trace_id": trace_id,
+                            "run_id": trace.get("run_id"),
+                            "event_type": event.get("event_type"),
+                            "data": event.get("data", {}),
+                            "timestamp": event.get("timestamp"),
+                            **({"seq": event["seq"]} if "seq" in event else {}),
+                        }
+                continue
+            else:
+                events = trace.get("events", []) or []
+            for event in events:
+                if allowed_types and event.get("event_type") not in allowed_types:
+                    continue
+                yield {
+                    "trace_id": trace_id,
+                    "run_id": trace.get("run_id"),
+                    "event_type": event.get("event_type"),
+                    "data": event.get("data", {}),
+                    "timestamp": event.get("timestamp"),
+                    **({"seq": event["seq"]} if "seq" in event else {}),
+                }
+
     async def get_run_events(
         self,
         session_id: str,
@@ -807,6 +906,24 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
         except Exception as e:
             logger.error(f"Failed to delete session traces: {e}")
             return 0
+
+    async def delete_session_traces_strict(self, session_id: str) -> int:
+        """Delete all session traces and verify the destructive postcondition."""
+        cursor = self.collection.find(
+            {"session_id": session_id},
+            {"_id": 0, "trace_id": 1},
+        )
+        trace_docs = await cursor.to_list(length=None)
+        trace_ids = [trace.get("trace_id") for trace in trace_docs if trace.get("trace_id")]
+        if trace_ids:
+            await self.chunks_collection.delete_many({"trace_id": {"$in": trace_ids}})
+        await self.chunks_collection.delete_many({"session_id": session_id})
+        result = await self.collection.delete_many({"session_id": session_id})
+        if await self.collection.find_one({"session_id": session_id}, {"_id": 1}):
+            raise RuntimeError(f"session_trace_delete_incomplete: {session_id}")
+        if await self.chunks_collection.find_one({"session_id": session_id}, {"_id": 1}):
+            raise RuntimeError(f"session_chunk_delete_incomplete: {session_id}")
+        return result.deleted_count
 
     async def close(self) -> None:
         task = self._indexes_task

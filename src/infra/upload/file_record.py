@@ -252,11 +252,19 @@ class FileRecordStorage:
         )
         return result.modified_count
 
-    async def release_reference_counts(self, counts: Mapping[str, int]) -> int:
+    async def release_reference_counts(
+        self,
+        counts: Mapping[str, int],
+        *,
+        operation_id: str,
+    ) -> int:
         """Atomically release each requested count while preserving cleanup grace."""
         normalized_counts = _positive_reference_counts(counts)
         if not normalized_counts:
             return 0
+        operation_id = operation_id.strip()
+        if not operation_id:
+            raise ValueError("operation_id is required for counted reference release")
 
         await self.ensure_indexes_if_needed()
         now = utc_now()
@@ -264,7 +272,11 @@ class FileRecordStorage:
         released = 0
         for key, count in normalized_counts.items():
             record = await self.collection.find_one_and_update(
-                {"key": key, "deleting_at": {"$exists": False}},
+                {
+                    "key": key,
+                    "deleting_at": {"$exists": False},
+                    "applied_release_operations": {"$ne": operation_id},
+                },
                 [
                     {
                         "$set": {
@@ -289,6 +301,16 @@ class FileRecordStorage:
                                     {"$eq": ["$reference_count", 0]},
                                     cleanup_after,
                                     "$cleanup_after",
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "$set": {
+                            "applied_release_operations": {
+                                "$setUnion": [
+                                    {"$ifNull": ["$applied_release_operations", []]},
+                                    [operation_id],
                                 ]
                             }
                         }

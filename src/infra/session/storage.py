@@ -351,6 +351,78 @@ class SessionStorage:
         except Exception:
             return False
 
+    async def begin_attachment_clear_operation(
+        self,
+        session_id: str,
+        operation: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Persist one clear operation, or return the operation already in progress."""
+        await self.ensure_indexes_if_needed()
+        operation_field = "metadata.attachment_clear_operation"
+        query = {
+            "session_id": session_id,
+            "$or": [{operation_field: {"$exists": False}}, {operation_field: None}],
+        }
+        result = await self.collection.find_one_and_update(
+            query,
+            {"$set": {operation_field: operation, "updated_at": utc_now()}},
+            return_document=True,
+        )
+        if result:
+            return (result.get("metadata") or {}).get("attachment_clear_operation")
+
+        existing = await self.get_by_session_id(session_id)
+        if existing is not None:
+            return (existing.metadata or {}).get("attachment_clear_operation")
+
+        try:
+            object_id = ObjectId(session_id)
+        except Exception:
+            return None
+        result = await self.collection.find_one_and_update(
+            {
+                "_id": object_id,
+                "$or": [{operation_field: {"$exists": False}}, {operation_field: None}],
+            },
+            {"$set": {operation_field: operation, "updated_at": utc_now()}},
+            return_document=True,
+        )
+        if result:
+            return (result.get("metadata") or {}).get("attachment_clear_operation")
+        existing = await self.get_by_id(session_id)
+        return (existing.metadata or {}).get("attachment_clear_operation") if existing else None
+
+    async def complete_attachment_clear_operation(self, session_id: str, operation_id: str) -> bool:
+        """Clear the exact completed operation without overwriting a newer one."""
+        await self.ensure_indexes_if_needed()
+        query = {
+            "session_id": session_id,
+            "metadata.attachment_clear_operation.id": operation_id,
+        }
+        result = await self.collection.update_one(
+            query,
+            {
+                "$unset": {"metadata.attachment_clear_operation": ""},
+                "$set": {"updated_at": utc_now()},
+            },
+        )
+        if result.modified_count > 0:
+            return True
+        try:
+            result = await self.collection.update_one(
+                {
+                    "_id": ObjectId(session_id),
+                    "metadata.attachment_clear_operation.id": operation_id,
+                },
+                {
+                    "$unset": {"metadata.attachment_clear_operation": ""},
+                    "$set": {"updated_at": utc_now()},
+                },
+            )
+            return result.modified_count > 0
+        except Exception:
+            return False
+
     async def delete(self, session_id: str) -> bool:
         """删除会话（支持自定义 session_id 或 ObjectId）"""
         await self.ensure_indexes_if_needed()

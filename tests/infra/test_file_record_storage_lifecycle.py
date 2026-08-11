@@ -241,7 +241,8 @@ async def test_release_reference_counts_clamps_each_key_and_delays_only_zero_rec
     storage.ensure_indexes_if_needed = _noop_async
 
     released = await storage.release_reference_counts(
-        {" key-a ": 3, "key-b": 2, "tombstoned": 1, "missing": 4, "": 1, "skip": 0}
+        {" key-a ": 3, "key-b": 2, "tombstoned": 1, "missing": 4, "": 1, "skip": 0},
+        operation_id="clear-1",
     )
 
     assert released == 2
@@ -258,13 +259,73 @@ async def test_release_reference_counts_clamps_each_key_and_delays_only_zero_rec
         "deleting_at": "reserved",
     }
     assert [call[0] for call in collection.find_one_and_update_calls] == [
-        {"key": "key-a", "deleting_at": {"$exists": False}},
-        {"key": "key-b", "deleting_at": {"$exists": False}},
-        {"key": "tombstoned", "deleting_at": {"$exists": False}},
-        {"key": "missing", "deleting_at": {"$exists": False}},
+        {
+            "key": "key-a",
+            "deleting_at": {"$exists": False},
+            "applied_release_operations": {"$ne": "clear-1"},
+        },
+        {
+            "key": "key-b",
+            "deleting_at": {"$exists": False},
+            "applied_release_operations": {"$ne": "clear-1"},
+        },
+        {
+            "key": "tombstoned",
+            "deleting_at": {"$exists": False},
+            "applied_release_operations": {"$ne": "clear-1"},
+        },
+        {
+            "key": "missing",
+            "deleting_at": {"$exists": False},
+            "applied_release_operations": {"$ne": "clear-1"},
+        },
     ]
     assert collection.find_one_and_update_calls[0][1][0]["$set"]["reference_count"] == {
         "$max": [0, {"$subtract": [{"$ifNull": ["$reference_count", 0]}, 3]}]
+    }
+
+
+@pytest.mark.asyncio
+async def test_release_reference_counts_retries_partial_failure_without_double_decrement() -> None:
+    class _RetryCollection(_LifecycleCollection):
+        def __init__(self) -> None:
+            super().__init__()
+            self.records = {
+                "key-a": {"reference_count": 2, "applied_release_operations": []},
+                "key-b": {"reference_count": 2, "applied_release_operations": []},
+            }
+            self.fail_key_b_once = True
+
+        async def find_one_and_update(self, query: dict, update: list[dict], **kwargs):
+            key = query["key"]
+            if key == "key-b" and self.fail_key_b_once:
+                self.fail_key_b_once = False
+                raise RuntimeError("write interrupted")
+            record = self.records[key]
+            operation_id = query["applied_release_operations"]["$ne"]
+            if operation_id in record["applied_release_operations"]:
+                return None
+            decrement = update[0]["$set"]["reference_count"]["$max"][1]["$subtract"][1]
+            record["reference_count"] = max(0, record["reference_count"] - decrement)
+            record["applied_release_operations"].append(operation_id)
+            return record.copy()
+
+    collection = _RetryCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    with pytest.raises(RuntimeError, match="write interrupted"):
+        await storage.release_reference_counts({"key-a": 1, "key-b": 1}, operation_id="clear-1")
+
+    released = await storage.release_reference_counts(
+        {"key-a": 1, "key-b": 1}, operation_id="clear-1"
+    )
+
+    assert released == 1
+    assert collection.records == {
+        "key-a": {"reference_count": 1, "applied_release_operations": ["clear-1"]},
+        "key-b": {"reference_count": 1, "applied_release_operations": ["clear-1"]},
     }
 
 
