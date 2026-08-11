@@ -148,6 +148,10 @@ class ScheduledTask(BaseModel):
     max_retries: int = 0
     timeout_seconds: int = 3600
     owner_id: str = Field(..., description="Creator user_id")
+    attachment_keys: list[str] = Field(default_factory=list)
+    pending_attachment_claim_keys: list[str] = Field(default_factory=list)
+    pending_attachment_release_keys: list[str] = Field(default_factory=list)
+    attachment_setup_pending: bool = False
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None
     created_by: str = "user"

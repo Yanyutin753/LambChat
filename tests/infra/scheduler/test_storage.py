@@ -4,8 +4,10 @@ import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
+from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from src.infra.scheduler import storage as storage_module
@@ -173,6 +175,41 @@ class _HardDeleteTaskCollection:
         return SimpleNamespace(deleted_count=self.deleted_count)
 
 
+class _AttachmentTransitionCollection:
+    def __init__(self, result: dict[str, Any] | None) -> None:
+        self.result = result
+        self.find_one_and_update_calls: list[tuple[dict, object, dict]] = []
+
+    async def find_one_and_update(self, query: dict, update: object, **kwargs):
+        self.find_one_and_update_calls.append((query, update, kwargs))
+        return self.result
+
+
+class _SimpleCursor:
+    def __init__(self, docs: list[dict[str, Any]]) -> None:
+        self._docs = docs
+
+    def __aiter__(self):
+        self._iterator = iter(self._docs)
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iterator)
+        except StopIteration as exc:
+            raise StopAsyncIteration from exc
+
+
+class _AttachmentReconciliationCollection:
+    def __init__(self, docs: list[dict[str, Any]]) -> None:
+        self.docs = docs
+        self.find_queries: list[dict[str, Any]] = []
+
+    def find(self, query: dict[str, Any]) -> _SimpleCursor:
+        self.find_queries.append(query)
+        return _SimpleCursor(self.docs)
+
+
 @pytest.mark.asyncio
 async def test_list_tasks_paginated_fetches_rows_and_count_concurrently() -> None:
     storage = ScheduledTaskStorage()
@@ -306,6 +343,207 @@ async def test_delete_task_returns_false_when_document_missing() -> None:
 
     assert deleted is False
     assert not metadata_collection.update_one_calls  # not bumped when nothing changed
+
+
+def test_scheduled_task_schema_defaults_durable_attachment_state() -> None:
+    task = _task()
+
+    assert task.attachment_keys == []
+    assert task.pending_attachment_claim_keys == []
+    assert task.pending_attachment_release_keys == []
+    assert task.attachment_setup_pending is False
+
+
+@pytest.mark.asyncio
+async def test_stage_attachment_claim_persists_keys_before_file_mutation() -> None:
+    result_doc = _task_doc("task_1") | {
+        "pending_attachment_claim_keys": ["key-a", "key-b"],
+    }
+    task_collection = _AttachmentTransitionCollection(result_doc)
+    metadata_collection = _RevisionMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+
+    staged = await storage.stage_attachment_claim(
+        "task_1",
+        ["key-a", "key-b"],
+    )
+
+    assert staged is not None
+    assert staged.pending_attachment_claim_keys == ["key-a", "key-b"]
+    query, update, kwargs = task_collection.find_one_and_update_calls[0]
+    assert query == {"_id": "task_1", "status": {"$ne": ScheduledTaskStatus.DELETED}}
+    assert update["$set"]["pending_attachment_claim_keys"] == ["key-a", "key-b"]
+    assert kwargs["return_document"] is ReturnDocument.AFTER
+    assert metadata_collection.update_one_calls
+
+
+@pytest.mark.asyncio
+async def test_commit_attachment_update_moves_removed_keys_to_pending_release() -> None:
+    result_doc = _task_doc("task_1") | {
+        "input_payload": {"message": "new", "attachments": [{"key": "key-b"}]},
+        "attachment_keys": ["key-b"],
+        "pending_attachment_claim_keys": [],
+        "pending_attachment_release_keys": ["key-a"],
+    }
+    task_collection = _AttachmentTransitionCollection(result_doc)
+    metadata_collection = _RevisionMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+
+    committed = await storage.commit_attachment_update(
+        "task_1",
+        {"input_payload": result_doc["input_payload"]},
+        ["key-b"],
+    )
+
+    assert committed is not None
+    assert committed.attachment_keys == ["key-b"]
+    assert committed.pending_attachment_release_keys == ["key-a"]
+    query, update, kwargs = task_collection.find_one_and_update_calls[0]
+    assert query == {"_id": "task_1", "status": {"$ne": ScheduledTaskStatus.DELETED}}
+    state = update[0]["$set"]
+    assert state["input_payload"] == result_doc["input_payload"]
+    assert state["attachment_keys"] == ["key-b"]
+    assert state["pending_attachment_claim_keys"] == []
+    assert state["pending_attachment_release_keys"] == {
+        "$setDifference": [
+            {
+                "$setUnion": [
+                    {"$ifNull": ["$pending_attachment_release_keys", []]},
+                    {"$ifNull": ["$attachment_keys", []]},
+                ]
+            },
+            ["key-b"],
+        ]
+    }
+    assert kwargs["return_document"] is ReturnDocument.AFTER
+
+
+@pytest.mark.asyncio
+async def test_mark_task_attachment_deletion_retains_possible_tokens_until_release() -> None:
+    result_doc = _task_doc("task_1") | {
+        "status": ScheduledTaskStatus.DELETED,
+        "enabled": False,
+        "attachment_keys": [],
+        "pending_attachment_claim_keys": [],
+        "pending_attachment_release_keys": ["key-a", "key-b"],
+    }
+    task_collection = _AttachmentTransitionCollection(result_doc)
+    metadata_collection = _RevisionMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+
+    deleted = await storage.mark_task_attachment_deletion("task_1")
+
+    assert deleted is not None
+    assert deleted.status == ScheduledTaskStatus.DELETED
+    assert deleted.pending_attachment_release_keys == ["key-a", "key-b"]
+    query, update, _kwargs = task_collection.find_one_and_update_calls[0]
+    assert query == {"_id": "task_1"}
+    state = update[0]["$set"]
+    assert state["status"] == ScheduledTaskStatus.DELETED
+    assert state["enabled"] is False
+    assert state["attachment_keys"] == []
+    assert state["pending_attachment_claim_keys"] == []
+    assert state["pending_attachment_release_keys"] == {
+        "$setUnion": [
+            {"$ifNull": ["$pending_attachment_release_keys", []]},
+            {"$ifNull": ["$attachment_keys", []]},
+            {"$ifNull": ["$pending_attachment_claim_keys", []]},
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_clear_pending_attachment_work_removes_only_completed_keys() -> None:
+    task_collection = _RevisionTaskCollection()
+    metadata_collection = _RevisionMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+
+    claims_cleared = await storage.clear_pending_attachment_claims(
+        "task_1", ["key-a"]
+    )
+    releases_cleared = await storage.clear_pending_attachment_releases(
+        "task_1", ["key-b"]
+    )
+
+    assert claims_cleared is True
+    assert releases_cleared is True
+    assert task_collection.update_one_calls == [
+        (
+            {"_id": "task_1"},
+            {
+                "$pullAll": {"pending_attachment_claim_keys": ["key-a"]},
+                "$set": {"updated_at": ANY},
+            },
+        ),
+        (
+            {"_id": "task_1"},
+            {
+                "$pullAll": {"pending_attachment_release_keys": ["key-b"]},
+                "$set": {"updated_at": ANY},
+            },
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_finalize_deleted_task_requires_all_attachment_work_complete() -> None:
+    task_collection = _HardDeleteTaskCollection(deleted_count=1)
+    metadata_collection = _RevisionMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+
+    finalized = await storage.finalize_deleted_task("task_1")
+
+    assert finalized is True
+    assert task_collection.delete_calls == [
+        {
+            "_id": "task_1",
+            "status": ScheduledTaskStatus.DELETED,
+            "attachment_setup_pending": False,
+            "attachment_keys.0": {"$exists": False},
+            "pending_attachment_claim_keys.0": {"$exists": False},
+            "pending_attachment_release_keys.0": {"$exists": False},
+        }
+    ]
+    assert metadata_collection.update_one_calls
+
+
+@pytest.mark.asyncio
+async def test_list_attachment_reconciliation_tasks_includes_paused_legacy_payloads() -> None:
+    task_doc = _task_doc("task_1") | {
+        "status": ScheduledTaskStatus.PAUSED,
+        "enabled": False,
+        "input_payload": {"attachments": [{"key": "key-a"}]},
+    }
+    task_collection = _AttachmentReconciliationCollection([task_doc])
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+
+    tasks = await storage.list_attachment_reconciliation_tasks()
+
+    assert [task.id for task in tasks] == ["task_1"]
+    assert task_collection.find_queries == [
+        {
+            "$or": [
+                {"attachment_setup_pending": True},
+                {"pending_attachment_claim_keys.0": {"$exists": True}},
+                {"pending_attachment_release_keys.0": {"$exists": True}},
+                {
+                    "status": {"$ne": ScheduledTaskStatus.DELETED},
+                    "input_payload.attachments.0": {"$exists": True},
+                },
+            ]
+        }
+    ]
 
 
 def test_close_scheduled_task_storage_releases_singleton() -> None:

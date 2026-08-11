@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
+from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from src.infra.logging import get_logger
@@ -179,6 +180,23 @@ class ScheduledTaskStorage:
         )
         return [ScheduledTask(**doc) async for doc in cursor]
 
+    async def list_attachment_reconciliation_tasks(self) -> list[ScheduledTask]:
+        """List definitions with attachment ownership or interrupted lease work."""
+        cursor = self._get_collection(_COLL_TASKS).find(
+            {
+                "$or": [
+                    {"attachment_setup_pending": True},
+                    {"pending_attachment_claim_keys.0": {"$exists": True}},
+                    {"pending_attachment_release_keys.0": {"$exists": True}},
+                    {
+                        "status": {"$ne": ScheduledTaskStatus.DELETED},
+                        "input_payload.attachments.0": {"$exists": True},
+                    },
+                ]
+            }
+        )
+        return [ScheduledTask(**doc) async for doc in cursor]
+
     async def get_active_tasks_marker(self) -> int:
         """Return an O(1) scheduler-definition revision marker."""
         doc = await self._get_collection(_COLL_METADATA).find_one(
@@ -197,6 +215,154 @@ class ScheduledTaskStorage:
         if result.modified_count > 0:
             await self._bump_scheduler_definition_revision()
         return result.modified_count > 0
+
+    async def stage_attachment_claim(
+        self,
+        task_id: str,
+        keys: list[str],
+    ) -> Optional[ScheduledTask]:
+        """Persist attachment keys that must be claimed before publishing an update."""
+        record = await self._get_collection(_COLL_TASKS).find_one_and_update(
+            {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
+            {
+                "$set": {
+                    "pending_attachment_claim_keys": list(keys),
+                    "updated_at": utc_now(),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        if record is None:
+            return None
+        await self._bump_scheduler_definition_revision()
+        return ScheduledTask(**record)
+
+    async def commit_attachment_update(
+        self,
+        task_id: str,
+        updates: dict[str, Any],
+        attachment_keys: list[str],
+    ) -> Optional[ScheduledTask]:
+        """Publish claimed attachment keys and durably queue removed keys for release."""
+        state = dict(updates)
+        state.update(
+            {
+                "attachment_keys": list(attachment_keys),
+                "pending_attachment_claim_keys": [],
+                "pending_attachment_release_keys": {
+                    "$setDifference": [
+                        {
+                            "$setUnion": [
+                                {"$ifNull": ["$pending_attachment_release_keys", []]},
+                                {"$ifNull": ["$attachment_keys", []]},
+                            ]
+                        },
+                        list(attachment_keys),
+                    ]
+                },
+                "attachment_setup_pending": False,
+                "updated_at": utc_now(),
+            }
+        )
+        record = await self._get_collection(_COLL_TASKS).find_one_and_update(
+            {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
+            [{"$set": state}],
+            return_document=ReturnDocument.AFTER,
+        )
+        if record is None:
+            return None
+        await self._bump_scheduler_definition_revision()
+        return ScheduledTask(**record)
+
+    async def mark_task_attachment_deletion(
+        self,
+        task_id: str,
+    ) -> Optional[ScheduledTask]:
+        """Make a task non-runnable while retaining every possible lease for release."""
+        record = await self._get_collection(_COLL_TASKS).find_one_and_update(
+            {"_id": task_id},
+            [
+                {
+                    "$set": {
+                        "status": ScheduledTaskStatus.DELETED,
+                        "enabled": False,
+                        "attachment_keys": [],
+                        "pending_attachment_claim_keys": [],
+                        "pending_attachment_release_keys": {
+                            "$setUnion": [
+                                {"$ifNull": ["$pending_attachment_release_keys", []]},
+                                {"$ifNull": ["$attachment_keys", []]},
+                                {"$ifNull": ["$pending_attachment_claim_keys", []]},
+                            ]
+                        },
+                        "attachment_setup_pending": False,
+                        "updated_at": utc_now(),
+                    }
+                }
+            ],
+            return_document=ReturnDocument.AFTER,
+        )
+        if record is None:
+            return None
+        await self._bump_scheduler_definition_revision()
+        return ScheduledTask(**record)
+
+    async def clear_pending_attachment_claims(
+        self,
+        task_id: str,
+        keys: list[str],
+    ) -> bool:
+        """Clear claim work only after its task tokens are compensated."""
+        return await self._clear_pending_attachment_keys(
+            task_id,
+            "pending_attachment_claim_keys",
+            keys,
+        )
+
+    async def clear_pending_attachment_releases(
+        self,
+        task_id: str,
+        keys: list[str],
+    ) -> bool:
+        """Clear release work only after its task tokens are removed."""
+        return await self._clear_pending_attachment_keys(
+            task_id,
+            "pending_attachment_release_keys",
+            keys,
+        )
+
+    async def _clear_pending_attachment_keys(
+        self,
+        task_id: str,
+        field: str,
+        keys: list[str],
+    ) -> bool:
+        if not keys:
+            return True
+        result = await self._get_collection(_COLL_TASKS).update_one(
+            {"_id": task_id},
+            {
+                "$pullAll": {field: list(keys)},
+                "$set": {"updated_at": utc_now()},
+            },
+        )
+        return result.modified_count > 0
+
+    async def finalize_deleted_task(self, task_id: str) -> bool:
+        """Physically remove a deleted task only after all lease work is complete."""
+        result = await self._get_collection(_COLL_TASKS).delete_one(
+            {
+                "_id": task_id,
+                "status": ScheduledTaskStatus.DELETED,
+                "attachment_setup_pending": False,
+                "attachment_keys.0": {"$exists": False},
+                "pending_attachment_claim_keys.0": {"$exists": False},
+                "pending_attachment_release_keys.0": {"$exists": False},
+            }
+        )
+        if result.deleted_count > 0:
+            await self._bump_scheduler_definition_revision()
+        return result.deleted_count > 0
 
     async def delete_task(self, task_id: str) -> bool:
         """Physically remove a task document so its name is freed immediately."""
