@@ -26,6 +26,7 @@ _COLL_TASKS = "scheduled_tasks"
 _COLL_RUNS = "task_run_records"
 _COLL_METADATA = "scheduled_task_metadata"
 _SCHEDULER_DEFINITION_REVISION_ID = "scheduler_definition_revision"
+_ATTACHMENT_MUTATION_EPOCH_ID = "attachment_mutation_epoch"
 
 
 @dataclass(frozen=True)
@@ -239,26 +240,64 @@ class ScheduledTaskStorage:
         token: str,
     ) -> Optional[ScheduledTask]:
         """Allocate the Mongo-authoritative fence for one Redis lock owner."""
-        current_token = {"$ifNull": ["$attachment_mutation_token", None]}
-        current_generation = {"$ifNull": ["$attachment_mutation_generation", 0]}
-        record = await self._get_collection(_COLL_TASKS).find_one_and_update(
-            {"_id": task_id},
-            [
+        collection = self._get_collection(_COLL_TASKS)
+        current = await collection.find_one({"_id": task_id})
+        if current is None:
+            return None
+
+        current_generation = current.get("attachment_mutation_generation")
+        if (
+            current.get("attachment_mutation_token") == token
+            and isinstance(current_generation, int)
+            and current_generation > 0
+        ):
+            return ScheduledTask(**current)
+
+        metadata = self._get_collection(_COLL_METADATA)
+        if isinstance(current_generation, int) and current_generation > 0:
+            await metadata.update_one(
+                {"_id": _ATTACHMENT_MUTATION_EPOCH_ID},
+                {"$max": {"epoch": current_generation}},
+                upsert=True,
+            )
+        epoch_record = await metadata.find_one_and_update(
+            {"_id": _ATTACHMENT_MUTATION_EPOCH_ID},
+            {"$inc": {"epoch": 1}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        epoch = epoch_record.get("epoch") if epoch_record else None
+        if not isinstance(epoch, int) or epoch <= 0:
+            raise RuntimeError("attachment mutation epoch allocation returned invalid state")
+
+        query: dict[str, Any] = {"_id": task_id}
+        for field in (
+            "attachment_mutation_token",
+            "attachment_mutation_generation",
+        ):
+            query[field] = current[field] if field in current else {"$exists": False}
+
+        try:
+            record = await collection.find_one_and_update(
+                query,
                 {
                     "$set": {
                         "attachment_mutation_token": token,
-                        "attachment_mutation_generation": {
-                            "$cond": [
-                                {"$eq": [current_token, token]},
-                                current_generation,
-                                {"$add": [current_generation, 1]},
-                            ]
-                        },
+                        "attachment_mutation_generation": epoch,
                     }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+        except Exception:
+            record = await collection.find_one(
+                {
+                    "_id": task_id,
+                    "attachment_mutation_token": token,
+                    "attachment_mutation_generation": epoch,
                 }
-            ],
-            return_document=ReturnDocument.AFTER,
-        )
+            )
+            if record is None:
+                raise
         if record is None:
             return None
         return ScheduledTask(**record)

@@ -58,6 +58,47 @@ def _scheduled_task_reference_id(task_id: str) -> str:
         raise ValueError("task_id must be a UUID") from exc
 
 
+def _scheduled_task_reference_state(task_id: str) -> tuple[dict, dict, dict, dict]:
+    """Build aggregation expressions for compact live leases and their global fence."""
+    existing_ids = {"$ifNull": ["$scheduled_task_reference_ids", []]}
+    existing_generations = {"$ifNull": ["$scheduled_task_reference_generations", []]}
+    live_generations = {
+        "$filter": {
+            "input": existing_generations,
+            "as": "lease",
+            "cond": {"$in": ["$$lease.task_id", existing_ids]},
+        }
+    }
+    other_live_generations = {
+        "$filter": {
+            "input": live_generations,
+            "as": "lease",
+            "cond": {"$ne": ["$$lease.task_id", task_id]},
+        }
+    }
+    legacy_generation_high_water = {
+        "$ifNull": [
+            {
+                "$max": {
+                    "$map": {
+                        "input": existing_generations,
+                        "as": "lease",
+                        "in": "$$lease.generation",
+                    }
+                }
+            },
+            0,
+        ]
+    }
+    high_water = {
+        "$max": [
+            {"$ifNull": ["$scheduled_task_generation_high_water", 0]},
+            legacy_generation_high_water,
+        ]
+    }
+    return existing_ids, other_live_generations, high_water, live_generations
+
+
 class FileRecordStorage:
     """Storage layer for file records, keyed by content hash."""
 
@@ -268,15 +309,9 @@ class FileRecordStorage:
         await self.ensure_indexes_if_needed()
         newly_claimed: list[str] = []
         now = utc_now()
-        existing_ids = {"$ifNull": ["$scheduled_task_reference_ids", []]}
-        existing_generations = {"$ifNull": ["$scheduled_task_reference_generations", []]}
-        other_generations = {
-            "$filter": {
-                "input": existing_generations,
-                "as": "lease",
-                "cond": {"$ne": ["$$lease.task_id", task_id]},
-            }
-        }
+        existing_ids, other_generations, high_water, _live_generations = (
+            _scheduled_task_reference_state(task_id)
+        )
         already_claimed = {"$in": [task_id, existing_ids]}
         try:
             for key in unique_keys:
@@ -285,40 +320,23 @@ class FileRecordStorage:
                         "key": key,
                         "uploaded_by": uploaded_by,
                         "deleting_at": {"$exists": False},
-                        "$or": [
-                            {"scheduled_task_reference_ids": task_id},
-                            {
-                                "$expr": {
-                                    "$lt": [
-                                        {"$size": existing_ids},
-                                        SCHEDULED_TASK_REFERENCES_PER_FILE_MAX,
-                                    ]
-                                }
-                            },
-                        ],
                         "$and": [
                             {
-                                "scheduled_task_reference_generations": {
-                                    "$not": {
-                                        "$elemMatch": {
-                                            "task_id": task_id,
-                                            "generation": {"$gt": mutation_generation},
+                                "$or": [
+                                    {"scheduled_task_reference_ids": task_id},
+                                    {
+                                        "$expr": {
+                                            "$lt": [
+                                                {"$size": existing_ids},
+                                                SCHEDULED_TASK_REFERENCES_PER_FILE_MAX,
+                                            ]
                                         }
-                                    }
-                                }
+                                    },
+                                ]
                             },
                             {
                                 "$or": [
-                                    {
-                                        "scheduled_task_reference_generations": {
-                                            "$not": {
-                                                "$elemMatch": {
-                                                    "task_id": task_id,
-                                                    "generation": {"$gte": mutation_generation},
-                                                }
-                                            }
-                                        }
-                                    },
+                                    {"$expr": {"$gt": [mutation_generation, high_water]}},
                                     {
                                         "scheduled_task_reference_ids": task_id,
                                         "scheduled_task_reference_generations": {
@@ -361,6 +379,9 @@ class FileRecordStorage:
                                         ],
                                     ]
                                 },
+                                "scheduled_task_generation_high_water": {
+                                    "$max": [high_water, mutation_generation]
+                                },
                                 "cleanup_after": now + CLEANUP_GRACE_PERIOD,
                                 "updated_at": now,
                             }
@@ -400,14 +421,9 @@ class FileRecordStorage:
         if len(unique_keys) != len({str(key).strip() for key in keys if key and str(key).strip()}):
             raise AttachmentClaimError()
         await self.ensure_indexes_if_needed()
-        existing_generations = {"$ifNull": ["$scheduled_task_reference_generations", []]}
-        other_generations = {
-            "$filter": {
-                "input": existing_generations,
-                "as": "lease",
-                "cond": {"$ne": ["$$lease.task_id", task_id]},
-            }
-        }
+        existing_ids, other_generations, high_water, _live_generations = (
+            _scheduled_task_reference_state(task_id)
+        )
         adopted = 0
         for key in unique_keys:
             previous = await self.collection.find_one_and_update(
@@ -415,28 +431,41 @@ class FileRecordStorage:
                     "key": key,
                     "uploaded_by": uploaded_by,
                     "deleting_at": {"$exists": False},
-                    "scheduled_task_reference_generations": {
-                        "$not": {
-                            "$elemMatch": {
-                                "task_id": task_id,
-                                "generation": {"$gt": mutation_generation},
-                            }
-                        }
-                    },
+                    "$or": [
+                        {"$expr": {"$gt": [mutation_generation, high_water]}},
+                        {
+                            "scheduled_task_reference_ids": task_id,
+                            "scheduled_task_reference_generations": {
+                                "$elemMatch": {
+                                    "task_id": task_id,
+                                    "generation": mutation_generation,
+                                }
+                            },
+                        },
+                    ],
                 },
                 [
                     {
                         "$set": {
                             "scheduled_task_reference_generations": {
-                                "$concatArrays": [
+                                "$cond": [
+                                    {"$in": [task_id, existing_ids]},
+                                    {
+                                        "$concatArrays": [
+                                            other_generations,
+                                            [
+                                                {
+                                                    "task_id": task_id,
+                                                    "generation": mutation_generation,
+                                                }
+                                            ],
+                                        ]
+                                    },
                                     other_generations,
-                                    [
-                                        {
-                                            "task_id": task_id,
-                                            "generation": mutation_generation,
-                                        }
-                                    ],
                                 ]
+                            },
+                            "scheduled_task_generation_high_water": {
+                                "$max": [high_water, mutation_generation]
                             },
                             "updated_at": utc_now(),
                         }
@@ -486,6 +515,9 @@ class FileRecordStorage:
         now = utc_now()
         cleanup_after = now + CLEANUP_GRACE_PERIOD
         released = 0
+        _existing_ids, other_generations, high_water, _live_generations = (
+            _scheduled_task_reference_state(task_id)
+        )
         for key in unique_keys:
             previous = await self.collection.find_one_and_update(
                 {
@@ -519,6 +551,10 @@ class FileRecordStorage:
                                     {"$ifNull": ["$scheduled_task_reference_ids", []]},
                                     [task_id],
                                 ]
+                            },
+                            "scheduled_task_reference_generations": other_generations,
+                            "scheduled_task_generation_high_water": {
+                                "$max": [high_water, mutation_generation]
                             },
                             "updated_at": now,
                         }
@@ -612,6 +648,39 @@ class FileRecordStorage:
             if record is not None:
                 released += 1
         return released
+
+    async def forget_release_operation(
+        self,
+        keys: list[str],
+        *,
+        operation_id: str,
+        uploaded_by: str,
+    ) -> bool:
+        """Remove a completed session-release marker and verify no marker remains."""
+        unique_keys = list(
+            dict.fromkeys(str(key).strip() for key in keys if key and str(key).strip())
+        )
+        operation_id = operation_id.strip()
+        if not operation_id:
+            raise ValueError("operation_id is required for release marker cleanup")
+        if not unique_keys:
+            return True
+
+        await self.ensure_indexes_if_needed()
+        for offset in range(0, len(unique_keys), REFERENCE_KEYS_MAX):
+            chunk = unique_keys[offset : offset + REFERENCE_KEYS_MAX]
+            marker_query = {
+                "key": {"$in": chunk},
+                "uploaded_by": uploaded_by,
+                "applied_release_operations": operation_id,
+            }
+            await self.collection.update_many(
+                marker_query,
+                {"$pull": {"applied_release_operations": operation_id}},
+            )
+            if await self.collection.count_documents(marker_query, limit=1):
+                return False
+        return True
 
     async def release_owned_references(self, keys: list[str], uploaded_by: str) -> int:
         """Roll back owned positive references and retain a conservative cleanup grace."""

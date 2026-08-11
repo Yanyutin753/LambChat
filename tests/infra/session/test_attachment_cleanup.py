@@ -232,9 +232,7 @@ class _FilterAwareCollection:
                 array_filters = kwargs.get("array_filters") or []
                 if array_filters and "$set" in update:
                     positional_updates = {
-                        key: value
-                        for key, value in update["$set"].items()
-                        if ".$[lease]." in key
+                        key: value for key, value in update["$set"].items() if ".$[lease]." in key
                     }
                     ordinary_update = deepcopy(update)
                     ordinary_update["$set"] = {
@@ -301,6 +299,8 @@ class _FileRecordStorage:
         self.operation_ids: list[str] = []
         self.applied_operation_ids: set[str] = set()
         self.release_error: Exception | None = None
+        self.forget_error: Exception | None = None
+        self.forgot_operation_ids: list[str] = []
 
     async def release_reference_counts(
         self, counts: Counter[str], *, operation_id: str, uploaded_by: str
@@ -314,6 +314,20 @@ class _FileRecordStorage:
         self.applied_operation_ids.add(operation_id)
         self.released_counts.append(counts)
         return len(counts)
+
+    async def forget_release_operation(
+        self,
+        keys: object,
+        *,
+        operation_id: str,
+        uploaded_by: str,
+    ) -> bool:
+        assert uploaded_by == "owner-a"
+        if self.forget_error:
+            raise self.forget_error
+        self.applied_operation_ids.discard(operation_id)
+        self.forgot_operation_ids.append(operation_id)
+        return True
 
 
 class _TraceStorage:
@@ -651,6 +665,36 @@ async def test_clear_session_messages_persists_deleted_group_when_counted_releas
     file_records.release_error = None
     assert await manager.clear_session_messages("session-1") == 1
     assert file_records.released_counts == [Counter({"attachments/u1/a.png": 1})]
+    assert manager.storage.server_operation is None
+
+
+@pytest.mark.asyncio
+async def test_clear_session_messages_retries_marker_cleanup_without_releasing_twice() -> None:
+    manager = SessionManager()
+    file_records = _FileRecordStorage()
+    file_records.forget_error = RuntimeError("marker cleanup unavailable")
+    trace_storage = _TraceStorage()
+    trace_storage.events = [
+        {
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "attachments/u1/a.png"}]},
+        }
+    ]
+    manager._file_record_storage = file_records
+    manager._trace_storage = trace_storage
+    manager.storage = _SessionOperationStorage()
+
+    with pytest.raises(RuntimeError, match="marker cleanup unavailable"):
+        await manager.clear_session_messages("session-1")
+
+    assert manager.storage.server_operation is not None
+    assert manager.storage.server_operation["groups"]["parent-0"]["status"] == "released"
+    assert file_records.released_counts == [Counter({"attachments/u1/a.png": 1})]
+
+    file_records.forget_error = None
+    assert await manager.clear_session_messages("session-1") == 1
+    assert file_records.released_counts == [Counter({"attachments/u1/a.png": 1})]
+    assert file_records.forgot_operation_ids == ["server-operation-1:parent-0"]
     assert manager.storage.server_operation is None
 
 
@@ -1956,9 +2000,7 @@ async def test_legacy_zero_writer_counter_atomically_migrates_on_acquire(
 
     assert isinstance(lease_id, str)
     assert "active_trace_writers" not in collection.documents[0]
-    assert [lease["id"] for lease in collection.documents[0]["trace_writer_leases"]] == [
-        lease_id
-    ]
+    assert [lease["id"] for lease in collection.documents[0]["trace_writer_leases"]] == [lease_id]
     await storage.release_trace_write("session-1", lease_id)
 
 
@@ -2141,11 +2183,14 @@ async def test_trace_cleanup_guard_defers_delete_cancel_until_cross_collection_c
     )
     writer_during_cleanup = await session_storage.acquire_trace_write("session-1")
     if writer_during_cleanup is not None:
-        assert await trace_storage.append_event(
-            "trace-a",
-            "message:chunk",
-            {"content": "must-not-be-deleted"},
-        ) is True
+        assert (
+            await trace_storage.append_event(
+                "trace-a",
+                "message:chunk",
+                {"content": "must-not-be-deleted"},
+            )
+            is True
+        )
 
     chunks.allow_delete.set()
     cleanup_result = await cleanup
@@ -2309,9 +2354,7 @@ async def test_trace_cleanup_snapshot_expiry_aborts_before_any_delete(
     assert parents.delete_calls == []
     assert chunks.ids() == {"chunk-a"}
     assert parents.ids() == {"parent-a"}
-    assert parents.documents[0]["events"][0]["data"] == {
-        "content": "new-generation"
-    }
+    assert parents.documents[0]["events"][0]["data"] == {"content": "new-generation"}
 
 
 @pytest.mark.asyncio
@@ -2439,9 +2482,7 @@ async def test_expired_cleanup_delete_cannot_remove_newer_parent_or_chunk_versio
     assert chunks.ids() == {"chunk-a"}
     assert chunks.documents[0]["append_fence_revision"] == 1
     assert parents.ids() == {"parent-a"}
-    assert parents.documents[0]["events"][0]["data"] == {
-        "content": "new-generation"
-    }
+    assert parents.documents[0]["events"][0]["data"] == {"content": "new-generation"}
 
 
 @pytest.mark.asyncio
@@ -2573,9 +2614,7 @@ async def test_trace_cleanup_guard_refuses_fenced_session_with_a_live_writer(
     assert cleanup_result is False
     assert parents.ids() == {"parent-a"}
     assert chunks.ids() == {"chunk-a"}
-    assert "cleanup_guard" not in session_collection.documents[0][
-        "attachment_delete_operation"
-    ]
+    assert "cleanup_guard" not in session_collection.documents[0]["attachment_delete_operation"]
 
 
 @pytest.mark.asyncio
@@ -2613,9 +2652,7 @@ async def test_trace_cleanup_guard_exact_release_applies_pending_delete_cancel(
     storage._collection = collection
 
     assert await storage.cancel_attachment_delete_operation("session-1", "delete-1") is True
-    operation_after_cancel = deepcopy(
-        collection.documents[0].get("attachment_delete_operation")
-    )
+    operation_after_cancel = deepcopy(collection.documents[0].get("attachment_delete_operation"))
     wrong_operation_release = await storage.release_trace_cleanup_guard(
         "session-1",
         "delete-forged",
@@ -2946,9 +2983,9 @@ async def test_create_trace_compensates_a_late_insert_after_session_is_delete_fe
         trace_storage.create_trace("trace-late", "session-1", user_id="owner-a")
     )
     await trace_collection.insert_started.wait()
-    session_collection.documents[0]["trace_writer_leases"][0]["expires_at"] = (
-        datetime.now(timezone.utc) - timedelta(seconds=1)
-    )
+    session_collection.documents[0]["trace_writer_leases"][0]["expires_at"] = datetime.now(
+        timezone.utc
+    ) - timedelta(seconds=1)
     claim = await session_storage.claim_attachment_delete_operation("session-1")
     assert claim is not None and claim["acquired"] is True
     for _attempt in range(1000):
@@ -3007,16 +3044,19 @@ async def test_create_trace_keeps_new_writer_events_when_expired_lease_is_not_de
     )
     await trace_collection.cleanup_started.wait()
     lease_a = session_collection.documents[0]["trace_writer_leases"][0]["id"]
-    session_collection.documents[0]["trace_writer_leases"][0]["expires_at"] = (
-        datetime.now(timezone.utc) - timedelta(seconds=1)
-    )
+    session_collection.documents[0]["trace_writer_leases"][0]["expires_at"] = datetime.now(
+        timezone.utc
+    ) - timedelta(seconds=1)
     lease_b = await session_storage.acquire_trace_write("session-1")
     assert isinstance(lease_b, str) and lease_b != lease_a
-    assert await trace_storage.append_event(
-        "trace-shared",
-        "message:chunk",
-        {"content": "new-writer-event"},
-    ) is True
+    assert (
+        await trace_storage.append_event(
+            "trace-shared",
+            "message:chunk",
+            {"content": "new-writer-event"},
+        )
+        is True
+    )
 
     writer_a.cancel()
     trace_collection.allow_cleanup.set()
@@ -3026,9 +3066,7 @@ async def test_create_trace_keeps_new_writer_events_when_expired_lease_is_not_de
 
     assert writer_result is False
     assert len(documents_after_recovery) == 1
-    assert documents_after_recovery[0]["events"][0]["data"] == {
-        "content": "new-writer-event"
-    }
+    assert documents_after_recovery[0]["events"][0]["data"] == {"content": "new-writer-event"}
     assert documents_after_recovery[0]["event_count"] == 1
     assert "_session_trace_write_lease_id" not in documents_after_recovery[0]
     assert "attachment_delete_operation" not in session_collection.documents[0]

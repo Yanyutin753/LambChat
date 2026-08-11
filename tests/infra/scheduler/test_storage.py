@@ -141,10 +141,11 @@ class _RevisionMetadataCollection:
 
 
 class _StatefulRevisionMetadataCollection(_RevisionMetadataCollection):
-    def __init__(self, *, failures: int = 0) -> None:
+    def __init__(self, *, failures: int = 0, attachment_epoch: int = 0) -> None:
         super().__init__()
         self.failures = failures
         self.revision = 0
+        self.attachment_epoch = attachment_epoch
 
     async def update_one(
         self,
@@ -155,11 +156,32 @@ class _StatefulRevisionMetadataCollection(_RevisionMetadataCollection):
         if self.failures:
             self.failures -= 1
             raise RuntimeError("revision unavailable")
+        if query == {"_id": "attachment_mutation_epoch"}:
+            self.attachment_epoch = max(
+                self.attachment_epoch,
+                int(update.get("$max", {}).get("epoch", 0)),
+            )
+            return _UpdateResult(modified_count=1)
         result = await super().update_one(query, update, upsert)
         self.revision += int(update.get("$inc", {}).get("revision", 0))
         return result
 
-    async def find_one(self, _query: dict[str, Any]) -> dict[str, Any]:
+    async def find_one_and_update(
+        self,
+        query: dict[str, Any],
+        update: dict[str, Any],
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        assert query == {"_id": "attachment_mutation_epoch"}
+        self.attachment_epoch += int(update["$inc"]["epoch"])
+        return {"_id": "attachment_mutation_epoch", "epoch": self.attachment_epoch}
+
+    async def find_one(self, query: dict[str, Any]) -> dict[str, Any]:
+        if query == {"_id": "attachment_mutation_epoch"}:
+            return {
+                "_id": "attachment_mutation_epoch",
+                "epoch": self.attachment_epoch,
+            }
         return {
             "_id": "scheduler_definition_revision",
             "revision": self.revision,
@@ -229,6 +251,82 @@ class _AttachmentTransitionCollection:
         return _UpdateResult(modified_count=1)
 
 
+class _EpochTaskCollection:
+    def __init__(self, *docs: dict[str, Any], lose_bind_reply: bool = False) -> None:
+        self.docs = {str(doc["_id"]): dict(doc) for doc in docs}
+        self.lose_bind_reply = lose_bind_reply
+        self.bind_attempts = 0
+
+    @staticmethod
+    def _matches(doc: dict[str, Any], query: dict[str, Any]) -> bool:
+        for key, expected in query.items():
+            if isinstance(expected, dict) and expected == {"$exists": False}:
+                if key in doc:
+                    return False
+            elif doc.get(key) != expected:
+                return False
+        return True
+
+    async def find_one(
+        self,
+        query: dict[str, Any],
+        _projection: dict[str, int] | None = None,
+    ) -> dict[str, Any] | None:
+        doc = self.docs.get(str(query.get("_id")))
+        return dict(doc) if doc is not None and self._matches(doc, query) else None
+
+    async def find_one_and_update(
+        self,
+        query: dict[str, Any],
+        update: dict[str, dict[str, Any]],
+        **_kwargs: Any,
+    ) -> dict[str, Any] | None:
+        doc = self.docs.get(str(query.get("_id")))
+        if doc is None or not self._matches(doc, query):
+            return None
+        self.bind_attempts += 1
+        doc.update(update["$set"])
+        if self.lose_bind_reply:
+            self.lose_bind_reply = False
+            raise ConnectionError("task fence reply lost")
+        return dict(doc)
+
+
+class _EpochMetadataCollection:
+    def __init__(self, *, epoch: int = 0, lose_replies: int = 0) -> None:
+        self.epoch = epoch
+        self.lose_replies = lose_replies
+        self.increment_calls = 0
+
+    async def update_one(
+        self,
+        query: dict[str, Any],
+        update: dict[str, Any],
+        **kwargs: Any,
+    ) -> _UpdateResult:
+        assert query == {"_id": "attachment_mutation_epoch"}
+        assert kwargs["upsert"] is True
+        self.epoch = max(self.epoch, int(update["$max"]["epoch"]))
+        return _UpdateResult(modified_count=1)
+
+    async def find_one_and_update(
+        self,
+        query: dict[str, Any],
+        update: dict[str, Any],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        assert query == {"_id": "attachment_mutation_epoch"}
+        assert update == {"$inc": {"epoch": 1}}
+        assert kwargs["upsert"] is True
+        assert kwargs["return_document"] is ReturnDocument.AFTER
+        self.increment_calls += 1
+        self.epoch += 1
+        if self.lose_replies:
+            self.lose_replies -= 1
+            raise ConnectionError("counter reply lost")
+        return {"_id": "attachment_mutation_epoch", "epoch": self.epoch}
+
+
 class _StatefulAttachmentTransitionCollection:
     def __init__(self, doc: dict[str, Any], *, lose_commit_reply: bool = False) -> None:
         self.doc = dict(doc)
@@ -246,9 +344,7 @@ class _StatefulAttachmentTransitionCollection:
         for field, value in state.items():
             if field == "pending_attachment_release_keys":
                 self.doc[field] = []
-            elif not isinstance(value, dict) or not any(
-                str(key).startswith("$") for key in value
-            ):
+            elif not isinstance(value, dict) or not any(str(key).startswith("$") for key in value):
                 self.doc[field] = value
         if self.lose_commit_reply:
             raise ConnectionError("commit reply lost")
@@ -315,15 +411,11 @@ class _DelayedAttachmentCommitCollection:
             elif field == "pending_attachment_release_keys" and isinstance(value, dict):
                 desired = set(state["attachment_keys"])
                 candidates = [*previous_releases, *previous_keys, *previous_claims]
-                self.doc[field] = [
-                    key for key in dict.fromkeys(candidates) if key not in desired
-                ]
+                self.doc[field] = [key for key in dict.fromkeys(candidates) if key not in desired]
             elif field == "attachment_mutation_generation" and isinstance(value, dict):
                 token = state["attachment_mutation_token"]
                 current = int(self.doc.get(field, 0))
-                self.doc[field] = (
-                    current if previous_token == token else current + 1
-                )
+                self.doc[field] = current if previous_token == token else current + 1
             else:
                 self.doc[field] = value
         return dict(self.doc)
@@ -331,10 +423,10 @@ class _DelayedAttachmentCommitCollection:
     async def find_one_and_update(
         self,
         query: dict[str, Any],
-        update: list[dict[str, dict[str, Any]]],
+        update: list[dict[str, dict[str, Any]]] | dict[str, dict[str, Any]],
         **_kwargs: Any,
     ) -> dict[str, Any] | None:
-        state = update[0]["$set"]
+        state = update[0]["$set"] if isinstance(update, list) else update["$set"]
         is_stale_commit = (
             state.get("attachment_keys") == ["key-a"]
             and self.doc.get("attachment_mutation_token") == "owner-1"
@@ -575,34 +667,93 @@ async def test_claim_attachment_mutation_allocates_mongo_fence_idempotently() ->
         "attachment_mutation_token": "owner-token",
         "attachment_mutation_generation": 8,
     }
-    task_collection = _AttachmentTransitionCollection(claimed_doc)
+    task_collection = _EpochTaskCollection(claimed_doc)
+    metadata_collection = _EpochMetadataCollection(epoch=8)
     storage = ScheduledTaskStorage()
     storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
 
     claimed = await storage.claim_attachment_mutation("task_1", "owner-token")
 
     assert claimed is not None
     assert claimed.attachment_mutation_token == "owner-token"
     assert claimed.attachment_mutation_generation == 8
-    query, update, kwargs = task_collection.find_one_and_update_calls[0]
-    assert query == {"_id": "task_1"}
-    current_token = {"$ifNull": ["$attachment_mutation_token", None]}
-    current_generation = {"$ifNull": ["$attachment_mutation_generation", 0]}
-    assert update == [
-        {
-            "$set": {
-                "attachment_mutation_token": "owner-token",
-                "attachment_mutation_generation": {
-                    "$cond": [
-                        {"$eq": [current_token, "owner-token"]},
-                        current_generation,
-                        {"$add": [current_generation, 1]},
-                    ]
-                },
-            }
+    assert metadata_collection.increment_calls == 0
+    assert task_collection.bind_attempts == 0
+
+
+@pytest.mark.asyncio
+async def test_attachment_mutation_epochs_are_global_across_random_task_ids() -> None:
+    tasks = _EpochTaskCollection(_task_doc("random-a"), _task_doc("random-z"))
+    metadata = _EpochMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = tasks
+    storage._collections["scheduled_task_metadata"] = metadata
+
+    first = await storage.claim_attachment_mutation("random-z", "token-z")
+    second = await storage.claim_attachment_mutation("random-a", "token-a")
+    retried = await storage.claim_attachment_mutation("random-z", "token-z")
+
+    assert first is not None and first.attachment_mutation_generation == 1
+    assert second is not None and second.attachment_mutation_generation == 2
+    assert retried is not None and retried.attachment_mutation_generation == 1
+    assert metadata.increment_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_attachment_mutation_counter_reply_loss_only_consumes_an_unused_gap() -> None:
+    tasks = _EpochTaskCollection(_task_doc("task_1"))
+    metadata = _EpochMetadataCollection(lose_replies=1)
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = tasks
+    storage._collections["scheduled_task_metadata"] = metadata
+
+    with pytest.raises(ConnectionError, match="counter reply lost"):
+        await storage.claim_attachment_mutation("task_1", "owner-token")
+
+    claimed = await storage.claim_attachment_mutation("task_1", "owner-token")
+    retried = await storage.claim_attachment_mutation("task_1", "owner-token")
+
+    assert claimed is not None and claimed.attachment_mutation_generation == 2
+    assert retried is not None and retried.attachment_mutation_generation == 2
+    assert metadata.increment_calls == 2
+    assert tasks.bind_attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_attachment_mutation_epoch_starts_above_existing_task_fence() -> None:
+    tasks = _EpochTaskCollection(
+        _task_doc("task_1")
+        | {
+            "attachment_mutation_token": "old-owner",
+            "attachment_mutation_generation": 8,
         }
-    ]
-    assert kwargs["return_document"] is ReturnDocument.AFTER
+    )
+    metadata = _EpochMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = tasks
+    storage._collections["scheduled_task_metadata"] = metadata
+
+    claimed = await storage.claim_attachment_mutation("task_1", "new-owner")
+
+    assert claimed is not None and claimed.attachment_mutation_generation == 9
+
+
+@pytest.mark.asyncio
+async def test_attachment_mutation_recovers_exact_bound_epoch_after_task_reply_loss() -> None:
+    tasks = _EpochTaskCollection(_task_doc("task_1"), lose_bind_reply=True)
+    metadata = _EpochMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = tasks
+    storage._collections["scheduled_task_metadata"] = metadata
+
+    claimed = await storage.claim_attachment_mutation("task_1", "owner-token")
+    retried = await storage.claim_attachment_mutation("task_1", "owner-token")
+
+    assert claimed is not None and claimed.attachment_mutation_generation == 1
+    assert retried is not None and retried.attachment_mutation_generation == 1
+    assert metadata.increment_calls == 1
+    assert tasks.bind_attempts == 1
 
 
 @pytest.mark.asyncio
@@ -663,9 +814,7 @@ async def test_successor_fence_rejects_stale_motor_commit_that_finishes_late() -
     assert task_collection.doc["attachment_mutation_token"] == "owner-2"
     assert task_collection.doc["attachment_mutation_generation"] == 2
     assert task_collection.doc["attachment_keys"] == ["key-b"]
-    assert task_collection.doc["input_payload"] == {
-        "attachments": [{"key": "key-b"}]
-    }
+    assert task_collection.doc["input_payload"] == {"attachments": [{"key": "key-b"}]}
 
 
 @pytest.mark.asyncio
@@ -750,9 +899,9 @@ async def test_commit_attachment_update_moves_removed_keys_to_pending_release() 
     assert state["attachment_keys"] == ["key-b"]
     assert state["pending_attachment_claim_keys"] == []
     assert isinstance(state["attachment_commit_operation_id"], str)
-    assert state["scheduler_revision_pending_operation_id"] == state[
-        "attachment_commit_operation_id"
-    ]
+    assert (
+        state["scheduler_revision_pending_operation_id"] == state["attachment_commit_operation_id"]
+    )
     assert state["pending_attachment_release_keys"] == {
         "$setDifference": [
             {
@@ -899,9 +1048,9 @@ async def test_mark_task_attachment_deletion_retains_possible_tokens_until_relea
     assert state["attachment_keys"] == []
     assert state["pending_attachment_claim_keys"] == []
     assert isinstance(state["attachment_commit_operation_id"], str)
-    assert state["scheduler_revision_pending_operation_id"] == state[
-        "attachment_commit_operation_id"
-    ]
+    assert (
+        state["scheduler_revision_pending_operation_id"] == state["attachment_commit_operation_id"]
+    )
     assert state["pending_attachment_release_keys"] == {
         "$setUnion": [
             {"$ifNull": ["$pending_attachment_release_keys", []]},
@@ -951,9 +1100,7 @@ async def test_clear_pending_attachment_work_removes_only_completed_keys() -> No
     storage._collections["scheduled_task_metadata"] = metadata_collection
 
     fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
-    claims_cleared = await storage.clear_pending_attachment_claims(
-        "task_1", ["key-a"], fence=fence
-    )
+    claims_cleared = await storage.clear_pending_attachment_claims("task_1", ["key-a"], fence=fence)
     releases_cleared = await storage.clear_pending_attachment_releases(
         "task_1", ["key-b"], fence=fence
     )

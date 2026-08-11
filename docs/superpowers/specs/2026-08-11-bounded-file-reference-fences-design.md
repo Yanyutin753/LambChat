@@ -16,7 +16,9 @@ ordering.
 
 1. If the task already stores the same token and a positive epoch, return that
    fence unchanged. This is the idempotent retry path.
-2. Otherwise atomically increment the global scheduler attachment epoch.
+2. Otherwise raise the counter to at least the task's existing fence (for
+   rolling compatibility), then atomically increment the global scheduler
+   attachment epoch.
 3. CAS-bind the returned epoch and token to the task document, replacing the
    previous fence only if its snapshot still matches.
 4. If the counter reply is lost, retrying may consume another epoch. Gaps are
@@ -62,8 +64,10 @@ therefore idempotent. Since every later task mutation receives a greater global
 epoch, compacting retired UUIDs into the scalar cannot permit resurrection.
 
 Legacy records without a high-water field derive their initial high-water from
-the maximum valid live generation entry. Existing live references therefore
-remain usable during rolling deployment.
+the maximum valid generation entry, including a retired per-task tombstone.
+The next successful mutation discards retired entries while retaining that
+maximum in the scalar, so stale legacy operations remain fenced during rolling
+deployment.
 
 ## Session release-operation compaction
 
@@ -98,4 +102,3 @@ remains and the next retry resumes marker cleanup without decrementing again.
 - Thousands of completed session release operations leave no historical IDs.
 - Crashes before and during marker cleanup retry without double decrement and
   without completing the clear operation early.
-

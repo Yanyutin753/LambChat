@@ -365,6 +365,14 @@ class SessionManager:
                 ):
                     raise SessionError("attachment_clear_group_persist_failed")
                 group["status"] = "released"
+            if group[
+                "status"
+            ] == "released" and not await self._file_record_storage.forget_release_operation(
+                list(group["counts"]),
+                operation_id=group["release_operation_id"],
+                uploaded_by=uploaded_by,
+            ):
+                raise SessionError("attachment_release_marker_cleanup_failed")
         if not await self.storage.complete_attachment_clear_operation(session_id, operation_id):
             raise SessionError("attachment_clear_operation_complete_failed")
         released_keys = {
