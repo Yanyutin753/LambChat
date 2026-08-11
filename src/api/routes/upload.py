@@ -106,8 +106,9 @@ async def _get_live_record_by_hash(
 
     storage = storage or await get_or_init_storage()
     if await storage.file_exists(record["key"]):
-        await _file_record_storage.refresh_owned_cleanup(record["key"], uploaded_by)
-        return record
+        if await _file_record_storage.refresh_owned_cleanup(record["key"], uploaded_by):
+            return record
+        return None
 
     logger.warning(
         "Found stale file record for hash %s pointing to missing key %s",
@@ -549,16 +550,17 @@ async def upload_file(
         logger.info("Duplicate upload detected for hash %s, reusing existing file", file_hash)
 
         existing = await _get_live_record_by_hash(file_hash, current_user.sub, storage)
-        if existing:
-            try:
+        try:
+            if storage_key:
                 await storage.delete_file(storage_key)
-            except Exception as cleanup_error:
-                logger.warning(
-                    "Failed to delete duplicate uploaded object %s after dedupe race: %s",
-                    storage_key,
-                    cleanup_error,
-                )
+        except Exception as cleanup_error:
+            logger.warning(
+                "Failed to delete duplicate uploaded object %s after dedupe race: %s",
+                storage_key,
+                cleanup_error,
+            )
 
+        if existing:
             return _build_upload_response(
                 request,
                 key=existing["key"],

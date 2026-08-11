@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from types import SimpleNamespace
+from unittest.mock import ANY
 
 import pytest
 
@@ -33,6 +34,7 @@ class _LifecycleCollection:
         self.find_queries: list[dict] = []
         self.find_one_and_update_calls: list[tuple[dict, dict, dict]] = []
         self.update_one_calls: list[tuple[dict, dict]] = []
+        self.delete_one_calls: list[dict] = []
         self.claim_results: list[dict | None] = []
 
     def list_indexes(self):
@@ -56,6 +58,10 @@ class _LifecycleCollection:
     async def update_one(self, query: dict, update: dict):
         self.update_one_calls.append((query, update))
         return SimpleNamespace(modified_count=1)
+
+    async def delete_one(self, query: dict):
+        self.delete_one_calls.append(query)
+        return SimpleNamespace(deleted_count=1)
 
 
 async def _noop_async() -> None:
@@ -97,7 +103,13 @@ async def test_hash_lookup_is_scoped_to_uploaded_by() -> None:
 
     await storage.find_by_hash("same-content", "owner-a")
 
-    assert collection.find_queries == [{"hash": "same-content", "uploaded_by": "owner-a"}]
+    assert collection.find_queries == [
+        {
+            "hash": "same-content",
+            "uploaded_by": "owner-a",
+            "deleting_at": {"$exists": False},
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -161,6 +173,59 @@ async def test_schedule_owned_zero_reference_cleanup_never_matches_foreign_or_re
         "reference_count": 0,
         "deleting_at": {"$exists": False},
     }
+
+
+@pytest.mark.asyncio
+async def test_tombstone_cleanup_finalizes_only_the_owned_tombstoned_record() -> None:
+    tombstone = object()
+    record = {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone}
+    collection = _LifecycleCollection()
+    collection.claim_results = [record, None]
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    claimed = await storage.tombstone_cleanup_batch(limit=2)
+    finalized = await storage.finalize_tombstone_cleanup(record)
+
+    assert claimed == [record]
+    assert collection.find_one_and_update_calls[0][0]["reference_count"] == 0
+    assert "$lte" in collection.find_one_and_update_calls[0][0]["cleanup_after"]
+    assert collection.find_one_and_update_calls[0][0]["deleting_at"] == {"$exists": False}
+    assert finalized is True
+    assert collection.delete_one_calls == [
+        {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_object_delete_failure_clears_the_exact_tombstone_for_retry() -> None:
+    tombstone = object()
+    record = {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone}
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    async def _tombstone_batch():
+        return [record]
+
+    class _FailingObjects:
+        async def delete_file(self, key: str) -> None:
+            assert key == "key-a"
+            raise RuntimeError("object store unavailable")
+
+    storage.tombstone_cleanup_batch = _tombstone_batch
+
+    deleted = await storage.cleanup_scheduled_records(_FailingObjects())
+
+    assert deleted == 0
+    assert collection.update_one_calls == [
+        (
+            {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone},
+            {"$unset": {"deleting_at": ""}, "$set": {"updated_at": ANY}},
+        )
+    ]
 
 
 @pytest.mark.asyncio

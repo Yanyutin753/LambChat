@@ -102,7 +102,13 @@ class FileRecordStorage:
             Document dict with ``id`` (instead of ``_id``), or None.
         """
         await self.ensure_indexes_if_needed()
-        doc = await self.collection.find_one({"hash": file_hash, "uploaded_by": uploaded_by})
+        doc = await self.collection.find_one(
+            {
+                "hash": file_hash,
+                "uploaded_by": uploaded_by,
+                "deleting_at": {"$exists": False},
+            }
+        )
         if doc:
             doc["id"] = str(doc.pop("_id"))
         return doc
