@@ -139,9 +139,7 @@ def _trace_cleanup_guard_snapshot_query(
     field = _DELETE_OPERATION_FIELD
     query: dict[str, Any] = {
         f"{field}.id": operation["id"],
-        f"{field}.{_DELETE_CANCEL_REQUESTED_FIELD}": _delete_cancel_snapshot_query(
-            operation
-        ),
+        f"{field}.{_DELETE_CANCEL_REQUESTED_FIELD}": _delete_cancel_snapshot_query(operation),
     }
     guard_field = f"{field}.{_TRACE_CLEANUP_GUARD_FIELD}"
     if guard is None:
@@ -425,9 +423,7 @@ class SessionAttachmentOperationsMixin:
         lease_id: str | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]] | None:
         identity = (
-            self._trace_writer_lease_identities().get(lease_id)
-            if lease_id is not None
-            else None
+            self._trace_writer_lease_identities().get(lease_id) if lease_id is not None else None
         )
         if identity is None:
             return await self._resolve_trace_writer_session(session_id)
@@ -768,10 +764,8 @@ class SessionAttachmentOperationsMixin:
                 },
                 {
                     "$set": {
-                        (
-                            f"{_DELETE_OPERATION_FIELD}."
-                            f"{_TRACE_CLEANUP_GUARD_FIELD}.expires_at"
-                        ): now + TRACE_CLEANUP_GUARD_TTL,
+                        (f"{_DELETE_OPERATION_FIELD}.{_TRACE_CLEANUP_GUARD_FIELD}.expires_at"): now
+                        + TRACE_CLEANUP_GUARD_TTL,
                         "updated_at": now,
                     }
                 },

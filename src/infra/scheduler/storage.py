@@ -35,6 +35,7 @@ class AttachmentMutationFence:
     token: str
     generation: int
 
+
 _TASK_EXECUTION_PROJECTION = {
     "_id": 1,
     "name": 1,

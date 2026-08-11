@@ -269,9 +269,7 @@ class FileRecordStorage:
         newly_claimed: list[str] = []
         now = utc_now()
         existing_ids = {"$ifNull": ["$scheduled_task_reference_ids", []]}
-        existing_generations = {
-            "$ifNull": ["$scheduled_task_reference_generations", []]
-        }
+        existing_generations = {"$ifNull": ["$scheduled_task_reference_generations", []]}
         other_generations = {
             "$filter": {
                 "input": existing_generations,
@@ -316,9 +314,7 @@ class FileRecordStorage:
                                             "$not": {
                                                 "$elemMatch": {
                                                     "task_id": task_id,
-                                                    "generation": {
-                                                        "$gte": mutation_generation
-                                                    },
+                                                    "generation": {"$gte": mutation_generation},
                                                 }
                                             }
                                         }
@@ -404,9 +400,7 @@ class FileRecordStorage:
         if len(unique_keys) != len({str(key).strip() for key in keys if key and str(key).strip()}):
             raise AttachmentClaimError()
         await self.ensure_indexes_if_needed()
-        existing_generations = {
-            "$ifNull": ["$scheduled_task_reference_generations", []]
-        }
+        existing_generations = {"$ifNull": ["$scheduled_task_reference_generations", []]}
         other_generations = {
             "$filter": {
                 "input": existing_generations,
@@ -686,11 +680,7 @@ class FileRecordStorage:
                     "cleanup_after": {"$lte": now},
                     "$or": [
                         {"deleting_at": {"$exists": False}},
-                        {
-                            "deleting_at": {
-                                "$lte": now - CLEANUP_TOMBSTONE_LEASE_PERIOD
-                            }
-                        },
+                        {"deleting_at": {"$lte": now - CLEANUP_TOMBSTONE_LEASE_PERIOD}},
                     ],
                 },
                 {"$set": {"deleting_at": now, "updated_at": now}},

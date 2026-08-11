@@ -36,4 +36,3 @@ async def close_file_record_cleanup() -> None:
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
     await _file_record_storage.close()
-

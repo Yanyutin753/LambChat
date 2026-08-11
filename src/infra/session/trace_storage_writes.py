@@ -160,6 +160,7 @@ class TraceStorageWriteMixin:
                 try:
                     return await asyncio.shield(persist_task)
                 except asyncio.CancelledError:
+
                     async def _settle_cancelled_persist() -> bool:
                         await persist_task
                         lease_is_valid = await self.validate_session_trace_write(

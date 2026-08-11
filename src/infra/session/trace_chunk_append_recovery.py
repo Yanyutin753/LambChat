@@ -104,9 +104,8 @@ async def begin_chunk_append(
     current = await storage.collection.find_one({"trace_id": trace_id})
     if not current:
         return None
-    if (
-        trace_doc.get("updated_at") is not None
-        and trace_doc.get("updated_at") != current.get("updated_at")
+    if trace_doc.get("updated_at") is not None and trace_doc.get("updated_at") != current.get(
+        "updated_at"
     ):
         return None
 
@@ -413,14 +412,12 @@ async def recover_incomplete_chunk_appends(storage: Any, limit: int = 100) -> in
     """Roll back expired append reservations without racing their live owner."""
     recovered = 0
     now = utc_now()
-    cursor = storage.collection.find(
-        {f"{ATTACHMENT_CHUNK_WRITE_FIELD}.kind": "append"}
-    ).limit(max(int(limit or 0), 1))
+    cursor = storage.collection.find({f"{ATTACHMENT_CHUNK_WRITE_FIELD}.kind": "append"}).limit(
+        max(int(limit or 0), 1)
+    )
     async for trace_doc in cursor:
         try:
-            recovered += int(
-                await recover_incomplete_chunk_append(storage, trace_doc, now=now)
-            )
+            recovered += int(await recover_incomplete_chunk_append(storage, trace_doc, now=now))
         except Exception as exc:
             logger.warning(
                 "Failed to recover chunk append for trace %s: %s",

@@ -655,6 +655,7 @@ class SessionManager:
             try:
                 lease_is_valid = await asyncio.shield(clone_task)
             except asyncio.CancelledError:
+
                 async def _settle_cancelled_clone() -> bool:
                     try:
                         finalized_lease_is_valid = await clone_task
@@ -696,9 +697,7 @@ class SessionManager:
             if batch:
                 pending = list(batch)
                 result._inserted_trace_ids.extend(
-                    str(document["trace_id"])
-                    for document in pending
-                    if document.get("trace_id")
+                    str(document["trace_id"]) for document in pending if document.get("trace_id")
                 )
                 await self.trace_storage.collection.insert_many(pending)
                 batch.clear()

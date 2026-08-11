@@ -116,10 +116,7 @@ def _task_attachment_keys(input_payload: dict[str, Any]) -> list[str]:
 
 
 def _attachment_fence(task: ScheduledTask, token: str) -> AttachmentMutationFence:
-    if (
-        task.attachment_mutation_token != token
-        or task.attachment_mutation_generation < 1
-    ):
+    if task.attachment_mutation_token != token or task.attachment_mutation_generation < 1:
         raise RuntimeError(f"Scheduled task attachment mutation fence was lost for {task.id}")
     return AttachmentMutationFence(
         token=token,
@@ -733,9 +730,7 @@ class ScheduledTaskService:
     ) -> int:
         """Release only durable pending keys that are not live in the definition."""
         live_keys = set(task.attachment_keys)
-        pending_keys = [
-            key for key in task.pending_attachment_release_keys if key not in live_keys
-        ]
+        pending_keys = [key for key in task.pending_attachment_release_keys if key not in live_keys]
         storage = get_scheduled_task_storage()
         released = 0
         file_records = FileRecordStorage()

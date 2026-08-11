@@ -358,12 +358,10 @@ class DualEventWriter:
                             if _buffer_item_base(item)[3] == session_id
                         )
                     )
-                    discarded = (
-                        await self.trace.discard_session_trace_writes_after_lease_loss(
-                            session_id,
-                            lease_id,
-                            trace_ids,
-                        )
+                    discarded = await self.trace.discard_session_trace_writes_after_lease_loss(
+                        session_id,
+                        lease_id,
+                        trace_ids,
                     )
                     if not discarded:
                         retry_items = [
@@ -386,6 +384,7 @@ class DualEventWriter:
             try:
                 await asyncio.shield(flush_task)
             except asyncio.CancelledError:
+
                 async def _settle_cancelled_flush() -> bool:
                     try:
                         await flush_task
@@ -399,6 +398,7 @@ class DualEventWriter:
                 if await drain_task(recovery_task):
                     raise
         finally:
+
             async def _release_leases() -> None:
                 for session_id, lease_id in reversed(leased_sessions):
                     try:
