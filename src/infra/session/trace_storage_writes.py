@@ -120,27 +120,62 @@ class TraceStorageWriteMixin:
                             exc,
                         )
                         return False
-                if not await self.validate_session_trace_write(session_id, lease_id):
+
+                async def _discard_inserted_trace() -> None:
                     await self.collection.delete_one(
                         {
                             "_id": result.inserted_id,
                             "trace_id": trace_id,
                             "session_id": session_id,
-                            _TRACE_WRITE_LEASE_FIELD: lease_id,
                         }
                     )
+
+                async def _finalize_inserted_trace() -> bool:
+                    if await self.validate_session_trace_write(session_id, lease_id):
+                        await self.collection.update_one(
+                            {
+                                "_id": result.inserted_id,
+                                _TRACE_WRITE_LEASE_FIELD: lease_id,
+                            },
+                            {"$unset": {_TRACE_WRITE_LEASE_FIELD: ""}},
+                        )
+                        return True
+                    await _discard_inserted_trace()
                     logger.warning(
                         "Discarded trace %s after session writer lease was lost",
                         trace_id,
                     )
                     return False
-                await self.collection.update_one(
-                    {
-                        "_id": result.inserted_id,
-                        _TRACE_WRITE_LEASE_FIELD: lease_id,
-                    },
-                    {"$unset": {_TRACE_WRITE_LEASE_FIELD: ""}},
-                )
+
+                finalize_task = asyncio.create_task(_finalize_inserted_trace())
+                try:
+                    finalized = await asyncio.shield(finalize_task)
+                except asyncio.CancelledError:
+                    if await self.validate_session_trace_write(session_id, lease_id):
+                        finalize_task.cancel()
+                        try:
+                            await finalize_task
+                        except asyncio.CancelledError:
+                            pass
+                        raise
+                    try:
+                        await finalize_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Trace finalization for %s failed after lease loss: %s",
+                            trace_id,
+                            exc,
+                        )
+                    await _discard_inserted_trace()
+                    logger.warning(
+                        "Discarded trace %s after session writer lease was lost",
+                        trace_id,
+                    )
+                    return False
+                if not finalized:
+                    return False
                 logger.info(
                     "Created trace %s for session %s, inserted_id=%s",
                     trace_id,

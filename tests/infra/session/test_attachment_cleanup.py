@@ -2169,6 +2169,69 @@ async def test_create_trace_compensates_a_late_insert_after_lease_loss_and_sessi
 
 
 @pytest.mark.asyncio
+async def test_create_trace_compensates_when_lease_is_lost_during_marker_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_session_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    async def _skip_trace_indexes(_storage: TraceStorage) -> None:
+        return None
+
+    class _BlockingMarkerCleanupCollection(_FilterAwareCollection):
+        def __init__(self) -> None:
+            super().__init__([])
+            self.cleanup_started = asyncio.Event()
+            self.allow_cleanup = asyncio.Event()
+
+        async def insert_one(self, document: dict[str, Any]):
+            return await super().insert_one({**document, "_id": "cleanup-trace"})
+
+        async def update_one(self, query: dict[str, Any], update: dict, **kwargs):
+            if "_session_trace_write_lease_id" in update.get("$unset", {}):
+                self.cleanup_started.set()
+                await self.allow_cleanup.wait()
+            return await super().update_one(query, update, **kwargs)
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_session_indexes)
+    monkeypatch.setattr(TraceStorage, "ensure_indexes_if_needed", _skip_trace_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.TRACE_WRITER_HEARTBEAT_INTERVAL_SECONDS",
+        0.001,
+    )
+    session_collection = _FilterAwareCollection(
+        [{"_id": "session-doc", "session_id": "session-1", "user_id": "owner-a"}]
+    )
+    trace_collection = _BlockingMarkerCleanupCollection()
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage = TraceStorage()
+    trace_storage._collection = trace_collection
+    trace_storage._session_storage = session_storage
+
+    writer = asyncio.create_task(
+        trace_storage.create_trace("trace-cleanup", "session-1", user_id="owner-a")
+    )
+    await trace_collection.cleanup_started.wait()
+    session_collection.documents[0]["trace_writer_leases"][0]["expires_at"] = datetime.now(
+        timezone.utc
+    ) - timedelta(seconds=1)
+    claim = await session_storage.claim_attachment_delete_operation("session-1")
+    assert claim is not None and claim["acquired"] is True
+    assert await session_storage.delete_claimed_session("session-1", claim["id"]) is True
+    for _attempt in range(1000):
+        if writer.cancelling():
+            break
+        await asyncio.sleep(0.001)
+    assert writer.cancelling()
+
+    trace_collection.allow_cleanup.set()
+
+    assert await writer is False
+    assert trace_collection.documents == []
+
+
+@pytest.mark.asyncio
 async def test_concurrent_delete_request_cannot_cancel_the_owner_fence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

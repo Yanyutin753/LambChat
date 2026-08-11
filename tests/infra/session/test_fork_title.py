@@ -188,6 +188,120 @@ async def test_clone_history_discards_exact_late_inserts_after_lease_loss() -> N
 
 
 @pytest.mark.asyncio
+async def test_clone_history_shields_final_lease_check_and_discards_exact_inserts() -> None:
+    traces = [{"run_id": "run-1", "events": [], "started_at": 1}]
+    collection = _FakeTraceCollection(traces)
+
+    class _BlockingValidationStorage(_FakeSessionStorage):
+        def __init__(self) -> None:
+            super().__init__(validate_trace_write=False)
+            self.validation_started = asyncio.Event()
+            self.allow_validation = asyncio.Event()
+
+        async def validate_trace_write(self, session_id, lease_id):
+            del session_id, lease_id
+            self.validation_started.set()
+            await self.allow_validation.wait()
+            return False
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.collection = collection
+            self.discarded: list[tuple[str, str, list[str]]] = []
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+    manager = SessionManager()
+    storage = _BlockingValidationStorage()
+    trace_storage = _TraceStorage()
+    manager.storage = storage
+    manager._trace_storage = trace_storage
+
+    clone = asyncio.create_task(
+        manager._clone_history_to_session(
+            source_session=Session(id="source", user_id="user"),
+            target_session=Session(id="target", user_id="user"),
+            target={
+                "run_id": "run-1",
+                "target_type": "assistant",
+                "completed_run_ids": ["run-1"],
+            },
+            user_id="user",
+        )
+    )
+    await storage.validation_started.wait()
+    clone.cancel()
+    storage.allow_validation.set()
+
+    with pytest.raises(Exception, match="session_trace_write_lease_lost"):
+        await clone
+
+    inserted_trace_id = collection.inserted_docs[0]["trace_id"]
+    assert trace_storage.discarded == [("target", "lease:target", [inserted_trace_id])]
+    assert storage.released_trace_writes == [("target", "lease:target")]
+
+
+@pytest.mark.asyncio
+async def test_clone_history_shields_compensation_after_final_lease_check_fails() -> None:
+    traces = [{"run_id": "run-1", "events": [], "started_at": 1}]
+    collection = _FakeTraceCollection(traces)
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.collection = collection
+            self.discard_started = asyncio.Event()
+            self.allow_discard = asyncio.Event()
+            self.discarded: list[tuple[str, str, list[str]]] = []
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discard_started.set()
+            await self.allow_discard.wait()
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+    manager = SessionManager()
+    storage = _FakeSessionStorage(validate_trace_write=False)
+    trace_storage = _TraceStorage()
+    manager.storage = storage
+    manager._trace_storage = trace_storage
+
+    clone = asyncio.create_task(
+        manager._clone_history_to_session(
+            source_session=Session(id="source", user_id="user"),
+            target_session=Session(id="target", user_id="user"),
+            target={
+                "run_id": "run-1",
+                "target_type": "assistant",
+                "completed_run_ids": ["run-1"],
+            },
+            user_id="user",
+        )
+    )
+    await trace_storage.discard_started.wait()
+    clone.cancel()
+    trace_storage.allow_discard.set()
+
+    with pytest.raises(Exception, match="session_trace_write_lease_lost"):
+        await clone
+
+    inserted_trace_id = collection.inserted_docs[0]["trace_id"]
+    assert trace_storage.discarded == [("target", "lease:target", [inserted_trace_id])]
+    assert storage.released_trace_writes == [("target", "lease:target")]
+
+
+@pytest.mark.asyncio
 async def test_clone_history_inserts_traces_in_batches(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "src.infra.session.manager.SESSION_FORK_TRACE_INSERT_BATCH_SIZE",

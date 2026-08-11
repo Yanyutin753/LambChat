@@ -625,8 +625,16 @@ class SessionManager:
             raise SessionError("session_trace_write_fenced")
         try:
             clone_result = SessionForkCloneResult()
-            clone_task = asyncio.create_task(
-                self._clone_history_to_session_unfenced(
+
+            async def _discard_cloned_traces() -> None:
+                await self.trace_storage.discard_session_trace_writes_after_lease_loss(
+                    target_session.id,
+                    lease_id,
+                    clone_result._inserted_trace_ids,
+                )
+
+            async def _clone_and_finalize() -> bool:
+                await self._clone_history_to_session_unfenced(
                     result=clone_result,
                     source_session=source_session,
                     target_session=target_session,
@@ -634,10 +642,17 @@ class SessionManager:
                     user_id=user_id,
                     collect_checkpoint_messages=collect_checkpoint_messages,
                 )
-            )
-            lease_lost = False
+                lease_is_valid = await self.storage.validate_trace_write(
+                    target_session.id,
+                    lease_id,
+                )
+                if not lease_is_valid:
+                    await _discard_cloned_traces()
+                return lease_is_valid
+
+            clone_task = asyncio.create_task(_clone_and_finalize())
             try:
-                await asyncio.shield(clone_task)
+                lease_is_valid = await asyncio.shield(clone_task)
             except asyncio.CancelledError:
                 if await self.storage.validate_trace_write(target_session.id, lease_id):
                     clone_task.cancel()
@@ -646,25 +661,15 @@ class SessionManager:
                     except asyncio.CancelledError:
                         pass
                     raise
-                lease_lost = True
                 try:
-                    await clone_task
+                    finalized_lease_is_valid = await clone_task
                 except Exception as exc:
-                    await self.trace_storage.discard_session_trace_writes_after_lease_loss(
-                        target_session.id,
-                        lease_id,
-                        clone_result._inserted_trace_ids,
-                    )
+                    await _discard_cloned_traces()
                     raise SessionError("session_trace_write_lease_lost") from exc
-            if lease_lost or not await self.storage.validate_trace_write(
-                target_session.id,
-                lease_id,
-            ):
-                await self.trace_storage.discard_session_trace_writes_after_lease_loss(
-                    target_session.id,
-                    lease_id,
-                    clone_result._inserted_trace_ids,
-                )
+                if finalized_lease_is_valid:
+                    await _discard_cloned_traces()
+                raise SessionError("session_trace_write_lease_lost")
+            if not lease_is_valid:
                 raise SessionError("session_trace_write_lease_lost")
             return clone_result
         finally:

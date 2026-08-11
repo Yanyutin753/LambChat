@@ -325,6 +325,7 @@ class DualEventWriter:
 
         session_ids = list(dict.fromkeys(_buffer_item_base(item)[3] for item in batch))
         leased_sessions: list[tuple[str, str]] = []
+        reconciled_lost_sessions: set[str] = set()
         try:
             for session_id in session_ids:
                 try:
@@ -344,6 +345,8 @@ class DualEventWriter:
             async def _reconcile_lost_leases() -> bool:
                 lease_was_lost = False
                 for session_id, lease_id in leased_sessions:
+                    if session_id in reconciled_lost_sessions:
+                        continue
                     if await self.trace.validate_session_trace_write(session_id, lease_id):
                         continue
                     lease_was_lost = True
@@ -367,6 +370,7 @@ class DualEventWriter:
                         ]
                         async with self._mongo_lock:
                             self._mongo_buffer = retry_items + self._mongo_buffer
+                    reconciled_lost_sessions.add(session_id)
                     logger.warning(
                         "Session trace writer lease was lost after flushing %s",
                         session_id,
@@ -394,7 +398,31 @@ class DualEventWriter:
                 except Exception:
                     await _reconcile_lost_leases()
                     raise
-            await _reconcile_lost_leases()
+            reconcile_task = asyncio.create_task(_reconcile_lost_leases())
+            try:
+                await asyncio.shield(reconcile_task)
+            except asyncio.CancelledError:
+                lost_during_reconciliation = False
+                for session_id, lease_id in leased_sessions:
+                    if not await self.trace.validate_session_trace_write(
+                        session_id,
+                        lease_id,
+                    ):
+                        lost_during_reconciliation = True
+                        break
+                if not lost_during_reconciliation:
+                    reconcile_task.cancel()
+                    try:
+                        await reconcile_task
+                    except asyncio.CancelledError:
+                        pass
+                    raise
+                try:
+                    await reconcile_task
+                except Exception:
+                    await _reconcile_lost_leases()
+                    raise
+                await _reconcile_lost_leases()
         finally:
             for session_id, lease_id in reversed(leased_sessions):
                 try:

@@ -816,6 +816,75 @@ async def test_flush_discards_exact_late_writes_when_session_lease_is_lost(
 
 
 @pytest.mark.asyncio
+async def test_flush_shields_final_lease_reconciliation_after_write_completes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dual_writer.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        False,
+        raising=False,
+    )
+
+    class _Collection:
+        async def bulk_write(self, operations, ordered: bool = False):
+            del operations, ordered
+            return type("_Result", (), {"modified_count": 1, "upserted_count": 0})()
+
+    class _FakeTrace:
+        def __init__(self) -> None:
+            self.collection = _Collection()
+            self.validation_started = asyncio.Event()
+            self.allow_validation = asyncio.Event()
+            self.discarded: list[tuple[str, str, list[str]]] = []
+            self.released: list[tuple[str, str]] = []
+
+        async def acquire_session_trace_write(self, session_id: str) -> str:
+            return f"lease:{session_id}"
+
+        async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool:
+            del session_id, lease_id
+            self.validation_started.set()
+            await self.allow_validation.wait()
+            return False
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+            self.released.append((session_id, lease_id))
+
+    writer = dual_writer.DualEventWriter()
+    writer._trace = _FakeTrace()
+    writer._mongo_buffer = [
+        (
+            "trace-final",
+            "message:chunk",
+            {"content": "must-not-orphan"},
+            "session-1",
+            "run-1",
+            datetime(2026, 1, 1),
+        )
+    ]
+
+    flush = asyncio.create_task(writer._do_flush())
+    await writer.trace.validation_started.wait()
+    flush.cancel()
+    writer.trace.allow_validation.set()
+    await flush
+
+    assert writer.trace.discarded == [("session-1", "lease:session-1", ["trace-final"])]
+    assert writer.trace.released == [("session-1", "lease:session-1")]
+    assert writer._mongo_buffer == []
+
+
+@pytest.mark.asyncio
 async def test_flush_mongo_buffer_requeues_legacy_batch_when_bulk_write_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
