@@ -58,6 +58,7 @@ from src.infra.session._trace_storage_support import (
 from src.infra.session._trace_storage_support import (
     _get_event_chunk_size as _get_event_chunk_size,
 )
+from src.infra.session.cancellation import drain_task
 from src.infra.session.trace_attachment_cleanup import (
     ATTACHMENT_CLEAR_TERMINAL_STATUSES as ATTACHMENT_CLEAR_TERMINAL_STATUSES,
 )
@@ -171,21 +172,61 @@ class TraceStorage(
         """Remove exact late trace writes only after their session is gone or fenced."""
         if await self.validate_session_trace_write(session_id, lease_id):
             return False
-        if not await self.session_storage.trace_write_session_is_fenced_or_missing(
+        guard = await self.session_storage.acquire_trace_cleanup_guard(
             session_id,
             lease_id,
-        ):
+        )
+        if guard is None:
             return False
         bounded_trace_ids = list(dict.fromkeys(trace_ids))
-        if not bounded_trace_ids:
-            return True
-        query = {
-            "session_id": session_id,
-            "trace_id": {"$in": bounded_trace_ids},
-        }
-        await self.chunks_collection.delete_many(query)
-        await self.collection.delete_many(query)
-        return True
+        session_is_missing = guard.get("session_missing") is True
+        guard_id = guard.get("id")
+        delete_operation_id = guard.get("delete_operation_id")
+        if not session_is_missing and (
+            not isinstance(guard_id, str)
+            or not guard_id
+            or not isinstance(delete_operation_id, str)
+            or not delete_operation_id
+        ):
+            return False
+
+        async def _delete_trace_documents() -> None:
+            if not bounded_trace_ids:
+                return
+            query = {
+                "session_id": session_id,
+                "trace_id": {"$in": bounded_trace_ids},
+            }
+            await self.chunks_collection.delete_many(query)
+            await self.collection.delete_many(query)
+
+        cleanup_task = asyncio.create_task(_delete_trace_documents())
+        cleanup_completed = False
+        guard_released = session_is_missing
+        try:
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                await drain_task(cleanup_task)
+                raise
+            cleanup_completed = True
+        finally:
+            if not session_is_missing:
+                release_task = asyncio.create_task(
+                    self.session_storage.release_trace_cleanup_guard(
+                        session_id,
+                        delete_operation_id,
+                        guard_id,
+                    )
+                )
+                guard_released = await drain_task(release_task)
+                if not guard_released:
+                    logger.warning(
+                        "Failed to release trace cleanup guard %s for session %s",
+                        guard_id,
+                        session_id,
+                    )
+        return cleanup_completed and guard_released
 
     async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
         await self.session_storage.release_trace_write(session_id, lease_id)

@@ -2056,6 +2056,412 @@ async def test_malformed_trace_writer_lease_shapes_fail_closed(
 
 
 @pytest.mark.asyncio
+async def test_trace_cleanup_guard_defers_delete_cancel_until_cross_collection_cleanup_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    class _BlockingChunksCollection(_FilterAwareCollection):
+        def __init__(self) -> None:
+            super().__init__(
+                [
+                    {
+                        "_id": "chunk-a",
+                        "session_id": "session-1",
+                        "trace_id": "trace-a",
+                    }
+                ]
+            )
+            self.delete_started = asyncio.Event()
+            self.allow_delete = asyncio.Event()
+
+        async def delete_many(self, query: dict[str, Any]):
+            self.delete_started.set()
+            await self.allow_delete.wait()
+            return await super().delete_many(query)
+
+    now = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+    session_collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [
+                    {
+                        "id": "writer-a",
+                        "expires_at": now - timedelta(seconds=1),
+                    }
+                ],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": now,
+                },
+            }
+        ]
+    )
+    parents = _FilterAwareCollection(
+        [
+            {
+                "_id": "parent-a",
+                "session_id": "session-1",
+                "trace_id": "trace-a",
+                "events": [],
+                "event_count": 0,
+            }
+        ]
+    )
+    chunks = _BlockingChunksCollection()
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage = TraceStorage()
+    trace_storage._collection = parents
+    trace_storage._chunks_collection = chunks
+    trace_storage._session_storage = session_storage
+
+    cleanup = asyncio.create_task(
+        trace_storage.discard_session_trace_writes_after_lease_loss(
+            "session-1",
+            "writer-a",
+            ["trace-a"],
+        )
+    )
+    await chunks.delete_started.wait()
+    operation_during_cleanup = deepcopy(
+        session_collection.documents[0]["attachment_delete_operation"]
+    )
+    cancel_result = await session_storage.cancel_attachment_delete_operation(
+        "session-1",
+        "delete-1",
+    )
+    writer_during_cleanup = await session_storage.acquire_trace_write("session-1")
+    if writer_during_cleanup is not None:
+        assert await trace_storage.append_event(
+            "trace-a",
+            "message:chunk",
+            {"content": "must-not-be-deleted"},
+        ) is True
+
+    chunks.allow_delete.set()
+    cleanup_result = await cleanup
+    if writer_during_cleanup is not None:
+        await session_storage.release_trace_write("session-1", writer_during_cleanup)
+    writer_after_cleanup = await session_storage.acquire_trace_write("session-1")
+    if writer_after_cleanup is not None:
+        await session_storage.release_trace_write("session-1", writer_after_cleanup)
+
+    assert isinstance(operation_during_cleanup.get("cleanup_guard", {}).get("id"), str)
+    assert cancel_result is True
+    assert writer_during_cleanup is None
+    assert cleanup_result is True
+    assert chunks.documents == []
+    assert parents.documents == []
+    assert "attachment_delete_operation" not in session_collection.documents[0]
+    assert isinstance(writer_after_cleanup, str)
+
+
+@pytest.mark.asyncio
+async def test_active_trace_cleanup_guard_blocks_delete_claim_and_anchor_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    now = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": now,
+                    "cleanup_guard": {
+                        "id": "guard-1",
+                        "writer_lease_id": "writer-a",
+                        "expires_at": now + timedelta(minutes=1),
+                    },
+                },
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    observed_claim = await storage.claim_attachment_delete_operation("session-1")
+    deleted = await storage.delete_claimed_session("session-1", "delete-1")
+
+    assert observed_claim is None
+    assert deleted is False
+    assert collection.ids() == {"session-doc"}
+
+
+@pytest.mark.asyncio
+async def test_trace_cleanup_guard_refuses_fenced_session_with_a_live_writer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    now = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+    session_collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [
+                    {
+                        "id": "writer-live",
+                        "expires_at": now + timedelta(minutes=1),
+                    }
+                ],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": now,
+                },
+            }
+        ]
+    )
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage, parents, chunks = _trace_storage_with_documents(
+        [{"_id": "parent-a", "session_id": "session-1", "trace_id": "trace-a"}],
+        [{"_id": "chunk-a", "session_id": "session-1", "trace_id": "trace-a"}],
+    )
+    trace_storage._session_storage = session_storage
+
+    cleanup_result = await trace_storage.discard_session_trace_writes_after_lease_loss(
+        "session-1",
+        "writer-live",
+        ["trace-a"],
+    )
+
+    assert cleanup_result is False
+    assert parents.ids() == {"parent-a"}
+    assert chunks.ids() == {"chunk-a"}
+    assert "cleanup_guard" not in session_collection.documents[0][
+        "attachment_delete_operation"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_trace_cleanup_guard_exact_release_applies_pending_delete_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    now = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": now,
+                    "cleanup_guard": {
+                        "id": "guard-1",
+                        "writer_lease_id": "writer-a",
+                        "expires_at": now + timedelta(minutes=1),
+                    },
+                },
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    assert await storage.cancel_attachment_delete_operation("session-1", "delete-1") is True
+    operation_after_cancel = deepcopy(
+        collection.documents[0].get("attachment_delete_operation")
+    )
+    wrong_operation_release = await storage.release_trace_cleanup_guard(
+        "session-1",
+        "delete-forged",
+        "guard-1",
+    )
+    forged_guard_release = await storage.release_trace_cleanup_guard(
+        "session-1",
+        "delete-1",
+        "guard-forged",
+    )
+    operation_after_forged_releases = deepcopy(
+        collection.documents[0].get("attachment_delete_operation")
+    )
+    exact_release = await storage.release_trace_cleanup_guard(
+        "session-1",
+        "delete-1",
+        "guard-1",
+    )
+    writer_after_release = await storage.acquire_trace_write("session-1")
+    if writer_after_release is not None:
+        await storage.release_trace_write("session-1", writer_after_release)
+
+    assert isinstance(operation_after_cancel, dict)
+    assert operation_after_cancel["cancel_requested"] is True
+    assert wrong_operation_release is False
+    assert forged_guard_release is False
+    assert operation_after_forged_releases == operation_after_cancel
+    assert exact_release is True
+    assert "attachment_delete_operation" not in collection.documents[0]
+    assert isinstance(writer_after_release, str)
+
+
+@pytest.mark.asyncio
+async def test_expired_trace_cleanup_guard_takeover_rejects_stale_and_wrong_operation_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    now = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": now,
+                    "cleanup_guard": {
+                        "id": "crashed-guard",
+                        "writer_lease_id": "writer-crashed",
+                        "expires_at": now - timedelta(seconds=1),
+                    },
+                },
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    replacement = await storage.acquire_trace_cleanup_guard("session-1", "writer-a")
+    assert replacement is not None
+    replacement_id = replacement["id"]
+    stale_release = await storage.release_trace_cleanup_guard(
+        "session-1",
+        "delete-1",
+        "crashed-guard",
+    )
+    wrong_operation_release = await storage.release_trace_cleanup_guard(
+        "session-1",
+        "delete-forged",
+        replacement_id,
+    )
+    operation_before_exact_release = deepcopy(
+        collection.documents[0]["attachment_delete_operation"]
+    )
+    exact_release = await storage.release_trace_cleanup_guard(
+        "session-1",
+        "delete-1",
+        replacement_id,
+    )
+
+    assert replacement_id != "crashed-guard"
+    assert replacement["delete_operation_id"] == "delete-1"
+    assert replacement["session_missing"] is False
+    assert stale_release is False
+    assert wrong_operation_release is False
+    assert operation_before_exact_release["cleanup_guard"]["id"] == replacement_id
+    assert exact_release is True
+    assert "cleanup_guard" not in collection.documents[0]["attachment_delete_operation"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "malformed_guard",
+    [
+        "corrupt",
+        {"writer_lease_id": "writer-a", "expires_at": datetime(2026, 8, 11)},
+        {"id": "guard-1", "writer_lease_id": 42, "expires_at": datetime(2026, 8, 11)},
+        {"id": "guard-1", "writer_lease_id": "writer-a", "expires_at": "tomorrow"},
+    ],
+)
+async def test_malformed_trace_cleanup_guard_fails_closed_across_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+    malformed_guard: object,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    now = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+    original_session = {
+        "_id": "session-doc",
+        "session_id": "session-1",
+        "trace_writer_leases": [],
+        "attachment_delete_operation": {
+            "id": "delete-1",
+            "claimed_at": now,
+            "cleanup_guard": malformed_guard,
+        },
+    }
+    session_collection = _FilterAwareCollection([original_session])
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage, parents, chunks = _trace_storage_with_documents(
+        [{"_id": "parent-a", "session_id": "session-1", "trace_id": "trace-a"}],
+        [{"_id": "chunk-a", "session_id": "session-1", "trace_id": "trace-a"}],
+    )
+    trace_storage._session_storage = session_storage
+
+    cleanup_result = await trace_storage.discard_session_trace_writes_after_lease_loss(
+        "session-1",
+        "writer-a",
+        ["trace-a"],
+    )
+    writer_result = await session_storage.acquire_trace_write("session-1")
+    claim_result = await session_storage.claim_attachment_delete_operation("session-1")
+    delete_result = await session_storage.delete_claimed_session("session-1", "delete-1")
+    cancel_result = await session_storage.cancel_attachment_delete_operation(
+        "session-1",
+        "delete-1",
+    )
+
+    assert cleanup_result is False
+    assert writer_result is None
+    assert claim_result is None
+    assert delete_result is False
+    assert cancel_result is False
+    assert session_collection.documents == [original_session]
+    assert parents.ids() == {"parent-a"}
+    assert chunks.ids() == {"chunk-a"}
+
+
+@pytest.mark.asyncio
 async def test_trace_writer_lease_renewal_and_exact_release_keep_live_writer_fenced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2310,7 +2716,21 @@ async def test_create_trace_survives_repeated_cancellation_until_insert_is_compe
     async def _skip_trace_indexes(_storage: TraceStorage) -> None:
         return None
 
-    async def _session_is_fenced(_session_id: str, _lease_id: str) -> bool:
+    async def _acquire_cleanup_guard(
+        _session_id: str,
+        _lease_id: str,
+    ) -> dict[str, Any]:
+        return {
+            "id": "cleanup-guard",
+            "delete_operation_id": "delete-operation",
+            "session_missing": False,
+        }
+
+    async def _release_cleanup_guard(
+        _session_id: str,
+        _delete_operation_id: str,
+        _guard_id: str,
+    ) -> bool:
         return True
 
     class _BlockingTraceCollection(_FilterAwareCollection):
@@ -2337,7 +2757,8 @@ async def test_create_trace_survives_repeated_cancellation_until_insert_is_compe
             self._collection = _BlockingTraceCollection()
             self._chunks_collection = _FilterAwareCollection([])
             self._session_storage = SimpleNamespace(
-                trace_write_session_is_fenced_or_missing=_session_is_fenced,
+                acquire_trace_cleanup_guard=_acquire_cleanup_guard,
+                release_trace_cleanup_guard=_release_cleanup_guard,
             )
             self.owner: asyncio.Task[Any] | None = None
             self.second_cancel_turn_completed = asyncio.Event()

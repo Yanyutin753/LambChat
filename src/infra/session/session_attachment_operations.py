@@ -15,6 +15,10 @@ TRACE_WRITER_LEASES_FIELD = "trace_writer_leases"
 TRACE_WRITER_LEASE_TTL = timedelta(minutes=5)
 TRACE_WRITER_HEARTBEAT_INTERVAL_SECONDS = 60.0
 TRACE_WRITER_CAS_ATTEMPTS = 5
+TRACE_CLEANUP_GUARD_TTL = timedelta(minutes=5)
+_DELETE_OPERATION_FIELD = "attachment_delete_operation"
+_TRACE_CLEANUP_GUARD_FIELD = "cleanup_guard"
+_DELETE_CANCEL_REQUESTED_FIELD = "cancel_requested"
 _MISSING = object()
 
 
@@ -77,6 +81,80 @@ def _all_trace_writer_leases_expired(
         return all(lease["expires_at"] <= now for lease in leases)
     except TypeError:
         return False
+
+
+def _validated_trace_cleanup_guard(
+    operation: dict[str, Any],
+) -> tuple[bool, dict[str, Any] | None]:
+    raw_guard = operation.get(_TRACE_CLEANUP_GUARD_FIELD, _MISSING)
+    if raw_guard is _MISSING:
+        return True, None
+    if not isinstance(raw_guard, dict):
+        return False, None
+    guard_id = raw_guard.get("id")
+    writer_lease_id = raw_guard.get("writer_lease_id")
+    expires_at = raw_guard.get("expires_at")
+    if (
+        not isinstance(guard_id, str)
+        or not guard_id
+        or not isinstance(writer_lease_id, str)
+        or not writer_lease_id
+        or not isinstance(expires_at, datetime)
+    ):
+        return False, None
+    return True, raw_guard
+
+
+def _validated_delete_cancel_requested(operation: dict[str, Any]) -> bool | None:
+    raw_value = operation.get(_DELETE_CANCEL_REQUESTED_FIELD, _MISSING)
+    if raw_value is _MISSING:
+        return False
+    return raw_value if type(raw_value) is bool else None
+
+
+def _trace_cleanup_guard_is_active(
+    guard: dict[str, Any],
+    now: datetime,
+) -> bool | None:
+    try:
+        return bool(guard["expires_at"] > now)
+    except TypeError:
+        return None
+
+
+def _delete_cancel_snapshot_query(
+    operation: dict[str, Any],
+) -> object:
+    return (
+        operation[_DELETE_CANCEL_REQUESTED_FIELD]
+        if _DELETE_CANCEL_REQUESTED_FIELD in operation
+        else {"$exists": False}
+    )
+
+
+def _trace_cleanup_guard_snapshot_query(
+    operation: dict[str, Any],
+    guard: dict[str, Any] | None,
+) -> dict[str, Any]:
+    field = _DELETE_OPERATION_FIELD
+    query: dict[str, Any] = {
+        f"{field}.id": operation["id"],
+        f"{field}.{_DELETE_CANCEL_REQUESTED_FIELD}": _delete_cancel_snapshot_query(
+            operation
+        ),
+    }
+    guard_field = f"{field}.{_TRACE_CLEANUP_GUARD_FIELD}"
+    if guard is None:
+        query[guard_field] = {"$exists": False}
+    else:
+        query.update(
+            {
+                f"{guard_field}.id": guard["id"],
+                f"{guard_field}.writer_lease_id": guard["writer_lease_id"],
+                f"{guard_field}.expires_at": guard["expires_at"],
+            }
+        )
+    return query
 
 
 class SessionAttachmentOperationsMixin:
@@ -313,6 +391,13 @@ class SessionAttachmentOperationsMixin:
             setattr(self, "_active_trace_writer_lease_identities", identities)
         return identities
 
+    def _trace_cleanup_guard_identities(self) -> dict[str, dict[str, Any]]:
+        identities = getattr(self, "_active_trace_cleanup_guard_identities", None)
+        if identities is None:
+            identities = {}
+            setattr(self, "_active_trace_cleanup_guard_identities", identities)
+        return identities
+
     async def _resolve_trace_writer_session(
         self,
         session_id: str,
@@ -344,6 +429,17 @@ class SessionAttachmentOperationsMixin:
             if lease_id is not None
             else None
         )
+        if identity is None:
+            return await self._resolve_trace_writer_session(session_id)
+        document = await self.collection.find_one(identity)
+        return (identity, document) if document is not None else None
+
+    async def _load_trace_cleanup_guard_session(
+        self,
+        session_id: str,
+        guard_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        identity = self._trace_cleanup_guard_identities().get(guard_id)
         if identity is None:
             return await self._resolve_trace_writer_session(session_id)
         document = await self.collection.find_one(identity)
@@ -501,6 +597,139 @@ class SessionAttachmentOperationsMixin:
                 return False
         return False
 
+    async def acquire_trace_cleanup_guard(
+        self,
+        session_id: str,
+        writer_lease_id: str,
+    ) -> dict[str, Any] | None:
+        """Claim exact cleanup ownership while the pinned session is delete-fenced."""
+        if not writer_lease_id:
+            return None
+        loaded = await self._load_trace_writer_session(
+            session_id,
+            lease_id=writer_lease_id,
+        )
+        if loaded is None:
+            return {
+                "id": None,
+                "delete_operation_id": None,
+                "session_missing": True,
+            }
+        identity, document = loaded
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            leases = _validated_trace_writer_leases(document)
+            operation = document.get(_DELETE_OPERATION_FIELD)
+            if (
+                leases is None
+                or not _legacy_trace_writer_counter_is_safe(document)
+                or not isinstance(operation, dict)
+            ):
+                return None
+            operation_id = operation.get("id")
+            cancel_requested = _validated_delete_cancel_requested(operation)
+            guard_is_valid, existing_guard = _validated_trace_cleanup_guard(operation)
+            if (
+                not isinstance(operation_id, str)
+                or not operation_id
+                or cancel_requested is not False
+                or not guard_is_valid
+            ):
+                return None
+            now = utc_now()
+            if not _all_trace_writer_leases_expired(leases, now):
+                return None
+            if existing_guard is not None:
+                guard_is_active = _trace_cleanup_guard_is_active(existing_guard, now)
+                if guard_is_active is not False:
+                    return None
+            guard_id = uuid.uuid4().hex
+            guard = {
+                "id": guard_id,
+                "writer_lease_id": writer_lease_id,
+                "expires_at": now + TRACE_CLEANUP_GUARD_TTL,
+            }
+            result = await self.collection.update_one(
+                {
+                    **identity,
+                    **_trace_writer_snapshot_query(document),
+                    **_trace_cleanup_guard_snapshot_query(operation, existing_guard),
+                },
+                {
+                    "$set": {
+                        f"{_DELETE_OPERATION_FIELD}.{_TRACE_CLEANUP_GUARD_FIELD}": guard,
+                        "updated_at": utc_now(),
+                    }
+                },
+            )
+            if result.matched_count > 0:
+                self._trace_cleanup_guard_identities()[guard_id] = identity
+                return {
+                    **guard,
+                    "delete_operation_id": operation_id,
+                    "session_missing": False,
+                }
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                return {
+                    "id": None,
+                    "delete_operation_id": None,
+                    "session_missing": True,
+                }
+            document = refreshed
+        return None
+
+    async def release_trace_cleanup_guard(
+        self,
+        session_id: str,
+        delete_operation_id: str,
+        guard_id: str,
+    ) -> bool:
+        """Release the exact guard and atomically apply any pending fence cancel."""
+        if not delete_operation_id or not guard_id:
+            return False
+        loaded = await self._load_trace_cleanup_guard_session(session_id, guard_id)
+        if loaded is None:
+            self._trace_cleanup_guard_identities().pop(guard_id, None)
+            return False
+        identity, document = loaded
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            operation = document.get(_DELETE_OPERATION_FIELD)
+            if not isinstance(operation, dict) or operation.get("id") != delete_operation_id:
+                return False
+            cancel_requested = _validated_delete_cancel_requested(operation)
+            guard_is_valid, guard = _validated_trace_cleanup_guard(operation)
+            if (
+                cancel_requested is None
+                or not guard_is_valid
+                or guard is None
+                or guard.get("id") != guard_id
+            ):
+                return False
+            unset_field = (
+                _DELETE_OPERATION_FIELD
+                if cancel_requested
+                else f"{_DELETE_OPERATION_FIELD}.{_TRACE_CLEANUP_GUARD_FIELD}"
+            )
+            result = await self.collection.update_one(
+                {
+                    **identity,
+                    **_trace_cleanup_guard_snapshot_query(operation, guard),
+                },
+                {
+                    "$unset": {unset_field: ""},
+                    "$set": {"updated_at": utc_now()},
+                },
+            )
+            if result.matched_count > 0:
+                self._trace_cleanup_guard_identities().pop(guard_id, None)
+                return True
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                self._trace_cleanup_guard_identities().pop(guard_id, None)
+                return False
+            document = refreshed
+        return False
+
     async def trace_write_session_is_fenced_or_missing(
         self,
         session_id: str,
@@ -553,7 +782,7 @@ class SessionAttachmentOperationsMixin:
     async def claim_attachment_delete_operation(self, session_id: str) -> dict[str, Any] | None:
         """Fence new trace writers only when no writer lease is active."""
         await self.ensure_indexes_if_needed()
-        field = "attachment_delete_operation"
+        field = _DELETE_OPERATION_FIELD
         operation = {"id": uuid.uuid4().hex, "claimed_at": utc_now()}
 
         resolved = await self._resolve_trace_writer_session(session_id)
@@ -563,6 +792,14 @@ class SessionAttachmentOperationsMixin:
         for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
             existing_operation = document.get(field)
             if isinstance(existing_operation, dict):
+                cancel_requested = _validated_delete_cancel_requested(existing_operation)
+                guard_is_valid, guard = _validated_trace_cleanup_guard(existing_operation)
+                if cancel_requested is None or cancel_requested or not guard_is_valid:
+                    return None
+                if guard is not None:
+                    guard_is_active = _trace_cleanup_guard_is_active(guard, utc_now())
+                    if guard_is_active is not False:
+                        return None
                 return {**existing_operation, "acquired": False}
             if field in document:
                 return None
@@ -598,23 +835,65 @@ class SessionAttachmentOperationsMixin:
         return None
 
     async def cancel_attachment_delete_operation(self, session_id: str, operation_id: str) -> bool:
-        """Remove the exact delete fence after a fail-closed refusal."""
-        field = "attachment_delete_operation"
+        """Cancel exactly, deferring fence removal while cleanup owns a live guard."""
+        field = _DELETE_OPERATION_FIELD
 
         resolved = await self._resolve_trace_writer_session(session_id)
         if resolved is None:
             return False
-        identity, _document = resolved
-        result = await self.collection.update_one(
-            {**identity, f"{field}.id": operation_id},
-            {"$unset": {field: ""}, "$set": {"updated_at": utc_now()}},
-        )
-        return result.modified_count > 0
+        identity, document = resolved
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            operation = document.get(field)
+            if not isinstance(operation, dict) or operation.get("id") != operation_id:
+                return False
+            cancel_requested = _validated_delete_cancel_requested(operation)
+            guard_is_valid, guard = _validated_trace_cleanup_guard(operation)
+            if cancel_requested is None or not guard_is_valid:
+                return False
+            if guard is None:
+                if cancel_requested:
+                    return False
+                update = {
+                    "$unset": {field: ""},
+                    "$set": {"updated_at": utc_now()},
+                }
+            else:
+                guard_is_active = _trace_cleanup_guard_is_active(guard, utc_now())
+                if guard_is_active is None:
+                    return False
+                if guard_is_active:
+                    if cancel_requested:
+                        return True
+                    update = {
+                        "$set": {
+                            f"{field}.{_DELETE_CANCEL_REQUESTED_FIELD}": True,
+                            "updated_at": utc_now(),
+                        }
+                    }
+                else:
+                    update = {
+                        "$unset": {field: ""},
+                        "$set": {"updated_at": utc_now()},
+                    }
+            result = await self.collection.update_one(
+                {
+                    **identity,
+                    **_trace_cleanup_guard_snapshot_query(operation, guard),
+                },
+                update,
+            )
+            if result.matched_count > 0:
+                return True
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                return False
+            document = refreshed
+        return False
 
     async def delete_claimed_session(self, session_id: str, operation_id: str) -> bool:
         """Atomically delete the exact fenced session when all writers are gone."""
         await self.ensure_indexes_if_needed()
-        field = "attachment_delete_operation"
+        field = _DELETE_OPERATION_FIELD
 
         resolved = await self._resolve_trace_writer_session(session_id)
         if resolved is None:
@@ -624,9 +903,18 @@ class SessionAttachmentOperationsMixin:
             operation = document.get(field)
             leases = _validated_trace_writer_leases(document)
             now = utc_now()
+            if not isinstance(operation, dict):
+                return False
+            cancel_requested = _validated_delete_cancel_requested(operation)
+            guard_is_valid, guard = _validated_trace_cleanup_guard(operation)
+            if cancel_requested is not False or not guard_is_valid:
+                return False
+            if guard is not None:
+                guard_is_active = _trace_cleanup_guard_is_active(guard, now)
+                if guard_is_active is not False:
+                    return False
             if (
-                not isinstance(operation, dict)
-                or operation.get("id") != operation_id
+                operation.get("id") != operation_id
                 or not _legacy_trace_writer_counter_is_safe(document)
                 or leases is None
                 or not _all_trace_writer_leases_expired(leases, now)
@@ -635,8 +923,8 @@ class SessionAttachmentOperationsMixin:
             result = await self.collection.delete_one(
                 {
                     **identity,
-                    f"{field}.id": operation_id,
                     **_trace_writer_snapshot_query(document),
+                    **_trace_cleanup_guard_snapshot_query(operation, guard),
                 }
             )
             if result.deleted_count > 0:
