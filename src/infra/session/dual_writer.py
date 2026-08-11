@@ -343,7 +343,14 @@ class DualEventWriter:
             await self._flush_mongo_batch(batch)
         finally:
             for session_id, lease_id in reversed(leased_sessions):
-                await self.trace.release_session_trace_write(session_id, lease_id)
+                try:
+                    await self.trace.release_session_trace_write(session_id, lease_id)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to release session trace write lease for %s: %s",
+                        session_id,
+                        exc,
+                    )
 
     async def _flush_mongo_batch(self, batch: list[MongoBufferItem]) -> None:
         """Write one drained batch while its session writer leases are held."""

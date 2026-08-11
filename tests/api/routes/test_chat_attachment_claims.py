@@ -47,6 +47,7 @@ class _Limiter:
         self.acquire_calls: list[dict[str, Any]] = []
         self.release_calls: list[tuple[str, str, bool]] = []
         self.remove_calls: list[tuple[str, str]] = []
+        self.ready_calls: list[tuple[str, str]] = []
 
     async def acquire(self, **kwargs: Any) -> ConcurrencyResponse:
         self.acquire_calls.append(kwargs)
@@ -66,6 +67,7 @@ class _Limiter:
         return 1
 
     async def mark_queued_run_ready(self, user_id: str, run_id: str) -> bool:
+        self.ready_calls.append((user_id, run_id))
         return True
 
 
@@ -389,22 +391,57 @@ async def test_direct_submission_failure_releases_only_the_acquired_active_run(
 
 
 @pytest.mark.asyncio
-async def test_queued_post_persistence_metadata_failure_retains_claim_and_queue(
+async def test_queued_post_accept_metadata_failure_returns_accepted_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     file_records = _FileRecords()
     limiter = _Limiter(ConcurrencyResult.QUEUED)
 
-    with pytest.raises(RuntimeError, match="metadata failed"):
-        await _invoke_chat(
-            monkeypatch,
-            attachments=[_attachment("key-1")],
-            limiter_result=ConcurrencyResult.QUEUED,
-            file_records=file_records,
-            limiter=limiter,
-            metadata_failure=True,
-        )
+    result, _file_records, _limiter, _task_manager = await _invoke_chat(
+        monkeypatch,
+        attachments=[_attachment("key-1")],
+        limiter_result=ConcurrencyResult.QUEUED,
+        file_records=file_records,
+        limiter=limiter,
+        metadata_failure=True,
+    )
 
+    assert result["status"] == "queued"
+    assert result["run_id"] == "run-1"
+    assert limiter.ready_calls == [("owner-1", "run-1")]
+    assert file_records.releases == []
+    assert limiter.remove_calls == []
+    assert limiter.release_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("task_backend", "submission_calls_attribute"),
+    [("local", "submit_calls"), ("arq", "submit_arq_calls")],
+)
+async def test_started_post_accept_metadata_failure_returns_accepted_response(
+    monkeypatch: pytest.MonkeyPatch,
+    task_backend: str,
+    submission_calls_attribute: str,
+) -> None:
+    file_records = _FileRecords()
+    limiter = _Limiter(ConcurrencyResult.STARTED)
+    task_manager = _TaskManager()
+
+    result, _file_records, _limiter, _task_manager = await _invoke_chat(
+        monkeypatch,
+        attachments=[_attachment("key-1")],
+        limiter_result=ConcurrencyResult.STARTED,
+        task_backend=task_backend,
+        file_records=file_records,
+        limiter=limiter,
+        task_manager=task_manager,
+        metadata_failure=True,
+    )
+
+    assert result["run_id"] == "run-1"
+    assert result["status"] == "pending"
+    assert len(getattr(task_manager, submission_calls_attribute)) == 1
     assert file_records.releases == []
     assert limiter.remove_calls == []
     assert limiter.release_calls == []

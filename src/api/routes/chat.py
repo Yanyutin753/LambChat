@@ -229,6 +229,33 @@ async def _update_session_config(
     await session_manager.update_session_metadata(session_id, conversation_config)
 
 
+async def _update_session_config_after_acceptance(
+    session_id: str,
+    run_id: str,
+    agent_id: str,
+    request: AgentRequest,
+    language: str,
+    trace_id: str | None = None,
+) -> None:
+    """Best-effort metadata update after a queue or task has accepted the run."""
+    try:
+        await _update_session_config(
+            session_id,
+            run_id,
+            agent_id,
+            request,
+            language,
+            trace_id=trace_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to update session config after accepting run %s for session %s: %s",
+            run_id,
+            session_id,
+            exc,
+        )
+
+
 def resolve_goal_for_request(
     request: AgentRequest,
     existing_metadata: dict | None,
@@ -597,7 +624,7 @@ async def chat_stream(
             }
 
             # 更新 session metadata，存储完整的对话配置（排队状态）
-            await _update_session_config(
+            await _update_session_config_after_acceptance(
                 session_id,
                 run_id,
                 agent_id,
@@ -681,7 +708,7 @@ async def chat_stream(
             raise
 
     # 更新 session metadata，存储完整的对话配置
-    await _update_session_config(
+    await _update_session_config_after_acceptance(
         session_id,
         run_id,
         agent_id,

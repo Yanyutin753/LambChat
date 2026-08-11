@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from src.infra.session import dual_writer
 from src.infra.writer.present import Presenter, PresenterConfig
 
 
@@ -203,6 +204,73 @@ async def test_user_message_flush_failure_releases_preclaim_and_reraises(
         )
 
     assert file_records.calls == [("release", ["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
+async def test_post_persistence_lease_release_failure_allows_presenter_to_continue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dual_writer.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        False,
+        raising=False,
+    )
+    file_records = _FileRecords()
+
+    class _PersistingCollection:
+        def __init__(self) -> None:
+            self.write_count = 0
+
+        async def bulk_write(self, operations: list[Any], ordered: bool = False) -> Any:
+            del operations, ordered
+            self.write_count += 1
+            return type("_Result", (), {"modified_count": 1, "upserted_count": 0})()
+
+    class _Trace:
+        def __init__(self) -> None:
+            self.collection = _PersistingCollection()
+
+        async def create_trace(self, **kwargs: Any) -> bool:
+            del kwargs
+            return True
+
+        async def acquire_session_trace_write(self, session_id: str) -> str:
+            assert session_id == "session-1"
+            return "lease-1"
+
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+            assert (session_id, lease_id) == ("session-1", "lease-1")
+            raise RuntimeError("lease release failed")
+
+    writer = dual_writer.DualEventWriter()
+    writer._trace = _Trace()
+    writer._flush_event.clear()
+
+    async def _write_to_redis(stream_key: str, fields: dict[str, str]) -> bool:
+        return True
+
+    writer._write_to_redis_direct = _write_to_redis  # type: ignore[method-assign]
+    presenter = _presenter()
+    presenter._dual_writer = writer
+
+    async def _trace_metadata() -> dict[str, Any]:
+        return {}
+
+    monkeypatch.setattr("src.infra.writer.present.FileRecordStorage", lambda: file_records)
+    monkeypatch.setattr(presenter, "_build_trace_metadata", _trace_metadata)
+
+    event = await presenter.emit_user_message(
+        "hello",
+        attachments=[{"key": "key-1"}],
+        attachment_references_claimed=True,
+    )
+
+    assert event["event"] == "user:message"
+    assert event["data"]["content"] == "hello"
+    assert writer.trace.collection.write_count == 1
+    assert writer._mongo_buffer == []
+    assert file_records.calls == []
 
 
 @pytest.mark.asyncio
