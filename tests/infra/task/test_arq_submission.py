@@ -125,6 +125,11 @@ class _FailingSetupExecutor(_FakeExecutor):
         raise RuntimeError("session setup failed")
 
 
+class _CancelledSetupExecutor(_FakeExecutor):
+    async def ensure_session(self, *args, **kwargs) -> None:
+        raise asyncio.CancelledError
+
+
 @pytest.mark.asyncio
 async def test_submit_arq_persists_payload_and_enqueues_job() -> None:
     manager = BackgroundTaskManager()
@@ -396,6 +401,69 @@ async def test_submit_releases_preclaim_when_initial_presenter_setup_fails(
             write_user_message_immediately=True,
             attachment_references_claimed=True,
         )
+
+    assert file_records.releases == [(["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("task_backend", ["local", "arq"])
+async def test_submit_cancellation_before_persistence_releases_preclaim(
+    monkeypatch: pytest.MonkeyPatch,
+    task_backend: str,
+) -> None:
+    manager = BackgroundTaskManager()
+    manager._executor = _CancelledSetupExecutor()  # type: ignore[assignment]
+    release_started = asyncio.Event()
+    finish_release = asyncio.Event()
+
+    class _BlockingFileRecords(_FileRecords):
+        async def release_owned_references(self, keys: list[str], uploaded_by: str) -> int:
+            release_started.set()
+            await finish_release.wait()
+            return await super().release_owned_references(keys, uploaded_by)
+
+    file_records = _BlockingFileRecords()
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage",
+        lambda: file_records,
+    )
+
+    async def _executor_fn(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    async def _submit() -> None:
+        if task_backend == "arq":
+            await manager.submit_arq(
+                session_id="session-1",
+                agent_id="search",
+                message="hello",
+                user_id="owner-1",
+                executor_key="agent_stream",
+                run_id="run-1",
+                attachments=[{"key": "key-1"}],
+                write_user_message_immediately=True,
+                attachment_references_claimed=True,
+            )
+        else:
+            await manager.submit(
+                session_id="session-1",
+                agent_id="search",
+                message="hello",
+                user_id="owner-1",
+                executor=_executor_fn,
+                run_id="run-1",
+                attachments=[{"key": "key-1"}],
+                write_user_message_immediately=True,
+                attachment_references_claimed=True,
+            )
+
+    task = asyncio.create_task(_submit())
+    await asyncio.wait_for(release_started.wait(), timeout=1)
+    task.cancel()
+    finish_release.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
     assert file_records.releases == [(["key-1"], "owner-1")]
 

@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from arq.connections import create_pool
 
 from src.infra.logging import get_logger
+from src.infra.session.cancellation import drain_task
 from src.infra.session.storage import SessionStorage
 from src.kernel.config import settings
 
@@ -145,7 +146,7 @@ class BackgroundTaskManager:
                 )
             )
             await presenter._ensure_trace()
-        except Exception:
+        except BaseException:
             await self._release_preclaimed_attachment_references(
                 attachments,
                 user_id,
@@ -174,7 +175,10 @@ class BackgroundTaskManager:
 
         attachment_keys = _extract_attachment_keys(attachments)
         if attachment_keys:
-            await FileRecordStorage().release_owned_references(attachment_keys, user_id)
+            release_task = asyncio.create_task(
+                FileRecordStorage().release_owned_references(attachment_keys, user_id)
+            )
+            await drain_task(release_task)
 
     def _status_queries(self) -> TaskStatusQueries:
         return TaskStatusQueries(storage=self.storage, run_info=self._run_info)
@@ -327,7 +331,7 @@ class BackgroundTaskManager:
                 await task_executor._update_session_status(
                     session_id, TaskStatus.PENDING, run_id=run_id
                 )
-            except Exception:
+            except BaseException:
                 if not user_message_written:
                     await self._release_preclaimed_attachment_references(
                         attachments,
@@ -445,7 +449,7 @@ class BackgroundTaskManager:
                     TaskStatus.QUEUED,
                     run_id=run_id,
                 )
-            except Exception:
+            except BaseException:
                 if not user_message_written:
                     await self._release_preclaimed_attachment_references(
                         attachments,

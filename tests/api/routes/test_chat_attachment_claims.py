@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 
@@ -71,12 +72,29 @@ class _Limiter:
         return True
 
 
+class _CancelledAcquireLimiter(_Limiter):
+    async def acquire(self, **kwargs: Any) -> ConcurrencyResponse:
+        self.acquire_calls.append(kwargs)
+        raise asyncio.CancelledError
+
+
+class _CancelledReadyLimiter(_Limiter):
+    async def mark_queued_run_ready(self, user_id: str, run_id: str) -> bool:
+        self.ready_calls.append((user_id, run_id))
+        raise asyncio.CancelledError
+
+
 class _Executor:
     async def ensure_session(self, *args: Any, **kwargs: Any) -> None:
         return None
 
     async def _update_session_status(self, *args: Any, **kwargs: Any) -> None:
         return None
+
+
+class _CancelledExecutor(_Executor):
+    async def ensure_session(self, *args: Any, **kwargs: Any) -> None:
+        raise asyncio.CancelledError
 
 
 class _TaskManager:
@@ -287,16 +305,88 @@ async def test_empty_attachment_list_performs_no_file_record_write(
 async def test_rejected_queue_releases_preclaimed_attachments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    file_records = _FileRecords()
+    limiter = _Limiter(ConcurrencyResult.REJECTED_QUEUE)
     with pytest.raises(HTTPException) as exc_info:
         await _invoke_chat(
             monkeypatch,
             attachments=[_attachment("key-1")],
             limiter_result=ConcurrencyResult.REJECTED_QUEUE,
+            file_records=file_records,
+            limiter=limiter,
         )
 
     assert exc_info.value.status_code == 429
-    file_records = chat.FileRecordStorage()
     assert file_records.releases == [(["key-1"], "owner-1")]
+    assert limiter.remove_calls == []
+    assert limiter.release_calls == []
+
+
+@pytest.mark.asyncio
+async def test_cancelled_limiter_acquire_rolls_back_unknown_admission_and_attachment_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_records = _FileRecords()
+    limiter = _CancelledAcquireLimiter(ConcurrencyResult.STARTED)
+
+    with pytest.raises(asyncio.CancelledError):
+        await _invoke_chat(
+            monkeypatch,
+            attachments=[_attachment("key-1")],
+            limiter_result=ConcurrencyResult.STARTED,
+            file_records=file_records,
+            limiter=limiter,
+        )
+
+    assert limiter.remove_calls == [("owner-1", "run-1")]
+    assert limiter.release_calls == [("owner-1", "run-1", True)]
+    assert file_records.releases == [(["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_queued_setup_removes_admission_and_route_owned_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_records = _FileRecords()
+    limiter = _Limiter(ConcurrencyResult.QUEUED)
+    task_manager = _TaskManager()
+    task_manager._executor = _CancelledExecutor()
+
+    with pytest.raises(asyncio.CancelledError):
+        await _invoke_chat(
+            monkeypatch,
+            attachments=[_attachment("key-1")],
+            limiter_result=ConcurrencyResult.QUEUED,
+            file_records=file_records,
+            limiter=limiter,
+            task_manager=task_manager,
+        )
+
+    assert limiter.remove_calls == [("owner-1", "run-1")]
+    assert limiter.release_calls == []
+    assert file_records.releases == [(["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_queue_readiness_retains_persisted_attachment_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_records = _FileRecords()
+    limiter = _CancelledReadyLimiter(ConcurrencyResult.QUEUED)
+
+    with pytest.raises(asyncio.CancelledError):
+        await _invoke_chat(
+            monkeypatch,
+            attachments=[_attachment("key-1")],
+            limiter_result=ConcurrencyResult.QUEUED,
+            file_records=file_records,
+            limiter=limiter,
+        )
+
+    assert limiter.ready_calls == [("owner-1", "run-1")]
+    assert limiter.remove_calls == [("owner-1", "run-1")]
+    assert limiter.release_calls == []
+    assert file_records.releases == []
 
 
 @pytest.mark.asyncio

@@ -8,7 +8,10 @@
 import asyncio
 import json
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum, auto
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -24,6 +27,7 @@ from src.infra.chat.user_message_timestamp import format_user_message_with_times
 from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
+from src.infra.session.cancellation import drain_task
 from src.infra.session.manager import SessionManager
 from src.infra.task.cancellation import _close_agent_safely
 from src.infra.task.concurrency import register_executor
@@ -42,6 +46,99 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 CHAT_SSE_DATA_MAX_BYTES = 256 * 1024
+
+
+class _AttachmentClaimState(Enum):
+    NONE = auto()
+    ROUTE_OWNED = auto()
+    PERSISTENCE_OWNED = auto()
+    PERSISTED = auto()
+
+
+class _ChatAdmissionState(Enum):
+    UNKNOWN = auto()
+    REJECTED = auto()
+    ACTIVE = auto()
+    QUEUED = auto()
+    ACCEPTED = auto()
+
+
+@dataclass
+class _ChatRunLifecycle:
+    """Track which subsystem must undo a run that was not accepted."""
+
+    limiter: Any
+    file_records: FileRecordStorage | None
+    attachment_keys: list[str]
+    user_id: str
+    run_id: str
+    claim_state: _AttachmentClaimState
+    admission_state: _ChatAdmissionState = _ChatAdmissionState.UNKNOWN
+
+    def transfer_claim_to_persistence(self) -> None:
+        if self.claim_state is _AttachmentClaimState.ROUTE_OWNED:
+            self.claim_state = _AttachmentClaimState.PERSISTENCE_OWNED
+
+    def record_persisted(self) -> None:
+        if self.claim_state is _AttachmentClaimState.PERSISTENCE_OWNED:
+            self.claim_state = _AttachmentClaimState.PERSISTED
+
+    def record_admission(self, result: Any) -> None:
+        from src.infra.task.concurrency import ConcurrencyResult
+
+        if result == ConcurrencyResult.QUEUED:
+            self.admission_state = _ChatAdmissionState.QUEUED
+        elif result == ConcurrencyResult.STARTED:
+            self.admission_state = _ChatAdmissionState.ACTIVE
+        elif result == ConcurrencyResult.REJECTED_QUEUE:
+            self.admission_state = _ChatAdmissionState.REJECTED
+
+    def record_accepted(self) -> None:
+        self.admission_state = _ChatAdmissionState.ACCEPTED
+
+    async def rollback_unaccepted(self) -> None:
+        if self.admission_state is _ChatAdmissionState.ACCEPTED:
+            return
+
+        async def _rollback() -> None:
+            if self.admission_state in {
+                _ChatAdmissionState.UNKNOWN,
+                _ChatAdmissionState.QUEUED,
+            }:
+                try:
+                    await self.limiter.remove_queued_run(self.user_id, self.run_id)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to remove unaccepted queued run %s: %s", self.run_id, exc
+                    )
+            if self.admission_state in {
+                _ChatAdmissionState.UNKNOWN,
+                _ChatAdmissionState.ACTIVE,
+            }:
+                try:
+                    await self.limiter.release(self.user_id, self.run_id)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to release unaccepted active run %s: %s", self.run_id, exc
+                    )
+            if (
+                self.claim_state is _AttachmentClaimState.ROUTE_OWNED
+                and self.file_records is not None
+            ):
+                try:
+                    await self.file_records.release_owned_references(
+                        self.attachment_keys,
+                        self.user_id,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to release attachment claims for unaccepted run %s: %s",
+                        self.run_id,
+                        exc,
+                    )
+
+        rollback_task = asyncio.create_task(_rollback())
+        await drain_task(rollback_task)
 
 
 def append_required_skills_prompt(message: str, enabled_skills: list[str] | None) -> str:
@@ -547,17 +644,31 @@ async def chat_stream(
 
     # 检查并发限制
     limiter = get_concurrency_limiter()
-    concurrency_result = await limiter.acquire(
+    lifecycle = _ChatRunLifecycle(
+        limiter=limiter,
+        file_records=file_records,
+        attachment_keys=attachment_keys,
         user_id=user.sub,
-        roles=user.roles,
         run_id=run_id,
-        session_id=session_id,
-        task_context=task_context,
+        claim_state=(
+            _AttachmentClaimState.ROUTE_OWNED if attachment_keys else _AttachmentClaimState.NONE
+        ),
     )
+    try:
+        concurrency_result = await limiter.acquire(
+            user_id=user.sub,
+            roles=user.roles,
+            run_id=run_id,
+            session_id=session_id,
+            task_context=task_context,
+        )
+    except BaseException:
+        await lifecycle.rollback_unaccepted()
+        raise
+    lifecycle.record_admission(concurrency_result.result)
 
     if concurrency_result.result == ConcurrencyResult.REJECTED_QUEUE:
-        if file_records is not None:
-            await file_records.release_owned_references(attachment_keys, user.sub)
+        await lifecycle.rollback_unaccepted()
         raise HTTPException(
             status_code=429,
             detail={
@@ -570,8 +681,6 @@ async def chat_stream(
         )
 
     if concurrency_result.result == ConcurrencyResult.QUEUED:
-        persistence_started = False
-        user_message_persisted = False
         try:
             # Task context already stored in Redis queue entry by acquire().
             # Ensure executor is initialized and create session immediately.
@@ -602,16 +711,17 @@ async def chat_stream(
                 )
             )
             await presenter._ensure_trace()
-            persistence_started = True
+            lifecycle.transfer_claim_to_persistence()
             await presenter.emit_user_message(
                 request.message,
                 attachments=attachments_data,
                 enabled_skills=request.enabled_skills,
                 attachment_references_claimed=attachment_references_claimed,
             )
-            user_message_persisted = True
+            lifecycle.record_persisted()
             if not await limiter.mark_queued_run_ready(user.sub, run_id):
                 raise RuntimeError(f"Queued run disappeared before readiness: {run_id}")
+            lifecycle.record_accepted()
 
             # Mark user message as already written so executor skips re-emitting
             task_manager._run_info[run_id] = {
@@ -640,13 +750,11 @@ async def chat_stream(
                 "queue_position": concurrency_result.queue_position,
                 "max_concurrent": concurrency_result.max_concurrent,
             }
-        except Exception:
-            if not user_message_persisted:
-                await limiter.remove_queued_run(user.sub, run_id)
-                if not persistence_started and file_records is not None:
-                    await file_records.release_owned_references(attachment_keys, user.sub)
+        except BaseException:
+            await lifecycle.rollback_unaccepted()
             raise
 
+    lifecycle.transfer_claim_to_persistence()
     if settings.TASK_BACKEND == "arq":
         try:
             _, _ = await task_manager.submit_arq(
@@ -673,8 +781,8 @@ async def chat_stream(
                 write_user_message_immediately=True,
                 attachment_references_claimed=attachment_references_claimed,
             )
-        except Exception:
-            await limiter.release(user.sub, run_id)
+        except BaseException:
+            await lifecycle.rollback_unaccepted()
             raise
     else:
         # STARTED — 正常提交后台任务
@@ -703,9 +811,12 @@ async def chat_stream(
                 write_user_message_immediately=True,
                 attachment_references_claimed=attachment_references_claimed,
             )
-        except Exception:
-            await limiter.release(user.sub, run_id)
+        except BaseException:
+            await lifecycle.rollback_unaccepted()
             raise
+
+    lifecycle.record_persisted()
+    lifecycle.record_accepted()
 
     # 更新 session metadata，存储完整的对话配置
     await _update_session_config_after_acceptance(

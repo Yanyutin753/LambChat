@@ -23,6 +23,7 @@ import asyncio
 from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
 
 from src.infra.logging import get_logger
+from src.infra.session.cancellation import drain_task
 from src.infra.upload.file_record import FileRecordStorage
 
 # Re-export public API for backward compatibility
@@ -228,18 +229,23 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
                 enabled_skills=enabled_skills,
             )
             await self.save_event(event, raise_on_error=True)
-        except (Exception, asyncio.CancelledError):
+        except BaseException:
             if claims_established and file_records is not None:
-                try:
-                    await file_records.release_owned_references(
-                        attachment_keys,
-                        self.config.user_id or "",
-                    )
-                except Exception as rollback_error:
-                    logger.error(
-                        "Failed to roll back attachment references for user message: %s",
-                        rollback_error,
-                    )
+
+                async def _rollback_claims() -> None:
+                    try:
+                        await file_records.release_owned_references(
+                            attachment_keys,
+                            self.config.user_id or "",
+                        )
+                    except Exception as rollback_error:
+                        logger.error(
+                            "Failed to roll back attachment references for user message: %s",
+                            rollback_error,
+                        )
+
+                rollback_task = asyncio.create_task(_rollback_claims())
+                await drain_task(rollback_task)
             raise
 
         if self.config.session_id:

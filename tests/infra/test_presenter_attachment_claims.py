@@ -138,6 +138,45 @@ async def test_user_message_save_cancellation_releases_claim_and_reraises(
 
 
 @pytest.mark.asyncio
+async def test_repeated_cancellation_cannot_interrupt_attachment_claim_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release_started = asyncio.Event()
+    finish_release = asyncio.Event()
+
+    class _BlockingReleaseFileRecords(_FileRecords):
+        async def release_owned_references(self, keys: list[str], uploaded_by: str) -> int:
+            release_started.set()
+            await finish_release.wait()
+            return await super().release_owned_references(keys, uploaded_by)
+
+    file_records = _BlockingReleaseFileRecords()
+    presenter = _presenter()
+
+    async def _cancel_save(event: dict[str, Any], **kwargs: Any) -> None:
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr("src.infra.writer.present.FileRecordStorage", lambda: file_records)
+    monkeypatch.setattr(presenter, "save_event", _cancel_save)
+
+    task = asyncio.create_task(
+        presenter.emit_user_message(
+            "hello",
+            attachments=[{"key": "key-1"}],
+            attachment_references_claimed=True,
+        )
+    )
+    await asyncio.wait_for(release_started.wait(), timeout=1)
+    task.cancel()
+    finish_release.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert file_records.calls == [("release", ["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
 async def test_post_persistence_search_failure_retains_attachment_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
