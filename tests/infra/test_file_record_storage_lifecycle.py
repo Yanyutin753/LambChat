@@ -567,11 +567,30 @@ async def test_tombstone_cleanup_finalizes_only_the_owned_tombstoned_record() ->
     assert claimed == [record]
     assert collection.find_one_and_update_calls[0][0]["reference_count"] == 0
     assert "$lte" in collection.find_one_and_update_calls[0][0]["cleanup_after"]
-    assert collection.find_one_and_update_calls[0][0]["deleting_at"] == {"$exists": False}
+    eligibility = collection.find_one_and_update_calls[0][0]["$or"]
+    assert eligibility[0] == {"deleting_at": {"$exists": False}}
+    assert "$lte" in eligibility[1]["deleting_at"]
     assert finalized is True
     assert collection.delete_one_calls == [
         {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone}
     ]
+
+
+@pytest.mark.asyncio
+async def test_tombstone_cleanup_batch_is_bounded_even_when_caller_requests_more() -> None:
+    collection = _LifecycleCollection()
+    collection.claim_results = [
+        {"key": f"key-{index}", "uploaded_by": "owner-a", "deleting_at": object()}
+        for index in range(101)
+    ]
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    claimed = await storage.tombstone_cleanup_batch(limit=1000)
+
+    assert len(claimed) == file_record.CLEANUP_BATCH_SIZE
+    assert len(collection.find_one_and_update_calls) == file_record.CLEANUP_BATCH_SIZE
 
 
 @pytest.mark.asyncio
@@ -596,6 +615,35 @@ async def test_object_delete_failure_clears_the_exact_tombstone_for_retry() -> N
     deleted = await storage.cleanup_scheduled_records(_FailingObjects())
 
     assert deleted == 0
+    assert collection.update_one_calls == [
+        (
+            {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone},
+            {"$unset": {"deleting_at": ""}, "$set": {"updated_at": ANY}},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_cancellation_clears_current_tombstone_before_propagating() -> None:
+    tombstone = object()
+    record = {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone}
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    async def _tombstone_batch():
+        return [record]
+
+    class _CancelledObjects:
+        async def delete_file(self, key: str) -> None:
+            raise asyncio.CancelledError
+
+    storage.tombstone_cleanup_batch = _tombstone_batch
+
+    with pytest.raises(asyncio.CancelledError):
+        await storage.cleanup_scheduled_records(_CancelledObjects())
+
     assert collection.update_one_calls == [
         (
             {"key": "key-a", "uploaded_by": "owner-a", "deleting_at": tombstone},

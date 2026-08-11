@@ -7,7 +7,7 @@ import sys
 import types
 from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -107,6 +107,38 @@ async def test_runner_loads_task_with_execution_projection(
     # Wait for the detached monitor to finish
     await _await_spawned(mock_spawn_monitor)
     assert mock_storage.update_task_run_stats.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_date_completion_pauses_definition_without_releasing_attachments(
+    mock_storage: AsyncMock,
+    mock_lock: None,
+    mock_spawn_monitor: list[asyncio.Task],
+) -> None:
+    task = _make_task(
+        trigger_type=TriggerType.DATE,
+        trigger_config={"run_date": "2020-01-01T00:00:00+00:00"},
+        input_payload={"attachments": [{"key": "key-a"}]},
+        attachment_keys=["key-a"],
+    )
+    mock_storage.get_task_for_execution.return_value = task
+    scheduler = MagicMock()
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(  # type: ignore[method-assign]
+        return_value={"session_status": "completed", "session_id": "session_1"}
+    )
+
+    with patch("src.infra.scheduler.runner.get_runtime_scheduler", return_value=scheduler):
+        result = await runner.run("task_1", trigger_type=TriggerType.DATE.value)
+        await _await_spawned(mock_spawn_monitor)
+
+    assert result["status"] == "submitted"
+    mock_storage.update_task.assert_awaited_once_with(
+        "task_1",
+        {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
+    )
+    assert task.attachment_keys == ["key-a"]
+    scheduler.unregister_job.assert_called_once_with("task_1")
 
 
 @pytest.mark.asyncio

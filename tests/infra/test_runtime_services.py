@@ -46,9 +46,14 @@ class _FakeScheduledTaskStorage:
 class _FakeScheduledTaskService:
     def __init__(self) -> None:
         self.load_calls = 0
+        self.reconcile_attachment_calls = 0
 
     async def load_persisted_tasks(self) -> int:
         self.load_calls += 1
+        return 0
+
+    async def reconcile_attachment_references(self) -> int:
+        self.reconcile_attachment_calls += 1
         return 0
 
 
@@ -56,9 +61,11 @@ class _FakeRuntimeScheduler:
     def __init__(self) -> None:
         self.start_calls = 0
         self.registered_job_ids: list[str] = []
+        self.registered_jobs: dict[str, object] = {}
 
     def register_job(self, job) -> None:
         self.registered_job_ids.append(job.id)
+        self.registered_jobs[job.id] = job
 
     def has_job(self, job_id: str) -> bool:
         return job_id in self.registered_job_ids
@@ -224,6 +231,7 @@ async def test_start_runtime_services_starts_all_distributed_listeners(
     assert mcp_cache_pubsub.start_calls == 1
     assert memory_compaction.start_calls == 1
     assert scheduled_task_storage.ensure_indexes_calls == 1
+    assert scheduled_task_service.reconcile_attachment_calls == 1
     assert scheduled_task_service.load_calls == 1
     assert scheduler.start_calls == 1
 
@@ -272,11 +280,15 @@ async def test_start_runtime_services_registers_scheduled_task_reconcile_job(
     await runtime_services.start_runtime_services()
 
     assert "scheduled_tasks.reconcile" in scheduler.registered_job_ids
+    assert "upload.file_records.cleanup" in scheduler.registered_job_ids
+    cleanup_job = scheduler.registered_jobs["upload.file_records.cleanup"]
+    assert cleanup_job.run_on_start is True
+    assert cleanup_job.max_instances == 1
     assert scheduler.start_calls == 1
 
 
 @pytest.mark.asyncio
-async def test_start_runtime_services_skips_scheduled_task_runtime_when_disabled(
+async def test_start_runtime_services_keeps_attachment_recovery_and_cleanup_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     task_manager = _FakeTaskManager()
@@ -310,10 +322,11 @@ async def test_start_runtime_services_skips_scheduled_task_runtime_when_disabled
 
     await runtime_services.start_runtime_services()
 
-    assert scheduled_task_storage.ensure_indexes_calls == 0
+    assert scheduled_task_storage.ensure_indexes_calls == 1
+    assert scheduled_task_service.reconcile_attachment_calls == 1
     assert scheduled_task_service.load_calls == 0
-    assert scheduler.registered_job_ids == []
-    assert scheduler.start_calls == 0
+    assert scheduler.registered_job_ids == ["upload.file_records.cleanup"]
+    assert scheduler.start_calls == 1
 
 
 @pytest.mark.asyncio
@@ -388,6 +401,7 @@ async def test_start_runtime_services_skips_memory_pubsub_when_memory_disabled(
     assert memory_pubsub.start_calls == 0
     assert websocket_manager.start_calls == 1
     assert scheduled_task_storage.ensure_indexes_calls == 1
+    assert scheduled_task_service.reconcile_attachment_calls == 1
     assert scheduled_task_service.load_calls == 1
 
 
@@ -480,6 +494,9 @@ async def test_close_runtime_scheduler_releases_scheduler_service_and_storage(
     async def _close_runtime_scheduler() -> None:
         calls.append("runtime")
 
+    async def _close_file_record_cleanup() -> None:
+        calls.append("cleanup")
+
     def _clear_managed_task_signatures() -> None:
         calls.append("signatures")
 
@@ -489,6 +506,12 @@ async def test_close_runtime_scheduler_releases_scheduler_service_and_storage(
     monkeypatch.setattr(
         "src.infra.scheduler.runtime.close_runtime_scheduler",
         _close_runtime_scheduler,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_file_record_cleanup",
+        _close_file_record_cleanup,
+        raising=False,
     )
     monkeypatch.setattr(
         "src.infra.scheduler.service.clear_managed_task_signatures",
@@ -502,7 +525,7 @@ async def test_close_runtime_scheduler_releases_scheduler_service_and_storage(
 
     await runtime_services.close_runtime_scheduler()
 
-    assert calls == ["runtime", "signatures", "storage"]
+    assert calls == ["runtime", "cleanup", "signatures", "storage"]
 
 
 @pytest.mark.asyncio

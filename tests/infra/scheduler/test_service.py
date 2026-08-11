@@ -443,10 +443,14 @@ async def test_pause_task_unregisters(
     mock_storage: AsyncMock,
     mock_scheduler: MagicMock,
 ) -> None:
-    task = _make_task()
+    task = _make_task(attachment_keys=["key-a"])
     mock_storage.get_task = AsyncMock(return_value=task)
     mock_storage.update_task = AsyncMock(return_value=True)
-    paused_task = _make_task(status=ScheduledTaskStatus.PAUSED, enabled=False)
+    paused_task = _make_task(
+        status=ScheduledTaskStatus.PAUSED,
+        enabled=False,
+        attachment_keys=["key-a"],
+    )
     mock_storage.get_task = AsyncMock(side_effect=[task, paused_task])
 
     result = await service.pause_task("task_1")
@@ -457,6 +461,7 @@ async def test_pause_task_unregisters(
         {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
     )
     mock_scheduler.unregister_job.assert_called_once_with("task_1")
+    assert result.attachment_keys == ["key-a"]
 
 
 @pytest.mark.asyncio

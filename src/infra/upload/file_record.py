@@ -14,6 +14,7 @@ from src.kernel.config import settings
 REFERENCE_KEYS_MAX = 100
 CLEANUP_GRACE_PERIOD = timedelta(minutes=15)
 CLEANUP_BATCH_SIZE = 100
+CLEANUP_TOMBSTONE_LEASE_PERIOD = timedelta(minutes=15)
 SCHEDULED_TASK_REFERENCES_PER_FILE_MAX = 1000
 
 
@@ -530,12 +531,20 @@ class FileRecordStorage:
         await self.ensure_indexes_if_needed()
         claimed: list[dict] = []
         now = utc_now()
-        for _ in range(limit):
+        bounded_limit = max(0, min(int(limit), CLEANUP_BATCH_SIZE))
+        for _ in range(bounded_limit):
             record = await self.collection.find_one_and_update(
                 {
                     "reference_count": 0,
                     "cleanup_after": {"$lte": now},
-                    "deleting_at": {"$exists": False},
+                    "$or": [
+                        {"deleting_at": {"$exists": False}},
+                        {
+                            "deleting_at": {
+                                "$lte": now - CLEANUP_TOMBSTONE_LEASE_PERIOD
+                            }
+                        },
+                    ],
                 },
                 {"$set": {"deleting_at": now, "updated_at": now}},
                 return_document=ReturnDocument.AFTER,
@@ -576,6 +585,9 @@ class FileRecordStorage:
         for record in await self.tombstone_cleanup_batch():
             try:
                 await object_storage.delete_file(record["key"])
+            except asyncio.CancelledError:
+                await asyncio.shield(self.clear_tombstone(record))
+                raise
             except Exception:
                 await self.clear_tombstone(record)
                 continue

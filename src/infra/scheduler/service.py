@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any, Optional
 from uuid import uuid4
@@ -21,11 +21,11 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from src.infra.logging import get_logger
-from src.infra.scheduler.runner import get_scheduled_task_runner
 from src.infra.scheduler.locks import (
     acquire_attachment_mutation_lock,
     release_attachment_mutation_lock,
 )
+from src.infra.scheduler.runner import get_scheduled_task_runner
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.session.storage import SessionStorage

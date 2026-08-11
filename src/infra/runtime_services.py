@@ -69,6 +69,18 @@ async def drain_upload_delete_tasks() -> None:
     await _drain_upload_delete_tasks()
 
 
+async def run_file_record_cleanup() -> int:
+    from src.infra.upload.cleanup import run_file_record_cleanup as _run
+
+    return await _run()
+
+
+async def close_file_record_cleanup() -> None:
+    from src.infra.upload.cleanup import close_file_record_cleanup as _close
+
+    await _close()
+
+
 async def drain_user_s3_cleanup_tasks() -> None:
     from src.infra.user.manager import drain_s3_cleanup_tasks
 
@@ -126,6 +138,7 @@ async def close_runtime_scheduler() -> None:
 
     await drain_detached_monitors()
     await _close_runtime_scheduler()
+    await close_file_record_cleanup()
     clear_managed_task_signatures()
     close_scheduled_task_storage()
 
@@ -166,6 +179,21 @@ def register_scheduled_task_reconcile_job(
     )
 
 
+def register_file_record_cleanup_job() -> None:
+    """Run bounded delayed-upload cleanup independently of scheduled-task UI state."""
+    get_runtime_scheduler().register_job(
+        ScheduledJob.from_interval(
+            id="upload.file_records.cleanup",
+            interval_seconds=60,
+            handler=run_file_record_cleanup,
+            name="Delayed upload cleanup",
+            max_instances=1,
+            coalesce=True,
+            run_on_start=True,
+        )
+    )
+
+
 async def start_runtime_services() -> None:
     """Start distributed runtime listeners needed by the current process."""
     import asyncio
@@ -202,14 +230,19 @@ async def start_runtime_services() -> None:
     if settings.ENABLE_MEMORY:
         start_memory_compaction_agent()
 
+    # Attachment ownership recovery must finish before delayed cleanup is allowed
+    # to inspect old zero-reference records, even when task execution is disabled.
+    await get_scheduled_task_storage().ensure_indexes()
+    scheduled_task_service = ScheduledTaskService()
+    await scheduled_task_service.reconcile_attachment_references()
+    register_file_record_cleanup_job()
+
     if settings.ENABLE_SCHEDULED_TASK:
-        # Load dynamically-created scheduled tasks from DB only when the feature is enabled.
-        await get_scheduled_task_storage().ensure_indexes()
-        scheduled_task_service = ScheduledTaskService()
+        # Load dynamically-created jobs only when task execution is enabled.
         await scheduled_task_service.load_persisted_tasks()
         register_scheduled_task_reconcile_job(scheduled_task_service)
 
-        get_runtime_scheduler().start()
+    get_runtime_scheduler().start()
 
 
 async def stop_runtime_services() -> None:
