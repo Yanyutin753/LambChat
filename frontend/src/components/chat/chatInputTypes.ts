@@ -10,7 +10,10 @@ import type {
   PersonaPreset,
   PersonaPresetSnapshot,
 } from "../../types";
-import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
+import type {
+  ActiveGoalSpec,
+  ChatSubmissionCallbacks,
+} from "../../hooks/useAgent/types";
 
 export interface ChatInputProps {
   onSend: (
@@ -18,6 +21,7 @@ export interface ChatInputProps {
     options?: Record<string, boolean | string | number>,
     attachments?: MessageAttachment[],
     runOptions?: { enabledSkills?: string[] },
+    submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStop: () => void;
   isLoading: boolean;

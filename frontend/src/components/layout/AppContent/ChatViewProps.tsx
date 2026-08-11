@@ -17,7 +17,10 @@ import type {
   PersonaPreset,
   PersonaPresetSnapshot,
 } from "../../../types";
-import type { ActiveGoalSpec } from "../../../hooks/useAgent/types";
+import type {
+  ActiveGoalSpec,
+  ChatSubmissionCallbacks,
+} from "../../../hooks/useAgent/types";
 import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 
@@ -181,6 +184,7 @@ export interface ChatViewProps {
     content: string,
     attachments?: MessageAttachment[],
     runOptions?: { enabledSkills?: string[] },
+    submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStopGeneration: () => void;
   activeGoal: ActiveGoalSpec | null;

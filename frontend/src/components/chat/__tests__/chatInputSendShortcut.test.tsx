@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 
 vi.mock("../../../hooks/useAuth", () => ({
@@ -46,11 +46,13 @@ async function sendDraft(modifier: "ctrl" | "shift") {
   expect(editor).toHaveTextContent("hello");
   editor.focus();
   expect(editor).toHaveFocus();
-  fireEvent.keyDown(editor, {
-    key: "Enter",
-    code: "Enter",
-    ctrlKey: modifier === "ctrl",
-    shiftKey: modifier === "shift",
+  await act(async () => {
+    fireEvent.keyDown(editor, {
+      key: "Enter",
+      code: "Enter",
+      ctrlKey: modifier === "ctrl",
+      shiftKey: modifier === "shift",
+    });
   });
 
   return onSend;
@@ -59,7 +61,15 @@ async function sendDraft(modifier: "ctrl" | "shift") {
 test("Ctrl+Enter sends the current rich-composer message by default", async () => {
   const onSend = await sendDraft("ctrl");
 
-  expect(onSend).toHaveBeenCalledWith("hello", {}, [], undefined);
+  expect(onSend.mock.calls[0]?.slice(0, 4)).toEqual([
+    "hello",
+    {},
+    [],
+    undefined,
+  ]);
+  expect(onSend.mock.calls[0]?.[4]).toEqual(
+    expect.objectContaining({ onAccepted: expect.any(Function) }),
+  );
 });
 
 test("Shift+Enter sends after selecting the Shift shortcut", async () => {
@@ -67,5 +77,13 @@ test("Shift+Enter sends after selecting the Shift shortcut", async () => {
 
   const onSend = await sendDraft("shift");
 
-  expect(onSend).toHaveBeenCalledWith("hello", {}, [], undefined);
+  expect(onSend.mock.calls[0]?.slice(0, 4)).toEqual([
+    "hello",
+    {},
+    [],
+    undefined,
+  ]);
+  expect(onSend.mock.calls[0]?.[4]).toEqual(
+    expect.objectContaining({ onAccepted: expect.any(Function) }),
+  );
 });

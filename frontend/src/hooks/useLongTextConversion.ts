@@ -12,7 +12,6 @@ import {
   shouldSkipLongTextConversion,
 } from "../components/chat/longTextConversion";
 import type { FileCategory, MessageAttachment } from "../types";
-import { uploadApi } from "../services/api";
 
 export interface UseLongTextConversionOptions {
   setInput: (value: string) => void;
@@ -99,11 +98,6 @@ export function useLongTextConversion({
       setAttachments((prev) =>
         prev.filter((item) => item.id !== attachment.id),
       );
-      if (attachment.key && !attachment.isUploading) {
-        uploadApi.deleteFile(attachment.key).catch((error) => {
-          console.error("Failed to delete long text file from server:", error);
-        });
-      }
       setAllowOversizedText(true);
       setInput(original);
       scheduleTextareaResize?.();

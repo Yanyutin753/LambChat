@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import { uploadApi } from "../../services/api";
 import { AttachmentCard } from "../common/AttachmentCard";
 import { getFullUrl } from "../../services/api";
 import { openAttachmentPreview } from "./attachmentPreviewStore";
@@ -41,11 +40,6 @@ export function ChatInputAttachments({
         return;
       }
       onAttachmentsChange((prev) => prev.filter((a) => a.id !== attachment.id));
-      if (attachment.key && !attachment.isUploading) {
-        uploadApi.deleteFile(attachment.key).catch((error) => {
-          console.error("Failed to delete file from server:", error);
-        });
-      }
     },
     [onAttachmentsChange, onRemoveReference],
   );

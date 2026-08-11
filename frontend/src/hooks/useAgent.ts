@@ -25,6 +25,7 @@ import {
   type HistoryEvent,
   type UseAgentReturn,
   type ActiveGoalSpec,
+  type ChatSubmissionCallbacks,
 } from "./useAgent/types";
 import { applyRecommendQuestionsToMessages } from "./useAgent/recommendQuestionsUpdate";
 import {
@@ -53,6 +54,16 @@ import {
   applyFeedbackToMessages,
   resolveHistoryStreamRunId,
 } from "./useAgent/historyLoadState";
+
+function notifySubmissionAccepted(
+  submissionCallbacks?: ChatSubmissionCallbacks,
+): void {
+  try {
+    submissionCallbacks?.onAccepted();
+  } catch (error) {
+    console.error("Failed to clear accepted chat draft:", error);
+  }
+}
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
@@ -492,6 +503,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       agentOptions?: Record<string, boolean | string | number>,
       attachments?: MessageAttachment[],
       runOptions?: { enabledSkills?: string[] },
+      submissionCallbacks?: ChatSubmissionCallbacks,
     ) => {
       if (!content.trim()) return;
       loadHistoryRequestIdRef.current += 1;
@@ -507,6 +519,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         setGoalModeEnabled(goalPlan.nextGoalModeEnabled);
         setActiveGoal(goalPlan.nextActiveGoal);
         setError(null);
+        notifySubmissionAccepted(submissionCallbacks);
         return;
       }
       content = goalPlan.content;
@@ -597,6 +610,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const newSessionId = submitData.session_id;
         const newRunId = submitData.run_id;
         const projectId = pendingProjectIdRef.current;
+        notifySubmissionAccepted(submissionCallbacks);
 
         if (goalForRun) {
           const goalWithRunId = {

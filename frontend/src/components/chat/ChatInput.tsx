@@ -55,7 +55,6 @@ import type {
   RichChatComposerHandle,
 } from "./richComposer/RichChatComposer";
 import { buildLongTextClientMeta } from "./longTextConversion";
-import { uploadApi } from "../../services/api";
 import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
 
@@ -488,11 +487,6 @@ export const ChatInput = memo(function ChatInput({
       setAttachments((previous) =>
         previous.filter((item) => item.id !== attachment.id),
       );
-      if (attachment.key && !attachment.isUploading) {
-        uploadApi.deleteFile(attachment.key).catch((error) => {
-          console.error("Failed to delete restored long text file:", error);
-        });
-      }
     },
     [restoreLongTextAttachment, setAttachments],
   );
@@ -544,15 +538,19 @@ export const ChatInput = memo(function ChatInput({
         agentOptionValues,
         prepared.attachments,
         runOptions,
+        {
+          onAccepted: () => {
+            setInput("");
+            inputValueRef.current = "";
+            composerRef.current?.setPlainText("");
+            setActiveReferenceIds([]);
+            longTextResourcesRef.current.clear();
+            setRunEnabledSkillNames(null);
+            setAttachments([]);
+            setComposerExpanded(false);
+          },
+        },
       );
-      setInput("");
-      inputValueRef.current = "";
-      composerRef.current?.setPlainText("");
-      setActiveReferenceIds([]);
-      longTextResourcesRef.current.clear();
-      setRunEnabledSkillNames(null);
-      setAttachments([]);
-      setComposerExpanded(false);
     }
   };
 

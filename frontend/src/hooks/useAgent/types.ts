@@ -251,6 +251,7 @@ export interface UseAgentReturn {
     agentOptions?: Record<string, boolean | string | number>,
     attachments?: MessageAttachment[],
     runOptions?: { enabledSkills?: string[] },
+    submissionCallbacks?: ChatSubmissionCallbacks,
   ) => Promise<void>;
   applyRecommendQuestions: (runId: string, questions: string[]) => void;
   clearActiveGoal: () => void;
@@ -273,6 +274,10 @@ export interface UseAgentReturn {
   setPendingProjectId: (id: string | null) => void;
   autoExpandProjectId: string | null;
   clearAutoExpandProjectId: (id?: string | null) => void;
+}
+
+export interface ChatSubmissionCallbacks {
+  onAccepted: () => void;
 }
 
 // Session configuration restored from metadata

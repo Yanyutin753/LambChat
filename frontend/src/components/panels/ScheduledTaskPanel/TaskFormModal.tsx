@@ -32,7 +32,7 @@ import type { PersonaPreset } from "../../../types/personaPreset";
 import type { Team } from "../../../types/team";
 import { personaPresetApi } from "../../../services/api/personaPreset";
 import { teamApi } from "../../../services/api/team";
-import { getFullUrl, uploadApi } from "../../../services/api";
+import { getFullUrl } from "../../../services/api";
 import { useFileUpload } from "../../../hooks/useFileUpload";
 import { AttachmentCard } from "../../common/AttachmentCard";
 import { FileUploadButton } from "../../chat/FileUploadButton";
@@ -283,9 +283,6 @@ export function TaskFormModal({
   );
   const handleRemoveAttachment = (attachment: MessageAttachment) => {
     setAttachments((prev) => prev.filter((item) => item.id !== attachment.id));
-    if (attachment.key && !attachment.isUploading) {
-      uploadApi.deleteFile(attachment.key).catch(() => {});
-    }
   };
 
   return (
