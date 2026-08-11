@@ -6,7 +6,7 @@ import type {
   RichChatComposerHandle,
 } from "./richComposer/RichChatComposer";
 
-interface DraftStateBindings {
+export interface DraftStateBindings {
   composer: RichChatComposerHandle | null;
   inputValueRef: { current: string };
   longTextResources: Map<string, LongTextPastePayload>;
@@ -17,6 +17,18 @@ interface DraftStateBindings {
     update: (current: MessageAttachment[]) => MessageAttachment[],
   ) => void;
   setComposerExpanded: (value: boolean) => void;
+}
+
+export function selectVisibleDraftAttachments(
+  attachments: readonly MessageAttachment[],
+  activeReferenceIds: readonly string[],
+): MessageAttachment[] {
+  const activeReferenceIdSet = new Set(activeReferenceIds);
+  return attachments.filter(
+    (attachment) =>
+      !attachment.composerReferenceId ||
+      activeReferenceIdSet.has(attachment.composerReferenceId),
+  );
 }
 
 export interface SubmittedDraftOutbox {

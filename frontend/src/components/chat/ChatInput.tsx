@@ -57,10 +57,8 @@ import type {
 import { buildLongTextClientMeta } from "./longTextConversion";
 import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
-import {
-  moveSubmittedDraftToOutbox,
-  restoreRejectedDraft,
-} from "./acceptedDraftCleanup";
+import { selectVisibleDraftAttachments } from "./acceptedDraftCleanup";
+import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
   return { default: module.RichChatComposer };
@@ -507,60 +505,10 @@ export const ChatInput = memo(function ChatInput({
     }
   }, [attachments]);
 
-  const activeReferenceIdSet = useMemo(
-    () => new Set(activeReferenceIds),
-    [activeReferenceIds],
-  );
   const visibleAttachments = useMemo(
-    () =>
-      attachments.filter(
-        (attachment) =>
-          !attachment.composerReferenceId ||
-          activeReferenceIdSet.has(attachment.composerReferenceId),
-      ),
-    [activeReferenceIdSet, attachments],
+    () => selectVisibleDraftAttachments(attachments, activeReferenceIds),
+    [activeReferenceIds, attachments],
   );
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSend) return;
-    if (canSubmit) {
-      const trimmed = input.trim();
-      const runOptions = runEnabledSkillNames
-        ? { enabledSkills: runEnabledSkillNames }
-        : undefined;
-      const composer = composerRef.current;
-      if (!composer) return;
-      const prepared = prepareSubmit(trimmed, visibleAttachments);
-      const draftState = {
-        composer,
-        inputValueRef,
-        longTextResources: longTextResourcesRef.current,
-        setInput,
-        setActiveReferenceIds,
-        setRunEnabledSkillNames,
-        setAttachments,
-        setComposerExpanded,
-      };
-      const submittedDraft = moveSubmittedDraftToOutbox(
-        composer.getSnapshot(),
-        visibleAttachments,
-        activeReferenceIds,
-        draftState,
-      );
-      if (trimmed) pushHistory(trimmed);
-      onSend(
-        prepared.message,
-        agentOptionValues,
-        prepared.attachments,
-        runOptions,
-        {
-          onAccepted: () => undefined,
-          onRejected: () => restoreRejectedDraft(submittedDraft, draftState),
-        },
-      );
-    }
-  };
 
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -667,6 +615,25 @@ export const ChatInput = memo(function ChatInput({
     !isLoading &&
     !hasUploadingAttachment &&
     !hasFailedAttachment;
+  const handleSubmit = useAcceptedDraftSubmission({
+    enabled: canSubmit,
+    input,
+    enabledSkillNames: runEnabledSkillNames,
+    composerRef,
+    inputValueRef,
+    longTextResourcesRef,
+    visibleAttachments,
+    activeReferenceIds,
+    agentOptionValues,
+    prepareSubmit,
+    pushHistory,
+    onSend,
+    setInput,
+    setActiveReferenceIds,
+    setRunEnabledSkillNames,
+    setAttachments,
+    setComposerExpanded,
+  });
   const composerPlaceholder = !canSend
     ? t("chat.noPermission")
     : mentionMode === "team"
