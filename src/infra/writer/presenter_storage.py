@@ -334,7 +334,7 @@ class StoragePresenterMixin:
                 self.config.session_id,
             )
             metadata = await self._build_trace_metadata()
-            await dual_writer.create_trace(
+            created = await dual_writer.create_trace(
                 trace_id=self.trace_id,
                 session_id=self.config.session_id,
                 agent_id=self.config.agent_id,
@@ -342,7 +342,10 @@ class StoragePresenterMixin:
                 user_id=self.config.user_id,
                 metadata=metadata,
             )
-            self._trace_created = True
+            self._trace_created = bool(created)
+            if not self._trace_created:
+                logger.warning("Trace storage declined trace creation: %s", self.trace_id)
+                return
             logger.debug("Trace created successfully: %s", self.trace_id)
         except Exception as e:
             logger.warning("Failed to create trace: %s", e)
@@ -351,7 +354,12 @@ class StoragePresenterMixin:
     # 事件存储
     # ------------------------------------------------------------------
 
-    async def save_event(self, event: Dict[str, Any]) -> None:
+    async def save_event(
+        self,
+        event: Dict[str, Any],
+        *,
+        raise_on_error: bool = False,
+    ) -> None:
         """
         保存 SSE 事件到 Redis + MongoDB (按 trace 聚合)
 
@@ -363,6 +371,8 @@ class StoragePresenterMixin:
 
         try:
             await self._ensure_trace()
+            if raise_on_error and not self._trace_created:
+                raise RuntimeError("User message trace could not be persisted")
 
             event_type = event.get("event", "unknown")
             if event_type == "done" and self._done_recorded:
@@ -392,6 +402,8 @@ class StoragePresenterMixin:
                     agent_id=self.config.agent_id,
                     run_id=self.run_id,
                 )
+                if raise_on_error:
+                    await dual_writer.flush_mongo_buffer(require_empty=True)
                 if event_type == "token:usage":
                     self._token_usage_recorded = True
                 elif event_type == "goal:end":
@@ -400,6 +412,8 @@ class StoragePresenterMixin:
                     self._done_recorded = True
         except Exception as e:
             logger.warning("Failed to save event: %s", e)
+            if raise_on_error:
+                raise
 
     async def _ensure_token_usage_event(self) -> None:
         """Persist a token usage event before terminal trace status, even if usage is zero."""

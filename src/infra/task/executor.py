@@ -80,6 +80,7 @@ class TaskExecutor:
         team_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
         auto_mode: bool = False,
+        attachment_references_claimed: bool = False,
     ) -> None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -140,6 +141,7 @@ class TaskExecutor:
                     display_message or message,
                     attachments=attachments,
                     enabled_skills=enabled_skills,
+                    attachment_references_claimed=attachment_references_claimed,
                 )
 
             # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
@@ -151,6 +153,8 @@ class TaskExecutor:
             }
             if already_written:
                 run_info_entry["user_message_written"] = True
+            if attachment_references_claimed:
+                run_info_entry["attachment_references_claimed"] = True
             self._run_info[run_id] = run_info_entry
 
             dual_writer = get_dual_writer()

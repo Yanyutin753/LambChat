@@ -93,8 +93,31 @@ class _FakePresenter:
     async def _ensure_trace(self) -> None:
         self.calls.append(("ensure_trace", self.trace_id))
 
-    async def emit_user_message(self, message: str, attachments=None, enabled_skills=None) -> None:
-        self.calls.append(("emit_user_message", message, attachments, enabled_skills))
+    async def emit_user_message(
+        self,
+        message: str,
+        attachments=None,
+        enabled_skills=None,
+        attachment_references_claimed: bool = False,
+    ) -> None:
+        self.calls.append(
+            (
+                "emit_user_message",
+                message,
+                attachments,
+                enabled_skills,
+                attachment_references_claimed,
+            )
+        )
+
+
+class _FileRecords:
+    def __init__(self) -> None:
+        self.releases: list[tuple[list[str], str]] = []
+
+    async def release_owned_references(self, keys: list[str], uploaded_by: str) -> int:
+        self.releases.append((keys, uploaded_by))
+        return len(keys)
 
 
 @pytest.mark.asyncio
@@ -323,6 +346,7 @@ async def test_submit_persists_user_message_before_background_task_starts(
         attachments=[{"name": "a.txt"}],
         enabled_skills=["planning"],
         write_user_message_immediately=True,
+        attachment_references_claimed=True,
     )
 
     await asyncio.sleep(0)
@@ -330,8 +354,45 @@ async def test_submit_persists_user_message_before_background_task_starts(
     assert (run_id, trace_id) == ("run-1", "trace-1")
     assert _FakePresenter.calls[1:] == [
         ("ensure_trace", "trace-1"),
-        ("emit_user_message", "hello", [{"name": "a.txt"}], ["planning"]),
+        ("emit_user_message", "hello", [{"name": "a.txt"}], ["planning"], True),
     ]
+
+
+@pytest.mark.asyncio
+async def test_submit_releases_preclaim_when_initial_presenter_setup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = BackgroundTaskManager()
+    manager._executor = _FakeExecutor()  # type: ignore[assignment]
+    file_records = _FileRecords()
+
+    async def _executor_fn(*args, **kwargs):
+        if False:
+            yield None
+
+    def _fail_agent_name(agent_id: str) -> str:
+        raise RuntimeError(f"unknown agent: {agent_id}")
+
+    monkeypatch.setattr("src.agents.core.resolve_agent_name", _fail_agent_name)
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage",
+        lambda: file_records,
+    )
+
+    with pytest.raises(RuntimeError, match="unknown agent"):
+        await manager.submit(
+            session_id="session-1",
+            agent_id="missing",
+            message="hello",
+            user_id="owner-1",
+            executor=_executor_fn,
+            run_id="run-1",
+            attachments=[{"key": "key-1"}],
+            write_user_message_immediately=True,
+            attachment_references_claimed=True,
+        )
+
+    assert file_records.releases == [(["key-1"], "owner-1")]
 
 
 @pytest.mark.asyncio
@@ -438,13 +499,15 @@ async def test_submit_arq_can_persist_user_message_before_enqueue(
         trace_id="trace-1",
         display_message="hello",
         write_user_message_immediately=True,
+        attachment_references_claimed=True,
     )
 
     assert _FakePresenter.calls[1:] == [
         ("ensure_trace", "trace-1"),
-        ("emit_user_message", "hello", None, None),
+        ("emit_user_message", "hello", None, None, True),
     ]
     assert payload_store.saved[0][1]["user_message_written"] is True
+    assert payload_store.saved[0][1]["attachment_references_claimed"] is True
 
 
 @pytest.mark.asyncio
@@ -485,7 +548,7 @@ async def test_submit_arq_persists_scheduled_task_message_with_enabled_skills(
 
     assert _FakePresenter.calls[1:] == [
         ("ensure_trace", "trace-1"),
-        ("emit_user_message", "hello", None, ["planning"]),
+        ("emit_user_message", "hello", None, ["planning"], False),
     ]
     assert fake_executor.ensure_calls[0][1]["session_metadata"] == session_metadata
     assert payload_store.saved[0][1]["enabled_skills"] == ["planning"]

@@ -34,6 +34,7 @@ class _LifecycleCollection:
         self.find_queries: list[dict] = []
         self.find_one_and_update_calls: list[tuple[dict, dict, dict]] = []
         self.update_one_calls: list[tuple[dict, dict]] = []
+        self.update_many_calls: list[tuple[dict, dict]] = []
         self.delete_one_calls: list[dict] = []
         self.claim_results: list[dict | None] = []
 
@@ -57,6 +58,10 @@ class _LifecycleCollection:
 
     async def update_one(self, query: dict, update: dict):
         self.update_one_calls.append((query, update))
+        return SimpleNamespace(modified_count=1)
+
+    async def update_many(self, query: dict, update: dict):
+        self.update_many_calls.append((query, update))
         return SimpleNamespace(modified_count=1)
 
     async def delete_one(self, query: dict):
@@ -130,16 +135,17 @@ async def test_claim_owned_references_rolls_back_only_prior_claims_when_a_key_is
         {"key": "owned", "uploaded_by": "owner-a", "deleting_at": {"$exists": False}},
         {"key": "foreign", "uploaded_by": "owner-a", "deleting_at": {"$exists": False}},
     ]
-    assert collection.update_one_calls == [
-        (
-            {
-                "key": "owned",
-                "uploaded_by": "owner-a",
-                "reference_count": {"$gt": 0},
-            },
-            {"$inc": {"reference_count": -1}},
-        )
-    ]
+    assert collection.update_one_calls == []
+    rollback_query, rollback_update = collection.update_many_calls[0]
+    assert rollback_query == {
+        "key": {"$in": ["owned"]},
+        "uploaded_by": "owner-a",
+        "reference_count": {"$gt": 0},
+    }
+    assert rollback_update["$inc"] == {"reference_count": -1}
+    assert rollback_update["$set"]["cleanup_after"] > rollback_update["$set"][
+        "updated_at"
+    ] + timedelta(minutes=1)
 
 
 @pytest.mark.asyncio
@@ -153,6 +159,26 @@ async def test_claim_refreshes_cleanup_deadline_for_reused_zero_reference_record
     await storage.claim_owned_references(["owned"], "owner-a")
 
     _query, update, _kwargs = collection.find_one_and_update_calls[0]
+    assert update["$set"]["cleanup_after"] > update["$set"]["updated_at"] + timedelta(minutes=1)
+
+
+@pytest.mark.asyncio
+async def test_release_owned_references_is_owner_scoped_positive_and_delays_cleanup() -> None:
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    released = await storage.release_owned_references(["key-1", "key-1"], "owner-a")
+
+    assert released == 1
+    query, update = collection.update_many_calls[0]
+    assert query == {
+        "key": {"$in": ["key-1"]},
+        "uploaded_by": "owner-a",
+        "reference_count": {"$gt": 0},
+    }
+    assert update["$inc"] == {"reference_count": -1}
     assert update["$set"]["cleanup_after"] > update["$set"]["updated_at"] + timedelta(minutes=1)
 
 

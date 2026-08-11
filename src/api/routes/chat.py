@@ -29,6 +29,8 @@ from src.infra.task.cancellation import _close_agent_safely
 from src.infra.task.concurrency import register_executor
 from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
+from src.infra.upload.file_record import AttachmentClaimError, FileRecordStorage
+from src.infra.writer.presenter_config import _extract_attachment_keys
 from src.kernel.config import settings
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.agent import AgentRequest
@@ -464,6 +466,9 @@ async def chat_stream(
     attachments_data = (
         [a.model_dump() for a in request.attachments] if request.attachments else None
     )
+    attachment_keys = _extract_attachment_keys(attachments_data, limit=None)
+    attachment_references_claimed = bool(attachment_keys)
+    file_records: FileRecordStorage | None = None
 
     # Build task context for queued dispatch (stored in Redis, multi-worker safe)
     # trace_id is generated early so it can be passed to the executor for trace reuse
@@ -489,6 +494,8 @@ async def chat_stream(
         "disabled_tools": request.disabled_tools,
         "agent_options": request.agent_options,
         "attachments": attachments_data,
+        "attachment_references_claimed": attachment_references_claimed,
+        "queue_ready": False,
         "trace_id": trace_id,
         "user_message_written": True,
         "disabled_skills": request.disabled_skills,
@@ -501,6 +508,16 @@ async def chat_stream(
         "auto_mode": request.auto_mode,
     }
 
+    if attachment_keys:
+        file_records = FileRecordStorage()
+        try:
+            await file_records.claim_owned_references(attachment_keys, user.sub)
+        except AttachmentClaimError:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "invalid_attachments"},
+            ) from None
+
     # 检查并发限制
     limiter = get_concurrency_limiter()
     concurrency_result = await limiter.acquire(
@@ -512,6 +529,8 @@ async def chat_stream(
     )
 
     if concurrency_result.result == ConcurrencyResult.REJECTED_QUEUE:
+        if file_records is not None:
+            await file_records.release_owned_references(attachment_keys, user.sub)
         raise HTTPException(
             status_code=429,
             detail={
@@ -524,119 +543,142 @@ async def chat_stream(
         )
 
     if concurrency_result.result == ConcurrencyResult.QUEUED:
-        # Task context already stored in Redis queue entry by acquire().
-        # Ensure executor is initialized and create session immediately.
-        if task_manager._executor is None:
-            from src.infra.task.executor import TaskExecutor
+        persistence_started = False
+        user_message_persisted = False
+        try:
+            # Task context already stored in Redis queue entry by acquire().
+            # Ensure executor is initialized and create session immediately.
+            if task_manager._executor is None:
+                from src.infra.task.executor import TaskExecutor
 
-            task_manager._executor = TaskExecutor(
-                task_manager.storage, task_manager._run_info, task_manager._heartbeat
+                task_manager._executor = TaskExecutor(
+                    task_manager.storage, task_manager._run_info, task_manager._heartbeat
+                )
+            # Create session record immediately (don't wait for dequeue)
+            await task_manager._executor.ensure_session(
+                session_id, agent_id, user.sub, project_id=request.project_id
             )
-        # Create session record immediately (don't wait for dequeue)
-        await task_manager._executor.ensure_session(
-            session_id, agent_id, user.sub, project_id=request.project_id
-        )
-        await task_manager._executor._update_session_status(
-            session_id, TaskStatus.QUEUED, run_id=run_id
-        )
+            await task_manager._executor._update_session_status(
+                session_id, TaskStatus.QUEUED, run_id=run_id
+            )
 
-        # Write user:message event to MongoDB immediately so page refresh can load it
-        presenter = Presenter(
-            PresenterConfig(
-                session_id=session_id,
-                agent_id=agent_id,
-                agent_name=resolve_agent_name(agent_id),
-                user_id=user.sub,
-                run_id=run_id,
+            # Write user:message event to MongoDB immediately so page refresh can load it
+            presenter = Presenter(
+                PresenterConfig(
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    agent_name=resolve_agent_name(agent_id),
+                    user_id=user.sub,
+                    run_id=run_id,
+                    trace_id=trace_id,
+                    enable_storage=True,
+                )
+            )
+            await presenter._ensure_trace()
+            persistence_started = True
+            await presenter.emit_user_message(
+                request.message,
+                attachments=attachments_data,
+                enabled_skills=request.enabled_skills,
+                attachment_references_claimed=attachment_references_claimed,
+            )
+            user_message_persisted = True
+            if not await limiter.mark_queued_run_ready(user.sub, run_id):
+                raise RuntimeError(f"Queued run disappeared before readiness: {run_id}")
+
+            # Mark user message as already written so executor skips re-emitting
+            task_manager._run_info[run_id] = {
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "user_id": user.sub,
+                "trace_id": trace_id,
+                "user_message_written": True,
+                "attachment_references_claimed": attachment_references_claimed,
+            }
+
+            # 更新 session metadata，存储完整的对话配置（排队状态）
+            await _update_session_config(
+                session_id,
+                run_id,
+                agent_id,
+                request,
+                preferred_language,
                 trace_id=trace_id,
-                enable_storage=True,
             )
-        )
-        await presenter._ensure_trace()
-        await presenter.emit_user_message(
-            request.message,
-            attachments=[a.model_dump() for a in request.attachments]
-            if request.attachments
-            else None,
-            enabled_skills=request.enabled_skills,
-        )
 
-        # Mark user message as already written so executor skips re-emitting
-        task_manager._run_info[run_id] = {
-            "session_id": session_id,
-            "agent_id": agent_id,
-            "user_id": user.sub,
-            "trace_id": trace_id,
-            "user_message_written": True,
-        }
-
-        # 更新 session metadata，存储完整的对话配置（排队状态）
-        await _update_session_config(
-            session_id,
-            run_id,
-            agent_id,
-            request,
-            preferred_language,
-            trace_id=trace_id,
-        )
-
-        return {
-            "session_id": session_id,
-            "run_id": run_id,
-            "status": "queued",
-            "queue_position": concurrency_result.queue_position,
-            "max_concurrent": concurrency_result.max_concurrent,
-        }
+            return {
+                "session_id": session_id,
+                "run_id": run_id,
+                "status": "queued",
+                "queue_position": concurrency_result.queue_position,
+                "max_concurrent": concurrency_result.max_concurrent,
+            }
+        except Exception:
+            if not user_message_persisted:
+                await limiter.remove_queued_run(user.sub, run_id)
+                if not persistence_started and file_records is not None:
+                    await file_records.release_owned_references(attachment_keys, user.sub)
+            raise
 
     if settings.TASK_BACKEND == "arq":
-        _, _ = await task_manager.submit_arq(
-            session_id=session_id,
-            agent_id=agent_id,
-            message=formatted_message,
-            user_id=user.sub,
-            executor_key="agent_stream",
-            disabled_tools=request.disabled_tools,
-            agent_options=request.agent_options,
-            attachments=attachments_data,
-            run_id=run_id,
-            project_id=request.project_id,
-            disabled_skills=request.disabled_skills,
-            enabled_skills=request.enabled_skills,
-            persona_system_prompt=request.persona_system_prompt,
-            disabled_mcp_tools=request.disabled_mcp_tools,
-            display_message=request.message,
-            recommendation_input=request.message,
-            trace_id=trace_id,
-            team_id=request.team_id,
-            active_goal=active_goal_data,
-            auto_mode=request.auto_mode,
-            write_user_message_immediately=True,
-        )
+        try:
+            _, _ = await task_manager.submit_arq(
+                session_id=session_id,
+                agent_id=agent_id,
+                message=formatted_message,
+                user_id=user.sub,
+                executor_key="agent_stream",
+                disabled_tools=request.disabled_tools,
+                agent_options=request.agent_options,
+                attachments=attachments_data,
+                run_id=run_id,
+                project_id=request.project_id,
+                disabled_skills=request.disabled_skills,
+                enabled_skills=request.enabled_skills,
+                persona_system_prompt=request.persona_system_prompt,
+                disabled_mcp_tools=request.disabled_mcp_tools,
+                display_message=request.message,
+                recommendation_input=request.message,
+                trace_id=trace_id,
+                team_id=request.team_id,
+                active_goal=active_goal_data,
+                auto_mode=request.auto_mode,
+                write_user_message_immediately=True,
+                attachment_references_claimed=attachment_references_claimed,
+            )
+        except Exception:
+            await limiter.release(user.sub, run_id)
+            raise
     else:
         # STARTED — 正常提交后台任务
-        _, _ = await task_manager.submit(
-            session_id=session_id,
-            agent_id=agent_id,
-            message=formatted_message,
-            user_id=user.sub,
-            executor=_execute_agent_stream,
-            disabled_tools=request.disabled_tools,
-            agent_options=request.agent_options,
-            attachments=attachments_data,
-            run_id=run_id,
-            project_id=request.project_id,
-            disabled_skills=request.disabled_skills,
-            enabled_skills=request.enabled_skills,
-            persona_system_prompt=request.persona_system_prompt,
-            disabled_mcp_tools=request.disabled_mcp_tools,
-            display_message=request.message,
-            recommendation_input=request.message,
-            team_id=request.team_id,
-            trace_id=trace_id,
-            active_goal=active_goal_data,
-            auto_mode=request.auto_mode,
-            write_user_message_immediately=True,
-        )
+        try:
+            _, _ = await task_manager.submit(
+                session_id=session_id,
+                agent_id=agent_id,
+                message=formatted_message,
+                user_id=user.sub,
+                executor=_execute_agent_stream,
+                disabled_tools=request.disabled_tools,
+                agent_options=request.agent_options,
+                attachments=attachments_data,
+                run_id=run_id,
+                project_id=request.project_id,
+                disabled_skills=request.disabled_skills,
+                enabled_skills=request.enabled_skills,
+                persona_system_prompt=request.persona_system_prompt,
+                disabled_mcp_tools=request.disabled_mcp_tools,
+                display_message=request.message,
+                recommendation_input=request.message,
+                team_id=request.team_id,
+                trace_id=trace_id,
+                active_goal=active_goal_data,
+                auto_mode=request.auto_mode,
+                write_user_message_immediately=True,
+                attachment_references_claimed=attachment_references_claimed,
+            )
+        except Exception:
+            await limiter.release(user.sub, run_id)
+            raise
 
     # 更新 session metadata，存储完整的对话配置
     await _update_session_config(

@@ -77,6 +77,10 @@ class _DispatchRedis:
         del key
         self.active.pop(run_id, None)
 
+    async def lpush(self, key: str, entry: str):
+        del key
+        self.entry = entry
+
     async def set(self, *args, **kwargs):
         del args, kwargs
         self.lock_attempted = True
@@ -223,6 +227,46 @@ async def test_remove_from_queue_scans_queue_in_pages(monkeypatch: pytest.Monkey
     assert redis.renamed == [(tmp_key, "chat:queue:user-1")]
     assert redis.events == ["lock_acquired", "rpush", "rename", "lock_released"]
     assert fake_storage.updates[0][0] == "remove"
+
+
+@pytest.mark.asyncio
+async def test_remove_queued_run_keeps_other_runs_for_same_session() -> None:
+    entries = [
+        json.dumps({"run_id": "run-keep", "session_id": "session-1"}),
+        json.dumps({"run_id": "run-remove", "session_id": "session-1"}),
+        json.dumps({"run_id": "run-other", "session_id": "session-2"}),
+    ]
+    redis = _PagedRedis(entries)
+    limiter = UserConcurrencyLimiter()
+    limiter._redis = redis
+
+    removed = await limiter.remove_queued_run("user-1", "run-remove")
+
+    assert removed == 1
+    assert len(redis.pushed) == 1
+    _tmp_key, kept_entries = redis.pushed[0]
+    assert kept_entries == (entries[0], entries[2])
+
+
+@pytest.mark.asyncio
+async def test_unready_queued_run_cannot_dispatch_before_user_message_persists() -> None:
+    entry = json.dumps(
+        {
+            "run_id": "run-1",
+            "session_id": "session-1",
+            "queued_at": 9_999_999_999,
+            "task_context": {"queue_ready": False},
+        }
+    )
+    redis = _DispatchRedis(entry)
+    limiter = UserConcurrencyLimiter()
+    limiter._redis = redis
+
+    dequeued = await limiter._try_dequeue_next_locked("user-1", dispatch=False)
+
+    assert dequeued is None
+    assert redis.active == {}
+    assert redis.entry == entry
 
 
 @pytest.mark.asyncio

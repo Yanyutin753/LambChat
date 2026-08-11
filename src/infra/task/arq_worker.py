@@ -100,6 +100,7 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
         "agent_id": payload["agent_id"],
         "user_id": payload["user_id"],
         "user_message_written": payload.get("user_message_written", False),
+        "attachment_references_claimed": payload.get("attachment_references_claimed", False),
     }
 
     try:
@@ -124,6 +125,7 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
             team_id=payload.get("team_id"),
             active_goal=payload.get("active_goal"),
             auto_mode=bool(payload.get("auto_mode", False)),
+            attachment_references_claimed=bool(payload.get("attachment_references_claimed", False)),
         )
     except TaskInterruptedError:
         await payload_store.delete(run_id)

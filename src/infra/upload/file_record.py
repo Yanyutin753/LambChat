@@ -220,15 +220,7 @@ class FileRecordStorage:
                     raise AttachmentClaimError()
                 claimed.append(key)
         except Exception:
-            for claimed_key in claimed:
-                await self.collection.update_one(
-                    {
-                        "key": claimed_key,
-                        "uploaded_by": uploaded_by,
-                        "reference_count": {"$gt": 0},
-                    },
-                    {"$inc": {"reference_count": -1}},
-                )
+            await self.release_owned_references(claimed, uploaded_by)
             raise
         return claimed
 
@@ -245,6 +237,30 @@ class FileRecordStorage:
                 "reference_count": {"$gt": 0},
             },
             {"$inc": {"reference_count": -1}, "$set": {"updated_at": utc_now()}},
+        )
+        return result.modified_count
+
+    async def release_owned_references(self, keys: list[str], uploaded_by: str) -> int:
+        """Roll back owned positive references and retain a conservative cleanup grace."""
+        unique_keys = _bounded_unique_keys(keys)
+        if not unique_keys:
+            return 0
+
+        await self.ensure_indexes_if_needed()
+        now = utc_now()
+        result = await self.collection.update_many(
+            {
+                "key": {"$in": unique_keys},
+                "uploaded_by": uploaded_by,
+                "reference_count": {"$gt": 0},
+            },
+            {
+                "$inc": {"reference_count": -1},
+                "$set": {
+                    "updated_at": now,
+                    "cleanup_after": now + CLEANUP_GRACE_PERIOD,
+                },
+            },
         )
         return result.modified_count
 

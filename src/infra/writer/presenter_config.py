@@ -14,7 +14,11 @@ def should_increment_unread_for_trace_status(status: str) -> bool:
     return status in {"completed", "error"}
 
 
-def _extract_attachment_keys(attachments: Optional[List[Dict[str, Any]]]) -> list[str]:
+def _extract_attachment_keys(
+    attachments: Optional[List[Dict[str, Any]]],
+    *,
+    limit: int | None = ATTACHMENT_KEYS_MAX,
+) -> list[str]:
     """Extract unique storage keys from attachment payloads."""
     if not attachments:
         return []
@@ -26,7 +30,7 @@ def _extract_attachment_keys(attachments: Optional[List[Dict[str, Any]]]) -> lis
             continue
         seen.add(key)
         keys.append(key)
-        if len(keys) >= ATTACHMENT_KEYS_MAX:
+        if limit is not None and len(keys) >= limit:
             break
     return keys
 

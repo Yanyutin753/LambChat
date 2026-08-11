@@ -107,6 +107,7 @@ async def test_run_agent_task_loads_payload_and_invokes_executor(
         "user_id": "user-1",
         "executor_key": "agent_stream",
         "user_message_written": True,
+        "attachment_references_claimed": True,
         "agent_options": {"model": "test"},
         "team_id": "team-1",
         "active_goal": {"objective": "finish docs", "rubric": "- docs updated"},
@@ -134,6 +135,7 @@ async def test_run_agent_task_loads_payload_and_invokes_executor(
     assert task_executor.run_calls[0]["executor"] is _executor_fn
     assert task_executor.run_calls[0]["team_id"] == "team-1"
     assert task_executor.run_calls[0]["auto_mode"] is True
+    assert task_executor.run_calls[0]["attachment_references_claimed"] is True
     assert task_executor.run_calls[0]["active_goal"] == {
         "objective": "finish docs",
         "rubric": "- docs updated",

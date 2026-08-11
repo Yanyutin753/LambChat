@@ -433,6 +433,11 @@ class UserConcurrencyLimiter:
                 logger.warning("Discarding queued task entry missing run_id or session_id")
                 continue
 
+            task_context = data.get("task_context")
+            if isinstance(task_context, dict) and task_context.get("queue_ready") is False:
+                await self.redis.lpush(queue_key, entry)
+                return None
+
             max_concurrent, _ = await self.get_user_limits_from_cache(user_id)
             if max_concurrent is not None:
                 await self._cleanup_stale_active(user_id)
@@ -567,6 +572,9 @@ class UserConcurrencyLimiter:
                 team_id = task_ctx.get("team_id")
                 active_goal = task_ctx.get("active_goal")
                 auto_mode = bool(task_ctx.get("auto_mode", False))
+                attachment_references_claimed = bool(
+                    task_ctx.get("attachment_references_claimed", False)
+                )
             else:
                 # Legacy fallback: context in process memory (single-worker)
                 pending = task_manager.pop_pending_task(run_id)
@@ -588,6 +596,9 @@ class UserConcurrencyLimiter:
                 team_id = pending.get("team_id")
                 active_goal = pending.get("active_goal")
                 auto_mode = bool(pending.get("auto_mode", False))
+                attachment_references_claimed = bool(
+                    pending.get("attachment_references_claimed", False)
+                )
 
             if task_ctx and settings.TASK_BACKEND == "arq":
                 await task_manager.submit_arq(
@@ -611,6 +622,7 @@ class UserConcurrencyLimiter:
                     team_id=team_id,
                     active_goal=active_goal,
                     auto_mode=auto_mode,
+                    attachment_references_claimed=attachment_references_claimed,
                 )
                 await self._send_queue_processing_event(session_id, run_id)
                 return
@@ -652,6 +664,7 @@ class UserConcurrencyLimiter:
                         team_id=team_id,
                         active_goal=active_goal,
                         auto_mode=auto_mode,
+                        attachment_references_claimed=attachment_references_claimed,
                     )
                 )
                 task_manager._tasks[run_id] = task
@@ -735,10 +748,113 @@ class UserConcurrencyLimiter:
             logger.warning(f"Failed to remove from queue: {e}")
             return 0
 
+    async def remove_queued_run(self, user_id: str, run_id: str) -> int:
+        """Remove only the queued entry for ``run_id`` without cancelling sibling runs."""
+        try:
+            lock_key, token = await self._acquire_user_lock(user_id)
+            try:
+                removed, _ = await self._rewrite_queue_without_matches(
+                    user_id,
+                    match_field="run_id",
+                    match_value=run_id,
+                )
+            finally:
+                await self._release_user_lock(lock_key, token)
+            if removed:
+                logger.info("Removed queued run %s for user %s", run_id, user_id)
+            return removed
+        except Exception as e:
+            logger.warning("Failed to remove queued run %s: %s", run_id, e)
+            return 0
+
+    async def mark_queued_run_ready(self, user_id: str, run_id: str) -> bool:
+        """Make a persisted queued run dispatchable and fill any newly available slot."""
+        dequeued_task: _DequeuedTask | None = None
+        try:
+            lock_key, token = await self._acquire_user_lock(user_id)
+            try:
+                marked = await self._mark_queued_run_ready_locked(user_id, run_id)
+                if marked:
+                    dequeued_task = await self._try_dequeue_next_locked(
+                        user_id,
+                        dispatch=False,
+                    )
+            finally:
+                await self._release_user_lock(lock_key, token)
+
+            if dequeued_task is not None:
+                await self._dispatch_queued_task(
+                    dequeued_task.user_id,
+                    dequeued_task.run_id,
+                    dequeued_task.session_id,
+                    dequeued_task.queue_data,
+                )
+            return marked
+        except Exception as e:
+            logger.warning("Failed to mark queued run %s ready: %s", run_id, e)
+            return False
+
+    async def _mark_queued_run_ready_locked(self, user_id: str, run_id: str) -> bool:
+        """Rewrite one exact queue entry as ready while holding the user lock."""
+        queue_key = self._queue_key(user_id)
+        tmp_key = f"{queue_key}:ready:{uuid.uuid4().hex}"
+        keep_buffer: list[str] = []
+        found = False
+        wrote_entries = False
+
+        async def _flush() -> None:
+            nonlocal wrote_entries
+            if not keep_buffer:
+                return
+            await self.redis.rpush(tmp_key, *keep_buffer)
+            keep_buffer.clear()
+            wrote_entries = True
+
+        try:
+            async for entry in self._iter_queue_entries(queue_key):
+                data = await _queue_json_loads(entry)
+                if data.get("run_id") == run_id:
+                    task_context = dict(data.get("task_context") or {})
+                    task_context["queue_ready"] = True
+                    data["task_context"] = task_context
+                    entry = await _queue_json_dumps(data)
+                    found = True
+                keep_buffer.append(entry)
+                if len(keep_buffer) >= QUEUE_REWRITE_CHUNK_SIZE:
+                    await _flush()
+
+            if not found:
+                return False
+            await _flush()
+            if wrote_entries:
+                await self.redis.rename(tmp_key, queue_key)
+                tmp_key = ""
+            return True
+        finally:
+            if tmp_key:
+                try:
+                    await self.redis.delete(tmp_key)
+                except Exception:
+                    pass
+
     async def _remove_from_queue_locked(
         self, user_id: str, session_id: str
     ) -> tuple[int, list[Any]]:
         """Remove queued tasks while the caller holds the per-user lock."""
+        return await self._rewrite_queue_without_matches(
+            user_id,
+            match_field="session_id",
+            match_value=session_id,
+        )
+
+    async def _rewrite_queue_without_matches(
+        self,
+        user_id: str,
+        *,
+        match_field: str,
+        match_value: str,
+    ) -> tuple[int, list[Any]]:
+        """Rewrite a user queue while omitting entries matching one exact field."""
         tmp_key: str | None = None
         try:
             queue_key = self._queue_key(user_id)
@@ -758,7 +874,7 @@ class UserConcurrencyLimiter:
 
             async for entry in self._iter_queue_entries(queue_key):
                 data = await _queue_json_loads(entry)
-                if data.get("session_id") == session_id:
+                if data.get(match_field) == match_value:
                     removed += 1
                     removed_run_ids.append(data.get("run_id"))
                 else:

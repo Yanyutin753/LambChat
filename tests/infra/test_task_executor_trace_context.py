@@ -15,7 +15,7 @@ class _FakeHeartbeat:
 
 
 class _FakePresenter:
-    emitted_user_messages: list[tuple[str, object, object]] = []
+    emitted_user_messages: list[tuple[str, object, object, bool]] = []
 
     def __init__(self, config) -> None:
         self.config = config
@@ -25,8 +25,16 @@ class _FakePresenter:
     async def _ensure_trace(self) -> None:
         return None
 
-    async def emit_user_message(self, message: str, attachments=None, enabled_skills=None) -> None:
-        self.emitted_user_messages.append((message, attachments, enabled_skills))
+    async def emit_user_message(
+        self,
+        message: str,
+        attachments=None,
+        enabled_skills=None,
+        attachment_references_claimed: bool = False,
+    ) -> None:
+        self.emitted_user_messages.append(
+            (message, attachments, enabled_skills, attachment_references_claimed)
+        )
 
     async def save_event(self, event) -> None:
         return None
@@ -238,6 +246,7 @@ async def test_task_executor_passes_enabled_skills_to_user_message(
         executor=fake_agent_executor,
         existing_trace_id="trace-run-level",
         enabled_skills=["planning"],
+        attachment_references_claimed=True,
     )
 
-    assert _FakePresenter.emitted_user_messages == [("hello", None, ["planning"])]
+    assert _FakePresenter.emitted_user_messages == [("hello", None, ["planning"], True)]

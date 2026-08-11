@@ -203,12 +203,45 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         attachments: Optional[List[Dict[str, Any]]] = None,
         message_id: Optional[str] = None,
         enabled_skills: Optional[List[str]] = None,
+        attachment_references_claimed: bool = False,
     ) -> Dict[str, Any]:
         """输出用户消息并保存"""
-        event = self.present_user_message(
-            content, attachments, message_id=message_id, enabled_skills=enabled_skills
-        )
-        await self.save_event(event)
+        attachment_keys = _extract_attachment_keys(attachments)
+        file_records: FileRecordStorage | None = None
+        claims_established = False
+        if attachment_keys:
+            file_records = FileRecordStorage()
+            if attachment_references_claimed:
+                claims_established = True
+            else:
+                await file_records.claim_owned_references(
+                    attachment_keys,
+                    self.config.user_id or "",
+                )
+                claims_established = True
+
+        try:
+            event = self.present_user_message(
+                content,
+                attachments,
+                message_id=message_id,
+                enabled_skills=enabled_skills,
+            )
+            await self.save_event(event, raise_on_error=True)
+        except Exception:
+            if claims_established and file_records is not None:
+                try:
+                    await file_records.release_owned_references(
+                        attachment_keys,
+                        self.config.user_id or "",
+                    )
+                except Exception as rollback_error:
+                    logger.error(
+                        "Failed to roll back attachment references for user message: %s",
+                        rollback_error,
+                    )
+            raise
+
         if self.config.session_id:
             try:
                 from src.infra.session.storage import SessionStorage
@@ -219,12 +252,6 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
                 )
             except Exception as e:
                 logger.warning("Failed to update session search index for user message: %s", e)
-        attachment_keys = _extract_attachment_keys(attachments)
-        if attachment_keys:
-            try:
-                await FileRecordStorage().add_references(attachment_keys)
-            except Exception as e:
-                logger.warning("Failed to track attachment references for user message: %s", e)
         return event
 
     async def emit_skills_changed(
