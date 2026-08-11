@@ -168,6 +168,51 @@ async def test_spool_upload_file_limited_hashes_without_buffering_all_content() 
 
 
 @pytest.mark.asyncio
+async def test_spool_upload_file_limited_rejects_empty_file_and_closes_spool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _TrackingSpool(_BlockingOnlySpooledFile):
+        def seek(self, position: int) -> int:
+            self.position = position
+            return position
+
+    created: list[_TrackingSpool] = []
+
+    def make_spool(*args, **kwargs):
+        spool = _TrackingSpool(*args, **kwargs)
+        created.append(spool)
+        return spool
+
+    monkeypatch.setattr(upload_route, "SpooledTemporaryFile", make_spool)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await _spool_upload_file_limited(
+            ChunkedUpload([b""]),
+            max_size_bytes=6,
+            max_size_mb=1,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "File is empty"
+    assert len(created) == 1
+    assert created[0].closed is True
+
+
+@pytest.mark.asyncio
+async def test_spool_upload_file_limited_names_empty_avatar_uploads() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        await _spool_upload_file_limited(
+            ChunkedUpload([b""]),
+            max_size_bytes=6,
+            max_size_mb=1,
+            purpose="Avatar file",
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Avatar file is empty"
+
+
+@pytest.mark.asyncio
 async def test_spool_upload_file_limited_rejects_oversize_and_closes_file() -> None:
     upload = ChunkedUpload([b"abcd", b"efgh", b"this-should-not-be-read"])
 

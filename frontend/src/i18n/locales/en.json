@@ -1280,6 +1280,8 @@
     "dragDrop": "Drag and drop files here or click to upload",
     "dragDropHint": "Drag and drop files here",
     "dragDropOr": "or click button below to select",
+    "clipboardImageUnavailable": "The clipboard image could not be read. Copy it again, or save it and upload the file.",
+    "emptyFile": "This file is empty and cannot be uploaded.",
     "effectiveLimits": "Limits: Image {{image}}MB / Video {{video}}MB / Audio {{audio}}MB / Document {{document}}MB / Max {{maxFiles}} files",
     "fileTooLarge": "File size exceeds limit",
     "maxFilesSummary": "Up to {{maxFiles}} files per upload",

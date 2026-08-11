@@ -1280,6 +1280,8 @@
     "dragDrop": "拖拽文件到这里或点击上传",
     "dragDropHint": "拖放文件到此处",
     "dragDropOr": "或点击下方按钮选择",
+    "clipboardImageUnavailable": "无法读取剪贴板图片，请重新复制，或保存图片后上传。",
+    "emptyFile": "文件内容为空，无法上传。",
     "effectiveLimits": "上传限制：图片 {{image}}MB / 视频 {{video}}MB / 音频 {{audio}}MB / 文档 {{document}}MB / 最多 {{maxFiles}} 个文件",
     "fileTooLarge": "文件大小超过限制",
     "maxFilesSummary": "单次最多上传 {{maxFiles}} 个文件",

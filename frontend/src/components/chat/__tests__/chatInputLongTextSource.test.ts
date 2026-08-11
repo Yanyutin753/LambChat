@@ -27,7 +27,7 @@ test("ChatInput uses one rich composer for inline long-text references", () => {
 
 test("ChatInput wires file paste to the existing upload flow", () => {
   expect(chatInputSource).toMatch(
-    /filePaste=\{\{\s*validateCount,\s*onFiles: uploadFiles,?\s*\}\}/,
+    /filePaste=\{\{[\s\S]*?validateCount,[\s\S]*?onFiles: uploadFiles,[\s\S]*?onInvalidImage:/,
   );
 });
 

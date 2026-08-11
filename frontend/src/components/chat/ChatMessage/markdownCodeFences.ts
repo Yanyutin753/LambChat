@@ -36,16 +36,16 @@ export function normalizeMarkdownCodeFences(markdown: string): string {
       continue;
     }
 
+    if (afterMarkerOnLine.trim().length > 0) {
+      continue;
+    }
+
     result += markdown.slice(lastIndex, markerStart);
     if (beforeMarkerOnLine.length > 0 && !result.endsWith("\n")) {
       result += "\n";
     }
     result += marker;
     lastIndex = markerEnd;
-
-    if (afterMarkerOnLine.length > 0) {
-      result += "\n";
-    }
     inFence = false;
   }
 

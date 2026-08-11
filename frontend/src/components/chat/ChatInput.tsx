@@ -798,7 +798,17 @@ export const ChatInput = memo(function ChatInput({
                   availableSkills={availableRunSkills}
                   onApplySlashCommand={applySlashCommand}
                   onChange={handleComposerChange}
-                  filePaste={{ validateCount, onFiles: uploadFiles }}
+                  filePaste={{
+                    validateCount,
+                    onFiles: uploadFiles,
+                    onInvalidImage: () =>
+                      toast.error(
+                        t(
+                          "fileUpload.clipboardImageUnavailable",
+                          "无法读取剪贴板图片，请重新复制或保存后上传",
+                        ),
+                      ),
+                  }}
                   longTextPaste={{
                     enabled: !composerExpanded,
                     validateCount,

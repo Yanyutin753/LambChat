@@ -107,6 +107,10 @@ export function useFileUpload({
   /** Validate file size, returns true if ok */
   const validateSize = useCallback(
     (file: File, category: FileCategory): boolean => {
+      if (file.size <= 0) {
+        toast.error(t("fileUpload.emptyFile"));
+        return false;
+      }
       if (!uploadLimits) return true;
       const maxMB = uploadLimits[category];
       if (file.size > maxMB * 1024 * 1024) {
@@ -151,6 +155,7 @@ export function useFileUpload({
   const uploadFile = useCallback(
     (file: File, category?: FileCategory, clientMeta?: UploadClientMeta) => {
       const fileCategory = category || getFileCategory(file);
+      if (!validateSize(file, fileCategory)) return;
 
       // Compress images before upload
       const maybeCompress =
@@ -300,7 +305,7 @@ export function useFileUpload({
           });
       });
     },
-    [onAttachmentsChange, t],
+    [onAttachmentsChange, t, validateSize],
   );
 
   /** Validate and upload multiple files */
@@ -313,11 +318,14 @@ export function useFileUpload({
       const fileArray = Array.from(files);
       if (fileArray.length === 0) return;
 
-      if (!validateCount(fileArray.length)) return;
-
-      for (const file of fileArray) {
+      const validFiles = fileArray.filter((file) => {
         const fileCategory = category || getFileCategory(file);
-        if (!validateSize(file, fileCategory)) continue;
+        return validateSize(file, fileCategory);
+      });
+      if (validFiles.length === 0 || !validateCount(validFiles.length)) return;
+
+      for (const file of validFiles) {
+        const fileCategory = category || getFileCategory(file);
         uploadFile(file, fileCategory, clientMeta);
       }
     },

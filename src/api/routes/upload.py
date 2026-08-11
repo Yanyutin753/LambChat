@@ -280,6 +280,9 @@ async def _spool_upload_file_limited(
             digest.update(chunk)
             await run_blocking_io(spooled.write, chunk)
 
+        if total_size == 0:
+            raise HTTPException(status_code=400, detail=f"{purpose} is empty")
+
         await run_blocking_io(spooled.seek, 0)
         return SpooledUpload(file=spooled, sha256_hex=digest.hexdigest(), size=total_size)
     except Exception:

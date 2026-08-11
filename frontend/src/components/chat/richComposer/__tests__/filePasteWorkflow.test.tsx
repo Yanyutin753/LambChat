@@ -5,11 +5,23 @@ import { expect, test, vi } from "vitest";
 import { PASTE_TEXT_THRESHOLD } from "../../chatInputConstants";
 import { RichChatComposer } from "../RichChatComposer";
 
-function paste(element: HTMLElement, files: File[], text = ""): ClipboardEvent {
+const PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+function paste(
+  element: HTMLElement,
+  files: File[],
+  text = "",
+  html = "",
+): ClipboardEvent {
   const event = createEvent.paste(element, {
     clipboardData: {
       files,
-      getData: (type: string) => (type === "text/plain" ? text : ""),
+      getData: (type: string) => {
+        if (type === "text/html") return html;
+        if (type === "text/plain") return text;
+        return "";
+      },
     },
   });
   fireEvent(element, event);
@@ -23,7 +35,7 @@ test("pasting an image uploads it instead of inserting accompanying text", () =>
   render(
     <RichChatComposer
       ariaLabel="message"
-      filePaste={{ validateCount, onFiles }}
+      filePaste={{ validateCount, onFiles, onInvalidImage: vi.fn() }}
       longTextPaste={{
         enabled: true,
         validateCount: () => true,
@@ -51,7 +63,7 @@ test("pasting multiple files forwards the complete collection", () => {
   render(
     <RichChatComposer
       ariaLabel="message"
-      filePaste={{ validateCount, onFiles }}
+      filePaste={{ validateCount, onFiles, onInvalidImage: vi.fn() }}
     />,
   );
   const files = [
@@ -72,7 +84,7 @@ test("rejected file paste is consumed without upload or fallback text", () => {
   render(
     <RichChatComposer
       ariaLabel="message"
-      filePaste={{ validateCount, onFiles }}
+      filePaste={{ validateCount, onFiles, onInvalidImage: vi.fn() }}
       longTextPaste={{
         enabled: true,
         validateCount: () => true,
@@ -102,7 +114,11 @@ test("text-only paste falls through to long-text conversion", () => {
   render(
     <RichChatComposer
       ariaLabel="message"
-      filePaste={{ validateCount: () => true, onFiles }}
+      filePaste={{
+        validateCount: () => true,
+        onFiles,
+        onInvalidImage: vi.fn(),
+      }}
       longTextPaste={{
         enabled: true,
         validateCount: () => true,
@@ -116,4 +132,62 @@ test("text-only paste falls through to long-text conversion", () => {
 
   expect(onFiles).not.toHaveBeenCalled();
   expect(onLongTextCreate).toHaveBeenCalledTimes(1);
+});
+
+test("zero-byte clipboard placeholders are consumed as unavailable images", () => {
+  const onFiles = vi.fn();
+  const onInvalidImage = vi.fn();
+  const onLongTextCreate = vi.fn();
+  render(
+    <RichChatComposer
+      ariaLabel="message"
+      filePaste={{ validateCount: () => true, onFiles, onInvalidImage }}
+      longTextPaste={{
+        enabled: true,
+        validateCount: () => true,
+        onCreate: onLongTextCreate,
+      }}
+    />,
+  );
+  const editor = screen.getByRole("textbox", { name: "message" });
+  const placeholder = new File([], "bpm_r5.bin", { type: "" });
+
+  const event = paste(editor, [placeholder], "stale fallback text");
+
+  expect(event.defaultPrevented).toBe(true);
+  expect(onInvalidImage).toHaveBeenCalledOnce();
+  expect(onFiles).not.toHaveBeenCalled();
+  expect(onLongTextCreate).not.toHaveBeenCalled();
+  expect(editor).not.toHaveTextContent("stale fallback text");
+});
+
+test("embedded data images are uploaded instead of inserted as text", () => {
+  const onFiles = vi.fn();
+  const onInvalidImage = vi.fn();
+  const onLongTextCreate = vi.fn();
+  render(
+    <RichChatComposer
+      ariaLabel="message"
+      filePaste={{ validateCount: () => true, onFiles, onInvalidImage }}
+      longTextPaste={{
+        enabled: true,
+        validateCount: () => true,
+        onCreate: onLongTextCreate,
+      }}
+    />,
+  );
+  const editor = screen.getByRole("textbox", { name: "message" });
+
+  paste(editor, [], "", `<img src="${PNG_DATA_URL}">`);
+
+  expect(onFiles).toHaveBeenCalledOnce();
+  const uploadedFiles = onFiles.mock.calls[0]?.[0] as File[];
+  expect(uploadedFiles[0]).toMatchObject({
+    name: "pasted-image.png",
+    type: "image/png",
+  });
+  expect(uploadedFiles[0].size).toBeGreaterThan(0);
+  expect(onInvalidImage).not.toHaveBeenCalled();
+  expect(onLongTextCreate).not.toHaveBeenCalled();
+  expect(editor).toHaveTextContent("");
 });

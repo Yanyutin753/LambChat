@@ -58,7 +58,7 @@ The bounded spooling helper rejects an upload whose final byte count is zero wit
 
 Frontend unit tests cover the clipboard classifier for valid native images, zero-byte stale placeholders, embedded data images, inaccessible remote/blob image markup, and ordinary text. Hook/component tests prove that invalid files do not create attachment state or call upload APIs, mixed batches keep valid files, both paste paths consume invalid images, and embedded data images reach the file upload callback.
 
-Backend tests prove that `_spool_upload_file_limited` rejects an empty stream while preserving existing bounded streaming behavior. Focused frontend and backend suites run first, followed by frontend lint/build and the relevant backend route suite. Full-suite results remain distinct from focused verification.
+Backend tests prove that the shared `_spool_upload_file_limited` guard rejects empty general-file and avatar uploads while preserving existing bounded streaming behavior and purpose-specific error messages. Focused frontend and backend suites run first, followed by frontend lint/build and the relevant backend route suite. Full-suite results remain distinct from focused verification.
 
 ## Non-Goals
 

@@ -37,6 +37,7 @@ export interface LongTextPasteOptions {
 export interface FilePasteOptions {
   validateCount: (count: number) => boolean;
   onFiles: (files: FileList | File[]) => void;
+  onInvalidImage: () => void;
 }
 
 export interface RichChatComposerChange {

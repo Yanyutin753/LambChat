@@ -1280,6 +1280,8 @@
     "dragDrop": "ドラッグ＆ドロップまたはクリックしてアップロード",
     "dragDropHint": "ファイルをここにドラッグ＆ドロップ",
     "dragDropOr": "または下のボタンをクリックして選択",
+    "clipboardImageUnavailable": "クリップボードの画像を読み取れません。画像をもう一度コピーするか、保存してからアップロードしてください。",
+    "emptyFile": "ファイルが空のためアップロードできません。",
     "effectiveLimits": "制限：画像 {{image}}MB / 動画 {{video}}MB / 音声 {{audio}}MB / ドキュメント {{document}}MB / 最大 {{maxFiles}} ファイル",
     "fileTooLarge": "ファイルサイズが制限を超えています",
     "maxFilesSummary": "1回のアップロード最大 {{maxFiles}} ファイル",

@@ -4,6 +4,7 @@ import {
   cleanPastedHtml,
 } from "../components/chat/chatInputTurndown";
 import { PASTE_TEXT_THRESHOLD } from "../components/chat/chatInputConstants";
+import { classifyClipboardFiles } from "../components/chat/clipboardFiles";
 import type { FileCategory } from "../types";
 
 export interface UsePasteHandlerOptions {
@@ -15,6 +16,8 @@ export interface UsePasteHandlerOptions {
   scheduleTextareaResize: () => void;
   /** Convert oversized pasted text into a long-text attachment. */
   onLongTextPaste?: (text: string) => boolean;
+  /** Report clipboard image placeholders that contain no readable bytes. */
+  onInvalidImagePaste?: () => void;
 }
 
 export function buildPostPasteInput(
@@ -38,6 +41,7 @@ export function usePasteHandler({
   validateCount,
   scheduleTextareaResize,
   onLongTextPaste,
+  onInvalidImagePaste,
 }: UsePasteHandlerOptions) {
   const insertText = useCallback(
     (text: string) => {
@@ -64,10 +68,16 @@ export function usePasteHandler({
       const clipboardData = e.clipboardData;
       if (!clipboardData) return;
 
-      if (clipboardData.files && clipboardData.files.length > 0) {
+      const fileResult = classifyClipboardFiles(clipboardData);
+      if (fileResult.kind === "invalid-image") {
         e.preventDefault();
-        if (!validateCount(clipboardData.files.length)) return;
-        uploadFiles(clipboardData.files);
+        onInvalidImagePaste?.();
+        return;
+      }
+      if (fileResult.kind === "files") {
+        e.preventDefault();
+        if (!validateCount(fileResult.files.length)) return;
+        uploadFiles(fileResult.files);
         return;
       }
 
@@ -94,7 +104,13 @@ export function usePasteHandler({
         insertText(plainText);
       }
     },
-    [uploadFiles, validateCount, onLongTextPaste, insertText],
+    [
+      uploadFiles,
+      validateCount,
+      onLongTextPaste,
+      onInvalidImagePaste,
+      insertText,
+    ],
   );
 
   return { handlePaste };
