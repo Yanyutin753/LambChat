@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, Optional
+from uuid import uuid4
 
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
@@ -67,6 +68,7 @@ class ScheduledTaskStorage:
         await c_tasks.create_index("owner_id")
         await c_tasks.create_index("status")
         await c_tasks.create_index([("status", 1), ("enabled", 1)])
+        await c_tasks.create_index("scheduler_revision_pending_operation_id")
         await c_tasks.create_index(
             [
                 ("owner_id", 1),
@@ -203,6 +205,7 @@ class ScheduledTaskStorage:
 
     async def get_active_tasks_marker(self) -> int:
         """Return an O(1) scheduler-definition revision marker."""
+        await self._publish_one_pending_scheduler_definition_revision()
         doc = await self._get_collection(_COLL_METADATA).find_one(
             {"_id": _SCHEDULER_DEFINITION_REVISION_ID}
         )
@@ -237,6 +240,7 @@ class ScheduledTaskStorage:
                                 list(keys),
                             ]
                         },
+                        "attachment_commit_operation_id": None,
                         "updated_at": utc_now(),
                     }
                 }
@@ -255,6 +259,7 @@ class ScheduledTaskStorage:
         attachment_keys: list[str],
     ) -> Optional[ScheduledTask]:
         """Publish claimed attachment keys and durably queue removed keys for release."""
+        operation_id = str(uuid4())
         state = dict(updates)
         state.update(
             {
@@ -273,26 +278,42 @@ class ScheduledTaskStorage:
                     ]
                 },
                 "attachment_setup_pending": False,
+                "attachment_commit_operation_id": operation_id,
+                "scheduler_revision_pending_operation_id": operation_id,
                 "updated_at": utc_now(),
             }
         )
-        record = await self._get_collection(_COLL_TASKS).find_one_and_update(
-            {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
-            [{"$set": state}],
-            return_document=ReturnDocument.AFTER,
-        )
+        collection = self._get_collection(_COLL_TASKS)
+        try:
+            record = await collection.find_one_and_update(
+                {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
+                [{"$set": state}],
+                return_document=ReturnDocument.AFTER,
+            )
+        except Exception:
+            # A Mongo write can commit and still lose its reply. Only this exact
+            # operation identity can turn that ambiguous outcome into success.
+            # A failed/mismatched re-read remains fail-closed so callers retain
+            # the staged lease for the next serialized reconciliation pass.
+            try:
+                record = await collection.find_one(
+                    {
+                        "_id": task_id,
+                        "attachment_commit_operation_id": operation_id,
+                    }
+                )
+            except Exception:
+                logger.exception(
+                    "[ScheduledTaskStorage] failed to verify attachment commit %s",
+                    task_id,
+                )
+                raise
+            if record is None:
+                raise
         if record is None:
             return None
         committed = ScheduledTask(**record)
-        try:
-            await self._bump_scheduler_definition_revision()
-        except Exception:
-            # The definition write already committed. Propagating here would make
-            # callers compensate live attachment leases as though it had failed.
-            logger.exception(
-                "[ScheduledTaskStorage] revision bump failed after attachment commit %s",
-                task_id,
-            )
+        await self._try_publish_scheduler_definition_revision(task_id, operation_id)
         return committed
 
     async def mark_task_attachment_deletion(
@@ -317,6 +338,7 @@ class ScheduledTaskStorage:
                             ]
                         },
                         "attachment_setup_pending": False,
+                        "attachment_commit_operation_id": None,
                         "updated_at": utc_now(),
                     }
                 }
@@ -455,6 +477,57 @@ class ScheduledTaskStorage:
                 "$set": {"updated_at": utc_now()},
             },
             upsert=True,
+        )
+
+    async def _try_publish_scheduler_definition_revision(
+        self,
+        task_id: str,
+        operation_id: str,
+    ) -> None:
+        """Best-effort publish; the task marker makes any failure durable."""
+        try:
+            await self._publish_scheduler_definition_revision(task_id, operation_id)
+        except Exception:
+            logger.exception(
+                "[ScheduledTaskStorage] revision publish deferred for attachment commit %s",
+                task_id,
+            )
+
+    async def _publish_one_pending_scheduler_definition_revision(self) -> None:
+        """Publish one durable task revision before returning the shared marker."""
+        collection = self._get_collection(_COLL_TASKS)
+        pending = await collection.find_one(
+            {
+                "scheduler_revision_pending_operation_id": {
+                    "$type": "string",
+                    "$ne": "",
+                }
+            },
+            {"_id": 1, "scheduler_revision_pending_operation_id": 1},
+        )
+        if pending is None:
+            return
+        operation_id = pending.get("scheduler_revision_pending_operation_id")
+        if not isinstance(operation_id, str) or not operation_id:
+            raise RuntimeError("Invalid pending scheduler definition revision identity")
+        await self._publish_scheduler_definition_revision(
+            str(pending["_id"]),
+            operation_id,
+        )
+
+    async def _publish_scheduler_definition_revision(
+        self,
+        task_id: str,
+        operation_id: str,
+    ) -> None:
+        """Bump the shared marker, then clear only the operation it publishes."""
+        await self._bump_scheduler_definition_revision()
+        await self._get_collection(_COLL_TASKS).update_one(
+            {
+                "_id": task_id,
+                "scheduler_revision_pending_operation_id": operation_id,
+            },
+            {"$unset": {"scheduler_revision_pending_operation_id": ""}},
         )
 
 

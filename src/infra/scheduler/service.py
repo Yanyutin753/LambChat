@@ -215,27 +215,13 @@ class ScheduledTaskService:
                 if committed is None:
                     raise RuntimeError("Scheduled task attachment setup was interrupted")
             except (Exception, asyncio.CancelledError):
-                released = False
-                try:
-                    await file_records.release_scheduled_task_references(
-                        attachment_keys,
-                        owner_id,
-                        task_id,
-                    )
-                    released = True
-                except Exception:
-                    logger.exception(
-                        "[Service] failed to release interrupted task attachment setup %s",
-                        task_id,
-                    )
-                if released:
-                    try:
-                        await storage.delete_task(task_id)
-                    except Exception:
-                        logger.exception(
-                            "[Service] failed to remove interrupted task attachment setup %s",
-                            task_id,
-                        )
+                # The definition write may have committed before its reply was
+                # lost. Keep the task token and durable setup marker; releasing
+                # here could leave an active definition without its file lease.
+                logger.warning(
+                    "[Service] retaining ambiguous task attachment setup %s for reconciliation",
+                    task_id,
+                )
                 raise
             task = committed
         try:
@@ -302,44 +288,33 @@ class ScheduledTaskService:
             if staged is None:
                 return None
             file_records = FileRecordStorage()
+            await file_records.claim_scheduled_task_references(
+                added_keys,
+                task.owner_id,
+                task.id,
+            )
             try:
-                await file_records.claim_scheduled_task_references(
-                    added_keys,
-                    task.owner_id,
-                    task.id,
-                )
                 updated_task = await storage.commit_attachment_update(
                     task_id,
                     updates,
                     attachment_keys,
                 )
             except (Exception, asyncio.CancelledError):
-                try:
-                    await file_records.release_scheduled_task_references(
-                        added_keys,
-                        task.owner_id,
-                        task.id,
-                    )
-                    await storage.clear_pending_attachment_claims(task.id, added_keys)
-                except Exception:
-                    logger.exception(
-                        "[Service] failed to roll back interrupted task update %s",
-                        task.id,
-                    )
+                # Cancellation can mean this owner lost its mutation lock, and a
+                # Mongo exception can mean the commit applied without a reply.
+                # In either case the task UUID is not a safe compensation token:
+                # a successor may already have adopted the same file lease.
+                # Leave the durable claim marker for the current owner/reconciler.
+                logger.warning(
+                    "[Service] retaining ambiguous attachment update %s for reconciliation",
+                    task.id,
+                )
                 raise
             if updated_task is None:
-                try:
-                    await file_records.release_scheduled_task_references(
-                        added_keys,
-                        task.owner_id,
-                        task.id,
-                    )
-                    await storage.clear_pending_attachment_claims(task.id, added_keys)
-                except Exception:
-                    logger.exception(
-                        "[Service] failed to roll back missing task update %s",
-                        task.id,
-                    )
+                logger.warning(
+                    "[Service] retaining missing attachment update %s for reconciliation",
+                    task.id,
+                )
                 return None
         else:
             await storage.update_task(task_id, updates)
@@ -460,19 +435,13 @@ class ScheduledTaskService:
                         f"Scheduled task {task.id} disappeared during attachment recovery"
                     )
             except (Exception, asyncio.CancelledError):
-                if added_keys:
-                    try:
-                        await FileRecordStorage().release_scheduled_task_references(
-                            added_keys,
-                            task.owner_id,
-                            task.id,
-                        )
-                        await storage.clear_pending_attachment_claims(task.id, added_keys)
-                    except Exception:
-                        logger.exception(
-                            "[Service] failed attachment recovery rollback for task %s",
-                            task.id,
-                        )
+                # Preserve the durable marker and token when commit ownership is
+                # uncertain. A later serialized reconciliation can distinguish
+                # a live attachment from a truly uncommitted claim.
+                logger.warning(
+                    "[Service] retaining ambiguous attachment recovery %s",
+                    task.id,
+                )
                 raise
             task = committed
 

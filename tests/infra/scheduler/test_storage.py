@@ -90,9 +90,17 @@ class _ConcurrentCollection:
         return self.cursor
 
 
-class _FailingMarkerTaskCollection:
-    def find(self, *_args, **_kwargs):
-        raise AssertionError("marker lookup should not scan scheduled_tasks")
+class _NoPendingRevisionTaskCollection:
+    def __init__(self) -> None:
+        self.find_one_queries: list[tuple[dict[str, Any], dict[str, int] | None]] = []
+
+    async def find_one(
+        self,
+        query: dict[str, Any],
+        projection: dict[str, int] | None = None,
+    ) -> None:
+        self.find_one_queries.append((query, projection))
+        return None
 
 
 class _MarkerMetadataCollection:
@@ -130,6 +138,32 @@ class _RevisionMetadataCollection:
     ):
         self.update_one_calls.append((query, update, upsert))
         return _UpdateResult(modified_count=1)
+
+
+class _StatefulRevisionMetadataCollection(_RevisionMetadataCollection):
+    def __init__(self, *, failures: int = 0) -> None:
+        super().__init__()
+        self.failures = failures
+        self.revision = 0
+
+    async def update_one(
+        self,
+        query: dict[str, Any],
+        update: dict[str, Any],
+        upsert: bool | None = None,
+    ):
+        if self.failures:
+            self.failures -= 1
+            raise RuntimeError("revision unavailable")
+        result = await super().update_one(query, update, upsert)
+        self.revision += int(update.get("$inc", {}).get("revision", 0))
+        return result
+
+    async def find_one(self, _query: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "_id": "scheduler_definition_revision",
+            "revision": self.revision,
+        }
 
 
 class _FailingRevisionMetadataCollection:
@@ -184,10 +218,71 @@ class _AttachmentTransitionCollection:
     def __init__(self, result: dict[str, Any] | None) -> None:
         self.result = result
         self.find_one_and_update_calls: list[tuple[dict, object, dict]] = []
+        self.update_one_calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
 
     async def find_one_and_update(self, query: dict, update: object, **kwargs):
         self.find_one_and_update_calls.append((query, update, kwargs))
         return self.result
+
+    async def update_one(self, query: dict[str, Any], update: dict[str, Any]):
+        self.update_one_calls.append((query, update))
+        return _UpdateResult(modified_count=1)
+
+
+class _StatefulAttachmentTransitionCollection:
+    def __init__(self, doc: dict[str, Any], *, lose_commit_reply: bool = False) -> None:
+        self.doc = dict(doc)
+        self.lose_commit_reply = lose_commit_reply
+        self.find_one_queries: list[tuple[dict[str, Any], dict[str, int] | None]] = []
+        self.update_one_calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
+
+    async def find_one_and_update(
+        self,
+        _query: dict[str, Any],
+        update: list[dict[str, dict[str, Any]]],
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        state = update[0]["$set"]
+        for field, value in state.items():
+            if field == "pending_attachment_release_keys":
+                self.doc[field] = []
+            elif not isinstance(value, dict) or not any(
+                str(key).startswith("$") for key in value
+            ):
+                self.doc[field] = value
+        if self.lose_commit_reply:
+            raise ConnectionError("commit reply lost")
+        return dict(self.doc)
+
+    async def find_one(
+        self,
+        query: dict[str, Any],
+        projection: dict[str, int] | None = None,
+    ) -> dict[str, Any] | None:
+        self.find_one_queries.append((query, projection))
+        operation_id = self.doc.get("attachment_commit_operation_id")
+        if "attachment_commit_operation_id" in query:
+            if query["attachment_commit_operation_id"] != operation_id:
+                return None
+        pending_filter = query.get("scheduler_revision_pending_operation_id")
+        if pending_filter == {"$type": "string", "$ne": ""} and not self.doc.get(
+            "scheduler_revision_pending_operation_id"
+        ):
+            return None
+        return dict(self.doc)
+
+    async def update_one(
+        self,
+        query: dict[str, Any],
+        update: dict[str, Any],
+    ) -> _UpdateResult:
+        self.update_one_calls.append((query, update))
+        expected = query.get("scheduler_revision_pending_operation_id")
+        if expected != self.doc.get("scheduler_revision_pending_operation_id"):
+            return _UpdateResult(modified_count=0)
+        for field in update.get("$unset", {}):
+            self.doc.pop(field, None)
+        return _UpdateResult(modified_count=1)
 
 
 class _SimpleCursor:
@@ -230,7 +325,7 @@ async def test_list_tasks_paginated_fetches_rows_and_count_concurrently() -> Non
 @pytest.mark.asyncio
 async def test_get_active_tasks_marker_reads_single_revision_document() -> None:
     storage = ScheduledTaskStorage()
-    task_collection = _FailingMarkerTaskCollection()
+    task_collection = _NoPendingRevisionTaskCollection()
     metadata_collection = _MarkerMetadataCollection()
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
@@ -238,6 +333,17 @@ async def test_get_active_tasks_marker_reads_single_revision_document() -> None:
     marker = await storage.get_active_tasks_marker()
 
     assert marker == 7
+    assert task_collection.find_one_queries == [
+        (
+            {
+                "scheduler_revision_pending_operation_id": {
+                    "$type": "string",
+                    "$ne": "",
+                }
+            },
+            {"_id": 1, "scheduler_revision_pending_operation_id": 1},
+        )
+    ]
     assert metadata_collection.find_one_query == {"_id": "scheduler_definition_revision"}
 
 
@@ -369,6 +475,8 @@ def test_scheduled_task_schema_defaults_durable_attachment_state() -> None:
     assert task.pending_attachment_claim_keys == []
     assert task.pending_attachment_release_keys == []
     assert task.attachment_setup_pending is False
+    assert task.attachment_commit_operation_id is None
+    assert task.scheduler_revision_pending_operation_id is None
 
 
 @pytest.mark.asyncio
@@ -400,6 +508,7 @@ async def test_stage_attachment_claim_persists_keys_before_file_mutation() -> No
                         ["key-a", "key-b"],
                     ]
                 },
+                "attachment_commit_operation_id": None,
                 "updated_at": ANY,
             }
         }
@@ -437,6 +546,10 @@ async def test_commit_attachment_update_moves_removed_keys_to_pending_release() 
     assert state["input_payload"] == result_doc["input_payload"]
     assert state["attachment_keys"] == ["key-b"]
     assert state["pending_attachment_claim_keys"] == []
+    assert isinstance(state["attachment_commit_operation_id"], str)
+    assert state["scheduler_revision_pending_operation_id"] == state[
+        "attachment_commit_operation_id"
+    ]
     assert state["pending_attachment_release_keys"] == {
         "$setDifference": [
             {
@@ -450,6 +563,73 @@ async def test_commit_attachment_update_moves_removed_keys_to_pending_release() 
         ]
     }
     assert kwargs["return_document"] is ReturnDocument.AFTER
+
+
+@pytest.mark.asyncio
+async def test_commit_attachment_update_recovers_applied_write_after_reply_loss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result_doc = _task_doc("task_1") | {
+        "pending_attachment_claim_keys": ["key-b"],
+    }
+    task_collection = _StatefulAttachmentTransitionCollection(
+        result_doc,
+        lose_commit_reply=True,
+    )
+    metadata_collection = _StatefulRevisionMetadataCollection()
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+    monkeypatch.setattr(storage_module, "uuid4", lambda: "commit-op-1", raising=False)
+
+    committed = await storage.commit_attachment_update(
+        "task_1",
+        {"input_payload": {"attachments": [{"key": "key-b"}]}},
+        ["key-b"],
+    )
+
+    assert committed is not None
+    assert committed.attachment_keys == ["key-b"]
+    assert committed.attachment_commit_operation_id == "commit-op-1"
+    assert task_collection.find_one_queries[0][0] == {
+        "_id": "task_1",
+        "attachment_commit_operation_id": "commit-op-1",
+    }
+    assert metadata_collection.revision == 1
+    assert "scheduler_revision_pending_operation_id" not in task_collection.doc
+
+
+@pytest.mark.asyncio
+async def test_pending_commit_revision_is_published_by_marker_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_collection = _StatefulAttachmentTransitionCollection(_task_doc("task_1"))
+    metadata_collection = _StatefulRevisionMetadataCollection(failures=1)
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+    monkeypatch.setattr(storage_module, "uuid4", lambda: "commit-op-1", raising=False)
+
+    committed = await storage.commit_attachment_update(
+        "task_1",
+        {"input_payload": {"attachments": [{"key": "key-b"}]}},
+        ["key-b"],
+    )
+
+    assert committed is not None
+    assert task_collection.doc["scheduler_revision_pending_operation_id"] == "commit-op-1"
+
+    marker = await storage.get_active_tasks_marker()
+
+    assert marker == 1
+    assert "scheduler_revision_pending_operation_id" not in task_collection.doc
+    assert task_collection.update_one_calls[-1] == (
+        {
+            "_id": "task_1",
+            "scheduler_revision_pending_operation_id": "commit-op-1",
+        },
+        {"$unset": {"scheduler_revision_pending_operation_id": ""}},
+    )
 
 
 @pytest.mark.asyncio
@@ -502,6 +682,7 @@ async def test_mark_task_attachment_deletion_retains_possible_tokens_until_relea
     assert state["enabled"] is False
     assert state["attachment_keys"] == []
     assert state["pending_attachment_claim_keys"] == []
+    assert state["attachment_commit_operation_id"] is None
     assert state["pending_attachment_release_keys"] == {
         "$setUnion": [
             {"$ifNull": ["$pending_attachment_release_keys", []]},

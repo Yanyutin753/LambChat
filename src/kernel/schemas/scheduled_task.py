@@ -152,6 +152,8 @@ class ScheduledTask(BaseModel):
     pending_attachment_claim_keys: list[str] = Field(default_factory=list)
     pending_attachment_release_keys: list[str] = Field(default_factory=list)
     attachment_setup_pending: bool = False
+    attachment_commit_operation_id: Optional[str] = None
+    scheduler_revision_pending_operation_id: Optional[str] = None
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None
     created_by: str = "user"
