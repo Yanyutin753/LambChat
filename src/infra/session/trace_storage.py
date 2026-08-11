@@ -63,6 +63,11 @@ from src.infra.session.trace_attachment_cleanup import (
     ATTACHMENT_CLEAR_TERMINAL_STATUSES as ATTACHMENT_CLEAR_TERMINAL_STATUSES,
 )
 from src.infra.session.trace_attachment_cleanup import TraceAttachmentCleanupMixin
+from src.infra.session.trace_cleanup_snapshot import (
+    CHUNK_CLEANUP_VERSION_FIELDS,
+    PARENT_CLEANUP_VERSION_FIELDS,
+    snapshot_trace_cleanup_documents,
+)
 from src.infra.session.trace_event_chunks import TraceEventChunkMixin
 from src.infra.session.trace_storage_writes import TraceStorageWriteMixin
 from src.infra.storage.mongodb import get_mongo_client
@@ -72,46 +77,6 @@ logger = get_logger(__name__)
 
 _SESSION_EVENTS_BATCH_SIZE = 200
 SESSION_EVENT_FILTER_LIST_LIMIT = 100
-_MISSING = object()
-_PARENT_CLEANUP_VERSION_FIELDS = ("event_revision", "updated_at")
-_CHUNK_CLEANUP_VERSION_FIELDS = (
-    "append_fence_revision",
-    "event_count",
-    "updated_at",
-)
-
-
-async def _snapshot_trace_cleanup_documents(
-    collection: Any,
-    query: dict[str, Any],
-    version_fields: tuple[str, ...],
-) -> list[dict[str, Any]] | None:
-    """Freeze exact Mongo identities and versions for a later guarded delete."""
-    projection = {
-        "_id": 1,
-        "session_id": 1,
-        "trace_id": 1,
-        **dict.fromkeys(version_fields, 1),
-    }
-    documents = await collection.find(query, projection).to_list(length=None)
-    snapshots: list[dict[str, Any]] = []
-    for document in documents:
-        document_id = document.get("_id", _MISSING)
-        session_id = document.get("session_id", _MISSING)
-        trace_id = document.get("trace_id", _MISSING)
-        if document_id is _MISSING or session_id is _MISSING or trace_id is _MISSING:
-            return None
-        snapshot = {
-            "_id": document_id,
-            "session_id": session_id,
-            "trace_id": trace_id,
-        }
-        for field in version_fields:
-            snapshot[field] = (
-                document[field] if field in document else {"$exists": False}
-            )
-        snapshots.append(snapshot)
-    return snapshots
 
 
 @dataclass(frozen=True)
@@ -251,15 +216,15 @@ class TraceStorage(
                 await self.collection.delete_many(broad_query)
                 return True
 
-            chunk_snapshots = await _snapshot_trace_cleanup_documents(
+            chunk_snapshots = await snapshot_trace_cleanup_documents(
                 self.chunks_collection,
                 broad_query,
-                _CHUNK_CLEANUP_VERSION_FIELDS,
+                CHUNK_CLEANUP_VERSION_FIELDS,
             )
-            parent_snapshots = await _snapshot_trace_cleanup_documents(
+            parent_snapshots = await snapshot_trace_cleanup_documents(
                 self.collection,
                 broad_query,
-                _PARENT_CLEANUP_VERSION_FIELDS,
+                PARENT_CLEANUP_VERSION_FIELDS,
             )
             if chunk_snapshots is None or parent_snapshots is None:
                 return False
