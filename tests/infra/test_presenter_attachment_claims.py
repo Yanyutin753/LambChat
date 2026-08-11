@@ -239,6 +239,12 @@ async def test_post_persistence_lease_release_failure_allows_presenter_to_contin
             assert session_id == "session-1"
             return "lease-1"
 
+        async def validate_session_trace_write(
+            self, session_id: str, lease_id: str
+        ) -> bool:
+            assert (session_id, lease_id) == ("session-1", "lease-1")
+            return True
+
         async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
             assert (session_id, lease_id) == ("session-1", "lease-1")
             raise RuntimeError("lease release failed")
