@@ -96,7 +96,11 @@ async def test_duplicate_upload_conflict_removes_new_object_when_conflicting_rec
         async def create(self, **_kwargs):
             from pymongo.errors import DuplicateKeyError
 
-            raise DuplicateKeyError("duplicate")
+            raise DuplicateKeyError(
+                "duplicate hash",
+                11000,
+                {"keyPattern": {"uploaded_by": 1, "hash": 1}},
+            )
 
         async def delete_by_hash(self, file_hash: str, uploaded_by: str):
             self.deleted_hashes.append((file_hash, uploaded_by))
@@ -132,6 +136,58 @@ async def test_duplicate_upload_conflict_removes_new_object_when_conflicting_rec
 
     assert exc_info.value.status_code == 500
     assert objects.deleted == ["documents/owner-a/new.txt"]
+
+
+@pytest.mark.asyncio
+async def test_duplicate_key_index_collision_never_deletes_existing_object_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Upload:
+        filename = "note.txt"
+        content_type = "text/plain"
+
+        def __init__(self) -> None:
+            self._chunks = [b"contents", b""]
+
+        async def read(self, _size: int) -> bytes:
+            return self._chunks.pop(0)
+
+    class _Records:
+        async def find_by_hash(self, _file_hash: str, _uploaded_by: str):
+            return None
+
+        async def create(self, **_kwargs):
+            from pymongo.errors import DuplicateKeyError
+
+            raise DuplicateKeyError("duplicate key", 11000, {"keyPattern": {"key": 1}})
+
+    class _Objects:
+        def __init__(self) -> None:
+            self.deleted: list[str] = []
+
+        async def upload_stream_to_key(self, **_kwargs):
+            return SimpleNamespace(key="documents/owner-a/existing.txt")
+
+        async def delete_file(self, key: str) -> None:
+            self.deleted.append(key)
+
+    objects = _Objects()
+    monkeypatch.setattr(upload, "_file_record_storage", _Records())
+
+    async def _get_storage():
+        return objects
+
+    monkeypatch.setattr(upload, "get_or_init_storage", _get_storage)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await upload.upload_file(
+            request=SimpleNamespace(headers={}, base_url="https://app.example.com/"),
+            file=_Upload(),
+            current_user=SimpleNamespace(sub="owner-a", permissions=["file:upload"], roles=[]),
+        )
+
+    assert exc_info.value.status_code == 500
+    assert objects.deleted == []
 
 
 @pytest.mark.asyncio

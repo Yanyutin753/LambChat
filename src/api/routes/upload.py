@@ -546,12 +546,14 @@ async def upload_file(
             mime_type=file.content_type or "application/octet-stream",
             size=spooled_upload.size,
         )
-    except DuplicateKeyError:
+    except DuplicateKeyError as duplicate_error:
         logger.info("Duplicate upload detected for hash %s, reusing existing file", file_hash)
 
         existing = await _get_live_record_by_hash(file_hash, current_user.sub, storage)
+        duplicate_pattern = (duplicate_error.details or {}).get("keyPattern", {})
+        is_owner_hash_conflict = duplicate_pattern == {"uploaded_by": 1, "hash": 1}
         try:
-            if storage_key:
+            if storage_key and is_owner_hash_conflict:
                 await storage.delete_file(storage_key)
         except Exception as cleanup_error:
             logger.warning(
