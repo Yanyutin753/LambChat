@@ -2295,14 +2295,93 @@ async def test_create_trace_survives_repeated_cancellation_until_insert_is_compe
     )
     await trace_storage.collection.insert_started.wait()
     writer.cancel()
-    await trace_storage.second_cancel_turn_completed.wait()
     trace_storage.collection.allow_insert.set()
+    await trace_storage.second_cancel_turn_completed.wait()
 
     assert await writer is False
     assert trace_storage.collection.insert_completed is True
     assert trace_storage.collection.insert_cancelled is False
     assert trace_storage.collection.documents == []
     assert trace_storage.released == [("session-1", "lease-repeated-cancel")]
+
+
+@pytest.mark.asyncio
+async def test_create_trace_does_not_cancel_ambiguous_insert_while_lease_is_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_trace_indexes(_storage: TraceStorage) -> None:
+        return None
+
+    class _AmbiguousInsertCollection(_FilterAwareCollection):
+        def __init__(self) -> None:
+            super().__init__([])
+            self.insert_started = asyncio.Event()
+            self.allow_insert = asyncio.Event()
+            self.wrapper_cancelled = False
+            self.server_task: asyncio.Task[Any] | None = None
+
+        async def insert_one(self, document: dict[str, Any]):
+            self.insert_started.set()
+
+            async def _server_insert():
+                await self.allow_insert.wait()
+                return await super(_AmbiguousInsertCollection, self).insert_one(
+                    {**document, "_id": "ambiguous-live-trace"}
+                )
+
+            self.server_task = asyncio.create_task(_server_insert())
+            try:
+                return await asyncio.shield(self.server_task)
+            except asyncio.CancelledError:
+                self.wrapper_cancelled = True
+                raise
+
+    class _TraceStorage(TraceStorage):
+        def __init__(self) -> None:
+            super().__init__()
+            self._collection = _AmbiguousInsertCollection()
+            self.lease_is_active = False
+            self.released: list[tuple[str, str]] = []
+
+        async def acquire_session_trace_write(self, session_id: str) -> str:
+            del session_id
+            self.lease_is_active = True
+            return "lease-live-cancel"
+
+        async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool:
+            del session_id, lease_id
+            return self.lease_is_active
+
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+            self.lease_is_active = False
+            self.released.append((session_id, lease_id))
+
+    monkeypatch.setattr(TraceStorage, "ensure_indexes_if_needed", _skip_trace_indexes)
+    trace_storage = _TraceStorage()
+    writer = asyncio.create_task(
+        trace_storage.create_trace("trace-live", "session-1", user_id="owner-a")
+    )
+    await trace_storage.collection.insert_started.wait()
+
+    writer.cancel()
+    cancel_turn_completed = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    loop.call_soon(lambda: loop.call_soon(cancel_turn_completed.set))
+    await cancel_turn_completed.wait()
+    lease_remained_active_while_insert_pending = trace_storage.lease_is_active
+    wrapper_was_cancelled = trace_storage.collection.wrapper_cancelled
+    trace_storage.collection.allow_insert.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await writer
+
+    assert trace_storage.collection.server_task is not None
+    await trace_storage.collection.server_task
+    assert lease_remained_active_while_insert_pending is True
+    assert wrapper_was_cancelled is False
+    assert len(trace_storage.collection.documents) == 1
+    assert "_session_trace_write_lease_id" not in trace_storage.collection.documents[0]
+    assert trace_storage.released == [("session-1", "lease-live-cancel")]
 
 
 @pytest.mark.asyncio

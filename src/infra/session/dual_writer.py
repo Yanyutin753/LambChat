@@ -387,28 +387,13 @@ class DualEventWriter:
                 await asyncio.shield(flush_task)
             except asyncio.CancelledError:
                 async def _settle_cancelled_flush() -> bool:
-                    lease_was_lost = False
-                    for session_id, lease_id in leased_sessions:
-                        if not await self.trace.validate_session_trace_write(
-                            session_id,
-                            lease_id,
-                        ):
-                            lease_was_lost = True
-                            break
-                    if not lease_was_lost:
-                        flush_task.cancel()
-                        try:
-                            await flush_task
-                        except asyncio.CancelledError:
-                            pass
-                        return True
                     try:
                         await flush_task
                     except Exception:
                         await _reconcile_lost_leases()
                         raise
                     await _reconcile_lost_leases()
-                    return False
+                    return not reconciled_lost_sessions
 
                 recovery_task = asyncio.create_task(_settle_cancelled_flush())
                 if await drain_task(recovery_task):

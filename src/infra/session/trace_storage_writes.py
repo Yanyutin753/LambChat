@@ -98,115 +98,81 @@ class TraceStorageWriteMixin:
                 _TRACE_WRITE_LEASE_FIELD: lease_id,
             }
 
-            try:
-                insert_task = asyncio.create_task(self.collection.insert_one(doc))
+            inserted_id: Any | None = None
+            inserted_trace_was_discarded = False
+
+            async def _discard_inserted_trace() -> None:
+                nonlocal inserted_trace_was_discarded
+                if inserted_id is None or inserted_trace_was_discarded:
+                    return
+                await self.collection.delete_one(
+                    {
+                        "_id": inserted_id,
+                        "trace_id": trace_id,
+                        "session_id": session_id,
+                    }
+                )
+                inserted_trace_was_discarded = True
+
+            async def _insert_and_finalize_trace() -> bool:
+                nonlocal inserted_id
                 try:
-                    result = await asyncio.shield(insert_task)
-                except asyncio.CancelledError:
-                    async def _settle_cancelled_insert() -> tuple[bool, Any | None]:
-                        if await self.validate_session_trace_write(session_id, lease_id):
-                            insert_task.cancel()
-                            try:
-                                await insert_task
-                            except asyncio.CancelledError:
-                                pass
-                            return True, None
-                        try:
-                            return False, await insert_task
-                        except DuplicateKeyError:
-                            return False, None
-                        except Exception as exc:
-                            logger.warning(
-                                "Late trace insert for %s failed after lease loss: %s",
-                                trace_id,
-                                exc,
-                            )
-                            return False, None
-
-                    insert_recovery_task = asyncio.create_task(_settle_cancelled_insert())
-                    cancel_was_external, settled_result = await drain_task(insert_recovery_task)
-                    if cancel_was_external:
-                        raise
-                    if settled_result is None:
+                    result = await self.collection.insert_one(doc)
+                except DuplicateKeyError:
+                    # Trace already exists (e.g., queued path created it before dequeue).
+                    if not await self.validate_session_trace_write(session_id, lease_id):
                         return False
-                    result = settled_result
+                    logger.debug("Trace %s already exists, skipping", trace_id)
+                    return True
 
-                async def _discard_inserted_trace() -> None:
-                    await self.collection.delete_one(
-                        {
-                            "_id": result.inserted_id,
-                            "trace_id": trace_id,
-                            "session_id": session_id,
-                        }
-                    )
-
-                async def _finalize_inserted_trace() -> bool:
-                    if await self.validate_session_trace_write(session_id, lease_id):
-                        await self.collection.update_one(
-                            {
-                                "_id": result.inserted_id,
-                                _TRACE_WRITE_LEASE_FIELD: lease_id,
-                            },
-                            {"$unset": {_TRACE_WRITE_LEASE_FIELD: ""}},
-                        )
-                        return True
+                inserted_id = result.inserted_id
+                if not await self.validate_session_trace_write(session_id, lease_id):
                     await _discard_inserted_trace()
                     logger.warning(
                         "Discarded trace %s after session writer lease was lost",
                         trace_id,
                     )
                     return False
-
-                finalize_task = asyncio.create_task(_finalize_inserted_trace())
-                try:
-                    finalized = await asyncio.shield(finalize_task)
-                except asyncio.CancelledError:
-                    async def _settle_cancelled_finalization() -> bool:
-                        if await self.validate_session_trace_write(session_id, lease_id):
-                            finalize_task.cancel()
-                            try:
-                                await finalize_task
-                            except asyncio.CancelledError:
-                                pass
-                            return True
-                        try:
-                            await finalize_task
-                        except asyncio.CancelledError:
-                            pass
-                        except Exception as exc:
-                            logger.warning(
-                                "Trace finalization for %s failed after lease loss: %s",
-                                trace_id,
-                                exc,
-                            )
-                        await _discard_inserted_trace()
-                        logger.warning(
-                            "Discarded trace %s after session writer lease was lost",
-                            trace_id,
-                        )
-                        return False
-
-                    finalization_recovery_task = asyncio.create_task(
-                        _settle_cancelled_finalization()
-                    )
-                    if await drain_task(finalization_recovery_task):
-                        raise
-                    return False
-                if not finalized:
-                    return False
+                await self.collection.update_one(
+                    {
+                        "_id": inserted_id,
+                        _TRACE_WRITE_LEASE_FIELD: lease_id,
+                    },
+                    {"$unset": {_TRACE_WRITE_LEASE_FIELD: ""}},
+                )
                 logger.info(
                     "Created trace %s for session %s, inserted_id=%s",
                     trace_id,
                     session_id,
-                    result.inserted_id,
+                    inserted_id,
                 )
                 return True
-            except DuplicateKeyError:
-                # Trace already exists (e.g., queued path created it before dequeue)
-                if not await self.validate_session_trace_write(session_id, lease_id):
+
+            try:
+                persist_task = asyncio.create_task(_insert_and_finalize_trace())
+                try:
+                    return await asyncio.shield(persist_task)
+                except asyncio.CancelledError:
+                    async def _settle_cancelled_persist() -> bool:
+                        await persist_task
+                        lease_is_valid = await self.validate_session_trace_write(
+                            session_id,
+                            lease_id,
+                        )
+                        if lease_is_valid:
+                            return True
+                        await _discard_inserted_trace()
+                        if inserted_id is not None:
+                            logger.warning(
+                                "Discarded trace %s after session writer lease was lost",
+                                trace_id,
+                            )
+                        return False
+
+                    recovery_task = asyncio.create_task(_settle_cancelled_persist())
+                    if await drain_task(recovery_task):
+                        raise
                     return False
-                logger.debug("Trace %s already exists, skipping", trace_id)
-                return True
             except Exception as e:
                 logger.error(f"Failed to create trace {trace_id}: {e}")
                 import traceback

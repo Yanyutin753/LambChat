@@ -384,8 +384,8 @@ async def test_clone_history_survives_repeated_cancellation_until_child_is_compe
     )
     await collection.insert_started.wait()
     clone.cancel()
-    await storage.second_cancel_turn_completed.wait()
     collection.allow_insert.set()
+    await storage.second_cancel_turn_completed.wait()
 
     with pytest.raises(Exception, match="session_trace_write_lease_lost"):
         await clone
@@ -394,6 +394,105 @@ async def test_clone_history_survives_repeated_cancellation_until_child_is_compe
     assert collection.insert_completed is True
     assert collection.insert_cancelled is False
     assert trace_storage.discarded == [("target", "lease:target", [inserted_trace_id])]
+    assert storage.released_trace_writes == [("target", "lease:target")]
+
+
+@pytest.mark.asyncio
+async def test_clone_history_does_not_cancel_ambiguous_insert_while_lease_is_live() -> None:
+    traces = [{"run_id": "run-1", "events": [], "started_at": 1}]
+
+    class _AmbiguousInsertCollection(_FakeTraceCollection):
+        def __init__(self) -> None:
+            super().__init__(traces)
+            self.insert_started = asyncio.Event()
+            self.allow_insert = asyncio.Event()
+            self.wrapper_cancelled = False
+            self.server_task: asyncio.Task[None] | None = None
+
+        async def insert_many(self, docs):
+            self.insert_started.set()
+
+            async def _server_insert() -> None:
+                await self.allow_insert.wait()
+                await super(_AmbiguousInsertCollection, self).insert_many(docs)
+
+            self.server_task = asyncio.create_task(_server_insert())
+            try:
+                await asyncio.shield(self.server_task)
+            except asyncio.CancelledError:
+                self.wrapper_cancelled = True
+                raise
+
+    class _LiveLeaseStorage(_FakeSessionStorage):
+        def __init__(self) -> None:
+            super().__init__(validate_trace_write=True)
+            self.lease_is_active = False
+
+        async def acquire_trace_write(self, session_id):
+            self.lease_is_active = True
+            return await super().acquire_trace_write(session_id)
+
+        async def validate_trace_write(self, session_id, lease_id):
+            del session_id, lease_id
+            return self.lease_is_active
+
+        async def release_trace_write(self, session_id, lease_id):
+            self.lease_is_active = False
+            await super().release_trace_write(session_id, lease_id)
+
+    collection = _AmbiguousInsertCollection()
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.collection = collection
+            self.discarded: list[tuple[str, str, list[str]]] = []
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+    manager = SessionManager()
+    storage = _LiveLeaseStorage()
+    trace_storage = _TraceStorage()
+    manager.storage = storage
+    manager._trace_storage = trace_storage
+    clone = asyncio.create_task(
+        manager._clone_history_to_session(
+            source_session=Session(id="source", user_id="user"),
+            target_session=Session(id="target", user_id="user"),
+            target={
+                "run_id": "run-1",
+                "target_type": "assistant",
+                "completed_run_ids": ["run-1"],
+            },
+            user_id="user",
+        )
+    )
+    await collection.insert_started.wait()
+
+    clone.cancel()
+    cancel_turn_completed = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    loop.call_soon(lambda: loop.call_soon(cancel_turn_completed.set))
+    await cancel_turn_completed.wait()
+    lease_remained_active_while_insert_pending = storage.lease_is_active
+    wrapper_was_cancelled = collection.wrapper_cancelled
+    collection.allow_insert.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await clone
+
+    assert collection.server_task is not None
+    await collection.server_task
+    assert lease_remained_active_while_insert_pending is True
+    assert wrapper_was_cancelled is False
+    assert collection.inserted_docs is not None
+    assert trace_storage.discarded == []
     assert storage.released_trace_writes == [("target", "lease:target")]
 
 

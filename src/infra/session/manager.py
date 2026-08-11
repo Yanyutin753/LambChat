@@ -656,21 +656,18 @@ class SessionManager:
                 lease_is_valid = await asyncio.shield(clone_task)
             except asyncio.CancelledError:
                 async def _settle_cancelled_clone() -> bool:
-                    if await self.storage.validate_trace_write(target_session.id, lease_id):
-                        clone_task.cancel()
-                        try:
-                            await clone_task
-                        except asyncio.CancelledError:
-                            pass
-                        return True
                     try:
                         finalized_lease_is_valid = await clone_task
                     except Exception as exc:
                         await _discard_cloned_traces()
                         raise SessionError("session_trace_write_lease_lost") from exc
-                    if finalized_lease_is_valid:
+                    lease_is_valid_after_outcome = await self.storage.validate_trace_write(
+                        target_session.id,
+                        lease_id,
+                    )
+                    if finalized_lease_is_valid and not lease_is_valid_after_outcome:
                         await _discard_cloned_traces()
-                    return False
+                    return finalized_lease_is_valid and lease_is_valid_after_outcome
 
                 recovery_task = asyncio.create_task(_settle_cancelled_clone())
                 if await drain_task(recovery_task):
