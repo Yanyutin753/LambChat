@@ -462,7 +462,14 @@ class SessionStorage:
         return result.get(field) if result else None
 
     async def persist_attachment_clear_snapshot(
-        self, session_id: str, operation_id: str, counts: dict[str, int], trace_ids: list[str]
+        self,
+        session_id: str,
+        operation_id: str,
+        counts: dict[str, int],
+        trace_ids: list[str],
+        *,
+        parent_ids: list[Any],
+        chunk_ids: list[Any],
     ) -> dict[str, Any] | None:
         """Persist the exact cutoff snapshot before a release can begin."""
         field = "attachment_clear_operation"
@@ -476,6 +483,8 @@ class SessionStorage:
                 "$set": {
                     f"{field}.counts": counts,
                     f"{field}.trace_ids": trace_ids,
+                    f"{field}.parent_ids": parent_ids,
+                    f"{field}.chunk_ids": chunk_ids,
                     "updated_at": utc_now(),
                 }
             },
@@ -484,6 +493,32 @@ class SessionStorage:
         if result:
             return result.get(field)
         result = await self.collection.find_one({"session_id": session_id}, {field: 1})
+        if result:
+            return result.get(field)
+        try:
+            object_id = ObjectId(session_id)
+        except Exception:
+            return None
+        result = await self.collection.find_one_and_update(
+            {
+                "_id": object_id,
+                f"{field}.id": operation_id,
+                f"{field}.counts": {"$exists": False},
+            },
+            {
+                "$set": {
+                    f"{field}.counts": counts,
+                    f"{field}.trace_ids": trace_ids,
+                    f"{field}.parent_ids": parent_ids,
+                    f"{field}.chunk_ids": chunk_ids,
+                    "updated_at": utc_now(),
+                }
+            },
+            return_document=True,
+        )
+        if result:
+            return result.get(field)
+        result = await self.collection.find_one({"_id": object_id}, {field: 1})
         return result.get(field) if result else None
 
     async def delete(self, session_id: str) -> bool:

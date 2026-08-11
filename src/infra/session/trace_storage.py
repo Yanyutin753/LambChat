@@ -862,6 +862,81 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
                     **({"seq": event["seq"]} if "seq" in event else {}),
                 }
 
+    async def snapshot_session_traces_for_cleanup(
+        self, session_id: str, cutoff: Any
+    ) -> dict[str, Any]:
+        """Capture immutable terminal trace/chunk document IDs for one clear operation."""
+        query = {
+            "session_id": session_id,
+            "status": {"$ne": "running"},
+            "updated_at": {"$lte": cutoff},
+        }
+        cursor = self.collection.find(
+            query,
+            {"_id": 1, "trace_id": 1, "run_id": 1, "events": 1},
+        )
+        parents = await cursor.to_list(length=None)
+        trace_ids = [str(doc["trace_id"]) for doc in parents if doc.get("trace_id")]
+        chunks = []
+        if trace_ids:
+            chunks = await self.chunks_collection.find(
+                {
+                    "session_id": session_id,
+                    "trace_id": {"$in": trace_ids},
+                    "updated_at": {"$lte": cutoff},
+                },
+                {
+                    "_id": 1,
+                    "trace_id": 1,
+                    "chunk_index": 1,
+                    "start_seq": 1,
+                    "events": 1,
+                },
+            ).to_list(length=None)
+        events: list[dict] = []
+        chunks_by_trace: dict[str, list[dict]] = {}
+        for chunk in chunks:
+            chunks_by_trace.setdefault(str(chunk.get("trace_id") or ""), []).append(chunk)
+        for parent in parents:
+            trace_id = str(parent.get("trace_id") or "")
+            trace_chunks = sorted(
+                chunks_by_trace.get(trace_id, []),
+                key=lambda chunk: int(chunk.get("chunk_index") or 0),
+            )
+            if not trace_chunks:
+                events.extend(parent.get("events") or [])
+                continue
+            first_chunk = trace_chunks[0]
+            first_chunk_start_seq = int(
+                first_chunk.get("start_seq")
+                or min(
+                    (
+                        _event_seq(event, index + 1)
+                        for index, event in enumerate(first_chunk.get("events", []) or [])
+                    ),
+                    default=1,
+                )
+            )
+            events.extend(
+                event
+                for index, event in enumerate(parent.get("events") or [], start=1)
+                if _event_seq(event, index) < first_chunk_start_seq
+            )
+            for chunk in trace_chunks:
+                events.extend(
+                    event
+                    for _index, event in sorted(
+                        enumerate(chunk.get("events") or []),
+                        key=lambda item: _event_seq(item[1], item[0]),
+                    )
+                )
+        return {
+            "parent_ids": [doc["_id"] for doc in parents],
+            "chunk_ids": [doc["_id"] for doc in chunks],
+            "trace_ids": trace_ids,
+            "events": events,
+        }
+
     async def get_run_events(
         self,
         session_id: str,
@@ -939,6 +1014,23 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
         ):
             raise RuntimeError(f"session_chunk_delete_incomplete: {session_id}")
         return result.deleted_count
+
+    async def delete_trace_snapshot_strict(
+        self, parent_ids: list[Any], chunk_ids: list[Any]
+    ) -> int:
+        """Delete exactly the immutable parent/chunk IDs persisted by a clear operation."""
+        if chunk_ids:
+            await self.chunks_collection.delete_many({"_id": {"$in": chunk_ids}})
+        result = (
+            await self.collection.delete_many({"_id": {"$in": parent_ids}}) if parent_ids else None
+        )
+        if parent_ids and await self.collection.find_one({"_id": {"$in": parent_ids}}, {"_id": 1}):
+            raise RuntimeError("session_trace_delete_incomplete")
+        if chunk_ids and await self.chunks_collection.find_one(
+            {"_id": {"$in": chunk_ids}}, {"_id": 1}
+        ):
+            raise RuntimeError("session_chunk_delete_incomplete")
+        return result.deleted_count if result else 0
 
     async def close(self) -> None:
         task = self._indexes_task
