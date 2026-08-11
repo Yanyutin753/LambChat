@@ -18,6 +18,26 @@ Use red-green-refactor to count each attachment key once per user message and re
 
 Use red-green-refactor to make every chat, long-text, rich-composer, and scheduled-task draft-removal path local-only. Upload cancellation may abort an in-flight request, but removal of an uploaded draft attachment must not call server DELETE. Preserve composer content and attachments when the backend reports invalid attachments.
 
+## Task 4a: Actionable invalid-attachment error
+
+**Files:**
+
+- Modify: `frontend/src/services/api/fetch.ts`
+- Modify: `frontend/src/utils/backendErrors.ts`
+- Modify: `frontend/src/i18n/locales/{en,zh,ja,ko,ru}.json`
+- Test: `frontend/src/services/api/__tests__/fetchErrors.test.ts`
+- Test: `frontend/src/utils/__tests__/backendErrors.test.ts`
+- Test: `frontend/src/hooks/useAgent/__tests__/submissionAcceptance.test.tsx`
+
+**Interface:** A backend response shaped as `{"detail":{"error":"invalid_attachments"}}` must become the localized `backendErrors.invalidAttachments` message. `useAgent.sendMessage` must keep invoking the rejection callback, retain the rejected draft, and expose the actionable message instead of raw JSON.
+
+- [ ] Add a failing API-boundary test for extracting `detail.error` from the real `authFetch` path.
+- [ ] Add a failing translation test for the stable `invalid_attachments` code.
+- [ ] Tighten the submission rejection test to require the actionable message and preserved draft callback.
+- [ ] Run the three focused tests and confirm each fails because the new contract is missing.
+- [ ] Implement `detail.error` extraction, the stable error mapping, and all five locale strings.
+- [ ] Re-run the focused tests, frontend lint, and frontend build.
+
 ## Task 5: Restore the CI line budget
 
 Use red-green-refactor to extract external-navigation target derivation and trace-to-run resolution from `ChatAppContent.tsx` into a tested `useExternalNavigationTarget` hook. Add a source test using the same newline-counting rule as CI and keep `ChatAppContent.tsx` at or below 1000 lines with meaningful margin.

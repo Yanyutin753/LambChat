@@ -34,7 +34,7 @@ Session cleanup will count a key once per user message and release the accumulat
 
 All composer and scheduled-task draft removal paths will become local-only operations. Upload cancellation still aborts an in-flight request, but removing an uploaded attachment will not call the storage DELETE endpoint.
 
-Invalid-attachment submission responses keep the draft content visible so the user can re-upload instead of silently losing input.
+Invalid-attachment submission responses keep the draft content and attachment cards visible so the user can re-upload instead of silently losing input. The frontend extracts the stable `invalid_attachments` error code from the backend's structured `422` response and displays a localized, actionable error telling the user that an attachment is unavailable and must be removed or uploaded again. It must not expose the raw JSON error object or silently send the remaining text without the attachment.
 
 ## CI design
 
@@ -42,4 +42,4 @@ The cohesive external-navigation state and trace-to-run resolution effect will m
 
 ## Verification
 
-Tests cover owner-scoped dedupe and index migration, atomic claims and rollback paths, delayed cleanup arbitration, per-message reference release counts, all frontend removal paths, external-navigation hook behavior, and the exact CI line-count rule. Final verification runs relevant targeted suites followed by backend tests, frontend tests/build/lint, Ruff, MyPy, and the large-file check.
+Tests cover owner-scoped dedupe and index migration, atomic claims and rollback paths, delayed cleanup arbitration, per-message reference release counts, all frontend removal paths, structured invalid-attachment error extraction/localization, draft preservation, external-navigation hook behavior, and the exact CI line-count rule. Final verification runs relevant targeted suites followed by backend tests, frontend tests/build/lint, Ruff, MyPy, and the large-file check.
