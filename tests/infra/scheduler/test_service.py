@@ -80,6 +80,28 @@ def service() -> ScheduledTaskService:
     return ScheduledTaskService()
 
 
+@pytest.fixture(autouse=True)
+def mock_attachment_mutation_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _acquire(_task_id: str) -> str:
+        return "mutation-token"
+
+    async def _release(_task_id: str, _token: str) -> None:
+        return None
+
+    monkeypatch.setattr(
+        service_module,
+        "acquire_attachment_mutation_lock",
+        _acquire,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service_module,
+        "release_attachment_mutation_lock",
+        _release,
+        raising=False,
+    )
+
+
 @pytest.fixture
 def mock_scheduler():
     with patch("src.infra.scheduler.service.get_runtime_scheduler") as mock:
@@ -126,6 +148,240 @@ async def test_create_task_persists_and_registers(
     assert task.owner_id == "user_1"
     assert task.trigger_type == TriggerType.INTERVAL
     assert task.model_dump(by_alias=True)["_id"] == task.id
+
+
+@pytest.mark.asyncio
+async def test_create_task_claims_definition_attachments_before_registration(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    persisted: ScheduledTask | None = None
+
+    class _FileRecords:
+        async def claim_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> list[str]:
+            assert keys == ["key-a"]
+            assert uploaded_by == "user_1"
+            assert task_id
+            events.append("claim")
+            return keys
+
+    async def _create_task(task: ScheduledTask) -> ScheduledTask:
+        nonlocal persisted
+        persisted = task
+        events.append("persist_pending")
+        return task
+
+    async def _commit_attachment_update(
+        task_id: str,
+        updates: dict[str, Any],
+        attachment_keys: list[str],
+    ) -> ScheduledTask:
+        assert persisted is not None
+        assert task_id == persisted.id
+        assert updates == {"enabled": True}
+        assert attachment_keys == ["key-a"]
+        events.append("commit_active")
+        return persisted.model_copy(
+            update={
+                "enabled": True,
+                "attachment_keys": ["key-a"],
+                "pending_attachment_claim_keys": [],
+                "attachment_setup_pending": False,
+            }
+        )
+
+    mock_storage.create_task.side_effect = _create_task
+    mock_storage.commit_attachment_update.side_effect = _commit_attachment_update
+    mock_scheduler.register_job.side_effect = lambda _job: events.append("register")
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
+    request = _make_create_request(
+        input_payload={
+            "message": "run later",
+            "attachments": [{"key": "key-a"}, {"key": "key-a"}],
+        }
+    )
+
+    task = await service.create_task(request, owner_id="user_1")
+
+    assert persisted is not None
+    assert persisted.enabled is False
+    assert persisted.attachment_setup_pending is True
+    assert persisted.pending_attachment_claim_keys == ["key-a"]
+    assert task.attachment_keys == ["key-a"]
+    assert events == ["persist_pending", "claim", "commit_active", "register"]
+
+
+@pytest.mark.asyncio
+async def test_create_task_claim_failure_removes_non_runnable_definition(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FileRecords:
+        async def claim_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> list[str]:
+            raise service_module.AttachmentClaimError()
+
+    mock_storage.create_task = AsyncMock()
+    mock_storage.delete_task = AsyncMock(return_value=True)
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
+    request = _make_create_request(
+        input_payload={"attachments": [{"key": "key-a"}]},
+    )
+
+    with pytest.raises(service_module.AttachmentClaimError):
+        await service.create_task(request, owner_id="user_1")
+
+    created_task = mock_storage.create_task.await_args.args[0]
+    assert created_task.enabled is False
+    assert created_task.attachment_setup_pending is True
+    mock_storage.delete_task.assert_awaited_once_with(created_task.id)
+    mock_scheduler.register_job.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_task_commit_failure_releases_claim_before_removing_pending_definition(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class _FileRecords:
+        async def claim_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> list[str]:
+            events.append("claim")
+            return keys
+
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> int:
+            events.append("release")
+            return len(keys)
+
+    async def _delete_task(_task_id: str) -> bool:
+        events.append("delete_pending")
+        return True
+
+    mock_storage.create_task = AsyncMock()
+    mock_storage.commit_attachment_update = AsyncMock(
+        side_effect=RuntimeError("commit interrupted")
+    )
+    mock_storage.delete_task.side_effect = _delete_task
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
+
+    with pytest.raises(RuntimeError, match="commit interrupted"):
+        await service.create_task(
+            _make_create_request(input_payload={"attachments": [{"key": "key-a"}]}),
+            owner_id="user_1",
+        )
+
+    assert events == ["claim", "release", "delete_pending"]
+    mock_scheduler.register_job.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_task_registration_failure_soft_deletes_before_releasing_definition(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    created: ScheduledTask | None = None
+
+    class _FileRecords:
+        async def claim_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> list[str]:
+            return keys
+
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> int:
+            events.append("release")
+            return len(keys)
+
+    async def _create_task(task: ScheduledTask) -> ScheduledTask:
+        nonlocal created
+        created = task
+        return task
+
+    async def _commit(*_args: Any) -> ScheduledTask:
+        assert created is not None
+        return created.model_copy(
+            update={
+                "enabled": True,
+                "attachment_keys": ["key-a"],
+                "pending_attachment_claim_keys": [],
+                "attachment_setup_pending": False,
+            }
+        )
+
+    async def _mark_deleted(_task_id: str) -> ScheduledTask:
+        assert created is not None
+        events.append("mark_deleted")
+        return created.model_copy(
+            update={
+                "status": ScheduledTaskStatus.DELETED,
+                "enabled": False,
+                "attachment_keys": [],
+                "pending_attachment_claim_keys": [],
+                "pending_attachment_release_keys": ["key-a"],
+                "attachment_setup_pending": False,
+            }
+        )
+
+    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+        events.append("clear_pending")
+        return True
+
+    async def _finalize(_task_id: str) -> bool:
+        events.append("finalize")
+        return True
+
+    mock_storage.create_task.side_effect = _create_task
+    mock_storage.commit_attachment_update.side_effect = _commit
+    mock_storage.mark_task_attachment_deletion.side_effect = _mark_deleted
+    mock_storage.clear_pending_attachment_releases.side_effect = _clear
+    mock_storage.finalize_deleted_task.side_effect = _finalize
+    mock_scheduler.register_job.side_effect = RuntimeError("scheduler unavailable")
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
+
+    with pytest.raises(RuntimeError, match="scheduler unavailable"):
+        await service.create_task(
+            _make_create_request(input_payload={"attachments": [{"key": "key-a"}]}),
+            owner_id="user_1",
+        )
+
+    assert events == ["mark_deleted", "release", "clear_pending", "finalize"]
 
 
 @pytest.mark.asyncio
@@ -225,18 +481,207 @@ async def test_resume_task_registers(
 
 
 @pytest.mark.asyncio
-async def test_delete_task_physically_deletes(
+async def test_delete_task_soft_deletes_before_releasing_and_finalizing(
     service: ScheduledTaskService,
     mock_storage: AsyncMock,
     mock_scheduler: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    mock_storage.delete_task = AsyncMock(return_value=True)
+    events: list[str] = []
+    task = _make_task(attachment_keys=["key-a"])
+    deleted_task = task.model_copy(
+        update={
+            "status": ScheduledTaskStatus.DELETED,
+            "enabled": False,
+            "attachment_keys": [],
+            "pending_attachment_release_keys": ["key-a"],
+        }
+    )
+
+    class _FileRecords:
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> int:
+            assert keys == ["key-a"]
+            assert uploaded_by == "user_1"
+            events.append("release")
+            return 1
+
+    async def _mark(_task_id: str) -> ScheduledTask:
+        events.append("mark_deleted")
+        return deleted_task
+
+    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+        events.append("clear_pending")
+        return True
+
+    async def _finalize(_task_id: str) -> bool:
+        events.append("finalize")
+        return True
+
+    mock_storage.get_task = AsyncMock(return_value=task)
+    mock_storage.mark_task_attachment_deletion.side_effect = _mark
+    mock_storage.clear_pending_attachment_releases.side_effect = _clear
+    mock_storage.finalize_deleted_task.side_effect = _finalize
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
 
     deleted = await service.delete_task("task_1")
 
     assert deleted is True
     mock_scheduler.unregister_job.assert_called_once_with("task_1")
-    mock_storage.delete_task.assert_called_once_with("task_1")
+    assert events == ["mark_deleted", "release", "clear_pending", "finalize"]
+    mock_storage.delete_task.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_attachment_references_adopts_paused_legacy_definition(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    legacy = _make_task(
+        status=ScheduledTaskStatus.PAUSED,
+        enabled=False,
+        input_payload={"attachments": [{"key": "key-a"}]},
+        attachment_keys=[],
+    )
+    adopted = legacy.model_copy(update={"attachment_keys": ["key-a"]})
+
+    class _FileRecords:
+        async def claim_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> list[str]:
+            assert (keys, uploaded_by, task_id) == (["key-a"], "user_1", "task_1")
+            events.append("claim")
+            return keys
+
+    async def _stage(_task_id: str, keys: list[str]) -> ScheduledTask:
+        assert keys == ["key-a"]
+        events.append("stage")
+        return legacy.model_copy(update={"pending_attachment_claim_keys": keys})
+
+    async def _commit(
+        _task_id: str,
+        updates: dict[str, Any],
+        keys: list[str],
+    ) -> ScheduledTask:
+        assert updates == {}
+        assert keys == ["key-a"]
+        events.append("commit")
+        return adopted
+
+    mock_storage.list_attachment_reconciliation_tasks.return_value = [legacy]
+    mock_storage.get_task.return_value = legacy
+    mock_storage.stage_attachment_claim.side_effect = _stage
+    mock_storage.commit_attachment_update.side_effect = _commit
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords())
+
+    reconciled = await service.reconcile_attachment_references()
+
+    assert reconciled == 1
+    assert events == ["stage", "claim", "commit"]
+    mock_scheduler.register_job.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_attachment_references_retries_only_non_live_releases(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task(
+        input_payload={"attachments": [{"key": "live-key"}]},
+        attachment_keys=["live-key"],
+        pending_attachment_release_keys=["live-key", "old-key"],
+    )
+    released: list[str] = []
+
+    class _FileRecords:
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> int:
+            released.extend(keys)
+            return len(keys)
+
+    mock_storage.list_attachment_reconciliation_tasks.return_value = [task]
+    mock_storage.get_task.return_value = task
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords())
+
+    reconciled = await service.reconcile_attachment_references()
+
+    assert reconciled == 1
+    assert released == ["old-key"]
+    mock_storage.clear_pending_attachment_releases.assert_awaited_once_with(
+        "task_1", ["old-key"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_reconcile_attachment_references_removes_interrupted_create(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provisional = _make_task(
+        enabled=False,
+        input_payload={"attachments": [{"key": "key-a"}]},
+        pending_attachment_claim_keys=["key-a"],
+        attachment_setup_pending=True,
+    )
+    deleted = provisional.model_copy(
+        update={
+            "status": ScheduledTaskStatus.DELETED,
+            "pending_attachment_claim_keys": [],
+            "pending_attachment_release_keys": ["key-a"],
+            "attachment_setup_pending": False,
+        }
+    )
+    events: list[str] = []
+
+    class _FileRecords:
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> int:
+            events.append("release")
+            return len(keys)
+
+    async def _mark(_task_id: str) -> ScheduledTask:
+        events.append("mark_deleted")
+        return deleted
+
+    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+        events.append("clear")
+        return True
+
+    async def _finalize(_task_id: str) -> bool:
+        events.append("finalize")
+        return True
+
+    mock_storage.list_attachment_reconciliation_tasks.return_value = [provisional]
+    mock_storage.get_task.return_value = provisional
+    mock_storage.mark_task_attachment_deletion.side_effect = _mark
+    mock_storage.clear_pending_attachment_releases.side_effect = _clear
+    mock_storage.finalize_deleted_task.side_effect = _finalize
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords())
+
+    reconciled = await service.reconcile_attachment_references()
+
+    assert reconciled == 1
+    assert events == ["mark_deleted", "release", "clear", "finalize"]
 
 
 @pytest.mark.asyncio
@@ -396,6 +841,157 @@ async def test_update_task_refreshes_scheduler(
     assert result == updated
     mock_storage.update_task.assert_called_once()
     mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_update_task_claims_new_attachment_before_releasing_removed_key(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    original = _make_task(
+        input_payload={"attachments": [{"key": "old-key"}]},
+        attachment_keys=["old-key"],
+    )
+    updated = _make_task(
+        input_payload={"attachments": [{"key": "new-key"}]},
+        attachment_keys=["new-key"],
+        pending_attachment_release_keys=["old-key"],
+    )
+
+    class _FileRecords:
+        async def claim_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> list[str]:
+            assert keys == ["new-key"]
+            assert uploaded_by == "user_1"
+            events.append("claim_new")
+            return keys
+
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> int:
+            assert keys == ["old-key"]
+            assert uploaded_by == "user_1"
+            events.append("release_old")
+            return len(keys)
+
+    async def _stage(_task_id: str, keys: list[str]) -> ScheduledTask:
+        assert keys == ["new-key"]
+        events.append("stage_claim")
+        return original.model_copy(update={"pending_attachment_claim_keys": keys})
+
+    async def _commit(
+        _task_id: str,
+        updates: dict[str, Any],
+        keys: list[str],
+    ) -> ScheduledTask:
+        assert updates["input_payload"] == updated.input_payload
+        assert keys == ["new-key"]
+        events.append("commit_input")
+        return updated
+
+    async def _clear(_task_id: str, keys: list[str]) -> bool:
+        assert keys == ["old-key"]
+        events.append("clear_release")
+        return True
+
+    mock_storage.get_task = AsyncMock(return_value=original)
+    mock_storage.stage_attachment_claim.side_effect = _stage
+    mock_storage.commit_attachment_update.side_effect = _commit
+    mock_storage.clear_pending_attachment_releases.side_effect = _clear
+    mock_scheduler.register_job.side_effect = lambda _job: events.append("register")
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
+
+    result = await service.update_task(
+        "task_1",
+        _make_update_request(input_payload=updated.input_payload),
+    )
+
+    assert result == updated
+    assert events == [
+        "stage_claim",
+        "claim_new",
+        "commit_input",
+        "register",
+        "release_old",
+        "clear_release",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_update_task_missing_after_claim_rolls_back_staged_token(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    original = _make_task(attachment_keys=[])
+
+    class _FileRecords:
+        async def claim_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> list[str]:
+            events.append("claim")
+            return keys
+
+        async def release_scheduled_task_references(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+        ) -> int:
+            events.append("rollback")
+            return len(keys)
+
+    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+        events.append("clear_pending")
+        return True
+
+    mock_storage.get_task = AsyncMock(return_value=original)
+    mock_storage.stage_attachment_claim = AsyncMock(return_value=original)
+    mock_storage.commit_attachment_update = AsyncMock(return_value=None)
+    mock_storage.clear_pending_attachment_claims.side_effect = _clear
+    monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
+
+    result = await service.update_task(
+        "task_1",
+        _make_update_request(input_payload={"attachments": [{"key": "key-a"}]}),
+    )
+
+    assert result is None
+    assert events == ["claim", "rollback", "clear_pending"]
+
+
+@pytest.mark.asyncio
+async def test_attachment_update_fails_closed_when_definition_is_being_mutated(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _contended(_task_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(service_module, "acquire_attachment_mutation_lock", _contended)
+
+    with pytest.raises(ValueError, match="attachment mutation is already in progress"):
+        await service.update_task(
+            "task_1",
+            _make_update_request(input_payload={"attachments": [{"key": "key-a"}]}),
+        )
+
+    mock_storage.get_task.assert_not_awaited()
 
 
 @pytest.mark.asyncio

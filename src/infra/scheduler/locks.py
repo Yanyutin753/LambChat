@@ -13,8 +13,10 @@ logger = get_logger(__name__)
 
 _LOCK_PREFIX = "scheduler:task_lock:"
 _SLOT_PREFIX = "scheduler:task_slot:"
+_ATTACHMENT_MUTATION_PREFIX = "scheduler:attachment_mutation:"
 _LOCK_TTL = 600  # 10 min default TTL
 _SLOT_TTL = 86400  # Keep completed schedule slots long enough to dedupe delayed peers.
+ATTACHMENT_MUTATION_LOCK_TTL = 60
 
 # Lua: atomic compare-and-delete to avoid releasing another instance's lock
 _RELEASE_LOCK_LUA = """
@@ -78,6 +80,25 @@ async def acquire_task_slot_lock(
         return True
     logger.debug("[SchedulerSlot] slot contested for task=%s slot=%s", task_id, slot_id)
     return False
+
+
+async def acquire_attachment_mutation_lock(
+    task_id: str,
+    ttl: int = ATTACHMENT_MUTATION_LOCK_TTL,
+) -> Optional[str]:
+    """Serialize attachment-definition transitions across application instances."""
+    redis = get_redis_client()
+    lock_key = f"{_ATTACHMENT_MUTATION_PREFIX}{task_id}"
+    token = uuid.uuid4().hex
+    acquired = await redis.set(lock_key, token, nx=True, ex=max(1, int(ttl)))
+    return token if acquired else None
+
+
+async def release_attachment_mutation_lock(task_id: str, token: str) -> None:
+    """Release an attachment mutation lock only when this caller still owns it."""
+    redis = get_redis_client()
+    lock_key = f"{_ATTACHMENT_MUTATION_PREFIX}{task_id}"
+    await cast(Awaitable[Any], redis.eval(_RELEASE_LOCK_LUA, 1, lock_key, token))
 
 
 async def release_task_lock(task_id: str, token: str) -> None:

@@ -6,7 +6,10 @@ storage, runner, and scheduler components.
 
 from __future__ import annotations
 
+import asyncio
 import json
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 from datetime import timedelta
 from typing import Any, Optional
 from uuid import uuid4
@@ -19,10 +22,20 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from src.infra.logging import get_logger
 from src.infra.scheduler.runner import get_scheduled_task_runner
+from src.infra.scheduler.locks import (
+    acquire_attachment_mutation_lock,
+    release_attachment_mutation_lock,
+)
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.session.storage import SessionStorage
+from src.infra.upload.file_record import (
+    REFERENCE_KEYS_MAX,
+    AttachmentClaimError,
+    FileRecordStorage,
+)
 from src.infra.utils.datetime import ensure_utc, utc_now
+from src.infra.writer.presenter_config import _extract_attachment_keys
 from src.kernel.schemas.scheduled_task import (
     CronTriggerConfig,
     DateTriggerConfig,
@@ -39,6 +52,30 @@ from src.kernel.schemas.scheduled_task import (
 logger = get_logger(__name__)
 
 _managed_task_signatures: dict[str, str] = {}
+
+
+@asynccontextmanager
+async def _attachment_mutation(task_id: str) -> AsyncIterator[None]:
+    token = await acquire_attachment_mutation_lock(task_id)
+    if token is None:
+        raise ValueError("Scheduled task attachment mutation is already in progress")
+    try:
+        yield
+    finally:
+        await release_attachment_mutation_lock(task_id, token)
+
+
+def _task_attachment_keys(input_payload: dict[str, Any]) -> list[str]:
+    raw_attachments = input_payload.get("attachments")
+    attachments = (
+        [dict(item) for item in raw_attachments if isinstance(item, dict)]
+        if isinstance(raw_attachments, list)
+        else []
+    )
+    keys = _extract_attachment_keys(attachments, limit=None)
+    if len(keys) > REFERENCE_KEYS_MAX:
+        raise AttachmentClaimError()
+    return keys
 
 
 def _coerce_timezone(timezone_name: str | None) -> ZoneInfo:
@@ -77,6 +114,7 @@ class ScheduledTaskService:
         """Validate, persist, and register a new scheduled task."""
         # Validate trigger config
         self._build_trigger(request.trigger_type, request.trigger_config, request.timezone)
+        attachment_keys = _task_attachment_keys(request.input_payload)
 
         now = utc_now()
         task_id = str(uuid4())
@@ -91,13 +129,16 @@ class ScheduledTaskService:
                 "timezone": request.timezone,
                 "input_payload": request.input_payload,
                 "status": ScheduledTaskStatus.ACTIVE,
-                "enabled": request.enabled,
+                "enabled": False if attachment_keys else request.enabled,
                 "run_on_start": False
                 if request.trigger_type == TriggerType.DATE
                 else request.run_on_start,
                 "max_retries": request.max_retries,
                 "timeout_seconds": request.timeout_seconds,
                 "owner_id": owner_id,
+                "attachment_keys": [],
+                "pending_attachment_claim_keys": attachment_keys,
+                "attachment_setup_pending": bool(attachment_keys),
                 "source_session_id": request.source_session_id,
                 "source_run_id": request.source_run_id,
                 "created_by": request.created_by,
@@ -109,7 +150,69 @@ class ScheduledTaskService:
 
         storage = get_scheduled_task_storage()
         await storage.create_task(task)
-        self._register_to_scheduler(task, honor_run_on_start=True)
+        if attachment_keys:
+            file_records = FileRecordStorage()
+            try:
+                await file_records.claim_scheduled_task_references(
+                    attachment_keys,
+                    owner_id,
+                    task_id,
+                )
+            except (Exception, asyncio.CancelledError):
+                try:
+                    await storage.delete_task(task_id)
+                except Exception:
+                    logger.exception(
+                        "[Service] failed to remove interrupted task attachment setup %s",
+                        task_id,
+                    )
+                raise
+            try:
+                committed = await storage.commit_attachment_update(
+                    task_id,
+                    {"enabled": request.enabled},
+                    attachment_keys,
+                )
+                if committed is None:
+                    raise RuntimeError("Scheduled task attachment setup was interrupted")
+            except (Exception, asyncio.CancelledError):
+                released = False
+                try:
+                    await file_records.release_scheduled_task_references(
+                        attachment_keys,
+                        owner_id,
+                        task_id,
+                    )
+                    released = True
+                except Exception:
+                    logger.exception(
+                        "[Service] failed to release interrupted task attachment setup %s",
+                        task_id,
+                    )
+                if released:
+                    try:
+                        await storage.delete_task(task_id)
+                    except Exception:
+                        logger.exception(
+                            "[Service] failed to remove interrupted task attachment setup %s",
+                            task_id,
+                        )
+                raise
+            task = committed
+        try:
+            self._register_to_scheduler(task, honor_run_on_start=True)
+        except Exception:
+            self._unregister_managed_task(task_id)
+            try:
+                deleted_task = await storage.mark_task_attachment_deletion(task_id)
+                if deleted_task is not None:
+                    await self._release_pending_attachment_references(deleted_task)
+            except Exception:
+                logger.exception(
+                    "[Service] failed to finish attachment cleanup after registration failure %s",
+                    task_id,
+                )
+            raise
 
         logger.info(
             "[Service] created task %s agent=%s trigger=%s",
@@ -123,6 +226,14 @@ class ScheduledTaskService:
         self, task_id: str, request: ScheduledTaskUpdate
     ) -> Optional[ScheduledTask]:
         """Update task fields and refresh the scheduler registration."""
+        if "input_payload" in request.model_dump(exclude_unset=True):
+            async with _attachment_mutation(task_id):
+                return await self._update_task(task_id, request)
+        return await self._update_task(task_id, request)
+
+    async def _update_task(
+        self, task_id: str, request: ScheduledTaskUpdate
+    ) -> Optional[ScheduledTask]:
         storage = get_scheduled_task_storage()
         task = await storage.get_task(task_id)
         if task is None:
@@ -143,16 +254,68 @@ class ScheduledTaskService:
         if not updates:
             return task
 
-        await storage.update_task(task_id, updates)
-        updated_task = await storage.get_task(task_id)
-        if updated_task is None:
-            return None
+        attachment_update = "input_payload" in updates
+        if attachment_update:
+            attachment_keys = _task_attachment_keys(updates["input_payload"])
+            live_keys = set(task.attachment_keys)
+            added_keys = [key for key in attachment_keys if key not in live_keys]
+            staged = await storage.stage_attachment_claim(task_id, added_keys)
+            if staged is None:
+                return None
+            file_records = FileRecordStorage()
+            try:
+                await file_records.claim_scheduled_task_references(
+                    added_keys,
+                    task.owner_id,
+                    task.id,
+                )
+                updated_task = await storage.commit_attachment_update(
+                    task_id,
+                    updates,
+                    attachment_keys,
+                )
+            except (Exception, asyncio.CancelledError):
+                try:
+                    await file_records.release_scheduled_task_references(
+                        added_keys,
+                        task.owner_id,
+                        task.id,
+                    )
+                    await storage.clear_pending_attachment_claims(task.id, added_keys)
+                except Exception:
+                    logger.exception(
+                        "[Service] failed to roll back interrupted task update %s",
+                        task.id,
+                    )
+                raise
+            if updated_task is None:
+                try:
+                    await file_records.release_scheduled_task_references(
+                        added_keys,
+                        task.owner_id,
+                        task.id,
+                    )
+                    await storage.clear_pending_attachment_claims(task.id, added_keys)
+                except Exception:
+                    logger.exception(
+                        "[Service] failed to roll back missing task update %s",
+                        task.id,
+                    )
+                return None
+        else:
+            await storage.update_task(task_id, updates)
+            updated_task = await storage.get_task(task_id)
+            if updated_task is None:
+                return None
 
         # Refresh scheduler registration
         if updated_task.enabled and updated_task.status == ScheduledTaskStatus.ACTIVE:
             self._register_to_scheduler(updated_task)
         else:
             self._unregister_managed_task(task_id)
+
+        if attachment_update:
+            await self._release_pending_attachment_references(updated_task)
 
         return updated_task
 
@@ -181,13 +344,100 @@ class ScheduledTaskService:
         return updated
 
     async def delete_task(self, task_id: str) -> bool:
-        """Physically delete a task."""
+        """Delete a task after durably recording attachment releases."""
+        async with _attachment_mutation(task_id):
+            return await self._delete_task(task_id)
+
+    async def _delete_task(self, task_id: str) -> bool:
         self._unregister_managed_task(task_id)
         storage = get_scheduled_task_storage()
-        deleted = await storage.delete_task(task_id)
-        if deleted:
-            logger.info("[Service] deleted task %s", task_id)
-        return deleted
+        task = await storage.get_task(task_id)
+        if task is None:
+            return False
+        deleted_task = await storage.mark_task_attachment_deletion(task_id)
+        if deleted_task is None:
+            return False
+        await self._release_pending_attachment_references(deleted_task)
+        logger.info("[Service] deleted task %s", task_id)
+        return True
+
+    async def reconcile_attachment_references(self) -> int:
+        """Finish durable attachment transitions left by crashes or old definitions."""
+        storage = get_scheduled_task_storage()
+        tasks = await storage.list_attachment_reconciliation_tasks()
+        reconciled = 0
+        for listed_task in tasks:
+            async with _attachment_mutation(listed_task.id):
+                task = await storage.get_task(listed_task.id)
+                if task is None:
+                    continue
+                await self._reconcile_attachment_task(storage, task)
+                reconciled += 1
+        return reconciled
+
+    async def _reconcile_attachment_task(self, storage: Any, task: ScheduledTask) -> None:
+        if task.attachment_setup_pending:
+            deleted_task = await storage.mark_task_attachment_deletion(task.id)
+            if deleted_task is not None:
+                await self._release_pending_attachment_references(deleted_task)
+            return
+
+        pending_claims = list(task.pending_attachment_claim_keys)
+        if pending_claims:
+            live_keys = set(task.attachment_keys)
+            rollback_keys = [key for key in pending_claims if key not in live_keys]
+            if rollback_keys:
+                await FileRecordStorage().release_scheduled_task_references(
+                    rollback_keys,
+                    task.owner_id,
+                    task.id,
+                )
+            await storage.clear_pending_attachment_claims(task.id, pending_claims)
+            task = task.model_copy(update={"pending_attachment_claim_keys": []})
+
+        if task.status == ScheduledTaskStatus.DELETED:
+            await self._release_pending_attachment_references(task)
+            return
+
+        desired_keys = _task_attachment_keys(task.input_payload)
+        if desired_keys != task.attachment_keys:
+            live_keys = set(task.attachment_keys)
+            added_keys = [key for key in desired_keys if key not in live_keys]
+            if added_keys:
+                staged = await storage.stage_attachment_claim(task.id, added_keys)
+                if staged is None:
+                    raise RuntimeError(
+                        f"Scheduled task {task.id} disappeared during attachment recovery"
+                    )
+                await FileRecordStorage().claim_scheduled_task_references(
+                    added_keys,
+                    task.owner_id,
+                    task.id,
+                )
+            try:
+                committed = await storage.commit_attachment_update(task.id, {}, desired_keys)
+                if committed is None:
+                    raise RuntimeError(
+                        f"Scheduled task {task.id} disappeared during attachment recovery"
+                    )
+            except (Exception, asyncio.CancelledError):
+                if added_keys:
+                    try:
+                        await FileRecordStorage().release_scheduled_task_references(
+                            added_keys,
+                            task.owner_id,
+                            task.id,
+                        )
+                        await storage.clear_pending_attachment_claims(task.id, added_keys)
+                    except Exception:
+                        logger.exception(
+                            "[Service] failed attachment recovery rollback for task %s",
+                            task.id,
+                        )
+                raise
+            task = committed
+
+        await self._release_pending_attachment_references(task)
 
     async def get_task(self, task_id: str) -> Optional[ScheduledTask]:
         return await get_scheduled_task_storage().get_task(task_id)
@@ -339,6 +589,27 @@ class ScheduledTaskService:
         )
 
     # ── Internal ───────────────────────────────────
+
+    async def _release_pending_attachment_references(
+        self,
+        task: ScheduledTask,
+    ) -> int:
+        """Release only durable pending keys that are not live in the definition."""
+        live_keys = set(task.attachment_keys)
+        pending_keys = [
+            key for key in task.pending_attachment_release_keys if key not in live_keys
+        ]
+        storage = get_scheduled_task_storage()
+        if pending_keys:
+            await FileRecordStorage().release_scheduled_task_references(
+                pending_keys,
+                task.owner_id,
+                task.id,
+            )
+            await storage.clear_pending_attachment_releases(task.id, pending_keys)
+        if task.status == ScheduledTaskStatus.DELETED:
+            await storage.finalize_deleted_task(task.id)
+        return len(pending_keys)
 
     def _register_to_scheduler(
         self,
