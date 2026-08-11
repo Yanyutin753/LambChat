@@ -256,6 +256,7 @@ async def test_event_merger_processes_traces_with_bounded_coroutines(
             "updated_at": f"version-{index}",
             "attachment_chunk_write_operation": {"$exists": False},
         }
+        assert operation._doc["$inc"] == {"event_revision": 1}
 
 
 @pytest.mark.asyncio
@@ -431,6 +432,7 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
         "status": 1,
         "updated_at": 1,
         "event_count": 1,
+        "event_revision": 1,
         "metadata": 1,
     }
 

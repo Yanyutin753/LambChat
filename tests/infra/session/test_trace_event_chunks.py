@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any
@@ -43,6 +44,9 @@ class _AsyncCursor:
             return next(self._iter)
         except StopIteration as exc:
             raise StopAsyncIteration from exc
+
+    async def to_list(self, length: int | None = None):
+        return deepcopy(self.docs if length is None else self.docs[:length])
 
 
 class _FakeTraceCollection:
@@ -148,6 +152,11 @@ def _apply_update(document: dict[str, Any], update: dict[str, Any]) -> None:
         current = _nested_value(document, path)
         if current is _MISSING or current < candidate:
             _set_nested(document, path, candidate)
+    for path, value in update.get("$push", {}).items():
+        current = _nested_value(document, path)
+        items = [] if current is _MISSING else list(current)
+        items.append(deepcopy(value))
+        _set_nested(document, path, items)
 
 
 def _project(document: dict[str, Any], projection: dict[str, Any] | None) -> dict[str, Any]:
@@ -180,38 +189,54 @@ class _FakeChunkCollection:
         self.find_count = 0
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
-        del projection
         for chunk in self.chunks:
-            if chunk.get("trace_id") == query.get("trace_id"):
-                return chunk
+            if _matches(chunk, query):
+                return _project(chunk, projection)
         return None
 
     def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
-        del projection
         self.find_count += 1
-        trace_selector = query.get("trace_id")
-        if isinstance(trace_selector, dict) and "$in" in trace_selector:
-            trace_ids = set(trace_selector["$in"])
-            docs = [chunk for chunk in self.chunks if chunk.get("trace_id") in trace_ids]
-        else:
-            docs = [chunk for chunk in self.chunks if chunk.get("trace_id") == trace_selector]
+        docs = [_project(chunk, projection) for chunk in self.chunks if _matches(chunk, query)]
         return _AsyncCursor(docs)
 
     async def delete_many(self, query: dict[str, Any]):
         self.deleted_queries.append(query)
-        self.chunks = [
-            chunk for chunk in self.chunks if chunk.get("trace_id") != query.get("trace_id")
-        ]
+        before = len(self.chunks)
+        self.chunks = [chunk for chunk in self.chunks if not _matches(chunk, query)]
+        return SimpleNamespace(deleted_count=before - len(self.chunks))
 
     async def insert_many(self, docs: list[dict[str, Any]]):
         self.inserted_docs.extend(docs)
         self.chunks.extend(docs)
+
+    async def replace_one(
+        self,
+        query: dict[str, Any],
+        document: dict[str, Any],
+        upsert: bool = False,
+    ):
+        for index, chunk in enumerate(self.chunks):
+            if _matches(chunk, query):
+                self.chunks[index] = deepcopy(document)
+                self.inserted_docs.append(deepcopy(document))
+                return SimpleNamespace(matched_count=1, modified_count=1, upserted_id=None)
+        if upsert:
+            self.chunks.append(deepcopy(document))
+            self.inserted_docs.append(deepcopy(document))
+            return SimpleNamespace(matched_count=0, modified_count=0, upserted_id="upserted")
+        return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=None)
 
     async def update_one(self, query: dict[str, Any], update: dict[str, Any], upsert: bool = False):
         self.update_calls.append((query, update, upsert))
 
     async def update_many(self, query: dict[str, Any], update: dict[str, Any]):
         self.update_many_calls.append((query, update))
+        modified = 0
+        for chunk in self.chunks:
+            if _matches(chunk, query):
+                _apply_update(chunk, update)
+                modified += 1
+        return SimpleNamespace(matched_count=modified, modified_count=modified)
 
 
 class _SessionTraceCursor:
@@ -353,14 +378,19 @@ async def test_replace_trace_events_with_chunks_splits_events_and_updates_metada
         "session_id": "session-1",
         "updated_at": "version-1",
         "attachment_chunk_write_operation": {"$exists": False},
+        "event_revision": {"$exists": False},
     }
     claimed_marker = claim_update["$set"]["attachment_chunk_write_operation"]
     assert claimed_marker["kind"] == "replace"
+    assert claim_update["$inc"] == {"event_revision": 1}
 
     final_query, final_update = trace_collection.update_calls[0]
     assert final_query == {
         "trace_id": "trace-1",
         "attachment_chunk_write_operation.id": claimed_marker["id"],
+        "attachment_chunk_write_operation.phase": "installed",
+        "attachment_chunk_write_operation.revision": claimed_marker["revision"],
+        "event_revision": claimed_marker["revision"],
     }
     update = final_update["$set"]
     assert update["metadata.merged"] is True
@@ -763,9 +793,14 @@ async def test_reserve_event_sequence_range_atomically_increments_event_count() 
     assert trace_doc["attachment_chunk_write_operation"]["kind"] == "append"
     assert collection.find_one_and_update_calls[0][0] == {
         "trace_id": "trace-1",
+        "updated_at": "version-1",
         "attachment_chunk_write_operation": {"$exists": False},
+        "event_revision": {"$exists": False},
     }
-    assert collection.find_one_and_update_calls[0][1]["$inc"] == {"event_count": 2}
+    assert collection.find_one_and_update_calls[0][1]["$inc"] == {
+        "event_count": 2,
+        "event_revision": 1,
+    }
     assert (
         collection.find_one_and_update_calls[0][1]["$set"]["attachment_chunk_write_operation"][
             "kind"
@@ -829,6 +864,8 @@ async def test_append_events_to_chunks_uses_reserved_sequence_range(
     assert trace_update_query == {
         "trace_id": "trace-1",
         "attachment_chunk_write_operation.id": operation_id,
+        "attachment_chunk_write_operation.revision": reserved["event_revision"],
+        "event_revision": reserved["event_revision"],
     }
     trace_update = trace_update_doc["$set"]
     assert trace_update_doc["$max"] == {"chunk_count": 2}
@@ -973,8 +1010,12 @@ async def test_rollback_event_sequence_range_removes_reserved_chunk_events() -> 
             {"event_count": -1},
         ]
         trace_query, trace_update = trace_collection.update_calls[0]
-        assert trace_query == {"trace_id": "trace-1", "event_count": 7}
-        assert trace_update["$inc"] == {"event_count": -4}
+        assert trace_query == {
+            "trace_id": "trace-1",
+            "event_count": 7,
+            "attachment_chunk_write_operation": {"$exists": False},
+        }
+        assert trace_update["$inc"] == {"event_count": -4, "event_revision": 1}
     finally:
         monkeypatch.undo()
 
@@ -994,8 +1035,12 @@ async def test_rollback_event_sequence_range_only_decrements_latest_reservation(
     )
 
     trace_query, trace_update = trace_collection.update_calls[0]
-    assert trace_query == {"trace_id": "trace-1", "event_count": 7}
-    assert trace_update["$inc"] == {"event_count": -2}
+    assert trace_query == {
+        "trace_id": "trace-1",
+        "event_count": 7,
+        "attachment_chunk_write_operation": {"$exists": False},
+    }
+    assert trace_update["$inc"] == {"event_count": -2, "event_revision": 1}
 
 
 @pytest.mark.asyncio
@@ -1269,3 +1314,150 @@ async def test_get_session_events_uses_one_batch_read_and_applies_limit() -> Non
 
     assert storage.batch_reads == [["trace-1"]]
     assert [event["data"]["content"] for event in events] == ["a"]
+
+
+@pytest.mark.asyncio
+async def test_parent_append_is_fenced_during_chunk_replacement_and_can_retry() -> None:
+    storage = TraceStorage()
+    trace_collection = _FakeTraceCollection(
+        _trace_document(
+            events=[_event("message", "before")],
+            event_count=1,
+            metadata={"merged": True},
+        )
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = _FakeChunkCollection()
+
+    claim = await storage._claim_chunk_write(trace_collection.trace_doc, kind="replace")
+
+    assert claim is not None
+    assert await storage.append_event("trace-1", "message", {"content": "during"}) is False
+    assert [event["data"]["content"] for event in trace_collection.trace_doc["events"]] == [
+        "before"
+    ]
+
+    operation_id, claimed = claim
+    marker = claimed["attachment_chunk_write_operation"]
+    result = await trace_collection.update_one(
+        {
+            "trace_id": "trace-1",
+            "attachment_chunk_write_operation.id": operation_id,
+        },
+        {"$unset": {"attachment_chunk_write_operation": ""}},
+    )
+    assert result.modified_count == 1
+    assert marker["revision"] == claimed["event_revision"]
+
+    assert await storage.append_event("trace-1", "message", {"content": "after"}) is True
+    assert [event["data"]["content"] for event in trace_collection.trace_doc["events"]] == [
+        "before",
+        "after",
+    ]
+    assert trace_collection.trace_doc["metadata"]["merged"] is False
+
+
+class _FailOnceReplacementChunks(_FakeChunkCollection):
+    def __init__(self, failure: str) -> None:
+        super().__init__([{"trace_id": "trace-1", "chunk_index": 0, "events": []}])
+        self.failure = failure
+        self.failed = False
+
+    async def delete_many(self, query: dict[str, Any]):
+        if self.failure == "delete" and not self.failed:
+            self.failed = True
+            raise RuntimeError("transient replacement delete")
+        return await super().delete_many(query)
+
+    async def replace_one(
+        self,
+        query: dict[str, Any],
+        document: dict[str, Any],
+        upsert: bool = False,
+    ):
+        if self.failure in {"insert", "cancel"} and not self.failed:
+            self.failed = True
+            self.chunks.append(deepcopy(document))
+            if self.failure == "cancel":
+                raise asyncio.CancelledError
+            raise RuntimeError("transient replacement insert")
+        return await super().replace_one(query, document, upsert=upsert)
+
+
+class _FailOnceReplacementFinal(_FakeTraceCollection):
+    def __init__(self) -> None:
+        super().__init__(_trace_document())
+        self.failed = False
+
+    async def update_one(self, query: dict[str, Any], update: dict[str, Any]):
+        if query.get("attachment_chunk_write_operation.phase") == "installed" and not self.failed:
+            self.failed = True
+            raise RuntimeError("transient replacement final")
+        return await super().update_one(query, update)
+
+    def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
+        documents = []
+        if self.trace_doc and _matches(self.trace_doc, query):
+            documents.append(_project(self.trace_doc, projection))
+        return _AsyncCursor(documents)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["delete", "insert", "final", "cancel"])
+async def test_chunk_replacement_recovers_after_partial_failure_or_cancellation(
+    failure: str,
+) -> None:
+    storage = TraceStorage()
+    trace_collection = (
+        _FailOnceReplacementFinal()
+        if failure == "final"
+        else _FakeTraceCollection(_trace_document())
+    )
+    chunk_collection = _FailOnceReplacementChunks(failure)
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+    events = [_event("message", "replacement")]
+
+    expected_error = asyncio.CancelledError if failure == "cancel" else RuntimeError
+    with pytest.raises(expected_error):
+        await storage.replace_trace_events_with_chunks(_trace_document(), events)
+
+    assert trace_collection.trace_doc is not None
+    assert "attachment_chunk_write_operation" in trace_collection.trace_doc
+
+    assert await storage.replace_trace_events_with_chunks(_trace_document(), events) is True
+    assert "attachment_chunk_write_operation" not in trace_collection.trace_doc
+    assert [
+        event["data"]["content"]
+        for chunk in chunk_collection.chunks
+        if chunk.get("trace_id") == "trace-1"
+        for event in chunk.get("events", [])
+    ] == ["replacement"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["insert", "final"])
+async def test_stale_chunk_replacement_is_automatically_recovered(failure: str) -> None:
+    storage = TraceStorage()
+    trace_collection = _FailOnceReplacementFinal()
+    if failure != "final":
+        trace_collection.failed = True
+    chunk_collection = _FailOnceReplacementChunks(failure)
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+    events = [_event("message", "replacement")]
+
+    with pytest.raises(RuntimeError):
+        await storage.replace_trace_events_with_chunks(_trace_document(), events)
+    assert trace_collection.trace_doc is not None
+    trace_collection.trace_doc["attachment_chunk_write_operation"]["recovery_after"] = "past"
+
+    assert await storage.recover_incomplete_chunk_replacements() == 1
+    assert "attachment_chunk_write_operation" not in trace_collection.trace_doc
+    contents = [
+        event["data"]["content"]
+        for chunk in chunk_collection.chunks
+        if chunk.get("trace_id") == "trace-1"
+        for event in chunk.get("events", [])
+    ]
+    assert contents == ([] if failure == "insert" else ["replacement"])

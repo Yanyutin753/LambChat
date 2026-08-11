@@ -10,6 +10,8 @@ from src.infra.utils.datetime import utc_now, utc_now_iso
 logger = get_logger("src.infra.session.trace_storage")
 
 _USAGE_LOGS_ENABLED = True  # 是否在 trace 完成时写入 usage_logs 集合
+_ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
+_TRACE_EVENT_REVISION_FIELD = "event_revision"
 
 
 class TraceStorageWriteMixin:
@@ -83,6 +85,7 @@ class TraceStorageWriteMixin:
                 "user_id": user_id,
                 "events": [],
                 "event_count": 0,
+                _TRACE_EVENT_REVISION_FIELD: 0,
                 "started_at": now,
                 "updated_at": now,
                 "status": "running",
@@ -132,7 +135,10 @@ class TraceStorageWriteMixin:
         """
         try:
             result = await self.collection.update_one(
-                {"trace_id": trace_id},
+                {
+                    "trace_id": trace_id,
+                    _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                },
                 {
                     "$push": {
                         "events": {
@@ -141,8 +147,11 @@ class TraceStorageWriteMixin:
                             "timestamp": utc_now(),
                         }
                     },
-                    "$inc": {"event_count": 1},
-                    "$set": {"updated_at": utc_now()},
+                    "$inc": {"event_count": 1, _TRACE_EVENT_REVISION_FIELD: 1},
+                    "$set": {
+                        "updated_at": utc_now(),
+                        "metadata.merged": False,
+                    },
                 },
             )
             if result.modified_count == 0:
@@ -167,13 +176,18 @@ class TraceStorageWriteMixin:
             await self.ensure_indexes_if_needed()
             now = utc_now()
             result = await self.collection.update_one(
-                {"session_id": session_id, "run_id": run_id},
                 {
+                    "session_id": session_id,
+                    "run_id": run_id,
+                    _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                },
+                {
+                    "$inc": {_TRACE_EVENT_REVISION_FIELD: 1},
                     "$set": {
                         "recommend_questions": normalized,
                         "recommend_questions_updated_at": now,
                         "updated_at": now,
-                    }
+                    },
                 },
             )
             if result.modified_count == 0:
@@ -236,6 +250,7 @@ class TraceStorageWriteMixin:
                 {
                     "trace_id": trace_id,
                     "events.event_type": {"$ne": "token:usage"},
+                    _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
                 },
                 [
                     {
@@ -274,6 +289,12 @@ class TraceStorageWriteMixin:
                                 }
                             },
                             "event_count": {"$add": [{"$ifNull": ["$event_count", 0]}, 1]},
+                            _TRACE_EVENT_REVISION_FIELD: {
+                                "$add": [
+                                    {"$ifNull": [f"${_TRACE_EVENT_REVISION_FIELD}", 0]},
+                                    1,
+                                ]
+                            },
                             "updated_at": now,
                         }
                     }
@@ -301,11 +322,12 @@ class TraceStorageWriteMixin:
             是否更新成功
         """
         update = {
+            "$inc": {_TRACE_EVENT_REVISION_FIELD: 1},
             "$set": {
                 "status": status,
                 "completed_at": utc_now(),
                 "updated_at": utc_now(),
-            }
+            },
         }
         if metadata:
             for key, value in metadata.items():
@@ -316,7 +338,10 @@ class TraceStorageWriteMixin:
             if ensure_token_usage:
                 await self._ensure_token_usage_event(trace_id)
             result = await self.collection.update_one(
-                {"trace_id": trace_id},
+                {
+                    "trace_id": trace_id,
+                    _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                },
                 update,
             )
             # 异步写入 usage_logs 集合（fire-and-forget，失败不影响主流程）

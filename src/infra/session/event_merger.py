@@ -49,6 +49,7 @@ BATCH_SIZE = 100
 _MERGE_CONCURRENCY = 3
 _MERGE_TERMINAL_STATUSES = ("completed", "error")
 _ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
+_TRACE_EVENT_REVISION_FIELD = "event_revision"
 
 
 def _get_merge_interval() -> float:
@@ -279,6 +280,13 @@ class EventMerger:
         """
         try:
             collection = self.trace_storage.collection
+            recover_replacements = getattr(
+                self.trace_storage,
+                "recover_incomplete_chunk_replacements",
+                None,
+            )
+            if callable(recover_replacements):
+                await recover_replacements()
 
             # 查询最近完成的 traces（未合并的）
             # 使用投影减少数据传输
@@ -303,6 +311,7 @@ class EventMerger:
                     "status": 1,
                     "updated_at": 1,
                     "event_count": 1,
+                    _TRACE_EVENT_REVISION_FIELD: 1,
                     "metadata": 1,
                 },
             ).limit(batch_size)
@@ -437,7 +446,15 @@ class EventMerger:
                     update_query["_id"] = trace_doc["_id"]
                 if trace_doc.get("updated_at") is not None:
                     update_query["updated_at"] = trace_doc["updated_at"]
-                operations.append(UpdateOne(update_query, {"$set": update_fields}))
+                operations.append(
+                    UpdateOne(
+                        update_query,
+                        {
+                            "$inc": {_TRACE_EVENT_REVISION_FIELD: 1},
+                            "$set": update_fields,
+                        },
+                    )
+                )
 
             if operations:
                 bulk_result = await collection.bulk_write(operations, ordered=False)

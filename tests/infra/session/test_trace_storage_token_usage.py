@@ -295,8 +295,12 @@ async def test_complete_trace_adds_zero_token_usage_when_missing() -> None:
     assert usage_query == {
         "trace_id": "trace-1",
         "events.event_type": {"$ne": "token:usage"},
+        "attachment_chunk_write_operation": {"$exists": False},
     }
     usage_event = _usage_event_from_pipeline(usage_update)
+    assert usage_update[0]["$set"]["event_revision"] == {
+        "$add": [{"$ifNull": ["$event_revision", 0]}, 1]
+    }
     assert usage_event["event_type"] == "token:usage"
     assert usage_event["data"]["input_tokens"] == 0
     assert usage_event["data"]["output_tokens"] == 0
@@ -315,7 +319,11 @@ async def test_complete_trace_does_not_duplicate_existing_token_usage() -> None:
     assert len(storage.collection.calls) == 2
     usage_update = storage.collection.calls[0][1]
     assert _usage_event_from_pipeline(usage_update)["event_type"] == "token:usage"
-    assert storage.collection.calls[1][0] == {"trace_id": "trace-1"}
+    assert storage.collection.calls[1][0] == {
+        "trace_id": "trace-1",
+        "attachment_chunk_write_operation": {"$exists": False},
+    }
+    assert storage.collection.calls[1][1]["$inc"] == {"event_revision": 1}
 
 
 @pytest.mark.asyncio
@@ -326,7 +334,11 @@ async def test_complete_trace_can_skip_zero_token_usage_placeholder() -> None:
     assert await storage.complete_trace("trace-1", status="error", ensure_token_usage=False) is True
 
     assert len(storage.collection.calls) == 1
-    assert storage.collection.calls[0][0] == {"trace_id": "trace-1"}
+    assert storage.collection.calls[0][0] == {
+        "trace_id": "trace-1",
+        "attachment_chunk_write_operation": {"$exists": False},
+    }
+    assert storage.collection.calls[0][1]["$inc"] == {"event_revision": 1}
 
 
 @pytest.mark.asyncio

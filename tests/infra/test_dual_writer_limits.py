@@ -470,6 +470,13 @@ async def test_flush_mongo_buffer_offloads_bulk_operation_building(
 
     assert calls == ["_build_mongo_bulk_operations"]
     assert len(writer.trace.collection.operations) == 1
+    operation = writer.trace.collection.operations[0]
+    assert operation._filter == {
+        "trace_id": "trace-1",
+        "attachment_chunk_write_operation": {"$exists": False},
+    }
+    assert operation._doc["$inc"] == {"event_count": 2, "event_revision": 1}
+    assert operation._doc["$set"]["metadata.merged"] is False
     assert writer._mongo_buffer == []
 
 

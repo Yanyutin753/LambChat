@@ -916,6 +916,7 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
             {
                 "session_id": session_id,
                 "updated_at": {"$lte": cutoff},
+                "attachment_chunk_staging": {"$ne": True},
             },
             {
                 "_id": 1,

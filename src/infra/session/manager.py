@@ -379,6 +379,8 @@ class SessionManager:
             delete_operation.get("id"), str
         ):
             raise SessionError("session_delete_fence_unavailable")
+        if delete_operation.get("acquired") is False:
+            raise SessionError("session_delete_in_progress")
         delete_operation_id = delete_operation["id"]
         try:
             await self.clear_session_messages(session_id)
@@ -399,7 +401,10 @@ class SessionManager:
             logger.warning(f"Failed to cleanup revealed files for session {session_id}: {e}")
         # 再删除 session
         try:
-            deleted = await self.storage.delete(session_id)
+            deleted = await self.storage.delete_claimed_session(
+                session_id,
+                delete_operation_id,
+            )
         except BaseException:
             await self.storage.cancel_attachment_delete_operation(session_id, delete_operation_id)
             raise

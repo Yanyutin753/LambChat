@@ -59,7 +59,12 @@ async def test_set_run_recommend_questions_persists_a_bounded_normalized_field()
     )
 
     assert updated is True
-    assert collection.calls[0][0] == {"session_id": "session-1", "run_id": "run-1"}
+    assert collection.calls[0][0] == {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "attachment_chunk_write_operation": {"$exists": False},
+    }
+    assert collection.calls[0][1]["$inc"] == {"event_revision": 1}
     set_fields = collection.calls[0][1]["$set"]
     assert set_fields["recommend_questions"] == ["问题一？", "问题二？", "问题三？"]
     assert "recommend_questions_updated_at" in set_fields

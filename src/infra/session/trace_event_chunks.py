@@ -1,8 +1,12 @@
 """Chunked trace event storage helpers for TraceStorage."""
 
+import hashlib
 import uuid
+from copy import deepcopy
+from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
+from bson import json_util
 from pymongo import ReturnDocument
 
 from src.infra.logging import get_logger
@@ -11,6 +15,24 @@ from src.infra.utils.datetime import utc_now
 
 logger = get_logger(__name__)
 ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
+TRACE_EVENT_REVISION_FIELD = "event_revision"
+
+
+def _replacement_digest(
+    events: List[Dict[str, Any]],
+    *,
+    mark_storage_chunked: bool,
+    remove_legacy_events: bool,
+    parent_updates: Optional[Dict[str, Any]],
+) -> str:
+    payload = {
+        "events": events,
+        "mark_storage_chunked": mark_storage_chunked,
+        "remove_legacy_events": remove_legacy_events,
+        "parent_updates": parent_updates or {},
+    }
+    serialized = json_util.dumps(payload, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
 
 
 class TraceEventChunkMixin:
@@ -23,7 +45,11 @@ class TraceEventChunkMixin:
         raise NotImplementedError
 
     async def _claim_chunk_write(
-        self, trace_doc: Dict[str, Any], *, kind: str
+        self,
+        trace_doc: Dict[str, Any],
+        *,
+        kind: str,
+        marker_fields: Optional[Dict[str, Any]] = None,
     ) -> tuple[str, Dict[str, Any]] | None:
         """Version and fence a parent before any child chunk can be mutated."""
         trace_id = str(trace_doc.get("trace_id") or "")
@@ -33,19 +59,45 @@ class TraceEventChunkMixin:
         if expected_updated_at is None:
             current = await self.collection.find_one(
                 {"trace_id": trace_id},
-                {"_id": 1, "session_id": 1, "updated_at": 1},
+                {
+                    "_id": 1,
+                    "session_id": 1,
+                    "updated_at": 1,
+                    TRACE_EVENT_REVISION_FIELD: 1,
+                    ATTACHMENT_CHUNK_WRITE_FIELD: 1,
+                },
             )
             if not current:
                 return None
             expected_updated_at = current.get("updated_at")
-            trace_doc = {**current, **trace_doc}
+            trace_doc = {**trace_doc, **current}
+        if trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD) is not None:
+            return None
+        raw_revision = trace_doc.get(TRACE_EVENT_REVISION_FIELD)
+        try:
+            expected_revision = int(raw_revision or 0)
+        except (TypeError, ValueError):
+            return None
+        claimed_revision = expected_revision + 1
         operation_id = uuid.uuid4().hex
         now = utc_now()
+        marker = {
+            "id": operation_id,
+            "kind": kind,
+            "revision": claimed_revision,
+            **(deepcopy(marker_fields) if marker_fields else {}),
+        }
+        if kind == "replace":
+            marker["staging_trace_id"] = f"{trace_id}:replace:{operation_id}"
+            marker["recovery_after"] = now + timedelta(minutes=5)
         query: Dict[str, Any] = {
             "trace_id": trace_id,
             "updated_at": expected_updated_at,
             ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
         }
+        query[TRACE_EVENT_REVISION_FIELD] = (
+            expected_revision if raw_revision is not None else {"$exists": False}
+        )
         if trace_doc.get("_id") is not None:
             query["_id"] = trace_doc["_id"]
         if trace_doc.get("session_id"):
@@ -53,14 +105,268 @@ class TraceEventChunkMixin:
         claimed = await self.collection.find_one_and_update(
             query,
             {
+                "$inc": {TRACE_EVENT_REVISION_FIELD: 1},
                 "$set": {
-                    ATTACHMENT_CHUNK_WRITE_FIELD: {"id": operation_id, "kind": kind},
+                    ATTACHMENT_CHUNK_WRITE_FIELD: marker,
                     "updated_at": now,
-                }
+                },
             },
             return_document=ReturnDocument.AFTER,
         )
         return (operation_id, claimed) if claimed else None
+
+    async def _set_replacement_phase(
+        self,
+        trace_id: str,
+        marker: Dict[str, Any],
+        *,
+        expected_phase: str,
+        phase: str,
+    ) -> Dict[str, Any] | None:
+        operation_id = marker.get("id")
+        revision = marker.get("revision")
+        result = await self.collection.find_one_and_update(
+            {
+                "trace_id": trace_id,
+                TRACE_EVENT_REVISION_FIELD: revision,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.phase": expected_phase,
+            },
+            {
+                "$set": {
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.phase": phase,
+                    "updated_at": utc_now(),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        if result:
+            return result
+        current = await self.collection.find_one({"trace_id": trace_id})
+        current_marker = (current or {}).get(ATTACHMENT_CHUNK_WRITE_FIELD)
+        if (
+            isinstance(current_marker, dict)
+            and current_marker.get("id") == operation_id
+            and current_marker.get("revision") == revision
+            and current_marker.get("phase") == phase
+        ):
+            return current
+        return None
+
+    async def _replacement_chunk_count(self, query: Dict[str, Any], expected: int) -> int:
+        cursor = self.chunks_collection.find(query, {"_id": 1}).limit(expected + 1)
+        documents = await cursor.to_list(length=expected + 1)
+        return len(documents)
+
+    async def _run_chunk_replacement(
+        self,
+        trace_doc: Dict[str, Any],
+        marker: Dict[str, Any],
+        *,
+        staging_docs: Optional[List[Dict[str, Any]]] = None,
+    ) -> bool:
+        trace_id = str(trace_doc.get("trace_id") or "")
+        operation_id = marker.get("id")
+        revision = marker.get("revision")
+        staging_trace_id = marker.get("staging_trace_id")
+        expected_chunk_count = marker.get("chunk_count")
+        if (
+            not trace_id
+            or not isinstance(operation_id, str)
+            or not isinstance(revision, int)
+            or not isinstance(staging_trace_id, str)
+            or not isinstance(expected_chunk_count, int)
+            or expected_chunk_count < 0
+        ):
+            return False
+
+        phase = marker.get("phase")
+        if phase == "staging":
+            if staging_docs is None or len(staging_docs) != expected_chunk_count:
+                return False
+            for document in staging_docs:
+                await self.chunks_collection.replace_one(
+                    {
+                        "trace_id": staging_trace_id,
+                        "chunk_index": document["chunk_index"],
+                    },
+                    document,
+                    upsert=True,
+                )
+            if (
+                await self._replacement_chunk_count(
+                    {
+                        "trace_id": staging_trace_id,
+                        "replacement_operation_id": operation_id,
+                    },
+                    expected_chunk_count,
+                )
+                != expected_chunk_count
+            ):
+                raise RuntimeError("trace_chunk_replacement_staging_incomplete")
+            current = await self._set_replacement_phase(
+                trace_id,
+                marker,
+                expected_phase="staging",
+                phase="staged",
+            )
+            if not current:
+                return False
+            marker = current[ATTACHMENT_CHUNK_WRITE_FIELD]
+            phase = "staged"
+
+        if phase == "staged":
+            await self.chunks_collection.delete_many({"trace_id": trace_id})
+            current = await self._set_replacement_phase(
+                trace_id,
+                marker,
+                expected_phase="staged",
+                phase="old_deleted",
+            )
+            if not current:
+                return False
+            marker = current[ATTACHMENT_CHUNK_WRITE_FIELD]
+            phase = "old_deleted"
+
+        if phase == "old_deleted":
+            await self.chunks_collection.update_many(
+                {
+                    "trace_id": staging_trace_id,
+                    "replacement_operation_id": operation_id,
+                },
+                {
+                    "$set": {"trace_id": trace_id},
+                    "$unset": {"attachment_chunk_staging": ""},
+                },
+            )
+            if (
+                await self._replacement_chunk_count(
+                    {
+                        "trace_id": trace_id,
+                        "replacement_operation_id": operation_id,
+                    },
+                    expected_chunk_count,
+                )
+                != expected_chunk_count
+            ):
+                raise RuntimeError("trace_chunk_replacement_install_incomplete")
+            current = await self._set_replacement_phase(
+                trace_id,
+                marker,
+                expected_phase="old_deleted",
+                phase="installed",
+            )
+            if not current:
+                return False
+            marker = current[ATTACHMENT_CHUNK_WRITE_FIELD]
+            phase = "installed"
+
+        if phase != "installed":
+            return False
+        raw_final_update_fields = marker.get("final_update_fields")
+        if not isinstance(raw_final_update_fields, list):
+            return False
+        final_update: Dict[str, Any] = {}
+        for item in raw_final_update_fields:
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("path"), str)
+                or not item["path"]
+                or "value" not in item
+                or item["path"] in final_update
+            ):
+                return False
+            final_update[item["path"]] = deepcopy(item["value"])
+        update_doc: Dict[str, Any] = {
+            "$set": {
+                **final_update,
+                "last_chunk_replace_operation_id": operation_id,
+                "last_chunk_replace_digest": marker.get("digest"),
+            },
+            "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+        }
+        if marker.get("remove_legacy_events") is True:
+            update_doc["$unset"]["events"] = ""
+        result = await self.collection.update_one(
+            {
+                "trace_id": trace_id,
+                TRACE_EVENT_REVISION_FIELD: revision,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.phase": "installed",
+            },
+            update_doc,
+        )
+        if result.modified_count > 0:
+            return True
+        current = await self.collection.find_one({"trace_id": trace_id})
+        return bool(
+            current
+            and current.get(ATTACHMENT_CHUNK_WRITE_FIELD) is None
+            and current.get("last_chunk_replace_operation_id") == operation_id
+            and current.get("last_chunk_replace_digest") == marker.get("digest")
+        )
+
+    async def recover_incomplete_chunk_replacements(self, limit: int = 100) -> int:
+        """Recover expired durable replacements without touching an active writer."""
+        recovered = 0
+        now = utc_now()
+        cursor = self.collection.find({f"{ATTACHMENT_CHUNK_WRITE_FIELD}.kind": "replace"}).limit(
+            max(int(limit or 0), 1)
+        )
+        async for trace_doc in cursor:
+            marker = trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD)
+            if not isinstance(marker, dict):
+                continue
+            recovery_after = marker.get("recovery_after")
+            if recovery_after is not None:
+                try:
+                    if recovery_after > now:
+                        continue
+                except TypeError:
+                    pass
+            try:
+                if marker.get("phase") == "staging":
+                    operation_id = marker.get("id")
+                    revision = marker.get("revision")
+                    staging_trace_id = marker.get("staging_trace_id")
+                    if (
+                        not isinstance(operation_id, str)
+                        or not isinstance(revision, int)
+                        or not isinstance(staging_trace_id, str)
+                    ):
+                        continue
+                    await self.chunks_collection.delete_many(
+                        {
+                            "trace_id": staging_trace_id,
+                            "replacement_operation_id": operation_id,
+                        }
+                    )
+                    result = await self.collection.update_one(
+                        {
+                            "trace_id": trace_doc.get("trace_id"),
+                            TRACE_EVENT_REVISION_FIELD: revision,
+                            f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                            f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
+                            f"{ATTACHMENT_CHUNK_WRITE_FIELD}.phase": "staging",
+                        },
+                        {
+                            "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                            "$set": {"updated_at": utc_now()},
+                        },
+                    )
+                    recovered += int(result.modified_count > 0)
+                    continue
+                if await self._run_chunk_replacement(trace_doc, marker):
+                    recovered += 1
+            except Exception as exc:
+                logger.warning(
+                    "Failed to recover chunk replacement for trace %s: %s",
+                    trace_doc.get("trace_id"),
+                    exc,
+                )
+        return recovered
 
     async def _has_event_chunks(self, trace_id: str) -> bool:
         try:
@@ -258,12 +564,6 @@ class TraceEventChunkMixin:
         if not trace_id:
             return False
 
-        claim = await self._claim_chunk_write(trace_doc, kind="replace")
-        if claim is None:
-            return False
-        operation_id, claimed_trace = claim
-        trace_doc = {**trace_doc, **claimed_trace}
-
         now = utc_now()
         chunk_size = trace_storage_helpers._get_event_chunk_size()
         normalized_events: List[Dict[str, Any]] = []
@@ -272,32 +572,12 @@ class TraceEventChunkMixin:
             normalized_event["seq"] = index
             normalized_events.append(normalized_event)
 
-        await self.chunks_collection.delete_many({"trace_id": trace_id})
-
-        chunk_docs: List[Dict[str, Any]] = []
-        for start in range(0, len(normalized_events), chunk_size):
-            chunk_events = normalized_events[start : start + chunk_size]
-            start_seq = int(chunk_events[0]["seq"])
-            end_seq = int(chunk_events[-1]["seq"])
-            chunk_docs.append(
-                {
-                    "trace_id": trace_id,
-                    "session_id": trace_doc.get("session_id", ""),
-                    "run_id": trace_doc.get("run_id", ""),
-                    "trace_started_at": trace_doc.get("started_at"),
-                    "chunk_index": trace_storage_helpers._event_chunk_index(start_seq),
-                    "start_seq": start_seq,
-                    "end_seq": end_seq,
-                    "event_count": len(chunk_events),
-                    "events": chunk_events,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-            )
-
-        if chunk_docs:
-            await self.chunks_collection.insert_many(chunk_docs)
-
+        replacement_digest = _replacement_digest(
+            normalized_events,
+            mark_storage_chunked=mark_storage_chunked,
+            remove_legacy_events=remove_legacy_events,
+            parent_updates=parent_updates,
+        )
         first_user_message = next(
             (event for event in normalized_events if event.get("event_type") == "user:message"),
             None,
@@ -305,7 +585,7 @@ class TraceEventChunkMixin:
         update_fields: Dict[str, Any] = {
             **(parent_updates or {}),
             "event_count": len(normalized_events),
-            "chunk_count": len(chunk_docs),
+            "chunk_count": (len(normalized_events) + chunk_size - 1) // chunk_size,
             "first_event_preview": trace_storage_helpers._event_preview(
                 normalized_events[0] if normalized_events else None
             ),
@@ -318,19 +598,78 @@ class TraceEventChunkMixin:
         if mark_storage_chunked:
             update_fields["metadata.event_storage"] = "chunked"
 
-        update_doc: Dict[str, Any] = {"$set": update_fields}
-        update_doc["$unset"] = {ATTACHMENT_CHUNK_WRITE_FIELD: ""}
-        if remove_legacy_events:
-            update_doc["$unset"]["events"] = ""
+        current = await self.collection.find_one({"trace_id": trace_id})
+        current_marker = (current or {}).get(ATTACHMENT_CHUNK_WRITE_FIELD)
+        if isinstance(current_marker, dict):
+            if current_marker.get("kind") != "replace":
+                return False
+            if (
+                current_marker.get("phase") == "staging"
+                and current_marker.get("digest") != replacement_digest
+            ):
+                return False
+            trace_doc = {**trace_doc, **(current or {})}
+            marker = current_marker
+        else:
+            claim_trace_doc = {**(current or {}), **trace_doc}
+            if (
+                TRACE_EVENT_REVISION_FIELD not in trace_doc
+                and current is not None
+                and TRACE_EVENT_REVISION_FIELD in current
+            ):
+                claim_trace_doc[TRACE_EVENT_REVISION_FIELD] = current[TRACE_EVENT_REVISION_FIELD]
+            claim = await self._claim_chunk_write(
+                claim_trace_doc,
+                kind="replace",
+                marker_fields={
+                    "phase": "staging",
+                    "digest": replacement_digest,
+                    "chunk_count": update_fields["chunk_count"],
+                    "remove_legacy_events": remove_legacy_events,
+                    "final_update_fields": [
+                        {"path": path, "value": value} for path, value in update_fields.items()
+                    ],
+                },
+            )
+            if claim is None:
+                return False
+            _operation_id, claimed_trace = claim
+            trace_doc = {**trace_doc, **claimed_trace}
+            marker = claimed_trace[ATTACHMENT_CHUNK_WRITE_FIELD]
 
-        result = await self.collection.update_one(
-            {
-                "trace_id": trace_id,
-                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
-            },
-            update_doc,
+        staging_docs: List[Dict[str, Any]] | None = None
+        if marker.get("phase") == "staging":
+            operation_id = marker["id"]
+            staging_trace_id = marker["staging_trace_id"]
+            staging_docs = []
+            for start in range(0, len(normalized_events), chunk_size):
+                chunk_events = normalized_events[start : start + chunk_size]
+                start_seq = int(chunk_events[0]["seq"])
+                end_seq = int(chunk_events[-1]["seq"])
+                staging_docs.append(
+                    {
+                        "trace_id": staging_trace_id,
+                        "replacement_target_trace_id": trace_id,
+                        "replacement_operation_id": operation_id,
+                        "attachment_chunk_staging": True,
+                        "session_id": trace_doc.get("session_id", ""),
+                        "run_id": trace_doc.get("run_id", ""),
+                        "trace_started_at": trace_doc.get("started_at"),
+                        "chunk_index": trace_storage_helpers._event_chunk_index(start_seq),
+                        "start_seq": start_seq,
+                        "end_seq": end_seq,
+                        "event_count": len(chunk_events),
+                        "events": chunk_events,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                )
+
+        return await self._run_chunk_replacement(
+            trace_doc,
+            marker,
+            staging_docs=staging_docs,
         )
-        return result.modified_count > 0
 
     async def reserve_event_sequence_range(
         self,
@@ -340,19 +679,37 @@ class TraceEventChunkMixin:
         """Atomically reserve a range and fence its parent before chunk creation."""
         if event_count <= 0:
             return await self.collection.find_one({"trace_id": trace_id}, {"_id": 0})
+        current = await self.collection.find_one({"trace_id": trace_id})
+        if not current or current.get(ATTACHMENT_CHUNK_WRITE_FIELD) is not None:
+            return None
+        raw_revision = current.get(TRACE_EVENT_REVISION_FIELD)
+        try:
+            expected_revision = int(raw_revision or 0)
+        except (TypeError, ValueError):
+            return None
+        claimed_revision = expected_revision + 1
         now = utc_now()
         operation_id = uuid.uuid4().hex
+        query: Dict[str, Any] = {
+            "trace_id": trace_id,
+            "updated_at": current.get("updated_at"),
+            ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+            TRACE_EVENT_REVISION_FIELD: (
+                expected_revision if raw_revision is not None else {"$exists": False}
+            ),
+        }
         return await self.collection.find_one_and_update(
+            query,
             {
-                "trace_id": trace_id,
-                ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-            },
-            {
-                "$inc": {"event_count": event_count},
+                "$inc": {
+                    "event_count": event_count,
+                    TRACE_EVENT_REVISION_FIELD: 1,
+                },
                 "$set": {
                     ATTACHMENT_CHUNK_WRITE_FIELD: {
                         "id": operation_id,
                         "kind": "append",
+                        "revision": claimed_revision,
                     },
                     "updated_at": now,
                 },
@@ -374,12 +731,17 @@ class TraceEventChunkMixin:
 
         marker = trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD)
         operation_id = marker.get("id") if isinstance(marker, dict) else None
+        revision = marker.get("revision") if isinstance(marker, dict) else None
         if not isinstance(operation_id, str) or marker.get("kind") != "append":
             claim = await self._claim_chunk_write(trace_doc, kind="append")
             if claim is None:
                 return False
             operation_id, claimed_trace = claim
             trace_doc = {**trace_doc, **claimed_trace}
+            marker = claimed_trace[ATTACHMENT_CHUNK_WRITE_FIELD]
+            revision = marker.get("revision")
+        if not isinstance(revision, int):
+            return False
 
         now = utc_now()
         grouped: Dict[int, List[Dict[str, Any]]] = {}
@@ -454,6 +816,7 @@ class TraceEventChunkMixin:
             update_fields: Dict[str, Any] = {
                 "updated_at": utc_now(),
                 "metadata.event_storage": "chunked",
+                "metadata.merged": False,
             }
             if start_seq == 1:
                 update_fields["first_event_preview"] = trace_storage_helpers._event_preview(
@@ -479,7 +842,9 @@ class TraceEventChunkMixin:
             result = await self.collection.update_one(
                 {
                     "trace_id": trace_id,
+                    TRACE_EVENT_REVISION_FIELD: revision,
                     f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
                 },
                 {
                     "$set": update_fields,
@@ -492,7 +857,9 @@ class TraceEventChunkMixin:
             await self.collection.update_one(
                 {
                     "trace_id": trace_id,
+                    TRACE_EVENT_REVISION_FIELD: revision,
                     f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
                 },
                 {
                     "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
@@ -542,9 +909,16 @@ class TraceEventChunkMixin:
                 },
             )
         await self.collection.update_one(
-            {"trace_id": trace_id, "event_count": reserved_end_count},
             {
-                "$inc": {"event_count": -event_count},
+                "trace_id": trace_id,
+                "event_count": reserved_end_count,
+                ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+            },
+            {
+                "$inc": {
+                    "event_count": -event_count,
+                    TRACE_EVENT_REVISION_FIELD: 1,
+                },
                 "$set": {"updated_at": now},
             },
         )

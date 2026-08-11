@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -356,11 +357,21 @@ class _SessionOperationStorage:
     async def claim_attachment_delete_operation(self, _session_id: str) -> dict:
         if self.delete_operation is None:
             self.delete_operation = {"id": "delete-operation-1"}
-        return self.delete_operation
+            return {**self.delete_operation, "acquired": True}
+        return {**self.delete_operation, "acquired": False}
 
     async def cancel_attachment_delete_operation(self, _session_id: str, operation_id: str) -> bool:
         if not self.delete_operation or self.delete_operation.get("id") != operation_id:
             return False
+        self.delete_operation = None
+        return True
+
+    async def delete_claimed_session(self, session_id: str, operation_id: str) -> bool:
+        if not self.delete_operation or self.delete_operation.get("id") != operation_id:
+            return False
+        return await self.delete(session_id)
+
+    async def delete(self, _session_id: str) -> bool:
         self.delete_operation = None
         return True
 
@@ -1726,13 +1737,13 @@ async def test_delete_session_fence_blocks_parent_creation_between_probe_and_anc
     class _RacingStorage(SessionStorage):
         writer_result: bool | None = None
 
-        async def delete(self, session_id: str) -> bool:
+        async def delete_claimed_session(self, session_id: str, operation_id: str) -> bool:
             self.writer_result = await trace_storage.create_trace(
                 "trace-racing",
                 session_id,
                 user_id="owner-a",
             )
-            return await super().delete(session_id)
+            return await super().delete_claimed_session(session_id, operation_id)
 
     storage = _RacingStorage()
     storage._collection = session_collection
@@ -1755,3 +1766,100 @@ async def test_delete_session_fence_blocks_parent_creation_between_probe_and_anc
     assert storage.writer_result is False
     assert parents.ids() == set()
     assert session_collection.ids() == set()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_delete_claim_has_one_owner_and_only_fenced_owner_can_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "user_id": "owner-a",
+                "active_trace_writers": 0,
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    first_claim, second_claim = await asyncio.gather(
+        storage.claim_attachment_delete_operation("session-1"),
+        storage.claim_attachment_delete_operation("session-1"),
+    )
+
+    assert first_claim is not None and second_claim is not None
+    claims = [first_claim, second_claim]
+    assert [claim["acquired"] for claim in claims].count(True) == 1
+    assert [claim["acquired"] for claim in claims].count(False) == 1
+    owner_claim = next(claim for claim in claims if claim["acquired"])
+    observer_claim = next(claim for claim in claims if not claim["acquired"])
+    assert observer_claim["id"] == owner_claim["id"]
+
+    assert await storage.delete_claimed_session("session-1", f"{owner_claim['id']}-forged") is False
+    assert collection.ids() == {"session-doc"}
+    assert await storage.delete_claimed_session("session-1", owner_claim["id"]) is True
+    assert collection.ids() == set()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_delete_request_cannot_cancel_the_owner_fence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_started = asyncio.Event()
+    allow_owner_to_finish = asyncio.Event()
+
+    class _Storage(_SessionOperationStorage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.cancel_calls: list[str] = []
+
+        async def cancel_attachment_delete_operation(
+            self, session_id: str, operation_id: str
+        ) -> bool:
+            self.cancel_calls.append(operation_id)
+            return await super().cancel_attachment_delete_operation(session_id, operation_id)
+
+    class _Manager(SessionManager):
+        async def clear_session_messages(self, _session_id: str) -> int:
+            clear_started.set()
+            await allow_owner_to_finish.wait()
+            return 0
+
+    class _RevealedStorage:
+        async def delete_by_session(self, _session_id: str) -> int:
+            return 0
+
+    async def _skip_checkpoints(_session_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "src.infra.revealed_file.storage.get_revealed_file_storage",
+        lambda: _RevealedStorage(),
+    )
+    monkeypatch.setattr(
+        "src.infra.session.manager.delete_checkpoints_for_thread",
+        _skip_checkpoints,
+    )
+    storage = _Storage()
+    manager = _Manager()
+    manager.storage = storage
+    manager._trace_storage = _TraceStorage()
+
+    owner = asyncio.create_task(manager.delete_session("session-1"))
+    await clear_started.wait()
+
+    with pytest.raises(SessionError, match="session_delete_in_progress"):
+        await manager.delete_session("session-1")
+    assert storage.cancel_calls == []
+    assert storage.delete_operation == {"id": "delete-operation-1"}
+
+    allow_owner_to_finish.set()
+    assert await owner is True
+    assert storage.cancel_calls == []

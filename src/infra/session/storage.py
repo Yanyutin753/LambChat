@@ -620,9 +620,15 @@ class SessionStorage:
                     return_document=True,
                 )
                 if result:
-                    return result.get(field)
+                    claimed_operation = result.get(field)
+                    if isinstance(claimed_operation, dict):
+                        return {**claimed_operation, "acquired": True}
+                    return None
             result = await self.collection.find_one(identity, {field: 1})
-            return result.get(field) if result else None
+            existing_operation = result.get(field) if result else None
+            if isinstance(existing_operation, dict):
+                return {**existing_operation, "acquired": False}
+            return None
 
         claimed = await _claim({"session_id": session_id})
         if claimed is not None:
@@ -647,6 +653,34 @@ class SessionStorage:
             return True
         try:
             return await _cancel({"_id": ObjectId(session_id)})
+        except Exception:
+            return False
+
+    async def delete_claimed_session(self, session_id: str, operation_id: str) -> bool:
+        """Atomically delete the exact fenced session when all writers are gone."""
+        await self.ensure_indexes_if_needed()
+        field = "attachment_delete_operation"
+        writer_predicate = {
+            "$or": [
+                {"active_trace_writers": 0},
+                {"active_trace_writers": {"$exists": False}},
+            ]
+        }
+
+        async def _delete(identity: dict[str, Any]) -> bool:
+            result = await self.collection.delete_one(
+                {
+                    **identity,
+                    f"{field}.id": operation_id,
+                    **writer_predicate,
+                }
+            )
+            return result.deleted_count > 0
+
+        if await _delete({"session_id": session_id}):
+            return True
+        try:
+            return await _delete({"_id": ObjectId(session_id)})
         except Exception:
             return False
 

@@ -45,6 +45,8 @@ _SSE_HEARTBEAT_INTERVAL_SECONDS = 15
 _REDIS_XREAD_BLOCK_MS = 5000
 _REDIS_REPLAY_BATCH_SIZE = 500
 MongoBufferItem = tuple[Any, ...]
+_ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
+_TRACE_EVENT_REVISION_FIELD = "event_revision"
 
 
 def _get_max_events_per_trace() -> int:
@@ -136,7 +138,10 @@ def _build_mongo_bulk_operations(
         session_id, run_id = trace_context.get(trace_id, ("", None))
         operations.append(
             UpdateOne(
-                {"trace_id": trace_id},
+                {
+                    "trace_id": trace_id,
+                    _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                },
                 {
                     "$push": {
                         "events": {
@@ -144,8 +149,14 @@ def _build_mongo_bulk_operations(
                             "$slice": -max_events,
                         }
                     },
-                    "$inc": {"event_count": len(events)},
-                    "$set": {"updated_at": now},
+                    "$inc": {
+                        "event_count": len(events),
+                        _TRACE_EVENT_REVISION_FIELD: 1,
+                    },
+                    "$set": {
+                        "updated_at": now,
+                        "metadata.merged": False,
+                    },
                     "$setOnInsert": {
                         "session_id": session_id,
                         "run_id": run_id or "",
