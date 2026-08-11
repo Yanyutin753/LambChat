@@ -16,7 +16,10 @@ class _FileRecordStorage:
         self.applied_operation_ids: set[str] = set()
         self.release_error: Exception | None = None
 
-    async def release_reference_counts(self, counts: Counter[str], *, operation_id: str) -> int:
+    async def release_reference_counts(
+        self, counts: Counter[str], *, operation_id: str, uploaded_by: str
+    ) -> int:
+        assert uploaded_by == "owner-a"
         if self.release_error:
             raise self.release_error
         self.operation_ids.append(operation_id)
@@ -45,7 +48,7 @@ class _TraceStorage:
         for event in self.events:
             yield event
 
-    async def delete_session_traces_strict(self, session_id: str) -> int:
+    async def delete_session_traces_strict(self, session_id: str, **_kwargs) -> int:
         if self.delete_error:
             raise self.delete_error
         self.deleted_session_ids.append(session_id)
@@ -56,6 +59,8 @@ class _SessionOperationStorage:
     def __init__(self) -> None:
         self.metadata: dict = {}
         self.metadata_updates: list[dict] = []
+        self.server_operation: dict | None = None
+        self.operation_number = 0
 
     async def get_by_session_id(self, session_id: str):
         return SimpleNamespace(id=session_id, metadata=self.metadata.copy())
@@ -68,22 +73,31 @@ class _SessionOperationStorage:
         self.metadata_updates.append(metadata)
         return True
 
-    async def begin_attachment_clear_operation(self, _session_id: str, operation: dict) -> dict:
-        pending = self.metadata.get("attachment_clear_operation")
-        if pending is not None:
-            return pending
-        self.metadata["attachment_clear_operation"] = operation
-        self.metadata_updates.append({"attachment_clear_operation": operation})
-        return operation
+    async def claim_attachment_clear_operation(self, _session_id: str) -> dict:
+        if self.server_operation is None:
+            self.operation_number += 1
+            self.server_operation = {
+                "id": f"server-operation-{self.operation_number}",
+                "cutoff": f"cutoff-{self.operation_number}",
+                "uploaded_by": "owner-a",
+            }
+        return self.server_operation
+
+    async def persist_attachment_clear_snapshot(
+        self, _session_id: str, operation_id: str, counts: dict, trace_ids: list[str]
+    ) -> dict:
+        assert self.server_operation and operation_id == self.server_operation["id"]
+        self.server_operation.setdefault("counts", counts)
+        self.server_operation.setdefault("trace_ids", trace_ids)
+        return self.server_operation
 
     async def complete_attachment_clear_operation(
         self, _session_id: str, operation_id: str
     ) -> bool:
-        pending = self.metadata.get("attachment_clear_operation")
+        pending = self.server_operation
         if pending is None or pending.get("id") != operation_id:
             return False
-        self.metadata["attachment_clear_operation"] = None
-        self.metadata_updates.append({"attachment_clear_operation": None})
+        self.server_operation = None
         return True
 
 
@@ -143,7 +157,9 @@ async def test_strict_trace_delete_removes_and_verifies_orphaned_session_chunks(
         ]
     )
 
-    deleted = await storage.delete_session_traces_strict("session-1")
+    deleted = await storage.delete_session_traces_strict(
+        "session-1", trace_ids=["trace-a"], cutoff="cutoff"
+    )
 
     assert deleted == 2
     assert storage.collection.docs == []
@@ -390,7 +406,7 @@ async def test_clear_retry_reuses_pending_operation_after_trace_delete_failure()
     assert len(file_records.operation_ids) == 2
     assert file_records.operation_ids[0] == file_records.operation_ids[1]
     assert file_records.released_counts == [Counter({"key-a": 1})]
-    assert operation_storage.metadata["attachment_clear_operation"] is None
+    assert operation_storage.server_operation is None
 
 
 @pytest.mark.asyncio
@@ -414,3 +430,94 @@ async def test_second_successful_clear_uses_a_new_operation_id() -> None:
 
     assert file_records.released_counts == [Counter({"key-a": 1}), Counter({"key-b": 1})]
     assert file_records.operation_ids[0] != file_records.operation_ids[1]
+
+
+@pytest.mark.asyncio
+async def test_clear_ignores_client_metadata_operation_and_uses_server_claim() -> None:
+    manager = SessionManager()
+    file_records = _FileRecordStorage()
+    trace_storage = _TraceStorage()
+    trace_storage.events = [
+        {
+            "trace_id": "trace-a",
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "owned-key"}]},
+        }
+    ]
+
+    class _ServerOnlyOperations(_SessionOperationStorage):
+        def __init__(self) -> None:
+            super().__init__()
+            self.metadata["attachment_clear_operation"] = {
+                "id": "client-controlled",
+                "counts": {"foreign-key": 99},
+            }
+            self.server_operation = None
+
+        async def claim_attachment_clear_operation(self, _session_id: str):
+            if self.server_operation is None:
+                self.server_operation = {
+                    "id": "server-operation",
+                    "cutoff": "server-cutoff",
+                    "uploaded_by": "owner-a",
+                }
+            return self.server_operation
+
+        async def persist_attachment_clear_snapshot(
+            self, _session_id: str, operation_id: str, counts: dict, trace_ids: list[str]
+        ):
+            assert operation_id == "server-operation"
+            self.server_operation.update({"counts": counts, "trace_ids": trace_ids})
+            return self.server_operation
+
+        async def complete_attachment_clear_operation(
+            self, _session_id: str, operation_id: str
+        ) -> bool:
+            assert operation_id == "server-operation"
+            self.server_operation = None
+            return True
+
+    operations = _ServerOnlyOperations()
+    manager._file_record_storage = file_records
+    manager._trace_storage = trace_storage
+    manager.storage = operations
+
+    released = await manager.clear_session_messages("session-1")
+
+    assert released == 1
+    assert file_records.released_counts == [Counter({"owned-key": 1})]
+    assert file_records.operation_ids == ["server-operation"]
+
+
+@pytest.mark.asyncio
+async def test_retry_after_delete_failure_preserves_post_cutoff_trace_for_later_clear() -> None:
+    manager = SessionManager()
+    file_records = _FileRecordStorage()
+    trace_storage = _TraceStorage()
+    trace_storage.events = [
+        {
+            "trace_id": "trace-old",
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "old-key"}]},
+        }
+    ]
+    trace_storage.delete_error = RuntimeError("delete failed")
+    manager._file_record_storage = file_records
+    manager._trace_storage = trace_storage
+    manager.storage = _SessionOperationStorage()
+
+    with pytest.raises(RuntimeError, match="delete failed"):
+        await manager.clear_session_messages("session-1")
+
+    trace_storage.events.append(
+        {
+            "trace_id": "trace-new",
+            "event_type": "user:message",
+            "data": {"attachments": [{"key": "new-key"}]},
+        }
+    )
+    trace_storage.delete_error = None
+    await manager.clear_session_messages("session-1")
+
+    assert file_records.released_counts == [Counter({"old-key": 1})]
+    assert trace_storage.deleted_session_ids == ["session-1"]

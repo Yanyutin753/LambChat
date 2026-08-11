@@ -764,6 +764,7 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
         session_id: str,
         *,
         event_types: Optional[List[str]] = None,
+        cutoff: Any = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Strictly stream session events for destructive lifecycle operations.
 
@@ -773,8 +774,11 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
         complete event history.
         """
         allowed_types = set(_bounded_unique_strings(event_types, SESSION_EVENT_FILTER_LIST_LIMIT))
+        query: Dict[str, Any] = {"session_id": session_id}
+        if cutoff is not None:
+            query["started_at"] = {"$lte": cutoff}
         cursor = self.collection.find(
-            {"session_id": session_id},
+            query,
             {
                 "_id": 0,
                 "trace_id": 1,
@@ -907,21 +911,32 @@ class TraceStorage(TraceStorageWriteMixin, TraceEventChunkMixin):
             logger.error(f"Failed to delete session traces: {e}")
             return 0
 
-    async def delete_session_traces_strict(self, session_id: str) -> int:
+    async def delete_session_traces_strict(
+        self, session_id: str, *, trace_ids: list[str], cutoff: Any
+    ) -> int:
         """Delete all session traces and verify the destructive postcondition."""
+        query = {
+            "session_id": session_id,
+            "trace_id": {"$in": trace_ids},
+            "started_at": {"$lte": cutoff},
+        }
         cursor = self.collection.find(
-            {"session_id": session_id},
+            query,
             {"_id": 0, "trace_id": 1},
         )
         trace_docs = await cursor.to_list(length=None)
         trace_ids = [trace.get("trace_id") for trace in trace_docs if trace.get("trace_id")]
         if trace_ids:
             await self.chunks_collection.delete_many({"trace_id": {"$in": trace_ids}})
-        await self.chunks_collection.delete_many({"session_id": session_id})
-        result = await self.collection.delete_many({"session_id": session_id})
-        if await self.collection.find_one({"session_id": session_id}, {"_id": 1}):
+        await self.chunks_collection.delete_many(
+            {"session_id": session_id, "trace_started_at": {"$lte": cutoff}}
+        )
+        result = await self.collection.delete_many(query)
+        if await self.collection.find_one(query, {"_id": 1}):
             raise RuntimeError(f"session_trace_delete_incomplete: {session_id}")
-        if await self.chunks_collection.find_one({"session_id": session_id}, {"_id": 1}):
+        if await self.chunks_collection.find_one(
+            {"session_id": session_id, "trace_started_at": {"$lte": cutoff}}, {"_id": 1}
+        ):
             raise RuntimeError(f"session_chunk_delete_incomplete: {session_id}")
         return result.deleted_count
 

@@ -3,6 +3,7 @@
 """
 
 import asyncio
+import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -395,14 +396,15 @@ class SessionStorage:
     async def complete_attachment_clear_operation(self, session_id: str, operation_id: str) -> bool:
         """Clear the exact completed operation without overwriting a newer one."""
         await self.ensure_indexes_if_needed()
+        field = "attachment_clear_operation"
         query = {
             "session_id": session_id,
-            "metadata.attachment_clear_operation.id": operation_id,
+            f"{field}.id": operation_id,
         }
         result = await self.collection.update_one(
             query,
             {
-                "$unset": {"metadata.attachment_clear_operation": ""},
+                "$unset": {field: ""},
                 "$set": {"updated_at": utc_now()},
             },
         )
@@ -412,16 +414,77 @@ class SessionStorage:
             result = await self.collection.update_one(
                 {
                     "_id": ObjectId(session_id),
-                    "metadata.attachment_clear_operation.id": operation_id,
+                    f"{field}.id": operation_id,
                 },
                 {
-                    "$unset": {"metadata.attachment_clear_operation": ""},
+                    "$unset": {field: ""},
                     "$set": {"updated_at": utc_now()},
                 },
             )
             return result.modified_count > 0
         except Exception:
             return False
+
+    async def claim_attachment_clear_operation(self, session_id: str) -> dict[str, Any] | None:
+        """Atomically create or return server-only attachment clear state."""
+        await self.ensure_indexes_if_needed()
+        operation = {"id": uuid.uuid4().hex, "cutoff": utc_now()}
+        field = "attachment_clear_operation"
+        result = await self.collection.find_one_and_update(
+            {"session_id": session_id, "$or": [{field: {"$exists": False}}, {field: None}]},
+            [
+                {
+                    "$set": {
+                        field: {**operation, "uploaded_by": "$user_id"},
+                        "updated_at": utc_now(),
+                    }
+                }
+            ],
+            return_document=True,
+        )
+        if result:
+            return result.get(field)
+        result = await self.collection.find_one({"session_id": session_id}, {field: 1})
+        if result:
+            return result.get(field)
+        try:
+            object_id = ObjectId(session_id)
+        except Exception:
+            return None
+        result = await self.collection.find_one_and_update(
+            {"_id": object_id, "$or": [{field: {"$exists": False}}, {field: None}]},
+            [{"$set": {field: {**operation, "uploaded_by": "$user_id"}, "updated_at": utc_now()}}],
+            return_document=True,
+        )
+        if result:
+            return result.get(field)
+        result = await self.collection.find_one({"_id": object_id}, {field: 1})
+        return result.get(field) if result else None
+
+    async def persist_attachment_clear_snapshot(
+        self, session_id: str, operation_id: str, counts: dict[str, int], trace_ids: list[str]
+    ) -> dict[str, Any] | None:
+        """Persist the exact cutoff snapshot before a release can begin."""
+        field = "attachment_clear_operation"
+        result = await self.collection.find_one_and_update(
+            {
+                "session_id": session_id,
+                f"{field}.id": operation_id,
+                f"{field}.counts": {"$exists": False},
+            },
+            {
+                "$set": {
+                    f"{field}.counts": counts,
+                    f"{field}.trace_ids": trace_ids,
+                    "updated_at": utc_now(),
+                }
+            },
+            return_document=True,
+        )
+        if result:
+            return result.get(field)
+        result = await self.collection.find_one({"session_id": session_id}, {field: 1})
+        return result.get(field) if result else None
 
     async def delete(self, session_id: str) -> bool:
         """删除会话（支持自定义 session_id 或 ObjectId）"""

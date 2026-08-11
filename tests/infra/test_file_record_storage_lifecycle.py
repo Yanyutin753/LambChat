@@ -243,6 +243,7 @@ async def test_release_reference_counts_clamps_each_key_and_delays_only_zero_rec
     released = await storage.release_reference_counts(
         {" key-a ": 3, "key-b": 2, "tombstoned": 1, "missing": 4, "": 1, "skip": 0},
         operation_id="clear-1",
+        uploaded_by="owner-a",
     )
 
     assert released == 2
@@ -261,21 +262,25 @@ async def test_release_reference_counts_clamps_each_key_and_delays_only_zero_rec
     assert [call[0] for call in collection.find_one_and_update_calls] == [
         {
             "key": "key-a",
+            "uploaded_by": "owner-a",
             "deleting_at": {"$exists": False},
             "applied_release_operations": {"$ne": "clear-1"},
         },
         {
             "key": "key-b",
+            "uploaded_by": "owner-a",
             "deleting_at": {"$exists": False},
             "applied_release_operations": {"$ne": "clear-1"},
         },
         {
             "key": "tombstoned",
+            "uploaded_by": "owner-a",
             "deleting_at": {"$exists": False},
             "applied_release_operations": {"$ne": "clear-1"},
         },
         {
             "key": "missing",
+            "uploaded_by": "owner-a",
             "deleting_at": {"$exists": False},
             "applied_release_operations": {"$ne": "clear-1"},
         },
@@ -316,10 +321,12 @@ async def test_release_reference_counts_retries_partial_failure_without_double_d
     storage.ensure_indexes_if_needed = _noop_async
 
     with pytest.raises(RuntimeError, match="write interrupted"):
-        await storage.release_reference_counts({"key-a": 1, "key-b": 1}, operation_id="clear-1")
+        await storage.release_reference_counts(
+            {"key-a": 1, "key-b": 1}, operation_id="clear-1", uploaded_by="owner-a"
+        )
 
     released = await storage.release_reference_counts(
-        {"key-a": 1, "key-b": 1}, operation_id="clear-1"
+        {"key-a": 1, "key-b": 1}, operation_id="clear-1", uploaded_by="owner-a"
     )
 
     assert released == 1
@@ -327,6 +334,20 @@ async def test_release_reference_counts_retries_partial_failure_without_double_d
         "key-a": {"reference_count": 1, "applied_release_operations": ["clear-1"]},
         "key-b": {"reference_count": 1, "applied_release_operations": ["clear-1"]},
     }
+
+
+@pytest.mark.asyncio
+async def test_release_reference_counts_is_scoped_to_the_session_owner() -> None:
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    await storage.release_reference_counts(
+        {"key-a": 1}, operation_id="clear-1", uploaded_by="owner-a"
+    )
+
+    assert collection.find_one_and_update_calls[0][0]["uploaded_by"] == "owner-a"
 
 
 @pytest.mark.asyncio

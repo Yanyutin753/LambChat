@@ -257,6 +257,7 @@ class FileRecordStorage:
         counts: Mapping[str, int],
         *,
         operation_id: str,
+        uploaded_by: str,
     ) -> int:
         """Atomically release each requested count while preserving cleanup grace."""
         normalized_counts = _positive_reference_counts(counts)
@@ -274,6 +275,7 @@ class FileRecordStorage:
             record = await self.collection.find_one_and_update(
                 {
                     "key": key,
+                    "uploaded_by": uploaded_by,
                     "deleting_at": {"$exists": False},
                     "applied_release_operations": {"$ne": operation_id},
                 },
