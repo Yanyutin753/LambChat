@@ -4,6 +4,7 @@ import asyncio
 from collections import Counter
 from datetime import timedelta
 from typing import Any, Mapping, Optional
+from uuid import UUID
 
 from pymongo import ReturnDocument
 
@@ -13,6 +14,7 @@ from src.kernel.config import settings
 REFERENCE_KEYS_MAX = 100
 CLEANUP_GRACE_PERIOD = timedelta(minutes=15)
 CLEANUP_BATCH_SIZE = 100
+SCHEDULED_TASK_REFERENCES_PER_FILE_MAX = 1000
 
 
 class AttachmentClaimError(Exception):
@@ -45,6 +47,14 @@ def _positive_reference_counts(counts: Mapping[str, int]) -> Counter[str]:
             continue
         normalized[clean] += count
     return normalized
+
+
+def _scheduled_task_reference_id(task_id: str) -> str:
+    clean = str(task_id).strip()
+    try:
+        return str(UUID(clean))
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("task_id must be a UUID") from exc
 
 
 class FileRecordStorage:
@@ -236,6 +246,78 @@ class FileRecordStorage:
             raise
         return claimed
 
+    async def claim_scheduled_task_references(
+        self,
+        keys: list[str],
+        uploaded_by: str,
+        task_id: str,
+    ) -> list[str]:
+        """Idempotently claim one definition reference per scheduled task and key."""
+        task_id = _scheduled_task_reference_id(task_id)
+        unique_keys = _bounded_unique_keys(keys)
+        if not unique_keys:
+            return []
+        if len(unique_keys) != len({str(key).strip() for key in keys if key and str(key).strip()}):
+            raise AttachmentClaimError()
+
+        await self.ensure_indexes_if_needed()
+        newly_claimed: list[str] = []
+        now = utc_now()
+        existing_ids = {"$ifNull": ["$scheduled_task_reference_ids", []]}
+        already_claimed = {"$in": [task_id, existing_ids]}
+        try:
+            for key in unique_keys:
+                previous = await self.collection.find_one_and_update(
+                    {
+                        "key": key,
+                        "uploaded_by": uploaded_by,
+                        "deleting_at": {"$exists": False},
+                        "$or": [
+                            {"scheduled_task_reference_ids": task_id},
+                            {
+                                "$expr": {
+                                    "$lt": [
+                                        {"$size": existing_ids},
+                                        SCHEDULED_TASK_REFERENCES_PER_FILE_MAX,
+                                    ]
+                                }
+                            },
+                        ],
+                    },
+                    [
+                        {
+                            "$set": {
+                                "reference_count": {
+                                    "$cond": [
+                                        already_claimed,
+                                        {"$ifNull": ["$reference_count", 0]},
+                                        {
+                                            "$add": [
+                                                {"$ifNull": ["$reference_count", 0]},
+                                                1,
+                                            ]
+                                        },
+                                    ]
+                                },
+                                "scheduled_task_reference_ids": {
+                                    "$setUnion": [existing_ids, [task_id]]
+                                },
+                                "cleanup_after": now + CLEANUP_GRACE_PERIOD,
+                                "updated_at": now,
+                            }
+                        }
+                    ],
+                    return_document=ReturnDocument.BEFORE,
+                )
+                if previous is None:
+                    raise AttachmentClaimError()
+                if task_id not in previous.get("scheduled_task_reference_ids", []):
+                    newly_claimed.append(key)
+        except (Exception, asyncio.CancelledError):
+            await self.release_scheduled_task_references(newly_claimed, uploaded_by, task_id)
+            raise
+        return newly_claimed
+
     async def release_references(self, keys: list[str]) -> int:
         """Decrement persisted message references for the given storage keys."""
         unique_keys = _bounded_unique_keys(keys)
@@ -251,6 +333,71 @@ class FileRecordStorage:
             {"$inc": {"reference_count": -1}, "$set": {"updated_at": utc_now()}},
         )
         return result.modified_count
+
+    async def release_scheduled_task_references(
+        self,
+        keys: list[str],
+        uploaded_by: str,
+        task_id: str,
+    ) -> int:
+        """Idempotently release a scheduled task's definition references."""
+        task_id = _scheduled_task_reference_id(task_id)
+        unique_keys = _bounded_unique_keys(keys)
+        if not unique_keys:
+            return 0
+
+        await self.ensure_indexes_if_needed()
+        now = utc_now()
+        cleanup_after = now + CLEANUP_GRACE_PERIOD
+        released = 0
+        for key in unique_keys:
+            previous = await self.collection.find_one_and_update(
+                {
+                    "key": key,
+                    "uploaded_by": uploaded_by,
+                    "deleting_at": {"$exists": False},
+                    "scheduled_task_reference_ids": task_id,
+                },
+                [
+                    {
+                        "$set": {
+                            "reference_count": {
+                                "$max": [
+                                    0,
+                                    {
+                                        "$subtract": [
+                                            {"$ifNull": ["$reference_count", 0]},
+                                            1,
+                                        ]
+                                    },
+                                ]
+                            },
+                            "scheduled_task_reference_ids": {
+                                "$setDifference": [
+                                    {"$ifNull": ["$scheduled_task_reference_ids", []]},
+                                    [task_id],
+                                ]
+                            },
+                            "updated_at": now,
+                        }
+                    },
+                    {
+                        "$set": {
+                            "cleanup_after": {
+                                "$cond": [
+                                    {"$eq": ["$reference_count", 0]},
+                                    cleanup_after,
+                                    "$cleanup_after",
+                                ]
+                            }
+                        }
+                    },
+                ],
+                return_document=ReturnDocument.BEFORE,
+            )
+            if previous is not None:
+                released += 1
+        return released
 
     async def release_reference_counts(
         self,

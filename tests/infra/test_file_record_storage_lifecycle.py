@@ -351,6 +351,188 @@ async def test_release_reference_counts_is_scoped_to_the_session_owner() -> None
 
 
 @pytest.mark.asyncio
+async def test_scheduled_task_reference_claim_increments_once_for_retry() -> None:
+    task_id = "2f191ddb-b029-4a2e-a66e-8b292fa2401f"
+    collection = _LifecycleCollection()
+    collection.claim_results = [
+        {
+            "key": "key-a",
+            "uploaded_by": "owner-a",
+            "reference_count": 0,
+            "scheduled_task_reference_ids": [],
+        },
+        {
+            "key": "key-a",
+            "uploaded_by": "owner-a",
+            "reference_count": 1,
+            "scheduled_task_reference_ids": [task_id],
+        },
+    ]
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    first_claim = await storage.claim_scheduled_task_references(
+        ["key-a"], "owner-a", task_id
+    )
+    retry_claim = await storage.claim_scheduled_task_references(
+        ["key-a"], "owner-a", task_id
+    )
+
+    assert first_claim == ["key-a"]
+    assert retry_claim == []
+    for query, update, _kwargs in collection.find_one_and_update_calls:
+        assert query["key"] == "key-a"
+        assert query["uploaded_by"] == "owner-a"
+        assert query["deleting_at"] == {"$exists": False}
+        assert query["$or"] == [
+            {"scheduled_task_reference_ids": task_id},
+            {
+                "$expr": {
+                    "$lt": [
+                        {
+                            "$size": {
+                                "$ifNull": ["$scheduled_task_reference_ids", []]
+                            }
+                        },
+                        1000,
+                    ]
+                }
+            },
+        ]
+        assert update[0]["$set"]["reference_count"] == {
+            "$cond": [
+                {
+                    "$in": [
+                        task_id,
+                        {"$ifNull": ["$scheduled_task_reference_ids", []]},
+                    ]
+                },
+                {"$ifNull": ["$reference_count", 0]},
+                {"$add": [{"$ifNull": ["$reference_count", 0]}, 1]},
+            ]
+        }
+
+
+@pytest.mark.asyncio
+async def test_scheduled_task_reference_release_is_idempotent_and_clamped() -> None:
+    task_id = "2f191ddb-b029-4a2e-a66e-8b292fa2401f"
+    collection = _LifecycleCollection()
+    collection.claim_results = [
+        {
+            "key": "key-a",
+            "uploaded_by": "owner-a",
+            "reference_count": 0,
+            "scheduled_task_reference_ids": [task_id],
+        },
+        None,
+    ]
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    first_release = await storage.release_scheduled_task_references(
+        ["key-a"], "owner-a", task_id
+    )
+    retry_release = await storage.release_scheduled_task_references(
+        ["key-a"], "owner-a", task_id
+    )
+
+    assert first_release == 1
+    assert retry_release == 0
+    query, update, _kwargs = collection.find_one_and_update_calls[0]
+    assert query == {
+        "key": "key-a",
+        "uploaded_by": "owner-a",
+        "deleting_at": {"$exists": False},
+        "scheduled_task_reference_ids": task_id,
+    }
+    assert update[0]["$set"]["reference_count"] == {
+        "$max": [
+            0,
+            {"$subtract": [{"$ifNull": ["$reference_count", 0]}, 1]},
+        ]
+    }
+    assert update[0]["$set"]["scheduled_task_reference_ids"] == {
+        "$setDifference": [
+            {"$ifNull": ["$scheduled_task_reference_ids", []]},
+            [task_id],
+        ]
+    }
+    assert update[1]["$set"]["cleanup_after"]["$cond"][0] == {
+        "$eq": ["$reference_count", 0]
+    }
+
+
+@pytest.mark.asyncio
+async def test_scheduled_task_claim_rolls_back_only_tokens_added_by_this_call() -> None:
+    task_id = "2f191ddb-b029-4a2e-a66e-8b292fa2401f"
+    collection = _LifecycleCollection()
+    collection.claim_results = [
+        {
+            "key": "existing",
+            "scheduled_task_reference_ids": [task_id],
+        },
+        {
+            "key": "new",
+            "scheduled_task_reference_ids": [],
+        },
+        None,
+        {
+            "key": "new",
+            "scheduled_task_reference_ids": [task_id],
+        },
+    ]
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    with pytest.raises(AttachmentClaimError):
+        await storage.claim_scheduled_task_references(
+            ["existing", "new", "foreign"],
+            "owner-a",
+            task_id,
+        )
+
+    rollback_query = collection.find_one_and_update_calls[-1][0]
+    assert rollback_query == {
+        "key": "new",
+        "uploaded_by": "owner-a",
+        "deleting_at": {"$exists": False},
+        "scheduled_task_reference_ids": task_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_scheduled_task_claim_rejects_unbounded_keys_and_invalid_task_id() -> None:
+    collection = _LifecycleCollection()
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    with pytest.raises(AttachmentClaimError):
+        await storage.claim_scheduled_task_references(
+            [f"key-{index}" for index in range(101)],
+            "owner-a",
+            "2f191ddb-b029-4a2e-a66e-8b292fa2401f",
+        )
+    with pytest.raises(ValueError, match="task_id must be a UUID"):
+        await storage.claim_scheduled_task_references(
+            ["key-a"],
+            "owner-a",
+            "not-a-task-uuid",
+        )
+    with pytest.raises(ValueError, match="task_id must be a UUID"):
+        await storage.release_scheduled_task_references(
+            ["key-a"],
+            "owner-a",
+            "not-a-task-uuid",
+        )
+
+    assert collection.find_one_and_update_calls == []
+
+
+@pytest.mark.asyncio
 async def test_schedule_owned_zero_reference_cleanup_never_matches_foreign_or_referenced_records() -> (
     None
 ):
