@@ -1,11 +1,42 @@
 """Session-anchor operations for attachment cleanup and trace writer fencing."""
 
+import asyncio
 import uuid
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from bson import ObjectId
 
+from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
+
+logger = get_logger(__name__)
+TRACE_WRITER_LEASES_FIELD = "trace_writer_leases"
+TRACE_WRITER_LEASE_TTL = timedelta(minutes=5)
+TRACE_WRITER_HEARTBEAT_INTERVAL_SECONDS = 60.0
+
+
+def _without_live_trace_writers(now: Any) -> dict[str, Any]:
+    """Match sessions whose identity-bearing writer leases are all expired."""
+    return {
+        "$nor": [
+            {
+                TRACE_WRITER_LEASES_FIELD: {
+                    "$elemMatch": {"expires_at": {"$gt": now}},
+                }
+            },
+            {
+                TRACE_WRITER_LEASES_FIELD: {
+                    "$elemMatch": {"id": {"$exists": False}},
+                }
+            },
+            {
+                TRACE_WRITER_LEASES_FIELD: {
+                    "$elemMatch": {"expires_at": {"$exists": False}},
+                }
+            },
+        ]
+    }
 
 
 class SessionAttachmentOperationsMixin:
@@ -228,36 +259,133 @@ class SessionAttachmentOperationsMixin:
         except Exception:
             return False
 
-    async def acquire_trace_write(self, session_id: str) -> bool:
-        """Acquire a session-scoped writer lease unless deletion is fenced."""
+    def _trace_writer_heartbeat_tasks(self) -> dict[str, asyncio.Task[None]]:
+        tasks = getattr(self, "_active_trace_writer_heartbeat_tasks", None)
+        if tasks is None:
+            tasks = {}
+            setattr(self, "_active_trace_writer_heartbeat_tasks", tasks)
+        return tasks
+
+    def _start_trace_writer_heartbeat(self, session_id: str, lease_id: str) -> None:
+        tasks = self._trace_writer_heartbeat_tasks()
+        task = asyncio.create_task(self._heartbeat_trace_write(session_id, lease_id))
+        tasks[lease_id] = task
+
+        def _completed(completed: asyncio.Task[None]) -> None:
+            if tasks.get(lease_id) is completed:
+                tasks.pop(lease_id, None)
+            if completed.cancelled():
+                return
+            try:
+                completed.exception()
+            except asyncio.CancelledError:
+                return
+
+        task.add_done_callback(_completed)
+
+    async def _heartbeat_trace_write(self, session_id: str, lease_id: str) -> None:
+        while True:
+            await asyncio.sleep(TRACE_WRITER_HEARTBEAT_INTERVAL_SECONDS)
+            try:
+                if not await self.renew_trace_write(session_id, lease_id):
+                    logger.warning(
+                        "Trace writer lease %s for session %s was lost",
+                        lease_id,
+                        session_id,
+                    )
+                    return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning(
+                    "Failed to heartbeat trace writer lease %s for session %s: %s",
+                    lease_id,
+                    session_id,
+                    exc,
+                )
+
+    async def acquire_trace_write(self, session_id: str) -> str | None:
+        """Acquire an expiring, identity-bearing writer lease unless deletion is fenced."""
         await self.ensure_indexes_if_needed()
         delete_field = "attachment_delete_operation"
+        lease_id = uuid.uuid4().hex
+        now = utc_now()
+        lease = {"id": lease_id, "expires_at": now + TRACE_WRITER_LEASE_TTL}
 
         async def _acquire(identity: dict[str, Any]) -> bool:
             result = await self.collection.update_one(
                 {**identity, delete_field: {"$exists": False}},
                 {
-                    "$inc": {"active_trace_writers": 1},
+                    "$push": {TRACE_WRITER_LEASES_FIELD: lease},
+                    "$unset": {"active_trace_writers": ""},
                     "$set": {"updated_at": utc_now()},
                 },
             )
             return result.matched_count > 0
 
         if await _acquire({"session_id": session_id}):
+            self._start_trace_writer_heartbeat(session_id, lease_id)
+            return lease_id
+        try:
+            acquired = await _acquire({"_id": ObjectId(session_id)})
+        except Exception:
+            return None
+        if not acquired:
+            return None
+        self._start_trace_writer_heartbeat(session_id, lease_id)
+        return lease_id
+
+    async def renew_trace_write(self, session_id: str, lease_id: str) -> bool:
+        """Extend the exact live lease; an expired lease cannot be revived."""
+        now = utc_now()
+        expires_at = now + TRACE_WRITER_LEASE_TTL
+
+        async def _renew(identity: dict[str, Any]) -> bool:
+            result = await self.collection.update_one(
+                {
+                    **identity,
+                    TRACE_WRITER_LEASES_FIELD: {
+                        "$elemMatch": {
+                            "id": lease_id,
+                            "expires_at": {"$gt": now},
+                        }
+                    },
+                },
+                {
+                    "$set": {
+                        f"{TRACE_WRITER_LEASES_FIELD}.$[lease].expires_at": expires_at,
+                        "updated_at": now,
+                    }
+                },
+                array_filters=[{"lease.id": lease_id}],
+            )
+            return result.matched_count > 0
+
+        if await _renew({"session_id": session_id}):
             return True
         try:
-            return await _acquire({"_id": ObjectId(session_id)})
+            return await _renew({"_id": ObjectId(session_id)})
         except Exception:
             return False
 
-    async def release_trace_write(self, session_id: str) -> None:
+    async def release_trace_write(self, session_id: str, lease_id: str) -> None:
         """Release a writer lease acquired with :meth:`acquire_trace_write`."""
+        heartbeat = self._trace_writer_heartbeat_tasks().pop(lease_id, None)
+        if heartbeat is not None and heartbeat is not asyncio.current_task():
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except asyncio.CancelledError:
+                pass
 
         async def _release(identity: dict[str, Any]) -> bool:
             result = await self.collection.update_one(
-                {**identity, "active_trace_writers": {"$gt": 0}},
                 {
-                    "$inc": {"active_trace_writers": -1},
+                    **identity,
+                    TRACE_WRITER_LEASES_FIELD: {"$elemMatch": {"id": lease_id}},
+                },
+                {
+                    "$pull": {TRACE_WRITER_LEASES_FIELD: {"id": lease_id}},
                     "$set": {"updated_at": utc_now()},
                 },
             )
@@ -277,21 +405,23 @@ class SessionAttachmentOperationsMixin:
         operation = {"id": uuid.uuid4().hex, "claimed_at": utc_now()}
 
         async def _claim(identity: dict[str, Any]) -> dict[str, Any] | None:
-            for writer_predicate in (0, {"$exists": False}):
-                result = await self.collection.find_one_and_update(
-                    {
-                        **identity,
-                        field: {"$exists": False},
-                        "active_trace_writers": writer_predicate,
-                    },
-                    {"$set": {field: operation, "updated_at": utc_now()}},
-                    return_document=True,
-                )
-                if result:
-                    claimed_operation = result.get(field)
-                    if isinstance(claimed_operation, dict):
-                        return {**claimed_operation, "acquired": True}
-                    return None
+            result = await self.collection.find_one_and_update(
+                {
+                    **identity,
+                    field: {"$exists": False},
+                    **_without_live_trace_writers(utc_now()),
+                },
+                {
+                    "$set": {field: operation, "updated_at": utc_now()},
+                    "$unset": {"active_trace_writers": ""},
+                },
+                return_document=True,
+            )
+            if result:
+                claimed_operation = result.get(field)
+                if isinstance(claimed_operation, dict):
+                    return {**claimed_operation, "acquired": True}
+                return None
             result = await self.collection.find_one(identity, {field: 1})
             existing_operation = result.get(field) if result else None
             if isinstance(existing_operation, dict):
@@ -328,19 +458,13 @@ class SessionAttachmentOperationsMixin:
         """Atomically delete the exact fenced session when all writers are gone."""
         await self.ensure_indexes_if_needed()
         field = "attachment_delete_operation"
-        writer_predicate = {
-            "$or": [
-                {"active_trace_writers": 0},
-                {"active_trace_writers": {"$exists": False}},
-            ]
-        }
 
         async def _delete(identity: dict[str, Any]) -> bool:
             result = await self.collection.delete_one(
                 {
                     **identity,
                     f"{field}.id": operation_id,
-                    **writer_predicate,
+                    **_without_live_trace_writers(utc_now()),
                 }
             )
             return result.deleted_count > 0

@@ -68,10 +68,10 @@ class _FakeSessionStorage:
 
     async def acquire_trace_write(self, session_id):
         self.acquired_trace_writes.append(session_id)
-        return self.allow_trace_write
+        return f"lease:{session_id}" if self.allow_trace_write else None
 
-    async def release_trace_write(self, session_id):
-        self.released_trace_writes.append(session_id)
+    async def release_trace_write(self, session_id, lease_id):
+        self.released_trace_writes.append((session_id, lease_id))
 
     async def create(self, session_data, user_id=None):
         return Session(
@@ -96,7 +96,8 @@ async def test_clone_history_streams_traces_until_target_run() -> None:
     ]
     collection = _FakeTraceCollection(traces)
     manager = SessionManager()
-    manager.storage = _FakeSessionStorage()
+    storage = _FakeSessionStorage()
+    manager.storage = storage
     manager._trace_storage = SimpleNamespace(collection=collection)
 
     cloned_docs = await manager._clone_history_to_session(
@@ -114,6 +115,7 @@ async def test_clone_history_streams_traces_until_target_run() -> None:
     assert collection.cursor.to_list_called is False
     assert collection.inserted_docs is not None
     assert [doc["run_id"] for doc in collection.inserted_docs] == ["run-1", "run-2"]
+    assert storage.released_trace_writes == [("target", "lease:target")]
 
 
 @pytest.mark.asyncio

@@ -65,10 +65,10 @@ class _FakeRedis:
 
 
 def _allow_trace_write_leases(trace):
-    async def _acquire(_session_id: str) -> bool:
-        return True
+    async def _acquire(_session_id: str) -> str:
+        return "lease-fixture"
 
-    async def _release(_session_id: str) -> None:
+    async def _release(_session_id: str, _lease_id: str) -> None:
         return None
 
     trace.acquire_session_trace_write = _acquire
@@ -702,14 +702,14 @@ async def test_flush_mongo_buffer_releases_session_write_lease_when_cancelled(
     class _FakeTrace:
         def __init__(self) -> None:
             self.collection = _Collection()
-            self.released: list[str] = []
+            self.released: list[tuple[str, str]] = []
 
-        async def acquire_session_trace_write(self, session_id: str) -> bool:
+        async def acquire_session_trace_write(self, session_id: str) -> str:
             del session_id
-            return True
+            return "lease-cancelled-flush"
 
-        async def release_session_trace_write(self, session_id: str) -> None:
-            self.released.append(session_id)
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+            self.released.append((session_id, lease_id))
 
     writer = dual_writer.DualEventWriter()
     writer._trace = _FakeTrace()
@@ -727,7 +727,7 @@ async def test_flush_mongo_buffer_releases_session_write_lease_when_cancelled(
     with pytest.raises(asyncio.CancelledError):
         await writer._do_flush()
 
-    assert writer.trace.released == ["session-1"]
+    assert writer.trace.released == [("session-1", "lease-cancelled-flush")]
 
 
 @pytest.mark.asyncio

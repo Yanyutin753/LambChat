@@ -618,7 +618,8 @@ class SessionManager:
         user_id: str,
         collect_checkpoint_messages: bool = False,
     ) -> SessionForkCloneResult:
-        if not await self.storage.acquire_trace_write(target_session.id):
+        lease_id = await self.storage.acquire_trace_write(target_session.id)
+        if not lease_id:
             raise SessionError("session_trace_write_fenced")
         try:
             return await self._clone_history_to_session_unfenced(
@@ -629,7 +630,7 @@ class SessionManager:
                 collect_checkpoint_messages=collect_checkpoint_messages,
             )
         finally:
-            await self.storage.release_trace_write(target_session.id)
+            await self.storage.release_trace_write(target_session.id, lease_id)
 
     async def _clone_history_to_session_unfenced(
         self,

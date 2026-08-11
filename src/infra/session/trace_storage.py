@@ -156,11 +156,11 @@ class TraceStorage(
             self._session_storage = SessionStorage()
         return self._session_storage
 
-    async def acquire_session_trace_write(self, session_id: str) -> bool:
+    async def acquire_session_trace_write(self, session_id: str) -> str | None:
         return await self.session_storage.acquire_trace_write(session_id)
 
-    async def release_session_trace_write(self, session_id: str) -> None:
-        await self.session_storage.release_trace_write(session_id)
+    async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+        await self.session_storage.release_trace_write(session_id, lease_id)
 
     async def ensure_indexes_if_needed(self):
         """确保索引存在（由首次使用时调用）"""

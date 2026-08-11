@@ -56,6 +56,10 @@ def _matches(document: dict[str, Any], query: dict[str, Any]) -> bool:
             if not any(_matches(document, clause) for clause in expected):
                 return False
             continue
+        if key == "$nor":
+            if any(_matches(document, clause) for clause in expected):
+                return False
+            continue
 
         actual = _get_nested(document, key)
         if isinstance(expected, dict):
@@ -74,6 +78,11 @@ def _matches(document: dict[str, Any], query: dict[str, Any]) -> bool:
                         return False
                 elif operator == "$gt":
                     if actual is _MISSING or actual <= operand:
+                        return False
+                elif operator == "$elemMatch":
+                    if not isinstance(actual, list) or not any(
+                        isinstance(item, dict) and _matches(item, operand) for item in actual
+                    ):
                         return False
                 else:
                     raise AssertionError(f"Unsupported query operator: {operator}")
@@ -118,6 +127,24 @@ def _apply_update(document: dict[str, Any], update: dict | list[dict]) -> None:
             _set_nested(document, key, _resolve_update_value(value, document))
         for key in stage.get("$unset", {}):
             _unset_nested(document, key)
+        for key, value in stage.get("$push", {}).items():
+            current = _get_nested(document, key)
+            items = [] if current is _MISSING else list(current)
+            items.append(deepcopy(value))
+            _set_nested(document, key, items)
+        for key, value in stage.get("$pull", {}).items():
+            current = _get_nested(document, key)
+            if not isinstance(current, list):
+                continue
+            _set_nested(
+                document,
+                key,
+                [
+                    item
+                    for item in current
+                    if not (isinstance(item, dict) and _matches(item, value))
+                ],
+            )
 
 
 class _FilterAwareCursor:
@@ -191,11 +218,33 @@ class _FilterAwareCollection:
                 return deepcopy(document)
         return None
 
-    async def update_one(self, query: dict[str, Any], update: dict, **_kwargs):
+    async def update_one(self, query: dict[str, Any], update: dict, **kwargs):
         for document in self.documents:
             if _matches(document, query):
                 before = deepcopy(document)
-                _apply_update(document, update)
+                array_filters = kwargs.get("array_filters") or []
+                if array_filters and "$set" in update:
+                    positional_updates = {
+                        key: value
+                        for key, value in update["$set"].items()
+                        if ".$[lease]." in key
+                    }
+                    ordinary_update = deepcopy(update)
+                    ordinary_update["$set"] = {
+                        key: value
+                        for key, value in ordinary_update["$set"].items()
+                        if key not in positional_updates
+                    }
+                    _apply_update(document, ordinary_update)
+                    lease_id = array_filters[0]["lease.id"]
+                    for lease in document.get("trace_writer_leases", []):
+                        if lease.get("id") != lease_id:
+                            continue
+                        for key, value in positional_updates.items():
+                            field = key.split(".$[lease].", 1)[1]
+                            _set_nested(lease, field, value)
+                else:
+                    _apply_update(document, update)
                 return SimpleNamespace(
                     matched_count=1,
                     modified_count=int(document != before),
@@ -1806,6 +1855,100 @@ async def test_concurrent_delete_claim_has_one_owner_and_only_fenced_owner_can_d
     assert collection.ids() == {"session-doc"}
     assert await storage.delete_claimed_session("session-1", owner_claim["id"]) is True
     assert collection.ids() == set()
+
+
+@pytest.mark.asyncio
+async def test_crashed_trace_writer_lease_expires_without_permanently_blocking_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    now = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "user_id": "owner-a",
+                # This scalar is exactly the unrecoverable state left by the old fence.
+                "active_trace_writers": 1,
+                "trace_writer_leases": [
+                    {
+                        "id": "crashed-writer",
+                        "expires_at": now - timedelta(seconds=1),
+                    }
+                ],
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    claim = await storage.claim_attachment_delete_operation("session-1")
+
+    assert claim is not None
+    assert claim["acquired"] is True
+    assert await storage.delete_claimed_session("session-1", claim["id"]) is True
+    assert collection.ids() == set()
+
+
+@pytest.mark.asyncio
+async def test_trace_writer_lease_renewal_and_exact_release_keep_live_writer_fenced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    clock = {"now": datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)}
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: clock["now"],
+    )
+    collection = _FilterAwareCollection(
+        [{"_id": "session-doc", "session_id": "session-1", "user_id": "owner-a"}]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    first_lease = await storage.acquire_trace_write("session-1")
+    second_lease = await storage.acquire_trace_write("session-1")
+
+    assert isinstance(first_lease, str)
+    assert isinstance(second_lease, str)
+    assert second_lease != first_lease
+
+    initial_expiry = next(
+        lease["expires_at"]
+        for lease in collection.documents[0]["trace_writer_leases"]
+        if lease["id"] == first_lease
+    )
+    clock["now"] += timedelta(minutes=4)
+    assert await storage.renew_trace_write("session-1", first_lease) is True
+    renewed_expiry = next(
+        lease["expires_at"]
+        for lease in collection.documents[0]["trace_writer_leases"]
+        if lease["id"] == first_lease
+    )
+    assert renewed_expiry > initial_expiry
+
+    # The second lease is now stale, but the first lease remains live because it heartbeated.
+    clock["now"] += timedelta(minutes=2)
+    await storage.release_trace_write("session-1", f"{first_lease}-forged")
+    assert await storage.claim_attachment_delete_operation("session-1") is None
+
+    await storage.release_trace_write("session-1", first_lease)
+    claim = await storage.claim_attachment_delete_operation("session-1")
+
+    assert claim is not None
+    assert claim["acquired"] is True
+    await storage.release_trace_write("session-1", second_lease)
 
 
 @pytest.mark.asyncio

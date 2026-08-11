@@ -324,7 +324,7 @@ class DualEventWriter:
             self._mongo_buffer = []
 
         session_ids = list(dict.fromkeys(_buffer_item_base(item)[3] for item in batch))
-        leased_session_ids: list[str] = []
+        leased_sessions: list[tuple[str, str]] = []
         try:
             for session_id in session_ids:
                 try:
@@ -339,11 +339,11 @@ class DualEventWriter:
                         self._mongo_buffer = batch + self._mongo_buffer
                     self._flush_event.set()
                     return
-                leased_session_ids.append(session_id)
+                leased_sessions.append((session_id, acquired))
             await self._flush_mongo_batch(batch)
         finally:
-            for session_id in reversed(leased_session_ids):
-                await self.trace.release_session_trace_write(session_id)
+            for session_id, lease_id in reversed(leased_sessions):
+                await self.trace.release_session_trace_write(session_id, lease_id)
 
     async def _flush_mongo_batch(self, batch: list[MongoBufferItem]) -> None:
         """Write one drained batch while its session writer leases are held."""
