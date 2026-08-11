@@ -528,6 +528,12 @@ async def test_scheduled_task_claim_rejects_unbounded_keys_and_invalid_task_id()
             "owner-a",
             "not-a-task-uuid",
         )
+    with pytest.raises(AttachmentClaimError):
+        await storage.release_scheduled_task_references(
+            [f"key-{index}" for index in range(101)],
+            "owner-a",
+            "2f191ddb-b029-4a2e-a66e-8b292fa2401f",
+        )
 
     assert collection.find_one_and_update_calls == []
 

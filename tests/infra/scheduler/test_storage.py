@@ -132,6 +132,11 @@ class _RevisionMetadataCollection:
         return _UpdateResult(modified_count=1)
 
 
+class _FailingRevisionMetadataCollection:
+    async def update_one(self, *_args, **_kwargs):
+        raise RuntimeError("revision unavailable")
+
+
 class _ExecutionProjectionCollection:
     def __init__(self) -> None:
         self.find_one_query: dict[str, Any] | None = None
@@ -247,6 +252,10 @@ async def test_update_task_bumps_scheduler_definition_revision() -> None:
     updated = await storage.update_task("task_1", {"name": "new name"})
 
     assert updated is True
+    assert task_collection.update_one_calls[0][0] == {
+        "_id": "task_1",
+        "status": {"$ne": ScheduledTaskStatus.DELETED},
+    }
     assert metadata_collection.update_one_calls
     query, update, upsert = metadata_collection.update_one_calls[-1]
     assert query == {"_id": "scheduler_definition_revision"}
@@ -291,6 +300,10 @@ async def test_create_task_deletes_historical_deleted_same_name_collision_and_re
             "owner_id": "user_1",
             "name": "Daily Report",
             "status": ScheduledTaskStatus.DELETED,
+            "attachment_setup_pending": {"$ne": True},
+            "attachment_keys.0": {"$exists": False},
+            "pending_attachment_claim_keys.0": {"$exists": False},
+            "pending_attachment_release_keys.0": {"$exists": False},
         }
     ]
     assert metadata_collection.update_one_calls  # revision bumped after successful create
@@ -312,6 +325,10 @@ async def test_create_task_reraises_duplicate_when_no_deleted_collision_found() 
             "owner_id": "user_1",
             "name": "Active Task",
             "status": ScheduledTaskStatus.DELETED,
+            "attachment_setup_pending": {"$ne": True},
+            "attachment_keys.0": {"$exists": False},
+            "pending_attachment_claim_keys.0": {"$exists": False},
+            "pending_attachment_release_keys.0": {"$exists": False},
         }
     ]
 
@@ -374,7 +391,19 @@ async def test_stage_attachment_claim_persists_keys_before_file_mutation() -> No
     assert staged.pending_attachment_claim_keys == ["key-a", "key-b"]
     query, update, kwargs = task_collection.find_one_and_update_calls[0]
     assert query == {"_id": "task_1", "status": {"$ne": ScheduledTaskStatus.DELETED}}
-    assert update["$set"]["pending_attachment_claim_keys"] == ["key-a", "key-b"]
+    assert update == [
+        {
+            "$set": {
+                "pending_attachment_claim_keys": {
+                    "$setUnion": [
+                        {"$ifNull": ["$pending_attachment_claim_keys", []]},
+                        ["key-a", "key-b"],
+                    ]
+                },
+                "updated_at": ANY,
+            }
+        }
+    ]
     assert kwargs["return_document"] is ReturnDocument.AFTER
     assert metadata_collection.update_one_calls
 
@@ -414,12 +443,36 @@ async def test_commit_attachment_update_moves_removed_keys_to_pending_release() 
                 "$setUnion": [
                     {"$ifNull": ["$pending_attachment_release_keys", []]},
                     {"$ifNull": ["$attachment_keys", []]},
+                    {"$ifNull": ["$pending_attachment_claim_keys", []]},
                 ]
             },
             ["key-b"],
         ]
     }
     assert kwargs["return_document"] is ReturnDocument.AFTER
+
+
+@pytest.mark.asyncio
+async def test_commit_attachment_update_returns_committed_state_when_revision_bump_fails() -> None:
+    result_doc = _task_doc("task_1") | {
+        "input_payload": {"attachments": [{"key": "key-b"}]},
+        "attachment_keys": ["key-b"],
+        "pending_attachment_claim_keys": [],
+        "pending_attachment_release_keys": ["key-a"],
+    }
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = _AttachmentTransitionCollection(result_doc)
+    storage._collections["scheduled_task_metadata"] = _FailingRevisionMetadataCollection()
+
+    committed = await storage.commit_attachment_update(
+        "task_1",
+        {"input_payload": result_doc["input_payload"]},
+        ["key-b"],
+    )
+
+    assert committed is not None
+    assert committed.attachment_keys == ["key-b"]
+    assert committed.pending_attachment_release_keys == ["key-a"]
 
 
 @pytest.mark.asyncio

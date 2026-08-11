@@ -22,7 +22,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from src.infra.logging import get_logger
 from src.infra.scheduler.locks import (
+    ATTACHMENT_MUTATION_LOCK_TTL,
     acquire_attachment_mutation_lock,
+    extend_attachment_mutation_lock,
     release_attachment_mutation_lock,
 )
 from src.infra.scheduler.runner import get_scheduled_task_runner
@@ -52,6 +54,7 @@ from src.kernel.schemas.scheduled_task import (
 logger = get_logger(__name__)
 
 _managed_task_signatures: dict[str, str] = {}
+ATTACHMENT_MUTATION_RENEW_INTERVAL_SECONDS = ATTACHMENT_MUTATION_LOCK_TTL // 3
 
 
 @asynccontextmanager
@@ -59,9 +62,43 @@ async def _attachment_mutation(task_id: str) -> AsyncIterator[None]:
     token = await acquire_attachment_mutation_lock(task_id)
     if token is None:
         raise ValueError("Scheduled task attachment mutation is already in progress")
+    owner_task = asyncio.current_task()
+    lock_lost = asyncio.Event()
+
+    async def _renew_lock() -> None:
+        while True:
+            await asyncio.sleep(ATTACHMENT_MUTATION_RENEW_INTERVAL_SECONDS)
+            try:
+                extended = await extend_attachment_mutation_lock(
+                    task_id,
+                    token,
+                    ttl=ATTACHMENT_MUTATION_LOCK_TTL,
+                )
+            except Exception:
+                logger.exception(
+                    "[Service] attachment mutation lock renewal failed for task %s",
+                    task_id,
+                )
+                extended = False
+            if not extended:
+                lock_lost.set()
+                if owner_task is not None:
+                    owner_task.cancel()
+                return
+
+    renewal_task = asyncio.create_task(_renew_lock())
     try:
-        yield
+        try:
+            yield
+        except asyncio.CancelledError:
+            if lock_lost.is_set():
+                raise RuntimeError(
+                    f"Scheduled task attachment mutation lock was lost for {task_id}"
+                ) from None
+            raise
     finally:
+        renewal_task.cancel()
+        await asyncio.gather(renewal_task, return_exceptions=True)
         await release_attachment_mutation_lock(task_id, token)
 
 
@@ -160,10 +197,12 @@ class ScheduledTaskService:
                 )
             except (Exception, asyncio.CancelledError):
                 try:
-                    await storage.delete_task(task_id)
+                    deleted_task = await storage.mark_task_attachment_deletion(task_id)
+                    if deleted_task is not None:
+                        await self._release_pending_attachment_references(deleted_task)
                 except Exception:
                     logger.exception(
-                        "[Service] failed to remove interrupted task attachment setup %s",
+                        "[Service] failed to reconcile ambiguous task attachment claim %s",
                         task_id,
                     )
                 raise
@@ -236,7 +275,7 @@ class ScheduledTaskService:
     ) -> Optional[ScheduledTask]:
         storage = get_scheduled_task_storage()
         task = await storage.get_task(task_id)
-        if task is None:
+        if task is None or task.status == ScheduledTaskStatus.DELETED:
             return None
 
         updates: dict[str, Any] = request.model_dump(exclude_unset=True)
@@ -323,7 +362,7 @@ class ScheduledTaskService:
         """Pause a task — remove from scheduler but keep the DB record."""
         storage = get_scheduled_task_storage()
         task = await storage.get_task(task_id)
-        if task is None:
+        if task is None or task.status == ScheduledTaskStatus.DELETED:
             return None
         await storage.update_task(task_id, {"status": ScheduledTaskStatus.PAUSED, "enabled": False})
         self._unregister_managed_task(task_id)
@@ -334,7 +373,7 @@ class ScheduledTaskService:
         """Resume a paused task — re-register with the scheduler."""
         storage = get_scheduled_task_storage()
         task = await storage.get_task(task_id)
-        if task is None:
+        if task is None or task.status == ScheduledTaskStatus.DELETED:
             return None
         await storage.update_task(task_id, {"status": ScheduledTaskStatus.ACTIVE, "enabled": True})
         updated = await storage.get_task(task_id)
@@ -600,16 +639,20 @@ class ScheduledTaskService:
             key for key in task.pending_attachment_release_keys if key not in live_keys
         ]
         storage = get_scheduled_task_storage()
-        if pending_keys:
-            await FileRecordStorage().release_scheduled_task_references(
-                pending_keys,
+        released = 0
+        file_records = FileRecordStorage()
+        for offset in range(0, len(pending_keys), REFERENCE_KEYS_MAX):
+            chunk = pending_keys[offset : offset + REFERENCE_KEYS_MAX]
+            await file_records.release_scheduled_task_references(
+                chunk,
                 task.owner_id,
                 task.id,
             )
-            await storage.clear_pending_attachment_releases(task.id, pending_keys)
+            await storage.clear_pending_attachment_releases(task.id, chunk)
+            released += len(chunk)
         if task.status == ScheduledTaskStatus.DELETED:
             await storage.finalize_deleted_task(task.id)
-        return len(pending_keys)
+        return released
 
     def _register_to_scheduler(
         self,

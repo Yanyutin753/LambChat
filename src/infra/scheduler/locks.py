@@ -101,6 +101,21 @@ async def release_attachment_mutation_lock(task_id: str, token: str) -> None:
     await cast(Awaitable[Any], redis.eval(_RELEASE_LOCK_LUA, 1, lock_key, token))
 
 
+async def extend_attachment_mutation_lock(
+    task_id: str,
+    token: str,
+    ttl: int = ATTACHMENT_MUTATION_LOCK_TTL,
+) -> bool:
+    """Extend a mutation lock only while the caller's ownership token matches."""
+    redis = get_redis_client()
+    lock_key = f"{_ATTACHMENT_MUTATION_PREFIX}{task_id}"
+    result = await cast(
+        Awaitable[Any],
+        redis.eval(_EXTEND_LOCK_LUA, 1, lock_key, token, str(max(1, int(ttl)))),
+    )
+    return bool(result)
+
+
 async def release_task_lock(task_id: str, token: str) -> None:
     """Release the execution lock (only if *token* matches the current holder)."""
     redis = get_redis_client()

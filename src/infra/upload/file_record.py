@@ -346,6 +346,8 @@ class FileRecordStorage:
         unique_keys = _bounded_unique_keys(keys)
         if not unique_keys:
             return 0
+        if len(unique_keys) != len({str(key).strip() for key in keys if key and str(key).strip()}):
+            raise AttachmentClaimError()
 
         await self.ensure_indexes_if_needed()
         now = utc_now()

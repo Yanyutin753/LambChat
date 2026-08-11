@@ -50,3 +50,29 @@ async def test_attachment_mutation_lock_fails_closed_when_contended(
 
     assert await locks.acquire_attachment_mutation_lock("task-1") is None
 
+
+@pytest.mark.asyncio
+async def test_attachment_mutation_lock_extension_is_owner_token_checked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple] = []
+
+    class _Redis:
+        async def eval(self, *args):
+            calls.append(args)
+            return 1
+
+    monkeypatch.setattr(locks, "get_redis_client", lambda: _Redis())
+
+    extended = await locks.extend_attachment_mutation_lock(
+        "task-1",
+        "owner-token",
+        ttl=45,
+    )
+
+    assert extended is True
+    assert calls[0][2:] == (
+        "scheduler:attachment_mutation:task-1",
+        "owner-token",
+        "45",
+    )

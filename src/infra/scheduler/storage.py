@@ -107,6 +107,10 @@ class ScheduledTaskStorage:
                 "owner_id": task.owner_id,
                 "name": task.name,
                 "status": ScheduledTaskStatus.DELETED,
+                "attachment_setup_pending": {"$ne": True},
+                "attachment_keys.0": {"$exists": False},
+                "pending_attachment_claim_keys.0": {"$exists": False},
+                "pending_attachment_release_keys.0": {"$exists": False},
             }
         )
         return result.deleted_count > 0
@@ -209,7 +213,7 @@ class ScheduledTaskStorage:
     async def update_task(self, task_id: str, updates: dict[str, Any]) -> bool:
         updates["updated_at"] = utc_now()
         result = await self._get_collection(_COLL_TASKS).update_one(
-            {"_id": task_id},
+            {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
             {"$set": updates},
         )
         if result.modified_count > 0:
@@ -224,12 +228,19 @@ class ScheduledTaskStorage:
         """Persist attachment keys that must be claimed before publishing an update."""
         record = await self._get_collection(_COLL_TASKS).find_one_and_update(
             {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
-            {
-                "$set": {
-                    "pending_attachment_claim_keys": list(keys),
-                    "updated_at": utc_now(),
+            [
+                {
+                    "$set": {
+                        "pending_attachment_claim_keys": {
+                            "$setUnion": [
+                                {"$ifNull": ["$pending_attachment_claim_keys", []]},
+                                list(keys),
+                            ]
+                        },
+                        "updated_at": utc_now(),
+                    }
                 }
-            },
+            ],
             return_document=ReturnDocument.AFTER,
         )
         if record is None:
@@ -255,6 +266,7 @@ class ScheduledTaskStorage:
                             "$setUnion": [
                                 {"$ifNull": ["$pending_attachment_release_keys", []]},
                                 {"$ifNull": ["$attachment_keys", []]},
+                                {"$ifNull": ["$pending_attachment_claim_keys", []]},
                             ]
                         },
                         list(attachment_keys),
@@ -271,8 +283,17 @@ class ScheduledTaskStorage:
         )
         if record is None:
             return None
-        await self._bump_scheduler_definition_revision()
-        return ScheduledTask(**record)
+        committed = ScheduledTask(**record)
+        try:
+            await self._bump_scheduler_definition_revision()
+        except Exception:
+            # The definition write already committed. Propagating here would make
+            # callers compensate live attachment leases as though it had failed.
+            logger.exception(
+                "[ScheduledTaskStorage] revision bump failed after attachment commit %s",
+                task_id,
+            )
+        return committed
 
     async def mark_task_attachment_deletion(
         self,
