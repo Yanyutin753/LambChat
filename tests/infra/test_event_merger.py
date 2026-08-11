@@ -408,12 +408,22 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
     class _TraceStorage:
         def __init__(self) -> None:
             self.collection = _Collection()
+            self.recoveries: list[str] = []
+
+        async def recover_incomplete_chunk_replacements(self) -> int:
+            self.recoveries.append("replace")
+            return 0
+
+        async def recover_incomplete_chunk_appends(self) -> int:
+            self.recoveries.append("append")
+            return 0
 
     storage = _TraceStorage()
     merger = EventMerger(storage)
 
     await merger._merge_completed_traces()
 
+    assert storage.recoveries == ["replace", "append"]
     assert storage.collection.query == {
         "status": {"$in": ["completed", "error"]},
         "metadata.merged": {"$ne": True},

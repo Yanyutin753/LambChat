@@ -287,6 +287,13 @@ class EventMerger:
             )
             if callable(recover_replacements):
                 await recover_replacements()
+            recover_appends = getattr(
+                self.trace_storage,
+                "recover_incomplete_chunk_appends",
+                None,
+            )
+            if callable(recover_appends):
+                await recover_appends()
 
             # 查询最近完成的 traces（未合并的）
             # 使用投影减少数据传输

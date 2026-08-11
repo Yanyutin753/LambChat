@@ -11,6 +11,13 @@ from pymongo import ReturnDocument
 
 from src.infra.logging import get_logger
 from src.infra.session import trace_storage as trace_storage_helpers
+from src.infra.session.trace_chunk_append_recovery import (
+    append_marker_fields,
+    begin_chunk_append,
+    heartbeat_chunk_append,
+    recover_incomplete_chunk_append,
+    recover_incomplete_chunk_appends,
+)
 from src.infra.utils.datetime import utc_now
 
 logger = get_logger(__name__)
@@ -680,14 +687,25 @@ class TraceEventChunkMixin:
         if event_count <= 0:
             return await self.collection.find_one({"trace_id": trace_id}, {"_id": 0})
         current = await self.collection.find_one({"trace_id": trace_id})
-        if not current or current.get(ATTACHMENT_CHUNK_WRITE_FIELD) is not None:
+        if not current:
             return None
+        current_marker = current.get(ATTACHMENT_CHUNK_WRITE_FIELD)
+        if current_marker is not None:
+            if not await recover_incomplete_chunk_append(self, current):
+                return None
+            current = await self.collection.find_one({"trace_id": trace_id})
+            if not current or current.get(ATTACHMENT_CHUNK_WRITE_FIELD) is not None:
+                return None
         raw_revision = current.get(TRACE_EVENT_REVISION_FIELD)
         try:
             expected_revision = int(raw_revision or 0)
+            current_event_count = int(current.get("event_count", 0) or 0)
         except (TypeError, ValueError):
             return None
+        if current_event_count < 0:
+            return None
         claimed_revision = expected_revision + 1
+        start_seq = current_event_count + 1
         now = utc_now()
         operation_id = uuid.uuid4().hex
         query: Dict[str, Any] = {
@@ -710,6 +728,10 @@ class TraceEventChunkMixin:
                         "id": operation_id,
                         "kind": "append",
                         "revision": claimed_revision,
+                        **append_marker_fields(
+                            start_seq=start_seq,
+                            event_count=event_count,
+                        ),
                     },
                     "updated_at": now,
                 },
@@ -729,19 +751,16 @@ class TraceEventChunkMixin:
         if not trace_id or not events:
             return False
 
-        marker = trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD)
-        operation_id = marker.get("id") if isinstance(marker, dict) else None
-        revision = marker.get("revision") if isinstance(marker, dict) else None
-        marker_kind = marker.get("kind") if isinstance(marker, dict) else None
-        if not isinstance(operation_id, str) or marker_kind != "append":
-            claim = await self._claim_chunk_write(trace_doc, kind="append")
-            if claim is None:
-                return False
-            operation_id, claimed_trace = claim
-            trace_doc = {**trace_doc, **claimed_trace}
-            marker = claimed_trace[ATTACHMENT_CHUNK_WRITE_FIELD]
-            revision = marker.get("revision")
-        if not isinstance(revision, int):
+        claimed_trace = await begin_chunk_append(self, trace_doc, events, start_seq)
+        if not claimed_trace:
+            return False
+        trace_doc = {**trace_doc, **claimed_trace}
+        marker = claimed_trace.get(ATTACHMENT_CHUNK_WRITE_FIELD)
+        if not isinstance(marker, dict):
+            return False
+        operation_id = marker.get("id")
+        revision = marker.get("revision")
+        if not isinstance(operation_id, str) or not isinstance(revision, int):
             return False
 
         now = utc_now()
@@ -757,6 +776,10 @@ class TraceEventChunkMixin:
 
         try:
             for chunk_index in sorted(grouped):
+                renewed_marker = await heartbeat_chunk_append(self, trace_id, marker)
+                if renewed_marker is None:
+                    return False
+                marker = renewed_marker
                 chunk_events = grouped[chunk_index]
                 start = int(chunk_events[0]["seq"])
                 end = int(chunk_events[-1]["seq"])
@@ -813,6 +836,10 @@ class TraceEventChunkMixin:
                     upsert=True,
                 )
 
+            renewed_marker = await heartbeat_chunk_append(self, trace_id, marker)
+            if renewed_marker is None:
+                return False
+            marker = renewed_marker
             end_seq = start_seq + len(events) - 1
             update_fields: Dict[str, Any] = {
                 "updated_at": utc_now(),
@@ -846,6 +873,8 @@ class TraceEventChunkMixin:
                     TRACE_EVENT_REVISION_FIELD: revision,
                     f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
                     f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.phase": "writing",
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.digest": marker.get("digest"),
                 },
                 {
                     "$set": update_fields,
@@ -855,19 +884,10 @@ class TraceEventChunkMixin:
             )
             return result.modified_count > 0
         except BaseException:
-            await self.collection.update_one(
-                {
-                    "trace_id": trace_id,
-                    TRACE_EVENT_REVISION_FIELD: revision,
-                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
-                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
-                },
-                {
-                    "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
-                    "$set": {"updated_at": utc_now()},
-                },
-            )
             raise
+
+    async def recover_incomplete_chunk_appends(self, limit: int = 100) -> int:
+        return await recover_incomplete_chunk_appends(self, limit)
 
     async def rollback_event_sequence_range(
         self,
