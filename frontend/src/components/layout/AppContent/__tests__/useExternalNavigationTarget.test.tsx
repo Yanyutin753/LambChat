@@ -159,10 +159,10 @@ test("clears pending state when run resolution fails", async () => {
 });
 
 test("ignores a stale trace response after navigation changes", async () => {
-  const firstRequest = deferred<Awaited<ReturnType<typeof sessionApi.getRuns>>>();
-  const secondRequest = deferred<
-    Awaited<ReturnType<typeof sessionApi.getRuns>>
-  >();
+  const firstRequest =
+    deferred<Awaited<ReturnType<typeof sessionApi.getRuns>>>();
+  const secondRequest =
+    deferred<Awaited<ReturnType<typeof sessionApi.getRuns>>>();
   getRuns
     .mockReturnValueOnce(firstRequest.promise)
     .mockReturnValueOnce(secondRequest.promise);
@@ -232,9 +232,9 @@ test("cleanup prevents a removed target from being restored by its response", as
       }),
     {
       initialProps: {
-        locationState: navigationState("trace-1") as
-          | ExternalNavigationState
-          | null,
+        locationState: navigationState(
+          "trace-1",
+        ) as ExternalNavigationState | null,
       },
     },
   );

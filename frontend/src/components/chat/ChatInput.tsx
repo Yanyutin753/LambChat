@@ -57,7 +57,10 @@ import type {
 import { buildLongTextClientMeta } from "./longTextConversion";
 import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
-import { moveSubmittedDraftToOutbox, restoreRejectedDraft } from "./acceptedDraftCleanup";
+import {
+  moveSubmittedDraftToOutbox,
+  restoreRejectedDraft,
+} from "./acceptedDraftCleanup";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
   return { default: module.RichChatComposer };
@@ -523,7 +526,9 @@ export const ChatInput = memo(function ChatInput({
     if (!canSend) return;
     if (canSubmit) {
       const trimmed = input.trim();
-      const runOptions = runEnabledSkillNames ? { enabledSkills: runEnabledSkillNames } : undefined;
+      const runOptions = runEnabledSkillNames
+        ? { enabledSkills: runEnabledSkillNames }
+        : undefined;
       const composer = composerRef.current;
       if (!composer) return;
       const prepared = prepareSubmit(trimmed, visibleAttachments);

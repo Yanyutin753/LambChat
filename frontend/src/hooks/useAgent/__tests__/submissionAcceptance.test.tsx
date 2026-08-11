@@ -41,9 +41,10 @@ vi.mock("../../../services/api/tokenManager", () => ({
 }));
 
 vi.mock("../sseConnection", async () => {
-  const actual = await vi.importActual<typeof import("../sseConnection")>(
-    "../sseConnection",
-  );
+  const actual =
+    await vi.importActual<typeof import("../sseConnection")>(
+      "../sseConnection",
+    );
   return {
     ...actual,
     connectToSSE,
@@ -206,13 +207,10 @@ test("a local goal validation error rejects the staged draft", async () => {
   await waitFor(() => expect(result.current.currentAgent).toBe("default"));
 
   await act(async () => {
-    await result.current.sendMessage(
-      "/goal",
-      undefined,
-      undefined,
-      undefined,
-      { onAccepted, onRejected },
-    );
+    await result.current.sendMessage("/goal", undefined, undefined, undefined, {
+      onAccepted,
+      onRejected,
+    });
   });
 
   expect(onAccepted).not.toHaveBeenCalled();

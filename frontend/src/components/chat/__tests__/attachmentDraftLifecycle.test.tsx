@@ -1,6 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
@@ -48,20 +54,18 @@ const pendingAttachment: MessageAttachment = {
   name: "pending-notes.pdf",
 };
 
-const availableSkills: SkillResponse[] = ["writer", "reviewer"].map(
-  (name) => ({
-    name,
-    description: `${name} skill`,
-    tags: [],
-    enabled: true,
-    source: "manual",
-    files: {},
-    file_count: 0,
-    installed_from: "manual",
-    is_published: false,
-    marketplace_is_active: false,
-  }),
-);
+const availableSkills: SkillResponse[] = ["writer", "reviewer"].map((name) => ({
+  name,
+  description: `${name} skill`,
+  tags: [],
+  enabled: true,
+  source: "manual",
+  files: {},
+  file_count: 0,
+  installed_from: "manual",
+  is_published: false,
+  marketplace_is_active: false,
+}));
 
 async function insertSkill(
   user: ReturnType<typeof userEvent.setup>,
@@ -219,12 +223,10 @@ test("acceptance preserves a pending replacement that reuses a submitted attachm
         <button
           type="button"
           onClick={() =>
-            setAttachments((previous) =>
-              [
-                ...previous,
-                { ...uploadedAttachment, name: "renamed-report.pdf" },
-              ],
-            )
+            setAttachments((previous) => [
+              ...previous,
+              { ...uploadedAttachment, name: "renamed-report.pdf" },
+            ])
           }
         >
           Rename attachment

@@ -416,12 +416,7 @@ export function ChatView({
       runOptions?: { enabledSkills?: string[] },
       submissionCallbacks?: Parameters<ChatViewProps["onSendMessage"]>[3],
     ) =>
-      onSendMessage(
-        content,
-        sendAttachments,
-        runOptions,
-        submissionCallbacks,
-      ),
+      onSendMessage(content, sendAttachments, runOptions, submissionCallbacks),
     onStop: onStopGeneration,
     isLoading: sessionRunning,
     canSend: canSendMessage,

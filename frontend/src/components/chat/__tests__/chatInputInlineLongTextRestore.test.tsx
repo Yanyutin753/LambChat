@@ -75,9 +75,7 @@ function pasteText(editor: HTMLElement, text: string): void {
 test("removing an inline long-text card releases its draft state before the next submit", async () => {
   uploadProbe.referenceIds.length = 0;
   const onSend = vi.fn();
-  render(
-    <ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} />,
-  );
+  render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} />);
   const editor = await screen.findByRole("textbox");
   const firstText = `discarded inline ${"x".repeat(3100)}`;
   const secondText = `submitted inline ${"y".repeat(3100)}`;
@@ -89,7 +87,9 @@ test("removing an inline long-text card releases its draft state before the next
   const firstCard = firstRestore.closest(".attachment-card-enter");
   expect(firstCard).not.toBeNull();
   fireEvent.click(
-    within(firstCard as HTMLElement).getAllByRole("button").at(-1)!,
+    within(firstCard as HTMLElement)
+      .getAllByRole("button")
+      .at(-1)!,
   );
 
   await waitFor(() =>
@@ -122,9 +122,7 @@ test("removing an inline long-text card releases its draft state before the next
 test("the outbox removes submitted inline text and acceptance preserves a new inline resource", async () => {
   uploadProbe.referenceIds.length = 0;
   const onSend = vi.fn();
-  render(
-    <ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} />,
-  );
+  render(<ChatInput onSend={onSend} onStop={vi.fn()} isLoading={false} />);
   const editor = await screen.findByRole("textbox");
   const submittedText = `submitted inline ${"x".repeat(3100)}`;
   const pendingText = `pending inline ${"y".repeat(3100)}`;

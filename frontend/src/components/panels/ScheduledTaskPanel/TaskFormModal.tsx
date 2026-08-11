@@ -566,9 +566,7 @@ export function TaskFormModal({
               <label className="scheduled-task-label">
                 {t("chat.attachments")}
               </label>
-              <FileUploadButton
-                uploadController={uploadController}
-              />
+              <FileUploadButton uploadController={uploadController} />
             </div>
             {attachments.length > 0 && (
               <div className="flex gap-3 overflow-x-auto attachment-scroll pb-1">

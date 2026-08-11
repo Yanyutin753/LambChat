@@ -1,6 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const { abortUpload, checkFile, getConfig, uploadFile } = vi.hoisted(() => ({
@@ -15,7 +21,8 @@ vi.mock("../../../../hooks/useAuth", () => ({
 }));
 
 vi.mock("../../../../services/api", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../../../../services/api")>();
+  const original =
+    await importOriginal<typeof import("../../../../services/api")>();
   return {
     ...original,
     uploadApi: {
@@ -57,10 +64,11 @@ class HashWorkerStub {
   onerror: ((event: ErrorEvent) => void) | null = null;
 
   postMessage(): void {
-    queueMicrotask(() =>
-      this.onmessage?.({ data: { hash: "scheduled-hash" } } as MessageEvent<{
-        hash: string;
-      }>),
+    queueMicrotask(
+      () =>
+        this.onmessage?.({ data: { hash: "scheduled-hash" } } as MessageEvent<{
+          hash: string;
+        }>),
     );
   }
 
@@ -111,7 +119,9 @@ test("scheduled-task upload cancellation aborts the request owned by its real up
   expect(input).not.toBeNull();
   fireEvent.change(input!, {
     target: {
-      files: [new File(["pending"], "pending.pdf", { type: "application/pdf" })],
+      files: [
+        new File(["pending"], "pending.pdf", { type: "application/pdf" }),
+      ],
     },
   });
 
