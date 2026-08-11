@@ -59,9 +59,19 @@ class _FakeTraceCollection:
 
 
 class _FakeSessionStorage:
-    def __init__(self):
+    def __init__(self, *, allow_trace_write=True):
         self.deleted_session_ids = []
         self.rebuilt_session_ids = []
+        self.allow_trace_write = allow_trace_write
+        self.acquired_trace_writes = []
+        self.released_trace_writes = []
+
+    async def acquire_trace_write(self, session_id):
+        self.acquired_trace_writes.append(session_id)
+        return self.allow_trace_write
+
+    async def release_trace_write(self, session_id):
+        self.released_trace_writes.append(session_id)
 
     async def create(self, session_data, user_id=None):
         return Session(
@@ -86,6 +96,7 @@ async def test_clone_history_streams_traces_until_target_run() -> None:
     ]
     collection = _FakeTraceCollection(traces)
     manager = SessionManager()
+    manager.storage = _FakeSessionStorage()
     manager._trace_storage = SimpleNamespace(collection=collection)
 
     cloned_docs = await manager._clone_history_to_session(
@@ -115,6 +126,7 @@ async def test_clone_history_inserts_traces_in_batches(monkeypatch: pytest.Monke
     traces = [{"run_id": f"run-{index}", "events": [], "started_at": index} for index in range(5)]
     collection = _FakeTraceCollection(traces)
     manager = SessionManager()
+    manager.storage = _FakeSessionStorage()
     manager._trace_storage = SimpleNamespace(collection=collection)
 
     result = await manager._clone_history_to_session(
@@ -164,6 +176,7 @@ async def test_clone_history_returns_count_without_retaining_cloned_trace_docs(
     ]
     collection = _FakeTraceCollection(traces)
     manager = SessionManager()
+    manager.storage = _FakeSessionStorage()
     manager._trace_storage = SimpleNamespace(collection=collection)
 
     result = await manager._clone_history_to_session(
@@ -208,6 +221,7 @@ async def test_clone_history_does_not_retain_compat_docs_for_completed_run_ids(
     ]
     collection = _FakeTraceCollection(traces)
     manager = SessionManager()
+    manager.storage = _FakeSessionStorage()
     manager._trace_storage = SimpleNamespace(collection=collection)
 
     result = await manager._clone_history_to_session(
@@ -238,6 +252,7 @@ async def test_clone_history_offloads_trace_document_cloning(
     ]
     collection = _FakeTraceCollection(traces)
     manager = SessionManager()
+    manager.storage = _FakeSessionStorage()
     manager._trace_storage = SimpleNamespace(collection=collection)
     offloaded: list[str] = []
 
@@ -286,6 +301,7 @@ async def test_clone_history_offloads_checkpoint_message_rebuild(
     ]
     collection = _FakeTraceCollection(traces)
     manager = SessionManager()
+    manager.storage = _FakeSessionStorage()
     manager._trace_storage = SimpleNamespace(collection=collection)
     offloaded: list[str] = []
 

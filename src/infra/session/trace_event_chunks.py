@@ -1,5 +1,6 @@
 """Chunked trace event storage helpers for TraceStorage."""
 
+import uuid
 from typing import Any, Dict, List, Optional
 
 from pymongo import ReturnDocument
@@ -9,6 +10,7 @@ from src.infra.session import trace_storage as trace_storage_helpers
 from src.infra.utils.datetime import utc_now
 
 logger = get_logger(__name__)
+ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
 
 
 class TraceEventChunkMixin:
@@ -19,6 +21,46 @@ class TraceEventChunkMixin:
     @property
     def chunks_collection(self) -> Any:
         raise NotImplementedError
+
+    async def _claim_chunk_write(
+        self, trace_doc: Dict[str, Any], *, kind: str
+    ) -> tuple[str, Dict[str, Any]] | None:
+        """Version and fence a parent before any child chunk can be mutated."""
+        trace_id = str(trace_doc.get("trace_id") or "")
+        if not trace_id:
+            return None
+        expected_updated_at = trace_doc.get("updated_at")
+        if expected_updated_at is None:
+            current = await self.collection.find_one(
+                {"trace_id": trace_id},
+                {"_id": 1, "session_id": 1, "updated_at": 1},
+            )
+            if not current:
+                return None
+            expected_updated_at = current.get("updated_at")
+            trace_doc = {**current, **trace_doc}
+        operation_id = uuid.uuid4().hex
+        now = utc_now()
+        query: Dict[str, Any] = {
+            "trace_id": trace_id,
+            "updated_at": expected_updated_at,
+            ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+        }
+        if trace_doc.get("_id") is not None:
+            query["_id"] = trace_doc["_id"]
+        if trace_doc.get("session_id"):
+            query["session_id"] = trace_doc["session_id"]
+        claimed = await self.collection.find_one_and_update(
+            query,
+            {
+                "$set": {
+                    ATTACHMENT_CHUNK_WRITE_FIELD: {"id": operation_id, "kind": kind},
+                    "updated_at": now,
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        return (operation_id, claimed) if claimed else None
 
     async def _has_event_chunks(self, trace_id: str) -> bool:
         try:
@@ -209,11 +251,18 @@ class TraceEventChunkMixin:
         *,
         mark_storage_chunked: bool = True,
         remove_legacy_events: bool = True,
-    ) -> None:
+        parent_updates: Optional[Dict[str, Any]] = None,
+    ) -> bool:
         """Replace all chunk docs for one trace with normalized event chunks."""
         trace_id = str(trace_doc.get("trace_id") or "")
         if not trace_id:
-            return
+            return False
+
+        claim = await self._claim_chunk_write(trace_doc, kind="replace")
+        if claim is None:
+            return False
+        operation_id, claimed_trace = claim
+        trace_doc = {**trace_doc, **claimed_trace}
 
         now = utc_now()
         chunk_size = trace_storage_helpers._get_event_chunk_size()
@@ -254,6 +303,7 @@ class TraceEventChunkMixin:
             None,
         )
         update_fields: Dict[str, Any] = {
+            **(parent_updates or {}),
             "event_count": len(normalized_events),
             "chunk_count": len(chunk_docs),
             "first_event_preview": trace_storage_helpers._event_preview(
@@ -269,28 +319,43 @@ class TraceEventChunkMixin:
             update_fields["metadata.event_storage"] = "chunked"
 
         update_doc: Dict[str, Any] = {"$set": update_fields}
+        update_doc["$unset"] = {ATTACHMENT_CHUNK_WRITE_FIELD: ""}
         if remove_legacy_events:
-            update_doc["$unset"] = {"events": ""}
+            update_doc["$unset"]["events"] = ""
 
-        await self.collection.update_one(
-            {"trace_id": trace_id},
+        result = await self.collection.update_one(
+            {
+                "trace_id": trace_id,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+            },
             update_doc,
         )
+        return result.modified_count > 0
 
     async def reserve_event_sequence_range(
         self,
         trace_id: str,
         event_count: int,
     ) -> Optional[Dict[str, Any]]:
-        """Atomically reserve a contiguous event seq range by incrementing event_count."""
+        """Atomically reserve a range and fence its parent before chunk creation."""
         if event_count <= 0:
             return await self.collection.find_one({"trace_id": trace_id}, {"_id": 0})
         now = utc_now()
+        operation_id = uuid.uuid4().hex
         return await self.collection.find_one_and_update(
-            {"trace_id": trace_id},
+            {
+                "trace_id": trace_id,
+                ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+            },
             {
                 "$inc": {"event_count": event_count},
-                "$set": {"updated_at": now},
+                "$set": {
+                    ATTACHMENT_CHUNK_WRITE_FIELD: {
+                        "id": operation_id,
+                        "kind": "append",
+                    },
+                    "updated_at": now,
+                },
             },
             projection={"_id": 0},
             return_document=ReturnDocument.AFTER,
@@ -301,11 +366,20 @@ class TraceEventChunkMixin:
         trace_doc: Dict[str, Any],
         events: List[Dict[str, Any]],
         start_seq: int,
-    ) -> None:
+    ) -> bool:
         """Append a reserved event batch to chunk documents."""
         trace_id = str(trace_doc.get("trace_id") or "")
         if not trace_id or not events:
-            return
+            return False
+
+        marker = trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD)
+        operation_id = marker.get("id") if isinstance(marker, dict) else None
+        if not isinstance(operation_id, str) or marker.get("kind") != "append":
+            claim = await self._claim_chunk_write(trace_doc, kind="append")
+            if claim is None:
+                return False
+            operation_id, claimed_trace = claim
+            trace_doc = {**trace_doc, **claimed_trace}
 
         now = utc_now()
         grouped: Dict[int, List[Dict[str, Any]]] = {}
@@ -318,102 +392,114 @@ class TraceEventChunkMixin:
                 [],
             ).append(normalized_event)
 
-        for chunk_index in sorted(grouped):
-            chunk_events = grouped[chunk_index]
-            start = int(chunk_events[0]["seq"])
-            end = int(chunk_events[-1]["seq"])
-            existing_events_without_range = {
-                "$filter": {
-                    "input": {"$ifNull": ["$events", []]},
-                    "as": "event",
-                    "cond": {
-                        "$not": [
-                            {
-                                "$and": [
-                                    {"$gte": [{"$ifNull": ["$$event.seq", 0]}, start]},
-                                    {"$lte": [{"$ifNull": ["$$event.seq", 0]}, end]},
-                                ]
-                            }
-                        ]
-                    },
+        try:
+            for chunk_index in sorted(grouped):
+                chunk_events = grouped[chunk_index]
+                start = int(chunk_events[0]["seq"])
+                end = int(chunk_events[-1]["seq"])
+                existing_events_without_range = {
+                    "$filter": {
+                        "input": {"$ifNull": ["$events", []]},
+                        "as": "event",
+                        "cond": {
+                            "$not": [
+                                {
+                                    "$and": [
+                                        {"$gte": [{"$ifNull": ["$$event.seq", 0]}, start]},
+                                        {"$lte": [{"$ifNull": ["$$event.seq", 0]}, end]},
+                                    ]
+                                }
+                            ]
+                        },
+                    }
                 }
-            }
-            await self.chunks_collection.update_one(
-                {"trace_id": trace_id, "chunk_index": chunk_index},
-                [
-                    {
-                        "$set": {
-                            "trace_id": trace_id,
-                            "session_id": trace_doc.get("session_id", ""),
-                            "run_id": trace_doc.get("run_id", ""),
-                            "trace_started_at": trace_doc.get("started_at"),
-                            "chunk_index": chunk_index,
-                            "created_at": {"$ifNull": ["$created_at", now]},
-                            "updated_at": now,
-                            "start_seq": {
-                                "$min": [
-                                    {"$ifNull": ["$start_seq", start]},
-                                    start,
-                                ]
-                            },
-                            "end_seq": {
-                                "$max": [
-                                    {"$ifNull": ["$end_seq", end]},
-                                    end,
-                                ]
-                            },
-                            "events": {
-                                "$concatArrays": [
-                                    existing_events_without_range,
-                                    chunk_events,
-                                ]
-                            },
-                        }
-                    },
-                    {"$set": {"event_count": {"$size": "$events"}}},
-                ],
-                upsert=True,
-            )
-
-        end_seq = start_seq + len(events) - 1
-        update_fields: Dict[str, Any] = {
-            "updated_at": now,
-            "metadata.event_storage": "chunked",
-        }
-        if start_seq == 1:
-            update_fields["first_event_preview"] = trace_storage_helpers._event_preview(events[0])
-        if start_seq == 1:
-            first_user_message = next(
-                (event for event in events if event.get("event_type") == "user:message"),
-                None,
-            )
-            if first_user_message is not None:
-                update_fields["first_user_message_preview"] = trace_storage_helpers._event_preview(
-                    first_user_message
+                await self.chunks_collection.update_one(
+                    {"trace_id": trace_id, "chunk_index": chunk_index},
+                    [
+                        {
+                            "$set": {
+                                "trace_id": trace_id,
+                                "session_id": trace_doc.get("session_id", ""),
+                                "run_id": trace_doc.get("run_id", ""),
+                                "trace_started_at": trace_doc.get("started_at"),
+                                "chunk_index": chunk_index,
+                                "created_at": {"$ifNull": ["$created_at", now]},
+                                "updated_at": now,
+                                "start_seq": {
+                                    "$min": [
+                                        {"$ifNull": ["$start_seq", start]},
+                                        start,
+                                    ]
+                                },
+                                "end_seq": {
+                                    "$max": [
+                                        {"$ifNull": ["$end_seq", end]},
+                                        end,
+                                    ]
+                                },
+                                "events": {
+                                    "$concatArrays": [
+                                        existing_events_without_range,
+                                        chunk_events,
+                                    ]
+                                },
+                            }
+                        },
+                        {"$set": {"event_count": {"$size": "$events"}}},
+                    ],
+                    upsert=True,
                 )
 
-        await self.collection.update_one(
-            {"trace_id": trace_id},
-            {
-                "$set": update_fields,
-                "$max": {"chunk_count": max(grouped) + 1},
-            },
-        )
-        await self.collection.update_one(
-            {
-                "trace_id": trace_id,
-                "$or": [
-                    {"event_count": {"$lte": end_seq}},
-                    {"event_count": {"$exists": False}},
-                ],
-            },
-            {
-                "$set": {
-                    "last_event_preview": trace_storage_helpers._event_preview(events[-1]),
-                    "updated_at": now,
-                }
-            },
-        )
+            end_seq = start_seq + len(events) - 1
+            update_fields: Dict[str, Any] = {
+                "updated_at": utc_now(),
+                "metadata.event_storage": "chunked",
+            }
+            if start_seq == 1:
+                update_fields["first_event_preview"] = trace_storage_helpers._event_preview(
+                    events[0]
+                )
+                first_user_message = next(
+                    (event for event in events if event.get("event_type") == "user:message"),
+                    None,
+                )
+                if first_user_message is not None:
+                    update_fields["first_user_message_preview"] = (
+                        trace_storage_helpers._event_preview(first_user_message)
+                    )
+            try:
+                reserved_event_count = int(trace_doc.get("event_count", 0))
+            except (TypeError, ValueError):
+                reserved_event_count = 0
+            if reserved_event_count <= end_seq:
+                update_fields["last_event_preview"] = trace_storage_helpers._event_preview(
+                    events[-1]
+                )
+
+            result = await self.collection.update_one(
+                {
+                    "trace_id": trace_id,
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                },
+                {
+                    "$set": update_fields,
+                    "$max": {"chunk_count": max(grouped) + 1},
+                    "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                },
+            )
+            return result.modified_count > 0
+        except BaseException:
+            await self.collection.update_one(
+                {
+                    "trace_id": trace_id,
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                },
+                {
+                    "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                    "$set": {"updated_at": utc_now()},
+                },
+            )
+            raise
 
     async def rollback_event_sequence_range(
         self,

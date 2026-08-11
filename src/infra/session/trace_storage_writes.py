@@ -21,6 +21,10 @@ class TraceStorageWriteMixin:
 
         async def ensure_indexes_if_needed(self) -> None: ...
 
+        async def acquire_session_trace_write(self, session_id: str) -> bool: ...
+
+        async def release_session_trace_write(self, session_id: str) -> None: ...
+
         async def _has_event_chunks(self, trace_id: str) -> bool: ...
 
         async def read_trace_events_compat(
@@ -37,7 +41,8 @@ class TraceStorageWriteMixin:
             *,
             mark_storage_chunked: bool = True,
             remove_legacy_events: bool = True,
-        ) -> None: ...
+            parent_updates: Optional[Dict[str, Any]] = None,
+        ) -> bool: ...
 
     async def create_trace(
         self,
@@ -64,38 +69,47 @@ class TraceStorageWriteMixin:
         """
         from pymongo.errors import DuplicateKeyError
 
-        await self.ensure_indexes_if_needed()
-        now = utc_now()
-        doc: Dict[str, Any] = {
-            "trace_id": trace_id,
-            "session_id": session_id,
-            "agent_id": agent_id,
-            "run_id": run_id,
-            "user_id": user_id,
-            "events": [],
-            "event_count": 0,
-            "started_at": now,
-            "updated_at": now,
-            "status": "running",
-            "metadata": metadata or {},
-        }
-
-        try:
-            result = await self.collection.insert_one(doc)
-            logger.info(
-                f"Created trace {trace_id} for session {session_id}, inserted_id={result.inserted_id}"
-            )
-            return True
-        except DuplicateKeyError:
-            # Trace already exists (e.g., queued path created it before dequeue)
-            logger.debug("Trace %s already exists, skipping", trace_id)
-            return True
-        except Exception as e:
-            logger.error(f"Failed to create trace {trace_id}: {e}")
-            import traceback
-
-            traceback.print_exc()
+        if not await self.acquire_session_trace_write(session_id):
+            logger.warning("Trace creation rejected by session delete fence: %s", session_id)
             return False
+        try:
+            await self.ensure_indexes_if_needed()
+            now = utc_now()
+            doc: Dict[str, Any] = {
+                "trace_id": trace_id,
+                "session_id": session_id,
+                "agent_id": agent_id,
+                "run_id": run_id,
+                "user_id": user_id,
+                "events": [],
+                "event_count": 0,
+                "started_at": now,
+                "updated_at": now,
+                "status": "running",
+                "metadata": metadata or {},
+            }
+
+            try:
+                result = await self.collection.insert_one(doc)
+                logger.info(
+                    "Created trace %s for session %s, inserted_id=%s",
+                    trace_id,
+                    session_id,
+                    result.inserted_id,
+                )
+                return True
+            except DuplicateKeyError:
+                # Trace already exists (e.g., queued path created it before dequeue)
+                logger.debug("Trace %s already exists, skipping", trace_id)
+                return True
+            except Exception as e:
+                logger.error(f"Failed to create trace {trace_id}: {e}")
+                import traceback
+
+                traceback.print_exc()
+                return False
+        finally:
+            await self.release_session_trace_write(session_id)
 
     async def append_event(
         self,

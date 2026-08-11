@@ -470,6 +470,7 @@ class SessionStorage:
         *,
         parent_ids: list[Any],
         chunk_ids: list[Any],
+        groups: dict[str, dict[str, Any]],
     ) -> dict[str, Any] | None:
         """Persist the exact cutoff snapshot before a release can begin."""
         field = "attachment_clear_operation"
@@ -485,6 +486,7 @@ class SessionStorage:
                     f"{field}.trace_ids": trace_ids,
                     f"{field}.parent_ids": parent_ids,
                     f"{field}.chunk_ids": chunk_ids,
+                    f"{field}.groups": groups,
                     "updated_at": utc_now(),
                 }
             },
@@ -511,6 +513,7 @@ class SessionStorage:
                     f"{field}.trace_ids": trace_ids,
                     f"{field}.parent_ids": parent_ids,
                     f"{field}.chunk_ids": chunk_ids,
+                    f"{field}.groups": groups,
                     "updated_at": utc_now(),
                 }
             },
@@ -520,6 +523,132 @@ class SessionStorage:
             return result.get(field)
         result = await self.collection.find_one({"_id": object_id}, {field: 1})
         return result.get(field) if result else None
+
+    async def set_attachment_clear_group_status(
+        self,
+        session_id: str,
+        operation_id: str,
+        group_id: str,
+        *,
+        expected_status: str,
+        status: str,
+    ) -> bool:
+        """Persist one group's monotonic clear state transition."""
+        field = "attachment_clear_operation"
+        group_status = f"{field}.groups.{group_id}.status"
+
+        async def _update(identity: dict[str, Any]) -> bool:
+            result = await self.collection.update_one(
+                {
+                    **identity,
+                    f"{field}.id": operation_id,
+                    group_status: expected_status,
+                },
+                {
+                    "$set": {
+                        group_status: status,
+                        "updated_at": utc_now(),
+                    }
+                },
+            )
+            return result.modified_count > 0
+
+        if await _update({"session_id": session_id}):
+            return True
+        try:
+            return await _update({"_id": ObjectId(session_id)})
+        except Exception:
+            return False
+
+    async def acquire_trace_write(self, session_id: str) -> bool:
+        """Acquire a session-scoped writer lease unless deletion is fenced."""
+        await self.ensure_indexes_if_needed()
+        delete_field = "attachment_delete_operation"
+
+        async def _acquire(identity: dict[str, Any]) -> bool:
+            result = await self.collection.update_one(
+                {**identity, delete_field: {"$exists": False}},
+                {
+                    "$inc": {"active_trace_writers": 1},
+                    "$set": {"updated_at": utc_now()},
+                },
+            )
+            return result.matched_count > 0
+
+        if await _acquire({"session_id": session_id}):
+            return True
+        try:
+            return await _acquire({"_id": ObjectId(session_id)})
+        except Exception:
+            return False
+
+    async def release_trace_write(self, session_id: str) -> None:
+        """Release a writer lease acquired with :meth:`acquire_trace_write`."""
+
+        async def _release(identity: dict[str, Any]) -> bool:
+            result = await self.collection.update_one(
+                {**identity, "active_trace_writers": {"$gt": 0}},
+                {
+                    "$inc": {"active_trace_writers": -1},
+                    "$set": {"updated_at": utc_now()},
+                },
+            )
+            return result.matched_count > 0
+
+        if await _release({"session_id": session_id}):
+            return
+        try:
+            await _release({"_id": ObjectId(session_id)})
+        except Exception:
+            return
+
+    async def claim_attachment_delete_operation(self, session_id: str) -> dict[str, Any] | None:
+        """Fence new trace writers only when no writer lease is active."""
+        await self.ensure_indexes_if_needed()
+        field = "attachment_delete_operation"
+        operation = {"id": uuid.uuid4().hex, "claimed_at": utc_now()}
+
+        async def _claim(identity: dict[str, Any]) -> dict[str, Any] | None:
+            for writer_predicate in (0, {"$exists": False}):
+                result = await self.collection.find_one_and_update(
+                    {
+                        **identity,
+                        field: {"$exists": False},
+                        "active_trace_writers": writer_predicate,
+                    },
+                    {"$set": {field: operation, "updated_at": utc_now()}},
+                    return_document=True,
+                )
+                if result:
+                    return result.get(field)
+            result = await self.collection.find_one(identity, {field: 1})
+            return result.get(field) if result else None
+
+        claimed = await _claim({"session_id": session_id})
+        if claimed is not None:
+            return claimed
+        try:
+            return await _claim({"_id": ObjectId(session_id)})
+        except Exception:
+            return None
+
+    async def cancel_attachment_delete_operation(self, session_id: str, operation_id: str) -> bool:
+        """Remove the exact delete fence after a fail-closed refusal."""
+        field = "attachment_delete_operation"
+
+        async def _cancel(identity: dict[str, Any]) -> bool:
+            result = await self.collection.update_one(
+                {**identity, f"{field}.id": operation_id},
+                {"$unset": {field: ""}, "$set": {"updated_at": utc_now()}},
+            )
+            return result.modified_count > 0
+
+        if await _cancel({"session_id": session_id}):
+            return True
+        try:
+            return await _cancel({"_id": ObjectId(session_id)})
+        except Exception:
+            return False
 
     async def delete(self, session_id: str) -> bool:
         """删除会话（支持自定义 session_id 或 ObjectId）"""

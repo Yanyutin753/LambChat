@@ -64,6 +64,18 @@ class _FakeRedis:
         return []
 
 
+def _allow_trace_write_leases(trace):
+    async def _acquire(_session_id: str) -> bool:
+        return True
+
+    async def _release(_session_id: str) -> None:
+        return None
+
+    trace.acquire_session_trace_write = _acquire
+    trace.release_session_trace_write = _release
+    return trace
+
+
 @pytest.mark.asyncio
 async def test_dual_writer_refreshes_ttl_for_long_running_streams(monkeypatch) -> None:
     fake_redis = _FakeRedis()
@@ -434,7 +446,7 @@ async def test_flush_mongo_buffer_offloads_bulk_operation_building(
     monkeypatch.setattr(dual_writer, "run_blocking_io", _fake_run_blocking_io, raising=False)
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",
@@ -498,11 +510,12 @@ async def test_flush_mongo_buffer_writes_chunks_when_enabled(
             trace_doc: dict,
             events: list[dict],
             start_seq: int,
-        ) -> None:
+        ) -> bool:
             self.chunk_appends.append((trace_doc, events, start_seq))
+            return True
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",
@@ -568,7 +581,7 @@ async def test_flush_mongo_buffer_uses_legacy_path_when_chunk_storage_disabled(
             raise AssertionError("legacy path must not append chunk events")
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",
@@ -584,6 +597,130 @@ async def test_flush_mongo_buffer_uses_legacy_path_when_chunk_storage_disabled(
 
     assert len(writer.trace.collection.operations) == 1
     assert writer._mongo_buffer == []
+
+
+@pytest.mark.asyncio
+async def test_flush_mongo_buffer_requeues_fenced_session_without_any_mongo_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dual_writer.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        dual_writer.settings,
+        "SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY",
+        True,
+        raising=False,
+    )
+
+    class _Collection:
+        def __init__(self) -> None:
+            self.operations = []
+
+        async def bulk_write(self, operations, ordered: bool = False):
+            del ordered
+            self.operations.extend(operations)
+            return type("_Result", (), {"modified_count": 0, "upserted_count": 0})()
+
+    class _FakeTrace:
+        def __init__(self) -> None:
+            self.collection = _Collection()
+            self.acquired: list[str] = []
+            self.released: list[str] = []
+            self.reservations: list[tuple[str, int]] = []
+            self.appends: list[tuple[str, int]] = []
+
+        async def acquire_session_trace_write(self, session_id: str) -> bool:
+            self.acquired.append(session_id)
+            return False
+
+        async def release_session_trace_write(self, session_id: str) -> None:
+            self.released.append(session_id)
+
+        async def reserve_event_sequence_range(self, trace_id: str, event_count: int):
+            self.reservations.append((trace_id, event_count))
+            return {"trace_id": trace_id, "event_count": event_count}
+
+        async def append_events_to_chunks(
+            self,
+            trace_doc: dict,
+            events: list[dict],
+            start_seq: int,
+        ) -> bool:
+            del events
+            self.appends.append((trace_doc["trace_id"], start_seq))
+            return True
+
+    event = (
+        "trace-1",
+        "message:chunk",
+        {"content": "must-survive"},
+        "session-1",
+        "run-1",
+        datetime(2026, 1, 1),
+    )
+    writer = dual_writer.DualEventWriter()
+    writer._trace = _FakeTrace()
+    writer._mongo_buffer = [event]
+
+    await writer._do_flush()
+
+    assert writer.trace.acquired == ["session-1"]
+    assert writer.trace.released == []
+    assert writer.trace.reservations == []
+    assert writer.trace.appends == []
+    assert writer.trace.collection.operations == []
+    assert writer._mongo_buffer == [event]
+
+
+@pytest.mark.asyncio
+async def test_flush_mongo_buffer_releases_session_write_lease_when_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dual_writer.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        False,
+        raising=False,
+    )
+
+    class _Collection:
+        async def bulk_write(self, operations, ordered: bool = False):
+            del operations, ordered
+            raise asyncio.CancelledError
+
+    class _FakeTrace:
+        def __init__(self) -> None:
+            self.collection = _Collection()
+            self.released: list[str] = []
+
+        async def acquire_session_trace_write(self, session_id: str) -> bool:
+            del session_id
+            return True
+
+        async def release_session_trace_write(self, session_id: str) -> None:
+            self.released.append(session_id)
+
+    writer = dual_writer.DualEventWriter()
+    writer._trace = _FakeTrace()
+    writer._mongo_buffer = [
+        (
+            "trace-1",
+            "message:chunk",
+            {"content": "a"},
+            "session-1",
+            "run-1",
+            datetime(2026, 1, 1),
+        )
+    ]
+
+    with pytest.raises(asyncio.CancelledError):
+        await writer._do_flush()
+
+    assert writer.trace.released == ["session-1"]
 
 
 @pytest.mark.asyncio
@@ -615,7 +752,7 @@ async def test_flush_mongo_buffer_requeues_legacy_batch_when_bulk_write_fails(
         datetime(2026, 1, 1),
     )
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [event]
 
     await writer._do_flush()
@@ -660,7 +797,7 @@ async def test_flush_mongo_buffer_requeues_only_failed_legacy_bulk_write_traces(
         datetime(2026, 1, 1),
     )
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [ok_event, failed_event]
 
     await writer._do_flush()
@@ -693,7 +830,7 @@ async def test_flush_mongo_buffer_requeues_failed_chunk_writes(
             return None
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     event = (
         "trace-1",
         "message:chunk",
@@ -739,7 +876,7 @@ async def test_flush_mongo_buffer_can_require_empty_buffer_after_chunk_failure(
             raise RuntimeError("chunk write unavailable")
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",
@@ -828,7 +965,7 @@ async def test_flush_mongo_buffer_requeues_failed_chunk_write_with_reserved_sequ
             raise RuntimeError("chunk write unavailable")
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     events = [
         (
             "trace-1",
@@ -892,15 +1029,16 @@ async def test_failed_chunk_batch_retries_with_original_sequence_range(
             trace_doc: dict,
             events: list[dict],
             start_seq: int,
-        ) -> None:
+        ) -> bool:
             del trace_doc
             self.appends.append(([event["data"]["content"] for event in events], start_seq))
             if self.fail_next:
                 self.fail_next = False
                 raise RuntimeError("temporary chunk failure")
+            return True
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     first_batch = [
         (
             "trace-1",
@@ -975,11 +1113,12 @@ async def test_flush_mongo_buffer_dual_writes_legacy_when_enabled(
             trace_doc: dict,
             events: list[dict],
             start_seq: int,
-        ) -> None:
+        ) -> bool:
             del trace_doc, events, start_seq
+            return True
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",
@@ -1040,7 +1179,7 @@ async def test_flush_mongo_buffer_dual_write_requeues_chunk_retry_without_rewrit
             raise RuntimeError("chunk write unavailable")
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",
@@ -1108,12 +1247,13 @@ async def test_flush_mongo_buffer_dual_write_chunk_retry_skips_duplicate_legacy_
             trace_doc: dict,
             events: list[dict],
             start_seq: int,
-        ) -> None:
+        ) -> bool:
             del trace_doc, events
             self.appends.append(start_seq)
+            return True
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",
@@ -1180,12 +1320,13 @@ async def test_dual_write_legacy_retry_skips_duplicate_chunk_write(
             trace_doc: dict,
             events: list[dict],
             start_seq: int,
-        ) -> None:
+        ) -> bool:
             del trace_doc, events, start_seq
             self.appends += 1
+            return True
 
     writer = dual_writer.DualEventWriter()
-    writer._trace = _FakeTrace()
+    writer._trace = _allow_trace_write_leases(_FakeTrace())
     writer._mongo_buffer = [
         (
             "trace-1",

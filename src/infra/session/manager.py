@@ -6,12 +6,15 @@ import uuid
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
-from src.infra.session.trace_storage import get_trace_storage
+from src.infra.session.trace_storage import (
+    ATTACHMENT_CLEAR_TERMINAL_STATUSES,
+    get_trace_storage,
+)
 from src.infra.storage.checkpoint import (
     build_messages_from_trace_events,
     clone_checkpoints_for_fork,
@@ -148,9 +151,21 @@ class SessionManager:
     async def _collect_attachment_clear_snapshot(
         self, session_id: str, cutoff: object
     ) -> tuple[Counter[str], list[str], list, list]:
+        (
+            counts,
+            trace_ids,
+            parent_ids,
+            chunk_ids,
+            _groups,
+        ) = await self._collect_attachment_clear_groups(session_id, cutoff)
+        return counts, trace_ids, parent_ids, chunk_ids
+
+    @staticmethod
+    def _count_attachment_events(events: list[dict]) -> Counter[str]:
         counts: Counter[str] = Counter()
-        snapshot = await self.trace_storage.snapshot_session_traces_for_cleanup(session_id, cutoff)
-        for event in snapshot["events"]:
+        for event in events:
+            if not isinstance(event, dict):
+                continue
             if event.get("event_type") != "user:message":
                 continue
             data = event.get("data") or {}
@@ -162,12 +177,43 @@ class SessionManager:
                 if isinstance(item, dict) and item.get("key")
             }
             counts.update(key for key in keys if key)
-        return counts, snapshot["trace_ids"], snapshot["parent_ids"], snapshot["chunk_ids"]
+        return counts
+
+    async def _collect_attachment_clear_groups(
+        self, session_id: str, cutoff: object
+    ) -> tuple[Counter[str], list[str], list, list, dict[str, dict[str, Any]]]:
+        snapshot = await self.trace_storage.snapshot_session_traces_for_cleanup(session_id, cutoff)
+        raw_groups = snapshot.get("groups")
+        if not isinstance(raw_groups, list):
+            raise SessionError("attachment_clear_snapshot_invalid")
+        counts: Counter[str] = Counter()
+        groups: dict[str, dict[str, Any]] = {}
+        for raw_group in raw_groups:
+            if not isinstance(raw_group, dict):
+                raise SessionError("attachment_clear_snapshot_invalid")
+            group_id = raw_group.get("id")
+            events = raw_group.get("events")
+            if not isinstance(group_id, str) or not group_id or not isinstance(events, list):
+                raise SessionError("attachment_clear_snapshot_invalid")
+            if group_id in groups:
+                raise SessionError("attachment_clear_snapshot_invalid")
+            group_counts = self._count_attachment_events(events)
+            counts.update(group_counts)
+            groups[group_id] = {key: value for key, value in raw_group.items() if key != "events"}
+            groups[group_id]["counts"] = dict(group_counts)
+            groups[group_id]["status"] = "pending"
+        return (
+            counts,
+            snapshot["trace_ids"],
+            snapshot["parent_ids"],
+            snapshot["chunk_ids"],
+            groups,
+        )
 
     @staticmethod
     def _parse_attachment_clear_operation(
         operation: object,
-    ) -> tuple[str, Counter[str], list[str], object, str, list, list]:
+    ) -> tuple[str, str, dict[str, dict[str, Any]]]:
         if not isinstance(operation, dict):
             raise SessionError("attachment_clear_operation_invalid")
         operation_id = operation.get("id")
@@ -175,6 +221,7 @@ class SessionManager:
         raw_trace_ids = operation.get("trace_ids")
         raw_parent_ids = operation.get("parent_ids")
         raw_chunk_ids = operation.get("chunk_ids")
+        raw_groups = operation.get("groups")
         cutoff = operation.get("cutoff")
         uploaded_by = operation.get("uploaded_by")
         if (
@@ -187,6 +234,7 @@ class SessionManager:
             or not uploaded_by
             or not isinstance(raw_parent_ids, list)
             or not isinstance(raw_chunk_ids, list)
+            or not isinstance(raw_groups, dict)
         ):
             raise SessionError("attachment_clear_operation_invalid")
         counts: Counter[str] = Counter()
@@ -195,20 +243,51 @@ class SessionManager:
             if not clean_key or not isinstance(count, int) or count <= 0:
                 raise SessionError("attachment_clear_operation_invalid")
             counts[clean_key] += count
-        return (
-            operation_id,
-            counts,
-            [str(item) for item in raw_trace_ids if item],
-            cutoff,
-            uploaded_by,
-            raw_parent_ids,
-            raw_chunk_ids,
-        )
+        groups: dict[str, dict[str, Any]] = {}
+        for group_id, raw_group in raw_groups.items():
+            if (
+                not isinstance(group_id, str)
+                or not group_id
+                or not isinstance(raw_group, dict)
+                or raw_group.get("id") != group_id
+                or raw_group.get("kind") not in {"parent", "chunk"}
+                or raw_group.get("document_id") is None
+                or raw_group.get("updated_at") is None
+                or raw_group.get("status") not in {"pending", "deleted", "released", "survivor"}
+                or not isinstance(raw_group.get("counts"), dict)
+                or raw_group.get("release_operation_id") != f"{operation_id}:{group_id}"
+            ):
+                raise SessionError("attachment_clear_operation_invalid")
+            if (
+                raw_group["kind"] == "parent"
+                and raw_group.get("terminal_status") not in ATTACHMENT_CLEAR_TERMINAL_STATUSES
+            ):
+                raise SessionError("attachment_clear_operation_invalid")
+            parent_group_id = raw_group.get("parent_group_id")
+            if parent_group_id is not None and not isinstance(parent_group_id, str):
+                raise SessionError("attachment_clear_operation_invalid")
+            group_counts: Counter[str] = Counter()
+            for key, count in raw_group["counts"].items():
+                clean_key = str(key).strip() if key else ""
+                if not clean_key or not isinstance(count, int) or count <= 0:
+                    raise SessionError("attachment_clear_operation_invalid")
+                group_counts[clean_key] += count
+            groups[group_id] = {**raw_group, "counts": group_counts}
+        for group in groups.values():
+            parent_group_id = group.get("parent_group_id")
+            if parent_group_id is not None and parent_group_id not in groups:
+                raise SessionError("attachment_clear_operation_invalid")
+        grouped_counts: Counter[str] = Counter()
+        for group in groups.values():
+            grouped_counts.update(group["counts"])
+        if grouped_counts != counts:
+            raise SessionError("attachment_clear_operation_invalid")
+        return operation_id, uploaded_by, groups
 
     async def _get_or_begin_attachment_clear_operation(
         self,
         session_id: str,
-    ) -> tuple[str, Counter[str], list[str], object, str, list, list]:
+    ) -> tuple[str, str, dict[str, dict[str, Any]]]:
         operation = await self.storage.claim_attachment_clear_operation(session_id)
         if operation is None:
             raise SessionError("attachment_clear_operation_persist_failed")
@@ -218,7 +297,10 @@ class SessionManager:
                 trace_ids,
                 parent_ids,
                 chunk_ids,
-            ) = await self._collect_attachment_clear_snapshot(session_id, operation["cutoff"])
+                groups,
+            ) = await self._collect_attachment_clear_groups(session_id, operation["cutoff"])
+            for group_id, group in groups.items():
+                group["release_operation_id"] = f"{operation['id']}:{group_id}"
             operation = await self.storage.persist_attachment_clear_snapshot(
                 session_id,
                 operation["id"],
@@ -226,6 +308,7 @@ class SessionManager:
                 trace_ids,
                 parent_ids=parent_ids,
                 chunk_ids=chunk_ids,
+                groups=groups,
             )
             if operation is None:
                 raise SessionError("attachment_clear_operation_persist_failed")
@@ -234,28 +317,76 @@ class SessionManager:
     async def clear_session_messages(self, session_id: str) -> int:
         """Release attachment references and remove all traces for a session."""
         operation = await self._get_or_begin_attachment_clear_operation(session_id)
-        (
-            operation_id,
-            attachment_counts,
-            _trace_ids,
-            _cutoff,
-            uploaded_by,
-            parent_ids,
-            chunk_ids,
-        ) = operation
-        await self._file_record_storage.release_reference_counts(
-            attachment_counts,
-            operation_id=operation_id,
-            uploaded_by=uploaded_by,
-        )
-        await self.trace_storage.delete_trace_snapshot_strict(parent_ids, chunk_ids)
+        operation_id, uploaded_by, groups = operation
+        for group_id, group in groups.items():
+            parent_group_id = group.get("parent_group_id")
+            if parent_group_id and groups[parent_group_id]["status"] == "survivor":
+                if not await self.storage.set_attachment_clear_group_status(
+                    session_id,
+                    operation_id,
+                    group_id,
+                    expected_status=group["status"],
+                    status="survivor",
+                ):
+                    raise SessionError("attachment_clear_group_persist_failed")
+                group["status"] = "survivor"
+                continue
+            if group["status"] == "pending":
+                delete_status = await self.trace_storage.delete_attachment_clear_group(
+                    session_id, group
+                )
+                if delete_status not in {"deleted", "survivor"}:
+                    raise SessionError("attachment_clear_group_delete_invalid")
+                if not await self.storage.set_attachment_clear_group_status(
+                    session_id,
+                    operation_id,
+                    group_id,
+                    expected_status="pending",
+                    status=delete_status,
+                ):
+                    raise SessionError("attachment_clear_group_persist_failed")
+                group["status"] = delete_status
+            if group["status"] == "deleted":
+                if group["counts"]:
+                    await self._file_record_storage.release_reference_counts(
+                        group["counts"],
+                        operation_id=group["release_operation_id"],
+                        uploaded_by=uploaded_by,
+                    )
+                if not await self.storage.set_attachment_clear_group_status(
+                    session_id,
+                    operation_id,
+                    group_id,
+                    expected_status="deleted",
+                    status="released",
+                ):
+                    raise SessionError("attachment_clear_group_persist_failed")
+                group["status"] = "released"
         if not await self.storage.complete_attachment_clear_operation(session_id, operation_id):
             raise SessionError("attachment_clear_operation_complete_failed")
-        return len(attachment_counts)
+        released_keys = {
+            key
+            for group in groups.values()
+            if group["status"] == "released"
+            for key in group["counts"]
+        }
+        return len(released_keys)
 
     async def delete_session(self, session_id: str) -> bool:
         """删除会话（同时删除关联的 traces）"""
-        await self.clear_session_messages(session_id)
+        delete_operation = await self.storage.claim_attachment_delete_operation(session_id)
+        if not isinstance(delete_operation, dict) or not isinstance(
+            delete_operation.get("id"), str
+        ):
+            raise SessionError("session_delete_fence_unavailable")
+        delete_operation_id = delete_operation["id"]
+        try:
+            await self.clear_session_messages(session_id)
+            if await self.trace_storage.has_session_trace_documents(session_id):
+                raise SessionError("session_delete_has_trace_survivors")
+        except BaseException:
+            await self.storage.cancel_attachment_delete_operation(session_id, delete_operation_id)
+            raise
         # Clean up revealed file index
         try:
             from src.infra.revealed_file.storage import get_revealed_file_storage
@@ -267,7 +398,13 @@ class SessionManager:
         except Exception as e:
             logger.warning(f"Failed to cleanup revealed files for session {session_id}: {e}")
         # 再删除 session
-        deleted = await self.storage.delete(session_id)
+        try:
+            deleted = await self.storage.delete(session_id)
+        except BaseException:
+            await self.storage.cancel_attachment_delete_operation(session_id, delete_operation_id)
+            raise
+        if not deleted:
+            await self.storage.cancel_attachment_delete_operation(session_id, delete_operation_id)
         if deleted:
             try:
                 await delete_checkpoints_for_thread(session_id)
@@ -468,6 +605,28 @@ class SessionManager:
             raise SessionError(f"fork_checkpoint_copy_failed: {exc}") from exc
 
     async def _clone_history_to_session(
+        self,
+        *,
+        source_session: Session,
+        target_session: Session,
+        target: dict,
+        user_id: str,
+        collect_checkpoint_messages: bool = False,
+    ) -> SessionForkCloneResult:
+        if not await self.storage.acquire_trace_write(target_session.id):
+            raise SessionError("session_trace_write_fenced")
+        try:
+            return await self._clone_history_to_session_unfenced(
+                source_session=source_session,
+                target_session=target_session,
+                target=target,
+                user_id=user_id,
+                collect_checkpoint_messages=collect_checkpoint_messages,
+            )
+        finally:
+            await self.storage.release_trace_write(target_session.id)
+
+    async def _clone_history_to_session_unfenced(
         self,
         *,
         source_session: Session,

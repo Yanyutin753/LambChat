@@ -71,6 +71,9 @@ def _matches(document: dict[str, Any], query: dict[str, Any]) -> bool:
                 elif operator == "$lte":
                     if actual is _MISSING or actual > operand:
                         return False
+                elif operator == "$gt":
+                    if actual is _MISSING or actual <= operand:
+                        return False
                 else:
                     raise AssertionError(f"Unsupported query operator: {operator}")
             continue
@@ -105,6 +108,11 @@ def _resolve_update_value(value: object, document: dict[str, Any]) -> object:
 def _apply_update(document: dict[str, Any], update: dict | list[dict]) -> None:
     stages = update if isinstance(update, list) else [update]
     for stage in stages:
+        for key, value in stage.get("$inc", {}).items():
+            current = _get_nested(document, key)
+            if current is _MISSING:
+                current = 0
+            _set_nested(document, key, current + value)
         for key, value in stage.get("$set", {}).items():
             _set_nested(document, key, _resolve_update_value(value, document))
         for key in stage.get("$unset", {}):
@@ -148,6 +156,7 @@ class _FilterAwareCollection:
         self.find_one_calls: list[dict[str, Any]] = []
         self.delete_calls: list[dict[str, Any]] = []
         self.skip_delete_once: set[object] = set()
+        self.fail_delete_once: set[object] = set()
 
     def find(self, query: dict[str, Any], projection: dict[str, int] | None = None):
         self.find_calls.append(deepcopy(query))
@@ -192,13 +201,29 @@ class _FilterAwareCollection:
                 )
         return SimpleNamespace(matched_count=0, modified_count=0)
 
+    async def insert_one(self, document: dict[str, Any]):
+        self.documents.append(deepcopy(document))
+        return SimpleNamespace(inserted_id=document.get("_id", "inserted"))
+
+    async def insert_many(self, documents: list[dict[str, Any]]):
+        self.documents.extend(deepcopy(documents))
+        return SimpleNamespace(inserted_ids=[doc.get("_id") for doc in documents])
+
+    async def delete_one(self, query: dict[str, Any]):
+        result = await self.delete_many(query)
+        return SimpleNamespace(deleted_count=min(result.deleted_count, 1))
+
     async def delete_many(self, query: dict[str, Any]):
         self.delete_calls.append(deepcopy(query))
         kept: list[dict[str, Any]] = []
         deleted_count = 0
         skipped: set[object] = set()
-        for document in self.documents:
+        for index, document in enumerate(self.documents):
             document_id = document.get("_id")
+            if _matches(document, query) and document_id in self.fail_delete_once:
+                self.fail_delete_once.remove(document_id)
+                self.documents = kept + deepcopy(self.documents[index:])
+                raise RuntimeError(f"delete failed for {document_id}")
             if _matches(document, query) and document_id not in self.skip_delete_once:
                 deleted_count += 1
                 continue
@@ -259,18 +284,38 @@ class _TraceStorage:
         trace_ids = sorted(
             {str(event["trace_id"]) for event in self.events if event.get("trace_id")}
         )
+        groups = (
+            [
+                {
+                    "id": "parent-0",
+                    "kind": "parent",
+                    "document_id": "snapshot-parent",
+                    "trace_id": trace_ids[0] if trace_ids else "trace-fixture",
+                    "updated_at": "snapshot-version",
+                    "terminal_status": "completed",
+                    "events": deepcopy(self.events),
+                }
+            ]
+            if self.events
+            else []
+        )
         return {
             "events": deepcopy(self.events),
             "trace_ids": trace_ids,
             "parent_ids": ["snapshot-parent"] if self.events else [],
             "chunk_ids": [],
+            "groups": groups,
         }
 
-    async def delete_trace_snapshot_strict(self, _parent_ids: list, _chunk_ids: list) -> int:
+    async def delete_attachment_clear_group(self, _session_id: str, _group: dict) -> str:
         if self.delete_error:
             raise self.delete_error
         self.deleted_session_ids.append(self.snapshot_session_id)
-        return len(_parent_ids)
+        self.events = []
+        return "deleted"
+
+    async def has_session_trace_documents(self, _session_id: str) -> bool:
+        return bool(self.events)
 
     async def delete_session_traces_strict(self, session_id: str, **_kwargs) -> int:
         if self.delete_error:
@@ -285,6 +330,7 @@ class _SessionOperationStorage:
         self.metadata_updates: list[dict] = []
         self.server_operation: dict | None = None
         self.operation_number = 0
+        self.delete_operation: dict | None = None
 
     async def get_by_session_id(self, session_id: str):
         return SimpleNamespace(id=session_id, metadata=self.metadata.copy())
@@ -307,6 +353,17 @@ class _SessionOperationStorage:
             }
         return self.server_operation
 
+    async def claim_attachment_delete_operation(self, _session_id: str) -> dict:
+        if self.delete_operation is None:
+            self.delete_operation = {"id": "delete-operation-1"}
+        return self.delete_operation
+
+    async def cancel_attachment_delete_operation(self, _session_id: str, operation_id: str) -> bool:
+        if not self.delete_operation or self.delete_operation.get("id") != operation_id:
+            return False
+        self.delete_operation = None
+        return True
+
     async def persist_attachment_clear_snapshot(
         self,
         _session_id: str,
@@ -316,13 +373,31 @@ class _SessionOperationStorage:
         *,
         parent_ids: list,
         chunk_ids: list,
+        groups: dict,
     ) -> dict:
         assert self.server_operation and operation_id == self.server_operation["id"]
         self.server_operation.setdefault("counts", counts)
         self.server_operation.setdefault("trace_ids", trace_ids)
         self.server_operation.setdefault("parent_ids", parent_ids)
         self.server_operation.setdefault("chunk_ids", chunk_ids)
+        self.server_operation.setdefault("groups", groups)
         return self.server_operation
+
+    async def set_attachment_clear_group_status(
+        self,
+        _session_id: str,
+        operation_id: str,
+        group_id: str,
+        *,
+        expected_status: str,
+        status: str,
+    ) -> bool:
+        assert self.server_operation and operation_id == self.server_operation["id"]
+        group = self.server_operation["groups"][group_id]
+        if group["status"] != expected_status:
+            return False
+        group["status"] = status
+        return True
 
     async def complete_attachment_clear_operation(
         self, _session_id: str, operation_id: str
@@ -358,6 +433,7 @@ class _ExactSessionOperationStorage(_SessionOperationStorage):
         *,
         parent_ids: list,
         chunk_ids: list,
+        groups: dict,
     ) -> dict:
         assert self.server_operation and operation_id == self.server_operation["id"]
         self.server_operation.update(
@@ -366,6 +442,7 @@ class _ExactSessionOperationStorage(_SessionOperationStorage):
                 "trace_ids": trace_ids,
                 "parent_ids": parent_ids,
                 "chunk_ids": chunk_ids,
+                "groups": groups,
             }
         )
         return self.server_operation
@@ -482,7 +559,7 @@ async def test_clear_session_messages_releases_each_key_once_per_user_message() 
 
 
 @pytest.mark.asyncio
-async def test_clear_session_messages_preserves_traces_when_counted_release_fails() -> None:
+async def test_clear_session_messages_persists_deleted_group_when_counted_release_fails() -> None:
     manager = SessionManager()
     file_records = _FileRecordStorage()
     file_records.release_error = RuntimeError("database unavailable")
@@ -500,7 +577,14 @@ async def test_clear_session_messages_preserves_traces_when_counted_release_fail
     with pytest.raises(RuntimeError, match="database unavailable"):
         await manager.clear_session_messages("session-1")
 
-    assert trace_storage.deleted_session_ids == []
+    assert trace_storage.deleted_session_ids == ["session-1"]
+    assert manager.storage.server_operation is not None
+    assert manager.storage.server_operation["groups"]["parent-0"]["status"] == "deleted"
+
+    file_records.release_error = None
+    assert await manager.clear_session_messages("session-1") == 1
+    assert file_records.released_counts == [Counter({"attachments/u1/a.png": 1})]
+    assert manager.storage.server_operation is None
 
 
 @pytest.mark.asyncio
@@ -684,8 +768,7 @@ async def test_clear_retry_reuses_pending_operation_after_trace_delete_failure()
     released = await manager.clear_session_messages("session-1")
 
     assert released == 1
-    assert len(file_records.operation_ids) == 2
-    assert file_records.operation_ids[0] == file_records.operation_ids[1]
+    assert file_records.operation_ids == ["server-operation-1:parent-0"]
     assert file_records.released_counts == [Counter({"key-a": 1})]
     assert operation_storage.server_operation is None
 
@@ -753,6 +836,7 @@ async def test_clear_ignores_client_metadata_operation_and_uses_server_claim() -
             *,
             parent_ids: list,
             chunk_ids: list,
+            groups: dict,
         ):
             assert operation_id == "server-operation"
             self.server_operation.update(
@@ -761,6 +845,7 @@ async def test_clear_ignores_client_metadata_operation_and_uses_server_claim() -
                     "trace_ids": trace_ids,
                     "parent_ids": parent_ids,
                     "chunk_ids": chunk_ids,
+                    "groups": groups,
                 }
             )
             return self.server_operation
@@ -781,7 +866,7 @@ async def test_clear_ignores_client_metadata_operation_and_uses_server_claim() -
 
     assert released == 1
     assert file_records.released_counts == [Counter({"owned-key": 1})]
-    assert file_records.operation_ids == ["server-operation"]
+    assert file_records.operation_ids == ["server-operation:parent-0"]
 
 
 @pytest.mark.asyncio
@@ -843,12 +928,37 @@ async def test_object_id_session_clear_operation_persists_and_completes_exact_sn
         ["trace-terminal"],
         parent_ids=["parent-terminal", "parent-without-trace-id"],
         chunk_ids=["chunk-terminal"],
+        groups={
+            "parent-0": {
+                "id": "parent-0",
+                "kind": "parent",
+                "document_id": "parent-terminal",
+                "trace_id": "trace-terminal",
+                "updated_at": claimed["cutoff"],
+                "terminal_status": "completed",
+                "counts": {"owned-key": 2},
+                "status": "pending",
+                "release_operation_id": f"{claimed['id']}:parent-0",
+            }
+        },
     )
 
     assert persisted is not None
     assert persisted["counts"] == {"owned-key": 2}
     assert persisted["parent_ids"] == ["parent-terminal", "parent-without-trace-id"]
     assert persisted["chunk_ids"] == ["chunk-terminal"]
+    assert persisted["groups"]["parent-0"]["counts"] == {"owned-key": 2}
+    assert await storage.set_attachment_clear_group_status(
+        str(session_object_id),
+        claimed["id"],
+        "parent-0",
+        expected_status="pending",
+        status="deleted",
+    )
+    assert (
+        collection.documents[0]["attachment_clear_operation"]["groups"]["parent-0"]["status"]
+        == "deleted"
+    )
     assert await storage.complete_attachment_clear_operation(str(session_object_id), claimed["id"])
     assert "attachment_clear_operation" not in collection.documents[0]
 
@@ -920,6 +1030,19 @@ async def test_cleanup_snapshot_deletes_every_terminal_parent_and_only_its_exact
                     }
                 ],
             },
+            {
+                "_id": "parent-unknown-status",
+                "session_id": "session-1",
+                "trace_id": "trace-unknown-status",
+                "status": "queued",
+                "updated_at": before,
+                "events": [
+                    {
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "unknown-status-key"}]},
+                    }
+                ],
+            },
         ],
         [
             {
@@ -979,19 +1102,33 @@ async def test_cleanup_snapshot_deletes_every_terminal_parent_and_only_its_exact
         "session-1", cutoff
     )
 
-    assert counts == Counter({"parent-key": 1, "no-trace-key": 1, "chunk-key": 1})
+    assert counts == Counter(
+        {
+            "parent-key": 1,
+            "no-trace-key": 1,
+            "chunk-key": 1,
+            "unrelated-key": 1,
+        }
+    )
     assert trace_ids == ["trace-user", "trace-no-user"]
     assert parent_ids == ["parent-user", "parent-no-user", "parent-no-trace-id"]
-    assert chunk_ids == ["chunk-user", "chunk-no-user"]
-
-    await trace_storage.delete_trace_snapshot_strict(parent_ids, chunk_ids)
-
-    assert parents.ids() == {"parent-active", "parent-post-cutoff"}
-    assert chunks.ids() == {"chunk-unrelated", "chunk-active"}
-    assert parents.delete_calls == [{"_id": {"$in": parent_ids}}]
-    assert chunks.delete_calls == [{"_id": {"$in": chunk_ids}}]
-    assert parents.find_one_calls == [{"_id": {"$in": parent_ids}}]
-    assert chunks.find_one_calls == [{"_id": {"$in": chunk_ids}}]
+    assert chunk_ids == ["chunk-user", "chunk-no-user", "chunk-unrelated"]
+    assert parents.ids() == {
+        "parent-active",
+        "parent-post-cutoff",
+        "parent-unknown-status",
+        "parent-user",
+        "parent-no-user",
+        "parent-no-trace-id",
+    }
+    assert chunks.ids() == {
+        "chunk-user",
+        "chunk-no-user",
+        "chunk-unrelated",
+        "chunk-active",
+    }
+    assert parents.delete_calls == []
+    assert chunks.delete_calls == []
 
 
 @pytest.mark.asyncio
@@ -1090,7 +1227,7 @@ async def test_clear_preserves_active_pre_cutoff_trace_with_post_cutoff_events()
     released = await manager.clear_session_messages("session-1")
 
     assert released == 0
-    assert file_records.released_counts == [Counter()]
+    assert file_records.released_counts == []
     assert parents.ids() == {"parent-active"}
     assert chunks.ids() == {"chunk-active"}
 
@@ -1203,10 +1340,11 @@ async def test_exact_snapshot_postcondition_keeps_operation_retryable() -> None:
     manager._file_record_storage = file_records
     manager.storage = operation_storage
 
-    with pytest.raises(RuntimeError, match="session_chunk_delete_incomplete"):
-        await manager.clear_session_messages("session-1")
-
-    assert operation_storage.server_operation is not None
+    assert await manager.clear_session_messages("session-1") == 0
+    assert operation_storage.server_operation is None
+    assert parents.ids() == set()
+    assert chunks.ids() == {"chunk-terminal"}
+    assert file_records.released_counts == []
     chunks.documents.append(
         {
             "_id": "chunk-post-snapshot",
@@ -1223,7 +1361,7 @@ async def test_exact_snapshot_postcondition_keeps_operation_retryable() -> None:
     assert parents.ids() == set()
     assert chunks.ids() == {"chunk-post-snapshot"}
     assert file_records.released_counts == [Counter({"owned-key": 1})]
-    assert file_records.operation_ids == ["server-operation-1", "server-operation-1"]
+    assert file_records.operation_ids == ["server-operation-2:orphan-chunk-0"]
     assert operation_storage.server_operation is None
 
 
@@ -1249,3 +1387,371 @@ async def test_clear_fails_closed_for_pending_operation_without_exact_document_i
 
     assert file_records.released_counts == []
     assert trace_storage.deleted_session_ids == []
+
+
+@pytest.mark.asyncio
+async def test_parent_mutated_after_snapshot_survives_then_releases_exact_counts_next_clear() -> (
+    None
+):
+    first_cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    original_updated_at = first_cutoff - timedelta(minutes=1)
+    mutated_updated_at = first_cutoff + timedelta(seconds=1)
+    trace_storage, parents, _chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-mutated",
+                "session_id": "session-1",
+                "trace_id": "trace-mutated",
+                "status": "completed",
+                "updated_at": original_updated_at,
+                "events": [
+                    {
+                        "seq": 1,
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "old-key"}]},
+                    }
+                ],
+            }
+        ],
+        [],
+    )
+
+    class _MutatingOperationStorage(_ExactSessionOperationStorage):
+        mutated = False
+
+        async def persist_attachment_clear_snapshot(self, *args, **kwargs):
+            operation = await super().persist_attachment_clear_snapshot(*args, **kwargs)
+            if not self.mutated:
+                self.mutated = True
+                parents.documents[0]["updated_at"] = mutated_updated_at
+                parents.documents[0]["events"].append(
+                    {
+                        "seq": 2,
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "new-key"}]},
+                    }
+                )
+            return operation
+
+    operations = _MutatingOperationStorage(first_cutoff)
+    manager = SessionManager()
+    file_records = _FileRecordStorage()
+    manager._trace_storage = trace_storage
+    manager._file_record_storage = file_records
+    manager.storage = operations
+
+    assert await manager.clear_session_messages("session-1") == 0
+    assert parents.ids() == {"parent-mutated"}
+    assert file_records.released_counts == []
+
+    operations.cutoff = mutated_updated_at + timedelta(minutes=1)
+    assert await manager.clear_session_messages("session-1") == 2
+    assert parents.ids() == set()
+    assert file_records.released_counts == [Counter({"old-key": 1, "new-key": 1})]
+
+
+@pytest.mark.asyncio
+async def test_partial_group_delete_retry_releases_only_each_removed_groups_counts_once() -> None:
+    cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    before = cutoff - timedelta(minutes=1)
+    trace_storage, parents, _chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-a",
+                "session_id": "session-1",
+                "trace_id": "trace-a",
+                "status": "completed",
+                "updated_at": before,
+                "events": [
+                    {
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "key-a"}]},
+                    }
+                ],
+            },
+            {
+                "_id": "parent-b",
+                "session_id": "session-1",
+                "trace_id": "trace-b",
+                "status": "error",
+                "updated_at": before,
+                "events": [
+                    {
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "key-b"}]},
+                    }
+                ],
+            },
+        ],
+        [],
+    )
+    parents.fail_delete_once.add("parent-b")
+    manager = SessionManager()
+    file_records = _FileRecordStorage()
+    operations = _ExactSessionOperationStorage(cutoff)
+    manager._trace_storage = trace_storage
+    manager._file_record_storage = file_records
+    manager.storage = operations
+
+    with pytest.raises(RuntimeError, match="delete failed for parent-b"):
+        await manager.clear_session_messages("session-1")
+
+    assert parents.ids() == {"parent-b"}
+    assert file_records.released_counts == [Counter({"key-a": 1})]
+    assert operations.server_operation is not None
+    assert {
+        group_id: group["release_operation_id"]
+        for group_id, group in operations.server_operation["groups"].items()
+    } == {
+        "parent-0": "server-operation-1:parent-0",
+        "parent-1": "server-operation-1:parent-1",
+    }
+
+    assert await manager.clear_session_messages("session-1") == 2
+    assert parents.ids() == set()
+    assert file_records.released_counts == [Counter({"key-a": 1}), Counter({"key-b": 1})]
+    assert len(set(file_records.operation_ids)) == 2
+    assert operations.server_operation is None
+
+
+@pytest.mark.asyncio
+async def test_post_snapshot_chunk_is_discovered_as_orphan_and_released_on_second_clear() -> None:
+    first_cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    before = first_cutoff - timedelta(minutes=1)
+    after = first_cutoff + timedelta(minutes=1)
+    trace_storage, parents, chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-terminal",
+                "session_id": "session-1",
+                "trace_id": "trace-terminal",
+                "status": "completed",
+                "updated_at": before,
+                "events": [],
+            }
+        ],
+        [
+            {
+                "_id": "chunk-snapshot",
+                "session_id": "session-1",
+                "trace_id": "trace-terminal",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "updated_at": before,
+                "events": [
+                    {
+                        "seq": 1,
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "snapshot-key"}]},
+                    }
+                ],
+            }
+        ],
+    )
+
+    class _CreatingOperationStorage(_ExactSessionOperationStorage):
+        created = False
+
+        async def persist_attachment_clear_snapshot(self, *args, **kwargs):
+            operation = await super().persist_attachment_clear_snapshot(*args, **kwargs)
+            if not self.created:
+                self.created = True
+                chunks.documents.append(
+                    {
+                        "_id": "chunk-post-snapshot",
+                        "session_id": "session-1",
+                        "trace_id": "trace-terminal",
+                        "chunk_index": 1,
+                        "start_seq": 2,
+                        "updated_at": after,
+                        "events": [
+                            {
+                                "seq": 2,
+                                "event_type": "user:message",
+                                "data": {"attachments": [{"key": "later-key"}]},
+                            }
+                        ],
+                    }
+                )
+            return operation
+
+    operations = _CreatingOperationStorage(first_cutoff)
+    manager = SessionManager()
+    file_records = _FileRecordStorage()
+    manager._trace_storage = trace_storage
+    manager._file_record_storage = file_records
+    manager.storage = operations
+
+    assert await manager.clear_session_messages("session-1") == 1
+    assert parents.ids() == set()
+    assert chunks.ids() == {"chunk-post-snapshot"}
+    assert file_records.released_counts == [Counter({"snapshot-key": 1})]
+
+    operations.cutoff = after + timedelta(minutes=1)
+    assert await manager.clear_session_messages("session-1") == 1
+    assert chunks.ids() == set()
+    assert file_records.released_counts == [
+        Counter({"snapshot-key": 1}),
+        Counter({"later-key": 1}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_delete_session_refuses_to_remove_anchor_while_running_trace_survives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    trace_storage, parents, _chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-running",
+                "session_id": "session-1",
+                "trace_id": "trace-running",
+                "status": "running",
+                "updated_at": cutoff - timedelta(minutes=1),
+                "events": [],
+            }
+        ],
+        [],
+    )
+    deleted_sessions: list[str] = []
+
+    class _Storage(_ExactSessionOperationStorage):
+        async def delete(self, session_id: str) -> bool:
+            deleted_sessions.append(session_id)
+            return True
+
+    class _RevealedStorage:
+        async def delete_by_session(self, _session_id: str) -> int:
+            return 0
+
+    manager = SessionManager()
+    manager._trace_storage = trace_storage
+    manager._file_record_storage = _FileRecordStorage()
+    manager.storage = _Storage(cutoff)
+    monkeypatch.setattr(
+        "src.infra.revealed_file.storage.get_revealed_file_storage",
+        lambda: _RevealedStorage(),
+    )
+
+    with pytest.raises(SessionError, match="session_delete_has_trace_survivors"):
+        await manager.delete_session("session-1")
+
+    assert parents.ids() == {"parent-running"}
+    assert deleted_sessions == []
+
+
+@pytest.mark.asyncio
+async def test_chunk_rewrite_with_stale_parent_version_does_not_mutate_chunks() -> None:
+    snapshot_updated_at = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    current_updated_at = snapshot_updated_at + timedelta(seconds=1)
+    trace_storage, parents, chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-terminal",
+                "session_id": "session-1",
+                "trace_id": "trace-terminal",
+                "status": "completed",
+                "updated_at": current_updated_at,
+                "events": [
+                    {
+                        "seq": 1,
+                        "event_type": "user:message",
+                        "data": {"attachments": [{"key": "old-key"}]},
+                    }
+                ],
+            }
+        ],
+        [
+            {
+                "_id": "chunk-existing",
+                "session_id": "session-1",
+                "trace_id": "trace-terminal",
+                "updated_at": current_updated_at,
+                "events": [],
+            }
+        ],
+    )
+
+    rewritten = await trace_storage.replace_trace_events_with_chunks(
+        {
+            "_id": "parent-terminal",
+            "session_id": "session-1",
+            "trace_id": "trace-terminal",
+            "status": "completed",
+            "updated_at": snapshot_updated_at,
+        },
+        [
+            {
+                "event_type": "user:message",
+                "data": {"attachments": [{"key": "old-key"}]},
+            },
+            {
+                "event_type": "user:message",
+                "data": {"attachments": [{"key": "new-key"}]},
+            },
+        ],
+    )
+
+    assert rewritten is False
+    assert parents.ids() == {"parent-terminal"}
+    assert chunks.ids() == {"chunk-existing"}
+    assert chunks.delete_calls == []
+
+
+@pytest.mark.asyncio
+async def test_delete_session_fence_blocks_parent_creation_between_probe_and_anchor_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_session_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    async def _skip_trace_indexes(_storage: TraceStorage) -> None:
+        return None
+
+    async def _skip_checkpoints(_session_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_session_indexes)
+    monkeypatch.setattr(TraceStorage, "ensure_indexes_if_needed", _skip_trace_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.manager.delete_checkpoints_for_thread", _skip_checkpoints
+    )
+
+    session_collection = _FilterAwareCollection(
+        [{"_id": "session-doc", "session_id": "session-1", "user_id": "owner-a"}]
+    )
+    trace_storage, parents, _chunks = _trace_storage_with_documents([], [])
+
+    class _RacingStorage(SessionStorage):
+        writer_result: bool | None = None
+
+        async def delete(self, session_id: str) -> bool:
+            self.writer_result = await trace_storage.create_trace(
+                "trace-racing",
+                session_id,
+                user_id="owner-a",
+            )
+            return await super().delete(session_id)
+
+    storage = _RacingStorage()
+    storage._collection = session_collection
+    trace_storage._session_storage = storage
+    manager = SessionManager()
+    manager.storage = storage
+    manager._trace_storage = trace_storage
+    manager._file_record_storage = _FileRecordStorage()
+
+    class _RevealedStorage:
+        async def delete_by_session(self, _session_id: str) -> int:
+            return 0
+
+    monkeypatch.setattr(
+        "src.infra.revealed_file.storage.get_revealed_file_storage",
+        lambda: _RevealedStorage(),
+    )
+
+    assert await manager.delete_session("session-1") is True
+    assert storage.writer_result is False
+    assert parents.ids() == set()
+    assert session_collection.ids() == set()

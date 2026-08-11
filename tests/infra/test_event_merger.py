@@ -179,13 +179,23 @@ async def test_event_merger_processes_traces_with_bounded_coroutines(
         concurrency,
         raising=False,
     )
+    monkeypatch.setattr(
+        event_merger.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        False,
+        raising=False,
+    )
 
     class _Cursor:
         def __init__(self) -> None:
             self._index = 0
             self._docs = [
                 {
+                    "_id": f"parent-{index}",
                     "trace_id": f"trace-{index}",
+                    "session_id": "session-1",
+                    "status": "completed",
+                    "updated_at": f"version-{index}",
                     "events": [{"event_type": "message:chunk", "data": {"text": "x"}}],
                 }
                 for index in range(batch_size)
@@ -237,6 +247,15 @@ async def test_event_merger_processes_traces_with_bounded_coroutines(
 
     assert gather_sizes
     assert max(gather_sizes) <= concurrency
+    for operation in merger.trace_storage.collection.operations:
+        index = int(operation._filter["trace_id"].removeprefix("trace-"))
+        assert operation._filter == {
+            "_id": f"parent-{index}",
+            "trace_id": f"trace-{index}",
+            "status": {"$in": ["completed", "error"]},
+            "updated_at": f"version-{index}",
+            "attachment_chunk_write_operation": {"$exists": False},
+        }
 
 
 @pytest.mark.asyncio
@@ -369,8 +388,11 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
         def limit(self, _limit: int):
             return self
 
-        async def to_list(self, length: int):
-            return []
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
 
     class _Collection:
         def __init__(self) -> None:
@@ -392,18 +414,22 @@ async def test_event_merger_filters_out_giant_traces_before_loading_events(
     await merger._merge_completed_traces()
 
     assert storage.collection.query == {
-        "status": {"$ne": "running"},
+        "status": {"$in": ["completed", "error"]},
         "metadata.merged": {"$ne": True},
+        "attachment_chunk_write_operation": {"$exists": False},
         "$or": [
             {"event_count": {"$lte": 5}},
             {"event_count": {"$exists": False}},
         ],
     }
     assert storage.collection.projection == {
+        "_id": 1,
         "trace_id": 1,
         "session_id": 1,
         "run_id": 1,
         "started_at": 1,
+        "status": 1,
+        "updated_at": 1,
         "event_count": 1,
         "metadata": 1,
     }
@@ -456,8 +482,9 @@ async def test_event_merger_rebuilds_chunks_when_chunk_storage_enabled(
             self.collection = _Collection()
             self.replacements = []
 
-        async def replace_trace_events_with_chunks(self, trace_doc, events):
-            self.replacements.append((trace_doc, events))
+        async def replace_trace_events_with_chunks(self, trace_doc, events, **kwargs):
+            self.replacements.append((trace_doc, events, kwargs))
+            return True
 
     storage = _TraceStorage()
     merger = EventMerger(storage)
@@ -482,6 +509,60 @@ async def test_event_merger_rebuilds_chunks_when_chunk_storage_enabled(
     assert (modified, merged, skipped, errors) == (1, 1, 0, 0)
     assert storage.replacements[0][0]["trace_id"] == "trace-1"
     assert storage.replacements[0][1][0]["data"]["content"] == "ab"
-    update_doc = storage.collection.operations[0]._doc
-    assert "events" not in update_doc["$set"]
-    assert update_doc["$set"]["metadata.merged"] is True
+    assert storage.replacements[0][2]["parent_updates"]["metadata.merged"] is True
+    assert "metadata.merged_at" in storage.replacements[0][2]["parent_updates"]
+    assert storage.collection.operations == []
+
+
+@pytest.mark.asyncio
+async def test_event_merger_does_not_mark_or_count_merge_when_chunk_replace_cas_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        event_merger_module.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        True,
+        raising=False,
+    )
+
+    class _Collection:
+        def __init__(self) -> None:
+            self.operations = []
+
+        async def bulk_write(self, operations, ordered: bool = False):
+            del ordered
+            self.operations.extend(operations)
+            return type("_Result", (), {"modified_count": len(operations)})()
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.collection = _Collection()
+
+        async def replace_trace_events_with_chunks(self, trace_doc, events):
+            del trace_doc, events
+            return False
+
+    storage = _TraceStorage()
+    merger = EventMerger(storage)
+
+    modified, merged, _skipped, _errors = await merger._merge_trace_batch(
+        storage.collection,
+        [
+            {
+                "_id": "parent-1",
+                "trace_id": "trace-1",
+                "session_id": "session-1",
+                "run_id": "run-1",
+                "started_at": "started",
+                "updated_at": "version-1",
+                "events": [
+                    {"event_type": "message:chunk", "data": {"content": "a"}},
+                    {"event_type": "message:chunk", "data": {"content": "b"}},
+                ],
+            }
+        ],
+        concurrency=1,
+    )
+
+    assert (modified, merged) == (0, 0)
+    assert storage.collection.operations == []

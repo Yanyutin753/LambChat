@@ -488,6 +488,31 @@ class DualEventWriter:
             batch = self._mongo_buffer
             self._mongo_buffer = []
 
+        session_ids = list(dict.fromkeys(_buffer_item_base(item)[3] for item in batch))
+        leased_session_ids: list[str] = []
+        try:
+            for session_id in session_ids:
+                try:
+                    acquired = await self.trace.acquire_session_trace_write(session_id)
+                except BaseException:
+                    async with self._mongo_lock:
+                        self._mongo_buffer = batch + self._mongo_buffer
+                    self._flush_event.set()
+                    raise
+                if not acquired:
+                    async with self._mongo_lock:
+                        self._mongo_buffer = batch + self._mongo_buffer
+                    self._flush_event.set()
+                    return
+                leased_session_ids.append(session_id)
+            await self._flush_mongo_batch(batch)
+        finally:
+            for session_id in reversed(leased_session_ids):
+                await self.trace.release_session_trace_write(session_id)
+
+    async def _flush_mongo_batch(self, batch: list[MongoBufferItem]) -> None:
+        """Write one drained batch while its session writer leases are held."""
+
         now = utc_now()
         max_events = _get_max_events_per_trace()
         chunk_storage_enabled = bool(
@@ -519,7 +544,13 @@ class DualEventWriter:
                             "session_id": items[0][3],
                             "run_id": items[0][4],
                         }
-                    await self.trace.append_events_to_chunks(trace_doc, events, start_seq)
+                    appended = await self.trace.append_events_to_chunks(
+                        trace_doc,
+                        events,
+                        start_seq,
+                    )
+                    if not appended:
+                        raise RuntimeError("trace_chunk_write_fenced")
                 except Exception as e:
                     if start_seq is not None:
                         failed_chunk_items.extend(
