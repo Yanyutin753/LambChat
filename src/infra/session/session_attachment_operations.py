@@ -730,6 +730,60 @@ class SessionAttachmentOperationsMixin:
             document = refreshed
         return False
 
+    async def renew_trace_cleanup_guard(
+        self,
+        session_id: str,
+        delete_operation_id: str,
+        guard_id: str,
+        writer_lease_id: str,
+    ) -> bool:
+        """Extend the exact live cleanup guard without reviving stale ownership."""
+        if not delete_operation_id or not guard_id or not writer_lease_id:
+            return False
+        loaded = await self._load_trace_cleanup_guard_session(session_id, guard_id)
+        if loaded is None:
+            return False
+        identity, document = loaded
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            operation = document.get(_DELETE_OPERATION_FIELD)
+            if not isinstance(operation, dict) or operation.get("id") != delete_operation_id:
+                return False
+            cancel_requested = _validated_delete_cancel_requested(operation)
+            guard_is_valid, guard = _validated_trace_cleanup_guard(operation)
+            if (
+                cancel_requested is None
+                or not guard_is_valid
+                or guard is None
+                or guard.get("id") != guard_id
+                or guard.get("writer_lease_id") != writer_lease_id
+            ):
+                return False
+            now = utc_now()
+            if _trace_cleanup_guard_is_active(guard, now) is not True:
+                return False
+            result = await self.collection.update_one(
+                {
+                    **identity,
+                    **_trace_cleanup_guard_snapshot_query(operation, guard),
+                },
+                {
+                    "$set": {
+                        (
+                            f"{_DELETE_OPERATION_FIELD}."
+                            f"{_TRACE_CLEANUP_GUARD_FIELD}.expires_at"
+                        ): now + TRACE_CLEANUP_GUARD_TTL,
+                        "updated_at": now,
+                    }
+                },
+            )
+            if result.matched_count > 0:
+                return True
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                return False
+            document = refreshed
+        return False
+
     async def trace_write_session_is_fenced_or_missing(
         self,
         session_id: str,

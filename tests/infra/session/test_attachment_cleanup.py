@@ -2166,6 +2166,324 @@ async def test_trace_cleanup_guard_defers_delete_cancel_until_cross_collection_c
 
 
 @pytest.mark.asyncio
+async def test_trace_cleanup_snapshot_expiry_aborts_before_any_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    class _BlockingSnapshotCursor:
+        def __init__(
+            self,
+            collection: _FilterAwareCollection,
+            query: dict[str, Any],
+            projection: dict[str, int] | None,
+        ) -> None:
+            self.collection = collection
+            self.query = deepcopy(query)
+            self.projection = deepcopy(projection)
+
+        async def to_list(self, length: int | None = None) -> list[dict[str, Any]]:
+            snapshot_started.set()
+            await allow_stale_operation.wait()
+            documents = [
+                _project(document, self.projection)
+                for document in self.collection.documents
+                if _matches(document, self.query)
+            ]
+            return documents if length is None else documents[:length]
+
+    class _SnapshotOrLegacyDeleteBlockingChunks(_FilterAwareCollection):
+        def find(self, query: dict[str, Any], projection: dict[str, int] | None = None):
+            self.find_calls.append(deepcopy(query))
+            return _BlockingSnapshotCursor(self, query, projection)
+
+        async def delete_many(self, query: dict[str, Any]):
+            legacy_delete_started.set()
+            await allow_stale_operation.wait()
+            return await super().delete_many(query)
+
+    started_at = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    clock = {"now": started_at}
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: clock["now"],
+    )
+    monkeypatch.setattr(
+        "src.infra.session.trace_storage_writes.utc_now",
+        lambda: clock["now"],
+    )
+    snapshot_started = asyncio.Event()
+    legacy_delete_started = asyncio.Event()
+    allow_stale_operation = asyncio.Event()
+    session_collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [
+                    {
+                        "id": "writer-a",
+                        "expires_at": started_at - timedelta(seconds=1),
+                    }
+                ],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": started_at,
+                },
+            }
+        ]
+    )
+    parents = _FilterAwareCollection(
+        [
+            {
+                "_id": "parent-a",
+                "session_id": "session-1",
+                "trace_id": "trace-a",
+                "events": [],
+                "event_count": 0,
+                "event_revision": 0,
+                "updated_at": started_at,
+            }
+        ]
+    )
+    chunks = _SnapshotOrLegacyDeleteBlockingChunks(
+        [
+            {
+                "_id": "chunk-a",
+                "session_id": "session-1",
+                "trace_id": "trace-a",
+                "append_fence_revision": 0,
+                "event_count": 0,
+                "updated_at": started_at,
+            }
+        ]
+    )
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage = TraceStorage()
+    trace_storage._collection = parents
+    trace_storage._chunks_collection = chunks
+    trace_storage._session_storage = session_storage
+
+    stale_cleanup = asyncio.create_task(
+        trace_storage.discard_session_trace_writes_after_lease_loss(
+            "session-1",
+            "writer-a",
+            ["trace-a"],
+        )
+    )
+    snapshot_waiter = asyncio.create_task(snapshot_started.wait())
+    legacy_delete_waiter = asyncio.create_task(legacy_delete_started.wait())
+    done, pending = await asyncio.wait(
+        {snapshot_waiter, legacy_delete_waiter},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    assert done
+    for waiter in pending:
+        waiter.cancel()
+
+    clock["now"] = started_at + timedelta(minutes=6)
+    cancelled = await session_storage.cancel_attachment_delete_operation(
+        "session-1",
+        "delete-1",
+    )
+    new_writer = await session_storage.acquire_trace_write("session-1")
+    appended = await trace_storage.append_event(
+        "trace-a",
+        "message:chunk",
+        {"content": "new-generation"},
+    )
+
+    allow_stale_operation.set()
+    stale_result = await stale_cleanup
+    if new_writer is not None:
+        await session_storage.release_trace_write("session-1", new_writer)
+
+    assert cancelled is True
+    assert isinstance(new_writer, str)
+    assert appended is True
+    assert stale_result is False
+    assert chunks.delete_calls == []
+    assert parents.delete_calls == []
+    assert chunks.ids() == {"chunk-a"}
+    assert parents.ids() == {"parent-a"}
+    assert parents.documents[0]["events"][0]["data"] == {
+        "content": "new-generation"
+    }
+
+
+@pytest.mark.asyncio
+async def test_expired_cleanup_delete_cannot_remove_newer_parent_or_chunk_versions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    class _BlockingChunksDelete(_FilterAwareCollection):
+        def __init__(self, documents: list[dict[str, Any]]) -> None:
+            super().__init__(documents)
+            self.delete_started = asyncio.Event()
+            self.allow_delete = asyncio.Event()
+
+        async def delete_many(self, query: dict[str, Any]):
+            self.delete_started.set()
+            await self.allow_delete.wait()
+            return await super().delete_many(query)
+
+    started_at = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    clock = {"now": started_at}
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: clock["now"],
+    )
+    monkeypatch.setattr(
+        "src.infra.session.trace_storage_writes.utc_now",
+        lambda: clock["now"],
+    )
+    session_collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [
+                    {
+                        "id": "writer-a",
+                        "expires_at": started_at - timedelta(seconds=1),
+                    }
+                ],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": started_at,
+                },
+            }
+        ]
+    )
+    parents = _FilterAwareCollection(
+        [
+            {
+                "_id": "parent-a",
+                "session_id": "session-1",
+                "trace_id": "trace-a",
+                "events": [],
+                "event_count": 0,
+                "event_revision": 0,
+                "updated_at": started_at,
+            }
+        ]
+    )
+    chunks = _BlockingChunksDelete(
+        [
+            {
+                "_id": "chunk-a",
+                "session_id": "session-1",
+                "trace_id": "trace-a",
+                "append_fence_revision": 0,
+                "event_count": 0,
+                "updated_at": started_at,
+            }
+        ]
+    )
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage = TraceStorage()
+    trace_storage._collection = parents
+    trace_storage._chunks_collection = chunks
+    trace_storage._session_storage = session_storage
+
+    stale_cleanup = asyncio.create_task(
+        trace_storage.discard_session_trace_writes_after_lease_loss(
+            "session-1",
+            "writer-a",
+            ["trace-a"],
+        )
+    )
+    await chunks.delete_started.wait()
+
+    clock["now"] = started_at + timedelta(minutes=6)
+    replacement_cleanup = await trace_storage.discard_session_trace_writes_after_lease_loss(
+        "session-1",
+        "writer-b",
+        [],
+    )
+    cancelled = await session_storage.cancel_attachment_delete_operation(
+        "session-1",
+        "delete-1",
+    )
+    new_writer = await session_storage.acquire_trace_write("session-1")
+    appended = await trace_storage.append_event(
+        "trace-a",
+        "message:chunk",
+        {"content": "new-generation"},
+    )
+    await chunks.update_one(
+        {"_id": "chunk-a"},
+        {
+            "$inc": {"append_fence_revision": 1, "event_count": 1},
+            "$set": {"updated_at": clock["now"]},
+        },
+    )
+
+    chunks.allow_delete.set()
+    stale_result = await stale_cleanup
+    if new_writer is not None:
+        await session_storage.release_trace_write("session-1", new_writer)
+
+    assert replacement_cleanup is True
+    assert cancelled is True
+    assert isinstance(new_writer, str)
+    assert appended is True
+    assert stale_result is False
+    assert chunks.ids() == {"chunk-a"}
+    assert chunks.documents[0]["append_fence_revision"] == 1
+    assert parents.ids() == {"parent-a"}
+    assert parents.documents[0]["events"][0]["data"] == {
+        "content": "new-generation"
+    }
+
+
+@pytest.mark.asyncio
+async def test_missing_session_cleanup_keeps_direct_broad_delete_contract() -> None:
+    session_storage = SessionStorage()
+    session_storage._collection = _FilterAwareCollection([])
+    trace_storage, parents, chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-a",
+                "session_id": "session-missing",
+                "trace_id": "trace-a",
+            }
+        ],
+        [
+            {
+                "_id": "chunk-a",
+                "session_id": "session-missing",
+                "trace_id": "trace-a",
+            }
+        ],
+    )
+    trace_storage._session_storage = session_storage
+
+    discarded = await trace_storage.discard_session_trace_writes_after_lease_loss(
+        "session-missing",
+        "writer-lost",
+        ["trace-a"],
+    )
+
+    broad_query = {
+        "session_id": "session-missing",
+        "trace_id": {"$in": ["trace-a"]},
+    }
+    assert discarded is True
+    assert parents.documents == []
+    assert chunks.documents == []
+    assert parents.delete_calls == [broad_query]
+    assert chunks.delete_calls == [broad_query]
+
+
+@pytest.mark.asyncio
 async def test_active_trace_cleanup_guard_blocks_delete_claim_and_anchor_delete(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2328,6 +2646,77 @@ async def test_trace_cleanup_guard_exact_release_applies_pending_delete_cancel(
     assert exact_release is True
     assert "attachment_delete_operation" not in collection.documents[0]
     assert isinstance(writer_after_release, str)
+
+
+@pytest.mark.asyncio
+async def test_trace_cleanup_guard_renewal_extends_only_the_exact_live_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started_at = datetime(2026, 8, 11, 14, 0, tzinfo=timezone.utc)
+    clock = {"now": started_at}
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: clock["now"],
+    )
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": [],
+                "attachment_delete_operation": {
+                    "id": "delete-1",
+                    "claimed_at": started_at,
+                },
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    original_guard = await storage.acquire_trace_cleanup_guard(
+        "session-1",
+        "writer-a",
+    )
+    assert original_guard is not None
+    original_guard_id = original_guard["id"]
+    clock["now"] = started_at + timedelta(minutes=4)
+
+    wrong_writer_renewal = await storage.renew_trace_cleanup_guard(
+        "session-1",
+        "delete-1",
+        original_guard_id,
+        "writer-forged",
+    )
+    exact_renewal = await storage.renew_trace_cleanup_guard(
+        "session-1",
+        "delete-1",
+        original_guard_id,
+        "writer-a",
+    )
+    clock["now"] = started_at + timedelta(minutes=6)
+    premature_takeover = await storage.acquire_trace_cleanup_guard(
+        "session-1",
+        "writer-b",
+    )
+    clock["now"] = started_at + timedelta(minutes=10)
+    replacement_guard = await storage.acquire_trace_cleanup_guard(
+        "session-1",
+        "writer-b",
+    )
+    stale_renewal = await storage.renew_trace_cleanup_guard(
+        "session-1",
+        "delete-1",
+        original_guard_id,
+        "writer-a",
+    )
+
+    assert wrong_writer_renewal is False
+    assert exact_renewal is True
+    assert premature_takeover is None
+    assert replacement_guard is not None
+    assert replacement_guard["id"] != original_guard_id
+    assert stale_renewal is False
 
 
 @pytest.mark.asyncio
@@ -2733,6 +3122,14 @@ async def test_create_trace_survives_repeated_cancellation_until_insert_is_compe
     ) -> bool:
         return True
 
+    async def _renew_cleanup_guard(
+        _session_id: str,
+        _delete_operation_id: str,
+        _guard_id: str,
+        _writer_lease_id: str,
+    ) -> bool:
+        return True
+
     class _BlockingTraceCollection(_FilterAwareCollection):
         def __init__(self) -> None:
             super().__init__([])
@@ -2759,6 +3156,7 @@ async def test_create_trace_survives_repeated_cancellation_until_insert_is_compe
             self._session_storage = SimpleNamespace(
                 acquire_trace_cleanup_guard=_acquire_cleanup_guard,
                 release_trace_cleanup_guard=_release_cleanup_guard,
+                renew_trace_cleanup_guard=_renew_cleanup_guard,
             )
             self.owner: asyncio.Task[Any] | None = None
             self.second_cancel_turn_completed = asyncio.Event()

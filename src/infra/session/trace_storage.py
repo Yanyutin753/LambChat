@@ -72,6 +72,46 @@ logger = get_logger(__name__)
 
 _SESSION_EVENTS_BATCH_SIZE = 200
 SESSION_EVENT_FILTER_LIST_LIMIT = 100
+_MISSING = object()
+_PARENT_CLEANUP_VERSION_FIELDS = ("event_revision", "updated_at")
+_CHUNK_CLEANUP_VERSION_FIELDS = (
+    "append_fence_revision",
+    "event_count",
+    "updated_at",
+)
+
+
+async def _snapshot_trace_cleanup_documents(
+    collection: Any,
+    query: dict[str, Any],
+    version_fields: tuple[str, ...],
+) -> list[dict[str, Any]] | None:
+    """Freeze exact Mongo identities and versions for a later guarded delete."""
+    projection = {
+        "_id": 1,
+        "session_id": 1,
+        "trace_id": 1,
+        **dict.fromkeys(version_fields, 1),
+    }
+    documents = await collection.find(query, projection).to_list(length=None)
+    snapshots: list[dict[str, Any]] = []
+    for document in documents:
+        document_id = document.get("_id", _MISSING)
+        session_id = document.get("session_id", _MISSING)
+        trace_id = document.get("trace_id", _MISSING)
+        if document_id is _MISSING or session_id is _MISSING or trace_id is _MISSING:
+            return None
+        snapshot = {
+            "_id": document_id,
+            "session_id": session_id,
+            "trace_id": trace_id,
+        }
+        for field in version_fields:
+            snapshot[field] = (
+                document[field] if field in document else {"$exists": False}
+            )
+        snapshots.append(snapshot)
+    return snapshots
 
 
 @dataclass(frozen=True)
@@ -190,26 +230,61 @@ class TraceStorage(
         ):
             return False
 
-        async def _delete_trace_documents() -> None:
+        async def _delete_trace_documents() -> bool:
             if not bounded_trace_ids:
-                return
-            query = {
+                if session_is_missing:
+                    return True
+                return await self.session_storage.renew_trace_cleanup_guard(
+                    session_id,
+                    delete_operation_id,
+                    guard_id,
+                    lease_id,
+                )
+            broad_query = {
                 "session_id": session_id,
                 "trace_id": {"$in": bounded_trace_ids},
             }
-            await self.chunks_collection.delete_many(query)
-            await self.collection.delete_many(query)
+            if session_is_missing:
+                # The pinned anchor cannot be reopened, so no later writer can
+                # create a newer generation under this exact session authority.
+                await self.chunks_collection.delete_many(broad_query)
+                await self.collection.delete_many(broad_query)
+                return True
+
+            chunk_snapshots = await _snapshot_trace_cleanup_documents(
+                self.chunks_collection,
+                broad_query,
+                _CHUNK_CLEANUP_VERSION_FIELDS,
+            )
+            parent_snapshots = await _snapshot_trace_cleanup_documents(
+                self.collection,
+                broad_query,
+                _PARENT_CLEANUP_VERSION_FIELDS,
+            )
+            if chunk_snapshots is None or parent_snapshots is None:
+                return False
+            if not await self.session_storage.renew_trace_cleanup_guard(
+                session_id,
+                delete_operation_id,
+                guard_id,
+                lease_id,
+            ):
+                return False
+            if chunk_snapshots:
+                await self.chunks_collection.delete_many({"$or": chunk_snapshots})
+            if parent_snapshots:
+                await self.collection.delete_many({"$or": parent_snapshots})
+            return True
 
         cleanup_task = asyncio.create_task(_delete_trace_documents())
         cleanup_completed = False
         guard_released = session_is_missing
         try:
             try:
-                await asyncio.shield(cleanup_task)
+                cleanup_completed = await asyncio.shield(cleanup_task)
             except asyncio.CancelledError:
                 await drain_task(cleanup_task)
                 raise
-            cleanup_completed = True
         finally:
             if not session_is_missing:
                 release_task = asyncio.create_task(
