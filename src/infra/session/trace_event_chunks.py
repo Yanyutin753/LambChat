@@ -732,7 +732,8 @@ class TraceEventChunkMixin:
         marker = trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD)
         operation_id = marker.get("id") if isinstance(marker, dict) else None
         revision = marker.get("revision") if isinstance(marker, dict) else None
-        if not isinstance(operation_id, str) or marker.get("kind") != "append":
+        marker_kind = marker.get("kind") if isinstance(marker, dict) else None
+        if not isinstance(operation_id, str) or marker_kind != "append":
             claim = await self._claim_chunk_write(trace_doc, kind="append")
             if claim is None:
                 return False

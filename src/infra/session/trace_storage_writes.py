@@ -321,7 +321,7 @@ class TraceStorageWriteMixin:
         Returns:
             是否更新成功
         """
-        update = {
+        update: Dict[str, Dict[str, Any]] = {
             "$inc": {_TRACE_EVENT_REVISION_FIELD: 1},
             "$set": {
                 "status": status,
