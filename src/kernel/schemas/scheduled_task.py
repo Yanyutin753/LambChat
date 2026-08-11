@@ -154,6 +154,8 @@ class ScheduledTask(BaseModel):
     attachment_setup_pending: bool = False
     attachment_commit_operation_id: Optional[str] = None
     scheduler_revision_pending_operation_id: Optional[str] = None
+    attachment_mutation_token: Optional[str] = None
+    attachment_mutation_generation: int = 0
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None
     created_by: str = "user"

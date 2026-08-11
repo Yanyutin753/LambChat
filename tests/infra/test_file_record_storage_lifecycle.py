@@ -73,6 +73,69 @@ class _LifecycleCollection:
         return SimpleNamespace(deleted_count=1)
 
 
+class _DelayedScheduledTaskReferenceCollection:
+    def __init__(self, task_id: str) -> None:
+        self.task_id = task_id
+        self.record: dict = {
+            "key": "key-a",
+            "uploaded_by": "owner-a",
+            "reference_count": 1,
+            "scheduled_task_reference_ids": [task_id],
+            "scheduled_task_reference_generations": [
+                {"task_id": task_id, "generation": 1}
+            ],
+        }
+        self.stale_release_started = asyncio.Event()
+        self.release_stale_write = asyncio.Event()
+        self.delayed_commands: list[asyncio.Task[dict | None]] = []
+
+    def _generation(self) -> int | None:
+        for lease in self.record["scheduled_task_reference_generations"]:
+            if lease["task_id"] == self.task_id:
+                return int(lease["generation"])
+        return None
+
+    async def find_one_and_update(self, query: dict, update: list[dict], **_kwargs):
+        generation_match = query.get("scheduled_task_reference_generations")
+        is_release = isinstance(generation_match, dict) and "$elemMatch" in generation_match
+        requested_generation = (
+            int(generation_match["$elemMatch"]["generation"])
+            if is_release
+            else int(
+                update[0]["$set"]["scheduled_task_reference_generations"][
+                    "$concatArrays"
+                ][1][0]["generation"]
+            )
+        )
+
+        async def _apply() -> dict | None:
+            if is_release and requested_generation == 1:
+                self.stale_release_started.set()
+                await self.release_stale_write.wait()
+            current_generation = self._generation()
+            if is_release:
+                if current_generation != requested_generation:
+                    return None
+                previous = dict(self.record)
+                self.record["scheduled_task_reference_ids"] = []
+                self.record["scheduled_task_reference_generations"] = []
+                self.record["reference_count"] = 0
+                return previous
+            if current_generation is not None and current_generation > requested_generation:
+                return None
+            previous = dict(self.record)
+            self.record["scheduled_task_reference_generations"] = [
+                {"task_id": self.task_id, "generation": requested_generation}
+            ]
+            return previous
+
+        if is_release and requested_generation == 1:
+            command = asyncio.create_task(_apply())
+            self.delayed_commands.append(command)
+            return await asyncio.shield(command)
+        return await _apply()
+
+
 async def _noop_async() -> None:
     return None
 
@@ -373,10 +436,10 @@ async def test_scheduled_task_reference_claim_increments_once_for_retry() -> Non
     storage.ensure_indexes_if_needed = _noop_async
 
     first_claim = await storage.claim_scheduled_task_references(
-        ["key-a"], "owner-a", task_id
+        ["key-a"], "owner-a", task_id, mutation_generation=3
     )
     retry_claim = await storage.claim_scheduled_task_references(
-        ["key-a"], "owner-a", task_id
+        ["key-a"], "owner-a", task_id, mutation_generation=3
     )
 
     assert first_claim == ["key-a"]
@@ -400,6 +463,14 @@ async def test_scheduled_task_reference_claim_increments_once_for_retry() -> Non
                 }
             },
         ]
+        assert query["scheduled_task_reference_generations"] == {
+            "$not": {
+                "$elemMatch": {
+                    "task_id": task_id,
+                    "generation": {"$gt": 3},
+                }
+            }
+        }
         assert update[0]["$set"]["reference_count"] == {
             "$cond": [
                 {
@@ -410,6 +481,20 @@ async def test_scheduled_task_reference_claim_increments_once_for_retry() -> Non
                 },
                 {"$ifNull": ["$reference_count", 0]},
                 {"$add": [{"$ifNull": ["$reference_count", 0]}, 1]},
+            ]
+        }
+        assert update[0]["$set"]["scheduled_task_reference_generations"] == {
+            "$concatArrays": [
+                {
+                    "$filter": {
+                        "input": {
+                            "$ifNull": ["$scheduled_task_reference_generations", []]
+                        },
+                        "as": "lease",
+                        "cond": {"$ne": ["$$lease.task_id", task_id]},
+                    }
+                },
+                [{"task_id": task_id, "generation": 3}],
             ]
         }
 
@@ -432,10 +517,10 @@ async def test_scheduled_task_reference_release_is_idempotent_and_clamped() -> N
     storage.ensure_indexes_if_needed = _noop_async
 
     first_release = await storage.release_scheduled_task_references(
-        ["key-a"], "owner-a", task_id
+        ["key-a"], "owner-a", task_id, mutation_generation=3
     )
     retry_release = await storage.release_scheduled_task_references(
-        ["key-a"], "owner-a", task_id
+        ["key-a"], "owner-a", task_id, mutation_generation=3
     )
 
     assert first_release == 1
@@ -446,6 +531,9 @@ async def test_scheduled_task_reference_release_is_idempotent_and_clamped() -> N
         "uploaded_by": "owner-a",
         "deleting_at": {"$exists": False},
         "scheduled_task_reference_ids": task_id,
+        "scheduled_task_reference_generations": {
+            "$elemMatch": {"task_id": task_id, "generation": 3}
+        },
     }
     assert update[0]["$set"]["reference_count"] == {
         "$max": [
@@ -459,9 +547,58 @@ async def test_scheduled_task_reference_release_is_idempotent_and_clamped() -> N
             [task_id],
         ]
     }
+    assert update[0]["$set"]["scheduled_task_reference_generations"] == {
+        "$filter": {
+            "input": {"$ifNull": ["$scheduled_task_reference_generations", []]},
+            "as": "lease",
+            "cond": {"$ne": ["$$lease.task_id", task_id]},
+        }
+    }
     assert update[1]["$set"]["cleanup_after"]["$cond"][0] == {
         "$eq": ["$reference_count", 0]
     }
+
+
+@pytest.mark.asyncio
+async def test_successor_generation_fences_stale_scheduled_task_release() -> None:
+    task_id = "2f191ddb-b029-4a2e-a66e-8b292fa2401f"
+    collection = _DelayedScheduledTaskReferenceCollection(task_id)
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    stale_release = asyncio.create_task(
+        storage.release_scheduled_task_references(
+            ["key-a"],
+            "owner-a",
+            task_id,
+            mutation_generation=1,
+        )
+    )
+    await asyncio.sleep(0)
+    if stale_release.done():
+        await stale_release
+    await asyncio.wait_for(collection.stale_release_started.wait(), timeout=1)
+    stale_release.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await stale_release
+
+    adopted = await storage.claim_scheduled_task_references(
+        ["key-a"],
+        "owner-a",
+        task_id,
+        mutation_generation=2,
+    )
+    assert adopted == []
+
+    collection.release_stale_write.set()
+    await asyncio.gather(*collection.delayed_commands)
+
+    assert collection.record["scheduled_task_reference_ids"] == [task_id]
+    assert collection.record["scheduled_task_reference_generations"] == [
+        {"task_id": task_id, "generation": 2}
+    ]
+    assert collection.record["reference_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -492,6 +629,7 @@ async def test_scheduled_task_claim_rolls_back_only_tokens_added_by_this_call() 
             ["existing", "new", "foreign"],
             "owner-a",
             task_id,
+            mutation_generation=3,
         )
 
     rollback_query = collection.find_one_and_update_calls[-1][0]
@@ -500,6 +638,9 @@ async def test_scheduled_task_claim_rolls_back_only_tokens_added_by_this_call() 
         "uploaded_by": "owner-a",
         "deleting_at": {"$exists": False},
         "scheduled_task_reference_ids": task_id,
+        "scheduled_task_reference_generations": {
+            "$elemMatch": {"task_id": task_id, "generation": 3}
+        },
     }
 
 
@@ -515,24 +656,28 @@ async def test_scheduled_task_claim_rejects_unbounded_keys_and_invalid_task_id()
             [f"key-{index}" for index in range(101)],
             "owner-a",
             "2f191ddb-b029-4a2e-a66e-8b292fa2401f",
+            mutation_generation=1,
         )
     with pytest.raises(ValueError, match="task_id must be a UUID"):
         await storage.claim_scheduled_task_references(
             ["key-a"],
             "owner-a",
             "not-a-task-uuid",
+            mutation_generation=1,
         )
     with pytest.raises(ValueError, match="task_id must be a UUID"):
         await storage.release_scheduled_task_references(
             ["key-a"],
             "owner-a",
             "not-a-task-uuid",
+            mutation_generation=1,
         )
     with pytest.raises(AttachmentClaimError):
         await storage.release_scheduled_task_references(
             [f"key-{index}" for index in range(101)],
             "owner-a",
             "2f191ddb-b029-4a2e-a66e-8b292fa2401f",
+            mutation_generation=1,
         )
 
     assert collection.find_one_and_update_calls == []

@@ -252,9 +252,13 @@ class FileRecordStorage:
         keys: list[str],
         uploaded_by: str,
         task_id: str,
+        *,
+        mutation_generation: int,
     ) -> list[str]:
         """Idempotently claim one definition reference per scheduled task and key."""
         task_id = _scheduled_task_reference_id(task_id)
+        if mutation_generation < 1:
+            raise ValueError("mutation_generation must be positive")
         unique_keys = _bounded_unique_keys(keys)
         if not unique_keys:
             return []
@@ -265,6 +269,16 @@ class FileRecordStorage:
         newly_claimed: list[str] = []
         now = utc_now()
         existing_ids = {"$ifNull": ["$scheduled_task_reference_ids", []]}
+        existing_generations = {
+            "$ifNull": ["$scheduled_task_reference_generations", []]
+        }
+        other_generations = {
+            "$filter": {
+                "input": existing_generations,
+                "as": "lease",
+                "cond": {"$ne": ["$$lease.task_id", task_id]},
+            }
+        }
         already_claimed = {"$in": [task_id, existing_ids]}
         try:
             for key in unique_keys:
@@ -284,6 +298,14 @@ class FileRecordStorage:
                                 }
                             },
                         ],
+                        "scheduled_task_reference_generations": {
+                            "$not": {
+                                "$elemMatch": {
+                                    "task_id": task_id,
+                                    "generation": {"$gt": mutation_generation},
+                                }
+                            }
+                        },
                     },
                     [
                         {
@@ -303,6 +325,17 @@ class FileRecordStorage:
                                 "scheduled_task_reference_ids": {
                                     "$setUnion": [existing_ids, [task_id]]
                                 },
+                                "scheduled_task_reference_generations": {
+                                    "$concatArrays": [
+                                        other_generations,
+                                        [
+                                            {
+                                                "task_id": task_id,
+                                                "generation": mutation_generation,
+                                            }
+                                        ],
+                                    ]
+                                },
                                 "cleanup_after": now + CLEANUP_GRACE_PERIOD,
                                 "updated_at": now,
                             }
@@ -315,9 +348,81 @@ class FileRecordStorage:
                 if task_id not in previous.get("scheduled_task_reference_ids", []):
                     newly_claimed.append(key)
         except (Exception, asyncio.CancelledError):
-            await self.release_scheduled_task_references(newly_claimed, uploaded_by, task_id)
+            await self.release_scheduled_task_references(
+                newly_claimed,
+                uploaded_by,
+                task_id,
+                mutation_generation=mutation_generation,
+            )
             raise
         return newly_claimed
+
+    async def adopt_scheduled_task_reference_generation(
+        self,
+        keys: list[str],
+        uploaded_by: str,
+        task_id: str,
+        *,
+        mutation_generation: int,
+    ) -> int:
+        """Fence existing task references without creating missing references."""
+        task_id = _scheduled_task_reference_id(task_id)
+        if mutation_generation < 1:
+            raise ValueError("mutation_generation must be positive")
+        unique_keys = _bounded_unique_keys(keys)
+        if not unique_keys:
+            return 0
+        await self.ensure_indexes_if_needed()
+        existing_generations = {
+            "$ifNull": ["$scheduled_task_reference_generations", []]
+        }
+        other_generations = {
+            "$filter": {
+                "input": existing_generations,
+                "as": "lease",
+                "cond": {"$ne": ["$$lease.task_id", task_id]},
+            }
+        }
+        adopted = 0
+        for key in unique_keys:
+            previous = await self.collection.find_one_and_update(
+                {
+                    "key": key,
+                    "uploaded_by": uploaded_by,
+                    "deleting_at": {"$exists": False},
+                    "scheduled_task_reference_ids": task_id,
+                    "scheduled_task_reference_generations": {
+                        "$not": {
+                            "$elemMatch": {
+                                "task_id": task_id,
+                                "generation": {"$gt": mutation_generation},
+                            }
+                        }
+                    },
+                },
+                [
+                    {
+                        "$set": {
+                            "scheduled_task_reference_generations": {
+                                "$concatArrays": [
+                                    other_generations,
+                                    [
+                                        {
+                                            "task_id": task_id,
+                                            "generation": mutation_generation,
+                                        }
+                                    ],
+                                ]
+                            },
+                            "updated_at": utc_now(),
+                        }
+                    }
+                ],
+                return_document=ReturnDocument.BEFORE,
+            )
+            if previous is not None:
+                adopted += 1
+        return adopted
 
     async def release_references(self, keys: list[str]) -> int:
         """Decrement persisted message references for the given storage keys."""
@@ -340,9 +445,13 @@ class FileRecordStorage:
         keys: list[str],
         uploaded_by: str,
         task_id: str,
+        *,
+        mutation_generation: int,
     ) -> int:
         """Idempotently release a scheduled task's definition references."""
         task_id = _scheduled_task_reference_id(task_id)
+        if mutation_generation < 1:
+            raise ValueError("mutation_generation must be positive")
         unique_keys = _bounded_unique_keys(keys)
         if not unique_keys:
             return 0
@@ -360,6 +469,12 @@ class FileRecordStorage:
                     "uploaded_by": uploaded_by,
                     "deleting_at": {"$exists": False},
                     "scheduled_task_reference_ids": task_id,
+                    "scheduled_task_reference_generations": {
+                        "$elemMatch": {
+                            "task_id": task_id,
+                            "generation": mutation_generation,
+                        }
+                    },
                 },
                 [
                     {
@@ -380,6 +495,18 @@ class FileRecordStorage:
                                     {"$ifNull": ["$scheduled_task_reference_ids", []]},
                                     [task_id],
                                 ]
+                            },
+                            "scheduled_task_reference_generations": {
+                                "$filter": {
+                                    "input": {
+                                        "$ifNull": [
+                                            "$scheduled_task_reference_generations",
+                                            [],
+                                        ]
+                                    },
+                                    "as": "lease",
+                                    "cond": {"$ne": ["$$lease.task_id", task_id]},
+                                }
                             },
                             "updated_at": now,
                         }

@@ -29,7 +29,7 @@ from src.infra.scheduler.locks import (
 )
 from src.infra.scheduler.runner import get_scheduled_task_runner
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
-from src.infra.scheduler.storage import get_scheduled_task_storage
+from src.infra.scheduler.storage import AttachmentMutationFence, get_scheduled_task_storage
 from src.infra.session.storage import SessionStorage
 from src.infra.upload.file_record import (
     REFERENCE_KEYS_MAX,
@@ -58,7 +58,7 @@ ATTACHMENT_MUTATION_RENEW_INTERVAL_SECONDS = ATTACHMENT_MUTATION_LOCK_TTL // 3
 
 
 @asynccontextmanager
-async def _attachment_mutation(task_id: str) -> AsyncIterator[None]:
+async def _attachment_mutation(task_id: str) -> AsyncIterator[str]:
     token = await acquire_attachment_mutation_lock(task_id)
     if token is None:
         raise ValueError("Scheduled task attachment mutation is already in progress")
@@ -89,7 +89,7 @@ async def _attachment_mutation(task_id: str) -> AsyncIterator[None]:
     renewal_task = asyncio.create_task(_renew_lock())
     try:
         try:
-            yield
+            yield token
         except asyncio.CancelledError:
             if lock_lost.is_set():
                 raise RuntimeError(
@@ -113,6 +113,18 @@ def _task_attachment_keys(input_payload: dict[str, Any]) -> list[str]:
     if len(keys) > REFERENCE_KEYS_MAX:
         raise AttachmentClaimError()
     return keys
+
+
+def _attachment_fence(task: ScheduledTask, token: str) -> AttachmentMutationFence:
+    if (
+        task.attachment_mutation_token != token
+        or task.attachment_mutation_generation < 1
+    ):
+        raise RuntimeError(f"Scheduled task attachment mutation fence was lost for {task.id}")
+    return AttachmentMutationFence(
+        token=token,
+        generation=task.attachment_mutation_generation,
+    )
 
 
 def _coerce_timezone(timezone_name: str | None) -> ZoneInfo:
@@ -185,63 +197,108 @@ class ScheduledTaskService:
             }
         )
 
+        if attachment_keys:
+            async with _attachment_mutation(task_id) as token:
+                return await self._persist_created_task(
+                    task,
+                    request,
+                    attachment_keys,
+                    mutation_token=token,
+                )
+        return await self._persist_created_task(
+            task,
+            request,
+            attachment_keys,
+            mutation_token=None,
+        )
+
+    async def _persist_created_task(
+        self,
+        task: ScheduledTask,
+        request: ScheduledTaskCreate,
+        attachment_keys: list[str],
+        *,
+        mutation_token: str | None,
+    ) -> ScheduledTask:
         storage = get_scheduled_task_storage()
         await storage.create_task(task)
+        fence: AttachmentMutationFence | None = None
         if attachment_keys:
+            if mutation_token is None:
+                raise RuntimeError("Attachment create requires a mutation token")
+            owned_task = await storage.claim_attachment_mutation(task.id, mutation_token)
+            if owned_task is None:
+                raise RuntimeError("Scheduled task disappeared during attachment setup")
+            fence = _attachment_fence(owned_task, mutation_token)
+            task = owned_task
             file_records = FileRecordStorage()
             try:
                 await file_records.claim_scheduled_task_references(
                     attachment_keys,
-                    owner_id,
-                    task_id,
+                    task.owner_id,
+                    task.id,
+                    mutation_generation=fence.generation,
                 )
             except (Exception, asyncio.CancelledError):
                 try:
-                    deleted_task = await storage.mark_task_attachment_deletion(task_id)
+                    deleted_task = await storage.mark_task_attachment_deletion(
+                        task.id,
+                        fence=fence,
+                    )
                     if deleted_task is not None:
-                        await self._release_pending_attachment_references(deleted_task)
+                        await self._release_pending_attachment_references(
+                            deleted_task,
+                            fence,
+                        )
                 except Exception:
                     logger.exception(
                         "[Service] failed to reconcile ambiguous task attachment claim %s",
-                        task_id,
+                        task.id,
                     )
                 raise
             try:
                 committed = await storage.commit_attachment_update(
-                    task_id,
+                    task.id,
                     {"enabled": request.enabled},
                     attachment_keys,
+                    fence=fence,
                 )
                 if committed is None:
                     raise RuntimeError("Scheduled task attachment setup was interrupted")
             except (Exception, asyncio.CancelledError):
-                # The definition write may have committed before its reply was
-                # lost. Keep the task token and durable setup marker; releasing
-                # here could leave an active definition without its file lease.
                 logger.warning(
                     "[Service] retaining ambiguous task attachment setup %s for reconciliation",
-                    task_id,
+                    task.id,
                 )
                 raise
             task = committed
         try:
             self._register_to_scheduler(task, honor_run_on_start=True)
         except Exception:
-            self._unregister_managed_task(task_id)
+            self._unregister_managed_task(task.id)
             try:
-                deleted_task = await storage.mark_task_attachment_deletion(task_id)
-                if deleted_task is not None:
-                    await self._release_pending_attachment_references(deleted_task)
+                if fence is None:
+                    await storage.delete_task(task.id)
+                else:
+                    deleted_task = await storage.mark_task_attachment_deletion(
+                        task.id,
+                        fence=fence,
+                    )
+                    if deleted_task is not None:
+                        await self._release_pending_attachment_references(
+                            deleted_task,
+                            fence,
+                        )
             except Exception:
                 logger.exception(
                     "[Service] failed to finish attachment cleanup after registration failure %s",
-                    task_id,
+                    task.id,
                 )
             raise
 
         logger.info(
             "[Service] created task %s agent=%s trigger=%s",
-            task_id,
+            task.id,
             request.agent_id,
             request.trigger_type.value,
         )
@@ -252,15 +309,30 @@ class ScheduledTaskService:
     ) -> Optional[ScheduledTask]:
         """Update task fields and refresh the scheduler registration."""
         if "input_payload" in request.model_dump(exclude_unset=True):
-            async with _attachment_mutation(task_id):
-                return await self._update_task(task_id, request)
+            async with _attachment_mutation(task_id) as token:
+                storage = get_scheduled_task_storage()
+                owned_task = await storage.claim_attachment_mutation(task_id, token)
+                if owned_task is None:
+                    return None
+                fence = _attachment_fence(owned_task, token)
+                return await self._update_task(
+                    task_id,
+                    request,
+                    attachment_task=owned_task,
+                    fence=fence,
+                )
         return await self._update_task(task_id, request)
 
     async def _update_task(
-        self, task_id: str, request: ScheduledTaskUpdate
+        self,
+        task_id: str,
+        request: ScheduledTaskUpdate,
+        *,
+        attachment_task: ScheduledTask | None = None,
+        fence: AttachmentMutationFence | None = None,
     ) -> Optional[ScheduledTask]:
         storage = get_scheduled_task_storage()
-        task = await storage.get_task(task_id)
+        task = attachment_task or await storage.get_task(task_id)
         if task is None or task.status == ScheduledTaskStatus.DELETED:
             return None
 
@@ -281,10 +353,16 @@ class ScheduledTaskService:
 
         attachment_update = "input_payload" in updates
         if attachment_update:
+            if fence is None:
+                raise RuntimeError("Attachment update requires a mutation fence")
             attachment_keys = _task_attachment_keys(updates["input_payload"])
             live_keys = set(task.attachment_keys)
             added_keys = [key for key in attachment_keys if key not in live_keys]
-            staged = await storage.stage_attachment_claim(task_id, added_keys)
+            staged = await storage.stage_attachment_claim(
+                task_id,
+                added_keys,
+                fence=fence,
+            )
             if staged is None:
                 return None
             file_records = FileRecordStorage()
@@ -292,12 +370,14 @@ class ScheduledTaskService:
                 added_keys,
                 task.owner_id,
                 task.id,
+                mutation_generation=fence.generation,
             )
             try:
                 updated_task = await storage.commit_attachment_update(
                     task_id,
                     updates,
                     attachment_keys,
+                    fence=fence,
                 )
             except (Exception, asyncio.CancelledError):
                 # Cancellation can mean this owner lost its mutation lock, and a
@@ -329,7 +409,9 @@ class ScheduledTaskService:
             self._unregister_managed_task(task_id)
 
         if attachment_update:
-            await self._release_pending_attachment_references(updated_task)
+            if fence is None:
+                raise RuntimeError("Attachment update requires a mutation fence")
+            await self._release_pending_attachment_references(updated_task, fence)
 
         return updated_task
 
@@ -359,20 +441,29 @@ class ScheduledTaskService:
 
     async def delete_task(self, task_id: str) -> bool:
         """Delete a task after durably recording attachment releases."""
-        async with _attachment_mutation(task_id):
-            return await self._delete_task(task_id)
+        async with _attachment_mutation(task_id) as token:
+            storage = get_scheduled_task_storage()
+            task = await storage.claim_attachment_mutation(task_id, token)
+            if task is None:
+                return False
+            fence = _attachment_fence(task, token)
+            return await self._delete_task(storage, task, fence)
 
-    async def _delete_task(self, task_id: str) -> bool:
-        self._unregister_managed_task(task_id)
-        storage = get_scheduled_task_storage()
-        task = await storage.get_task(task_id)
-        if task is None:
-            return False
-        deleted_task = await storage.mark_task_attachment_deletion(task_id)
+    async def _delete_task(
+        self,
+        storage: Any,
+        task: ScheduledTask,
+        fence: AttachmentMutationFence,
+    ) -> bool:
+        self._unregister_managed_task(task.id)
+        deleted_task = await storage.mark_task_attachment_deletion(
+            task.id,
+            fence=fence,
+        )
         if deleted_task is None:
             return False
-        await self._release_pending_attachment_references(deleted_task)
-        logger.info("[Service] deleted task %s", task_id)
+        await self._release_pending_attachment_references(deleted_task, fence)
+        logger.info("[Service] deleted task %s", task.id)
         return True
 
     async def reconcile_attachment_references(self) -> int:
@@ -381,19 +472,28 @@ class ScheduledTaskService:
         tasks = await storage.list_attachment_reconciliation_tasks()
         reconciled = 0
         for listed_task in tasks:
-            async with _attachment_mutation(listed_task.id):
-                task = await storage.get_task(listed_task.id)
+            async with _attachment_mutation(listed_task.id) as token:
+                task = await storage.claim_attachment_mutation(listed_task.id, token)
                 if task is None:
                     continue
-                await self._reconcile_attachment_task(storage, task)
+                fence = _attachment_fence(task, token)
+                await self._reconcile_attachment_task(storage, task, fence)
                 reconciled += 1
         return reconciled
 
-    async def _reconcile_attachment_task(self, storage: Any, task: ScheduledTask) -> None:
+    async def _reconcile_attachment_task(
+        self,
+        storage: Any,
+        task: ScheduledTask,
+        fence: AttachmentMutationFence,
+    ) -> None:
         if task.attachment_setup_pending:
-            deleted_task = await storage.mark_task_attachment_deletion(task.id)
+            deleted_task = await storage.mark_task_attachment_deletion(
+                task.id,
+                fence=fence,
+            )
             if deleted_task is not None:
-                await self._release_pending_attachment_references(deleted_task)
+                await self._release_pending_attachment_references(deleted_task, fence)
             return
 
         pending_claims = list(task.pending_attachment_claim_keys)
@@ -401,16 +501,32 @@ class ScheduledTaskService:
             live_keys = set(task.attachment_keys)
             rollback_keys = [key for key in pending_claims if key not in live_keys]
             if rollback_keys:
-                await FileRecordStorage().release_scheduled_task_references(
+                file_records = FileRecordStorage()
+                await file_records.adopt_scheduled_task_reference_generation(
                     rollback_keys,
                     task.owner_id,
                     task.id,
+                    mutation_generation=fence.generation,
                 )
-            await storage.clear_pending_attachment_claims(task.id, pending_claims)
+                await file_records.release_scheduled_task_references(
+                    rollback_keys,
+                    task.owner_id,
+                    task.id,
+                    mutation_generation=fence.generation,
+                )
+            cleared = await storage.clear_pending_attachment_claims(
+                task.id,
+                pending_claims,
+                fence=fence,
+            )
+            if not cleared:
+                raise RuntimeError(
+                    f"Scheduled task attachment mutation fence was lost for {task.id}"
+                )
             task = task.model_copy(update={"pending_attachment_claim_keys": []})
 
         if task.status == ScheduledTaskStatus.DELETED:
-            await self._release_pending_attachment_references(task)
+            await self._release_pending_attachment_references(task, fence)
             return
 
         desired_keys = _task_attachment_keys(task.input_payload)
@@ -418,7 +534,11 @@ class ScheduledTaskService:
             live_keys = set(task.attachment_keys)
             added_keys = [key for key in desired_keys if key not in live_keys]
             if added_keys:
-                staged = await storage.stage_attachment_claim(task.id, added_keys)
+                staged = await storage.stage_attachment_claim(
+                    task.id,
+                    added_keys,
+                    fence=fence,
+                )
                 if staged is None:
                     raise RuntimeError(
                         f"Scheduled task {task.id} disappeared during attachment recovery"
@@ -427,9 +547,15 @@ class ScheduledTaskService:
                     added_keys,
                     task.owner_id,
                     task.id,
+                    mutation_generation=fence.generation,
                 )
             try:
-                committed = await storage.commit_attachment_update(task.id, {}, desired_keys)
+                committed = await storage.commit_attachment_update(
+                    task.id,
+                    {},
+                    desired_keys,
+                    fence=fence,
+                )
                 if committed is None:
                     raise RuntimeError(
                         f"Scheduled task {task.id} disappeared during attachment recovery"
@@ -445,7 +571,7 @@ class ScheduledTaskService:
                 raise
             task = committed
 
-        await self._release_pending_attachment_references(task)
+        await self._release_pending_attachment_references(task, fence)
 
     async def get_task(self, task_id: str) -> Optional[ScheduledTask]:
         return await get_scheduled_task_storage().get_task(task_id)
@@ -601,6 +727,7 @@ class ScheduledTaskService:
     async def _release_pending_attachment_references(
         self,
         task: ScheduledTask,
+        fence: AttachmentMutationFence,
     ) -> int:
         """Release only durable pending keys that are not live in the definition."""
         live_keys = set(task.attachment_keys)
@@ -612,15 +739,30 @@ class ScheduledTaskService:
         file_records = FileRecordStorage()
         for offset in range(0, len(pending_keys), REFERENCE_KEYS_MAX):
             chunk = pending_keys[offset : offset + REFERENCE_KEYS_MAX]
+            await file_records.adopt_scheduled_task_reference_generation(
+                chunk,
+                task.owner_id,
+                task.id,
+                mutation_generation=fence.generation,
+            )
             await file_records.release_scheduled_task_references(
                 chunk,
                 task.owner_id,
                 task.id,
+                mutation_generation=fence.generation,
             )
-            await storage.clear_pending_attachment_releases(task.id, chunk)
+            cleared = await storage.clear_pending_attachment_releases(
+                task.id,
+                chunk,
+                fence=fence,
+            )
+            if not cleared:
+                raise RuntimeError(
+                    f"Scheduled task attachment mutation fence was lost for {task.id}"
+                )
             released += len(chunk)
         if task.status == ScheduledTaskStatus.DELETED:
-            await storage.finalize_deleted_task(task.id)
+            await storage.finalize_deleted_task(task.id, fence=fence)
         return released
 
     def _register_to_scheduler(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -25,6 +26,14 @@ _COLL_TASKS = "scheduled_tasks"
 _COLL_RUNS = "task_run_records"
 _COLL_METADATA = "scheduled_task_metadata"
 _SCHEDULER_DEFINITION_REVISION_ID = "scheduler_definition_revision"
+
+
+@dataclass(frozen=True)
+class AttachmentMutationFence:
+    """Mongo-authoritative identity for one attachment mutation owner."""
+
+    token: str
+    generation: int
 
 _TASK_EXECUTION_PROJECTION = {
     "_id": 1,
@@ -223,14 +232,51 @@ class ScheduledTaskStorage:
             await self._bump_scheduler_definition_revision()
         return result.modified_count > 0
 
+    async def claim_attachment_mutation(
+        self,
+        task_id: str,
+        token: str,
+    ) -> Optional[ScheduledTask]:
+        """Allocate the Mongo-authoritative fence for one Redis lock owner."""
+        current_token = {"$ifNull": ["$attachment_mutation_token", None]}
+        current_generation = {"$ifNull": ["$attachment_mutation_generation", 0]}
+        record = await self._get_collection(_COLL_TASKS).find_one_and_update(
+            {"_id": task_id},
+            [
+                {
+                    "$set": {
+                        "attachment_mutation_token": token,
+                        "attachment_mutation_generation": {
+                            "$cond": [
+                                {"$eq": [current_token, token]},
+                                current_generation,
+                                {"$add": [current_generation, 1]},
+                            ]
+                        },
+                    }
+                }
+            ],
+            return_document=ReturnDocument.AFTER,
+        )
+        if record is None:
+            return None
+        return ScheduledTask(**record)
+
     async def stage_attachment_claim(
         self,
         task_id: str,
         keys: list[str],
+        *,
+        fence: AttachmentMutationFence,
     ) -> Optional[ScheduledTask]:
         """Persist attachment keys that must be claimed before publishing an update."""
         record = await self._get_collection(_COLL_TASKS).find_one_and_update(
-            {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
+            {
+                "_id": task_id,
+                "status": {"$ne": ScheduledTaskStatus.DELETED},
+                "attachment_mutation_token": fence.token,
+                "attachment_mutation_generation": fence.generation,
+            },
             [
                 {
                     "$set": {
@@ -257,6 +303,8 @@ class ScheduledTaskStorage:
         task_id: str,
         updates: dict[str, Any],
         attachment_keys: list[str],
+        *,
+        fence: AttachmentMutationFence,
     ) -> Optional[ScheduledTask]:
         """Publish claimed attachment keys and durably queue removed keys for release."""
         operation_id = str(uuid4())
@@ -286,7 +334,12 @@ class ScheduledTaskStorage:
         collection = self._get_collection(_COLL_TASKS)
         try:
             record = await collection.find_one_and_update(
-                {"_id": task_id, "status": {"$ne": ScheduledTaskStatus.DELETED}},
+                {
+                    "_id": task_id,
+                    "status": {"$ne": ScheduledTaskStatus.DELETED},
+                    "attachment_mutation_token": fence.token,
+                    "attachment_mutation_generation": fence.generation,
+                },
                 [{"$set": state}],
                 return_document=ReturnDocument.AFTER,
             )
@@ -300,6 +353,8 @@ class ScheduledTaskStorage:
                     {
                         "_id": task_id,
                         "attachment_commit_operation_id": operation_id,
+                        "attachment_mutation_token": fence.token,
+                        "attachment_mutation_generation": fence.generation,
                     }
                 )
             except Exception:
@@ -319,59 +374,94 @@ class ScheduledTaskStorage:
     async def mark_task_attachment_deletion(
         self,
         task_id: str,
+        *,
+        fence: AttachmentMutationFence,
     ) -> Optional[ScheduledTask]:
         """Make a task non-runnable while retaining every possible lease for release."""
-        record = await self._get_collection(_COLL_TASKS).find_one_and_update(
-            {"_id": task_id},
-            [
+        operation_id = str(uuid4())
+        collection = self._get_collection(_COLL_TASKS)
+        try:
+            record = await collection.find_one_and_update(
                 {
-                    "$set": {
-                        "status": ScheduledTaskStatus.DELETED,
-                        "enabled": False,
-                        "attachment_keys": [],
-                        "pending_attachment_claim_keys": [],
-                        "pending_attachment_release_keys": {
-                            "$setUnion": [
-                                {"$ifNull": ["$pending_attachment_release_keys", []]},
-                                {"$ifNull": ["$attachment_keys", []]},
-                                {"$ifNull": ["$pending_attachment_claim_keys", []]},
-                            ]
-                        },
-                        "attachment_setup_pending": False,
-                        "attachment_commit_operation_id": None,
-                        "updated_at": utc_now(),
+                    "_id": task_id,
+                    "attachment_mutation_token": fence.token,
+                    "attachment_mutation_generation": fence.generation,
+                },
+                [
+                    {
+                        "$set": {
+                            "status": ScheduledTaskStatus.DELETED,
+                            "enabled": False,
+                            "attachment_keys": [],
+                            "pending_attachment_claim_keys": [],
+                            "pending_attachment_release_keys": {
+                                "$setUnion": [
+                                    {"$ifNull": ["$pending_attachment_release_keys", []]},
+                                    {"$ifNull": ["$attachment_keys", []]},
+                                    {"$ifNull": ["$pending_attachment_claim_keys", []]},
+                                ]
+                            },
+                            "attachment_setup_pending": False,
+                            "attachment_commit_operation_id": operation_id,
+                            "scheduler_revision_pending_operation_id": operation_id,
+                            "updated_at": utc_now(),
+                        }
                     }
-                }
-            ],
-            return_document=ReturnDocument.AFTER,
-        )
+                ],
+                return_document=ReturnDocument.AFTER,
+            )
+        except Exception:
+            try:
+                record = await collection.find_one(
+                    {
+                        "_id": task_id,
+                        "attachment_commit_operation_id": operation_id,
+                        "attachment_mutation_token": fence.token,
+                        "attachment_mutation_generation": fence.generation,
+                    }
+                )
+            except Exception:
+                logger.exception(
+                    "[ScheduledTaskStorage] failed to verify attachment deletion %s",
+                    task_id,
+                )
+                raise
+            if record is None:
+                raise
         if record is None:
             return None
-        await self._bump_scheduler_definition_revision()
-        return ScheduledTask(**record)
+        deleted = ScheduledTask(**record)
+        await self._try_publish_scheduler_definition_revision(task_id, operation_id)
+        return deleted
 
     async def clear_pending_attachment_claims(
         self,
         task_id: str,
         keys: list[str],
+        *,
+        fence: AttachmentMutationFence,
     ) -> bool:
         """Clear claim work only after its task tokens are compensated."""
         return await self._clear_pending_attachment_keys(
             task_id,
             "pending_attachment_claim_keys",
             keys,
+            fence=fence,
         )
 
     async def clear_pending_attachment_releases(
         self,
         task_id: str,
         keys: list[str],
+        *,
+        fence: AttachmentMutationFence,
     ) -> bool:
         """Clear release work only after its task tokens are removed."""
         return await self._clear_pending_attachment_keys(
             task_id,
             "pending_attachment_release_keys",
             keys,
+            fence=fence,
         )
 
     async def _clear_pending_attachment_keys(
@@ -379,11 +469,17 @@ class ScheduledTaskStorage:
         task_id: str,
         field: str,
         keys: list[str],
+        *,
+        fence: AttachmentMutationFence,
     ) -> bool:
         if not keys:
             return True
         result = await self._get_collection(_COLL_TASKS).update_one(
-            {"_id": task_id},
+            {
+                "_id": task_id,
+                "attachment_mutation_token": fence.token,
+                "attachment_mutation_generation": fence.generation,
+            },
             {
                 "$pullAll": {field: list(keys)},
                 "$set": {"updated_at": utc_now()},
@@ -391,11 +487,21 @@ class ScheduledTaskStorage:
         )
         return result.modified_count > 0
 
-    async def finalize_deleted_task(self, task_id: str) -> bool:
+    async def finalize_deleted_task(
+        self,
+        task_id: str,
+        *,
+        fence: AttachmentMutationFence,
+    ) -> bool:
         """Physically remove a deleted task only after all lease work is complete."""
+        # Publish before physical removal so a failed metadata write leaves the
+        # deleted definition available for a later reconciler retry.
+        await self._bump_scheduler_definition_revision()
         result = await self._get_collection(_COLL_TASKS).delete_one(
             {
                 "_id": task_id,
+                "attachment_mutation_token": fence.token,
+                "attachment_mutation_generation": fence.generation,
                 "status": ScheduledTaskStatus.DELETED,
                 "attachment_setup_pending": False,
                 "attachment_keys.0": {"$exists": False},
@@ -403,8 +509,6 @@ class ScheduledTaskStorage:
                 "pending_attachment_release_keys.0": {"$exists": False},
             }
         )
-        if result.deleted_count > 0:
-            await self._bump_scheduler_definition_revision()
         return result.deleted_count > 0
 
     async def delete_task(self, task_id: str) -> bool:

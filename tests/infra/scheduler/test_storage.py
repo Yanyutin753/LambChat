@@ -285,6 +285,94 @@ class _StatefulAttachmentTransitionCollection:
         return _UpdateResult(modified_count=1)
 
 
+class _DelayedAttachmentCommitCollection:
+    def __init__(self, doc: dict[str, Any]) -> None:
+        self.doc = dict(doc)
+        self.stale_commit_started = asyncio.Event()
+        self.release_stale_commit = asyncio.Event()
+        self.delayed_commands: list[asyncio.Task[dict[str, Any] | None]] = []
+
+    def _matches(self, query: dict[str, Any]) -> bool:
+        if query.get("_id") != self.doc.get("_id"):
+            return False
+        status = query.get("status")
+        if isinstance(status, dict) and self.doc.get("status") == status.get("$ne"):
+            return False
+        for field in ("attachment_mutation_token", "attachment_mutation_generation"):
+            if field in query and query[field] != self.doc.get(field):
+                return False
+        return True
+
+    def _apply_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        previous_keys = list(self.doc.get("attachment_keys", []))
+        previous_claims = list(self.doc.get("pending_attachment_claim_keys", []))
+        previous_releases = list(self.doc.get("pending_attachment_release_keys", []))
+        previous_token = self.doc.get("attachment_mutation_token")
+        for field, value in state.items():
+            if field == "pending_attachment_claim_keys" and isinstance(value, dict):
+                incoming = value["$setUnion"][1]
+                self.doc[field] = list(dict.fromkeys([*previous_claims, *incoming]))
+            elif field == "pending_attachment_release_keys" and isinstance(value, dict):
+                desired = set(state["attachment_keys"])
+                candidates = [*previous_releases, *previous_keys, *previous_claims]
+                self.doc[field] = [
+                    key for key in dict.fromkeys(candidates) if key not in desired
+                ]
+            elif field == "attachment_mutation_generation" and isinstance(value, dict):
+                token = state["attachment_mutation_token"]
+                current = int(self.doc.get(field, 0))
+                self.doc[field] = (
+                    current if previous_token == token else current + 1
+                )
+            else:
+                self.doc[field] = value
+        return dict(self.doc)
+
+    async def find_one_and_update(
+        self,
+        query: dict[str, Any],
+        update: list[dict[str, dict[str, Any]]],
+        **_kwargs: Any,
+    ) -> dict[str, Any] | None:
+        state = update[0]["$set"]
+        is_stale_commit = (
+            state.get("attachment_keys") == ["key-a"]
+            and self.doc.get("attachment_mutation_token") == "owner-1"
+        )
+
+        async def _apply() -> dict[str, Any] | None:
+            if is_stale_commit:
+                self.stale_commit_started.set()
+                await self.release_stale_commit.wait()
+            if not self._matches(query):
+                return None
+            return self._apply_state(state)
+
+        if is_stale_commit:
+            command = asyncio.create_task(_apply())
+            self.delayed_commands.append(command)
+            return await asyncio.shield(command)
+        return await _apply()
+
+    async def find_one(
+        self,
+        query: dict[str, Any],
+        _projection: dict[str, int] | None = None,
+    ) -> dict[str, Any] | None:
+        return dict(self.doc) if self._matches(query) else None
+
+    async def update_one(
+        self,
+        query: dict[str, Any],
+        update: dict[str, Any],
+    ) -> _UpdateResult:
+        if not self._matches(query):
+            return _UpdateResult(modified_count=0)
+        for field in update.get("$unset", {}):
+            self.doc.pop(field, None)
+        return _UpdateResult(modified_count=1)
+
+
 class _SimpleCursor:
     def __init__(self, docs: list[dict[str, Any]]) -> None:
         self._docs = docs
@@ -477,6 +565,107 @@ def test_scheduled_task_schema_defaults_durable_attachment_state() -> None:
     assert task.attachment_setup_pending is False
     assert task.attachment_commit_operation_id is None
     assert task.scheduler_revision_pending_operation_id is None
+    assert task.attachment_mutation_token is None
+    assert task.attachment_mutation_generation == 0
+
+
+@pytest.mark.asyncio
+async def test_claim_attachment_mutation_allocates_mongo_fence_idempotently() -> None:
+    claimed_doc = _task_doc("task_1") | {
+        "attachment_mutation_token": "owner-token",
+        "attachment_mutation_generation": 8,
+    }
+    task_collection = _AttachmentTransitionCollection(claimed_doc)
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+
+    claimed = await storage.claim_attachment_mutation("task_1", "owner-token")
+
+    assert claimed is not None
+    assert claimed.attachment_mutation_token == "owner-token"
+    assert claimed.attachment_mutation_generation == 8
+    query, update, kwargs = task_collection.find_one_and_update_calls[0]
+    assert query == {"_id": "task_1"}
+    current_token = {"$ifNull": ["$attachment_mutation_token", None]}
+    current_generation = {"$ifNull": ["$attachment_mutation_generation", 0]}
+    assert update == [
+        {
+            "$set": {
+                "attachment_mutation_token": "owner-token",
+                "attachment_mutation_generation": {
+                    "$cond": [
+                        {"$eq": [current_token, "owner-token"]},
+                        current_generation,
+                        {"$add": [current_generation, 1]},
+                    ]
+                },
+            }
+        }
+    ]
+    assert kwargs["return_document"] is ReturnDocument.AFTER
+
+
+@pytest.mark.asyncio
+async def test_successor_fence_rejects_stale_motor_commit_that_finishes_late() -> None:
+    task_collection = _DelayedAttachmentCommitCollection(
+        _task_doc("task_1")
+        | {
+            "input_payload": {"attachments": [{"key": "key-a"}]},
+            "attachment_keys": ["key-a"],
+            "pending_attachment_claim_keys": [],
+            "pending_attachment_release_keys": [],
+            "attachment_mutation_token": "owner-1",
+            "attachment_mutation_generation": 1,
+        }
+    )
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = _StatefulRevisionMetadataCollection()
+    fence_type = storage_module.AttachmentMutationFence
+    first_fence = fence_type(token="owner-1", generation=1)
+
+    stale_writer = asyncio.create_task(
+        storage.commit_attachment_update(
+            "task_1",
+            {"input_payload": {"attachments": [{"key": "key-a"}]}},
+            ["key-a"],
+            fence=first_fence,
+        )
+    )
+    await asyncio.wait_for(task_collection.stale_commit_started.wait(), timeout=1)
+    stale_writer.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await stale_writer
+
+    successor = await storage.claim_attachment_mutation("task_1", "owner-2")
+    assert successor is not None
+    second_fence = fence_type(
+        token="owner-2",
+        generation=successor.attachment_mutation_generation,
+    )
+    staged = await storage.stage_attachment_claim(
+        "task_1",
+        ["key-b"],
+        fence=second_fence,
+    )
+    assert staged is not None
+    committed = await storage.commit_attachment_update(
+        "task_1",
+        {"input_payload": {"attachments": [{"key": "key-b"}]}},
+        ["key-b"],
+        fence=second_fence,
+    )
+    assert committed is not None
+
+    task_collection.release_stale_commit.set()
+    await asyncio.gather(*task_collection.delayed_commands)
+
+    assert task_collection.doc["attachment_mutation_token"] == "owner-2"
+    assert task_collection.doc["attachment_mutation_generation"] == 2
+    assert task_collection.doc["attachment_keys"] == ["key-b"]
+    assert task_collection.doc["input_payload"] == {
+        "attachments": [{"key": "key-b"}]
+    }
 
 
 @pytest.mark.asyncio
@@ -489,16 +678,23 @@ async def test_stage_attachment_claim_persists_keys_before_file_mutation() -> No
     storage = ScheduledTaskStorage()
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
 
     staged = await storage.stage_attachment_claim(
         "task_1",
         ["key-a", "key-b"],
+        fence=fence,
     )
 
     assert staged is not None
     assert staged.pending_attachment_claim_keys == ["key-a", "key-b"]
     query, update, kwargs = task_collection.find_one_and_update_calls[0]
-    assert query == {"_id": "task_1", "status": {"$ne": ScheduledTaskStatus.DELETED}}
+    assert query == {
+        "_id": "task_1",
+        "status": {"$ne": ScheduledTaskStatus.DELETED},
+        "attachment_mutation_token": "owner-1",
+        "attachment_mutation_generation": 4,
+    }
     assert update == [
         {
             "$set": {
@@ -530,18 +726,25 @@ async def test_commit_attachment_update_moves_removed_keys_to_pending_release() 
     storage = ScheduledTaskStorage()
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
 
     committed = await storage.commit_attachment_update(
         "task_1",
         {"input_payload": result_doc["input_payload"]},
         ["key-b"],
+        fence=fence,
     )
 
     assert committed is not None
     assert committed.attachment_keys == ["key-b"]
     assert committed.pending_attachment_release_keys == ["key-a"]
     query, update, kwargs = task_collection.find_one_and_update_calls[0]
-    assert query == {"_id": "task_1", "status": {"$ne": ScheduledTaskStatus.DELETED}}
+    assert query == {
+        "_id": "task_1",
+        "status": {"$ne": ScheduledTaskStatus.DELETED},
+        "attachment_mutation_token": "owner-1",
+        "attachment_mutation_generation": 4,
+    }
     state = update[0]["$set"]
     assert state["input_payload"] == result_doc["input_payload"]
     assert state["attachment_keys"] == ["key-b"]
@@ -581,11 +784,13 @@ async def test_commit_attachment_update_recovers_applied_write_after_reply_loss(
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
     monkeypatch.setattr(storage_module, "uuid4", lambda: "commit-op-1", raising=False)
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
 
     committed = await storage.commit_attachment_update(
         "task_1",
         {"input_payload": {"attachments": [{"key": "key-b"}]}},
         ["key-b"],
+        fence=fence,
     )
 
     assert committed is not None
@@ -594,6 +799,8 @@ async def test_commit_attachment_update_recovers_applied_write_after_reply_loss(
     assert task_collection.find_one_queries[0][0] == {
         "_id": "task_1",
         "attachment_commit_operation_id": "commit-op-1",
+        "attachment_mutation_token": "owner-1",
+        "attachment_mutation_generation": 4,
     }
     assert metadata_collection.revision == 1
     assert "scheduler_revision_pending_operation_id" not in task_collection.doc
@@ -609,11 +816,13 @@ async def test_pending_commit_revision_is_published_by_marker_read(
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
     monkeypatch.setattr(storage_module, "uuid4", lambda: "commit-op-1", raising=False)
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
 
     committed = await storage.commit_attachment_update(
         "task_1",
         {"input_payload": {"attachments": [{"key": "key-b"}]}},
         ["key-b"],
+        fence=fence,
     )
 
     assert committed is not None
@@ -643,11 +852,13 @@ async def test_commit_attachment_update_returns_committed_state_when_revision_bu
     storage = ScheduledTaskStorage()
     storage._collections["scheduled_tasks"] = _AttachmentTransitionCollection(result_doc)
     storage._collections["scheduled_task_metadata"] = _FailingRevisionMetadataCollection()
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
 
     committed = await storage.commit_attachment_update(
         "task_1",
         {"input_payload": result_doc["input_payload"]},
         ["key-b"],
+        fence=fence,
     )
 
     assert committed is not None
@@ -670,19 +881,27 @@ async def test_mark_task_attachment_deletion_retains_possible_tokens_until_relea
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
 
-    deleted = await storage.mark_task_attachment_deletion("task_1")
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
+    deleted = await storage.mark_task_attachment_deletion("task_1", fence=fence)
 
     assert deleted is not None
     assert deleted.status == ScheduledTaskStatus.DELETED
     assert deleted.pending_attachment_release_keys == ["key-a", "key-b"]
     query, update, _kwargs = task_collection.find_one_and_update_calls[0]
-    assert query == {"_id": "task_1"}
+    assert query == {
+        "_id": "task_1",
+        "attachment_mutation_token": "owner-1",
+        "attachment_mutation_generation": 4,
+    }
     state = update[0]["$set"]
     assert state["status"] == ScheduledTaskStatus.DELETED
     assert state["enabled"] is False
     assert state["attachment_keys"] == []
     assert state["pending_attachment_claim_keys"] == []
-    assert state["attachment_commit_operation_id"] is None
+    assert isinstance(state["attachment_commit_operation_id"], str)
+    assert state["scheduler_revision_pending_operation_id"] == state[
+        "attachment_commit_operation_id"
+    ]
     assert state["pending_attachment_release_keys"] == {
         "$setUnion": [
             {"$ifNull": ["$pending_attachment_release_keys", []]},
@@ -693,6 +912,37 @@ async def test_mark_task_attachment_deletion_retains_possible_tokens_until_relea
 
 
 @pytest.mark.asyncio
+async def test_deleted_definition_revision_retries_from_durable_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_collection = _StatefulAttachmentTransitionCollection(
+        _task_doc("task_1")
+        | {
+            "attachment_keys": ["key-a"],
+            "attachment_mutation_token": "owner-1",
+            "attachment_mutation_generation": 4,
+        }
+    )
+    metadata_collection = _StatefulRevisionMetadataCollection(failures=1)
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = metadata_collection
+    monkeypatch.setattr(storage_module, "uuid4", lambda: "delete-op-1")
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
+
+    deleted = await storage.mark_task_attachment_deletion("task_1", fence=fence)
+
+    assert deleted is not None
+    assert deleted.status == ScheduledTaskStatus.DELETED
+    assert task_collection.doc["scheduler_revision_pending_operation_id"] == "delete-op-1"
+
+    marker = await storage.get_active_tasks_marker()
+
+    assert marker == 1
+    assert "scheduler_revision_pending_operation_id" not in task_collection.doc
+
+
+@pytest.mark.asyncio
 async def test_clear_pending_attachment_work_removes_only_completed_keys() -> None:
     task_collection = _RevisionTaskCollection()
     metadata_collection = _RevisionMetadataCollection()
@@ -700,25 +950,34 @@ async def test_clear_pending_attachment_work_removes_only_completed_keys() -> No
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
 
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
     claims_cleared = await storage.clear_pending_attachment_claims(
-        "task_1", ["key-a"]
+        "task_1", ["key-a"], fence=fence
     )
     releases_cleared = await storage.clear_pending_attachment_releases(
-        "task_1", ["key-b"]
+        "task_1", ["key-b"], fence=fence
     )
 
     assert claims_cleared is True
     assert releases_cleared is True
     assert task_collection.update_one_calls == [
         (
-            {"_id": "task_1"},
+            {
+                "_id": "task_1",
+                "attachment_mutation_token": "owner-1",
+                "attachment_mutation_generation": 4,
+            },
             {
                 "$pullAll": {"pending_attachment_claim_keys": ["key-a"]},
                 "$set": {"updated_at": ANY},
             },
         ),
         (
-            {"_id": "task_1"},
+            {
+                "_id": "task_1",
+                "attachment_mutation_token": "owner-1",
+                "attachment_mutation_generation": 4,
+            },
             {
                 "$pullAll": {"pending_attachment_release_keys": ["key-b"]},
                 "$set": {"updated_at": ANY},
@@ -735,12 +994,15 @@ async def test_finalize_deleted_task_requires_all_attachment_work_complete() -> 
     storage._collections["scheduled_tasks"] = task_collection
     storage._collections["scheduled_task_metadata"] = metadata_collection
 
-    finalized = await storage.finalize_deleted_task("task_1")
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
+    finalized = await storage.finalize_deleted_task("task_1", fence=fence)
 
     assert finalized is True
     assert task_collection.delete_calls == [
         {
             "_id": "task_1",
+            "attachment_mutation_token": "owner-1",
+            "attachment_mutation_generation": 4,
             "status": ScheduledTaskStatus.DELETED,
             "attachment_setup_pending": False,
             "attachment_keys.0": {"$exists": False},
@@ -749,6 +1011,20 @@ async def test_finalize_deleted_task_requires_all_attachment_work_complete() -> 
         }
     ]
     assert metadata_collection.update_one_calls
+
+
+@pytest.mark.asyncio
+async def test_finalize_deleted_task_keeps_document_when_revision_is_unavailable() -> None:
+    task_collection = _HardDeleteTaskCollection(deleted_count=1)
+    storage = ScheduledTaskStorage()
+    storage._collections["scheduled_tasks"] = task_collection
+    storage._collections["scheduled_task_metadata"] = _FailingRevisionMetadataCollection()
+    fence = storage_module.AttachmentMutationFence(token="owner-1", generation=4)
+
+    with pytest.raises(RuntimeError, match="revision unavailable"):
+        await storage.finalize_deleted_task("task_1", fence=fence)
+
+    assert task_collection.delete_calls == []
 
 
 @pytest.mark.asyncio

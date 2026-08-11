@@ -43,6 +43,20 @@ def _make_task(**overrides: Any) -> ScheduledTask:
     return ScheduledTask.model_validate(defaults)
 
 
+def _with_attachment_fence(
+    task: ScheduledTask,
+    *,
+    token: str = "mutation-token",
+    generation: int = 1,
+) -> ScheduledTask:
+    return task.model_copy(
+        update={
+            "attachment_mutation_token": token,
+            "attachment_mutation_generation": generation,
+        }
+    )
+
+
 def _make_create_request(**overrides: Any) -> ScheduledTaskCreate:
     defaults = dict(
         name="My Task",
@@ -146,7 +160,8 @@ async def test_attachment_mutation_context_renews_lock_until_exit(
         raising=False,
     )
 
-    async with service_module._attachment_mutation("task_1"):
+    async with service_module._attachment_mutation("task_1") as token:
+        assert token == "owner-token"
         await asyncio.wait_for(extended.wait(), timeout=0.1)
 
     assert events[0:2] == ["acquire", "extend"]
@@ -196,6 +211,21 @@ def mock_storage():
     with patch("src.infra.scheduler.service.get_scheduled_task_storage") as mock:
         storage = AsyncMock()
         storage.get_active_tasks_marker = AsyncMock(return_value=1)
+
+        async def _claim_attachment_mutation(
+            task_id: str,
+            token: str,
+        ) -> ScheduledTask | None:
+            create_call = storage.create_task.await_args
+            if create_call is not None and create_call.args[0].id == task_id:
+                task = create_call.args[0]
+            else:
+                task = await storage.get_task(task_id)
+            if task is None:
+                return None
+            return _with_attachment_fence(task, token=token)
+
+        storage.claim_attachment_mutation.side_effect = _claim_attachment_mutation
         mock.return_value = storage
         yield storage
 
@@ -244,10 +274,13 @@ async def test_create_task_claims_definition_attachments_before_registration(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
             assert keys == ["key-a"]
             assert uploaded_by == "user_1"
             assert task_id
+            assert mutation_generation == 1
             events.append("claim")
             return keys
 
@@ -261,11 +294,14 @@ async def test_create_task_claims_definition_attachments_before_registration(
         task_id: str,
         updates: dict[str, Any],
         attachment_keys: list[str],
+        *,
+        fence: Any,
     ) -> ScheduledTask:
         assert persisted is not None
         assert task_id == persisted.id
         assert updates == {"enabled": True}
         assert attachment_keys == ["key-a"]
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("commit_active")
         return persisted.model_copy(
             update={
@@ -276,7 +312,20 @@ async def test_create_task_claims_definition_attachments_before_registration(
             }
         )
 
+    async def _claim_fence(task_id: str, token: str) -> ScheduledTask:
+        assert persisted is not None
+        assert task_id == persisted.id
+        assert token == "mutation-token"
+        events.append("claim_fence")
+        return persisted.model_copy(
+            update={
+                "attachment_mutation_token": token,
+                "attachment_mutation_generation": 1,
+            }
+        )
+
     mock_storage.create_task.side_effect = _create_task
+    mock_storage.claim_attachment_mutation.side_effect = _claim_fence
     mock_storage.commit_attachment_update.side_effect = _commit_attachment_update
     mock_scheduler.register_job.side_effect = lambda _job: events.append("register")
     monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords(), raising=False)
@@ -294,7 +343,13 @@ async def test_create_task_claims_definition_attachments_before_registration(
     assert persisted.attachment_setup_pending is True
     assert persisted.pending_attachment_claim_keys == ["key-a"]
     assert task.attachment_keys == ["key-a"]
-    assert events == ["persist_pending", "claim", "commit_active", "register"]
+    assert events == [
+        "persist_pending",
+        "claim_fence",
+        "claim",
+        "commit_active",
+        "register",
+    ]
 
 
 @pytest.mark.asyncio
@@ -312,20 +367,39 @@ async def test_create_task_ambiguous_claim_soft_deletes_before_releasing_definit
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
+            assert mutation_generation == 1
             events.append("claim_ambiguous")
             raise service_module.AttachmentClaimError()
+
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert mutation_generation == 1
+            events.append("adopt")
+            return len(keys)
 
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             events.append("release")
             return len(keys)
 
-    async def _mark(task_id: str) -> ScheduledTask:
+    async def _mark(task_id: str, *, fence: Any) -> ScheduledTask:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("mark_deleted")
         return _make_task(
             _id=task_id,
@@ -334,11 +408,13 @@ async def test_create_task_ambiguous_claim_soft_deletes_before_releasing_definit
             pending_attachment_release_keys=["key-a"],
         )
 
-    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+    async def _clear(_task_id: str, _keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("clear")
         return True
 
-    async def _finalize(_task_id: str) -> bool:
+    async def _finalize(_task_id: str, *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("finalize")
         return True
 
@@ -358,7 +434,14 @@ async def test_create_task_ambiguous_claim_soft_deletes_before_releasing_definit
     created_task = mock_storage.create_task.await_args.args[0]
     assert created_task.enabled is False
     assert created_task.attachment_setup_pending is True
-    assert events == ["claim_ambiguous", "mark_deleted", "release", "clear", "finalize"]
+    assert events == [
+        "claim_ambiguous",
+        "mark_deleted",
+        "adopt",
+        "release",
+        "clear",
+        "finalize",
+    ]
     mock_storage.delete_task.assert_not_awaited()
     mock_scheduler.register_job.assert_not_called()
 
@@ -378,7 +461,10 @@ async def test_create_task_ambiguous_commit_failure_retains_claim_for_reconcilia
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
+            assert mutation_generation == 1
             events.append("claim")
             return keys
 
@@ -387,7 +473,10 @@ async def test_create_task_ambiguous_commit_failure_retains_claim_for_reconcilia
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             events.append("release")
             return len(keys)
 
@@ -424,15 +513,33 @@ async def test_create_task_registration_failure_soft_deletes_before_releasing_de
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
+            assert mutation_generation == 1
             return keys
+
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert mutation_generation == 1
+            events.append("adopt")
+            return len(keys)
 
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             events.append("release")
             return len(keys)
 
@@ -441,7 +548,8 @@ async def test_create_task_registration_failure_soft_deletes_before_releasing_de
         created = task
         return task
 
-    async def _commit(*_args: Any) -> ScheduledTask:
+    async def _commit(*_args: Any, fence: Any) -> ScheduledTask:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         assert created is not None
         return created.model_copy(
             update={
@@ -452,7 +560,8 @@ async def test_create_task_registration_failure_soft_deletes_before_releasing_de
             }
         )
 
-    async def _mark_deleted(_task_id: str) -> ScheduledTask:
+    async def _mark_deleted(_task_id: str, *, fence: Any) -> ScheduledTask:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         assert created is not None
         events.append("mark_deleted")
         return created.model_copy(
@@ -466,11 +575,13 @@ async def test_create_task_registration_failure_soft_deletes_before_releasing_de
             }
         )
 
-    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+    async def _clear(_task_id: str, _keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("clear_pending")
         return True
 
-    async def _finalize(_task_id: str) -> bool:
+    async def _finalize(_task_id: str, *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("finalize")
         return True
 
@@ -488,7 +599,13 @@ async def test_create_task_registration_failure_soft_deletes_before_releasing_de
             owner_id="user_1",
         )
 
-    assert events == ["mark_deleted", "release", "clear_pending", "finalize"]
+    assert events == [
+        "mark_deleted",
+        "adopt",
+        "release",
+        "clear_pending",
+        "finalize",
+    ]
 
 
 @pytest.mark.asyncio
@@ -663,26 +780,46 @@ async def test_delete_task_soft_deletes_before_releasing_and_finalizing(
     )
 
     class _FileRecords:
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert keys == ["key-a"]
+            assert uploaded_by == "user_1"
+            assert mutation_generation == 1
+            events.append("adopt")
+            return 1
+
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
             assert keys == ["key-a"]
             assert uploaded_by == "user_1"
+            assert mutation_generation == 1
             events.append("release")
             return 1
 
-    async def _mark(_task_id: str) -> ScheduledTask:
+    async def _mark(_task_id: str, *, fence: Any) -> ScheduledTask:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("mark_deleted")
         return deleted_task
 
-    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+    async def _clear(_task_id: str, _keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("clear_pending")
         return True
 
-    async def _finalize(_task_id: str) -> bool:
+    async def _finalize(_task_id: str, *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("finalize")
         return True
 
@@ -696,7 +833,13 @@ async def test_delete_task_soft_deletes_before_releasing_and_finalizing(
 
     assert deleted is True
     mock_scheduler.unregister_job.assert_called_once_with("task_1")
-    assert events == ["mark_deleted", "release", "clear_pending", "finalize"]
+    assert events == [
+        "mark_deleted",
+        "adopt",
+        "release",
+        "clear_pending",
+        "finalize",
+    ]
     mock_storage.delete_task.assert_not_awaited()
 
 
@@ -722,13 +865,17 @@ async def test_reconcile_attachment_references_adopts_paused_legacy_definition(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
             assert (keys, uploaded_by, task_id) == (["key-a"], "user_1", "task_1")
+            assert mutation_generation == 1
             events.append("claim")
             return keys
 
-    async def _stage(_task_id: str, keys: list[str]) -> ScheduledTask:
+    async def _stage(_task_id: str, keys: list[str], *, fence: Any) -> ScheduledTask:
         assert keys == ["key-a"]
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("stage")
         return legacy.model_copy(update={"pending_attachment_claim_keys": keys})
 
@@ -736,9 +883,12 @@ async def test_reconcile_attachment_references_adopts_paused_legacy_definition(
         _task_id: str,
         updates: dict[str, Any],
         keys: list[str],
+        *,
+        fence: Any,
     ) -> ScheduledTask:
         assert updates == {}
         assert keys == ["key-a"]
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("commit")
         return adopted
 
@@ -776,7 +926,10 @@ async def test_reconcile_ambiguous_commit_failure_retains_claim_and_marker(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
+            assert mutation_generation == 1
             events.append("claim")
             return keys
 
@@ -785,7 +938,10 @@ async def test_reconcile_ambiguous_commit_failure_retains_claim_and_marker(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             events.append("release")
             return len(keys)
 
@@ -818,12 +974,26 @@ async def test_reconcile_attachment_references_retries_only_non_live_releases(
     released: list[str] = []
 
     class _FileRecords:
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert mutation_generation == 1
+            return len(keys)
+
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             released.extend(keys)
             return len(keys)
 
@@ -835,8 +1005,11 @@ async def test_reconcile_attachment_references_retries_only_non_live_releases(
 
     assert reconciled == 1
     assert released == ["old-key"]
-    mock_storage.clear_pending_attachment_releases.assert_awaited_once_with(
-        "task_1", ["old-key"]
+    clear_call = mock_storage.clear_pending_attachment_releases.await_args
+    assert clear_call.args == ("task_1", ["old-key"])
+    assert (clear_call.kwargs["fence"].token, clear_call.kwargs["fence"].generation) == (
+        "mutation-token",
+        1,
     )
 
 
@@ -855,26 +1028,42 @@ async def test_pending_attachment_releases_are_cleared_one_bounded_chunk_at_a_ti
     )
     released_chunks: list[list[str]] = []
     cleared_chunks: list[list[str]] = []
+    fence = service_module.AttachmentMutationFence("mutation-token", 3)
 
     class _FileRecords:
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert mutation_generation == fence.generation
+            return len(keys)
+
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
             assert len(keys) <= service_module.REFERENCE_KEYS_MAX
+            assert mutation_generation == fence.generation
             released_chunks.append(list(keys))
             return len(keys)
 
-    async def _clear(_task_id: str, keys: list[str]) -> bool:
+    async def _clear(_task_id: str, keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 3)
         cleared_chunks.append(list(keys))
         return True
 
     mock_storage.clear_pending_attachment_releases.side_effect = _clear
     monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords())
 
-    released = await service._release_pending_attachment_references(task)
+    released = await service._release_pending_attachment_references(task, fence)
 
     assert released == 200
     assert released_chunks == [old_a, old_b]
@@ -892,20 +1081,36 @@ async def test_pending_attachment_release_retry_keeps_failed_chunk_durable(
     task = _make_task(pending_attachment_release_keys=old_a + old_b)
     cleared_chunks: list[list[str]] = []
     fail_b = True
+    fence = service_module.AttachmentMutationFence("mutation-token", 3)
 
     class _FileRecords:
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert mutation_generation == fence.generation
+            return len(keys)
+
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == fence.generation
             nonlocal fail_b
             if keys == old_b and fail_b:
                 raise RuntimeError("file record write interrupted")
             return len(keys)
 
-    async def _clear(_task_id: str, keys: list[str]) -> bool:
+    async def _clear(_task_id: str, keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 3)
         cleared_chunks.append(list(keys))
         return True
 
@@ -913,12 +1118,13 @@ async def test_pending_attachment_release_retry_keeps_failed_chunk_durable(
     monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords())
 
     with pytest.raises(RuntimeError, match="write interrupted"):
-        await service._release_pending_attachment_references(task)
+        await service._release_pending_attachment_references(task, fence)
 
     assert cleared_chunks == [old_a]
     fail_b = False
     retried = await service._release_pending_attachment_references(
-        task.model_copy(update={"pending_attachment_release_keys": old_b})
+        task.model_copy(update={"pending_attachment_release_keys": old_b}),
+        fence,
     )
 
     assert retried == 100
@@ -948,24 +1154,42 @@ async def test_reconcile_attachment_references_removes_interrupted_create(
     events: list[str] = []
 
     class _FileRecords:
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert mutation_generation == 1
+            events.append("adopt")
+            return len(keys)
+
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             events.append("release")
             return len(keys)
 
-    async def _mark(_task_id: str) -> ScheduledTask:
+    async def _mark(_task_id: str, *, fence: Any) -> ScheduledTask:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("mark_deleted")
         return deleted
 
-    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+    async def _clear(_task_id: str, _keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("clear")
         return True
 
-    async def _finalize(_task_id: str) -> bool:
+    async def _finalize(_task_id: str, *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("finalize")
         return True
 
@@ -979,7 +1203,7 @@ async def test_reconcile_attachment_references_removes_interrupted_create(
     reconciled = await service.reconcile_attachment_references()
 
     assert reconciled == 1
-    assert events == ["mark_deleted", "release", "clear", "finalize"]
+    assert events == ["mark_deleted", "adopt", "release", "clear", "finalize"]
 
 
 @pytest.mark.asyncio
@@ -1153,6 +1377,12 @@ async def test_update_task_claims_new_attachment_before_releasing_removed_key(
         input_payload={"attachments": [{"key": "old-key"}]},
         attachment_keys=["old-key"],
     )
+    owned = original.model_copy(
+        update={
+            "attachment_mutation_token": "mutation-token",
+            "attachment_mutation_generation": 7,
+        }
+    )
     updated = _make_task(
         input_payload={"attachments": [{"key": "new-key"}]},
         attachment_keys=["new-key"],
@@ -1165,25 +1395,55 @@ async def test_update_task_claims_new_attachment_before_releasing_removed_key(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
             assert keys == ["new-key"]
             assert uploaded_by == "user_1"
+            assert mutation_generation == 7
             events.append("claim_new")
             return keys
+
+        async def adopt_scheduled_task_reference_generation(
+            self,
+            keys: list[str],
+            uploaded_by: str,
+            task_id: str,
+            *,
+            mutation_generation: int,
+        ) -> int:
+            assert keys == ["old-key"]
+            assert mutation_generation == 7
+            events.append("adopt_old")
+            return len(keys)
 
         async def release_scheduled_task_references(
             self,
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
             assert keys == ["old-key"]
             assert uploaded_by == "user_1"
+            assert mutation_generation == 7
             events.append("release_old")
             return len(keys)
 
-    async def _stage(_task_id: str, keys: list[str]) -> ScheduledTask:
+    async def _claim_fence(_task_id: str, token: str) -> ScheduledTask:
+        assert token == "mutation-token"
+        events.append("claim_fence")
+        return owned
+
+    async def _stage(
+        _task_id: str,
+        keys: list[str],
+        *,
+        fence: Any,
+    ) -> ScheduledTask:
         assert keys == ["new-key"]
+        assert (fence.token, fence.generation) == ("mutation-token", 7)
         events.append("stage_claim")
         return original.model_copy(update={"pending_attachment_claim_keys": keys})
 
@@ -1191,18 +1451,23 @@ async def test_update_task_claims_new_attachment_before_releasing_removed_key(
         _task_id: str,
         updates: dict[str, Any],
         keys: list[str],
+        *,
+        fence: Any,
     ) -> ScheduledTask:
         assert updates["input_payload"] == updated.input_payload
         assert keys == ["new-key"]
+        assert (fence.token, fence.generation) == ("mutation-token", 7)
         events.append("commit_input")
         return updated
 
-    async def _clear(_task_id: str, keys: list[str]) -> bool:
+    async def _clear(_task_id: str, keys: list[str], *, fence: Any) -> bool:
         assert keys == ["old-key"]
+        assert (fence.token, fence.generation) == ("mutation-token", 7)
         events.append("clear_release")
         return True
 
-    mock_storage.get_task = AsyncMock(return_value=original)
+    mock_storage.claim_attachment_mutation.side_effect = _claim_fence
+    mock_storage.get_task = AsyncMock(return_value=owned)
     mock_storage.stage_attachment_claim.side_effect = _stage
     mock_storage.commit_attachment_update.side_effect = _commit
     mock_storage.clear_pending_attachment_releases.side_effect = _clear
@@ -1216,10 +1481,12 @@ async def test_update_task_claims_new_attachment_before_releasing_removed_key(
 
     assert result == updated
     assert events == [
+        "claim_fence",
         "stage_claim",
         "claim_new",
         "commit_input",
         "register",
+        "adopt_old",
         "release_old",
         "clear_release",
     ]
@@ -1241,7 +1508,10 @@ async def test_update_task_ambiguous_commit_failure_retains_live_claim(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
+            assert mutation_generation == 1
             scheduled_task_reference_ids.add(task_id)
             return keys
 
@@ -1250,11 +1520,15 @@ async def test_update_task_ambiguous_commit_failure_retains_live_claim(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             scheduled_task_reference_ids.discard(task_id)
             return len(keys)
 
-    async def _stage(_task_id: str, keys: list[str]) -> ScheduledTask:
+    async def _stage(_task_id: str, keys: list[str], *, fence: Any) -> ScheduledTask:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         nonlocal state
         state = state.model_copy(update={"pending_attachment_claim_keys": list(keys)})
         return state
@@ -1263,7 +1537,10 @@ async def test_update_task_ambiguous_commit_failure_retains_live_claim(
         _task_id: str,
         updates: dict[str, Any],
         keys: list[str],
+        *,
+        fence: Any,
     ) -> ScheduledTask:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         nonlocal state
         state = state.model_copy(
             update={
@@ -1274,7 +1551,8 @@ async def test_update_task_ambiguous_commit_failure_retains_live_claim(
         )
         raise ConnectionError("commit reply lost")
 
-    async def _clear(_task_id: str, keys: list[str]) -> bool:
+    async def _clear(_task_id: str, keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         nonlocal state
         state = state.model_copy(
             update={
@@ -1339,7 +1617,10 @@ async def test_update_task_lock_loss_does_not_release_successor_live_claim(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
+            assert mutation_generation >= 1
             newly_claimed = task_id not in scheduled_task_reference_ids
             scheduled_task_reference_ids.add(task_id)
             return list(keys) if newly_claimed else []
@@ -1349,7 +1630,10 @@ async def test_update_task_lock_loss_does_not_release_successor_live_claim(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation >= 1
             existed = task_id in scheduled_task_reference_ids
             scheduled_task_reference_ids.discard(task_id)
             return int(existed)
@@ -1357,8 +1641,24 @@ async def test_update_task_lock_loss_does_not_release_successor_live_claim(
     async def _get(_task_id: str) -> ScheduledTask:
         return state
 
-    async def _stage(_task_id: str, keys: list[str]) -> ScheduledTask:
+    async def _claim_fence(_task_id: str, token: str) -> ScheduledTask:
         nonlocal state
+        generation = state.attachment_mutation_generation
+        if state.attachment_mutation_token != token:
+            generation += 1
+        state = _with_attachment_fence(
+            state,
+            token=token,
+            generation=generation,
+        )
+        return state
+
+    async def _stage(_task_id: str, keys: list[str], *, fence: Any) -> ScheduledTask:
+        nonlocal state
+        assert (state.attachment_mutation_token, state.attachment_mutation_generation) == (
+            fence.token,
+            fence.generation,
+        )
         state = state.model_copy(
             update={
                 "pending_attachment_claim_keys": list(
@@ -1372,8 +1672,14 @@ async def test_update_task_lock_loss_does_not_release_successor_live_claim(
         _task_id: str,
         updates: dict[str, Any],
         keys: list[str],
+        *,
+        fence: Any,
     ) -> ScheduledTask:
         nonlocal commit_count, state
+        assert (state.attachment_mutation_token, state.attachment_mutation_generation) == (
+            fence.token,
+            fence.generation,
+        )
         commit_count += 1
         if commit_count == 1:
             first_commit_started.set()
@@ -1387,8 +1693,12 @@ async def test_update_task_lock_loss_does_not_release_successor_live_claim(
         )
         return state
 
-    async def _clear(_task_id: str, keys: list[str]) -> bool:
+    async def _clear(_task_id: str, keys: list[str], *, fence: Any) -> bool:
         nonlocal state
+        assert (state.attachment_mutation_token, state.attachment_mutation_generation) == (
+            fence.token,
+            fence.generation,
+        )
         state = state.model_copy(
             update={
                 "pending_attachment_claim_keys": [
@@ -1399,6 +1709,7 @@ async def test_update_task_lock_loss_does_not_release_successor_live_claim(
         return True
 
     mock_storage.get_task.side_effect = _get
+    mock_storage.claim_attachment_mutation.side_effect = _claim_fence
     mock_storage.stage_attachment_claim.side_effect = _stage
     mock_storage.commit_attachment_update.side_effect = _commit
     mock_storage.clear_pending_attachment_claims.side_effect = _clear
@@ -1441,7 +1752,10 @@ async def test_update_task_missing_after_claim_retains_staged_token(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> list[str]:
+            assert mutation_generation == 1
             events.append("claim")
             return keys
 
@@ -1450,11 +1764,15 @@ async def test_update_task_missing_after_claim_retains_staged_token(
             keys: list[str],
             uploaded_by: str,
             task_id: str,
+            *,
+            mutation_generation: int,
         ) -> int:
+            assert mutation_generation == 1
             events.append("rollback")
             return len(keys)
 
-    async def _clear(_task_id: str, _keys: list[str]) -> bool:
+    async def _clear(_task_id: str, _keys: list[str], *, fence: Any) -> bool:
+        assert (fence.token, fence.generation) == ("mutation-token", 1)
         events.append("clear_pending")
         return True
 
