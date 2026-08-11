@@ -302,6 +302,102 @@ async def test_clone_history_shields_compensation_after_final_lease_check_fails(
 
 
 @pytest.mark.asyncio
+async def test_clone_history_survives_repeated_cancellation_until_child_is_compensated() -> None:
+    traces = [{"run_id": "run-1", "events": [], "started_at": 1}]
+
+    class _BlockingTraceCollection(_FakeTraceCollection):
+        def __init__(self) -> None:
+            super().__init__(traces)
+            self.insert_started = asyncio.Event()
+            self.allow_insert = asyncio.Event()
+            self.insert_completed = False
+            self.insert_cancelled = False
+
+        async def insert_many(self, docs):
+            self.insert_started.set()
+            try:
+                await self.allow_insert.wait()
+            except asyncio.CancelledError:
+                self.insert_cancelled = True
+                raise
+            await super().insert_many(docs)
+            self.insert_completed = True
+
+    class _RepeatedCancellationStorage(_FakeSessionStorage):
+        def __init__(self) -> None:
+            super().__init__(validate_trace_write=False)
+            self.owner: asyncio.Task[None] | None = None
+            self.second_cancel_turn_completed = asyncio.Event()
+            self.second_cancel_scheduled = False
+
+        async def acquire_trace_write(self, session_id):
+            self.owner = asyncio.current_task()
+            return await super().acquire_trace_write(session_id)
+
+        async def validate_trace_write(self, session_id, lease_id):
+            del session_id, lease_id
+            if not self.second_cancel_scheduled:
+                self.second_cancel_scheduled = True
+                loop = asyncio.get_running_loop()
+
+                def _cancel_owner_again() -> None:
+                    assert self.owner is not None
+                    self.owner.cancel()
+                    loop.call_soon(self.second_cancel_turn_completed.set)
+
+                loop.call_soon(_cancel_owner_again)
+            return False
+
+    collection = _BlockingTraceCollection()
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.collection = collection
+            self.discarded: list[tuple[str, str, list[str]]] = []
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+    manager = SessionManager()
+    storage = _RepeatedCancellationStorage()
+    trace_storage = _TraceStorage()
+    manager.storage = storage
+    manager._trace_storage = trace_storage
+
+    clone = asyncio.create_task(
+        manager._clone_history_to_session(
+            source_session=Session(id="source", user_id="user"),
+            target_session=Session(id="target", user_id="user"),
+            target={
+                "run_id": "run-1",
+                "target_type": "assistant",
+                "completed_run_ids": ["run-1"],
+            },
+            user_id="user",
+        )
+    )
+    await collection.insert_started.wait()
+    clone.cancel()
+    await storage.second_cancel_turn_completed.wait()
+    collection.allow_insert.set()
+
+    with pytest.raises(Exception, match="session_trace_write_lease_lost"):
+        await clone
+
+    inserted_trace_id = collection.inserted_docs[0]["trace_id"]
+    assert collection.insert_completed is True
+    assert collection.insert_cancelled is False
+    assert trace_storage.discarded == [("target", "lease:target", [inserted_trace_id])]
+    assert storage.released_trace_writes == [("target", "lease:target")]
+
+
+@pytest.mark.asyncio
 async def test_clone_history_inserts_traces_in_batches(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "src.infra.session.manager.SESSION_FORK_TRACE_INSERT_BATCH_SIZE",

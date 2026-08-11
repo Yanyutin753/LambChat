@@ -885,6 +885,117 @@ async def test_flush_shields_final_lease_reconciliation_after_write_completes(
 
 
 @pytest.mark.asyncio
+async def test_flush_survives_two_lease_loss_cancellations_until_durable_write_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dual_writer.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        False,
+        raising=False,
+    )
+
+    class _Collection:
+        def __init__(self) -> None:
+            self.write_started = asyncio.Event()
+            self.allow_write = asyncio.Event()
+            self.write_completed = False
+            self.write_cancelled = False
+
+        async def bulk_write(self, operations, ordered: bool = False):
+            del operations, ordered
+            self.write_started.set()
+            try:
+                await self.allow_write.wait()
+            except asyncio.CancelledError:
+                self.write_cancelled = True
+                raise
+            self.write_completed = True
+            return type("_Result", (), {"modified_count": 2, "upserted_count": 0})()
+
+    class _FakeTrace:
+        def __init__(self) -> None:
+            self.collection = _Collection()
+            self.owner: asyncio.Task[None] | None = None
+            self.second_cancel_turn_completed = asyncio.Event()
+            self.second_cancel_scheduled = False
+            self.discarded: list[tuple[str, str, list[str]]] = []
+            self.released: list[tuple[str, str]] = []
+
+        async def acquire_session_trace_write(self, session_id: str) -> str:
+            owner = asyncio.current_task()
+            assert owner is not None
+            self.owner = owner
+            return f"lease:{session_id}"
+
+        async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool:
+            del session_id, lease_id
+            if not self.second_cancel_scheduled:
+                self.second_cancel_scheduled = True
+                loop = asyncio.get_running_loop()
+
+                def _cancel_owner_again() -> None:
+                    assert self.owner is not None
+                    self.owner.cancel()
+                    loop.call_soon(self.second_cancel_turn_completed.set)
+
+                loop.call_soon(_cancel_owner_again)
+            return False
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+            self.released.append((session_id, lease_id))
+
+    writer = dual_writer.DualEventWriter()
+    writer._trace = _FakeTrace()
+    writer._mongo_buffer = [
+        (
+            "trace-one",
+            "message:chunk",
+            {"content": "one"},
+            "session-1",
+            "run-1",
+            datetime(2026, 1, 1),
+        ),
+        (
+            "trace-two",
+            "message:chunk",
+            {"content": "two"},
+            "session-2",
+            "run-2",
+            datetime(2026, 1, 1),
+        ),
+    ]
+
+    flush = asyncio.create_task(writer._do_flush())
+    await writer.trace.collection.write_started.wait()
+    flush.cancel()
+    await writer.trace.second_cancel_turn_completed.wait()
+    writer.trace.collection.allow_write.set()
+    await flush
+
+    assert writer.trace.collection.write_completed is True
+    assert writer.trace.collection.write_cancelled is False
+    assert writer.trace.discarded == [
+        ("session-1", "lease:session-1", ["trace-one"]),
+        ("session-2", "lease:session-2", ["trace-two"]),
+    ]
+    assert writer._mongo_buffer == []
+    assert writer.trace.released == [
+        ("session-2", "lease:session-2"),
+        ("session-1", "lease:session-1"),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_flush_mongo_buffer_requeues_legacy_batch_when_bulk_write_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

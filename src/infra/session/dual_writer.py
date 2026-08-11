@@ -21,6 +21,7 @@ from pymongo.errors import BulkWriteError
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
+from src.infra.session.cancellation import drain_task
 from src.infra.session.dual_writer_helpers import (
     MongoBufferItem,
     _buffer_item_base,
@@ -377,62 +378,55 @@ class DualEventWriter:
                     )
                 return lease_was_lost
 
-            flush_task = asyncio.create_task(self._flush_mongo_batch(batch))
+            async def _flush_and_reconcile() -> None:
+                await self._flush_mongo_batch(batch)
+                await _reconcile_lost_leases()
+
+            flush_task = asyncio.create_task(_flush_and_reconcile())
             try:
                 await asyncio.shield(flush_task)
             except asyncio.CancelledError:
-                lost_before_completion = False
-                for session_id, lease_id in leased_sessions:
-                    if not await self.trace.validate_session_trace_write(session_id, lease_id):
-                        lost_before_completion = True
-                        break
-                if not lost_before_completion:
-                    flush_task.cancel()
+                async def _settle_cancelled_flush() -> bool:
+                    lease_was_lost = False
+                    for session_id, lease_id in leased_sessions:
+                        if not await self.trace.validate_session_trace_write(
+                            session_id,
+                            lease_id,
+                        ):
+                            lease_was_lost = True
+                            break
+                    if not lease_was_lost:
+                        flush_task.cancel()
+                        try:
+                            await flush_task
+                        except asyncio.CancelledError:
+                            pass
+                        return True
                     try:
                         await flush_task
-                    except asyncio.CancelledError:
-                        pass
-                    raise
-                try:
-                    await flush_task
-                except Exception:
+                    except Exception:
+                        await _reconcile_lost_leases()
+                        raise
                     await _reconcile_lost_leases()
+                    return False
+
+                recovery_task = asyncio.create_task(_settle_cancelled_flush())
+                if await drain_task(recovery_task):
                     raise
-            reconcile_task = asyncio.create_task(_reconcile_lost_leases())
-            try:
-                await asyncio.shield(reconcile_task)
-            except asyncio.CancelledError:
-                lost_during_reconciliation = False
-                for session_id, lease_id in leased_sessions:
-                    if not await self.trace.validate_session_trace_write(
-                        session_id,
-                        lease_id,
-                    ):
-                        lost_during_reconciliation = True
-                        break
-                if not lost_during_reconciliation:
-                    reconcile_task.cancel()
-                    try:
-                        await reconcile_task
-                    except asyncio.CancelledError:
-                        pass
-                    raise
-                try:
-                    await reconcile_task
-                except Exception:
-                    await _reconcile_lost_leases()
-                    raise
-                await _reconcile_lost_leases()
         finally:
-            for session_id, lease_id in reversed(leased_sessions):
-                try:
-                    await self.trace.release_session_trace_write(session_id, lease_id)
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to release session trace write lease for %s: %s",
-                        session_id,
-                        exc,
-                    )
+            async def _release_leases() -> None:
+                for session_id, lease_id in reversed(leased_sessions):
+                    try:
+                        await self.trace.release_session_trace_write(session_id, lease_id)
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to release session trace write lease for %s: %s",
+                            session_id,
+                            exc,
+                        )
+
+            release_task = asyncio.create_task(_release_leases())
+            await drain_task(release_task)
 
     async def _flush_mongo_batch(self, batch: list[MongoBufferItem]) -> None:
         """Write one drained batch while its session writer leases are held."""

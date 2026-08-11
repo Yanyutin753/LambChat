@@ -2232,6 +2232,80 @@ async def test_create_trace_compensates_when_lease_is_lost_during_marker_cleanup
 
 
 @pytest.mark.asyncio
+async def test_create_trace_survives_repeated_cancellation_until_insert_is_compensated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_trace_indexes(_storage: TraceStorage) -> None:
+        return None
+
+    class _BlockingTraceCollection(_FilterAwareCollection):
+        def __init__(self) -> None:
+            super().__init__([])
+            self.insert_started = asyncio.Event()
+            self.allow_insert = asyncio.Event()
+            self.insert_completed = False
+            self.insert_cancelled = False
+
+        async def insert_one(self, document: dict[str, Any]):
+            self.insert_started.set()
+            try:
+                await self.allow_insert.wait()
+            except asyncio.CancelledError:
+                self.insert_cancelled = True
+                raise
+            self.insert_completed = True
+            return await super().insert_one({**document, "_id": "repeated-cancel-trace"})
+
+    class _TraceStorage(TraceStorage):
+        def __init__(self) -> None:
+            super().__init__()
+            self._collection = _BlockingTraceCollection()
+            self.owner: asyncio.Task[Any] | None = None
+            self.second_cancel_turn_completed = asyncio.Event()
+            self.second_cancel_scheduled = False
+            self.released: list[tuple[str, str]] = []
+
+        async def acquire_session_trace_write(self, session_id: str) -> str:
+            del session_id
+            self.owner = asyncio.current_task()
+            return "lease-repeated-cancel"
+
+        async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool:
+            del session_id, lease_id
+            if not self.second_cancel_scheduled:
+                self.second_cancel_scheduled = True
+                loop = asyncio.get_running_loop()
+
+                def _cancel_owner_again() -> None:
+                    assert self.owner is not None
+                    self.owner.cancel()
+                    loop.call_soon(self.second_cancel_turn_completed.set)
+
+                loop.call_soon(_cancel_owner_again)
+            return False
+
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+            self.released.append((session_id, lease_id))
+
+    monkeypatch.setattr(TraceStorage, "ensure_indexes_if_needed", _skip_trace_indexes)
+    trace_storage = _TraceStorage()
+
+    writer = asyncio.create_task(
+        trace_storage.create_trace("trace-repeated", "session-1", user_id="owner-a")
+    )
+    await trace_storage.collection.insert_started.wait()
+    writer.cancel()
+    await trace_storage.second_cancel_turn_completed.wait()
+    trace_storage.collection.allow_insert.set()
+
+    assert await writer is False
+    assert trace_storage.collection.insert_completed is True
+    assert trace_storage.collection.insert_cancelled is False
+    assert trace_storage.collection.documents == []
+    assert trace_storage.released == [("session-1", "lease-repeated-cancel")]
+
+
+@pytest.mark.asyncio
 async def test_concurrent_delete_request_cannot_cancel_the_owner_fence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

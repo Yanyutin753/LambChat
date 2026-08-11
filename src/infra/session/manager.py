@@ -11,6 +11,7 @@ from typing import Any, List, Optional
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
+from src.infra.session.cancellation import drain_task
 from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import (
     ATTACHMENT_CLEAR_TERMINAL_STATUSES,
@@ -654,26 +655,35 @@ class SessionManager:
             try:
                 lease_is_valid = await asyncio.shield(clone_task)
             except asyncio.CancelledError:
-                if await self.storage.validate_trace_write(target_session.id, lease_id):
-                    clone_task.cancel()
+                async def _settle_cancelled_clone() -> bool:
+                    if await self.storage.validate_trace_write(target_session.id, lease_id):
+                        clone_task.cancel()
+                        try:
+                            await clone_task
+                        except asyncio.CancelledError:
+                            pass
+                        return True
                     try:
-                        await clone_task
-                    except asyncio.CancelledError:
-                        pass
+                        finalized_lease_is_valid = await clone_task
+                    except Exception as exc:
+                        await _discard_cloned_traces()
+                        raise SessionError("session_trace_write_lease_lost") from exc
+                    if finalized_lease_is_valid:
+                        await _discard_cloned_traces()
+                    return False
+
+                recovery_task = asyncio.create_task(_settle_cancelled_clone())
+                if await drain_task(recovery_task):
                     raise
-                try:
-                    finalized_lease_is_valid = await clone_task
-                except Exception as exc:
-                    await _discard_cloned_traces()
-                    raise SessionError("session_trace_write_lease_lost") from exc
-                if finalized_lease_is_valid:
-                    await _discard_cloned_traces()
                 raise SessionError("session_trace_write_lease_lost")
             if not lease_is_valid:
                 raise SessionError("session_trace_write_lease_lost")
             return clone_result
         finally:
-            await self.storage.release_trace_write(target_session.id, lease_id)
+            release_task = asyncio.create_task(
+                self.storage.release_trace_write(target_session.id, lease_id)
+            )
+            await drain_task(release_task)
 
     async def _clone_history_to_session_unfenced(
         self,

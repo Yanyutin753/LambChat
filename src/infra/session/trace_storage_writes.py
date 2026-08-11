@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from src.infra.logging import get_logger
 from src.infra.session._trace_storage_support import _normalize_recommend_questions
+from src.infra.session.cancellation import drain_task
 from src.infra.utils.datetime import utc_now, utc_now_iso
 
 logger = get_logger("src.infra.session.trace_storage")
@@ -102,24 +103,33 @@ class TraceStorageWriteMixin:
                 try:
                     result = await asyncio.shield(insert_task)
                 except asyncio.CancelledError:
-                    if await self.validate_session_trace_write(session_id, lease_id):
-                        insert_task.cancel()
+                    async def _settle_cancelled_insert() -> tuple[bool, Any | None]:
+                        if await self.validate_session_trace_write(session_id, lease_id):
+                            insert_task.cancel()
+                            try:
+                                await insert_task
+                            except asyncio.CancelledError:
+                                pass
+                            return True, None
                         try:
-                            await insert_task
-                        except asyncio.CancelledError:
-                            pass
+                            return False, await insert_task
+                        except DuplicateKeyError:
+                            return False, None
+                        except Exception as exc:
+                            logger.warning(
+                                "Late trace insert for %s failed after lease loss: %s",
+                                trace_id,
+                                exc,
+                            )
+                            return False, None
+
+                    insert_recovery_task = asyncio.create_task(_settle_cancelled_insert())
+                    cancel_was_external, settled_result = await drain_task(insert_recovery_task)
+                    if cancel_was_external:
                         raise
-                    try:
-                        result = await insert_task
-                    except DuplicateKeyError:
+                    if settled_result is None:
                         return False
-                    except Exception as exc:
-                        logger.warning(
-                            "Late trace insert for %s failed after lease loss: %s",
-                            trace_id,
-                            exc,
-                        )
-                        return False
+                    result = settled_result
 
                 async def _discard_inserted_trace() -> None:
                     await self.collection.delete_one(
@@ -151,28 +161,36 @@ class TraceStorageWriteMixin:
                 try:
                     finalized = await asyncio.shield(finalize_task)
                 except asyncio.CancelledError:
-                    if await self.validate_session_trace_write(session_id, lease_id):
-                        finalize_task.cancel()
+                    async def _settle_cancelled_finalization() -> bool:
+                        if await self.validate_session_trace_write(session_id, lease_id):
+                            finalize_task.cancel()
+                            try:
+                                await finalize_task
+                            except asyncio.CancelledError:
+                                pass
+                            return True
                         try:
                             await finalize_task
                         except asyncio.CancelledError:
                             pass
-                        raise
-                    try:
-                        await finalize_task
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as exc:
+                        except Exception as exc:
+                            logger.warning(
+                                "Trace finalization for %s failed after lease loss: %s",
+                                trace_id,
+                                exc,
+                            )
+                        await _discard_inserted_trace()
                         logger.warning(
-                            "Trace finalization for %s failed after lease loss: %s",
+                            "Discarded trace %s after session writer lease was lost",
                             trace_id,
-                            exc,
                         )
-                    await _discard_inserted_trace()
-                    logger.warning(
-                        "Discarded trace %s after session writer lease was lost",
-                        trace_id,
+                        return False
+
+                    finalization_recovery_task = asyncio.create_task(
+                        _settle_cancelled_finalization()
                     )
+                    if await drain_task(finalization_recovery_task):
+                        raise
                     return False
                 if not finalized:
                     return False
@@ -196,7 +214,10 @@ class TraceStorageWriteMixin:
                 traceback.print_exc()
                 return False
         finally:
-            await self.release_session_trace_write(session_id, lease_id)
+            release_task = asyncio.create_task(
+                self.release_session_trace_write(session_id, lease_id)
+            )
+            await drain_task(release_task)
 
     async def append_event(
         self,
