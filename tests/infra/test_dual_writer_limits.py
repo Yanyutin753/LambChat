@@ -758,6 +758,37 @@ async def test_flush_mongo_buffer_can_require_empty_buffer_after_chunk_failure(
 
 
 @pytest.mark.asyncio
+async def test_flush_mongo_buffer_can_require_only_current_trace_to_be_durable() -> None:
+    current_event = (
+        "trace-current",
+        "user:message",
+        {"content": "hello"},
+        "session-1",
+        "run-current",
+        datetime(2026, 1, 1),
+    )
+    other_event = (
+        "trace-other",
+        "message:chunk",
+        {"content": "retry"},
+        "session-2",
+        "run-other",
+        datetime(2026, 1, 1),
+    )
+    writer = dual_writer.DualEventWriter()
+    writer._mongo_buffer = [current_event, other_event]
+
+    async def _flush_current_and_requeue_other() -> None:
+        writer._mongo_buffer = [other_event]
+
+    writer._do_flush = _flush_current_and_requeue_other  # type: ignore[method-assign]
+
+    await writer.flush_mongo_buffer(require_trace_id="trace-current")
+
+    assert writer._mongo_buffer == [other_event]
+
+
+@pytest.mark.asyncio
 async def test_flush_mongo_buffer_requeues_failed_chunk_write_with_reserved_sequence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

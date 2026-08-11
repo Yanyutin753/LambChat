@@ -403,7 +403,7 @@ class StoragePresenterMixin:
                     run_id=self.run_id,
                 )
                 if raise_on_error:
-                    await dual_writer.flush_mongo_buffer(require_empty=True)
+                    await dual_writer.flush_mongo_buffer(require_trace_id=self.trace_id)
                 if event_type == "token:usage":
                     self._token_usage_recorded = True
                 elif event_type == "goal:end":

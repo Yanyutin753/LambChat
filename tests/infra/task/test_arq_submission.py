@@ -120,6 +120,11 @@ class _FileRecords:
         return len(keys)
 
 
+class _FailingSetupExecutor(_FakeExecutor):
+    async def ensure_session(self, *args, **kwargs) -> None:
+        raise RuntimeError("session setup failed")
+
+
 @pytest.mark.asyncio
 async def test_submit_arq_persists_payload_and_enqueues_job() -> None:
     manager = BackgroundTaskManager()
@@ -393,6 +398,34 @@ async def test_submit_releases_preclaim_when_initial_presenter_setup_fails(
         )
 
     assert file_records.releases == [(["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
+async def test_queued_arq_setup_failure_retains_claim_for_persisted_user_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = BackgroundTaskManager()
+    manager._executor = _FailingSetupExecutor()  # type: ignore[assignment]
+    file_records = _FileRecords()
+    monkeypatch.setattr(
+        "src.infra.upload.file_record.FileRecordStorage",
+        lambda: file_records,
+    )
+
+    with pytest.raises(RuntimeError, match="session setup failed"):
+        await manager.submit_arq(
+            session_id="session-1",
+            agent_id="search",
+            message="hello",
+            user_id="owner-1",
+            executor_key="agent_stream",
+            run_id="run-1",
+            attachments=[{"key": "key-1"}],
+            user_message_written=True,
+            attachment_references_claimed=True,
+        )
+
+    assert file_records.releases == []
 
 
 @pytest.mark.asyncio

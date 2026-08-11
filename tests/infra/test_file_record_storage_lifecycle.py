@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import ANY
@@ -54,7 +55,10 @@ class _LifecycleCollection:
 
     async def find_one_and_update(self, query: dict, update: dict, **kwargs):
         self.find_one_and_update_calls.append((query, update, kwargs))
-        return self.claim_results.pop(0) if self.claim_results else None
+        result = self.claim_results.pop(0) if self.claim_results else None
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
     async def update_one(self, query: dict, update: dict):
         self.update_one_calls.append((query, update))
@@ -146,6 +150,24 @@ async def test_claim_owned_references_rolls_back_only_prior_claims_when_a_key_is
     assert rollback_update["$set"]["cleanup_after"] > rollback_update["$set"][
         "updated_at"
     ] + timedelta(minutes=1)
+
+
+@pytest.mark.asyncio
+async def test_claim_cancellation_rolls_back_prior_owned_keys() -> None:
+    collection = _LifecycleCollection()
+    collection.claim_results = [{"key": "owned"}, asyncio.CancelledError()]
+    storage = FileRecordStorage()
+    storage._collection = collection
+    storage.ensure_indexes_if_needed = _noop_async
+
+    with pytest.raises(asyncio.CancelledError):
+        await storage.claim_owned_references(["owned", "cancelled"], "owner-a")
+
+    assert collection.update_many_calls[0][0] == {
+        "key": {"$in": ["owned"]},
+        "uploaded_by": "owner-a",
+        "reference_count": {"$gt": 0},
+    }
 
 
 @pytest.mark.asyncio

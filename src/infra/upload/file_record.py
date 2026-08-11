@@ -219,7 +219,7 @@ class FileRecordStorage:
                 if record is None:
                     raise AttachmentClaimError()
                 claimed.append(key)
-        except Exception:
+        except (Exception, asyncio.CancelledError):
             await self.release_owned_references(claimed, uploaded_by)
             raise
         return claimed

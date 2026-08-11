@@ -583,6 +583,7 @@ async def test_dispatch_queued_task_uses_arq_backend_without_local_task(
             "attachments": [{"name": "a.txt"}],
             "trace_id": "trace-1",
             "user_message_written": True,
+            "attachment_references_claimed": True,
             "disabled_skills": ["skill-a"],
             "enabled_skills": ["skill-b"],
             "persona_system_prompt": "persona",
@@ -610,6 +611,7 @@ async def test_dispatch_queued_task_uses_arq_backend_without_local_task(
     assert call["executor_key"] == "agent_stream"
     assert call["trace_id"] == "trace-1"
     assert call["user_message_written"] is True
+    assert call["attachment_references_claimed"] is True
     assert call["display_message"] == "hello visible"
     assert call["recommendation_input"] == "hello"
     assert call["active_goal"] == {"objective": "ship it"}

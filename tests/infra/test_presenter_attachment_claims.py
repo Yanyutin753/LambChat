@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -113,6 +114,29 @@ async def test_user_message_save_failure_releases_exact_owned_claim_and_reraises
 
 
 @pytest.mark.asyncio
+async def test_user_message_save_cancellation_releases_claim_and_reraises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_records = _FileRecords()
+    presenter = _presenter()
+
+    async def _cancel_save(event: dict[str, Any], **kwargs: Any) -> None:
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr("src.infra.writer.present.FileRecordStorage", lambda: file_records)
+    monkeypatch.setattr(presenter, "save_event", _cancel_save)
+
+    with pytest.raises(asyncio.CancelledError):
+        await presenter.emit_user_message(
+            "hello",
+            attachments=[{"key": "key-1"}],
+            attachment_references_claimed=True,
+        )
+
+    assert file_records.calls == [("release", ["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
 async def test_post_persistence_search_failure_retains_attachment_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -153,8 +177,12 @@ async def test_user_message_flush_failure_releases_preclaim_and_reraises(
         async def write_event(self, **kwargs: Any) -> bool:
             return True
 
-        async def flush_mongo_buffer(self, *, require_empty: bool = False) -> None:
-            assert require_empty is True
+        async def flush_mongo_buffer(
+            self,
+            *,
+            require_trace_id: str | None = None,
+        ) -> None:
+            assert require_trace_id == "trace-1"
             raise RuntimeError("mongo flush failed")
 
     async def _get_writer() -> _FailingWriter:
@@ -175,3 +203,49 @@ async def test_user_message_flush_failure_releases_preclaim_and_reraises(
         )
 
     assert file_records.calls == [("release", ["key-1"], "owner-1")]
+
+
+@pytest.mark.asyncio
+async def test_other_trace_remaining_buffered_does_not_release_durable_user_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_records = _FileRecords()
+    presenter = _presenter()
+
+    class _TraceScopedWriter:
+        async def create_trace(self, **kwargs: Any) -> bool:
+            return True
+
+        async def write_event(self, **kwargs: Any) -> bool:
+            return True
+
+        async def flush_mongo_buffer(
+            self,
+            *,
+            require_empty: bool = False,
+            require_trace_id: str | None = None,
+        ) -> None:
+            if require_empty:
+                raise RuntimeError("another trace remains buffered")
+            assert require_trace_id == "trace-1"
+
+    writer = _TraceScopedWriter()
+
+    async def _get_writer() -> _TraceScopedWriter:
+        return writer
+
+    async def _trace_metadata() -> dict[str, Any]:
+        return {}
+
+    monkeypatch.setattr("src.infra.writer.present.FileRecordStorage", lambda: file_records)
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _SessionStorage)
+    monkeypatch.setattr(presenter, "_get_dual_writer", _get_writer)
+    monkeypatch.setattr(presenter, "_build_trace_metadata", _trace_metadata)
+
+    await presenter.emit_user_message(
+        "hello",
+        attachments=[{"key": "key-1"}],
+        attachment_references_claimed=True,
+    )
+
+    assert file_records.calls == []

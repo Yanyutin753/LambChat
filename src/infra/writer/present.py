@@ -228,7 +228,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
                 enabled_skills=enabled_skills,
             )
             await self.save_event(event, raise_on_error=True)
-        except Exception:
+        except (Exception, asyncio.CancelledError):
             if claims_established and file_records is not None:
                 try:
                     await file_records.release_owned_references(

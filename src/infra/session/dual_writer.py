@@ -608,7 +608,12 @@ class DualEventWriter:
         # 标记完成，允许下次刷新
         self._flush_event.set()
 
-    async def flush_mongo_buffer(self, *, require_empty: bool = False) -> None:
+    async def flush_mongo_buffer(
+        self,
+        *,
+        require_empty: bool = False,
+        require_trace_id: str | None = None,
+    ) -> None:
         """强制刷新缓冲（外部调用）"""
         flushed_by_scheduled_task = await self._drain_scheduled_flush_task()
         if not flushed_by_scheduled_task:
@@ -618,6 +623,18 @@ class DualEventWriter:
                 remaining = len(self._mongo_buffer)
             if remaining:
                 raise RuntimeError(f"MongoDB event buffer still has {remaining} pending events")
+        if require_trace_id is not None:
+            async with self._mongo_lock:
+                remaining_for_trace = sum(
+                    1
+                    for item in self._mongo_buffer
+                    if _buffer_item_base(item)[0] == require_trace_id
+                )
+            if remaining_for_trace:
+                raise RuntimeError(
+                    "MongoDB event buffer still has "
+                    f"{remaining_for_trace} pending events for trace {require_trace_id}"
+                )
 
     async def _flush_redis_buffer(self) -> None:
         """保留兼容性"""

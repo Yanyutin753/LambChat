@@ -328,11 +328,12 @@ class BackgroundTaskManager:
                     session_id, TaskStatus.PENDING, run_id=run_id
                 )
             except Exception:
-                await self._release_preclaimed_attachment_references(
-                    attachments,
-                    user_id,
-                    attachment_references_claimed,
-                )
+                if not user_message_written:
+                    await self._release_preclaimed_attachment_references(
+                        attachments,
+                        user_id,
+                        attachment_references_claimed,
+                    )
                 raise
 
             if write_user_message_immediately and not user_message_written:
@@ -445,11 +446,12 @@ class BackgroundTaskManager:
                     run_id=run_id,
                 )
             except Exception:
-                await self._release_preclaimed_attachment_references(
-                    attachments,
-                    user_id,
-                    attachment_references_claimed,
-                )
+                if not user_message_written:
+                    await self._release_preclaimed_attachment_references(
+                        attachments,
+                        user_id,
+                        attachment_references_claimed,
+                    )
                 raise
             if write_user_message_immediately and not user_message_written:
                 trace_id = await self._persist_initial_user_message(
