@@ -71,7 +71,11 @@ def _allow_trace_write_leases(trace):
     async def _release(_session_id: str, _lease_id: str) -> None:
         return None
 
+    async def _validate(_session_id: str, _lease_id: str) -> bool:
+        return True
+
     trace.acquire_session_trace_write = _acquire
+    trace.validate_session_trace_write = _validate
     trace.release_session_trace_write = _release
     return trace
 
@@ -708,6 +712,10 @@ async def test_flush_mongo_buffer_releases_session_write_lease_when_cancelled(
             del session_id
             return "lease-cancelled-flush"
 
+        async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool:
+            del session_id, lease_id
+            return True
+
         async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
             self.released.append((session_id, lease_id))
 
@@ -728,6 +736,83 @@ async def test_flush_mongo_buffer_releases_session_write_lease_when_cancelled(
         await writer._do_flush()
 
     assert writer.trace.released == [("session-1", "lease-cancelled-flush")]
+
+
+@pytest.mark.asyncio
+async def test_flush_discards_exact_late_writes_when_session_lease_is_lost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dual_writer.settings,
+        "SESSION_EVENT_CHUNK_STORAGE_ENABLED",
+        False,
+        raising=False,
+    )
+
+    class _Collection:
+        def __init__(self) -> None:
+            self.bulk_write_calls = 0
+            self.write_started = asyncio.Event()
+            self.allow_write = asyncio.Event()
+
+        async def bulk_write(self, operations, ordered: bool = False):
+            del operations, ordered
+            self.bulk_write_calls += 1
+            self.write_started.set()
+            await self.allow_write.wait()
+            return type("_Result", (), {"modified_count": 1, "upserted_count": 0})()
+
+    class _FakeTrace:
+        def __init__(self) -> None:
+            self.collection = _Collection()
+            self.lease_is_valid = True
+            self.discarded: list[tuple[str, str, list[str]]] = []
+            self.released: list[tuple[str, str]] = []
+
+        async def acquire_session_trace_write(self, session_id: str) -> str:
+            return f"lease:{session_id}"
+
+        async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool:
+            del session_id, lease_id
+            return self.lease_is_valid
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+        async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
+            self.released.append((session_id, lease_id))
+
+    writer = dual_writer.DualEventWriter()
+    writer._trace = _FakeTrace()
+    writer._mongo_buffer = [
+        (
+            "trace-late",
+            "message:chunk",
+            {"content": "must-not-orphan"},
+            "session-1",
+            "run-1",
+            datetime(2026, 1, 1),
+        )
+    ]
+
+    flush = asyncio.create_task(writer._do_flush())
+    await writer.trace.collection.write_started.wait()
+    writer.trace.lease_is_valid = False
+    writer.trace.collection.allow_write.set()
+    await flush
+
+    assert writer.trace.collection.bulk_write_calls == 1
+    assert writer.trace.discarded == [
+        ("session-1", "lease:session-1", ["trace-late"])
+    ]
+    assert writer.trace.released == [("session-1", "lease:session-1")]
+    assert writer._mongo_buffer == []
 
 
 @pytest.mark.asyncio

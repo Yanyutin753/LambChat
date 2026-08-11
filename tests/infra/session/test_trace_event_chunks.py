@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
@@ -113,11 +114,22 @@ def _matches(document: dict[str, Any], query: dict[str, Any]) -> bool:
                 elif operator == "$lte":
                     if actual is _MISSING or actual > operand:
                         return False
+                elif operator == "$gte":
+                    if actual is _MISSING or actual < operand:
+                        return False
+                elif operator == "$lt":
+                    if actual is _MISSING or actual >= operand:
+                        return False
                 elif operator == "$ne":
                     if actual is not _MISSING and actual == operand:
                         return False
                 elif operator == "$in":
                     if actual is _MISSING or actual not in operand:
+                        return False
+                elif operator == "$elemMatch":
+                    if not isinstance(actual, list) or not any(
+                        isinstance(item, dict) and _matches(item, operand) for item in actual
+                    ):
                         return False
                 else:
                     raise AssertionError(f"unsupported fake query operator: {operator}")
@@ -234,6 +246,23 @@ class _FakeChunkCollection:
 
     async def update_one(self, query: dict[str, Any], update: dict[str, Any], upsert: bool = False):
         self.update_calls.append((query, update, upsert))
+        for chunk in self.chunks:
+            if _matches(chunk, query):
+                if isinstance(update, dict):
+                    _apply_update(chunk, update)
+                return SimpleNamespace(matched_count=1, modified_count=1, upserted_id=None)
+        if upsert:
+            document = {
+                key: value
+                for key, value in query.items()
+                if not key.startswith("$") and not isinstance(value, dict)
+            }
+            insert_update = deepcopy(update)
+            insert_update.setdefault("$set", {}).update(update.get("$setOnInsert", {}))
+            _apply_update(document, insert_update)
+            self.chunks.append(document)
+            return SimpleNamespace(matched_count=0, modified_count=0, upserted_id="upserted")
+        return SimpleNamespace(matched_count=0, modified_count=0, upserted_id=None)
 
     async def update_many(self, query: dict[str, Any], update: dict[str, Any]):
         self.update_many_calls.append((query, update))
@@ -864,10 +893,15 @@ async def test_append_events_to_chunks_uses_reserved_sequence_range(
         is True
     )
 
-    assert [call[0]["chunk_index"] for call in chunk_collection.update_calls] == [0, 1]
+    append_calls = [
+        call
+        for call in chunk_collection.update_calls
+        if isinstance(call[1], list) and "$concatArrays" in str(call[1])
+    ]
+    assert [call[0]["chunk_index"] for call in append_calls] == [0, 1]
     assert [
         event["seq"]
-        for _query, update, _upsert in chunk_collection.update_calls
+        for _query, update, _upsert in append_calls
         for event in update[0]["$set"]["events"]["$concatArrays"][1]
     ] == [1, 2, 3]
     assert len(trace_collection.update_calls) == 1
@@ -929,7 +963,11 @@ async def test_append_events_to_chunks_replaces_existing_reserved_sequence_range
         is True
     )
 
-    update = chunk_collection.update_calls[0][1]
+    update = next(
+        update
+        for _query, update, _upsert in chunk_collection.update_calls
+        if isinstance(update, list) and "$concatArrays" in str(update)
+    )
     event_filter = update[0]["$set"]["events"]["$concatArrays"][0]["$filter"]
 
     assert event_filter["cond"]["$not"][0]["$and"] == [
@@ -1072,25 +1110,15 @@ class _CancelAfterPersistingAppendChunk(_FakeChunkCollection):
     ):
         self.update_calls.append((query, update, upsert))
         if isinstance(update, list) and "$concatArrays" in str(update):
-            new_events = deepcopy(update[0]["$set"]["events"]["$concatArrays"][1])
-            range_start = int(new_events[0]["seq"])
-            range_end = int(new_events[-1]["seq"])
             chunk = next(
-                (
-                    item
-                    for item in self.chunks
-                    if item.get("trace_id") == query.get("trace_id")
-                    and item.get("chunk_index") == query.get("chunk_index")
-                ),
+                (item for item in self.chunks if _matches(item, query)),
                 None,
             )
             if chunk is None:
-                chunk = {
-                    "trace_id": query["trace_id"],
-                    "chunk_index": query["chunk_index"],
-                    "events": [],
-                }
-                self.chunks.append(chunk)
+                return SimpleNamespace(matched_count=0, modified_count=0)
+            new_events = deepcopy(update[0]["$set"]["events"]["$concatArrays"][1])
+            range_start = int(new_events[0]["seq"])
+            range_end = int(new_events[-1]["seq"])
             chunk["events"] = [
                 event
                 for event in chunk.get("events", [])
@@ -1120,6 +1148,9 @@ class _CancelAfterPersistingAppendChunk(_FakeChunkCollection):
             )
             if chunk is None:
                 return SimpleNamespace(matched_count=0, modified_count=0)
+            expected_fence = query.get("append_fence_revision")
+            if expected_fence is not None and chunk.get("append_fence_revision") != expected_fence:
+                return SimpleNamespace(matched_count=0, modified_count=0)
             chunk["events"] = [
                 event
                 for event in chunk.get("events", [])
@@ -1136,6 +1167,25 @@ class _CancelAfterPersistingAppendChunk(_FakeChunkCollection):
             )
             return SimpleNamespace(matched_count=1, modified_count=1)
 
+        return await super().update_one(query, update, upsert=upsert)
+
+
+class _BlockedAppendChunk(_CancelAfterPersistingAppendChunk):
+    def __init__(self, chunks: list[dict[str, Any]]) -> None:
+        super().__init__(chunks)
+        self.cancel_next_append = False
+        self.append_started = asyncio.Event()
+        self.allow_append = asyncio.Event()
+
+    async def update_one(
+        self,
+        query: dict[str, Any],
+        update: dict[str, Any] | list[dict[str, Any]],
+        upsert: bool = False,
+    ):
+        if isinstance(update, list) and "$concatArrays" in str(update):
+            self.append_started.set()
+            await self.allow_append.wait()
         return await super().update_one(query, update, upsert=upsert)
 
 
@@ -1229,6 +1279,165 @@ async def test_cancelled_partial_append_is_recovered_idempotently_by_exact_seque
     assert chunk_collection.chunks[0]["event_count"] == 1
     assert chunk_collection.chunks[0]["start_seq"] == 1
     assert chunk_collection.chunks[0]["end_seq"] == 1
+
+
+@pytest.mark.asyncio
+async def test_expired_already_counted_retry_preserves_committed_sequence_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(trace_storage_module.settings, "SESSION_EVENT_CHUNK_SIZE", 4, raising=False)
+    storage = TraceStorage()
+    trace_collection = _FakeTraceCollection(_trace_document(event_count=3))
+    chunk_collection = _CancelAfterPersistingAppendChunk(
+        [
+            {
+                "trace_id": "trace-1",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "end_seq": 3,
+                "event_count": 3,
+                "events": [
+                    _event("message", "one", 1),
+                    _event("message", "two", 2),
+                    _event("message", "three", 3),
+                ],
+            }
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+
+    with pytest.raises(asyncio.CancelledError):
+        await storage.append_events_to_chunks(
+            _trace_document(event_count=3),
+            [_event("message", "retry-two")],
+            start_seq=2,
+        )
+
+    marker = trace_collection.trace_doc["attachment_chunk_write_operation"]
+    assert marker["owns_event_count_reservation"] is False
+    marker["recovery_after"] = "past"
+
+    assert await storage.recover_incomplete_chunk_appends() == 1
+    assert trace_collection.trace_doc["event_count"] == 3
+    assert "attachment_chunk_write_operation" not in trace_collection.trace_doc
+    assert [event["seq"] for event in chunk_collection.chunks[0]["events"]] == [1, 2, 3]
+    assert [
+        event["data"]["content"] for event in chunk_collection.chunks[0]["events"]
+    ] == ["one", "retry-two", "three"]
+
+
+@pytest.mark.asyncio
+async def test_recovery_fences_a_stale_child_write_that_finishes_after_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.session import trace_chunk_append_recovery
+
+    monkeypatch.setattr(trace_storage_module.settings, "SESSION_EVENT_CHUNK_SIZE", 4, raising=False)
+    clock = {"now": datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)}
+    monkeypatch.setattr(trace_chunk_append_recovery, "utc_now", lambda: clock["now"])
+    storage = TraceStorage()
+    trace_collection = _FakeTraceCollection(_trace_document(event_count=1))
+    chunk_collection = _BlockedAppendChunk(
+        [
+            {
+                "trace_id": "trace-1",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "end_seq": 1,
+                "event_count": 1,
+                "events": [_event("message", "one", 1)],
+            }
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+
+    reserved = await storage.reserve_event_sequence_range("trace-1", 1)
+    assert reserved is not None
+    append_task = asyncio.create_task(
+        storage.append_events_to_chunks(
+            reserved,
+            [_event("message", "late-two")],
+            start_seq=2,
+        )
+    )
+    await chunk_collection.append_started.wait()
+
+    marker = trace_collection.trace_doc["attachment_chunk_write_operation"]
+    clock["now"] = marker["recovery_after"] + timedelta(seconds=1)
+    assert await storage.recover_incomplete_chunk_appends() == 1
+    assert trace_collection.trace_doc["event_count"] == 1
+    assert "attachment_chunk_write_operation" not in trace_collection.trace_doc
+
+    chunk_collection.allow_append.set()
+    assert await append_task is False
+    assert [event["seq"] for event in chunk_collection.chunks[0]["events"]] == [1]
+
+
+@pytest.mark.asyncio
+async def test_recovery_tombstone_blocks_stale_upsert_for_previously_absent_chunk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.session import trace_chunk_append_recovery
+
+    monkeypatch.setattr(trace_storage_module.settings, "SESSION_EVENT_CHUNK_SIZE", 4, raising=False)
+    clock = {"now": datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)}
+    monkeypatch.setattr(trace_chunk_append_recovery, "utc_now", lambda: clock["now"])
+    storage = TraceStorage()
+    trace_collection = _FakeTraceCollection(_trace_document())
+    chunk_collection = _BlockedAppendChunk([])
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+
+    reserved = await storage.reserve_event_sequence_range("trace-1", 1)
+    assert reserved is not None
+    append_task = asyncio.create_task(
+        storage.append_events_to_chunks(
+            reserved,
+            [_event("message", "late-one")],
+            start_seq=1,
+        )
+    )
+    await chunk_collection.append_started.wait()
+    marker = trace_collection.trace_doc["attachment_chunk_write_operation"]
+    clock["now"] = marker["recovery_after"] + timedelta(seconds=1)
+
+    assert await storage.recover_incomplete_chunk_appends() == 1
+    chunk_collection.allow_append.set()
+
+    assert await append_task is False
+    assert trace_collection.trace_doc["event_count"] == 0
+    assert len(chunk_collection.chunks) == 1
+    assert chunk_collection.chunks[0]["events"] == []
+    assert chunk_collection.chunks[0]["append_fence_revision"] > marker["revision"]
+
+
+@pytest.mark.asyncio
+async def test_legacy_minimal_append_marker_remains_fail_closed_for_manual_migration() -> None:
+    marker = {"id": "legacy-append", "kind": "append", "revision": 1}
+    storage = TraceStorage()
+    trace_collection = _FakeTraceCollection(
+        _trace_document(
+            event_count=3,
+            event_revision=1,
+            attachment_chunk_write_operation=marker,
+        )
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = _FakeChunkCollection()
+
+    assert await storage.recover_incomplete_chunk_appends() == 0
+    assert await storage.reserve_event_sequence_range("trace-1", 1) is None
+    assert (
+        await storage.append_events_to_chunks(
+            _trace_document(event_count=3),
+            [_event("message", "must-not-guess")],
+            start_seq=4,
+        )
+        is False
+    )
+    assert trace_collection.trace_doc["attachment_chunk_write_operation"] == marker
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ logger = get_logger("src.infra.session.trace_storage")
 _USAGE_LOGS_ENABLED = True  # 是否在 trace 完成时写入 usage_logs 集合
 _ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
 _TRACE_EVENT_REVISION_FIELD = "event_revision"
+_TRACE_WRITE_LEASE_FIELD = "_session_trace_write_lease_id"
 
 
 class TraceStorageWriteMixin:
@@ -24,6 +25,8 @@ class TraceStorageWriteMixin:
         async def ensure_indexes_if_needed(self) -> None: ...
 
         async def acquire_session_trace_write(self, session_id: str) -> str | None: ...
+
+        async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool: ...
 
         async def release_session_trace_write(self, session_id: str, lease_id: str) -> None: ...
 
@@ -91,10 +94,53 @@ class TraceStorageWriteMixin:
                 "updated_at": now,
                 "status": "running",
                 "metadata": metadata or {},
+                _TRACE_WRITE_LEASE_FIELD: lease_id,
             }
 
             try:
-                result = await self.collection.insert_one(doc)
+                insert_task = asyncio.create_task(self.collection.insert_one(doc))
+                try:
+                    result = await asyncio.shield(insert_task)
+                except asyncio.CancelledError:
+                    if await self.validate_session_trace_write(session_id, lease_id):
+                        insert_task.cancel()
+                        try:
+                            await insert_task
+                        except asyncio.CancelledError:
+                            pass
+                        raise
+                    try:
+                        result = await insert_task
+                    except DuplicateKeyError:
+                        return False
+                    except Exception as exc:
+                        logger.warning(
+                            "Late trace insert for %s failed after lease loss: %s",
+                            trace_id,
+                            exc,
+                        )
+                        return False
+                if not await self.validate_session_trace_write(session_id, lease_id):
+                    await self.collection.delete_one(
+                        {
+                            "_id": result.inserted_id,
+                            "trace_id": trace_id,
+                            "session_id": session_id,
+                            _TRACE_WRITE_LEASE_FIELD: lease_id,
+                        }
+                    )
+                    logger.warning(
+                        "Discarded trace %s after session writer lease was lost",
+                        trace_id,
+                    )
+                    return False
+                await self.collection.update_one(
+                    {
+                        "_id": result.inserted_id,
+                        _TRACE_WRITE_LEASE_FIELD: lease_id,
+                    },
+                    {"$unset": {_TRACE_WRITE_LEASE_FIELD: ""}},
+                )
                 logger.info(
                     "Created trace %s for session %s, inserted_id=%s",
                     trace_id,
@@ -104,6 +150,8 @@ class TraceStorageWriteMixin:
                 return True
             except DuplicateKeyError:
                 # Trace already exists (e.g., queued path created it before dequeue)
+                if not await self.validate_session_trace_write(session_id, lease_id):
+                    return False
                 logger.debug("Trace %s already exists, skipping", trace_id)
                 return True
             except Exception as e:

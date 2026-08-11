@@ -159,6 +159,34 @@ class TraceStorage(
     async def acquire_session_trace_write(self, session_id: str) -> str | None:
         return await self.session_storage.acquire_trace_write(session_id)
 
+    async def validate_session_trace_write(self, session_id: str, lease_id: str) -> bool:
+        return await self.session_storage.validate_trace_write(session_id, lease_id)
+
+    async def discard_session_trace_writes_after_lease_loss(
+        self,
+        session_id: str,
+        lease_id: str,
+        trace_ids: list[str],
+    ) -> bool:
+        """Remove exact late trace writes only after their session is gone or fenced."""
+        if await self.validate_session_trace_write(session_id, lease_id):
+            return False
+        if not await self.session_storage.trace_write_session_is_fenced_or_missing(
+            session_id,
+            lease_id,
+        ):
+            return False
+        bounded_trace_ids = list(dict.fromkeys(trace_ids))
+        if not bounded_trace_ids:
+            return True
+        query = {
+            "session_id": session_id,
+            "trace_id": {"$in": bounded_trace_ids},
+        }
+        await self.chunks_collection.delete_many(query)
+        await self.collection.delete_many(query)
+        return True
+
     async def release_session_trace_write(self, session_id: str, lease_id: str) -> None:
         await self.session_storage.release_trace_write(session_id, lease_id)
 

@@ -2,7 +2,7 @@
 
 import asyncio
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from bson import ObjectId
@@ -14,29 +14,69 @@ logger = get_logger(__name__)
 TRACE_WRITER_LEASES_FIELD = "trace_writer_leases"
 TRACE_WRITER_LEASE_TTL = timedelta(minutes=5)
 TRACE_WRITER_HEARTBEAT_INTERVAL_SECONDS = 60.0
+TRACE_WRITER_CAS_ATTEMPTS = 5
+_MISSING = object()
 
 
-def _without_live_trace_writers(now: Any) -> dict[str, Any]:
-    """Match sessions whose identity-bearing writer leases are all expired."""
+def _legacy_trace_writer_counter_is_safe(document: dict[str, Any]) -> bool:
+    """Fail closed until an old scalar counter is explicitly reconciled to zero.
+
+    Operators may set a stranded counter to zero only after confirming that no
+    process using the legacy counter protocol can still be writing this session.
+    A zero counter is atomically removed when the first identity lease is acquired.
+    """
+    counter = document.get("active_trace_writers", _MISSING)
+    return counter is _MISSING or (type(counter) is int and counter == 0)
+
+
+def _validated_trace_writer_leases(document: dict[str, Any]) -> list[dict[str, Any]] | None:
+    raw_leases = document.get(TRACE_WRITER_LEASES_FIELD, _MISSING)
+    if raw_leases is _MISSING:
+        return []
+    if not isinstance(raw_leases, list):
+        return None
+    leases: list[dict[str, Any]] = []
+    lease_ids: set[str] = set()
+    for raw_lease in raw_leases:
+        if not isinstance(raw_lease, dict):
+            return None
+        lease_id = raw_lease.get("id")
+        expires_at = raw_lease.get("expires_at")
+        if (
+            not isinstance(lease_id, str)
+            or not lease_id
+            or lease_id in lease_ids
+            or not isinstance(expires_at, datetime)
+        ):
+            return None
+        lease_ids.add(lease_id)
+        leases.append(raw_lease)
+    return leases
+
+
+def _trace_writer_snapshot_query(document: dict[str, Any]) -> dict[str, Any]:
     return {
-        "$nor": [
-            {
-                TRACE_WRITER_LEASES_FIELD: {
-                    "$elemMatch": {"expires_at": {"$gt": now}},
-                }
-            },
-            {
-                TRACE_WRITER_LEASES_FIELD: {
-                    "$elemMatch": {"id": {"$exists": False}},
-                }
-            },
-            {
-                TRACE_WRITER_LEASES_FIELD: {
-                    "$elemMatch": {"expires_at": {"$exists": False}},
-                }
-            },
-        ]
+        "active_trace_writers": (
+            document["active_trace_writers"]
+            if "active_trace_writers" in document
+            else {"$exists": False}
+        ),
+        TRACE_WRITER_LEASES_FIELD: (
+            document[TRACE_WRITER_LEASES_FIELD]
+            if TRACE_WRITER_LEASES_FIELD in document
+            else {"$exists": False}
+        ),
     }
+
+
+def _all_trace_writer_leases_expired(
+    leases: list[dict[str, Any]],
+    now: datetime,
+) -> bool:
+    try:
+        return all(lease["expires_at"] <= now for lease in leases)
+    except TypeError:
+        return False
 
 
 class SessionAttachmentOperationsMixin:
@@ -266,9 +306,53 @@ class SessionAttachmentOperationsMixin:
             setattr(self, "_active_trace_writer_heartbeat_tasks", tasks)
         return tasks
 
+    def _trace_writer_lease_identities(self) -> dict[str, dict[str, Any]]:
+        identities = getattr(self, "_active_trace_writer_lease_identities", None)
+        if identities is None:
+            identities = {}
+            setattr(self, "_active_trace_writer_lease_identities", identities)
+        return identities
+
+    async def _resolve_trace_writer_session(
+        self,
+        session_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """Resolve a custom id first and pin every later CAS to that document's ``_id``."""
+        document = await self.collection.find_one({"session_id": session_id})
+        if document is not None:
+            identity = (
+                {"_id": document["_id"]}
+                if document.get("_id") is not None
+                else {"session_id": session_id}
+            )
+            return identity, document
+        try:
+            object_id = ObjectId(session_id)
+        except Exception:
+            return None
+        document = await self.collection.find_one({"_id": object_id})
+        return ({"_id": object_id}, document) if document is not None else None
+
+    async def _load_trace_writer_session(
+        self,
+        session_id: str,
+        *,
+        lease_id: str | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        identity = (
+            self._trace_writer_lease_identities().get(lease_id)
+            if lease_id is not None
+            else None
+        )
+        if identity is None:
+            return await self._resolve_trace_writer_session(session_id)
+        document = await self.collection.find_one(identity)
+        return (identity, document) if document is not None else None
+
     def _start_trace_writer_heartbeat(self, session_id: str, lease_id: str) -> None:
         tasks = self._trace_writer_heartbeat_tasks()
-        task = asyncio.create_task(self._heartbeat_trace_write(session_id, lease_id))
+        owner = asyncio.current_task()
+        task = asyncio.create_task(self._heartbeat_trace_write(session_id, lease_id, owner))
         tasks[lease_id] = task
 
         def _completed(completed: asyncio.Task[None]) -> None:
@@ -283,7 +367,12 @@ class SessionAttachmentOperationsMixin:
 
         task.add_done_callback(_completed)
 
-    async def _heartbeat_trace_write(self, session_id: str, lease_id: str) -> None:
+    async def _heartbeat_trace_write(
+        self,
+        session_id: str,
+        lease_id: str,
+        owner: asyncio.Task[Any] | None,
+    ) -> None:
         while True:
             await asyncio.sleep(TRACE_WRITER_HEARTBEAT_INTERVAL_SECONDS)
             try:
@@ -293,6 +382,8 @@ class SessionAttachmentOperationsMixin:
                         lease_id,
                         session_id,
                     )
+                    if owner is not None and not owner.done():
+                        owner.cancel()
                     return
             except asyncio.CancelledError:
                 raise
@@ -311,62 +402,116 @@ class SessionAttachmentOperationsMixin:
         lease_id = uuid.uuid4().hex
         now = utc_now()
         lease = {"id": lease_id, "expires_at": now + TRACE_WRITER_LEASE_TTL}
-
-        async def _acquire(identity: dict[str, Any]) -> bool:
+        resolved = await self._resolve_trace_writer_session(session_id)
+        if resolved is None:
+            return None
+        identity, document = resolved
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            leases = _validated_trace_writer_leases(document)
+            if (
+                not _legacy_trace_writer_counter_is_safe(document)
+                or leases is None
+                or "attachment_delete_operation" in document
+            ):
+                return None
             result = await self.collection.update_one(
-                {**identity, delete_field: {"$exists": False}},
+                {
+                    **identity,
+                    delete_field: {"$exists": False},
+                    **_trace_writer_snapshot_query(document),
+                },
                 {
                     "$push": {TRACE_WRITER_LEASES_FIELD: lease},
                     "$unset": {"active_trace_writers": ""},
                     "$set": {"updated_at": utc_now()},
                 },
             )
-            return result.matched_count > 0
-
-        if await _acquire({"session_id": session_id}):
-            self._start_trace_writer_heartbeat(session_id, lease_id)
-            return lease_id
-        try:
-            acquired = await _acquire({"_id": ObjectId(session_id)})
-        except Exception:
-            return None
-        if not acquired:
-            return None
-        self._start_trace_writer_heartbeat(session_id, lease_id)
-        return lease_id
+            if result.matched_count > 0:
+                self._trace_writer_lease_identities()[lease_id] = identity
+                self._start_trace_writer_heartbeat(session_id, lease_id)
+                return lease_id
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                return None
+            document = refreshed
+        return None
 
     async def renew_trace_write(self, session_id: str, lease_id: str) -> bool:
         """Extend the exact live lease; an expired lease cannot be revived."""
-        now = utc_now()
-        expires_at = now + TRACE_WRITER_LEASE_TTL
-
-        async def _renew(identity: dict[str, Any]) -> bool:
+        loaded = await self._load_trace_writer_session(session_id, lease_id=lease_id)
+        if loaded is None:
+            return False
+        identity, document = loaded
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            now = utc_now()
+            leases = _validated_trace_writer_leases(document)
+            if leases is None or not _legacy_trace_writer_counter_is_safe(document):
+                return False
+            owned_lease = next((lease for lease in leases if lease["id"] == lease_id), None)
+            if owned_lease is None:
+                return False
+            try:
+                if owned_lease["expires_at"] <= now:
+                    return False
+            except TypeError:
+                return False
             result = await self.collection.update_one(
                 {
                     **identity,
-                    TRACE_WRITER_LEASES_FIELD: {
-                        "$elemMatch": {
-                            "id": lease_id,
-                            "expires_at": {"$gt": now},
-                        }
-                    },
+                    **_trace_writer_snapshot_query(document),
                 },
                 {
                     "$set": {
-                        f"{TRACE_WRITER_LEASES_FIELD}.$[lease].expires_at": expires_at,
+                        f"{TRACE_WRITER_LEASES_FIELD}.$[lease].expires_at": (
+                            now + TRACE_WRITER_LEASE_TTL
+                        ),
                         "updated_at": now,
                     }
                 },
                 array_filters=[{"lease.id": lease_id}],
             )
-            return result.matched_count > 0
+            if result.matched_count > 0:
+                return True
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                return False
+            document = refreshed
+        return False
 
-        if await _renew({"session_id": session_id}):
-            return True
-        try:
-            return await _renew({"_id": ObjectId(session_id)})
-        except Exception:
+    async def validate_trace_write(self, session_id: str, lease_id: str) -> bool:
+        """Confirm the exact lease is still live on its originally resolved session anchor."""
+        loaded = await self._load_trace_writer_session(session_id, lease_id=lease_id)
+        if loaded is None:
             return False
+        _identity, document = loaded
+        leases = _validated_trace_writer_leases(document)
+        if (
+            leases is None
+            or not _legacy_trace_writer_counter_is_safe(document)
+            or "attachment_delete_operation" in document
+        ):
+            return False
+        now = utc_now()
+        for lease in leases:
+            if lease["id"] != lease_id:
+                continue
+            try:
+                return bool(lease["expires_at"] > now)
+            except TypeError:
+                return False
+        return False
+
+    async def trace_write_session_is_fenced_or_missing(
+        self,
+        session_id: str,
+        lease_id: str,
+    ) -> bool:
+        """Allow compensation only after the pinned anchor is deleted or delete-fenced."""
+        loaded = await self._load_trace_writer_session(session_id, lease_id=lease_id)
+        if loaded is None:
+            return True
+        _identity, document = loaded
+        return "attachment_delete_operation" in document
 
     async def release_trace_write(self, session_id: str, lease_id: str) -> None:
         """Release a writer lease acquired with :meth:`acquire_trace_write`."""
@@ -378,25 +523,32 @@ class SessionAttachmentOperationsMixin:
             except asyncio.CancelledError:
                 pass
 
-        async def _release(identity: dict[str, Any]) -> bool:
+        loaded = await self._load_trace_writer_session(session_id, lease_id=lease_id)
+        if loaded is None:
+            self._trace_writer_lease_identities().pop(lease_id, None)
+            return
+        identity, document = loaded
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            leases = _validated_trace_writer_leases(document)
+            if leases is None or not any(lease["id"] == lease_id for lease in leases):
+                break
             result = await self.collection.update_one(
                 {
                     **identity,
-                    TRACE_WRITER_LEASES_FIELD: {"$elemMatch": {"id": lease_id}},
+                    **_trace_writer_snapshot_query(document),
                 },
                 {
                     "$pull": {TRACE_WRITER_LEASES_FIELD: {"id": lease_id}},
                     "$set": {"updated_at": utc_now()},
                 },
             )
-            return result.matched_count > 0
-
-        if await _release({"session_id": session_id}):
-            return
-        try:
-            await _release({"_id": ObjectId(session_id)})
-        except Exception:
-            return
+            if result.matched_count > 0:
+                break
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                break
+            document = refreshed
+        self._trace_writer_lease_identities().pop(lease_id, None)
 
     async def claim_attachment_delete_operation(self, session_id: str) -> dict[str, Any] | None:
         """Fence new trace writers only when no writer lease is active."""
@@ -404,12 +556,29 @@ class SessionAttachmentOperationsMixin:
         field = "attachment_delete_operation"
         operation = {"id": uuid.uuid4().hex, "claimed_at": utc_now()}
 
-        async def _claim(identity: dict[str, Any]) -> dict[str, Any] | None:
+        resolved = await self._resolve_trace_writer_session(session_id)
+        if resolved is None:
+            return None
+        identity, document = resolved
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            existing_operation = document.get(field)
+            if isinstance(existing_operation, dict):
+                return {**existing_operation, "acquired": False}
+            if field in document:
+                return None
+            leases = _validated_trace_writer_leases(document)
+            now = utc_now()
+            if (
+                not _legacy_trace_writer_counter_is_safe(document)
+                or leases is None
+                or not _all_trace_writer_leases_expired(leases, now)
+            ):
+                return None
             result = await self.collection.find_one_and_update(
                 {
                     **identity,
                     field: {"$exists": False},
-                    **_without_live_trace_writers(utc_now()),
+                    **_trace_writer_snapshot_query(document),
                 },
                 {
                     "$set": {field: operation, "updated_at": utc_now()},
@@ -422,56 +591,58 @@ class SessionAttachmentOperationsMixin:
                 if isinstance(claimed_operation, dict):
                     return {**claimed_operation, "acquired": True}
                 return None
-            result = await self.collection.find_one(identity, {field: 1})
-            existing_operation = result.get(field) if result else None
-            if isinstance(existing_operation, dict):
-                return {**existing_operation, "acquired": False}
-            return None
-
-        claimed = await _claim({"session_id": session_id})
-        if claimed is not None:
-            return claimed
-        try:
-            return await _claim({"_id": ObjectId(session_id)})
-        except Exception:
-            return None
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                return None
+            document = refreshed
+        return None
 
     async def cancel_attachment_delete_operation(self, session_id: str, operation_id: str) -> bool:
         """Remove the exact delete fence after a fail-closed refusal."""
         field = "attachment_delete_operation"
 
-        async def _cancel(identity: dict[str, Any]) -> bool:
-            result = await self.collection.update_one(
-                {**identity, f"{field}.id": operation_id},
-                {"$unset": {field: ""}, "$set": {"updated_at": utc_now()}},
-            )
-            return result.modified_count > 0
-
-        if await _cancel({"session_id": session_id}):
-            return True
-        try:
-            return await _cancel({"_id": ObjectId(session_id)})
-        except Exception:
+        resolved = await self._resolve_trace_writer_session(session_id)
+        if resolved is None:
             return False
+        identity, _document = resolved
+        result = await self.collection.update_one(
+            {**identity, f"{field}.id": operation_id},
+            {"$unset": {field: ""}, "$set": {"updated_at": utc_now()}},
+        )
+        return result.modified_count > 0
 
     async def delete_claimed_session(self, session_id: str, operation_id: str) -> bool:
         """Atomically delete the exact fenced session when all writers are gone."""
         await self.ensure_indexes_if_needed()
         field = "attachment_delete_operation"
 
-        async def _delete(identity: dict[str, Any]) -> bool:
+        resolved = await self._resolve_trace_writer_session(session_id)
+        if resolved is None:
+            return False
+        identity, document = resolved
+        for _attempt in range(TRACE_WRITER_CAS_ATTEMPTS):
+            operation = document.get(field)
+            leases = _validated_trace_writer_leases(document)
+            now = utc_now()
+            if (
+                not isinstance(operation, dict)
+                or operation.get("id") != operation_id
+                or not _legacy_trace_writer_counter_is_safe(document)
+                or leases is None
+                or not _all_trace_writer_leases_expired(leases, now)
+            ):
+                return False
             result = await self.collection.delete_one(
                 {
                     **identity,
                     f"{field}.id": operation_id,
-                    **_without_live_trace_writers(utc_now()),
+                    **_trace_writer_snapshot_query(document),
                 }
             )
-            return result.deleted_count > 0
-
-        if await _delete({"session_id": session_id}):
-            return True
-        try:
-            return await _delete({"_id": ObjectId(session_id)})
-        except Exception:
-            return False
+            if result.deleted_count > 0:
+                return True
+            refreshed = await self.collection.find_one(identity)
+            if refreshed is None:
+                return False
+            document = refreshed
+        return False

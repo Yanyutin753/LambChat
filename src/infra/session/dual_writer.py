@@ -340,7 +340,61 @@ class DualEventWriter:
                     self._flush_event.set()
                     return
                 leased_sessions.append((session_id, acquired))
-            await self._flush_mongo_batch(batch)
+
+            async def _reconcile_lost_leases() -> bool:
+                lease_was_lost = False
+                for session_id, lease_id in leased_sessions:
+                    if await self.trace.validate_session_trace_write(session_id, lease_id):
+                        continue
+                    lease_was_lost = True
+                    trace_ids = list(
+                        dict.fromkeys(
+                            _buffer_item_base(item)[0]
+                            for item in batch
+                            if _buffer_item_base(item)[3] == session_id
+                        )
+                    )
+                    discarded = (
+                        await self.trace.discard_session_trace_writes_after_lease_loss(
+                            session_id,
+                            lease_id,
+                            trace_ids,
+                        )
+                    )
+                    if not discarded:
+                        retry_items = [
+                            item for item in batch if _buffer_item_base(item)[3] == session_id
+                        ]
+                        async with self._mongo_lock:
+                            self._mongo_buffer = retry_items + self._mongo_buffer
+                    logger.warning(
+                        "Session trace writer lease was lost after flushing %s",
+                        session_id,
+                    )
+                return lease_was_lost
+
+            flush_task = asyncio.create_task(self._flush_mongo_batch(batch))
+            try:
+                await asyncio.shield(flush_task)
+            except asyncio.CancelledError:
+                lost_before_completion = False
+                for session_id, lease_id in leased_sessions:
+                    if not await self.trace.validate_session_trace_write(session_id, lease_id):
+                        lost_before_completion = True
+                        break
+                if not lost_before_completion:
+                    flush_task.cancel()
+                    try:
+                        await flush_task
+                    except asyncio.CancelledError:
+                        pass
+                    raise
+                try:
+                    await flush_task
+                except Exception:
+                    await _reconcile_lost_leases()
+                    raise
+            await _reconcile_lost_leases()
         finally:
             for session_id, lease_id in reversed(leased_sessions):
                 try:

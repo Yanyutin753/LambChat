@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -59,10 +60,11 @@ class _FakeTraceCollection:
 
 
 class _FakeSessionStorage:
-    def __init__(self, *, allow_trace_write=True):
+    def __init__(self, *, allow_trace_write=True, validate_trace_write=True):
         self.deleted_session_ids = []
         self.rebuilt_session_ids = []
         self.allow_trace_write = allow_trace_write
+        self.validate_trace_write_result = validate_trace_write
         self.acquired_trace_writes = []
         self.released_trace_writes = []
 
@@ -72,6 +74,10 @@ class _FakeSessionStorage:
 
     async def release_trace_write(self, session_id, lease_id):
         self.released_trace_writes.append((session_id, lease_id))
+
+    async def validate_trace_write(self, session_id, lease_id):
+        del session_id, lease_id
+        return self.validate_trace_write_result
 
     async def create(self, session_data, user_id=None):
         return Session(
@@ -115,6 +121,69 @@ async def test_clone_history_streams_traces_until_target_run() -> None:
     assert collection.cursor.to_list_called is False
     assert collection.inserted_docs is not None
     assert [doc["run_id"] for doc in collection.inserted_docs] == ["run-1", "run-2"]
+    assert storage.released_trace_writes == [("target", "lease:target")]
+
+
+@pytest.mark.asyncio
+async def test_clone_history_discards_exact_late_inserts_after_lease_loss() -> None:
+    traces = [{"run_id": "run-1", "events": [], "started_at": 1}]
+
+    class _BlockingTraceCollection(_FakeTraceCollection):
+        def __init__(self) -> None:
+            super().__init__(traces)
+            self.insert_started = asyncio.Event()
+            self.allow_insert = asyncio.Event()
+
+        async def insert_many(self, docs):
+            self.insert_started.set()
+            await self.allow_insert.wait()
+            await super().insert_many(docs)
+
+    collection = _BlockingTraceCollection()
+
+    class _TraceStorage:
+        def __init__(self) -> None:
+            self.collection = collection
+            self.discarded: list[tuple[str, str, list[str]]] = []
+
+        async def discard_session_trace_writes_after_lease_loss(
+            self,
+            session_id: str,
+            lease_id: str,
+            trace_ids: list[str],
+        ) -> bool:
+            self.discarded.append((session_id, lease_id, trace_ids))
+            return True
+
+    manager = SessionManager()
+    storage = _FakeSessionStorage(validate_trace_write=True)
+    trace_storage = _TraceStorage()
+    manager.storage = storage
+    manager._trace_storage = trace_storage
+
+    clone = asyncio.create_task(
+        manager._clone_history_to_session(
+            source_session=Session(id="source", user_id="user"),
+            target_session=Session(id="target", user_id="user"),
+            target={
+                "run_id": "run-1",
+                "target_type": "assistant",
+                "completed_run_ids": ["run-1"],
+            },
+            user_id="user",
+        )
+    )
+    await collection.insert_started.wait()
+    storage.validate_trace_write_result = False
+    collection.allow_insert.set()
+
+    with pytest.raises(Exception, match="session_trace_write_lease_lost"):
+        await clone
+
+    assert len(trace_storage.discarded) == 1
+    session_id, lease_id, trace_ids = trace_storage.discarded[0]
+    assert (session_id, lease_id) == ("target", "lease:target")
+    assert trace_ids == [collection.inserted_docs[0]["trace_id"]]
     assert storage.released_trace_writes == [("target", "lease:target")]
 
 

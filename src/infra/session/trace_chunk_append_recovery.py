@@ -14,6 +14,8 @@ from src.infra.utils.datetime import utc_now
 logger = get_logger(__name__)
 ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
 TRACE_EVENT_REVISION_FIELD = "event_revision"
+APPEND_FENCE_REVISION_FIELD = "append_fence_revision"
+APPEND_FENCE_OPERATION_FIELD = "append_fence_operation_id"
 APPEND_RECOVERY_TTL = timedelta(minutes=5)
 
 
@@ -31,12 +33,18 @@ def append_digest(events: List[Dict[str, Any]], start_seq: int) -> str:
     return hashlib.sha256(serialized).hexdigest()
 
 
-def append_marker_fields(*, start_seq: int, event_count: int) -> Dict[str, Any]:
+def append_marker_fields(
+    *,
+    start_seq: int,
+    event_count: int,
+    owns_event_count_reservation: bool,
+) -> Dict[str, Any]:
     return {
         "phase": "reserved",
         "start_seq": start_seq,
         "event_count": event_count,
         "reserved_event_count": start_seq + event_count - 1,
+        "owns_event_count_reservation": owns_event_count_reservation,
         "recovery_after": append_recovery_after(),
     }
 
@@ -51,6 +59,9 @@ def _append_marker_identity(trace_id: str, marker: Dict[str, Any]) -> Dict[str, 
 
 
 def _valid_append_range(marker: Dict[str, Any]) -> tuple[int, int, int] | None:
+    # A marker without explicit range ownership predates durable append recovery.
+    # Its affected range cannot be inferred safely: keep it fail-closed until an
+    # operator inspects and removes/reconciles that marker manually.
     start_seq = marker.get("start_seq")
     event_count = marker.get("event_count")
     reserved_event_count = marker.get("reserved_event_count")
@@ -61,6 +72,7 @@ def _valid_append_range(marker: Dict[str, Any]) -> tuple[int, int, int] | None:
         or event_count <= 0
         or not isinstance(reserved_event_count, int)
         or reserved_event_count < start_seq + event_count - 1
+        or not isinstance(marker.get("owns_event_count_reservation"), bool)
     ):
         return None
     return start_seq, event_count, reserved_event_count
@@ -155,7 +167,11 @@ async def begin_chunk_append(
         "id": operation_id,
         "kind": "append",
         "revision": claimed_revision,
-        **append_marker_fields(start_seq=start_seq, event_count=event_count),
+        **append_marker_fields(
+            start_seq=start_seq,
+            event_count=event_count,
+            owns_event_count_reservation=reserve_event_count,
+        ),
         "reserved_event_count": (
             reserved_event_count if reserve_event_count else current_event_count
         ),
@@ -252,17 +268,46 @@ async def _claim_append_rollback(
 
 async def _remove_append_range_from_chunks(
     storage: Any,
-    trace_id: str,
+    trace_doc: Dict[str, Any],
     *,
     start_seq: int,
     event_count: int,
+    marker: Dict[str, Any],
+    remove_events: bool,
 ) -> None:
+    trace_id = str(trace_doc.get("trace_id") or "")
     end_seq = start_seq + event_count - 1
     chunk_size = trace_storage_helpers._get_event_chunk_size()
     start_chunk = trace_storage_helpers._event_chunk_index(start_seq)
     end_chunk = trace_storage_helpers._event_chunk_index(end_seq)
     now = utc_now()
+    marker_revision = marker.get("revision")
+    operation_id = marker.get("id")
+    if not isinstance(marker_revision, int) or not isinstance(operation_id, str):
+        return
+    tombstone_revision = marker_revision + 1
     for chunk_index in range(start_chunk, end_chunk + 1):
+        await storage.chunks_collection.update_one(
+            {"trace_id": trace_id, "chunk_index": chunk_index},
+            {
+                "$max": {APPEND_FENCE_REVISION_FIELD: tombstone_revision},
+                "$unset": {APPEND_FENCE_OPERATION_FIELD: ""},
+                "$set": {"updated_at": now},
+                "$setOnInsert": {
+                    "trace_id": trace_id,
+                    "session_id": trace_doc.get("session_id", ""),
+                    "run_id": trace_doc.get("run_id", ""),
+                    "trace_started_at": trace_doc.get("started_at"),
+                    "chunk_index": chunk_index,
+                    "events": [],
+                    "event_count": 0,
+                    "created_at": now,
+                },
+            },
+            upsert=True,
+        )
+        if not remove_events:
+            continue
         chunk_start = chunk_index * chunk_size + 1
         chunk_end = chunk_start + chunk_size - 1
         remove_start = max(start_seq, chunk_start)
@@ -272,6 +317,7 @@ async def _remove_append_range_from_chunks(
             {
                 "trace_id": trace_id,
                 "chunk_index": chunk_index,
+                APPEND_FENCE_REVISION_FIELD: tombstone_revision,
                 "events": {"$elemMatch": {"seq": seq_range}},
             },
             [
@@ -315,13 +361,6 @@ async def _remove_append_range_from_chunks(
                 },
             ],
         )
-        await storage.chunks_collection.delete_many(
-            {
-                "trace_id": trace_id,
-                "chunk_index": chunk_index,
-                "event_count": 0,
-            }
-        )
 
 
 async def recover_incomplete_chunk_append(
@@ -343,18 +382,21 @@ async def recover_incomplete_chunk_append(
     start_seq, event_count, reserved_event_count = append_range
     trace_id = str(trace_doc.get("trace_id") or "")
 
+    owns_event_count_reservation = claimed_marker.get("owns_event_count_reservation") is True
     await _remove_append_range_from_chunks(
         storage,
-        trace_id,
+        trace_doc,
         start_seq=start_seq,
         event_count=event_count,
+        marker=claimed_marker,
+        remove_events=owns_event_count_reservation,
     )
     parent_update: Dict[str, Any] = {
         "$inc": {TRACE_EVENT_REVISION_FIELD: 1},
         "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
         "$set": {"updated_at": utc_now()},
     }
-    if reserved_event_count == start_seq + event_count - 1:
+    if owns_event_count_reservation:
         parent_update["$inc"]["event_count"] = -event_count
     result = await storage.collection.update_one(
         {

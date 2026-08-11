@@ -12,6 +12,8 @@ from pymongo import ReturnDocument
 from src.infra.logging import get_logger
 from src.infra.session import trace_storage as trace_storage_helpers
 from src.infra.session.trace_chunk_append_recovery import (
+    APPEND_FENCE_OPERATION_FIELD,
+    APPEND_FENCE_REVISION_FIELD,
     append_marker_fields,
     begin_chunk_append,
     heartbeat_chunk_append,
@@ -731,6 +733,7 @@ class TraceEventChunkMixin:
                         **append_marker_fields(
                             start_seq=start_seq,
                             event_count=event_count,
+                            owns_event_count_reservation=True,
                         ),
                     },
                     "updated_at": now,
@@ -783,6 +786,32 @@ class TraceEventChunkMixin:
                 chunk_events = grouped[chunk_index]
                 start = int(chunk_events[0]["seq"])
                 end = int(chunk_events[-1]["seq"])
+                await self.chunks_collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        "chunk_index": chunk_index,
+                        APPEND_FENCE_REVISION_FIELD: {"$exists": False},
+                    },
+                    {"$set": {APPEND_FENCE_REVISION_FIELD: 0}},
+                )
+                await self.chunks_collection.update_one(
+                    {"trace_id": trace_id, "chunk_index": chunk_index},
+                    {
+                        "$setOnInsert": {
+                            "trace_id": trace_id,
+                            "session_id": trace_doc.get("session_id", ""),
+                            "run_id": trace_doc.get("run_id", ""),
+                            "trace_started_at": trace_doc.get("started_at"),
+                            "chunk_index": chunk_index,
+                            APPEND_FENCE_REVISION_FIELD: 0,
+                            "events": [],
+                            "event_count": 0,
+                            "created_at": now,
+                            "updated_at": now,
+                        }
+                    },
+                    upsert=True,
+                )
                 existing_events_without_range = {
                     "$filter": {
                         "input": {"$ifNull": ["$events", []]},
@@ -799,8 +828,18 @@ class TraceEventChunkMixin:
                         },
                     }
                 }
-                await self.chunks_collection.update_one(
-                    {"trace_id": trace_id, "chunk_index": chunk_index},
+                chunk_result = await self.chunks_collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        "chunk_index": chunk_index,
+                        "$or": [
+                            {APPEND_FENCE_REVISION_FIELD: {"$lt": revision}},
+                            {
+                                APPEND_FENCE_REVISION_FIELD: revision,
+                                APPEND_FENCE_OPERATION_FIELD: operation_id,
+                            },
+                        ],
+                    },
                     [
                         {
                             "$set": {
@@ -811,6 +850,8 @@ class TraceEventChunkMixin:
                                 "chunk_index": chunk_index,
                                 "created_at": {"$ifNull": ["$created_at", now]},
                                 "updated_at": now,
+                                APPEND_FENCE_REVISION_FIELD: revision,
+                                APPEND_FENCE_OPERATION_FIELD: operation_id,
                                 "start_seq": {
                                     "$min": [
                                         {"$ifNull": ["$start_seq", start]},
@@ -833,8 +874,9 @@ class TraceEventChunkMixin:
                         },
                         {"$set": {"event_count": {"$size": "$events"}}},
                     ],
-                    upsert=True,
                 )
+                if chunk_result.matched_count == 0:
+                    return False
 
             renewed_marker = await heartbeat_chunk_append(self, trace_id, marker)
             if renewed_marker is None:

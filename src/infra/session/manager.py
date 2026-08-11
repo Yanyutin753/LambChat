@@ -2,6 +2,7 @@
 会话管理器
 """
 
+import asyncio
 import uuid
 from collections import Counter
 from copy import deepcopy
@@ -42,6 +43,7 @@ class SessionForkCloneResult:
     copied_trace_count: int = 0
     checkpoint_messages: list[object] = field(default_factory=list)
     _compat_docs: list[dict] = field(default_factory=list, repr=False)
+    _inserted_trace_ids: list[str] = field(default_factory=list, repr=False)
 
     def __len__(self) -> int:
         return self.copied_trace_count
@@ -622,19 +624,56 @@ class SessionManager:
         if not lease_id:
             raise SessionError("session_trace_write_fenced")
         try:
-            return await self._clone_history_to_session_unfenced(
-                source_session=source_session,
-                target_session=target_session,
-                target=target,
-                user_id=user_id,
-                collect_checkpoint_messages=collect_checkpoint_messages,
+            clone_result = SessionForkCloneResult()
+            clone_task = asyncio.create_task(
+                self._clone_history_to_session_unfenced(
+                    result=clone_result,
+                    source_session=source_session,
+                    target_session=target_session,
+                    target=target,
+                    user_id=user_id,
+                    collect_checkpoint_messages=collect_checkpoint_messages,
+                )
             )
+            lease_lost = False
+            try:
+                await asyncio.shield(clone_task)
+            except asyncio.CancelledError:
+                if await self.storage.validate_trace_write(target_session.id, lease_id):
+                    clone_task.cancel()
+                    try:
+                        await clone_task
+                    except asyncio.CancelledError:
+                        pass
+                    raise
+                lease_lost = True
+                try:
+                    await clone_task
+                except Exception as exc:
+                    await self.trace_storage.discard_session_trace_writes_after_lease_loss(
+                        target_session.id,
+                        lease_id,
+                        clone_result._inserted_trace_ids,
+                    )
+                    raise SessionError("session_trace_write_lease_lost") from exc
+            if lease_lost or not await self.storage.validate_trace_write(
+                target_session.id,
+                lease_id,
+            ):
+                await self.trace_storage.discard_session_trace_writes_after_lease_loss(
+                    target_session.id,
+                    lease_id,
+                    clone_result._inserted_trace_ids,
+                )
+                raise SessionError("session_trace_write_lease_lost")
+            return clone_result
         finally:
             await self.storage.release_trace_write(target_session.id, lease_id)
 
     async def _clone_history_to_session_unfenced(
         self,
         *,
+        result: SessionForkCloneResult,
         source_session: Session,
         target_session: Session,
         target: dict,
@@ -643,14 +682,19 @@ class SessionManager:
     ) -> SessionForkCloneResult:
         async def _flush_batch() -> None:
             if batch:
-                await self.trace_storage.collection.insert_many(list(batch))
+                pending = list(batch)
+                result._inserted_trace_ids.extend(
+                    str(document["trace_id"])
+                    for document in pending
+                    if document.get("trace_id")
+                )
+                await self.trace_storage.collection.insert_many(pending)
                 batch.clear()
 
         cursor = self.trace_storage.collection.find(
             {"session_id": source_session.id},
             {"_id": 0},
         ).sort("started_at", 1)
-        result = SessionForkCloneResult()
         batch: list[dict] = []
         async for trace in cursor:
             run_id = trace.get("run_id")

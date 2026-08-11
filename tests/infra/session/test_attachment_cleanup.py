@@ -77,7 +77,14 @@ def _matches(document: dict[str, Any], query: dict[str, Any]) -> bool:
                     if actual is _MISSING or actual > operand:
                         return False
                 elif operator == "$gt":
-                    if actual is _MISSING or actual <= operand:
+                    if actual is _MISSING:
+                        return False
+                    try:
+                        if actual <= operand:
+                            return False
+                    except TypeError:
+                        # Mongo comparisons are type bracketed; a value with the
+                        # wrong BSON type does not satisfy a date comparison.
                         return False
                 elif operator == "$elemMatch":
                     if not isinstance(actual, list) or not any(
@@ -1876,8 +1883,6 @@ async def test_crashed_trace_writer_lease_expires_without_permanently_blocking_d
                 "_id": "session-doc",
                 "session_id": "session-1",
                 "user_id": "owner-a",
-                # This scalar is exactly the unrecoverable state left by the old fence.
-                "active_trace_writers": 1,
                 "trace_writer_leases": [
                     {
                         "id": "crashed-writer",
@@ -1896,6 +1901,158 @@ async def test_crashed_trace_writer_lease_expires_without_permanently_blocking_d
     assert claim["acquired"] is True
     assert await storage.delete_claimed_session("session-1", claim["id"]) is True
     assert collection.ids() == set()
+
+
+@pytest.mark.asyncio
+async def test_legacy_nonzero_writer_counter_fails_closed_without_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "user_id": "owner-a",
+                "active_trace_writers": 1,
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    assert await storage.acquire_trace_write("session-1") is None
+    assert await storage.claim_attachment_delete_operation("session-1") is None
+    assert collection.documents[0]["active_trace_writers"] == 1
+    assert "trace_writer_leases" not in collection.documents[0]
+    assert "attachment_delete_operation" not in collection.documents[0]
+
+
+@pytest.mark.asyncio
+async def test_legacy_zero_writer_counter_atomically_migrates_on_acquire(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "user_id": "owner-a",
+                "active_trace_writers": 0,
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    lease_id = await storage.acquire_trace_write("session-1")
+
+    assert isinstance(lease_id, str)
+    assert "active_trace_writers" not in collection.documents[0]
+    assert [lease["id"] for lease in collection.documents[0]["trace_writer_leases"]] == [
+        lease_id
+    ]
+    await storage.release_trace_write("session-1", lease_id)
+
+
+@pytest.mark.asyncio
+async def test_custom_session_identity_never_falls_back_to_colliding_object_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    now = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    custom_id = "64b000000000000000000001"
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "custom-document",
+                "session_id": custom_id,
+                "trace_writer_leases": [
+                    {"id": "live-custom-writer", "expires_at": now + timedelta(minutes=1)}
+                ],
+            },
+            {
+                "_id": ObjectId(custom_id),
+                "session_id": "different-session",
+            },
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.utc_now",
+        lambda: now,
+    )
+
+    assert await storage.claim_attachment_delete_operation(custom_id) is None
+    assert "attachment_delete_operation" not in collection.documents[0]
+    assert "attachment_delete_operation" not in collection.documents[1]
+
+
+@pytest.mark.asyncio
+async def test_legacy_object_id_only_session_remains_compatible_with_delete_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    legacy_id = ObjectId("64b000000000000000000002")
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection([{"_id": legacy_id, "user_id": "owner-a"}])
+    storage = SessionStorage()
+    storage._collection = collection
+
+    claim = await storage.claim_attachment_delete_operation(str(legacy_id))
+
+    assert claim is not None
+    assert claim["acquired"] is True
+    assert await storage.delete_claimed_session(str(legacy_id), claim["id"]) is True
+    assert collection.ids() == set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "malformed_leases",
+    [
+        {"id": "not-an-array", "expires_at": "future"},
+        [42],
+        "corrupt",
+        [{"id": "wrong-expiry-type", "expires_at": "2099-01-01T00:00:00Z"}],
+    ],
+)
+async def test_malformed_trace_writer_lease_shapes_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    malformed_leases: object,
+) -> None:
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "trace_writer_leases": malformed_leases,
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    assert await storage.claim_attachment_delete_operation("session-1") is None
+    assert collection.documents[0]["trace_writer_leases"] == malformed_leases
+    assert "attachment_delete_operation" not in collection.documents[0]
 
 
 @pytest.mark.asyncio
@@ -1949,6 +2106,66 @@ async def test_trace_writer_lease_renewal_and_exact_release_keep_live_writer_fen
     assert claim is not None
     assert claim["acquired"] is True
     await storage.release_trace_write("session-1", second_lease)
+
+
+@pytest.mark.asyncio
+async def test_create_trace_compensates_a_late_insert_after_lease_loss_and_session_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _skip_session_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    async def _skip_trace_indexes(_storage: TraceStorage) -> None:
+        return None
+
+    class _BlockingTraceCollection(_FilterAwareCollection):
+        def __init__(self) -> None:
+            super().__init__([])
+            self.insert_started = asyncio.Event()
+            self.allow_insert = asyncio.Event()
+
+        async def insert_one(self, document: dict[str, Any]):
+            self.insert_started.set()
+            await self.allow_insert.wait()
+            stored = {**document, "_id": "late-trace"}
+            return await super().insert_one(stored)
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_session_indexes)
+    monkeypatch.setattr(TraceStorage, "ensure_indexes_if_needed", _skip_trace_indexes)
+    monkeypatch.setattr(
+        "src.infra.session.session_attachment_operations.TRACE_WRITER_HEARTBEAT_INTERVAL_SECONDS",
+        0.001,
+    )
+    session_collection = _FilterAwareCollection(
+        [{"_id": "session-doc", "session_id": "session-1", "user_id": "owner-a"}]
+    )
+    trace_collection = _BlockingTraceCollection()
+    session_storage = SessionStorage()
+    session_storage._collection = session_collection
+    trace_storage = TraceStorage()
+    trace_storage._collection = trace_collection
+    trace_storage._session_storage = session_storage
+
+    writer = asyncio.create_task(
+        trace_storage.create_trace("trace-late", "session-1", user_id="owner-a")
+    )
+    await trace_collection.insert_started.wait()
+    session_collection.documents[0]["trace_writer_leases"][0]["expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=1)
+    )
+    claim = await session_storage.claim_attachment_delete_operation("session-1")
+    assert claim is not None and claim["acquired"] is True
+    assert await session_storage.delete_claimed_session("session-1", claim["id"]) is True
+    for _attempt in range(1000):
+        if writer.cancelling():
+            break
+        await asyncio.sleep(0.001)
+    assert writer.cancelling()
+
+    trace_collection.allow_insert.set()
+
+    assert await writer is False
+    assert trace_collection.documents == []
 
 
 @pytest.mark.asyncio
