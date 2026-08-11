@@ -57,11 +57,44 @@ _managed_task_signatures: dict[str, str] = {}
 ATTACHMENT_MUTATION_RENEW_INTERVAL_SECONDS = ATTACHMENT_MUTATION_LOCK_TTL // 3
 
 
+class AttachmentMutationInProgressError(ValueError):
+    """Raised when another process owns a task's attachment mutation lease."""
+
+
+async def _release_attachment_mutation_best_effort(task_id: str, token: str) -> None:
+    """Release a mutation lease without changing the durable operation outcome."""
+    release_task = asyncio.create_task(release_attachment_mutation_lock(task_id, token))
+    while True:
+        try:
+            await asyncio.shield(release_task)
+            return
+        except asyncio.CancelledError:
+            if release_task.done():
+                logger.warning(
+                    "[Service] attachment mutation lock release was cancelled for task %s",
+                    task_id,
+                )
+                return
+            logger.warning(
+                "[Service] deferring cancellation until attachment mutation lock release "
+                "finishes for task %s",
+                task_id,
+            )
+        except Exception:
+            logger.exception(
+                "[Service] attachment mutation lock release failed for task %s",
+                task_id,
+            )
+            return
+
+
 @asynccontextmanager
 async def _attachment_mutation(task_id: str) -> AsyncIterator[str]:
     token = await acquire_attachment_mutation_lock(task_id)
     if token is None:
-        raise ValueError("Scheduled task attachment mutation is already in progress")
+        raise AttachmentMutationInProgressError(
+            "Scheduled task attachment mutation is already in progress"
+        )
     owner_task = asyncio.current_task()
     lock_lost = asyncio.Event()
 
@@ -99,7 +132,7 @@ async def _attachment_mutation(task_id: str) -> AsyncIterator[str]:
     finally:
         renewal_task.cancel()
         await asyncio.gather(renewal_task, return_exceptions=True)
-        await release_attachment_mutation_lock(task_id, token)
+        await _release_attachment_mutation_best_effort(task_id, token)
 
 
 def _task_attachment_keys(input_payload: dict[str, Any]) -> list[str]:
@@ -469,13 +502,19 @@ class ScheduledTaskService:
         tasks = await storage.list_attachment_reconciliation_tasks()
         reconciled = 0
         for listed_task in tasks:
-            async with _attachment_mutation(listed_task.id) as token:
-                task = await storage.claim_attachment_mutation(listed_task.id, token)
-                if task is None:
-                    continue
-                fence = _attachment_fence(task, token)
-                await self._reconcile_attachment_task(storage, task, fence)
-                reconciled += 1
+            try:
+                async with _attachment_mutation(listed_task.id) as token:
+                    task = await storage.claim_attachment_mutation(listed_task.id, token)
+                    if task is None:
+                        continue
+                    fence = _attachment_fence(task, token)
+                    await self._reconcile_attachment_task(storage, task, fence)
+                    reconciled += 1
+            except AttachmentMutationInProgressError:
+                logger.debug(
+                    "[Service] skipped attachment reconciliation for locked task %s",
+                    listed_task.id,
+                )
         return reconciled
 
     async def _reconcile_attachment_task(

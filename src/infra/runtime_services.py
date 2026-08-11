@@ -179,6 +179,22 @@ def register_scheduled_task_reconcile_job(
     )
 
 
+def register_scheduled_attachment_reconcile_job(
+    scheduled_task_service: ScheduledTaskService,
+) -> None:
+    """Periodically recover durable attachment transitions in every runtime mode."""
+    get_runtime_scheduler().register_job(
+        ScheduledJob.from_interval(
+            id="scheduled_tasks.attachments.reconcile",
+            interval_seconds=30,
+            handler=scheduled_task_service.reconcile_attachment_references,
+            name="Scheduled task attachment reconcile",
+            max_instances=1,
+            coalesce=True,
+        )
+    )
+
+
 def register_file_record_cleanup_job() -> None:
     """Run bounded delayed-upload cleanup independently of scheduled-task UI state."""
     get_runtime_scheduler().register_job(
@@ -235,6 +251,7 @@ async def start_runtime_services() -> None:
     await get_scheduled_task_storage().ensure_indexes()
     scheduled_task_service = ScheduledTaskService()
     await scheduled_task_service.reconcile_attachment_references()
+    register_scheduled_attachment_reconcile_job(scheduled_task_service)
     register_file_record_cleanup_job()
 
     if settings.ENABLE_SCHEDULED_TASK:

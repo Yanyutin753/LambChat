@@ -195,6 +195,64 @@ async def test_attachment_mutation_context_aborts_when_lock_ownership_is_lost(
     assert released.is_set()
 
 
+@pytest.mark.asyncio
+async def test_attachment_mutation_release_failure_does_not_mask_committed_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _release(_task_id: str, _token: str) -> None:
+        raise ConnectionError("redis unavailable after commit")
+
+    monkeypatch.setattr(service_module, "release_attachment_mutation_lock", _release)
+
+    async def _commit() -> str:
+        async with service_module._attachment_mutation("task_1"):
+            return "committed"
+
+    assert await _commit() == "committed"
+
+
+@pytest.mark.asyncio
+async def test_attachment_mutation_release_failure_preserves_body_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _release(_task_id: str, _token: str) -> None:
+        raise ConnectionError("redis unavailable during unwind")
+
+    monkeypatch.setattr(service_module, "release_attachment_mutation_lock", _release)
+
+    with pytest.raises(ValueError, match="body failed"):
+        async with service_module._attachment_mutation("task_1"):
+            raise ValueError("body failed")
+
+
+@pytest.mark.asyncio
+async def test_attachment_mutation_cancellation_during_release_preserves_committed_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release_started = asyncio.Event()
+    finish_release = asyncio.Event()
+    release_finished = asyncio.Event()
+
+    async def _release(_task_id: str, _token: str) -> None:
+        release_started.set()
+        await finish_release.wait()
+        release_finished.set()
+
+    monkeypatch.setattr(service_module, "release_attachment_mutation_lock", _release)
+
+    async def _commit() -> str:
+        async with service_module._attachment_mutation("task_1"):
+            return "committed"
+
+    operation = asyncio.create_task(_commit())
+    await asyncio.wait_for(release_started.wait(), timeout=1)
+    operation.cancel()
+    finish_release.set()
+
+    assert await operation == "committed"
+    assert release_finished.is_set()
+
+
 @pytest.fixture
 def mock_scheduler():
     with patch("src.infra.scheduler.service.get_runtime_scheduler") as mock:
@@ -903,6 +961,32 @@ async def test_reconcile_attachment_references_adopts_paused_legacy_definition(
     assert reconciled == 1
     assert events == ["stage", "claim", "commit"]
     mock_scheduler.register_job.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_attachment_references_skips_tasks_locked_by_another_instance(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contended = _make_task(_id="contended")
+    available = _make_task(_id="available")
+
+    async def _acquire(task_id: str) -> str | None:
+        return None if task_id == "contended" else "available-token"
+
+    async def _claim(task_id: str, token: str) -> ScheduledTask:
+        assert (task_id, token) == ("available", "available-token")
+        return _with_attachment_fence(available, token=token)
+
+    mock_storage.list_attachment_reconciliation_tasks.return_value = [contended, available]
+    mock_storage.claim_attachment_mutation.side_effect = _claim
+    monkeypatch.setattr(service_module, "acquire_attachment_mutation_lock", _acquire)
+
+    reconciled = await service.reconcile_attachment_references()
+
+    assert reconciled == 1
+    mock_storage.claim_attachment_mutation.assert_awaited_once_with("available", "available-token")
 
 
 @pytest.mark.asyncio
@@ -1644,9 +1728,7 @@ async def test_update_task_ambiguous_commit_failure_retains_live_claim(
     with pytest.raises(ConnectionError, match="commit reply lost"):
         await service.update_task(
             "task_1",
-            _make_update_request(
-                input_payload={"attachments": [{"key": "key-b"}]}
-            ),
+            _make_update_request(input_payload={"attachments": [{"key": "key-b"}]}),
         )
 
     assert state.attachment_keys == ["key-b"]
@@ -1790,9 +1872,7 @@ async def test_update_task_lock_loss_does_not_release_successor_live_claim(
     monkeypatch.setattr(service_module, "release_attachment_mutation_lock", _release)
     monkeypatch.setattr(service_module, "ATTACHMENT_MUTATION_RENEW_INTERVAL_SECONDS", 0)
     monkeypatch.setattr(service_module, "FileRecordStorage", lambda: _FileRecords())
-    request = _make_update_request(
-        input_payload={"attachments": [{"key": "key-b"}]}
-    )
+    request = _make_update_request(input_payload={"attachments": [{"key": "key-b"}]})
 
     stale_writer = asyncio.create_task(service.update_task("task_1", request))
     await asyncio.wait_for(first_commit_started.wait(), timeout=1)

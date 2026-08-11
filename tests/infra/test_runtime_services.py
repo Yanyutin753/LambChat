@@ -325,7 +325,17 @@ async def test_start_runtime_services_keeps_attachment_recovery_and_cleanup_when
     assert scheduled_task_storage.ensure_indexes_calls == 1
     assert scheduled_task_service.reconcile_attachment_calls == 1
     assert scheduled_task_service.load_calls == 0
-    assert scheduler.registered_job_ids == ["upload.file_records.cleanup"]
+    assert scheduler.registered_job_ids == [
+        "scheduled_tasks.attachments.reconcile",
+        "upload.file_records.cleanup",
+    ]
+    attachment_job = scheduler.registered_jobs["scheduled_tasks.attachments.reconcile"]
+    assert attachment_job.max_instances == 1
+    assert attachment_job.coalesce is True
+
+    await attachment_job.handler()
+
+    assert scheduled_task_service.reconcile_attachment_calls == 2
     assert scheduler.start_calls == 1
 
 
