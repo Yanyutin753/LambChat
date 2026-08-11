@@ -68,6 +68,7 @@ export function useFileUpload({
   const [uploadLimits, setUploadLimits] = useState<UploadLimits | null>(null);
   const limitsFetched = useRef(false);
   const abortMapRef = useRef<Map<string, () => void>>(new Map());
+  const cancelledUploadIdsRef = useRef<Set<string>>(new Set());
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export function useFileUpload({
   /** Cancel an in-progress upload by attachment id */
   const cancelUpload = useCallback(
     (id: string) => {
+      cancelledUploadIdsRef.current.add(id);
       const abort = abortMapRef.current.get(id);
       if (abort) {
         abort();
@@ -203,6 +205,9 @@ export function useFileUpload({
             if (!isMountedRef.current) {
               return;
             }
+            if (cancelledUploadIdsRef.current.delete(tempId)) {
+              return;
+            }
             if (check.exists && "key" in check) {
               abortMapRef.current.delete(tempId);
               const c = check as FileCheckResult;
@@ -252,6 +257,7 @@ export function useFileUpload({
                 return;
               }
               abortMapRef.current.delete(tempId);
+              cancelledUploadIdsRef.current.delete(tempId);
               const finalAttachment: MessageAttachment = {
                 id: uuid(),
                 key: result.key,
@@ -269,7 +275,11 @@ export function useFileUpload({
           })
           .catch((error) => {
             abortMapRef.current.delete(tempId);
+            const wasCancelled = cancelledUploadIdsRef.current.delete(tempId);
             if (!isMountedRef.current) {
+              return;
+            }
+            if (wasCancelled) {
               return;
             }
             if (
