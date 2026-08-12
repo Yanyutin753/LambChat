@@ -1,6 +1,31 @@
 import type { MessagePart } from "../../../types";
 import { processMessageEvent } from "../eventProcessor.ts";
 
+test("one thinking event immediately creates a streaming thinking part", () => {
+  const result = processMessageEvent(
+    "thinking",
+    { content: "first", thinking_id: "thinking-1" },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(result.parts).toEqual([
+    {
+      type: "thinking",
+      content: "first",
+      thinking_id: "thinking-1",
+      isStreaming: true,
+      depth: 0,
+      agent_id: undefined,
+    },
+  ]);
+});
+
 test("merges streamed summary chunks inside a subagent by summary id", () => {
   let parts: MessagePart[] = [
     {

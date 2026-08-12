@@ -27,13 +27,20 @@ from src.infra.agent.events.tool_outputs import (
     process_messages,
 )
 from src.infra.agent.events.types import TOOL_TASK, StreamEvent
+from src.infra.agent.first_event_timing import FirstEventTiming
 from src.infra.logging import get_logger
 from src.infra.writer.present import Presenter
 
 logger = get_logger(__name__)
 
 _CONTEXT_EVENT_TYPES = frozenset(
-    ("on_chat_model_stream", "on_tool_start", "on_tool_end", "on_tool_error")
+    (
+        "on_chat_model_start",
+        "on_chat_model_stream",
+        "on_tool_start",
+        "on_tool_end",
+        "on_tool_error",
+    )
 )
 
 RUBRIC_GRADER = "rubric_grader"
@@ -75,6 +82,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_started_tool_call_ids",
         "_rubric_grader_active",
         "_rubric_grader_id",
+        "_first_event_timing",
     )
 
     _CHUNK_FLUSH_SIZE = 200
@@ -86,6 +94,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         subagent_display_names: dict[str, str] | None = None,
         subagent_avatars: dict[str, str] | None = None,
         before_tool_start: Callable[[str, dict[str, Any]], Awaitable[None]] | None = None,
+        first_event_timing: FirstEventTiming | None = None,
     ):
         self.presenter = presenter
         self.checkpoint_to_agent: dict[str, tuple[str, str]] = {}
@@ -114,6 +123,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._started_tool_call_ids: set[str] = set()
         self._rubric_grader_active: bool = False
         self._rubric_grader_id: str | None = None
+        self._first_event_timing = first_event_timing or FirstEventTiming()
 
     @property
     def output_text(self) -> str:
@@ -267,10 +277,15 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             )
 
         match evt_type:
+            case "on_chat_model_start":
+                if current_depth == 0:
+                    self._first_event_timing.start_model()
             case "on_chat_model_stream":
                 if self._get_lc_source(metadata) == "summarization":
                     await self._handle_summary_stream(event, current_agent_id, current_depth)
                 else:
+                    if current_depth == 0:
+                        self._record_first_stream_milestones(event)
                     await self._handle_chat_stream(event, current_agent_id, current_depth)
             case "on_tool_start":
                 await self.flush()
@@ -301,6 +316,35 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             "agent_id": getattr(config, "agent_id", None),
             "agent_name": getattr(config, "agent_name", None),
         }
+
+    def _record_first_stream_milestones(self, event: StreamEvent) -> None:
+        chunk = event.get("data", {}).get("chunk")
+        if chunk is None:
+            return
+
+        self._first_event_timing.record_once("provider_first_delta")
+        content = getattr(chunk, "content", None)
+        if isinstance(content, str):
+            if content:
+                self._first_event_timing.record_once("provider_first_text")
+                return
+            reasoning = getattr(chunk, "additional_kwargs", {}).get("reasoning_content")
+            if reasoning:
+                self._first_event_timing.record_once("provider_first_reasoning")
+            return
+
+        if not isinstance(content, list):
+            return
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            block_type = block.get("type")
+            if block_type in ("thinking", "reasoning") and (
+                block.get("thinking") or block.get("reasoning")
+            ):
+                self._first_event_timing.record_once("provider_first_reasoning")
+            elif block_type == "text" and block.get("text"):
+                self._first_event_timing.record_once("provider_first_text")
 
     @staticmethod
     def _is_internal_stream_event(metadata: dict[str, Any]) -> bool:

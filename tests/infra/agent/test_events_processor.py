@@ -14,6 +14,7 @@ from src.infra.agent.events.tool_outputs import (
     detect_tool_error,
     process_messages,
 )
+from src.infra.agent.first_event_timing import FirstEventTiming
 
 
 class FakePresenter:
@@ -352,6 +353,40 @@ async def test_text_chunk_flushes_pending_thinking_first() -> None:
         "thinking first",
         "final answer",
     ]
+
+
+@pytest.mark.asyncio
+async def test_first_provider_milestones_are_recorded_without_delaying_thinking() -> None:
+    phases: list[str] = []
+
+    class _RecordingTiming(FirstEventTiming):
+        def start_model(self) -> None:
+            super().start_model()
+
+        def record_once(self, phase) -> None:
+            if phase not in self._seen:
+                phases.append(phase)
+            super().record_once(phase)
+
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(
+        presenter,
+        first_event_timing=_RecordingTiming(clock=lambda: 0.0),
+    )
+
+    await processor.process_event(
+        {"event": "on_chat_model_start", "name": "chat_model", "metadata": {}}
+    )
+    await processor.process_event(chat_stream(""))
+    await processor.process_event(reasoning_stream("thinking first"))
+    await processor.process_event(chat_stream("final answer", "chunk-text"))
+
+    assert phases == [
+        "provider_first_delta",
+        "provider_first_reasoning",
+        "provider_first_text",
+    ]
+    assert [event["event"] for event in presenter.emitted] == ["thinking", "message:chunk"]
 
 
 @pytest.mark.asyncio
