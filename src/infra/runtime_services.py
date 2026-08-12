@@ -63,6 +63,14 @@ async def drain_dual_writer_event_buffer() -> None:
     await close_dual_writer()
 
 
+async def drain_user_message_search_index_tasks() -> None:
+    from src.infra.writer.present import (
+        drain_user_message_search_index_tasks as _drain_user_message_search_index_tasks,
+    )
+
+    await _drain_user_message_search_index_tasks()
+
+
 async def drain_upload_delete_tasks() -> None:
     from src.api.routes.upload import drain_upload_delete_tasks as _drain_upload_delete_tasks
 
@@ -264,5 +272,6 @@ async def stop_runtime_services() -> None:
     await close_s3_storage()
     await cleanup_skills_storage_cache()
     await close_settings_service()
+    await drain_user_message_search_index_tasks()
     await drain_dual_writer_event_buffer()
     shutdown_blocking_io_executor()

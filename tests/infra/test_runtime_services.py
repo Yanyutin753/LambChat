@@ -560,6 +560,7 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     s3_storage_close = SimpleNamespace(calls=0)
     skills_storage_cleanup = SimpleNamespace(calls=0)
     settings_service_close = SimpleNamespace(calls=0)
+    user_message_search_index_drain = SimpleNamespace(calls=0)
 
     async def _memory_shutdown() -> None:
         memory_shutdown.calls += 1
@@ -613,6 +614,10 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     async def _drain_dual_writer_event_buffer() -> None:
         call_order.append("drain_dual_writer")
         dual_writer_drain.calls += 1
+
+    async def _drain_user_message_search_index_tasks() -> None:
+        call_order.append("drain_user_message_search_index")
+        user_message_search_index_drain.calls += 1
 
     async def _drain_upload_delete_tasks() -> None:
         call_order.append("drain_upload_delete")
@@ -806,6 +811,12 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
         _close_settings_service,
         raising=False,
     )
+    monkeypatch.setattr(
+        runtime_services,
+        "drain_user_message_search_index_tasks",
+        _drain_user_message_search_index_tasks,
+        raising=False,
+    )
     await runtime_services.stop_runtime_services()
 
     assert task_manager.stop_calls == 1
@@ -835,6 +846,7 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     assert s3_storage_close.calls == 1
     assert skills_storage_cleanup.calls == 1
     assert settings_service_close.calls == 1
+    assert user_message_search_index_drain.calls == 1
     assert call_order == [
         "close_channel_managers",
         "close_runtime_scheduler",
@@ -848,6 +860,7 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
         "close_s3_storage",
         "cleanup_skills_storage",
         "close_settings_service",
+        "drain_user_message_search_index",
         "drain_dual_writer",
         "shutdown_blocking_io",
     ]

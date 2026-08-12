@@ -164,6 +164,44 @@ async def test_post_persistence_search_failure_retains_attachment_claim(
 
 
 @pytest.mark.asyncio
+async def test_user_message_search_index_does_not_block_after_durable_save(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    presenter = _presenter()
+    search_started = asyncio.Event()
+    release_search = asyncio.Event()
+    order: list[str] = []
+
+    async def _save_event(event: dict[str, Any], **kwargs: Any) -> None:
+        assert kwargs == {"raise_on_error": True}
+        order.append("save")
+
+    class _GatedSessionStorage:
+        async def append_user_message_search_content(
+            self,
+            session_id: str,
+            content: str,
+        ) -> None:
+            assert session_id == "session-1"
+            assert content == "hello"
+            order.append("index")
+            search_started.set()
+            await release_search.wait()
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _GatedSessionStorage)
+    monkeypatch.setattr(presenter, "save_event", _save_event)
+
+    emit_task = asyncio.create_task(presenter.emit_user_message("hello"))
+    await asyncio.wait_for(search_started.wait(), timeout=1)
+    try:
+        assert order == ["save", "index"]
+        assert emit_task.done()
+    finally:
+        release_search.set()
+        await emit_task
+
+
+@pytest.mark.asyncio
 async def test_user_message_flush_failure_releases_preclaim_and_reraises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

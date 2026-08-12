@@ -22,6 +22,7 @@ Writer 模块 - 统一流式输出 + 事件存储
 import asyncio
 from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
 
+from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.logging import get_logger
 from src.infra.upload.file_record import FileRecordStorage
 
@@ -37,6 +38,32 @@ from src.infra.writer.presenter_events import EventPresenterMixin  # noqa: F401
 from src.infra.writer.presenter_storage import StoragePresenterMixin  # noqa: F401
 
 logger = get_logger(__name__)
+
+_user_message_search_index_tasks = BestEffortTaskLimiter(
+    "user-message-search-index",
+    max_tasks=64,
+)
+
+
+async def _append_user_message_search_content(session_id: str, content: str) -> None:
+    from src.infra.session.storage import SessionStorage
+
+    await SessionStorage().append_user_message_search_content(session_id, content)
+
+
+def schedule_user_message_search_index(
+    session_id: str,
+    content: str,
+) -> asyncio.Task[None]:
+    """Schedule rebuildable session search metadata after the message is durable."""
+    return _user_message_search_index_tasks.create_task(
+        _append_user_message_search_content(session_id, content)
+    )
+
+
+async def drain_user_message_search_index_tasks() -> None:
+    """Drain pending user-message search metadata writes during shutdown."""
+    await _user_message_search_index_tasks.drain()
 
 
 class Presenter(EventPresenterMixin, StoragePresenterMixin):
@@ -243,15 +270,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
             raise
 
         if self.config.session_id:
-            try:
-                from src.infra.session.storage import SessionStorage
-
-                await SessionStorage().append_user_message_search_content(
-                    self.config.session_id,
-                    content,
-                )
-            except Exception as e:
-                logger.warning("Failed to update session search index for user message: %s", e)
+            schedule_user_message_search_index(self.config.session_id, content)
         return event
 
     async def emit_skills_changed(
