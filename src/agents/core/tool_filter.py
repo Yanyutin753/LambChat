@@ -9,6 +9,7 @@
 - 数据库持久化的 system_disabled / user_disabled 过滤
 """
 
+import asyncio
 from typing import Any, List, Optional, Set
 
 # 不可被用户禁用的内置工具
@@ -113,12 +114,11 @@ async def get_db_disabled_mcp_tool_names(user_id: str) -> Set[str]:
 
         storage = MCPStorage()
 
-        # system 级别：管理员在 system server 上禁用的工具
-        system_disabled = await storage.get_system_disabled_tools()
-        # user 级别：用户在自己的 server 上禁用的工具
-        user_server_disabled = await storage.get_user_server_disabled_tools(user_id)
-        # user 级别：用户在 tool_preferences 中禁用的工具（全限定名）
-        user_tool_disabled = await storage.get_disabled_tool_names(user_id)
+        system_disabled, user_server_disabled, user_tool_disabled = await asyncio.gather(
+            storage.get_system_disabled_tools(),
+            storage.get_user_server_disabled_tools(user_id),
+            storage.get_disabled_tool_names(user_id),
+        )
 
         disabled: Set[str] = set()
 

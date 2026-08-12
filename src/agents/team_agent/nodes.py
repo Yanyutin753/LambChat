@@ -25,6 +25,7 @@ from src.agents.core.node_utils import (
     resolve_model_supports_vision,
 )
 from src.agents.core.persona import build_persona_prompt_sections
+from src.agents.core.startup_preparation import prepare_agent_inputs
 from src.agents.core.subagent_prompts import (
     AUTO_MODE_PROMPT_SECTION,
     CODEBASE_INVESTIGATOR_PROMPT,
@@ -294,36 +295,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     # 获取附件
     attachments = state.get("attachments", [])
 
-    # 创建 LLM
-    llm_start = time.time()
-    llm = await LLMClient.get_model(
-        model=selected_model,
-        model_id=model_id,
-        model_config=resolved_model_config,
-        thinking=thinking_config,
-    )
-    llm_init_time = time.time() - llm_start
-    logger.debug(f"[TeamAgent] LLM init: {llm_init_time * 1000:.3f}ms")
-
-    # 查询 fallback_model 配置
-    fallback_model_value = agent_options.get("_resolved_fallback_model")
-    if "_resolved_fallback_model" not in agent_options:
-        fallback_model_value = await resolve_fallback_model(
-            model_id, selected_model, log_prefix="[TeamAgent]"
-        )
-    supports_vision = agent_options.get("_resolved_supports_vision")
-    if supports_vision is None:
-        supports_vision = await resolve_model_supports_vision(
-            model_id, selected_model, log_prefix="[TeamAgent]"
-        )
-    supports_vision = bool(supports_vision)
-    image_url_to_base64 = agent_options.get("_resolved_image_url_to_base64")
-    if image_url_to_base64 is None:
-        image_url_to_base64 = await resolve_model_image_url_to_base64(
-            model_id, selected_model, log_prefix="[TeamAgent]"
-        )
-    image_url_to_base64 = bool(image_url_to_base64)
-
     # 多租户隔离
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
@@ -343,15 +314,129 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         [] if team else build_persona_prompt_sections(configurable.get("persona_system_prompt"))
     )
 
-    skills_prompt = ""
-    if settings.ENABLE_SKILLS and context.skills:
+    async def _load_model_bundle() -> tuple[Any, Any, bool, bool]:
+        llm_start = time.time()
+        model = await LLMClient.get_model(
+            model=selected_model,
+            model_id=model_id,
+            model_config=resolved_model_config,
+            thinking=thinking_config,
+        )
+        logger.debug(f"[TeamAgent] LLM init: {(time.time() - llm_start) * 1000:.3f}ms")
+        fallback = agent_options.get("_resolved_fallback_model")
+        if "_resolved_fallback_model" not in agent_options:
+            fallback = await resolve_fallback_model(
+                model_id, selected_model, log_prefix="[TeamAgent]"
+            )
+        vision = agent_options.get("_resolved_supports_vision")
+        if vision is None:
+            vision = await resolve_model_supports_vision(
+                model_id, selected_model, log_prefix="[TeamAgent]"
+            )
+        convert_images = agent_options.get("_resolved_image_url_to_base64")
+        if convert_images is None:
+            convert_images = await resolve_model_image_url_to_base64(
+                model_id, selected_model, log_prefix="[TeamAgent]"
+            )
+        return model, fallback, bool(vision), bool(convert_images)
+
+    async def _load_backend_bundle() -> tuple[Any, Any, Any, str | None]:
+        backend_start = time.time()
+        loaded_sandbox_backend = None
+        loaded_sandbox_work_dir = None
+
+        if not settings.ENABLE_SANDBOX:
+            loaded_backend = create_persistent_backend(
+                assistant_id=assistant_id,
+                user_id=context.user_id,
+                session_id=state.get("session_id", str(uuid.uuid4())),
+            )
+            logger.info(
+                f"[TeamAgent] Sandbox disabled, using PersistentBackend for assistant: {assistant_id}"
+            )
+        else:
+            if not context.user_id:
+                raise ValueError("Sandbox requires authenticated user (user_id is required)")
+            sandbox_manager = get_session_sandbox_manager()
+            try:
+                await presenter.emit_sandbox_starting()
+            except Exception as exc:
+                logger.warning("Failed to emit sandbox:starting event: %s", exc)
+            try:
+                (
+                    loaded_sandbox_backend,
+                    loaded_sandbox_work_dir,
+                ) = await sandbox_manager.get_or_create(
+                    session_id=state.get("session_id", str(uuid.uuid4())),
+                    user_id=context.user_id,
+                )
+                try:
+                    sandbox_id = getattr(loaded_sandbox_backend.default, "id", "unknown")
+                    await presenter.emit_sandbox_ready(
+                        sandbox_id=sandbox_id,
+                        work_dir=loaded_sandbox_work_dir,
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to emit sandbox:ready event: %s", exc)
+                loaded_backend = create_sandbox_backend(
+                    loaded_sandbox_backend.default,
+                    assistant_id,
+                    user_id=context.user_id,
+                )
+                logger.info(
+                    f"[TeamAgent] Sandbox enabled, using sandbox backend for assistant: {assistant_id}"
+                )
+            except Exception as exc:
+                try:
+                    await presenter.emit_sandbox_error(f"沙箱初始化失败: {str(exc)}")
+                except Exception as emit_exc:
+                    logger.warning("Failed to emit sandbox:error event: %s", emit_exc)
+                raise
+
+        loaded_store = await acreate_store()
+        logger.debug(f"[TeamAgent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
+        return (
+            loaded_backend,
+            loaded_store,
+            loaded_sandbox_backend,
+            loaded_sandbox_work_dir,
+        )
+
+    async def _load_skills_prompt() -> str:
+        if not settings.ENABLE_SKILLS or not context.skills:
+            return ""
         try:
             skills_start = time.time()
-            skills_prompt = await build_skills_prompt(context.skills)
-            skills_init_time = time.time() - skills_start
-            logger.debug(f"[TeamAgent] Skills prompt init: {skills_init_time * 1000:.3f}ms")
-        except Exception as e:
-            logger.warning(f"Failed to build skills prompt: {e}")
+            prompt = await build_skills_prompt(context.skills)
+            logger.debug(
+                f"[TeamAgent] Skills prompt init: {(time.time() - skills_start) * 1000:.3f}ms"
+            )
+            return prompt
+        except Exception as exc:
+            logger.warning("Failed to build skills prompt: %s", exc)
+            return ""
+
+    async def _load_context_tools() -> list[Any]:
+        get_tools = getattr(context, "get_tools", None)
+        if callable(get_tools):
+            maybe_tools = get_tools()
+            if inspect.isawaitable(maybe_tools):
+                await maybe_tools
+        filter_tools = getattr(context, "filter_tools", None)
+        return list(filter_tools() if callable(filter_tools) else getattr(context, "tools", []))
+
+    prepared = await prepare_agent_inputs(
+        model=_load_model_bundle(),
+        backend=_load_backend_bundle(),
+        skills_prompt=_load_skills_prompt(),
+        tools=_load_context_tools(),
+        checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
+    )
+    llm, fallback_model_value, supports_vision, image_url_to_base64 = prepared.model
+    backend, store, sandbox_backend, sandbox_work_dir = prepared.backend
+    skills_prompt = prepared.skills_prompt
+    filtered_tool_list = prepared.tools
+    inner_checkpointer = prepared.checkpointer
     router_skills_prompt = "" if team else skills_prompt
 
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
@@ -416,80 +501,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         system_prompt = FAST_SYSTEM_PROMPT
     runtime_enabled_skills = None if team else configurable.get("enabled_skills")
 
-    # 创建 backend
-    backend_start = time.time()
-    sandbox_backend = None
-    sandbox_work_dir = None
-
-    if not settings.ENABLE_SANDBOX:
-        session_id = state.get("session_id", str(uuid.uuid4()))
-        backend = create_persistent_backend(
-            assistant_id=assistant_id,
-            user_id=context.user_id,
-            session_id=session_id,
-        )
-        logger.info(
-            f"[TeamAgent] Sandbox disabled, using PersistentBackend for assistant: {assistant_id}"
-        )
-    else:
-        if not context.user_id:
-            raise ValueError("Sandbox requires authenticated user (user_id is required)")
-
-        sandbox_manager = get_session_sandbox_manager()
-        try:
-            await presenter.emit_sandbox_starting()
-        except Exception as e:
-            logger.warning(f"Failed to emit sandbox:starting event: {e}")
-
-        try:
-            sandbox_backend, sandbox_work_dir = await sandbox_manager.get_or_create(
-                session_id=state.get("session_id", str(uuid.uuid4())),
-                user_id=context.user_id,
-            )
-            try:
-                sandbox_id = getattr(sandbox_backend.default, "id", "unknown")
-                await presenter.emit_sandbox_ready(
-                    sandbox_id=sandbox_id,
-                    work_dir=sandbox_work_dir,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to emit sandbox:ready event: {e}")
-
-            backend = create_sandbox_backend(
-                sandbox_backend.default,
-                assistant_id,
-                user_id=context.user_id,
-            )
-            if team:
-                system_prompt = f"{SEARCH_SANDBOX_SYSTEM_PROMPT}\n\n{system_prompt}"
-            else:
-                system_prompt = build_no_team_fallback_system_prompt(sandbox_active=True)
-            logger.info(
-                f"[TeamAgent] Sandbox enabled, using sandbox backend for assistant: {assistant_id}"
-            )
-        except Exception as e:
-            try:
-                await presenter.emit_sandbox_error(f"沙箱初始化失败: {str(e)}")
-            except Exception as emit_err:
-                logger.warning(f"Failed to emit sandbox:error event: {emit_err}")
-            raise
-
-    backend_init_time = time.time() - backend_start
-    logger.debug(f"[TeamAgent] Backend init: {backend_init_time * 1000:.3f}ms")
-
-    # 创建 store
-    store = await acreate_store()
+    if sandbox_backend is not None and team:
+        system_prompt = f"{SEARCH_SANDBOX_SYSTEM_PROMPT}\n\n{system_prompt}"
+    elif sandbox_backend is not None:
+        system_prompt = build_no_team_fallback_system_prompt(sandbox_active=True)
 
     # 过滤工具（懒加载 MCP 工具）
-    get_tools = getattr(context, "get_tools", None)
-    if callable(get_tools):
-        maybe_tools = get_tools()
-        if inspect.isawaitable(maybe_tools):
-            await maybe_tools
-    filter_tools = getattr(context, "filter_tools", None)
-    filtered_tool_list = list(
-        filter_tools() if callable(filter_tools) else getattr(context, "tools", [])
-    )
     if context.deferred_manager is not None and not any(
         getattr(tool, "name", "") == "search_tools" for tool in filtered_tool_list
     ):
@@ -502,12 +519,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             )
         )
     filtered_tools: list[Any] | None = filtered_tool_list or None
-
-    # 创建内层 graph (deep agent)
-    checkpointer_start = time.time()
-    inner_checkpointer = await get_async_checkpointer(thread_id=state.get("session_id"))
-    checkpointer_init_time = time.time() - checkpointer_start
-    logger.debug(f"[TeamAgent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
 
     graph_compile_start = time.time()
 
