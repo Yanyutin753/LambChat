@@ -34,6 +34,12 @@ _local_locks: dict[str, asyncio.Lock] = {}
 # 后台任务追踪集合
 _background_tasks: Set[asyncio.Future] = set()
 
+# 过期条目继续服务请求，并在后台单飞刷新。
+_refresh_tasks: dict[str, asyncio.Task[None]] = {}
+_user_generations: dict[str, int] = {}
+_refresh_retry_after: dict[str, float] = {}
+_cache_epoch = 0
+
 # 清理计数器（用于定期清理检查）
 _cleanup_counter = 0
 
@@ -49,6 +55,7 @@ GLOBAL_CACHE_TTL = 900
 # 最大缓存条目数（防止内存泄漏）
 MAX_GLOBAL_ENTRIES = 100
 DEFAULT_INIT_WAIT_SECONDS = 5
+MCP_REFRESH_RETRY_COOLDOWN_SECONDS = 30.0
 
 # Redis 键前缀
 LOCK_KEY_PREFIX = "mcp_init_lock:"
@@ -370,6 +377,144 @@ def _schedule_manager_close(manager: "MCPClientManager") -> None:
         pass
 
 
+async def _build_global_entry(user_id: str) -> GlobalMCPEntry:
+    """Build an MCP entry without publishing it to the process cache."""
+    from src.infra.tool.mcp_client import MCPClientManager
+
+    manager = MCPClientManager(
+        config_path=None,
+        user_id=user_id,
+        use_database=True,
+    )
+    try:
+        await manager.initialize()
+        tools = await manager.get_tools()
+        return GlobalMCPEntry(manager=manager, tools=tools)
+    except BaseException:
+        await manager.close()
+        raise
+
+
+async def _build_global_entry_with_distributed_lock(user_id: str) -> GlobalMCPEntry:
+    """Build a replacement while retaining the existing cross-process lock."""
+    lock_key = f"{LOCK_KEY_PREFIX}{user_id}"
+    lock_acquired, lock_value = await acquire_distributed_lock(lock_key)
+    if not lock_acquired or not lock_value:
+        raise RuntimeError("MCP refresh lock is held by another instance")
+
+    renew_stop_event = asyncio.Event()
+    renew_task = asyncio.create_task(
+        _renew_lock_until_stopped(
+            lock_key,
+            lock_value,
+            DISTRIBUTED_LOCK_TTL,
+            renew_stop_event,
+        )
+    )
+    _track_background_task(renew_task)
+    try:
+        entry = await _build_global_entry(user_id)
+        await mark_init_done(user_id)
+        return entry
+    finally:
+        renew_stop_event.set()
+        try:
+            await renew_task
+        except Exception:
+            pass
+        await release_distributed_lock(lock_key, lock_value)
+
+
+async def _refresh_global_entry(
+    user_id: str,
+    stale_entry: GlobalMCPEntry,
+    epoch: int,
+    generation: int,
+) -> None:
+    replacement: GlobalMCPEntry | None = None
+    replaced = False
+    try:
+        replacement = await _build_global_entry_with_distributed_lock(user_id)
+        async with _get_local_lock(user_id):
+            if (
+                _cache_epoch != epoch
+                or _user_generations.get(user_id, 0) != generation
+                or _global_entries.get(user_id) is not stale_entry
+            ):
+                return
+            _global_entries[user_id] = replacement
+            replacement = None
+            replaced = True
+            _refresh_retry_after.pop(user_id, None)
+
+        try:
+            await stale_entry.manager.close()
+        except Exception as exc:
+            logger.warning("[Global MCP] Failed to close stale manager: %s", type(exc).__name__)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        async with _get_local_lock(user_id):
+            if _global_entries.get(user_id) is stale_entry:
+                _refresh_retry_after[user_id] = (
+                    time.monotonic() + MCP_REFRESH_RETRY_COOLDOWN_SECONDS
+                )
+        logger.warning(
+            "[Global MCP] Background refresh failed for user %s (%s)",
+            user_id,
+            type(exc).__name__,
+        )
+    finally:
+        if replacement is not None:
+            await replacement.manager.close()
+        if replaced:
+            logger.info("[Global MCP] Background refresh completed for user %s", user_id)
+
+
+def _schedule_entry_refresh(user_id: str, stale_entry: GlobalMCPEntry) -> None:
+    existing = _refresh_tasks.get(user_id)
+    if existing is not None and not existing.done():
+        return
+    if time.monotonic() < _refresh_retry_after.get(user_id, 0.0):
+        return
+
+    task = asyncio.create_task(
+        _refresh_global_entry(
+            user_id,
+            stale_entry,
+            _cache_epoch,
+            _user_generations.get(user_id, 0),
+        ),
+        name=f"mcp-cache-refresh:{user_id}",
+    )
+    _refresh_tasks[user_id] = task
+    _track_background_task(task)
+
+    def _remove_completed(completed: asyncio.Task[None]) -> None:
+        if _refresh_tasks.get(user_id) is completed:
+            _refresh_tasks.pop(user_id, None)
+
+    task.add_done_callback(_remove_completed)
+
+
+def _use_cached_entry(
+    user_id: str, entry: GlobalMCPEntry
+) -> tuple[list[BaseTool], "MCPClientManager"]:
+    entry.touch()
+    if entry.is_expired():
+        _schedule_entry_refresh(user_id, entry)
+        cache_status = "stale"
+    else:
+        cache_status = "fresh"
+    logger.info(
+        "[Global MCP] Cache hit for user %s (%s, %s tools)",
+        user_id,
+        cache_status,
+        len(entry.tools),
+    )
+    return entry.tools, entry.manager
+
+
 def _cleanup_expired_entries() -> int:
     """清理过期的缓存条目，返回清理的数量"""
     expired_users = [user_id for user_id, entry in _global_entries.items() if entry.is_expired()]
@@ -426,11 +571,10 @@ async def get_global_mcp_tools(
     """
     global _cleanup_counter
 
-    # 定期清理过期条目（使用计数器避免竞态条件）
+    # 定期执行容量清理；TTL 条目由 stale-while-revalidate 原子替换。
     _cleanup_counter += 1
     if _cleanup_counter >= CLEANUP_CHECK_INTERVAL:
         _cleanup_counter = 0
-        _cleanup_expired_entries()
         _cleanup_excess_entries()
         removed = _cleanup_orphan_locks()
         if removed:
@@ -439,10 +583,8 @@ async def get_global_mcp_tools(
     # 1. 快速路径：检查全局单例
     if user_id in _global_entries:
         entry = _global_entries[user_id]
-        if entry.manager._initialized and not entry.is_expired():
-            entry.touch()
-            logger.info(f"[Global MCP] Hit singleton for user {user_id}, {len(entry.tools)} tools")
-            return entry.tools, entry.manager
+        if entry.manager._initialized:
+            return _use_cached_entry(user_id, entry)
 
     # 2. 获取本地锁（防止同一进程内并发）
     local_lock = _get_local_lock(user_id)
@@ -450,10 +592,8 @@ async def get_global_mcp_tools(
         # 3. 再次检查（double-check locking）
         if user_id in _global_entries:
             entry = _global_entries[user_id]
-            if entry.manager._initialized and not entry.is_expired():
-                entry.touch()
-                logger.info(f"[Global MCP] Hit singleton (double-check) for user {user_id}")
-                return entry.tools, entry.manager
+            if entry.manager._initialized:
+                return _use_cached_entry(user_id, entry)
 
         # 4. 获取 Redis 分布式锁
         lock_key = f"{LOCK_KEY_PREFIX}{user_id}"
@@ -522,31 +662,18 @@ async def get_global_mcp_tools(
             # 5. 再次检查（triple-check）
             if user_id in _global_entries:
                 entry = _global_entries[user_id]
-                if entry.manager._initialized and not entry.is_expired():
-                    entry.touch()
-                    return entry.tools, entry.manager
+                if entry.manager._initialized:
+                    return _use_cached_entry(user_id, entry)
 
             # 6. 创建新的 MCPClientManager
             logger.info(f"[Global MCP] Creating manager for user {user_id}")
-            # 延迟导入避免循环依赖
-            from src.infra.tool.mcp_client import MCPClientManager
-
-            manager = MCPClientManager(
-                config_path=None,
-                user_id=user_id,
-                use_database=True,
-            )
-            logger.info(f"[Global MCP] Initializing manager for {user_id}...")
-            await manager.initialize()
-            logger.info(f"[Global MCP] Getting tools for {user_id}...")
-            tools = await manager.get_tools()
+            new_entry = await _build_global_entry(user_id)
+            manager = new_entry.manager
+            tools = new_entry.tools
             logger.info(f"[Global MCP] Got {len(tools)} tools for {user_id}")
 
             # 7. 保存到全局单例
-            _global_entries[user_id] = GlobalMCPEntry(
-                manager=manager,
-                tools=tools,
-            )
+            _global_entries[user_id] = new_entry
 
             # 8. 标记初始化完成（通知其他实例）
             await mark_init_done(user_id)
@@ -594,6 +721,10 @@ async def invalidate_global_cache(user_id: str, *, publish: bool = True) -> None
     Args:
         user_id: 用户 ID
     """
+    # 先推进代次，确保已经在途的刷新结果不能重新安装。
+    _user_generations[user_id] = _user_generations.get(user_id, 0) + 1
+    _refresh_retry_after.pop(user_id, None)
+
     # 清除进程内缓存
     if user_id in _global_entries:
         entry = _global_entries.pop(user_id)
@@ -626,6 +757,10 @@ async def invalidate_all_global_cache(*, publish: bool = True) -> int:
     Returns:
         被失效的缓存数量
     """
+    global _cache_epoch
+
+    _cache_epoch += 1
+    _refresh_retry_after.clear()
     count = len(_global_entries)
 
     # 关闭所有 manager
@@ -646,7 +781,9 @@ async def invalidate_all_global_cache(*, publish: bool = True) -> int:
 
 async def close_global_mcp_cache() -> int:
     """Close and clear every cached global MCP manager for process shutdown."""
-    return await invalidate_all_global_cache(publish=False)
+    count = await invalidate_all_global_cache(publish=False)
+    await drain_background_tasks()
+    return count
 
 
 async def warmup_global_cache(user_ids: list[str]) -> None:

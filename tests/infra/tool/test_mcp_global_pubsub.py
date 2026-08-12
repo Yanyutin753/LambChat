@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
+import time
 from types import SimpleNamespace
 
 import pytest
+import pytest_asyncio
 
 from src.infra.tool import mcp_global
 
@@ -41,12 +44,245 @@ class _FakeRedisClient:
 
 
 class _FakeManager:
-    def __init__(self) -> None:
+    def __init__(self, **_kwargs) -> None:
         self.close_calls = 0
         self._initialized = True
 
     async def close(self) -> None:
         self.close_calls += 1
+
+
+async def _acquired_lock(
+    _lock_key: str,
+    ttl: int = mcp_global.DISTRIBUTED_LOCK_TTL,
+) -> tuple[bool, str]:
+    assert ttl == mcp_global.DISTRIBUTED_LOCK_TTL
+    return True, "test-lock"
+
+
+async def _released_lock(_lock_key: str, _lock_value: str) -> bool:
+    return True
+
+
+async def _mark_done(_user_id: str) -> None:
+    return None
+
+
+def _install_stale_entry(user_id: str = "user-1") -> tuple[_FakeManager, list[object]]:
+    manager = _FakeManager()
+    tools = [object()]
+    mcp_global._global_entries[user_id] = mcp_global.GlobalMCPEntry(
+        manager=manager,
+        tools=tools,
+        created_at=0,
+    )
+    return manager, tools
+
+
+def _patch_refresh_locking(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(mcp_global, "acquire_distributed_lock", _acquired_lock)
+    monkeypatch.setattr(mcp_global, "release_distributed_lock", _released_lock)
+    monkeypatch.setattr(mcp_global, "mark_init_done", _mark_done)
+
+
+@pytest.mark.asyncio
+async def test_expired_initialized_entry_returns_before_background_refresh_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh_started = asyncio.Event()
+    release_refresh = asyncio.Event()
+    old_manager, old_tools = _install_stale_entry()
+
+    class _RefreshingManager(_FakeManager):
+        async def initialize(self) -> None:
+            self._initialized = False
+            refresh_started.set()
+            await release_refresh.wait()
+            self._initialized = True
+
+        async def get_tools(self) -> list[object]:
+            return [object()]
+
+    monkeypatch.setattr(mcp_global.settings, "MCP_GLOBAL_CACHE_TTL_SECONDS", 1)
+    _patch_refresh_locking(monkeypatch)
+    monkeypatch.setitem(
+        sys.modules,
+        "src.infra.tool.mcp_client",
+        SimpleNamespace(MCPClientManager=_RefreshingManager),
+    )
+
+    tools, manager = await asyncio.wait_for(
+        mcp_global.get_global_mcp_tools("user-1"),
+        timeout=0.1,
+    )
+    await asyncio.wait_for(refresh_started.wait(), timeout=1)
+
+    assert tools is old_tools
+    assert manager is old_manager
+    assert len(mcp_global._refresh_tasks) == 1
+
+    second_tools, second_manager = await mcp_global.get_global_mcp_tools("user-1")
+    assert second_tools is old_tools
+    assert second_manager is old_manager
+    assert len(mcp_global._refresh_tasks) == 1
+
+    release_refresh.set()
+    await mcp_global.drain_background_tasks(timeout=1)
+
+    assert mcp_global._global_entries["user-1"].manager is not old_manager
+    assert old_manager.close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_refresh_failure_keeps_stale_entry_and_applies_retry_cooldown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old_manager, old_tools = _install_stale_entry()
+    initialize_calls = 0
+
+    class _FailingManager(_FakeManager):
+        async def initialize(self) -> None:
+            nonlocal initialize_calls
+            initialize_calls += 1
+            raise RuntimeError("refresh failed")
+
+    monkeypatch.setattr(mcp_global.settings, "MCP_GLOBAL_CACHE_TTL_SECONDS", 1)
+    _patch_refresh_locking(monkeypatch)
+    monkeypatch.setitem(
+        sys.modules,
+        "src.infra.tool.mcp_client",
+        SimpleNamespace(MCPClientManager=_FailingManager),
+    )
+
+    tools, manager = await mcp_global.get_global_mcp_tools("user-1")
+    await mcp_global.drain_background_tasks(timeout=1)
+
+    assert tools is old_tools
+    assert manager is old_manager
+    assert mcp_global._global_entries["user-1"].manager is old_manager
+    assert mcp_global._refresh_retry_after["user-1"] > time.monotonic()
+
+    await mcp_global.get_global_mcp_tools("user-1")
+    await asyncio.sleep(0)
+    assert initialize_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_invalidation_during_refresh_does_not_reinstall_invalidated_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh_started = asyncio.Event()
+    release_refresh = asyncio.Event()
+    old_manager, _ = _install_stale_entry()
+    replacement_managers: list[_FakeManager] = []
+
+    class _RefreshingManager(_FakeManager):
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            replacement_managers.append(self)
+
+        async def initialize(self) -> None:
+            refresh_started.set()
+            await release_refresh.wait()
+
+        async def get_tools(self) -> list[object]:
+            return []
+
+    _patch_refresh_locking(monkeypatch)
+    monkeypatch.setitem(
+        sys.modules,
+        "src.infra.tool.mcp_client",
+        SimpleNamespace(MCPClientManager=_RefreshingManager),
+    )
+
+    await mcp_global.get_global_mcp_tools("user-1")
+    await asyncio.wait_for(refresh_started.wait(), timeout=1)
+    await mcp_global.invalidate_global_cache("user-1", publish=False)
+    release_refresh.set()
+    await mcp_global.drain_background_tasks(timeout=1)
+
+    assert "user-1" not in mcp_global._global_entries
+    assert old_manager.close_calls == 1
+    assert replacement_managers[0].close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_invalidate_all_during_refresh_does_not_reinstall_any_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh_started = asyncio.Event()
+    release_refresh = asyncio.Event()
+    _install_stale_entry()
+    replacement_managers: list[_FakeManager] = []
+
+    class _RefreshingManager(_FakeManager):
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            replacement_managers.append(self)
+
+        async def initialize(self) -> None:
+            refresh_started.set()
+            await release_refresh.wait()
+
+        async def get_tools(self) -> list[object]:
+            return []
+
+    _patch_refresh_locking(monkeypatch)
+    monkeypatch.setitem(
+        sys.modules,
+        "src.infra.tool.mcp_client",
+        SimpleNamespace(MCPClientManager=_RefreshingManager),
+    )
+
+    await mcp_global.get_global_mcp_tools("user-1")
+    await asyncio.wait_for(refresh_started.wait(), timeout=1)
+    await mcp_global.invalidate_all_global_cache(publish=False)
+    release_refresh.set()
+    await mcp_global.drain_background_tasks(timeout=1)
+
+    assert mcp_global._global_entries == {}
+    assert replacement_managers[0].close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_close_global_mcp_cache_drains_refresh_before_final_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh_started = asyncio.Event()
+    release_refresh = asyncio.Event()
+    old_manager, _ = _install_stale_entry()
+    replacement_managers: list[_FakeManager] = []
+
+    class _RefreshingManager(_FakeManager):
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            replacement_managers.append(self)
+
+        async def initialize(self) -> None:
+            refresh_started.set()
+            await release_refresh.wait()
+
+        async def get_tools(self) -> list[object]:
+            return []
+
+    _patch_refresh_locking(monkeypatch)
+    monkeypatch.setitem(
+        sys.modules,
+        "src.infra.tool.mcp_client",
+        SimpleNamespace(MCPClientManager=_RefreshingManager),
+    )
+
+    await mcp_global.get_global_mcp_tools("user-1")
+    await asyncio.wait_for(refresh_started.wait(), timeout=1)
+    close_task = asyncio.create_task(mcp_global.close_global_mcp_cache())
+    await asyncio.sleep(0)
+    assert close_task.done() is False
+
+    release_refresh.set()
+    assert await close_task == 1
+    assert old_manager.close_calls == 1
+    assert replacement_managers[0].close_calls == 1
+    assert mcp_global._global_entries == {}
 
 
 @pytest.mark.asyncio
@@ -479,7 +715,32 @@ async def test_global_mcp_lock_wait_uses_configured_attempt_limit(
     assert sleep_calls == [1.0, 1.0]
 
 
-@pytest.fixture(autouse=True)
-def _reset_mcp_global_state() -> None:
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_mcp_global_state():
+    for task in list(getattr(mcp_global, "_refresh_tasks", {}).values()):
+        task.cancel()
+    await asyncio.gather(
+        *list(getattr(mcp_global, "_refresh_tasks", {}).values()),
+        return_exceptions=True,
+    )
     mcp_global._global_entries.clear()
     mcp_global._local_locks.clear()
+    getattr(mcp_global, "_refresh_tasks", {}).clear()
+    getattr(mcp_global, "_user_generations", {}).clear()
+    getattr(mcp_global, "_refresh_retry_after", {}).clear()
+    if hasattr(mcp_global, "_cache_epoch"):
+        mcp_global._cache_epoch = 0
+
+    yield
+
+    for task in list(getattr(mcp_global, "_refresh_tasks", {}).values()):
+        task.cancel()
+    await asyncio.gather(
+        *list(getattr(mcp_global, "_refresh_tasks", {}).values()),
+        return_exceptions=True,
+    )
+    mcp_global._global_entries.clear()
+    mcp_global._local_locks.clear()
+    getattr(mcp_global, "_refresh_tasks", {}).clear()
+    getattr(mcp_global, "_user_generations", {}).clear()
+    getattr(mcp_global, "_refresh_retry_after", {}).clear()
