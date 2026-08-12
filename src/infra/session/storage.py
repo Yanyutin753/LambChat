@@ -432,13 +432,14 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             else:
                 query["$or"] = favorite_query
 
-        # Get total count
-        total = await self.collection.count_documents(query)
-
         cursor = self.collection.find(query).skip(skip).limit(limit).sort("updated_at", -1)
+        total, session_dicts = await asyncio.gather(
+            self.collection.count_documents(query),
+            cursor.to_list(length=limit),
+        )
         sessions = []
 
-        for session_dict in await cursor.to_list(length=limit):
+        for session_dict in session_dicts:
             session = self._build_session(session_dict, favorites_project_id)
             if search:
                 match_preview = build_search_preview(session_dict.get("search_text"), search)
@@ -556,6 +557,27 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             {"$set": {"unread_count": 0}},
         )
         return result.modified_count > 0
+
+    async def mark_read_for_user(self, session_id: str, user_id: str) -> bool:
+        """Mark a session read only when it belongs to the supplied user."""
+        await self.ensure_indexes_if_needed()
+        identity_query: dict[str, Any]
+        try:
+            object_id = ObjectId(session_id)
+        except Exception:
+            identity_query = {"session_id": session_id}
+        else:
+            identity_query = {
+                "$or": [
+                    {"session_id": session_id},
+                    {"_id": object_id},
+                ]
+            }
+        result = await self.collection.update_one(
+            {**identity_query, "user_id": user_id},
+            {"$set": {"unread_count": 0}},
+        )
+        return result.matched_count > 0
 
     async def mark_all_read(
         self,

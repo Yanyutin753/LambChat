@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from src.infra.session import storage as session_storage
@@ -57,6 +59,41 @@ class _RecordingListCollection:
     def find(self, query, *_args, **_kwargs):
         self.find_query = query
         return self.cursor
+
+
+class _ConcurrentListCursor(_RecordingListCursor):
+    def __init__(self, collection: "_ConcurrentListCollection") -> None:
+        super().__init__()
+        self.collection = collection
+
+    async def to_list(self, length=None):
+        self.collection.page_started = True
+        for _ in range(10):
+            if self.collection.count_started:
+                break
+            await asyncio.sleep(0)
+        self.collection.page_observed_count = self.collection.count_started
+        return await super().to_list(length)
+
+
+class _ConcurrentListCollection(_RecordingListCollection):
+    def __init__(self) -> None:
+        super().__init__()
+        self.cursor = _ConcurrentListCursor(self)
+        self.count_started = False
+        self.page_started = False
+        self.count_observed_page = False
+        self.page_observed_count = False
+
+    async def count_documents(self, query):
+        self.count_query = query
+        self.count_started = True
+        for _ in range(10):
+            if self.page_started:
+                break
+            await asyncio.sleep(0)
+        self.count_observed_page = self.page_started
+        return 0
 
 
 @pytest.mark.asyncio
@@ -130,6 +167,27 @@ async def test_list_sessions_caps_direct_storage_limit(monkeypatch: pytest.Monke
     assert collection.cursor.skip_value == 0
     assert collection.cursor.limit_value == session_storage.SESSION_LIST_LOOKUP_LIMIT
     assert collection.cursor.to_list_length == session_storage.SESSION_LIST_LOOKUP_LIMIT
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_fetches_count_and_page_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _ConcurrentListCollection()
+    storage = session_storage.SessionStorage()
+    storage._collection = collection
+
+    async def _skip_indexes(_self):
+        return None
+
+    monkeypatch.setattr(session_storage.SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+
+    sessions, total = await storage.list_sessions(user_id="user")
+
+    assert sessions == []
+    assert total == 0
+    assert collection.count_observed_page is True
+    assert collection.page_observed_count is True
 
 
 @pytest.mark.asyncio

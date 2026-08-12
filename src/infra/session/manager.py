@@ -448,6 +448,10 @@ class SessionManager:
         """将会话标记为已读"""
         return await self.storage.mark_read(session_id)
 
+    async def mark_read_for_user(self, session_id: str, user_id: str) -> bool:
+        """仅在会话属于指定用户时标记已读。"""
+        return await self.storage.mark_read_for_user(session_id, user_id)
+
     async def mark_all_read(
         self,
         user_id: str,

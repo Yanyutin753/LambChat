@@ -166,18 +166,31 @@ async def list_sessions(
 
     # 所有用户只能查看自己的会话
     filter_user_id = user.sub
-    favorites_project_id = await _get_favorites_project_id(user.sub)
-
-    sessions, total = await manager.list_sessions(
-        user_id=filter_user_id,
-        skip=skip,
-        limit=limit,
-        is_active=is_active,
-        project_id=project_id,
-        search=search,
-        favorites_only=favorites_only,
-        favorites_project_id=favorites_project_id,
-    )
+    list_kwargs = {
+        "user_id": filter_user_id,
+        "skip": skip,
+        "limit": limit,
+        "is_active": is_active,
+        "project_id": project_id,
+        "search": search,
+        "favorites_only": favorites_only,
+    }
+    if favorites_only:
+        favorites_project_id = await _get_favorites_project_id(user.sub)
+        sessions, total = await manager.list_sessions(
+            **list_kwargs,
+            favorites_project_id=favorites_project_id,
+        )
+    else:
+        favorites_project_id, list_result = await asyncio.gather(
+            _get_favorites_project_id(user.sub),
+            manager.list_sessions(
+                **list_kwargs,
+                favorites_project_id=None,
+            ),
+        )
+        sessions, total = list_result
+        sessions = [_normalize_session(session, favorites_project_id) for session in sessions]
 
     return {
         "sessions": sessions,
@@ -225,12 +238,14 @@ async def get_session(
     只能获取自己拥有的会话，管理员可以获取任意会话。
     """
     manager = SessionManager()
-    session = await manager.get_session(session_id)
+    session, favorites_project_id = await asyncio.gather(
+        manager.get_session(session_id),
+        _get_favorites_project_id(user.sub),
+    )
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
 
     verify_session_ownership(session, user)
-    favorites_project_id = await _get_favorites_project_id(user.sub)
     return _normalize_session(session, favorites_project_id)
 
 
@@ -273,12 +288,14 @@ async def mark_session_read(
 ):
     """将会话标记为已读（清除未读计数）"""
     manager = SessionManager()
+    if await manager.mark_read_for_user(session_id, user.sub):
+        return {"status": "ok"}
+
+    # Keep the previous 404/403 distinction on the uncommon miss path.
     session = await manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
-
     verify_session_ownership(session, user)
-
     await manager.mark_read(session_id)
     return {"status": "ok"}
 
