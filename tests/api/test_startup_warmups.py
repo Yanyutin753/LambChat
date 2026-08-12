@@ -39,6 +39,33 @@ async def test_schedule_models_cache_warmup_does_not_wait_for_refresh(
 
 
 @pytest.mark.asyncio
+async def test_schedule_mcp_cache_warmup_does_not_delay_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _slow_warmup(limit: int = 0) -> None:
+        assert limit == 0
+        started.set()
+        await release.wait()
+
+    monkeypatch.setattr(
+        "src.infra.tool.mcp_global.warmup_active_users_mcp",
+        _slow_warmup,
+    )
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    task = api_main._schedule_mcp_cache_warmup(app)
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    assert task is app.state.mcp_cache_warmup_task
+    assert task.done() is False
+    release.set()
+    await task
+
+
+@pytest.mark.asyncio
 async def test_warm_models_cache_logs_traceback_on_failure(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,

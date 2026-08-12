@@ -100,6 +100,7 @@ _LIFESPAN_BACKGROUND_TASK_NAMES = (
     "memory_monitor_startup_reset_task",
     "agent_discovery_task",
     "models_preload_task",
+    "mcp_cache_warmup_task",
     "stale_task_cleanup_task",
     "stale_task_cleanup_recheck_task",
     "feishu_task",
@@ -253,6 +254,23 @@ def _schedule_models_cache_warmup(app: FastAPI) -> asyncio.Task[None]:
     """Schedule model cache warm-up and keep a task reference for shutdown."""
     task = asyncio.create_task(_warm_models_cache())
     app.state.models_preload_task = task
+    return task
+
+
+async def _warm_mcp_cache() -> None:
+    """Preload recent users' MCP catalogs without delaying readiness."""
+    try:
+        from src.infra.tool.mcp_global import warmup_active_users_mcp
+
+        await warmup_active_users_mcp(limit=0)
+        logger.info("Recent-user MCP catalogs preloaded")
+    except Exception as exc:
+        logger.warning("MCP cache warm-up failed (%s)", type(exc).__name__)
+
+
+def _schedule_mcp_cache_warmup(app: FastAPI) -> asyncio.Task[None]:
+    task = asyncio.create_task(_warm_mcp_cache(), name="mcp-cache-warmup")
+    app.state.mcp_cache_warmup_task = task
     return task
 
 
@@ -548,6 +566,9 @@ async def lifespan(app: FastAPI):
 
     # 后台预加载模型列表；请求路径仍有 memory -> Redis -> DB 懒加载兜底。
     _schedule_models_cache_warmup(app)
+
+    # 后台预热最近活跃用户的 MCP 工具目录；不阻塞应用就绪。
+    _schedule_mcp_cache_warmup(app)
 
     # 后台迁移旧 SHA256 加密数据到 PBKDF2（不阻塞启动，失败仅告警）
     from src.infra.mcp.migration import migrate_legacy_encryption

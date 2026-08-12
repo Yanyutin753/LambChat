@@ -584,18 +584,60 @@ async def test_warmup_active_users_iterates_cursor_without_unbounded_to_list(
 
     class _FakeClient:
         def __getitem__(self, _name):
-            return {"users": _FakeCollection()}
+            return {"traces": _FakeCollection()}
 
     async def _fake_warmup_global_cache(user_ids: list[str]) -> None:
         warmed.extend(user_ids)
 
     monkeypatch.setattr(mcp_global, "get_mongo_client", lambda: _FakeClient(), raising=False)
     monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: _FakeClient())
+    monkeypatch.setattr(mcp_global.settings, "MONGODB_TRACES_COLLECTION", "traces", raising=False)
     monkeypatch.setattr(mcp_global, "warmup_global_cache", _fake_warmup_global_cache)
 
     await mcp_global.warmup_active_users_mcp(limit=0)
 
     assert warmed == ["user-0", "user-1", "user-2"]
+
+
+@pytest.mark.asyncio
+async def test_warmup_active_users_selects_recent_unique_trace_users(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warmed: list[str] = []
+    captured_pipeline: list[dict] = []
+
+    class _FakeCursor:
+        def __aiter__(self):
+            self._iterator = iter([{"_id": "recent-user"}, {"_id": "older-user"}])
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iterator)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+    class _FakeCollection:
+        def aggregate(self, pipeline):
+            captured_pipeline.extend(pipeline)
+            return _FakeCursor()
+
+    class _FakeClient:
+        def __getitem__(self, _name):
+            return {"traces": _FakeCollection()}
+
+    async def _warm(user_ids: list[str]) -> None:
+        warmed.extend(user_ids)
+
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: _FakeClient())
+    monkeypatch.setattr(mcp_global.settings, "MONGODB_TRACES_COLLECTION", "traces", raising=False)
+    monkeypatch.setattr(mcp_global, "warmup_global_cache", _warm)
+
+    await mcp_global.warmup_active_users_mcp(limit=2)
+
+    assert warmed == ["recent-user", "older-user"]
+    assert {"$sort": {"started_at": -1}} in captured_pipeline
+    assert {"$limit": 2} in captured_pipeline
 
 
 @pytest.mark.asyncio

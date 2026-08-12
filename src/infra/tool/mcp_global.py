@@ -840,7 +840,7 @@ async def warmup_global_cache(user_ids: list[str]) -> None:
 
 async def warmup_active_users_mcp(limit: int = 10) -> None:
     """
-    预热所有用户的 MCP 缓存
+    按最近对话活跃度预热用户的 MCP 缓存。
 
     获取所有用户 ID，并预热他们的 MCP 配置。
     这可以显著减少首次请求的延迟。
@@ -857,25 +857,27 @@ async def warmup_active_users_mcp(limit: int = 10) -> None:
     start_time = time.time()
 
     try:
-        # 获取所有用户 ID
+        # 最近 trace 比 users 集合的自然顺序更贴近启动后的真实命中率。
         from src.infra.storage.mongodb import get_mongo_client
         from src.kernel.config import settings
 
         client = get_mongo_client()
         db = client[settings.MONGODB_DB]
-        users_collection = db["users"]
+        traces_collection = db[settings.MONGODB_TRACES_COLLECTION]
 
         effective_limit = limit
         if effective_limit <= 0:
             effective_limit = _get_global_warmup_max_users()
 
-        # 查询用户（去重）
         pipeline: list[dict[str, Any]] = [
-            {"$group": {"_id": "$_id"}},
+            {"$match": {"user_id": {"$type": "string", "$ne": ""}}},
+            {"$sort": {"started_at": -1}},
+            {"$group": {"_id": "$user_id", "last_active": {"$first": "$started_at"}}},
+            {"$sort": {"last_active": -1}},
             {"$limit": effective_limit},
         ]
 
-        cursor = users_collection.aggregate(pipeline)
+        cursor = traces_collection.aggregate(pipeline)
         user_ids: list[str] = []
         async for doc in cursor:
             user_ids.append(str(doc["_id"]))
