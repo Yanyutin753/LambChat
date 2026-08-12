@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   Routes,
   Route,
@@ -17,7 +17,6 @@ import { SelectionActionPopover } from "./components/common/SelectionActionPopov
 import { useSEO } from "./hooks/usePageTitle";
 import { GITHUB_URL } from "./constants";
 import { Permission } from "./types";
-import { sessionApi } from "./services/api";
 import {
   getCachedSessionTitle,
   listenSessionTitleUpdated,
@@ -79,45 +78,19 @@ const NotFoundPage = lazy(() =>
 
 function ChatPageSEO() {
   const { sessionId } = useParams<{ sessionId?: string }>();
-  const [sessionName, setSessionName] = useState<string | null>(null);
-  const prevSessionIdRef = useRef<string | null>(null);
-
-  // Fetch session name when sessionId changes
-  useEffect(() => {
-    if (!sessionId) {
-      setSessionName(null);
-      prevSessionIdRef.current = null;
-      return;
-    }
-
-    // Reset only when switching to a different session
-    if (sessionId !== prevSessionIdRef.current) {
-      setSessionName(null);
-      prevSessionIdRef.current = sessionId;
-    }
-
-    const fetchSessionName = async () => {
-      try {
-        const session = await sessionApi.get(sessionId);
-        if (session?.name) {
-          setSessionName(session.name);
-        }
-      } catch (err) {
-        console.warn("[ChatPage] Failed to fetch session:", err);
-      }
-    };
-
-    fetchSessionName();
-  }, [sessionId]);
+  const [sessionName, setSessionName] = useState<string | null>(() =>
+    sessionId ? getCachedSessionTitle(sessionId) : null,
+  );
 
   // React immediately when generateTitle finishes in the active chat session.
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setSessionName(null);
+      return;
+    }
 
     const cachedTitle = getCachedSessionTitle(sessionId);
-    if (cachedTitle) {
-      setSessionName(cachedTitle);
-    }
+    setSessionName(cachedTitle);
 
     return listenSessionTitleUpdated((detail) => {
       if (detail.sessionId === sessionId) {
@@ -125,22 +98,6 @@ function ChatPageSEO() {
       }
     });
   }, [sessionId]);
-
-  // Poll for session name after initial load (handles race with generate-title)
-  useEffect(() => {
-    if (!sessionId || sessionName) return;
-
-    const delay = setTimeout(() => {
-      sessionApi
-        .get(sessionId)
-        .then((session) => {
-          if (session?.name) setSessionName(session.name);
-        })
-        .catch(() => {});
-    }, 3000);
-
-    return () => clearTimeout(delay);
-  }, [sessionId, sessionName]);
 
   // Use session name if available, otherwise use default "nav.chat"
   useSEO({

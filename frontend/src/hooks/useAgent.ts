@@ -387,6 +387,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         if (isStaleHistoryLoad()) return null;
 
         if (sessionData) {
+          if (sessionData.name) {
+            dispatchSessionTitleUpdated({
+              sessionId: targetSessionId,
+              title: sessionData.name,
+            });
+          }
           setSessionId(targetSessionId);
           setCurrentProjectId(
             (sessionData.metadata?.project_id as string) || null,

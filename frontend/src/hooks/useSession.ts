@@ -68,6 +68,7 @@ interface SessionListFilter {
 export function useFilteredSessionList(
   filter: SessionListFilter,
   scrollRoot?: Element | null,
+  enabled = true,
 ): UseProjectSessionListReturn {
   const [sessions, setSessions] = useState<BackendSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -77,67 +78,86 @@ export function useFilteredSessionList(
   const [error, setError] = useState<string | null>(null);
   const loadedCountRef = useRef(PAGE_SIZE);
   const excludedSessionIdsRef = useRef<Set<string>>(new Set());
+  const inFlightRequestsRef = useRef<Map<string, Promise<void>>>(new Map());
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.1,
     root: scrollRoot ?? undefined,
   });
 
-  const fetchSessions = async (reset = false) => {
+  const fetchSessions = (reset = false): Promise<void> => {
+    if (!enabled) return Promise.resolve();
     const targetSkip = reset ? 0 : skip;
-    if (!reset && (isLoadingMore || !hasMore)) return;
+    if (!reset && (isLoadingMore || !hasMore)) return Promise.resolve();
+    const requestKey = JSON.stringify({
+      projectId: filter.projectId,
+      favoritesOnly: filter.favoritesOnly,
+      reset,
+      skip: targetSkip,
+    });
+    const activeRequest = inFlightRequestsRef.current.get(requestKey);
+    if (activeRequest) return activeRequest;
 
-    if (reset) {
-      setIsLoading(true);
-      setSkip(0);
-    } else {
-      setIsLoadingMore(true);
-    }
-    setError(null);
-
-    try {
-      const response = await sessionApi.list({
-        project_id: filter.projectId,
-        limit: PAGE_SIZE,
-        skip: targetSkip,
-        status: "active",
-        favorites_only: filter.favoritesOnly,
-      });
-
-      const fetchedSessions =
-        "sessions" in response
-          ? response.sessions
-          : Array.isArray(response)
-            ? response
-            : [];
-      const newHasMore = "has_more" in response ? response.has_more : false;
-      const newSessions = fetchedSessions.filter(
-        (session) => !excludedSessionIdsRef.current.has(session.id),
-      );
-
+    const request = (async () => {
       if (reset) {
-        setSessions(dedup(newSessions));
-        setSkip(fetchedSessions.length);
-        loadedCountRef.current = Math.max(PAGE_SIZE, newSessions.length);
+        setIsLoading(true);
+        setSkip(0);
       } else {
-        setSessions((prev) => dedup([...prev, ...newSessions]));
-        setSkip(targetSkip + fetchedSessions.length);
-        loadedCountRef.current = Math.max(
-          loadedCountRef.current,
-          targetSkip + newSessions.length,
-        );
+        setIsLoadingMore(true);
       }
-      setHasMore(fetchedSessions.length > 0 ? newHasMore : false);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : i18n.t("session.loadFailed", "加载会话失败"),
-      );
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
+      setError(null);
+
+      try {
+        const response = await sessionApi.list({
+          project_id: filter.projectId,
+          limit: PAGE_SIZE,
+          skip: targetSkip,
+          status: "active",
+          favorites_only: filter.favoritesOnly,
+        });
+
+        const fetchedSessions =
+          "sessions" in response
+            ? response.sessions
+            : Array.isArray(response)
+              ? response
+              : [];
+        const newHasMore = "has_more" in response ? response.has_more : false;
+        const newSessions = fetchedSessions.filter(
+          (session) => !excludedSessionIdsRef.current.has(session.id),
+        );
+
+        if (reset) {
+          setSessions(dedup(newSessions));
+          setSkip(fetchedSessions.length);
+          loadedCountRef.current = Math.max(PAGE_SIZE, newSessions.length);
+        } else {
+          setSessions((prev) => dedup([...prev, ...newSessions]));
+          setSkip(targetSkip + fetchedSessions.length);
+          loadedCountRef.current = Math.max(
+            loadedCountRef.current,
+            targetSkip + newSessions.length,
+          );
+        }
+        setHasMore(fetchedSessions.length > 0 ? newHasMore : false);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : i18n.t("session.loadFailed", "加载会话失败"),
+        );
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    })();
+    inFlightRequestsRef.current.set(requestKey, request);
+    void request.finally(() => {
+      if (inFlightRequestsRef.current.get(requestKey) === request) {
+        inFlightRequestsRef.current.delete(requestKey);
+      }
+    });
+    return request;
   };
 
   // Infinite scroll
@@ -150,20 +170,22 @@ export function useFilteredSessionList(
 
   // Re-fetch when projectId changes
   useEffect(() => {
+    if (!enabled) return;
     setSessions([]);
     setSkip(0);
     setHasMore(false);
     loadedCountRef.current = PAGE_SIZE;
     fetchSessions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.favoritesOnly, filter.projectId]);
+  }, [enabled, filter.favoritesOnly, filter.projectId]);
 
   const refresh = useCallback(async () => {
     await fetchSessions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.favoritesOnly, filter.projectId]);
+  }, [enabled, filter.favoritesOnly, filter.projectId]);
 
   const softRefresh = useCallback(async () => {
+    if (!enabled) return;
     try {
       const requestLimit = Math.min(
         100,
@@ -196,7 +218,7 @@ export function useFilteredSessionList(
     } catch {
       // silent — soft refresh is best-effort
     }
-  }, [filter.favoritesOnly, filter.projectId]);
+  }, [enabled, filter.favoritesOnly, filter.projectId]);
 
   const prependSession = useCallback((session: BackendSession) => {
     excludedSessionIdsRef.current.delete(session.id);

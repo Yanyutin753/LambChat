@@ -55,6 +55,8 @@ export function RecentChatsDialog({
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
   const anchorRef = useRef(anchorEl);
   anchorRef.current = anchorEl;
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
 
   const position = useStickyDropdownPosition(anchorRef, isOpen, (rect) => {
     const panelWidth = 280;
@@ -89,6 +91,7 @@ export function RecentChatsDialog({
 
   const loadSessions = useCallback(
     async (reset = false) => {
+      if (!isOpen) return;
       if (isFetchingRef.current) return;
 
       const current = reset ? initialPaginationState : paginationRef.current;
@@ -107,6 +110,7 @@ export function RecentChatsDialog({
           skip: reset ? 0 : current.skip,
         });
         const list = Array.isArray(response) ? response : response.sessions;
+        if (!isOpenRef.current) return;
         const next = getNextRecentChatsState({
           previousSessions: current.sessions,
           pageSessions: list,
@@ -123,7 +127,7 @@ export function RecentChatsDialog({
         setIsLoadingMore(false);
       }
     },
-    [applyPaginationState],
+    [applyPaginationState, isOpen],
   );
 
   const resetSessions = useCallback(() => {

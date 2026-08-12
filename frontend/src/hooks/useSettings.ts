@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import i18n from "i18next";
 import { settingsApi, getAccessToken } from "../services/api";
 import type { SettingsResponse } from "../types";
@@ -8,26 +8,60 @@ export function useSettings() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+  const authGenerationRef = useRef(0);
+  const inFlightRef = useRef<{
+    token: string;
+    promise: Promise<void>;
+  } | null>(null);
 
-  const fetchSettings = useCallback(async () => {
+  const fetchSettings = useCallback((force = false): Promise<void> => {
     // 没有 token 时不请求 settings
-    if (!getAccessToken()) {
-      return;
+    const token = getAccessToken();
+    if (!token) {
+      authGenerationRef.current += 1;
+      inFlightRef.current = null;
+      setSettings(null);
+      setIsLoading(false);
+      return Promise.resolve();
     }
+
+    if (!force && inFlightRef.current?.token === token) {
+      return inFlightRef.current.promise;
+    }
+
+    authGenerationRef.current += 1;
+    const generation = authGenerationRef.current;
     setIsLoading(true);
     setError(null);
-    try {
-      const data = await settingsApi.list();
-      setSettings(data);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : i18n.t("settings.loadFailed", "加载设置失败"),
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    const promise = settingsApi
+      .list()
+      .then((data) => {
+        if (
+          generation === authGenerationRef.current &&
+          getAccessToken() === token
+        ) {
+          setSettings(data);
+        }
+      })
+      .catch((err) => {
+        if (generation === authGenerationRef.current) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : i18n.t("settings.loadFailed", "加载设置失败"),
+          );
+        }
+      })
+      .finally(() => {
+        if (inFlightRef.current?.promise === promise) {
+          inFlightRef.current = null;
+        }
+        if (generation === authGenerationRef.current) {
+          setIsLoading(false);
+        }
+      });
+    inFlightRef.current = { token, promise };
+    return promise;
   }, []);
 
   useEffect(() => {
@@ -36,14 +70,23 @@ export function useSettings() {
 
   // 监听登录成功事件，重新加载 settings
   useEffect(() => {
-    const handleAuthChange = () => {
-      fetchSettings();
+    const handleLogin = () => {
+      void fetchSettings();
+    };
+    const handleLogout = () => {
+      authGenerationRef.current += 1;
+      inFlightRef.current = null;
+      setSettings(null);
+      setIsLoading(false);
     };
 
-    window.addEventListener("auth:login", handleAuthChange);
+    window.addEventListener("auth:login", handleLogin);
+    window.addEventListener("auth:logout", handleLogout);
 
     return () => {
-      window.removeEventListener("auth:login", handleAuthChange);
+      window.removeEventListener("auth:login", handleLogin);
+      window.removeEventListener("auth:logout", handleLogout);
+      authGenerationRef.current += 1;
     };
   }, [fetchSettings]);
 
@@ -54,7 +97,7 @@ export function useSettings() {
       try {
         await settingsApi.update(key, value);
         // Re-fetch settings from server to ensure UI is in sync
-        await fetchSettings();
+        await fetchSettings(true);
         return true;
       } catch (err) {
         setError(
@@ -81,7 +124,7 @@ export function useSettings() {
       try {
         await settingsApi.reset(key);
         // Refetch to get updated values
-        await fetchSettings();
+        await fetchSettings(true);
         return true;
       } catch (err) {
         setError(
@@ -106,7 +149,7 @@ export function useSettings() {
     setError(null);
     try {
       await settingsApi.resetAll();
-      await fetchSettings();
+      await fetchSettings(true);
       return true;
     } catch (err) {
       setError(

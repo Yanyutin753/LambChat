@@ -34,3 +34,12 @@ test("keeps chat page title updates isolated from the chat UI tree", () => {
   expect(chatPageBody).not.toMatch(/useState<.*sessionName|setSessionName/);
   expect(chatPageBody).not.toMatch(/listenSessionTitleUpdated|sessionApi\.get/);
 });
+
+test("uses loaded-title events without fetching or polling the session again", () => {
+  const seoBody = extractFunctionBody("ChatPageSEO");
+
+  expect(seoBody).toMatch(/getCachedSessionTitle\(sessionId\)/);
+  expect(seoBody).toMatch(/listenSessionTitleUpdated/);
+  expect(seoBody).not.toMatch(/sessionApi\.get/);
+  expect(seoBody).not.toMatch(/3000|setTimeout/);
+});

@@ -19,6 +19,9 @@ test("loadHistory ignores stale async results instead of overwriting the active 
   expect(source).not.toMatch(/await markReadPromise/);
   expect(source).toMatch(/resolveHistoryStreamRunId/);
   expect(source).toMatch(/sseGenerationRef\.current \+= 1/);
+  expect(source).toMatch(
+    /if \(isStaleHistoryLoad\(\)\) return null;[\s\S]*?sessionData\.name[\s\S]*?dispatchSessionTitleUpdated/,
+  );
 });
 
 test("clearMessages clears loading flags when a history load is invalidated", () => {
