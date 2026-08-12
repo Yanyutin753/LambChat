@@ -261,24 +261,25 @@ with at least 15,000 raw-equivalent chunks and asserts exact output equality
 between raw and compact inputs; wall-clock values are reported for diagnostics
 rather than used as a flaky CI threshold.
 
-### Reveal history after initial settle
+### Position history at the bottom once
 
-History has two distinct UI phases:
+The conversation skeleton is visible only while essential session/events data
+has not been reconstructed and committed. Once the complete message list is
+available, Virtuoso renders with its last item aligned to the viewport end and
+the history-load transition issues one immediate `scrollToIndex` call for the
+last message with `align: "end"` and `behavior: "auto"`.
 
-1. `loading`: essential session/events data has not been reconstructed and
-   committed, so the conversation skeleton is visible.
-2. `recovering`: Virtuoso reached the first stable physical bottom and remains
-   under resize observation to correct late layout changes.
+History loading does not enter a separate recovery phase, cover the rendered
+conversation with an overlay, or run the generic multi-attempt bottom recovery
+loop. Late image, Markdown, or tool-card layout changes may be handled by
+Virtuoso's normal layout behavior, but they do not trigger custom repeated
+scroll corrections. User-requested bottom scrolling, streaming follow output,
+external navigation, and unexpected top-jump recovery retain their existing
+paths because they are not history initialization.
 
-The overlay is cleared by `onInitialSettle`, not by the final
-`observeAfterSettleMs` completion. During `recovering`, the real conversation
-and input remain visible and interactive. The existing unexpected-top-jump
-recovery, user-scroll abort behavior, mobile timing, and final fallback stay
-active without re-covering the messages.
-
-If Virtuoso/scroller refs are temporarily unavailable, the existing bounded
-fallback prevents an infinite skeleton. Empty and failed histories clear both
-phases consistently.
+Empty and failed histories perform no one-shot scroll. A missing Virtuoso ref
+simply skips the initial command; `initialTopMostItemIndex` remains the mount
+fallback and no timer or animation is started.
 
 ## Error handling and concurrency
 
@@ -328,9 +329,10 @@ Frontend tests cover:
   pagination requests from visible surfaces;
 - compact history requested only by chat hydration and exact raw-versus-compact
   reconstruction equality;
-- overlay removal on initial settle while background recovery continues;
-- user scroll abort, unexpected top-jump recovery, empty history, and fallback
-  timeout behavior; and
+- exactly one non-animated last-item alignment after history commits;
+- no history recovery overlay or history-specific multi-attempt loop;
+- user-requested bottom scrolling, unexpected top-jump recovery, and empty
+  history behavior remain unchanged; and
 - complete message reconstruction with existing race and SSE tests unchanged.
 
 Focused tests run after each TDD cycle. Final verification runs the affected
@@ -355,8 +357,8 @@ production database or proxy latency.
 - Team total and page data come from one aggregation query.
 - Repeated settings reads avoid MongoDB until an explicit local or remote
   invalidation.
-- Real messages appear after initial bottom settle and are not hidden for the
-  2.4-3.6 second post-settle observation window.
+- Real messages appear immediately after history reconstruction and receive one
+  non-animated last-item alignment without a visible recovery phase.
 - Hidden/closed frontend surfaces issue no data requests, duplicate settings
   triggers coalesce, and speculative list pages wait until the history critical
   path is complete.
