@@ -10,6 +10,11 @@ import uuid
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from src.api.server_timing import (
+    begin_server_timing_request,
+    reset_server_timing_request,
+    serialize_server_timing,
+)
 from src.infra.logging import TraceContext
 
 logger = logging.getLogger(__name__)
@@ -61,6 +66,7 @@ class TracingMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
         request.state.trace_id = trace_id
         request.state.span_id = span_id
+        server_timing_token = begin_server_timing_request()
 
         # 记录开始时间
         start_time = time.time()
@@ -101,9 +107,13 @@ class TracingMiddleware(BaseHTTPMiddleware):
             response.headers["X-Trace-ID"] = trace_id
             response.headers["X-Span-ID"] = span_id
             response.headers["X-Process-Time"] = f"{process_time:.3f}s"
+            server_timing = serialize_server_timing()
+            if server_timing:
+                response.headers["Server-Timing"] = server_timing
 
             return response
         finally:
             # 完成/失败日志需要在清理前写出，才能带上 request_id。
             TraceContext.clear_request_context()
             TraceContext.clear()
+            reset_server_timing_request(server_timing_token)

@@ -13,6 +13,7 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.api.server_timing import timed_server_phase
 from src.infra.feedback.manager import FeedbackManager
 from src.infra.logging import get_logger
 from src.kernel.schemas.feedback import (
@@ -102,13 +103,14 @@ async def list_feedback(
 
     需要 feedback:read 权限
     """
-    return await manager.list_feedback(
-        skip=skip,
-        limit=limit,
-        rating=rating,
-        user_id=user_id,
-        session_id=session_id,
-    )
+    async with timed_server_phase("feedback"):
+        return await manager.list_feedback(
+            skip=skip,
+            limit=limit,
+            rating=rating,
+            user_id=user_id,
+            session_id=session_id,
+        )
 
 
 @router.get("/stats", response_model=FeedbackStats)

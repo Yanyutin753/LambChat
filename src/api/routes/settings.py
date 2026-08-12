@@ -5,6 +5,7 @@ Settings API router
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.api.server_timing import timed_server_phase
 from src.infra.settings.service import SettingsService, get_settings_service
 from src.kernel.schemas.setting import (
     SettingItem,
@@ -26,7 +27,8 @@ async def get_settings(
     """Get settings (filtered by permission)"""
     # Check if user has settings:manage permission
     has_admin = "settings:manage" in (user.permissions or [])
-    settings = await service.get_all(admin_mode=has_admin)
+    async with timed_server_phase("settings"):
+        settings = await service.get_all(admin_mode=has_admin)
     return SettingsResponse(settings=settings)
 
 

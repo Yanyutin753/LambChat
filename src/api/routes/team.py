@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.deps import get_current_user_required
+from src.api.server_timing import timed_server_phase
 from src.infra.team.manager import TeamManager
 from src.kernel.exceptions import NotFoundError
 from src.kernel.schemas.team import (
@@ -33,15 +34,16 @@ async def list_teams(
     user: TokenPayload = Depends(get_current_user_required),
     manager: TeamManager = Depends(_get_manager),
 ):
-    return await manager.list_teams(
-        owner_user_id=user.sub,
-        skip=skip,
-        limit=limit,
-        favorite=favorite,
-        pinned=pinned,
-        q=q,
-        tag=tag,
-    )
+    async with timed_server_phase("teams"):
+        return await manager.list_teams(
+            owner_user_id=user.sub,
+            skip=skip,
+            limit=limit,
+            favorite=favorite,
+            pinned=pinned,
+            q=q,
+            tag=tag,
+        )
 
 
 @router.post("", response_model=TeamResponse, status_code=201)

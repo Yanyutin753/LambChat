@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
+from src.api.server_timing import timed_server_phase
 from src.infra.folder.storage import get_project_storage
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
@@ -133,22 +134,23 @@ async def list_sessions(
         "search": search,
         "favorites_only": favorites_only,
     }
-    if favorites_only:
-        favorites_project_id = await _get_favorites_project_id(user.sub)
-        sessions, total = await manager.list_sessions(
-            **list_kwargs,
-            favorites_project_id=favorites_project_id,
-        )
-    else:
-        favorites_project_id, list_result = await asyncio.gather(
-            _get_favorites_project_id(user.sub),
-            manager.list_sessions(
+    async with timed_server_phase("session_list"):
+        if favorites_only:
+            favorites_project_id = await _get_favorites_project_id(user.sub)
+            sessions, total = await manager.list_sessions(
                 **list_kwargs,
-                favorites_project_id=None,
-            ),
-        )
-        sessions, total = list_result
-        sessions = [_normalize_session(session, favorites_project_id) for session in sessions]
+                favorites_project_id=favorites_project_id,
+            )
+        else:
+            favorites_project_id, list_result = await asyncio.gather(
+                _get_favorites_project_id(user.sub),
+                manager.list_sessions(
+                    **list_kwargs,
+                    favorites_project_id=None,
+                ),
+            )
+            sessions, total = list_result
+            sessions = [_normalize_session(session, favorites_project_id) for session in sessions]
 
     return {
         "sessions": sessions,
@@ -196,10 +198,11 @@ async def get_session(
     只能获取自己拥有的会话，管理员可以获取任意会话。
     """
     manager = SessionManager()
-    session, favorites_project_id = await asyncio.gather(
-        manager.get_session(session_id),
-        _get_favorites_project_id(user.sub),
-    )
+    async with timed_server_phase("session_detail"):
+        session, favorites_project_id = await asyncio.gather(
+            manager.get_session(session_id),
+            _get_favorites_project_id(user.sub),
+        )
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
 
@@ -246,15 +249,16 @@ async def mark_session_read(
 ):
     """将会话标记为已读（清除未读计数）"""
     manager = SessionManager()
-    if await manager.mark_read_for_user(session_id, user.sub):
-        return {"status": "ok"}
+    async with timed_server_phase("session_mark_read"):
+        if await manager.mark_read_for_user(session_id, user.sub):
+            return {"status": "ok"}
 
-    # Keep the previous 404/403 distinction on the uncommon miss path.
-    session = await manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
-    verify_session_ownership(session, user)
-    await manager.mark_read(session_id)
+        # Keep the previous 404/403 distinction on the uncommon miss path.
+        session = await manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="会话不存在")
+        verify_session_ownership(session, user)
+        await manager.mark_read(session_id)
     return {"status": "ok"}
 
 
@@ -295,7 +299,8 @@ async def get_session_events(
     from src.infra.session.dual_writer import get_dual_writer
 
     manager = SessionManager()
-    session = await manager.get_session(session_id)
+    async with timed_server_phase("session_detail"):
+        session = await manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
 
@@ -310,29 +315,30 @@ async def get_session_events(
     events_probe_limit = (limit + 1) if limit is not None else None
     history_mode = None
     stream_run_id = None
-    if include_active_user_message:
-        snapshot = await dual_writer.read_session_events_snapshot(
-            session_id,
-            types_list,
-            run_id=run_id,
-            exclude_run_id=exclude_run_id,
-            completed_only=True,
-            max_events=events_probe_limit,
-            active_run_id=current_run_id,
-        )
-        events = snapshot.events
-        history_mode = snapshot.history_mode
-        stream_run_id = snapshot.stream_run_id
-    else:
-        # 兼容旧调用方：活动 trace 继续由 stream 单独读取，避免重复事件。
-        events = await dual_writer.read_session_events(
-            session_id,
-            types_list,
-            run_id=run_id,
-            exclude_run_id=exclude_run_id,
-            completed_only=True,
-            max_events=events_probe_limit,
-        )
+    async with timed_server_phase("history"):
+        if include_active_user_message:
+            snapshot = await dual_writer.read_session_events_snapshot(
+                session_id,
+                types_list,
+                run_id=run_id,
+                exclude_run_id=exclude_run_id,
+                completed_only=True,
+                max_events=events_probe_limit,
+                active_run_id=current_run_id,
+            )
+            events = snapshot.events
+            history_mode = snapshot.history_mode
+            stream_run_id = snapshot.stream_run_id
+        else:
+            # 兼容旧调用方：活动 trace 继续由 stream 单独读取，避免重复事件。
+            events = await dual_writer.read_session_events(
+                session_id,
+                types_list,
+                run_id=run_id,
+                exclude_run_id=exclude_run_id,
+                completed_only=True,
+                max_events=events_probe_limit,
+            )
     events_limited = limit is not None and len(events) > limit
     if events_limited:
         events = events[:limit]
