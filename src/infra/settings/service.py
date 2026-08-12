@@ -2,6 +2,8 @@
 Settings Service - Database-first settings with .env fallback
 """
 
+import asyncio
+import copy
 import json
 import os
 from typing import Any, Optional
@@ -28,6 +30,11 @@ class SettingsService:
     def __init__(self):
         self._storage = SettingsStorage()
         self._initialized = False
+        self._get_all_cache: dict[tuple[bool, bool], dict[str, list[SettingItem]]] = {}
+        self._get_all_inflight: dict[
+            tuple[bool, bool], asyncio.Task[dict[str, list[SettingItem]]]
+        ] = {}
+        self._get_all_generation = 0
 
     @classmethod
     def get_instance(cls) -> "SettingsService":
@@ -112,7 +119,39 @@ class SettingsService:
             mask_sensitive: If True, mask sensitive values with ********.
                            If False, return actual values (for internal use).
         """
-        return await self._storage.get_all(admin_mode=admin_mode, mask_sensitive=mask_sensitive)
+        cache_key = (admin_mode, mask_sensitive)
+        cached = self._get_all_cache.get(cache_key)
+        if cached is not None:
+            return copy.deepcopy(cached)
+
+        task = self._get_all_inflight.get(cache_key)
+        if task is None:
+            generation = self._get_all_generation
+
+            async def load() -> dict[str, list[SettingItem]]:
+                current_task = asyncio.current_task()
+                try:
+                    result = await self._storage.get_all(
+                        admin_mode=admin_mode,
+                        mask_sensitive=mask_sensitive,
+                    )
+                    if generation == self._get_all_generation:
+                        self._get_all_cache[cache_key] = copy.deepcopy(result)
+                    return result
+                finally:
+                    if self._get_all_inflight.get(cache_key) is current_task:
+                        self._get_all_inflight.pop(cache_key, None)
+
+            task = asyncio.create_task(load())
+            self._get_all_inflight[cache_key] = task
+
+        return copy.deepcopy(await asyncio.shield(task))
+
+    def invalidate_get_all_cache(self) -> None:
+        """Invalidate all grouped settings snapshots and detach stale loaders."""
+        self._get_all_generation += 1
+        self._get_all_cache.clear()
+        self._get_all_inflight.clear()
 
     async def set(self, key: str, value: Any, user_id: str) -> Optional[SettingItem]:
         """
@@ -127,6 +166,7 @@ class SettingsService:
             Updated setting item
         """
         result = await self._storage.set(key, value, user_id)
+        self.invalidate_get_all_cache()
 
         # Refresh the global settings object to reflect the change
         from src.kernel.config import refresh_settings
@@ -180,6 +220,7 @@ class SettingsService:
             Number of settings reset
         """
         count = await self._storage.reset(key)
+        self.invalidate_get_all_cache()
 
         # Refresh the global settings object to reflect the change
         from src.kernel.config import refresh_settings
@@ -265,6 +306,7 @@ class SettingsService:
     async def close(self) -> None:
         """Close connections"""
         await self._storage.close()
+        self.invalidate_get_all_cache()
         self._initialized = False
         if SettingsService._instance is self:
             SettingsService._instance = None

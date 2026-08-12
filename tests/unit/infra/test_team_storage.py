@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 from datetime import datetime
 from unittest.mock import MagicMock
@@ -137,6 +136,30 @@ def _make_fake_collection():
                 docs = docs[stage["$skip"] :]
             elif "$limit" in stage:
                 docs = docs[: stage["$limit"]]
+            elif "$facet" in stage:
+                item_docs = list(docs)
+                for item_stage in stage["$facet"]["items"]:
+                    if "$sort" in item_stage:
+
+                        def _sort_key(doc):
+                            return (
+                                int(bool(doc.get("is_pinned"))),
+                                int(bool(doc.get("is_favorite"))),
+                                doc.get("updated_at"),
+                                doc.get("created_at"),
+                            )
+
+                        item_docs.sort(key=_sort_key, reverse=True)
+                    elif "$skip" in item_stage:
+                        item_docs = item_docs[item_stage["$skip"] :]
+                    elif "$limit" in item_stage:
+                        item_docs = item_docs[: item_stage["$limit"]]
+                docs = [
+                    {
+                        "metadata": [{"total": len(docs)}] if docs else [],
+                        "items": item_docs,
+                    }
+                ]
         return _Cursor(docs)
 
     async def delete_one(query: dict):
@@ -470,6 +493,81 @@ async def test_list_teams_paginated(storage):
 
 
 @pytest.mark.asyncio
+async def test_list_teams_uses_one_facet_for_total_and_page() -> None:
+    owner_user_id = str(ObjectId())
+    team_id = ObjectId()
+    pipelines: list[list[dict]] = []
+
+    class _Cursor:
+        def __aiter__(self):
+            self._iter = iter(
+                [
+                    {
+                        "metadata": [{"total": 1}],
+                        "items": [
+                            {
+                                "_id": team_id,
+                                "owner_user_id": owner_user_id,
+                                "name": "Faceted",
+                                "description": "",
+                                "tags": [],
+                                "members": [],
+                                "created_at": datetime(2026, 1, 1),
+                                "updated_at": datetime(2026, 1, 1),
+                            }
+                        ],
+                    }
+                ]
+            )
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
+
+    class _Collection:
+        def count_documents(self, _query):
+            raise AssertionError("list_teams should count inside the aggregation facet")
+
+        def aggregate(self, pipeline):
+            pipelines.append(pipeline)
+            return _Cursor()
+
+    storage = TeamStorage()
+    storage._collection = _Collection()
+    user_coll, _users = _make_fake_user_collection()
+    storage._user_collection = user_coll
+
+    teams, total = await storage.list_teams(
+        owner_user_id=owner_user_id,
+        skip=20,
+        limit=10,
+    )
+
+    assert total == 1
+    assert [team.name for team in teams] == ["Faceted"]
+    assert pipelines[0][-1] == {
+        "$facet": {
+            "metadata": [{"$count": "total"}],
+            "items": [
+                {
+                    "$sort": {
+                        "is_pinned": -1,
+                        "is_favorite": -1,
+                        "updated_at": -1,
+                        "created_at": -1,
+                    }
+                },
+                {"$skip": 20},
+                {"$limit": 10},
+            ],
+        }
+    }
+
+
+@pytest.mark.asyncio
 async def test_list_teams_uses_bounded_aggregation_instead_of_materializing_find():
     owner_user_id = str(ObjectId())
     team_id = ObjectId()
@@ -493,23 +591,24 @@ async def test_list_teams_uses_bounded_aggregation_instead_of_materializing_find
         def find(self, _query):
             raise AssertionError("list_teams should not materialize an unbounded find cursor")
 
-        async def count_documents(self, query):
-            assert query == {"owner_user_id": owner_user_id}
-            return 1
-
         def aggregate(self, pipeline):
             pipelines.append(pipeline)
             return _Cursor(
                 [
                     {
-                        "_id": team_id,
-                        "owner_user_id": owner_user_id,
-                        "name": "Bounded",
-                        "description": "",
-                        "tags": [],
-                        "members": [],
-                        "created_at": datetime(2026, 1, 1),
-                        "updated_at": datetime(2026, 1, 1),
+                        "metadata": [{"total": 1}],
+                        "items": [
+                            {
+                                "_id": team_id,
+                                "owner_user_id": owner_user_id,
+                                "name": "Bounded",
+                                "description": "",
+                                "tags": [],
+                                "members": [],
+                                "created_at": datetime(2026, 1, 1),
+                                "updated_at": datetime(2026, 1, 1),
+                            }
+                        ],
                     }
                 ]
             )
@@ -523,36 +622,34 @@ async def test_list_teams_uses_bounded_aggregation_instead_of_materializing_find
 
     assert total == 1
     assert [team.name for team in teams] == ["Bounded"]
-    assert {"$skip": 20} in pipelines[0]
-    assert {"$limit": 10} in pipelines[0]
+    assert {"$skip": 20} in pipelines[0][-1]["$facet"]["items"]
+    assert {"$limit": 10} in pipelines[0][-1]["$facet"]["items"]
 
 
 @pytest.mark.asyncio
-async def test_list_teams_fetches_count_and_preferences_concurrently():
+async def test_list_teams_fetches_preferences_before_faceted_aggregation():
     owner_user_id = str(ObjectId())
     pipelines: list[list[dict]] = []
 
     class _Cursor:
+        def __init__(self, docs):
+            self._docs = docs
+
         def __aiter__(self):
-            self._iter = iter([])
+            self._iter = iter(self._docs)
             return self
 
         async def __anext__(self):
-            raise StopAsyncIteration
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
 
     class _Collection:
-        async def count_documents(self, query):
-            for _ in range(10):
-                if user_collection.find_one_started:
-                    break
-                await asyncio.sleep(0)
-            assert user_collection.find_one_started is True
-            assert query == {"owner_user_id": owner_user_id}
-            return 1
-
         def aggregate(self, pipeline):
+            assert user_collection.find_one_started is True
             pipelines.append(pipeline)
-            return _Cursor()
+            return _Cursor([{"metadata": [{"total": 1}], "items": []}])
 
     class _UserCollection:
         def __init__(self) -> None:
@@ -575,28 +672,28 @@ async def test_list_teams_fetches_count_and_preferences_concurrently():
 
 
 @pytest.mark.asyncio
-async def test_list_teams_accepts_future_returned_by_motor_count_documents():
+async def test_list_teams_parses_empty_facet_result():
     owner_user_id = str(ObjectId())
     pipelines: list[list[dict]] = []
 
     class _Cursor:
+        def __init__(self, docs):
+            self._docs = docs
+
         def __aiter__(self):
-            self._iter = iter([])
+            self._iter = iter(self._docs)
             return self
 
         async def __anext__(self):
-            raise StopAsyncIteration
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
 
     class _Collection:
-        def count_documents(self, query):
-            assert query == {"owner_user_id": owner_user_id}
-            future = asyncio.get_running_loop().create_future()
-            future.set_result(1)
-            return future
-
         def aggregate(self, pipeline):
             pipelines.append(pipeline)
-            return _Cursor()
+            return _Cursor([{"metadata": [], "items": []}])
 
     s = TeamStorage()
     s._collection = _Collection()
@@ -606,7 +703,7 @@ async def test_list_teams_accepts_future_returned_by_motor_count_documents():
     teams, total = await s.list_teams(owner_user_id=owner_user_id, skip=0, limit=50)
 
     assert teams == []
-    assert total == 1
+    assert total == 0
     assert pipelines
 
 
@@ -616,21 +713,23 @@ async def test_list_teams_clamps_storage_limit():
     pipelines: list[list[dict]] = []
 
     class _Cursor:
+        def __init__(self, docs):
+            self._docs = docs
+
         def __aiter__(self):
-            self._iter = iter([])
+            self._iter = iter(self._docs)
             return self
 
         async def __anext__(self):
-            raise StopAsyncIteration
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
 
     class _Collection:
-        async def count_documents(self, query):
-            assert query == {"owner_user_id": owner_user_id}
-            return 500
-
         def aggregate(self, pipeline):
             pipelines.append(pipeline)
-            return _Cursor()
+            return _Cursor([{"metadata": [{"total": 500}], "items": []}])
 
     s = TeamStorage()
     s._collection = _Collection()
@@ -641,7 +740,7 @@ async def test_list_teams_clamps_storage_limit():
 
     assert teams == []
     assert total == 500
-    assert {"$limit": 200} in pipelines[0]
+    assert {"$limit": 200} in pipelines[0][-1]["$facet"]["items"]
 
 
 @pytest.mark.asyncio
@@ -650,21 +749,23 @@ async def test_list_teams_bounds_large_user_preference_arrays():
     pipelines: list[list[dict]] = []
 
     class _Cursor:
+        def __init__(self, docs):
+            self._docs = docs
+
         def __aiter__(self):
-            self._iter = iter([])
+            self._iter = iter(self._docs)
             return self
 
         async def __anext__(self):
-            raise StopAsyncIteration
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
 
     class _Collection:
-        async def count_documents(self, query):
-            assert query == {"owner_user_id": owner_user_id}
-            return 1
-
         def aggregate(self, pipeline):
             pipelines.append(pipeline)
-            return _Cursor()
+            return _Cursor([{"metadata": [{"total": 1}], "items": []}])
 
     class _UserCollection:
         async def find_one(self, _query, _projection=None):

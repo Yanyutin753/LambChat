@@ -5,6 +5,7 @@
 每个用户对每个 run 只能提交一次反馈。
 """
 
+import asyncio
 from typing import Optional
 
 from src.infra.feedback.storage import FeedbackStorage
@@ -119,9 +120,11 @@ class FeedbackManager:
         Returns:
             反馈列表响应
         """
-        items = await self.storage.list(skip, limit, rating, user_id, session_id)
-        total = await self.storage.count(rating, user_id, session_id)
-        stats = await self.storage.get_stats(session_id)
+        items, total, stats = await asyncio.gather(
+            self.storage.list(skip, limit, rating, user_id, session_id),
+            self.storage.count(rating, user_id, session_id),
+            self.storage.get_stats(session_id),
+        )
         return FeedbackListResponse(items=items, total=total, stats=stats)
 
     async def delete_feedback(self, feedback_id: str) -> bool:

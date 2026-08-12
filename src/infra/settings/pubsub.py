@@ -68,16 +68,18 @@ class SettingsPubSub:
             # Skip messages published by this instance
             if data.get("instance_id") == self._instance_id:
                 return
-            if not key:
-                return
 
-            logger.info(f"[SettingsPubSub] Received setting change: {key}")
+            logger.info(f"[SettingsPubSub] Received setting change: {key or 'all'}")
+
+            from src.infra.settings.service import get_settings_service
+
+            get_settings_service().invalidate_get_all_cache()
 
             # Refresh local in-memory settings
             from src.kernel.config import refresh_settings
 
             await refresh_settings(key)
-            logger.info(f"[SettingsPubSub] Refreshed local setting: {key}")
+            logger.info(f"[SettingsPubSub] Refreshed local setting: {key or 'all'}")
 
         except json.JSONDecodeError:
             logger.warning(f"[SettingsPubSub] Invalid message format: {message['data']}")

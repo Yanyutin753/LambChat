@@ -1,6 +1,5 @@
 """Team storage."""
 
-import asyncio
 import re
 import uuid
 from typing import TYPE_CHECKING, Any, Optional
@@ -422,13 +421,7 @@ class TeamStorage:
             if tag_filter:
                 query["tags"] = tag_filter
 
-        total, pref = await asyncio.gather(
-            self.collection.count_documents(query),
-            self._get_user_team_preference(owner_user_id),
-        )
-        if total == 0:
-            return [], 0
-
+        pref = await self._get_user_team_preference(owner_user_id)
         pinned_ids = pref["pinned"]
         favorite_ids = pref["favorite"]
         pipeline: list[dict[str, Any]] = [
@@ -440,18 +433,28 @@ class TeamStorage:
                 }
             },
             {
-                "$sort": {
-                    "is_pinned": -1,
-                    "is_favorite": -1,
-                    "updated_at": -1,
-                    "created_at": -1,
+                "$facet": {
+                    "metadata": [{"$count": "total"}],
+                    "items": [
+                        {
+                            "$sort": {
+                                "is_pinned": -1,
+                                "is_favorite": -1,
+                                "updated_at": -1,
+                                "created_at": -1,
+                            }
+                        },
+                        {"$skip": skip},
+                        {"$limit": limit},
+                    ],
                 }
             },
-            {"$skip": skip},
-            {"$limit": limit},
         ]
-        docs = [doc async for doc in self.collection.aggregate(pipeline)]
-        teams = [self._doc_to_response(doc) for doc in docs]
+        result_docs = [doc async for doc in self.collection.aggregate(pipeline)]
+        result = result_docs[0] if result_docs else {}
+        metadata = result.get("metadata") or []
+        total = int(metadata[0].get("total", 0)) if metadata else 0
+        teams = [self._doc_to_response(doc) for doc in result.get("items") or []]
         return teams, total
 
     async def update_team(
