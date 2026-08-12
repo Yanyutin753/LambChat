@@ -10,7 +10,6 @@ import type { Message } from "../../../types";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 import {
   forceVirtuosoToBottom,
-  forceScrollerToPhysicalBottom,
   getScrollToBottomTimingOptions,
   didLatestStreamingAssistantFinish,
   shouldAutoScrollAfterViewportChange,
@@ -19,10 +18,6 @@ import {
   startVirtuosoScrollToBottom,
   type ScrollToBottomTimingMode,
 } from "./messageScrollUtils";
-import {
-  getHistoryScrollSettlingFallbackTimeoutMs,
-  useMessageScrollHistorySettling,
-} from "./useMessageScroll.historySettling";
 import { getMessageScrollViewportState } from "./useMessageScroll.viewport";
 import { useMessageScrollExternalNavigationEffect } from "./useMessageScroll.externalNavigationEffect";
 import {
@@ -38,7 +33,6 @@ import {
   shouldArmPendingHistoryScroll,
   shouldFinalizeHistoryLoadScroll,
   shouldInferBatchedHistoryLoadReady,
-  shouldStartHistoryScrollSettling,
 } from "./useMessageScroll.followState";
 
 interface UseMessageScrollReturn {
@@ -48,7 +42,6 @@ interface UseMessageScrollReturn {
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   isNearBottom: boolean;
   isNearTop: boolean;
-  isHistoryScrollSettling: boolean;
   handleVirtuosoAtBottomChange: (atBottom: boolean) => void;
   scrollToBottom: () => void;
   scrollToTop: () => void;
@@ -63,6 +56,7 @@ export function useMessageScroll(
   externalNavigationTargetRunPending = false,
   externalScrollToBottom = false,
   isLoadingHistory = false,
+  historyLoadGeneration = 0,
   sessionBottomScrollToken?: string | null,
 ): UseMessageScrollReturn {
   const {
@@ -78,11 +72,6 @@ export function useMessageScroll(
 
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [isNearTop, setIsNearTop] = useState(true);
-  const {
-    isHistoryScrollSettling,
-    clearHistoryScrollSettling,
-    startHistoryScrollSettling,
-  } = useMessageScrollHistorySettling();
   const rafRef = useRef<number>(0);
   const viewportResizeRafRef = useRef<number>(0);
   const scrollCleanupRef = useRef<(() => void) | null>(null);
@@ -99,6 +88,7 @@ export function useMessageScroll(
   const previousHistoryLoadSignatureRef = useRef({
     sessionId,
     messageCount: messages.length,
+    historyLoadGeneration,
   });
   const isNearBottomRef = useRef(true);
 
@@ -109,9 +99,9 @@ export function useMessageScroll(
   const streamLockActiveRef = useRef(false);
   const manualDetachFromStreamRef = useRef(false);
   const streamingAssistantActiveRef = useRef(false);
-  const pendingHistoryScrollRef = useRef(false);
-  const historyLoadActiveRef = useRef(isLoadingHistory);
-  const historyScrollArmedRef = useRef(false);
+  const pendingHistoryScrollRef = useRef<number | null>(null);
+  const armedHistoryGenerationRef = useRef(0);
+  const completedHistoryGenerationRef = useRef(0);
   const isLoadingHistoryRef = useRef(isLoadingHistory);
   const handledSessionBottomScrollTokenRef = useRef<string | null>(null);
 
@@ -155,18 +145,15 @@ export function useMessageScroll(
     autoScrollActiveRef.current = resetState.autoScrollActive;
     streamLockActiveRef.current = resetState.streamLockActive;
     manualDetachFromStreamRef.current = resetState.manualDetachFromStream;
-    pendingHistoryScrollRef.current = resetState.pendingHistoryScroll;
-    historyScrollArmedRef.current = resetState.historyScrollArmed;
+    pendingHistoryScrollRef.current = null;
     ignoreProgrammaticScrollUntilRef.current = 0;
     recoverUnexpectedTopJumpUntilRef.current = 0;
     isNearBottomRef.current = resetState.isNearBottom;
     previousMessagesRef.current = messages;
-    historyLoadActiveRef.current = isLoadingHistory;
-    clearHistoryScrollSettling();
 
     setIsNearBottom(resetState.isNearBottom);
     setIsNearTop(true);
-  }, [clearHistoryScrollSettling, isLoadingHistory, messages, sessionId]);
+  }, [isLoadingHistory, messages, sessionId]);
 
   const handleVirtuosoAtBottomChange = useCallback((atBottom: boolean) => {
     cancelAnimationFrame(rafRef.current);
@@ -282,7 +269,7 @@ export function useMessageScroll(
     userScrolledUpRef.current = true;
     autoScrollActiveRef.current = false;
     streamLockActiveRef.current = false;
-    pendingHistoryScrollRef.current = false;
+    pendingHistoryScrollRef.current = null;
     recoverUnexpectedTopJumpUntilRef.current = 0;
     virtuosoRef.current?.scrollTo({
       top: 0,
@@ -311,7 +298,7 @@ export function useMessageScroll(
       manualDetachFromStreamRef.current =
         nextFollowState.manualDetachFromStream;
       if (stoppedAutoScroll) {
-        pendingHistoryScrollRef.current = false;
+        pendingHistoryScrollRef.current = null;
       }
     };
 
@@ -518,30 +505,20 @@ export function useMessageScroll(
     };
   }, [bottomBreathingRoomPx, isMobileViewport, requestScrollToBottom]);
 
-  useEffect(() => {
-    if (!isLoadingHistory) {
-      historyLoadActiveRef.current = false;
-      historyScrollArmedRef.current = false;
-      return;
-    }
-
-    if (!historyLoadActiveRef.current) {
-      historyLoadActiveRef.current = true;
-      historyScrollArmedRef.current = false;
-      pendingHistoryScrollRef.current = false;
-    }
-
+  useLayoutEffect(() => {
     if (
       shouldArmPendingHistoryScroll({
         isLoadingHistory,
-        sessionId,
-        historyScrollArmed: historyScrollArmedRef.current,
+        historyScrollArmed:
+          armedHistoryGenerationRef.current === historyLoadGeneration,
       })
     ) {
-      pendingHistoryScrollRef.current = !externalNavigationToken;
-      historyScrollArmedRef.current = true;
+      armedHistoryGenerationRef.current = historyLoadGeneration;
+      pendingHistoryScrollRef.current = externalNavigationToken
+        ? null
+        : historyLoadGeneration;
     }
-  }, [sessionId, externalNavigationToken, isLoadingHistory]);
+  }, [externalNavigationToken, historyLoadGeneration, isLoadingHistory]);
 
   useLayoutEffect(() => {
     const previousHistoryLoadSignature =
@@ -549,6 +526,7 @@ export function useMessageScroll(
     previousHistoryLoadSignatureRef.current = {
       sessionId,
       messageCount: messages.length,
+      historyLoadGeneration,
     };
 
     if (
@@ -557,104 +535,66 @@ export function useMessageScroll(
         sessionId,
         previousMessageCount: previousHistoryLoadSignature.messageCount,
         messageCount: messages.length,
+        previousHistoryLoadGeneration:
+          previousHistoryLoadSignature.historyLoadGeneration,
+        historyLoadGeneration,
         isLoadingHistory,
         externalNavigationToken,
       })
     ) {
-      pendingHistoryScrollRef.current = true;
+      armedHistoryGenerationRef.current = historyLoadGeneration;
+      pendingHistoryScrollRef.current = historyLoadGeneration;
     }
 
     if (!isLoadingHistory && messages.length === 0) {
-      pendingHistoryScrollRef.current = false;
+      pendingHistoryScrollRef.current = null;
+    }
+
+    const isCurrentHistoryCompletion =
+      !isLoadingHistory &&
+      messages.length > 0 &&
+      armedHistoryGenerationRef.current === historyLoadGeneration &&
+      completedHistoryGenerationRef.current !== historyLoadGeneration;
+
+    if (isCurrentHistoryCompletion) {
+      completedHistoryGenerationRef.current = historyLoadGeneration;
+      // The message-update effect runs after this layout effect. Mark the
+      // reconstructed batch as consumed so it is not mistaken for a newly
+      // streamed assistant message and scrolled a second time.
+      previousMessagesRef.current = messages;
     }
 
     if (
+      isCurrentHistoryCompletion &&
       shouldFinalizeHistoryLoadScroll({
-        pendingHistoryScroll: pendingHistoryScrollRef.current,
+        pendingHistoryScroll: pendingHistoryScrollRef.current !== null,
         isLoadingHistory,
         messageCount: messages.length,
       })
     ) {
+      const pendingGeneration = pendingHistoryScrollRef.current;
+      pendingHistoryScrollRef.current = null;
+      const virtuoso = virtuosoRef.current;
       if (
-        shouldStartHistoryScrollSettling({
-          pendingHistoryScroll: pendingHistoryScrollRef.current,
-          isLoadingHistory,
-          messageCount: messages.length,
-          externalNavigationToken,
-        })
+        pendingGeneration !== historyLoadGeneration ||
+        externalNavigationToken ||
+        !virtuoso
       ) {
-        const timing = getScrollToBottomTimingOptions({
-          isMobileViewport,
-          mode: "history-finalize",
-        });
-        startHistoryScrollSettling(
-          getHistoryScrollSettlingFallbackTimeoutMs(timing),
-        );
+        return;
       }
-
-      let raf = 0;
-      let revealRaf = 0;
-      let settled = false;
-
-      const tryScroll = () => {
-        if (settled) return;
-        if (!virtuosoRef.current || !virtuosoScrollerRef.current) {
-          raf = requestAnimationFrame(tryScroll);
-          return;
-        }
-        settled = true;
-        pendingHistoryScrollRef.current = false;
-        requestScrollToBottom("history-finalize", {
-          onInitialSettle: () => {
-            // Keep the final layout mounted while Virtuoso settles, then make
-            // one physical-bottom correction before revealing the list. The
-            // next animation frame lets that scroll position paint first.
-            forceScrollerToPhysicalBottom({
-              scroller: virtuosoScrollerRef.current,
-              footer: messagesEndRef.current,
-            });
-            revealRaf = requestAnimationFrame(() => {
-              clearHistoryScrollSettling();
-            });
-          },
-          onComplete: (reason) => {
-            if (reason === "settled" || reason === "aborted") {
-              // "settled": natural settle at bottom — done.
-              // "aborted": user scrolled up during settling — respect
-              // their intent and do not force-scroll back down.
-              clearHistoryScrollSettling();
-              return;
-            }
-
-            // "max-attempts": budget exhausted without settling; force
-            // to physical bottom as a last resort.
-            forceScrollerToPhysicalBottom({
-              scroller: virtuosoScrollerRef.current,
-              footer: messagesEndRef.current,
-            });
-            requestAnimationFrame(() => {
-              clearHistoryScrollSettling();
-            });
-          },
-        });
-      };
-
-      tryScroll();
-      return () => {
-        settled = true;
-        cancelAnimationFrame(raf);
-        cancelAnimationFrame(revealRaf);
-      };
+      virtuoso.scrollToIndex({
+        index: "LAST",
+        align: "end",
+        behavior: "auto",
+      });
     }
   }, [
-    clearHistoryScrollSettling,
     externalNavigationToken,
+    historyLoadGeneration,
     isLoadingHistory,
-    isMobileViewport,
+    messages,
     messages.length,
-    requestScrollToBottom,
     sessionId,
-    startHistoryScrollSettling,
   ]);
 
   useEffect(() => {
@@ -811,7 +751,6 @@ export function useMessageScroll(
     messagesEndRef,
     isNearBottom,
     isNearTop,
-    isHistoryScrollSettling,
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,

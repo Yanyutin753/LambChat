@@ -17,7 +17,6 @@ import {
   getNextMessageScrollFollowStateForUserIntent,
   getNextMessageScrollFollowStateForUserScroll,
   didLatestStreamingAssistantFinish,
-  getHistoryScrollSettlingFallbackTimeoutMs,
   highlightElementForExternalNavigation,
   scrollElementIntoViewWithRetries,
   shouldArmPendingHistoryScroll,
@@ -692,16 +691,6 @@ test("waits until history loading completes before triggering the final bottom s
   ).toBe(true);
 });
 
-test("keeps the history skeleton for the full final scroll settle budget", () => {
-  expect(
-    getHistoryScrollSettlingFallbackTimeoutMs({
-      maxDurationMs: 1800,
-      observeAfterSettleMs: 2400,
-      settleWindowMs: 180,
-    }),
-  ).toBeGreaterThan(4380);
-});
-
 test("does not trigger a final history scroll when there is no pending scroll or no messages", () => {
   expect(
     shouldFinalizeHistoryLoadScroll({
@@ -720,11 +709,10 @@ test("does not trigger a final history scroll when there is no pending scroll or
   ).toBe(false);
 });
 
-test("arms the history finalize scroll only once per loading cycle", () => {
+test("arms history positioning once per loading generation", () => {
   expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: true,
-      sessionId: "session-1",
       historyScrollArmed: false,
     }),
   ).toBe(true);
@@ -732,7 +720,6 @@ test("arms the history finalize scroll only once per loading cycle", () => {
   expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: true,
-      sessionId: "session-1",
       historyScrollArmed: true,
     }),
   ).toBe(false);
@@ -740,7 +727,6 @@ test("arms the history finalize scroll only once per loading cycle", () => {
   expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: false,
-      sessionId: "session-1",
       historyScrollArmed: false,
     }),
   ).toBe(false);
@@ -748,10 +734,9 @@ test("arms the history finalize scroll only once per loading cycle", () => {
   expect(
     shouldArmPendingHistoryScroll({
       isLoadingHistory: true,
-      sessionId: null,
       historyScrollArmed: false,
     }),
-  ).toBe(false);
+  ).toBe(true);
 });
 
 test("infers a batched history load when a new session receives its first messages", () => {
@@ -761,6 +746,8 @@ test("infers a batched history load when a new session receives its first messag
       sessionId: "session-2",
       previousMessageCount: 0,
       messageCount: 8,
+      previousHistoryLoadGeneration: 1,
+      historyLoadGeneration: 2,
       isLoadingHistory: false,
       externalNavigationToken: null,
     }),
@@ -772,6 +759,8 @@ test("infers a batched history load when a new session receives its first messag
       sessionId: "session-1",
       previousMessageCount: 7,
       messageCount: 8,
+      previousHistoryLoadGeneration: 1,
+      historyLoadGeneration: 2,
       isLoadingHistory: false,
       externalNavigationToken: null,
     }),
@@ -783,8 +772,23 @@ test("infers a batched history load when a new session receives its first messag
       sessionId: "session-2",
       previousMessageCount: 0,
       messageCount: 8,
+      previousHistoryLoadGeneration: 1,
+      historyLoadGeneration: 2,
       isLoadingHistory: false,
       externalNavigationToken: "reveal:file",
+    }),
+  ).toBe(false);
+
+  expect(
+    shouldInferBatchedHistoryLoadReady({
+      previousSessionId: null,
+      sessionId: "new-session",
+      previousMessageCount: 0,
+      messageCount: 1,
+      previousHistoryLoadGeneration: 0,
+      historyLoadGeneration: 0,
+      isLoadingHistory: false,
+      externalNavigationToken: null,
     }),
   ).toBe(false);
 });

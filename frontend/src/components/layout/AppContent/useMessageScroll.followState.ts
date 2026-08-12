@@ -279,7 +279,6 @@ interface ShouldFinalizeHistoryLoadScrollOptions {
 
 interface ShouldArmPendingHistoryScrollOptions {
   isLoadingHistory: boolean;
-  sessionId?: string | null;
   historyScrollArmed: boolean;
 }
 
@@ -288,23 +287,17 @@ interface ShouldInferBatchedHistoryLoadReadyOptions {
   sessionId?: string | null;
   previousMessageCount: number;
   messageCount: number;
+  previousHistoryLoadGeneration: number;
+  historyLoadGeneration: number;
   isLoadingHistory: boolean;
-  externalNavigationToken?: string | null;
-}
-
-interface ShouldStartHistoryScrollSettlingOptions {
-  pendingHistoryScroll: boolean;
-  isLoadingHistory: boolean;
-  messageCount: number;
   externalNavigationToken?: string | null;
 }
 
 export function shouldArmPendingHistoryScroll({
   isLoadingHistory,
-  sessionId,
   historyScrollArmed,
 }: ShouldArmPendingHistoryScrollOptions): boolean {
-  return !!sessionId && isLoadingHistory && !historyScrollArmed;
+  return isLoadingHistory && !historyScrollArmed;
 }
 
 export function shouldFinalizeHistoryLoadScroll({
@@ -320,29 +313,18 @@ export function shouldInferBatchedHistoryLoadReady({
   sessionId,
   previousMessageCount,
   messageCount,
+  previousHistoryLoadGeneration,
+  historyLoadGeneration,
   isLoadingHistory,
   externalNavigationToken,
 }: ShouldInferBatchedHistoryLoadReadyOptions): boolean {
   return (
+    previousHistoryLoadGeneration !== historyLoadGeneration &&
     previousSessionId !== sessionId &&
     !!sessionId &&
     previousMessageCount === 0 &&
     messageCount > 0 &&
     !isLoadingHistory &&
-    !externalNavigationToken
-  );
-}
-
-export function shouldStartHistoryScrollSettling({
-  pendingHistoryScroll,
-  isLoadingHistory,
-  messageCount,
-  externalNavigationToken,
-}: ShouldStartHistoryScrollSettlingOptions): boolean {
-  return (
-    pendingHistoryScroll &&
-    !isLoadingHistory &&
-    messageCount > 0 &&
     !externalNavigationToken
   );
 }

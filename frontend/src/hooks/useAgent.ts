@@ -86,6 +86,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyLoadGeneration, setHistoryLoadGeneration] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -331,6 +332,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     async (targetSessionId: string, targetRunId?: string) => {
       loadHistoryRequestIdRef.current += 1;
       const requestId = loadHistoryRequestIdRef.current;
+      setHistoryLoadGeneration(requestId);
       const isStaleHistoryLoad = () =>
         requestId !== loadHistoryRequestIdRef.current || signal.aborted;
 
@@ -927,6 +929,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     messages,
     isLoading,
     isLoadingHistory,
+    historyLoadGeneration,
     error,
     sessionId,
     currentRunId,

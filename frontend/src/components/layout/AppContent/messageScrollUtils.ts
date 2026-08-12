@@ -122,19 +122,6 @@ export function getMessageListFooterSpacerClass(
     : "h-8";
 }
 
-export function getInitialBottomItemLocation(
-  messageCount: number,
-): { index: number; align: "end" } | undefined {
-  if (messageCount <= 0) {
-    return undefined;
-  }
-
-  return {
-    index: messageCount - 1,
-    align: "end",
-  };
-}
-
 export function getMessageListSessionKey(sessionId?: string | null): string {
   return sessionId ?? "__new_session__";
 }

@@ -168,6 +168,7 @@ export function ChatAppContent({
     currentRunId,
     isLoading,
     isLoadingHistory,
+    historyLoadGeneration,
     agents,
     currentAgent,
     allowedModelIds: agentAllowedModelIds,
@@ -866,6 +867,7 @@ export function ChatAppContent({
           currentRunId={currentRunId}
           isLoading={isLoading}
           isLoadingHistory={isLoadingHistory}
+          historyLoadGeneration={historyLoadGeneration}
           connectionStatus={connectionStatus}
           canSendMessage={canSendMessage}
           tools={effectiveTools}

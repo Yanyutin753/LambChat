@@ -1,6 +1,5 @@
 import {
   getNextMessageListSessionKey,
-  shouldStartHistoryScrollSettling,
   shouldResetMessageScrollStateForSessionChange,
 } from "../useMessageScroll.followState";
 
@@ -44,53 +43,4 @@ test("switches the message list key when navigating to another stored session", 
       previousKey: "session-1",
     }),
   ).toBe("session-2");
-});
-
-test("starts visual settling when history bottom scroll finalizes", () => {
-  expect(
-    shouldStartHistoryScrollSettling({
-      pendingHistoryScroll: true,
-      isLoadingHistory: false,
-      messageCount: 8,
-      externalNavigationToken: null,
-    }),
-  ).toBe(true);
-});
-
-test("does not start visual settling for external navigation, active loads, or empty history", () => {
-  expect(
-    shouldStartHistoryScrollSettling({
-      pendingHistoryScroll: true,
-      isLoadingHistory: false,
-      messageCount: 8,
-      externalNavigationToken: "reveal:file",
-    }),
-  ).toBe(false);
-
-  expect(
-    shouldStartHistoryScrollSettling({
-      pendingHistoryScroll: true,
-      isLoadingHistory: true,
-      messageCount: 8,
-      externalNavigationToken: null,
-    }),
-  ).toBe(false);
-
-  expect(
-    shouldStartHistoryScrollSettling({
-      pendingHistoryScroll: true,
-      isLoadingHistory: false,
-      messageCount: 0,
-      externalNavigationToken: null,
-    }),
-  ).toBe(false);
-
-  expect(
-    shouldStartHistoryScrollSettling({
-      pendingHistoryScroll: false,
-      isLoadingHistory: false,
-      messageCount: 8,
-      externalNavigationToken: null,
-    }),
-  ).toBe(false);
 });

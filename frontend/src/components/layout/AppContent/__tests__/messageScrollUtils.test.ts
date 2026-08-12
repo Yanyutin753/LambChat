@@ -7,7 +7,6 @@ import {
   getAwayFromBottomThresholdPx,
   getScrollToBottomTimingOptions,
   getMessageListFooterSpacerClass,
-  getInitialBottomItemLocation,
   getMessageListSessionKey,
   hasNewOutgoingMessage,
   shouldIgnoreUnexpectedTopJumpDuringBottomLock,
@@ -85,15 +84,6 @@ test("forces the physical scroller during a preferred bottom lock even when Virt
   stop();
 
   expect(scroller.scrollTop).toBe(scroller.scrollHeight);
-});
-
-test("initializes history at the bottom edge of the latest message", () => {
-  expect(getInitialBottomItemLocation(3)).toEqual({
-    index: 2,
-    align: "end",
-  });
-
-  expect(getInitialBottomItemLocation(0)).toBe(undefined);
 });
 
 test("changes the message list key when switching sessions", () => {

@@ -20,7 +20,6 @@ import {
 import { useMessageScroll } from "./useMessageScroll";
 import {
   getAtBottomThresholdPx,
-  getInitialBottomItemLocation,
   getMessageListFooterSpacerClass,
 } from "./messageScrollUtils";
 import { getNextMessageListSessionKey } from "./useMessageScroll";
@@ -52,6 +51,7 @@ export function ChatView({
   currentRunId,
   isLoading,
   isLoadingHistory,
+  historyLoadGeneration,
   connectionStatus,
   canSendMessage,
   tools,
@@ -176,7 +176,6 @@ export function ChatView({
     messagesEndRef,
     isNearBottom,
     isNearTop,
-    isHistoryScrollSettling,
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,
@@ -189,6 +188,7 @@ export function ChatView({
     externalNavigationTargetRunPending,
     externalScrollToBottom,
     isLoadingHistory,
+    historyLoadGeneration,
     null,
   );
 
@@ -260,8 +260,6 @@ export function ChatView({
   );
   const isMobileViewport =
     typeof window !== "undefined" ? window.innerWidth < 640 : false;
-  const shouldHideHistoryMeasurementFrame =
-    isLoadingHistory || isHistoryScrollSettling;
 
   // --- Message action handlers ---
   const handleForkMessage = useCallback(
@@ -317,12 +315,12 @@ export function ChatView({
   }, []);
   const handleVirtuosoFollowOutput = useCallback(
     (isAtBottom: boolean) => {
-      if (shouldHideHistoryMeasurementFrame) {
+      if (isLoadingHistory) {
         return isAtBottom ? "auto" : false;
       }
       return isAtBottom ? "smooth" : false;
     },
-    [shouldHideHistoryMeasurementFrame],
+    [isLoadingHistory],
   );
 
   const virtuosoComponents = useMemo(
@@ -520,33 +518,19 @@ export function ChatView({
             />
           )
         ) : (
-          <>
-            <Virtuoso
-              key={messageListSessionKey}
-              ref={virtuosoRef}
-              className={`dark:divide-stone-800 overflow-x-hidden ${
-                shouldHideHistoryMeasurementFrame
-                  ? "chat-history-scroll-settling"
-                  : ""
-              }`}
-              data={messages}
-              computeItemKey={(_, message) => message.id}
-              atBottomStateChange={handleVirtuosoAtBottomChange}
-              atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
-              followOutput={handleVirtuosoFollowOutput}
-              rangeChanged={handleVirtuosoRangeChanged}
-              components={virtuosoComponents}
-              itemContent={virtuosoItemContent}
-              initialTopMostItemIndex={getInitialBottomItemLocation(
-                messages.length,
-              )}
-            />
-            {shouldHideHistoryMeasurementFrame && (
-              <div className="chat-history-settling-overlay">
-                <ChatSkeleton count={8} />
-              </div>
-            )}
-          </>
+          <Virtuoso
+            key={messageListSessionKey}
+            ref={virtuosoRef}
+            className="dark:divide-stone-800 overflow-x-hidden"
+            data={messages}
+            computeItemKey={(_, message) => message.id}
+            atBottomStateChange={handleVirtuosoAtBottomChange}
+            atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
+            followOutput={handleVirtuosoFollowOutput}
+            rangeChanged={handleVirtuosoRangeChanged}
+            components={virtuosoComponents}
+            itemContent={virtuosoItemContent}
+          />
         )}
       </main>
 
@@ -567,15 +551,7 @@ export function ChatView({
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
       {messages.length > 0 && (
-        <div
-          aria-hidden={shouldHideHistoryMeasurementFrame || undefined}
-          inert={shouldHideHistoryMeasurementFrame || undefined}
-          className={`relative ${
-            shouldHideHistoryMeasurementFrame
-              ? "invisible pointer-events-none"
-              : ""
-          }`}
-        >
+        <div className="relative">
           <div
             className={`absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
           >

@@ -15,18 +15,6 @@
   display: none;
 }
 
-.chat-history-scroll-settling {
-  visibility: hidden;
-}
-
-.chat-history-settling-overlay {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  background: var(--theme-bg);
-}
-
 /* Chat input — enhanced with Astryx-style shadow system */
 .chat-input-container {
   box-shadow: var(--shadow-low);

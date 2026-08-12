@@ -40,7 +40,7 @@ interface UseMessageScrollExternalNavigationEffectArgs {
   userScrolledUpRef: RefObject<boolean>;
   autoScrollActiveRef: RefObject<boolean>;
   streamLockActiveRef: RefObject<boolean>;
-  pendingHistoryScrollRef: RefObject<boolean>;
+  pendingHistoryScrollRef: RefObject<number | null>;
   ignoreProgrammaticScrollUntilRef: RefObject<number>;
   anchorScrollCleanupRef: RefObject<(() => void) | null>;
   highlightCleanupRef: RefObject<(() => void) | null>;
@@ -144,7 +144,7 @@ export function useMessageScrollExternalNavigationEffect({
       userScrolledUpRef.current = true;
       autoScrollActiveRef.current = false;
       streamLockActiveRef.current = false;
-      pendingHistoryScrollRef.current = false;
+      pendingHistoryScrollRef.current = null;
       ignoreProgrammaticScrollUntilRef.current = Date.now() + 120;
       anchorScrollCleanupRef.current?.();
 
@@ -258,7 +258,7 @@ export function useMessageScrollExternalNavigationEffect({
       userScrolledUpRef.current = true;
       autoScrollActiveRef.current = false;
       streamLockActiveRef.current = false;
-      pendingHistoryScrollRef.current = false;
+      pendingHistoryScrollRef.current = null;
       ignoreProgrammaticScrollUntilRef.current = Date.now() + 120;
       anchorScrollCleanupRef.current?.();
 

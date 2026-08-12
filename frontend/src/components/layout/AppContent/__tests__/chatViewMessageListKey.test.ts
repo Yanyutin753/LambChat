@@ -26,17 +26,22 @@ test("does not reuse the Virtuoso remount key as a bottom-lock token", () => {
     /useMessageScroll\([\s\S]*isLoadingHistory,\s*messageListSessionKey,\s*\)/,
   );
   expect(chatViewSource).toMatch(
-    /useMessageScroll\([\s\S]*isLoadingHistory,\s*null,\s*\)/,
+    /useMessageScroll\([\s\S]*isLoadingHistory,\s*historyLoadGeneration,\s*null,\s*\)/,
   );
 });
 
 test("lets Virtuoso follow output smoothly only outside history restore", () => {
   expect(chatViewSource).toMatch(
-    /if \(shouldHideHistoryMeasurementFrame\) \{\s*return isAtBottom \? "auto" : false;\s*\}/,
+    /if \(isLoadingHistory\) \{\s*return isAtBottom \? "auto" : false;\s*\}/,
   );
   expect(chatViewSource).toMatch(/return isAtBottom \? "smooth" : false;/);
   expect(chatViewSource).toMatch(/followOutput=\{handleVirtuosoFollowOutput\}/);
   expect(chatViewSource).not.toMatch(/followOutput=\{"smooth"\}/);
+});
+
+test("does not combine mount positioning with one-shot history positioning", () => {
+  expect(chatViewSource).not.toMatch(/initialTopMostItemIndex=/);
+  expect(chatViewSource).not.toMatch(/getInitialBottomItemLocation/);
 });
 
 test("anchors floating scroll buttons to the chat input", () => {
@@ -47,7 +52,7 @@ test("anchors floating scroll buttons to the chat input", () => {
     chatViewSource.match(/\$\{FLOATING_SCROLL_BUTTON_OFFSET_CLASS\}/g)?.length,
   ).toBe(1);
   expect(chatViewSource).toMatch(
-    /\{messages\.length > 0 && \(\s*<div[\s\S]*className=\{`relative[\s\S]*<ChatInput\s+[\s\S]*\{\.\.\.chatInputProps\}[\s\S]*<\/div>\s*\)\}/,
+    /\{messages\.length > 0 && \(\s*<div className="relative">[\s\S]*<ChatInput\s+[\s\S]*\{\.\.\.chatInputProps\}[\s\S]*<\/div>\s*\)\}/,
   );
   expect(chatViewSource).not.toMatch(/bottom-[1-9]\d*/);
 });

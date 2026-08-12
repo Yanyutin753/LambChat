@@ -18,13 +18,6 @@ const chatCss = readFileSync(
   "utf8",
 );
 
-function getCssRule(selector: string): string {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return (
-    chatCss.match(new RegExp(`${escapedSelector}\\s*\\{[^}]*\\}`))?.[0] ?? ""
-  );
-}
-
 test("chat message scroller hides native scrollbars without disabling scrolling", () => {
   expect(chatViewSource).toMatch(/className=\{`chat-message-scroller /);
   expect(chatViewSource).toMatch(/\$\{props\.className \?\? ""\}`\}/);
@@ -36,32 +29,11 @@ test("chat message scroller hides native scrollbars without disabling scrolling"
   );
 });
 
-test("history restore hides the unstable measurement frame without removing layout", () => {
-  const settlingRule = getCssRule(".chat-history-scroll-settling");
-  const overlayRule = getCssRule(".chat-history-settling-overlay");
-
-  expect(chatViewSource).toMatch(
-    /const shouldHideHistoryMeasurementFrame =\s*isLoadingHistory \|\| isHistoryScrollSettling;/,
-  );
-  expect(chatViewSource).toMatch(/isHistoryScrollSettling/);
-  expect(chatViewSource).toMatch(/chat-history-scroll-settling/);
-  expect(chatViewSource).toMatch(/shouldHideHistoryMeasurementFrame && \(/);
-  expect(chatViewSource).toMatch(/chat-history-settling-overlay/);
-  expect(settlingRule).toMatch(/visibility:\s*hidden;/);
-  expect(settlingRule).not.toMatch(/display:\s*none/);
-  expect(overlayRule).toMatch(/position:\s*absolute;/);
-  expect(overlayRule).toMatch(/inset:\s*0;/);
-});
-
-test("history restore keeps a skeleton visible until measured bottom is stable", () => {
-  expect(chatViewSource).toMatch(
-    /<div className="chat-history-settling-overlay"[\s\S]*<ChatSkeleton count=\{8\} \/>[\s\S]*<\/div>/,
-  );
-});
-
-test("history restore retains input layout while keeping controls hidden", () => {
-  expect(chatViewSource).toMatch(
-    /\{messages\.length > 0 && \([\s\S]*shouldHideHistoryMeasurementFrame[\s\S]*invisible pointer-events-none/,
-  );
-  expect(chatViewSource).toMatch(/inert=\{shouldHideHistoryMeasurementFrame/);
+test("history restore renders directly without a settling overlay", () => {
+  expect(chatViewSource).not.toMatch(/isHistoryScrollSettling/);
+  expect(chatViewSource).not.toMatch(/chat-history-scroll-settling/);
+  expect(chatViewSource).not.toMatch(/chat-history-settling-overlay/);
+  expect(chatCss).not.toMatch(/\.chat-history-scroll-settling/);
+  expect(chatCss).not.toMatch(/\.chat-history-settling-overlay/);
+  expect(chatViewSource).toMatch(/\{messages\.length > 0 && \(/);
 });
