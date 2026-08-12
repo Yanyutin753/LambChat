@@ -34,6 +34,8 @@
 - Modify: `frontend/src/components/layout/AppContent/__tests__/messageScrollSessionReset.test.ts`
 - Modify: `frontend/src/components/layout/AppContent/__tests__/useMessageScroll.test.ts`
 - Create: `frontend/src/components/layout/AppContent/__tests__/useMessageScrollOneShot.test.tsx`
+- Modify: `frontend/src/hooks/__tests__/useAgentLoadHistoryRace.test.ts`
+- Create: `frontend/src/components/layout/AppContent/__tests__/historyGenerationPropsSource.test.ts`
 
 - [ ] **Step 1: Replace the history settling source assertions**
 
@@ -41,7 +43,7 @@ Require the history-finalization layout effect to call the Virtuoso handle direc
 
 ```typescript
 expect(hookSource).toMatch(
-  /virtuosoRef\.current\.scrollToIndex\(\{\s*index: "LAST",\s*align: "end",\s*behavior: "auto",?\s*\}\)/,
+  /const virtuoso = virtuosoRef\.current;[\s\S]*virtuoso\.scrollToIndex\(\{\s*index: "LAST",\s*align: "end",\s*behavior: "auto",?\s*\}\)/,
 );
 expect(historyFinalizeBlock).not.toMatch(/requestScrollToBottom|requestAnimationFrame|setTimeout|ResizeObserver/);
 ```
@@ -64,7 +66,17 @@ Add a jsdom `renderHook` test that supplies a mutable mocked Virtuoso handle and
 rerenders the real hook across loading/generation transitions. Assert one exact
 call for an accepted non-external generation, no second call after rerenders or
 flushed timers/RAF, zero calls when a missing ref is attached later, and zero
-calls for empty/loading/replaced/external-navigation cases.
+calls for empty/loading/replaced/external-navigation cases. Also cover a batched
+transition that changes directly from the old idle/session signature to a new
+completed message list and generation without rendering
+`isLoadingHistory=true`; `shouldInferBatchedHistoryLoadReady` must arm that
+current generation and still produce exactly one call.
+
+Extend `useAgentLoadHistoryRace.test.ts` to prove each `loadHistory` start
+publishes its incremented request ID and stale completion cannot restore an old
+generation. Add a source-chain test requiring `ChatAppContent` to destructure
+and pass `historyLoadGeneration`, `ChatViewProps` to declare it, and `ChatView`
+to forward it to `useMessageScroll` instead of a literal value.
 
 - [ ] **Step 3: Run the focused tests and verify RED**
 
@@ -79,6 +91,8 @@ cd frontend && pnpm exec vitest run \
   src/components/layout/AppContent/__tests__/messageScrollSessionReset.test.ts \
   src/components/layout/AppContent/__tests__/useMessageScroll.test.ts \
   src/components/layout/AppContent/__tests__/useMessageScrollOneShot.test.tsx \
+  src/components/layout/AppContent/__tests__/historyGenerationPropsSource.test.ts \
+  src/hooks/__tests__/useAgentLoadHistoryRace.test.ts \
   --reporter=dot
 ```
 
@@ -104,8 +118,10 @@ Expected: FAIL because production still uses the history settling overlay, mount
 At `loadHistory` start, publish its existing incremented request ID as
 `historyLoadGeneration`. In the scroll hook, replace the unkeyed boolean with a
 pending generation. Arm/re-arm it when `isLoadingHistory` is true and the
-generation changes. After the load/message-count guards accept a non-external
-current generation:
+generation changes. When `shouldInferBatchedHistoryLoadReady` detects a direct
+idle-to-complete transition, arm the current generation in the same layout
+effect. After the load/message-count guards accept a non-external current
+generation:
 
 ```typescript
 const virtuoso = virtuosoRef.current;
@@ -136,7 +152,10 @@ Run Task 1 Step 3 and expect all selected tests to pass without warnings.
 - [ ] **Step 4: Commit the production change and tests**
 
 Stage only the files listed in Tasks 1-2, including
-`frontend/src/components/layout/AppContent/useMessageScroll.ts`, and commit:
+`frontend/src/components/layout/AppContent/useMessageScroll.ts`,
+`frontend/src/hooks/__tests__/useAgentLoadHistoryRace.test.ts`, and
+`frontend/src/components/layout/AppContent/__tests__/historyGenerationPropsSource.test.ts`,
+and commit:
 
 ```bash
 git commit -m "fix: position loaded history once"
