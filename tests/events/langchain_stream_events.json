@@ -8,8 +8,10 @@
       "event": "on_chat_model_start",
       "lc_type": "StandardStreamEvent",
       "description": "Emitted when a chat model invocation begins.",
-      "handled_by_processor": false,
-      "note": "Not explicitly handled; falls through _CONTEXT_EVENT_TYPES filter (not in the set)."
+      "handled_by_processor": true,
+      "handler": "processor.process_event -> FirstEventTiming.start_model()",
+      "emits_sse": [],
+      "note": "Records the root model-start phase for first-event timing; subagent model starts do not affect the root timing record."
     },
     {
       "event": "on_chat_model_stream",
@@ -243,6 +245,7 @@
     ]
   },
   "context_event_types": [
+    "on_chat_model_start",
     "on_chat_model_stream",
     "on_tool_start",
     "on_tool_end",

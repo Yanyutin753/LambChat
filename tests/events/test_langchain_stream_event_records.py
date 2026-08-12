@@ -11,7 +11,6 @@ PROCESSOR_PATH = REPO_ROOT / "src" / "infra" / "agent" / "events" / "processor.p
 # NOT processed (silently filtered out by AgentEventProcessor).
 EXPECTED_UNHANDLED_EVENTS = frozenset(
     {
-        "on_chat_model_start",
         "on_chain_start",
         "on_chain_stream",
         "on_chain_end",

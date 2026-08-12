@@ -19,10 +19,7 @@ const result = spawnSync(pnpmCommand, ["build"], {
     ...process.env,
     LAMBCHAT_APP_URL: normalizedAppUrl,
     VITE_API_BASE: normalizedAppUrl,
-    NODE_OPTIONS: [
-      process.env.NODE_OPTIONS,
-      "--max-old-space-size=4096",
-    ]
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=4096"]
       .filter(Boolean)
       .join(" "),
   },
