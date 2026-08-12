@@ -70,7 +70,10 @@ calls for empty/loading/replaced/external-navigation cases. Also cover a batched
 transition that changes directly from the old idle/session signature to a new
 completed message list and generation without rendering
 `isLoadingHistory=true`; `shouldInferBatchedHistoryLoadReady` must arm that
-current generation and still produce exactly one call.
+current generation and still produce exactly one call. Extend that predicate
+with previous/current generation parameters and require the generation to
+change. The negative idle/empty to new-session-first-message case with an
+unchanged generation must produce zero direct history calls.
 
 Extend `useAgentLoadHistoryRace.test.ts` to prove each `loadHistory` start
 publishes its incremented request ID and stale completion cannot restore an old
@@ -119,9 +122,10 @@ At `loadHistory` start, publish its existing incremented request ID as
 `historyLoadGeneration`. In the scroll hook, replace the unkeyed boolean with a
 pending generation. Arm/re-arm it when `isLoadingHistory` is true and the
 generation changes. When `shouldInferBatchedHistoryLoadReady` detects a direct
-idle-to-complete transition, arm the current generation in the same layout
-effect. After the load/message-count guards accept a non-external current
-generation:
+idle-to-complete transition *and* a generation change, arm the current
+generation in the same layout effect. A session/message transition with an
+unchanged generation is a non-history path and must not arm. After the
+load/message-count guards accept a non-external current generation:
 
 ```typescript
 const virtuoso = virtuosoRef.current;
