@@ -472,6 +472,7 @@ class TraceEventChunkMixin:
         self,
         trace_docs: List[Dict[str, Any]],
         event_types: Optional[List[str]] = None,
+        active_user_only_trace_ids: Optional[set[str]] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Read legacy/chunk events for many traces with one chunk query."""
         event_types = trace_storage_helpers._bounded_unique_strings(
@@ -486,6 +487,23 @@ class TraceEventChunkMixin:
         ]
         if not trace_ids:
             return {}
+        active_user_only_trace_ids = active_user_only_trace_ids or set()
+
+        events_projection: Any = 1
+        if active_user_only_trace_ids:
+            events_projection = {
+                "$cond": [
+                    {"$in": ["$trace_id", sorted(active_user_only_trace_ids)]},
+                    {
+                        "$filter": {
+                            "input": {"$ifNull": ["$events", []]},
+                            "as": "event",
+                            "cond": {"$eq": ["$$event.event_type", "user:message"]},
+                        }
+                    },
+                    "$events",
+                ]
+            }
 
         chunks_by_trace: Dict[str, List[Dict[str, Any]]] = {trace_id: [] for trace_id in trace_ids}
         cursor = self.chunks_collection.find(
@@ -495,7 +513,7 @@ class TraceEventChunkMixin:
                 "trace_id": 1,
                 "chunk_index": 1,
                 "start_seq": 1,
-                "events": 1,
+                "events": events_projection,
             },
         ).sort([("trace_id", 1), ("chunk_index", 1)])
         async for chunk in cursor:
@@ -505,6 +523,11 @@ class TraceEventChunkMixin:
 
         def _accepts(event: Dict[str, Any]) -> bool:
             return not allowed_types or event.get("event_type") in allowed_types
+
+        def _accepts_for_trace(trace_id: str, event: Dict[str, Any]) -> bool:
+            if trace_id in active_user_only_trace_ids and event.get("event_type") != "user:message":
+                return False
+            return _accepts(event)
 
         events_by_trace: Dict[str, List[Dict[str, Any]]] = {}
         for trace_doc in trace_docs:
@@ -534,7 +557,7 @@ class TraceEventChunkMixin:
                     and trace_storage_helpers._event_seq(event, index) >= first_chunk_start_seq
                 ):
                     continue
-                if _accepts(event):
+                if _accepts_for_trace(trace_id, event):
                     events.append(event)
 
             for chunk in chunks:
@@ -543,7 +566,7 @@ class TraceEventChunkMixin:
                     key=lambda item: trace_storage_helpers._event_seq(item[1], item[0]),
                 )
                 for _index, event in chunk_events:
-                    if _accepts(event):
+                    if _accepts_for_trace(trace_id, event):
                         events.append(event)
 
             events_by_trace[trace_id] = events

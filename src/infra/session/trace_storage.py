@@ -637,6 +637,27 @@ class TraceStorage(
             if max_events is not None and max_events <= 0:
                 return SessionEventsSnapshot(events=[])
 
+            events_projection: Any = 1
+            if active_run_id:
+                events_projection = {
+                    "$cond": [
+                        {
+                            "$and": [
+                                {"$eq": ["$status", "running"]},
+                                {"$eq": ["$run_id", active_run_id]},
+                            ]
+                        },
+                        {
+                            "$filter": {
+                                "input": {"$ifNull": ["$events", []]},
+                                "as": "event",
+                                "cond": {"$eq": ["$$event.event_type", "user:message"]},
+                            }
+                        },
+                        "$events",
+                    ]
+                }
+
             cursor = self.collection.find(
                 match_query,
                 {
@@ -645,7 +666,7 @@ class TraceStorage(
                     "run_id": 1,
                     "status": 1,
                     "started_at": 1,
-                    "events": 1,
+                    "events": events_projection,
                     "recommend_questions": 1,
                     "recommend_questions_updated_at": 1,
                 },
@@ -658,10 +679,25 @@ class TraceStorage(
                         continue
                 traces.append(trace)
 
-            events_by_trace = await self.read_trace_events_batch_compat(
-                traces,
-                event_types=event_types,
-            )
+            active_user_only_trace_ids = {
+                str(trace.get("trace_id"))
+                for trace in traces
+                if active_run_id
+                and trace.get("run_id") == active_run_id
+                and trace.get("status") == "running"
+                and trace.get("trace_id")
+            }
+            if active_user_only_trace_ids:
+                events_by_trace = await self.read_trace_events_batch_compat(
+                    traces,
+                    event_types=event_types,
+                    active_user_only_trace_ids=active_user_only_trace_ids,
+                )
+            else:
+                events_by_trace = await self.read_trace_events_batch_compat(
+                    traces,
+                    event_types=event_types,
+                )
             events: List[Dict[str, Any]] = []
             history_mode: Literal["complete", "active_user_only"] = "complete"
             stream_run_id: Optional[str] = None

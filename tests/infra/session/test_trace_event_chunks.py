@@ -187,6 +187,7 @@ class _FakeChunkCollection:
         self.update_calls: list[tuple[dict[str, Any], dict[str, Any], bool]] = []
         self.update_many_calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
         self.find_count = 0
+        self.find_calls: list[tuple[dict[str, Any], dict[str, Any] | None]] = []
 
     async def find_one(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
         for chunk in self.chunks:
@@ -196,6 +197,7 @@ class _FakeChunkCollection:
 
     def find(self, query: dict[str, Any], projection: dict[str, Any] | None = None):
         self.find_count += 1
+        self.find_calls.append((deepcopy(query), deepcopy(projection)))
         docs = [_project(chunk, projection) for chunk in self.chunks if _matches(chunk, query)]
         return _AsyncCursor(docs)
 
@@ -1162,6 +1164,51 @@ async def test_get_session_events_snapshot_returns_active_user_and_requires_stre
     ]
     assert len(trace_collection.find_calls) == 1
     assert chunk_collection.find_count == 1
+    trace_events_projection = trace_collection.find_calls[0][1]["events"]
+    chunk_events_projection = chunk_collection.find_calls[0][1]["events"]
+    assert "$cond" in trace_events_projection
+    assert "$cond" in chunk_events_projection
+
+
+@pytest.mark.asyncio
+async def test_active_snapshot_projects_large_running_trace_to_user_events() -> None:
+    storage = TraceStorage()
+    assistant_events = [
+        _event("message:chunk", f"chunk-{index}", index + 2) for index in range(15_000)
+    ]
+    trace_collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-active",
+                "session_id": "session-1",
+                "run_id": "run-active",
+                "status": "running",
+                "started_at": "2026-04-25T00:02:00Z",
+                "events": [_event("user:message", "active-user", 1), *assistant_events],
+            }
+        ]
+    )
+    chunk_collection = _FakeChunkCollection(
+        [
+            {
+                "trace_id": "trace-active",
+                "chunk_index": 0,
+                "start_seq": 1,
+                "events": [_event("user:message", "active-user", 1), *assistant_events],
+            }
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = chunk_collection
+
+    snapshot = await storage.get_session_events_snapshot(
+        "session-1",
+        active_run_id="run-active",
+    )
+
+    assert [event["event_type"] for event in snapshot.events] == ["user:message"]
+    assert "$cond" in trace_collection.find_calls[0][1]["events"]
+    assert "$cond" in chunk_collection.find_calls[0][1]["events"]
 
 
 @pytest.mark.asyncio

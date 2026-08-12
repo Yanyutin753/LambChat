@@ -380,6 +380,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           sessionApi.get(targetSessionId, { signal }),
           sessionApi.getEvents(targetSessionId, {
             include_active_user_message: true,
+            compact_message_chunks: true,
             signal,
           }),
         ]);

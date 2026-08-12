@@ -28,6 +28,43 @@ test("reconstructMessagesFromEvents preserves backend user message ids", () => {
   expect(messages[0]?.runId).toBe("run-1");
 });
 
+test("reconstructs the same message from raw and compacted text chunks", () => {
+  const rawChunks = Array.from({ length: 15_000 }, (_, index) => ({
+    event_type: "message:chunk" as const,
+    run_id: "run-large",
+    trace_id: "trace-large",
+    seq: index + 1,
+    timestamp: "2026-08-12T00:00:00.000Z",
+    data: {
+      content: "x",
+      agent_id: "main",
+      depth: 0,
+    },
+  }));
+  const compacted = [
+    {
+      ...rawChunks[rawChunks.length - 1],
+      data: {
+        ...rawChunks[rawChunks.length - 1].data,
+        content: "x".repeat(rawChunks.length),
+      },
+    },
+  ];
+
+  const rawMessages = reconstructMessagesFromEvents(
+    rawChunks,
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+  const compactMessages = reconstructMessagesFromEvents(
+    compacted,
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  expect(compactMessages).toEqual(rawMessages);
+});
+
 test("prepareMessagesForRunningRun preserves the optimistic user message when running history has not persisted it yet", () => {
   const optimisticUser: Message = {
     id: "optimistic-user-latest",

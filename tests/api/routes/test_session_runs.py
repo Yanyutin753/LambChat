@@ -258,6 +258,20 @@ def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
         "src.infra.session.trace_storage",
         SimpleNamespace(get_trace_storage=lambda: None),
     )
+    history_path = Path(__file__).parents[3] / "src/infra/session/history_compaction.py"
+    history_spec = importlib.util.spec_from_file_location(
+        "session_history_compaction_under_test",
+        history_path,
+    )
+    assert history_spec is not None
+    history_module = importlib.util.module_from_spec(history_spec)
+    assert history_spec.loader is not None
+    history_spec.loader.exec_module(history_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "src.infra.session.history_compaction",
+        history_module,
+    )
 
     path = Path(__file__).parents[3] / "src/api/routes/session.py"
     spec = importlib.util.spec_from_file_location("session_routes_under_test", path)
@@ -412,6 +426,7 @@ async def test_get_session_events_uses_bounded_history_read(
         exclude_run_id=None,
         limit=2,
         include_active_user_message=False,
+        compact_message_chunks=False,
         user=SimpleNamespace(sub="user-1"),
     )
 
@@ -463,6 +478,7 @@ async def test_get_session_events_opt_in_returns_race_safe_snapshot_metadata(
         exclude_run_id=None,
         limit=None,
         include_active_user_message=True,
+        compact_message_chunks=False,
         user=SimpleNamespace(sub="user-1"),
     )
 
@@ -486,6 +502,55 @@ async def test_get_session_events_opt_in_returns_race_safe_snapshot_metadata(
             "active_run_id": "run-active",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_session_events_compacts_chunks_only_when_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_routes = _load_session_routes_module(monkeypatch)
+    dual_writer_module = sys.modules["src.infra.session.dual_writer"]
+
+    class _Writer(_FakeSessionEventsDualWriter):
+        async def read_session_events(self, session_id: str, event_types=None, **kwargs):
+            self.calls.append({"session_id": session_id, "event_types": event_types, **kwargs})
+            return [
+                {
+                    "trace_id": "trace-1",
+                    "run_id": "run-1",
+                    "event_type": "message:chunk",
+                    "data": {"content": "hello ", "agent_id": "main", "depth": 0},
+                    "seq": 1,
+                    "timestamp": "2026-08-12T00:00:01Z",
+                },
+                {
+                    "trace_id": "trace-1",
+                    "run_id": "run-1",
+                    "event_type": "message:chunk",
+                    "data": {"content": "world", "agent_id": "main", "depth": 0},
+                    "seq": 2,
+                    "timestamp": "2026-08-12T00:00:02Z",
+                },
+            ]
+
+    writer = _Writer()
+    monkeypatch.setattr(session_routes, "SessionManager", lambda: _FakeSessionManager())
+    monkeypatch.setattr(dual_writer_module, "get_dual_writer", lambda: writer)
+
+    response = await session_routes.get_session_events(
+        "session-1",
+        event_types=None,
+        run_id=None,
+        exclude_run_id=None,
+        limit=None,
+        include_active_user_message=False,
+        compact_message_chunks=True,
+        user=SimpleNamespace(sub="user-1"),
+    )
+
+    assert len(response["events"]) == 1
+    assert response["events"][0]["data"]["content"] == "hello world"
+    assert response["events"][0]["seq"] == 2
 
 
 @pytest.mark.asyncio

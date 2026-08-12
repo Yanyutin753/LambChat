@@ -14,7 +14,7 @@ test("loadHistory ignores stale async results instead of overwriting the active 
   expect(source).toMatch(/historyAbortControllerRef\.current\?\.abort\(\)/);
   expect(source).toMatch(/const signal = historyAbortController\.signal/);
   expect(source).toMatch(
-    /Promise\.all\(\[\s*sessionApi\.get\(targetSessionId, \{ signal \}\),\s*sessionApi\.getEvents\(targetSessionId, \{[\s\S]*?include_active_user_message: true,[\s\S]*?signal,[\s\S]*?\}\),\s*\]\)/,
+    /Promise\.all\(\[\s*sessionApi\.get\(targetSessionId, \{ signal \}\),\s*sessionApi\.getEvents\(targetSessionId, \{[\s\S]*?include_active_user_message: true,[\s\S]*?compact_message_chunks: true,[\s\S]*?signal,[\s\S]*?\}\),\s*\]\)/,
   );
   expect(source).not.toMatch(/await markReadPromise/);
   expect(source).toMatch(/resolveHistoryStreamRunId/);

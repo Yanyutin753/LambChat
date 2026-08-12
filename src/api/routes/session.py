@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
 from src.infra.folder.storage import get_project_storage
+from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
 from src.infra.session.favorites import is_session_favorite, normalize_session_metadata
 from src.infra.session.manager import SessionManager
@@ -51,49 +52,6 @@ def _parse_event_types_filter(event_types: str | None) -> list[str] | None:
         if len(parsed) >= SESSION_EVENT_TYPE_FILTER_LIMIT:
             break
     return parsed or None
-
-
-def _is_retryable_error(error: Exception) -> bool:
-    """判断错误是否可重试（429、网络错误等）"""
-    error_str = str(error).lower()
-    retryable_patterns = [
-        "429",  # rate limit
-        "503",  # service unavailable
-        "502",  # bad gateway
-        "504",  # gateway timeout
-        "timeout",
-        "connection",
-        "overloaded",
-        "网络错误",  # Chinese API proxy network error
-        "network error",
-    ]
-    return any(pattern in error_str for pattern in retryable_patterns)
-
-
-async def _ainvoke_with_retry(model, prompt: str, max_retries: int | None = None) -> Any:
-    """带重试的 LLM 调用"""
-
-    if max_retries is None:
-        max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
-
-    last_error: Exception | None = None
-    for attempt in range(max_retries):
-        try:
-            return await model.ainvoke(prompt)
-        except Exception as e:
-            last_error = e
-            if _is_retryable_error(e) and attempt < max_retries - 1:
-                delay = settings.LLM_RETRY_DELAY * (2**attempt)  # 指数退避
-                logger.warning(
-                    f"LLM call failed (attempt {attempt + 1}/{max_retries}): {e}. "
-                    f"Retrying in {delay}s..."
-                )
-                await asyncio.sleep(delay)
-            else:
-                raise
-    if last_error is None:
-        raise RuntimeError("Unexpected state: no error but loop exhausted")
-    raise last_error
 
 
 def verify_session_ownership(session: Session, user: TokenPayload) -> None:
@@ -320,6 +278,7 @@ async def get_session_events(
         False,
         description="包含活动 run 的用户消息，并返回是否需要继续 SSE 回放",
     ),
+    compact_message_chunks: bool = False,
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -377,6 +336,10 @@ async def get_session_events(
     events_limited = limit is not None and len(events) > limit
     if events_limited:
         events = events[:limit]
+    if compact_message_chunks:
+        from src.infra.session.history_compaction import compact_consecutive_message_chunks
+
+        events = compact_consecutive_message_chunks(events)
 
     response = {
         "events": events,
@@ -800,7 +763,7 @@ async def generate_session_title(
         )
         prompt = prompt_template.replace("{lang}", lang).replace("{message}", message[:800])
 
-        response = await _ainvoke_with_retry(model, prompt)
+        response = await ainvoke_with_retry(model, prompt, operation="session-title")
         logger.debug("LLM 生成标题响应: %s", response)
 
         # 提取标题，兼容新旧格式

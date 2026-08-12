@@ -3,6 +3,7 @@ import {
   buildMessageCheckpointUrl,
   buildMessageForkUrl,
   buildSessionRunsUrl,
+  buildSessionEventsUrl,
   buildSubmitChatBody,
 } from "../session.ts";
 
@@ -21,6 +22,20 @@ test("builds the default session runs url", () => {
 test("includes trace_id when looking up a specific run by trace", () => {
   expect(buildSessionRunsUrl("session-1", { trace_id: "trace-123" })).toBe(
     "/api/sessions/session-1/runs?trace_id=trace-123",
+  );
+});
+
+test("builds compact chat history event urls only when requested", () => {
+  expect(
+    buildSessionEventsUrl("session-1", {
+      include_active_user_message: true,
+      compact_message_chunks: true,
+    }),
+  ).toBe(
+    "/api/sessions/session-1/events?include_active_user_message=true&compact_message_chunks=true",
+  );
+  expect(buildSessionEventsUrl("session-1")).toBe(
+    "/api/sessions/session-1/events",
   );
 });
 
