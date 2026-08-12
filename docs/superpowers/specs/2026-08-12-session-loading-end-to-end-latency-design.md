@@ -265,21 +265,28 @@ rather than used as a flaky CI threshold.
 
 The conversation skeleton is visible only while essential session/events data
 has not been reconstructed and committed. Once the complete message list is
-available, Virtuoso renders with its last item aligned to the viewport end and
-the history-load transition issues one immediate `scrollToIndex` call for the
-last message with `align: "end"` and `behavior: "auto"`.
+available, the accepted history-load transition calls
+`virtuosoRef.current.scrollToIndex` directly exactly once with
+`{ index: "LAST", align: "end", behavior: "auto" }`. The history Virtuoso does
+not also use `initialTopMostItemIndex`, so a fresh mount cannot perform a second
+independent initial alignment.
 
 History loading does not enter a separate recovery phase, cover the rendered
 conversation with an overlay, or run the generic multi-attempt bottom recovery
-loop. Late image, Markdown, or tool-card layout changes may be handled by
-Virtuoso's normal layout behavior, but they do not trigger custom repeated
-scroll corrections. User-requested bottom scrolling, streaming follow output,
-external navigation, and unexpected top-jump recovery retain their existing
-paths because they are not history initialization.
+loop. The one-shot path does not call the generic bottom helper, mutate stream
+follow or detach state, arm unexpected-top-jump recovery, touch the physical
+scroller/footer, or schedule RAF, timer, or ResizeObserver retries. Late image,
+Markdown, or tool-card layout changes may be handled by Virtuoso's normal
+layout behavior, but they do not trigger custom repeated scroll corrections.
+User-requested bottom scrolling, streaming follow output, and unexpected
+top-jump recovery retain their existing paths because they are not history
+initialization.
 
-Empty and failed histories perform no one-shot scroll. A missing Virtuoso ref
-simply skips the initial command; `initialTopMostItemIndex` remains the mount
-fallback and no timer or animation is started.
+External-navigation history loads suppress the one-shot bottom alignment so
+the requested message/file target remains authoritative. Empty, failed, stale,
+or replaced histories perform no one-shot scroll. A missing Virtuoso ref and
+rerenders of an already accepted history generation also produce no call; no
+fallback timer or animation is started.
 
 ## Error handling and concurrency
 
@@ -331,8 +338,12 @@ Frontend tests cover:
   reconstruction equality;
 - exactly one non-animated last-item alignment after history commits;
 - no history recovery overlay or history-specific multi-attempt loop;
-- user-requested bottom scrolling, unexpected top-jump recovery, and empty
-  history behavior remain unchanged; and
+- external navigation suppresses the bottom alignment and still reaches its
+  requested target;
+- missing refs, empty/failed/stale histories, and rerenders produce no call or
+  deferred retry; and
+- streaming follow, user detach, user-requested bottom scrolling, and
+  unexpected top-jump recovery remain unchanged; and
 - complete message reconstruction with existing race and SSE tests unchanged.
 
 Focused tests run after each TDD cycle. Final verification runs the affected
