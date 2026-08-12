@@ -265,11 +265,19 @@ rather than used as a flaky CI threshold.
 
 The conversation skeleton is visible only while essential session/events data
 has not been reconstructed and committed. Once the complete message list is
-available, the accepted history-load transition calls
-`virtuosoRef.current.scrollToIndex` directly exactly once with
+available, one accepted, non-external history commit with an available
+Virtuoso ref calls `virtuosoRef.current.scrollToIndex` directly exactly once with
 `{ index: "LAST", align: "end", behavior: "auto" }`. The history Virtuoso does
 not also use `initialTopMostItemIndex`, so a fresh mount cannot perform a second
 independent initial alignment.
+
+Removing `initialTopMostItemIndex` is scoped to replacing its pre-populated
+history positioning responsibility. New-conversation first messages continue
+to use the existing message-update action, streaming continues to use its
+follow-output path, and user bottom-button actions continue to use the generic
+bottom helper. Regression tests must prove those non-history paths remain
+unchanged; if they do not, the implementation must preserve the property for
+non-history mounts rather than weakening those behaviors.
 
 History loading does not enter a separate recovery phase, cover the rendered
 conversation with an overlay, or run the generic multi-attempt bottom recovery
@@ -336,7 +344,8 @@ Frontend tests cover:
   pagination requests from visible surfaces;
 - compact history requested only by chat hydration and exact raw-versus-compact
   reconstruction equality;
-- exactly one non-animated last-item alignment after history commits;
+- exactly one non-animated last-item alignment for one accepted, non-external
+  history commit with an available Virtuoso ref;
 - no history recovery overlay or history-specific multi-attempt loop;
 - external navigation suppresses the bottom alignment and still reaches its
   requested target;
@@ -344,6 +353,8 @@ Frontend tests cover:
   deferred retry; and
 - streaming follow, user detach, user-requested bottom scrolling, and
   unexpected top-jump recovery remain unchanged; and
+- new-conversation first-message positioning remains unchanged despite removal
+  of the history mount alignment property; and
 - complete message reconstruction with existing race and SSE tests unchanged.
 
 Focused tests run after each TDD cycle. Final verification runs the affected
@@ -368,7 +379,8 @@ production database or proxy latency.
 - Team total and page data come from one aggregation query.
 - Repeated settings reads avoid MongoDB until an explicit local or remote
   invalidation.
-- Real messages appear immediately after history reconstruction and receive one
+- Real messages appear immediately after an accepted, non-external history
+  reconstruction and, when the Virtuoso ref is available, receive one
   non-animated last-item alignment without a visible recovery phase.
 - Hidden/closed frontend surfaces issue no data requests, duplicate settings
   triggers coalesce, and speculative list pages wait until the history critical
