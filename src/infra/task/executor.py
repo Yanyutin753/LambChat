@@ -91,8 +91,11 @@ class TaskExecutor:
         try:
             await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
 
-            # 启动心跳（传入 user_id 以刷新并发限制条目）
-            await self._heartbeat.start(run_id, user_id=user_id)
+            # queued path 已经同时创建 trace 和写入 user:message 时，可安全复用。
+            already_written = user_message_written or self._run_info.get(run_id, {}).get(
+                "user_message_written", False
+            )
+            trace_precreated = bool(existing_trace_id and already_written)
 
             # 创建 Presenter 并传递给 agent
             presenter = Presenter(
@@ -126,13 +129,15 @@ class TaskExecutor:
                 trace_id=presenter.trace_id,
             )
 
-            await presenter._ensure_trace()
-            await self._update_session_status(session_id, TaskStatus.RUNNING, run_id=run_id)
+            if trace_precreated:
+                presenter._trace_created = True
+            else:
+                await presenter._ensure_trace()
 
-            # Check if user:message was already written (queued path wrote it to MongoDB)
-            # In single-worker, also check _run_info (set by chat.py); in multi-worker, use parameter
-            already_written = user_message_written or self._run_info.get(run_id, {}).get(
-                "user_message_written", False
+            # 心跳与 RUNNING 状态彼此独立；并发完成后才进入 agent stream。
+            await asyncio.gather(
+                self._heartbeat.start(run_id, user_id=user_id),
+                self._update_session_status(session_id, TaskStatus.RUNNING, run_id=run_id),
             )
 
             # 立即发送 user:message 事件（任务开始时固定发送）
