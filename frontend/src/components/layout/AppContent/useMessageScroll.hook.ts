@@ -593,6 +593,7 @@ export function useMessageScroll(
       }
 
       let raf = 0;
+      let revealRaf = 0;
       let settled = false;
 
       const tryScroll = () => {
@@ -604,7 +605,18 @@ export function useMessageScroll(
         settled = true;
         pendingHistoryScrollRef.current = false;
         requestScrollToBottom("history-finalize", {
-          onInitialSettle: clearHistoryScrollSettling,
+          onInitialSettle: () => {
+            // Keep the final layout mounted while Virtuoso settles, then make
+            // one physical-bottom correction before revealing the list. The
+            // next animation frame lets that scroll position paint first.
+            forceScrollerToPhysicalBottom({
+              scroller: virtuosoScrollerRef.current,
+              footer: messagesEndRef.current,
+            });
+            revealRaf = requestAnimationFrame(() => {
+              clearHistoryScrollSettling();
+            });
+          },
           onComplete: (reason) => {
             if (reason === "settled" || reason === "aborted") {
               // "settled": natural settle at bottom — done.
@@ -631,6 +643,7 @@ export function useMessageScroll(
       return () => {
         settled = true;
         cancelAnimationFrame(raf);
+        cancelAnimationFrame(revealRaf);
       };
     }
   }, [

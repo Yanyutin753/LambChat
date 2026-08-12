@@ -59,8 +59,9 @@ test("history restore keeps a skeleton visible until measured bottom is stable",
   );
 });
 
-test("history restore does not reveal the real input before messages are stable", () => {
+test("history restore retains input layout while keeping controls hidden", () => {
   expect(chatViewSource).toMatch(
-    /\{messages\.length > 0 && !shouldHideHistoryMeasurementFrame && \(/,
+    /\{messages\.length > 0 && \([\s\S]*shouldHideHistoryMeasurementFrame[\s\S]*invisible pointer-events-none/,
   );
+  expect(chatViewSource).toMatch(/inert=\{shouldHideHistoryMeasurementFrame/);
 });
