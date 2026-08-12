@@ -604,6 +604,7 @@ export function useMessageScroll(
         settled = true;
         pendingHistoryScrollRef.current = false;
         requestScrollToBottom("history-finalize", {
+          onInitialSettle: clearHistoryScrollSettling,
           onComplete: (reason) => {
             if (reason === "settled" || reason === "aborted") {
               // "settled": natural settle at bottom — done.

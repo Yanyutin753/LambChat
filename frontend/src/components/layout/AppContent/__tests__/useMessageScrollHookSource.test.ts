@@ -22,11 +22,11 @@ test("starts history bottom settling before browser paint", () => {
   );
 });
 
-test("keeps history skeleton visible until the full settle observation completes", () => {
+test("reveals history after initial settle while recovery observation continues", () => {
   expect(hookSource).toMatch(
-    /requestScrollToBottom\("history-finalize",\s*\{\s*onComplete:\s*\(reason\)[\s\S]*clearHistoryScrollSettling/,
-  );
-  expect(hookSource).not.toMatch(
     /requestScrollToBottom\("history-finalize",\s*\{[\s\S]*onInitialSettle:\s*clearHistoryScrollSettling/,
+  );
+  expect(hookSource).toMatch(
+    /onInitialSettle:\s*clearHistoryScrollSettling,[\s\S]*onComplete:\s*\(reason\)/,
   );
 });
