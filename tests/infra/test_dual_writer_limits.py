@@ -394,6 +394,48 @@ async def test_flush_mongo_buffer_does_not_wait_for_delayed_flush_event() -> Non
 
 
 @pytest.mark.asyncio
+async def test_flush_mongo_buffer_cancels_delayed_flush_before_task_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = dual_writer.DualEventWriter()
+    flush_calls = 0
+    delayed_sleep_calls = 0
+
+    async def _delayed_sleep(delay: float) -> None:
+        nonlocal delayed_sleep_calls
+        delayed_sleep_calls += 1
+
+    monkeypatch.setattr(dual_writer.asyncio, "sleep", _delayed_sleep)
+
+    async def _write_to_redis_direct(stream_key: str, fields: dict[str, str]) -> bool:
+        return True
+
+    async def _fake_do_flush() -> None:
+        nonlocal flush_calls
+        flush_calls += 1
+        async with writer._mongo_lock:
+            writer._mongo_buffer = []
+        writer._flush_event.set()
+
+    writer._write_to_redis_direct = _write_to_redis_direct  # type: ignore[method-assign]
+    writer._do_flush = _fake_do_flush  # type: ignore[method-assign]
+
+    await writer.write_event(
+        "s1",
+        "user:message",
+        {"content": "hello"},
+        "t1",
+        run_id="r1",
+    )
+    await writer.flush_mongo_buffer(require_trace_id="t1")
+
+    assert delayed_sleep_calls == 0
+    assert flush_calls == 1
+    assert writer._flush_task is None
+    assert writer._flush_task_waiting is False
+
+
+@pytest.mark.asyncio
 async def test_flush_mongo_buffer_drains_pending_delayed_flush_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

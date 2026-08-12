@@ -239,6 +239,8 @@ class DualEventWriter:
                 # 使用 Event 触发延迟刷新
                 elif self._flush_event.is_set():
                     self._flush_event.clear()
+                    # 强制 flush 可能先于新任务的首个 coroutine step 执行。
+                    self._flush_task_waiting = True
                     self._flush_task = asyncio.create_task(self._schedule_flush())
                     self._flush_task.add_done_callback(self._on_flush_task_done)
 
@@ -297,6 +299,8 @@ class DualEventWriter:
                 await task
             except asyncio.CancelledError:
                 pass
+            # coroutine 启动前被取消时不会执行 _schedule_flush() 的 finally。
+            self._flush_task_waiting = False
             if self._flush_task is task:
                 self._flush_task = None
             return False
