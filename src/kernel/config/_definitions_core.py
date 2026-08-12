@@ -192,6 +192,13 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LLM_RETRY_DELAY",
         "default": 1.0,
     },
+    "LLM_REQUEST_TIMEOUT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LLM,
+        "subcategory": "retry",
+        "description": "settingDesc.LLM_REQUEST_TIMEOUT",
+        "default": 120.0,
+    },
     "LLM_MODEL_CACHE_SIZE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,

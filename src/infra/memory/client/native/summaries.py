@@ -12,6 +12,7 @@ with warnings.catch_warnings():
     import jieba.posseg as pseg
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.memory.client.native.models import CJK_STOPWORDS, has_cjk
 
 logger = logging.getLogger(__name__)
@@ -70,11 +71,13 @@ async def llm_enrich_memory(backend: Any, content: str) -> dict[str, Any]:
         from langchain_core.messages import HumanMessage, SystemMessage
 
         model = await backend._get_memory_model()
-        response = await model.ainvoke(
+        response = await ainvoke_with_retry(
+            model,
             [
                 SystemMessage(content=_ENRICH_SYSTEM),
                 HumanMessage(content=f"Annotate this memory:\n\n{content[:500]}"),
             ],
+            operation="native-memory-enrichment",
         )
         text = response.content
         if isinstance(text, list):

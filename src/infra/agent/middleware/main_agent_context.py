@@ -12,6 +12,7 @@ from typing import Any
 from langchain.agents.middleware.types import AgentMiddleware
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.retry import ainvoke_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -289,7 +290,11 @@ class MainAgentContextMiddleware(AgentMiddleware):
             "Format as concise markdown bullets.\n\n"
             f"{text}"
         )
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        response = await ainvoke_with_retry(
+            llm,
+            [HumanMessage(content=prompt)],
+            operation="main-agent-context-compression",
+        )
         return response.content if isinstance(response.content, str) else str(response.content)
 
     async def _write_context_file(self, request: Any) -> str | None:

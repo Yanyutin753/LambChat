@@ -52,7 +52,6 @@ A focused module under `src/infra/llm/` will own:
 - recursive exception-chain inspection;
 - timeout and transient-error classification;
 - attempt-count semantics;
-- first-response deadlines;
 - exponential backoff with the existing configured delay; and
 - sanitized retry logging.
 
@@ -81,25 +80,19 @@ failure ends it.
 For a non-streaming invocation there is no chunk boundary, so completion is the
 first response and must occur within 120 seconds.
 
-The timeout supervisor races three events for each attempt:
-
-1. first streamed chunk;
-2. normal completion or raised exception; and
-3. the configured first-response deadline.
-
-If a chunk wins, the attempt continues without a deadline. If completion wins,
-its result is returned. If the deadline wins, the attempt is cancelled and the
-timeout enters the canonical retry policy.
+Each provider adapter wraps only the first `anext()` call on its asynchronous
+model stream with the configured deadline. The adapter then yields every later
+event directly from the provider iterator. A non-streaming provider call wraps
+the complete model coroutine instead.
 
 ### Agent middleware
 
-The main agent, all subagents, and rubric grader will use a project-owned retry
-middleware backed by the canonical policy. A per-attempt callback observes the
-first model chunk without changing user-visible stream events. The middleware
-applies `LLM_REQUEST_TIMEOUT` only until that callback fires or the non-streaming
-call completes. A fallback model remains outside the primary retry layer, so it
-is selected only after the primary model exhausts its retries. The fallback
-invocation receives the same first-response timeout and retry policy.
+The main agent, all subagents, and rubric grader use LangChain's official
+`ModelRetryMiddleware`, configured with the canonical retry predicate. The
+provider adapter raises `TimeoutError` if the first model event misses the
+deadline, and the official middleware performs the retry. A fallback model
+remains outside the primary retry layer, so it is selected only after the
+primary model exhausts its retries.
 
 Empty or truncated response handling remains separate from exception retries so
 the existing response-validation behavior is preserved.
@@ -122,21 +115,17 @@ Callers with a dedicated retry setting may override the retry count, but the
 value consistently means retries after the initial attempt. Otherwise they use
 `LLM_MAX_RETRIES`.
 
-Direct non-streaming calls apply the deadline to the complete call. A direct
-streaming caller must use the same first-chunk supervisor as the agent
-middleware; it must not wrap consumption of the complete iterator in
-`asyncio.wait_for`.
+Direct non-streaming calls apply the deadline to the complete call. Streaming
+calls receive the same first-event behavior from the provider adapter and must
+not wrap consumption of the complete iterator in `asyncio.wait_for`.
 
 ### Provider SDK configuration
 
-Provider SDK `max_retries` values will be set to zero so application retries are
-the sole attempt-count authority. SDK timeouts must not impose a total stream
-deadline or an inter-chunk read deadline after the first chunk:
-
-- OpenAI-compatible and Anthropic transports retain bounded connect, write, and
-  pool waits while using an unbounded streaming read timeout.
-- Google model requests do not receive the current request-wide SDK timeout;
-  LambChat's first-response supervisor is the authoritative deadline.
+Provider SDK retries are disabled so application retries are the sole
+attempt-count authority. OpenAI-compatible, Anthropic, and Google SDK-level
+request timeouts are disabled because they either apply to every read or to the
+whole request. LambChat's provider adapters supply the authoritative first-event
+deadline, while non-streaming calls retain a completion deadline.
 
 Transport exceptions that still occur are classified by the canonical policy.
 This preserves retry behavior without allowing an SDK timeout to truncate an

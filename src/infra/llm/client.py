@@ -11,13 +11,13 @@ from collections import OrderedDict
 from functools import lru_cache
 from typing import Any, Optional
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.language_models.model_profile import ModelProfile as LangChainModelProfile
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
+from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel as ChatAnthropic
+from src.infra.llm.google_chat import LambChatGoogleChatModel as ChatGoogleGenerativeAI
+from src.infra.llm.openai_chat import LambChatOpenAIChatModel as ChatOpenAI
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 from src.kernel.exceptions import AuthorizationError
@@ -292,8 +292,10 @@ class LLMClient:
                 "thinking": anthropic_thinking,
                 "effort": effort,
                 "base_url": api_base or None,
-                "max_retries": settings.LLM_MAX_RETRIES,
-                "timeout": settings.LLM_REQUEST_TIMEOUT,
+                "max_retries": 0,
+                "timeout": None,
+                "first_event_timeout": settings.LLM_REQUEST_TIMEOUT,
+                "non_streaming_timeout": settings.LLM_REQUEST_TIMEOUT,
             }
             if api_key:
                 anthropic_kwargs["api_key"] = SecretStr(api_key)
@@ -314,8 +316,11 @@ class LLMClient:
                 "max_tokens": max_tokens,  # type: ignore[arg-type]
                 "base_url": api_base or None,
                 "thinking_level": thinking_level,
-                "max_retries": settings.LLM_MAX_RETRIES,
-                "timeout": settings.LLM_REQUEST_TIMEOUT,
+                # google-genai treats 1 as one initial request with no SDK retry.
+                "max_retries": 1,
+                "timeout": None,
+                "first_event_timeout": settings.LLM_REQUEST_TIMEOUT,
+                "non_streaming_timeout": settings.LLM_REQUEST_TIMEOUT,
             }
             if api_key:
                 google_kwargs["google_api_key"] = SecretStr(api_key)
@@ -329,8 +334,10 @@ class LLMClient:
             "streaming": True,
             "api_key": api_key or "sk-placeholder",
             "base_url": api_base or None,
-            "max_retries": settings.LLM_MAX_RETRIES,
-            "timeout": settings.LLM_REQUEST_TIMEOUT,
+            "max_retries": 0,
+            "timeout": None,
+            "first_event_timeout": settings.LLM_REQUEST_TIMEOUT,
+            "non_streaming_timeout": settings.LLM_REQUEST_TIMEOUT,
         }
         # OpenAI 协议: 传递 reasoning_effort 给推理模型
         # 仅 OpenAI 官方模型 (provider="openai") 支持 reasoning_effort 参数。

@@ -127,6 +127,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "SESSION_TITLE_API_BASE",
         "SESSION_TITLE_API_KEY",
         "LLM_MAX_RETRIES",
+        "LLM_RETRY_DELAY",
+        "LLM_REQUEST_TIMEOUT",
     }
 
     # Settings that require memory backend reinitialization

@@ -25,6 +25,7 @@ from src.infra.agent.middleware.main_agent_context import (
     write_subagent_handoff_file,
 )
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.retry import ainvoke_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +238,11 @@ class SubagentActivityMiddleware(AgentMiddleware):
             "Keep key findings, file paths, tool outcomes, decisions, and important values.\n\n"
             f"{text}"
         )
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        response = await ainvoke_with_retry(
+            llm,
+            [HumanMessage(content=prompt)],
+            operation="subagent-activity-compression",
+        )
         return response.content if isinstance(response.content, str) else str(response.content)
 
     async def _check_and_compress(self) -> None:

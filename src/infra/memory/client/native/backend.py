@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional, Sequence
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
@@ -398,7 +399,8 @@ class NativeMemoryBackend(MemoryBackend):
                 for item in candidates
             )
             model = (await maybe_await(self._get_memory_model())).bind_tools([memory_retain])
-            response = await model.ainvoke(
+            response = await ainvoke_with_retry(
+                model,
                 [
                     SystemMessage(
                         content=(
@@ -425,7 +427,8 @@ class NativeMemoryBackend(MemoryBackend):
                             f"Similar existing memories:\n{candidates_text or '(none)'}"
                         )
                     ),
-                ]
+                ],
+                operation="native-memory-retention",
             )
         except Exception as e:
             self._logger.debug("[NativeMemory] Background auto-retain decision failed: %s", e)

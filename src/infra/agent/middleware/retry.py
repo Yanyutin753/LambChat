@@ -18,6 +18,7 @@ from langchain.agents.middleware.types import (
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 
+from src.infra.llm.retry import is_retryable_model_error
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
@@ -27,69 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 def _is_retryable_error(exc: Exception) -> bool:
-    """Check if an exception is a transient/retryable LLM error.
-
-    Retries on: RateLimitError (429), 5xx server errors, timeouts,
-    APIConnectionError (network/TLS/proxy failures), empty stream,
-    and API proxy errors with custom error codes (e.g. code "1234").
-    Does NOT retry on: 401/403 auth errors, 400 bad request, 404 not found.
-    """
-    # LangChain empty stream: LLM returned no chunks at all
-    if isinstance(exc, ValueError) and "No generations found in stream" in str(exc):
-        return True
-
-    # asyncio.TimeoutError from wait_for / explicit request timeouts
-    if isinstance(exc, asyncio.TimeoutError):
-        return True
-
-    # httpx transient network errors (peer closed, incomplete chunked read, etc.)
-    try:
-        import httpx
-
-        if isinstance(exc, httpx.RemoteProtocolError):
-            return True
-    except ImportError:
-        pass
-
-    for module in ("anthropic", "openai"):
-        try:
-            mod = __import__(
-                module,
-                fromlist=[
-                    "RateLimitError",
-                    "APITimeoutError",
-                    "APIConnectionError",
-                    "APIStatusError",
-                ],
-            )
-            if isinstance(exc, mod.RateLimitError):
-                return True
-            if isinstance(exc, mod.APITimeoutError):
-                return True
-            if isinstance(exc, mod.APIConnectionError):
-                return True
-            if isinstance(exc, mod.APIStatusError):
-                # Standard 5xx server errors
-                if 500 <= exc.status_code < 600:
-                    return True
-                # API proxy errors with custom error codes (e.g. Chinese proxies
-                # returning code "1234" with "网络错误" for transient network issues)
-                body = getattr(exc, "body", None)
-                if isinstance(body, dict):
-                    error_obj = body.get("error", {})
-                    if isinstance(error_obj, dict):
-                        error_code = error_obj.get("code")
-                        error_msg = str(error_obj.get("message", "")).lower()
-                        # Known proxy error codes that indicate transient issues
-                        if error_code in ("1234",):
-                            return True
-                        # Network-related keywords in proxy error messages
-                        network_keywords = ("网络错误", "network error", "timeout", "overloaded")
-                        if any(kw in error_msg for kw in network_keywords):
-                            return True
-        except (ImportError, AttributeError):
-            continue
-    return False
+    """Compatibility wrapper around the canonical model retry predicate."""
+    return is_retryable_model_error(exc)
 
 
 def _is_empty_content(aimessage: AIMessage) -> bool:
@@ -238,26 +178,6 @@ class ModelFallbackMiddleware(AgentMiddleware):
         return response
 
 
-class ModelRequestTimeoutMiddleware(AgentMiddleware):
-    """Bound each individual model attempt, including fallback attempts.
-
-    This sits inside retry middleware so an explicit timeout is retryable before
-    the outer fallback layer switches models. Keeping the timeout at this layer
-    also protects model configurations that do not define a fallback.
-    """
-
-    async def awrap_model_call(
-        self,
-        request: ModelRequest[ContextT],
-        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
-    ) -> ModelResponse[ResponseT]:
-        timeout = settings.LLM_REQUEST_TIMEOUT
-        try:
-            return await asyncio.wait_for(handler(request), timeout=timeout)
-        except asyncio.TimeoutError as exc:
-            raise asyncio.TimeoutError(f"model request timed out after {timeout}s") from exc
-
-
 class EmptyContentRetryMiddleware(AgentMiddleware):
     """Middleware that retries model calls returning empty content."""
 
@@ -303,11 +223,10 @@ def create_retry_middleware(
     """Create the retry middleware stack for deep agents.
 
     Returns [ModelFallbackMiddleware?, ModelRetryMiddleware,
-    EmptyContentRetryMiddleware, ModelRequestTimeoutMiddleware]:
+    EmptyContentRetryMiddleware]:
     - Outer layer (optional): falls back to an alternate model when primary fails
     - Middle layer: retries on 429/5xx/timeout with exponential backoff
     - Inner layer: retries on empty content responses
-    - Innermost layer: applies the request timeout to each individual attempt
     """
     stack: list[AgentMiddleware[Any, Any, Any]] = []
 
@@ -328,7 +247,6 @@ def create_retry_middleware(
             EmptyContentRetryMiddleware(
                 max_retries=settings.LLM_MAX_RETRIES, retry_delay=settings.LLM_RETRY_DELAY
             ),
-            ModelRequestTimeoutMiddleware(),
         ]
     )
     return stack

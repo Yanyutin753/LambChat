@@ -214,6 +214,10 @@ async def test_get_model_uses_cached_key_for_sanitized_google_model_config(
 
     assert captured["google_api_key"].get_secret_value() == "gemini-secret"
     assert captured["base_url"] == "https://example.test"
+    assert captured["max_retries"] == 1
+    assert captured["timeout"] is None
+    assert captured["first_event_timeout"] == 120.0
+    assert captured["non_streaming_timeout"] == 120.0
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()
@@ -265,6 +269,10 @@ async def test_get_model_rehydrates_key_for_sanitized_anthropic_model_config(
 
     assert captured["api_key"].get_secret_value() == "anthropic-secret"
     assert captured["base_url"] == "https://example.test"
+    assert captured["max_retries"] == 0
+    assert captured["timeout"] is None
+    assert captured["first_event_timeout"] == 120.0
+    assert captured["non_streaming_timeout"] == 120.0
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()
@@ -362,6 +370,10 @@ async def test_get_model_preserves_inferred_provider_for_known_unprefixed_model(
     await LLMClient.get_model(model="deepseek-v4-flash", api_key="sk-test")
 
     assert captured["model"] == "deepseek-v4-flash"
+    assert captured["max_retries"] == 0
+    assert captured["timeout"] is None
+    assert captured["first_event_timeout"] == 120.0
+    assert captured["non_streaming_timeout"] == 120.0
     assert captured["metadata"]["lambchat_provider"] == "deepseek"
     assert "prompt_cache_key" not in captured.get("model_kwargs", {})
     assert "prompt_cache_retention" not in captured.get("model_kwargs", {})

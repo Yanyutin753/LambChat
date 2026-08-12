@@ -15,6 +15,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 from langsmith.run_helpers import tracing_context
 
+from src.infra.agent.middleware.retry import create_retry_middleware
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.memory.distributed import (
@@ -320,6 +321,7 @@ class MemoryCompactionAgent:
             graph = create_deep_agent(
                 model=model,
                 tools=tools,
+                middleware=create_retry_middleware(),
                 system_prompt=_COMPACTION_SYSTEM_PROMPT,
                 skills=None,
                 subagents=[],

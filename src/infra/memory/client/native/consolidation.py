@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Awaitable, Callable
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
 from src.infra.memory.client.native.content import (
     build_content_fields,
@@ -306,13 +307,15 @@ async def _llm_batch_consolidate(backend, memories: list[dict], expected_type: s
             f"Input memories (oldest first):\n{items_text}"
         ).format(type=expected_type)
 
-        response = await model.ainvoke(
+        response = await ainvoke_with_retry(
+            model,
             [
                 SystemMessage(
                     content="You consolidate memories. Output only JSON. Be conservative — when in doubt, keep it."
                 ),
                 HumanMessage(content=prompt),
             ],
+            operation="native-memory-consolidation",
         )
         text = response.content
         if isinstance(text, list):

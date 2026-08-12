@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
@@ -456,28 +457,6 @@ async def _parse_questions(raw_text: str) -> list[str]:
     return questions[:3]
 
 
-async def _ainvoke_with_retry(model: Any, prompt: Any, max_retries: int | None = None) -> Any:
-    retries: int = (
-        max_retries
-        if isinstance(max_retries, int)
-        else int(getattr(settings, "LLM_MAX_RETRIES", 3))
-    )
-    last_error: Exception | None = None
-
-    for attempt in range(retries):
-        try:
-            return await model.ainvoke(prompt)
-        except Exception as exc:
-            last_error = exc
-            if attempt >= retries - 1:
-                raise
-            await asyncio.sleep(settings.LLM_RETRY_DELAY * (2**attempt))
-
-    if last_error is not None:
-        raise last_error
-    raise RuntimeError("Unexpected state: no error but retry loop exhausted")
-
-
 async def generate_recommend_questions(
     user_input: str,
     output_text: str = "",
@@ -512,12 +491,13 @@ async def generate_recommend_questions(
         model = await LLMClient.get_model(
             **model_kwargs,
         )
-        response = await _ainvoke_with_retry(
+        response = await ainvoke_with_retry(
             model,
             [
                 SystemMessage(content=_RECOMMEND_SYSTEM_PROMPT),
                 HumanMessage(content=prompt),
             ],
+            operation="recommend-questions",
         )
         questions = await _parse_questions(_extract_text(response.content))
         if questions:

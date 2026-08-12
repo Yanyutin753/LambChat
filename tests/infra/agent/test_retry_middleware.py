@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import httpx
 import pytest
 from langchain_core.messages import AIMessage
 
@@ -86,127 +85,6 @@ async def test_fallback_model_is_created_with_same_thinking_config(monkeypatch) 
     assert calls == [{"model": "openai/fallback-model", "thinking": thinking}]
 
 
-async def test_fallback_runs_when_primary_hangs_without_returning(monkeypatch) -> None:
-    """A primary model that never returns and never raises must still trigger
-    fallback via wait_for, instead of blocking the request forever (the gemini
-    third-party-proxy hang)."""
-    import asyncio
-
-    primary_model = object()
-    fallback_model = object()
-    from langchain.agents.factory import _chain_async_model_call_handlers
-
-    from src.infra.agent.middleware.retry import create_retry_middleware
-
-    monkeypatch.setattr("src.kernel.config.settings.LLM_REQUEST_TIMEOUT", 0.05)
-    monkeypatch.setattr("src.kernel.config.settings.LLM_MAX_RETRIES", 0)
-
-    middleware = create_retry_middleware(fallback_model="openai/fallback-model")
-    fallback = next(item for item in middleware if isinstance(item, ModelFallbackMiddleware))
-    fallback._fallback_llm = fallback_model
-    composed = _chain_async_model_call_handlers([item.awrap_model_call for item in middleware])
-    assert composed is not None
-
-    async def handler(request):
-        if request.model is primary_model:
-            await asyncio.sleep(10)  # simulate a hung stream
-        return AIMessage(content="fallback answer")
-
-    result = await composed(_Request(primary_model), handler)
-
-    assert result.model_response.result[0].content == "fallback answer"
-
-
-async def test_fallback_timeout_does_not_hang_forever(monkeypatch) -> None:
-    """The safety net must also bound a fallback provider that stalls."""
-    import asyncio
-
-    primary_model = object()
-    fallback_model = object()
-    from langchain.agents.factory import _chain_async_model_call_handlers
-
-    from src.infra.agent.middleware.retry import create_retry_middleware
-
-    monkeypatch.setattr("src.kernel.config.settings.LLM_REQUEST_TIMEOUT", 0.02)
-    monkeypatch.setattr("src.kernel.config.settings.LLM_MAX_RETRIES", 0)
-
-    middleware = create_retry_middleware(fallback_model="openai/fallback-model")
-    fallback = next(item for item in middleware if isinstance(item, ModelFallbackMiddleware))
-    fallback._fallback_llm = fallback_model
-    composed = _chain_async_model_call_handlers([item.awrap_model_call for item in middleware])
-    assert composed is not None
-
-    async def handler(request):
-        await asyncio.sleep(10)
-
-    loop = asyncio.get_running_loop()
-    started = loop.time()
-    with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(
-            composed(_Request(primary_model), handler),
-            timeout=0.2,
-        )
-
-    # Distinguish the middleware's configured timeout from the test's 0.2s
-    # deadlock guard. Without a bound around fallback this takes ~0.2s.
-    assert loop.time() - started < 0.15
-
-
-async def test_request_timeout_is_retried_before_fallback(monkeypatch) -> None:
-    """A hung attempt times out inside retry instead of bypassing retries."""
-    import asyncio
-
-    from langchain.agents.factory import _chain_async_model_call_handlers
-
-    from src.infra.agent.middleware.retry import create_retry_middleware
-
-    primary_model = object()
-    fallback_model = object()
-    monkeypatch.setattr("src.kernel.config.settings.LLM_REQUEST_TIMEOUT", 0.02)
-    monkeypatch.setattr("src.kernel.config.settings.LLM_MAX_RETRIES", 1)
-    monkeypatch.setattr("src.kernel.config.settings.LLM_RETRY_DELAY", 0)
-
-    middleware = create_retry_middleware(fallback_model="openai/fallback-model")
-    fallback = next(item for item in middleware if isinstance(item, ModelFallbackMiddleware))
-    fallback._fallback_llm = fallback_model
-    composed = _chain_async_model_call_handlers([item.awrap_model_call for item in middleware])
-    assert composed is not None
-
-    primary_calls = 0
-    fallback_calls = 0
-
-    async def handler(request):
-        nonlocal primary_calls, fallback_calls
-        if request.model is primary_model:
-            primary_calls += 1
-            if primary_calls == 1:
-                await asyncio.sleep(10)
-            return AIMessage(content="primary recovered")
-        fallback_calls += 1
-        return AIMessage(content="fallback answer")
-
-    result = await composed(_Request(primary_model), handler)
-
-    assert result.model_response.result[0].content == "primary recovered"
-    assert primary_calls == 2
-    assert fallback_calls == 0
-
-
-async def test_request_timeout_error_reports_configured_duration(monkeypatch) -> None:
-    """Timeout errors remain actionable even when no fallback is configured."""
-    import asyncio
-
-    from src.infra.agent.middleware.retry import ModelRequestTimeoutMiddleware
-
-    monkeypatch.setattr("src.kernel.config.settings.LLM_REQUEST_TIMEOUT", 0.01)
-
-    async def handler(request):
-        await asyncio.sleep(10)
-
-    with pytest.raises(asyncio.TimeoutError, match="0.01s"):
-        await ModelRequestTimeoutMiddleware().awrap_model_call(_Request(object()), handler)
-
-
 def test_is_retryable_error_recognizes_asyncio_timeout() -> None:
     """A bare asyncio.TimeoutError (e.g. from wait_for) must be retryable."""
     import asyncio
@@ -214,3 +92,49 @@ def test_is_retryable_error_recognizes_asyncio_timeout() -> None:
     from src.infra.agent.middleware.retry import _is_retryable_error
 
     assert _is_retryable_error(asyncio.TimeoutError()) is True
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout],
+)
+def test_is_retryable_error_recognizes_every_httpx_timeout(error_type) -> None:
+    from src.infra.agent.middleware.retry import _is_retryable_error
+
+    assert _is_retryable_error(error_type("timed out")) is True
+
+
+def test_retry_stack_does_not_bound_the_complete_streaming_call(monkeypatch) -> None:
+    from src.infra.agent.middleware.retry import create_retry_middleware
+
+    monkeypatch.setattr("src.kernel.config.settings.LLM_MAX_RETRIES", 3)
+
+    middleware = create_retry_middleware()
+
+    assert [type(item).__name__ for item in middleware] == [
+        "ModelRetryMiddleware",
+        "EmptyContentRetryMiddleware",
+    ]
+
+
+async def test_official_model_retry_middleware_retries_first_event_timeout(
+    monkeypatch,
+) -> None:
+    from src.infra.agent.middleware.retry import create_retry_middleware
+
+    monkeypatch.setattr("src.kernel.config.settings.LLM_MAX_RETRIES", 3)
+    monkeypatch.setattr("src.kernel.config.settings.LLM_RETRY_DELAY", 0)
+    retry = create_retry_middleware()[0]
+    calls = 0
+
+    async def handler(_request):
+        nonlocal calls
+        calls += 1
+        if calls <= 3:
+            raise TimeoutError("model stream produced no first event")
+        return AIMessage(content="ok")
+
+    result = await retry.awrap_model_call(None, handler)
+
+    assert result.content == "ok"
+    assert calls == 4

@@ -360,6 +360,10 @@ async def test_maybe_compact_after_write_runs_deepagent_compactor(monkeypatch):
     assert result["scheduled"] is True
     await _wait_for_after_write_tasks(agent)
     assert created["model"] == "fake-compaction-model"
+    assert [type(item).__name__ for item in created["middleware"]] == [
+        "ModelRetryMiddleware",
+        "EmptyContentRetryMiddleware",
+    ]
     tool_names = {tool.name for tool in created["tools"]}
     assert tool_names == {
         "memory_compaction_update",
