@@ -125,27 +125,30 @@ async def list_sessions(
 
     # 所有用户只能查看自己的会话
     filter_user_id = user.sub
-    list_kwargs = {
-        "user_id": filter_user_id,
-        "skip": skip,
-        "limit": limit,
-        "is_active": is_active,
-        "project_id": project_id,
-        "search": search,
-        "favorites_only": favorites_only,
-    }
     async with timed_server_phase("session_list"):
         if favorites_only:
             favorites_project_id = await _get_favorites_project_id(user.sub)
             sessions, total = await manager.list_sessions(
-                **list_kwargs,
+                user_id=filter_user_id,
+                skip=skip,
+                limit=limit,
+                is_active=is_active,
+                project_id=project_id,
+                search=search,
+                favorites_only=favorites_only,
                 favorites_project_id=favorites_project_id,
             )
         else:
             favorites_project_id, list_result = await asyncio.gather(
                 _get_favorites_project_id(user.sub),
                 manager.list_sessions(
-                    **list_kwargs,
+                    user_id=filter_user_id,
+                    skip=skip,
+                    limit=limit,
+                    is_active=is_active,
+                    project_id=project_id,
+                    search=search,
+                    favorites_only=favorites_only,
                     favorites_project_id=None,
                 ),
             )
