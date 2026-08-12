@@ -231,6 +231,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         message_id: Optional[str] = None,
         enabled_skills: Optional[List[str]] = None,
         attachment_references_claimed: bool = False,
+        schedule_search_index: bool = True,
     ) -> Dict[str, Any]:
         """输出用户消息并保存"""
         attachment_keys = _extract_attachment_keys(attachments)
@@ -269,7 +270,7 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
                     )
             raise
 
-        if self.config.session_id:
+        if self.config.session_id and schedule_search_index:
             schedule_user_message_search_index(self.config.session_id, content)
         return event
 

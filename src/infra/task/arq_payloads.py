@@ -9,6 +9,7 @@ from src.infra.storage.redis import get_redis_client
 DEFAULT_TASK_ARQ_PAYLOAD_TTL_SECONDS = 60 * 60 * 24
 TASK_ARQ_PAYLOAD_PREFIX = "task:arq:payload:"
 TASK_ARQ_PAYLOAD_MAX_BYTES = 2 * 1024 * 1024
+USER_MESSAGE_SEARCH_INDEX_PAYLOAD_PREFIX = "task:arq:user-message-search-index:"
 
 
 class TaskArqPayloadStore:
@@ -51,3 +52,11 @@ class TaskArqPayloadStore:
     @staticmethod
     def _key(run_id: str) -> str:
         return f"{TASK_ARQ_PAYLOAD_PREFIX}{run_id}"
+
+
+class UserMessageSearchIndexPayloadStore(TaskArqPayloadStore):
+    """Persist user-message index input for a distributed ARQ worker."""
+
+    @staticmethod
+    def _key(run_id: str) -> str:
+        return f"{USER_MESSAGE_SEARCH_INDEX_PAYLOAD_PREFIX}{run_id}"

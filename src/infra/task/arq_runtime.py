@@ -9,9 +9,9 @@ from arq.worker import Worker
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
-from .arq_payloads import TaskArqPayloadStore
+from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings
-from .arq_worker import run_agent_task
+from .arq_worker import run_agent_task, update_user_message_search_index
 
 logger = get_logger(__name__)
 
@@ -37,13 +37,16 @@ class EmbeddedArqRuntime:
             return
 
         self._worker = self._worker_factory(
-            [run_agent_task],
+            [run_agent_task, update_user_message_search_index],
             queue_name=settings.ARQ_QUEUE_NAME,
             redis_settings=build_arq_redis_settings(settings),
             handle_signals=False,
             max_jobs=settings.ARQ_WORKER_MAX_JOBS,
             job_timeout=settings.ARQ_JOB_TIMEOUT_SECONDS,
-            ctx={"payload_store": TaskArqPayloadStore()},
+            ctx={
+                "payload_store": TaskArqPayloadStore(),
+                "search_index_payload_store": UserMessageSearchIndexPayloadStore(),
+            },
             allow_abort_jobs=True,
         )
         self._task = asyncio.ensure_future(self._worker.async_run())

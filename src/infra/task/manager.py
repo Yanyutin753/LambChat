@@ -17,7 +17,7 @@ from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
 from src.kernel.config import settings
 
-from .arq_payloads import TaskArqPayloadStore
+from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .arq_settings import build_arq_redis_settings
 from .cancellation import TaskCancellation
 from .exceptions import TaskInterruptedError
@@ -127,6 +127,7 @@ class BackgroundTaskManager:
         attachments: Optional[List[Dict[str, Any]]],
         enabled_skills: Optional[List[str]] = None,
         attachment_references_claimed: bool = False,
+        schedule_search_index: bool = True,
     ) -> str:
         """Persist the user message before the background worker starts."""
         from src.agents.core import resolve_agent_name
@@ -157,6 +158,7 @@ class BackgroundTaskManager:
             attachments=attachments,
             enabled_skills=enabled_skills,
             attachment_references_claimed=attachment_references_claimed,
+            schedule_search_index=schedule_search_index,
         )
         return presenter.trace_id
 
@@ -416,6 +418,7 @@ class BackgroundTaskManager:
         trace_id: Optional[str] = None,
         user_message_written: bool = False,
         payload_store: Optional[TaskArqPayloadStore] = None,
+        search_index_payload_store: Optional[UserMessageSearchIndexPayloadStore] = None,
         arq_pool: Any | None = None,
         team_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
@@ -423,12 +426,18 @@ class BackgroundTaskManager:
         session_metadata: Optional[Dict[str, Any]] = None,
         write_user_message_immediately: bool = False,
         attachment_references_claimed: bool = False,
+        index_user_message: bool = False,
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
         task_executor = self._ensure_executor()
         run_id = run_id or generate_run_id()
         trace_id = trace_id or ""
         payload_store = payload_store or TaskArqPayloadStore()
+        search_index_payload_store = (
+            search_index_payload_store or UserMessageSearchIndexPayloadStore()
+        )
+        should_index_user_message = write_user_message_immediately or index_user_message
+        search_index_content = display_message or message
 
         async with self._lock:
             try:
@@ -465,6 +474,7 @@ class BackgroundTaskManager:
                     attachments=attachments,
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
+                    schedule_search_index=False,
                 )
                 user_message_written = True
 
@@ -494,10 +504,37 @@ class BackgroundTaskManager:
                     "auto_mode": auto_mode,
                 },
             )
+            if should_index_user_message and search_index_content:
+                await search_index_payload_store.save(
+                    run_id,
+                    {
+                        "session_id": session_id,
+                        "content": search_index_content,
+                    },
+                )
 
         if arq_pool is None:
             arq_pool = await self._get_arq_pool()
-        await arq_pool.enqueue_job("run_agent_task", run_id, _job_id=run_id)
+        enqueue_operations = [
+            arq_pool.enqueue_job("run_agent_task", run_id, _job_id=run_id),
+        ]
+        if should_index_user_message and search_index_content:
+            enqueue_operations.append(
+                arq_pool.enqueue_job(
+                    "update_user_message_search_index",
+                    run_id,
+                    _job_id=f"user-message-search-index:{run_id}",
+                )
+            )
+        enqueue_results = await asyncio.gather(*enqueue_operations, return_exceptions=True)
+        main_enqueue_result = enqueue_results[0]
+        if isinstance(main_enqueue_result, BaseException):
+            raise main_enqueue_result
+        if len(enqueue_results) > 1 and isinstance(enqueue_results[1], BaseException):
+            logger.warning(
+                "Failed to enqueue distributed user-message search-index job: run_id=%s",
+                run_id,
+            )
 
         logger.info(
             "Task submitted to arq: session=%s, run_id=%s, agent=%s", session_id, run_id, agent_id

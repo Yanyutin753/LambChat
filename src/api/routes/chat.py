@@ -581,6 +581,7 @@ async def chat_stream(
                 attachments=attachments_data,
                 enabled_skills=request.enabled_skills,
                 attachment_references_claimed=attachment_references_claimed,
+                schedule_search_index=settings.TASK_BACKEND != "arq",
             )
             user_message_persisted = True
             if not await limiter.mark_queued_run_ready(user.sub, run_id):
@@ -645,6 +646,7 @@ async def chat_stream(
                 auto_mode=request.auto_mode,
                 write_user_message_immediately=True,
                 attachment_references_claimed=attachment_references_claimed,
+                index_user_message=True,
             )
         except Exception:
             await limiter.release(user.sub, run_id)

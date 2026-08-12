@@ -113,8 +113,17 @@ class _Presenter:
         attachments: list[dict[str, Any]] | None = None,
         enabled_skills: list[str] | None = None,
         attachment_references_claimed: bool = False,
+        schedule_search_index: bool = True,
     ) -> None:
-        self.calls.append((message, attachments, enabled_skills, attachment_references_claimed))
+        self.calls.append(
+            (
+                message,
+                attachments,
+                enabled_skills,
+                attachment_references_claimed,
+                schedule_search_index,
+            )
+        )
         if self.fail_emit:
             raise RuntimeError("message save failed")
 
@@ -320,6 +329,7 @@ async def test_queued_chat_passes_preclaimed_flag_to_presenter(
                 .model_dump()
             ],
             None,
+            True,
             True,
         )
     ]

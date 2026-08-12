@@ -623,6 +623,7 @@ class UserConcurrencyLimiter:
                     active_goal=active_goal,
                     auto_mode=auto_mode,
                     attachment_references_claimed=attachment_references_claimed,
+                    index_user_message=True,
                 )
                 await self._send_queue_processing_event(session_id, run_id)
                 return

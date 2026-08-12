@@ -4,11 +4,13 @@ import asyncio
 from importlib import import_module
 from typing import Any
 
+from arq import Retry
+
 from src.infra.distributed_validation import validate_distributed_runtime_settings
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
-from .arq_payloads import TaskArqPayloadStore
+from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .concurrency import get_concurrency_limiter, get_registered_executor
 from .exceptions import TaskInterruptedError
 from .manager import get_task_manager
@@ -155,6 +157,33 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
         task_manager._run_info.pop(run_id, None)
 
 
+async def update_user_message_search_index(ctx: dict[str, Any], run_id: str) -> None:
+    """Apply a durable user-message search-index update on any ARQ worker."""
+    payload_store: UserMessageSearchIndexPayloadStore = (
+        ctx.get("search_index_payload_store") or UserMessageSearchIndexPayloadStore()
+    )
+    payload = await payload_store.load(run_id)
+    if payload is None:
+        logger.warning("Missing user-message search-index payload for run_id=%s", run_id)
+        return
+
+    try:
+        from src.infra.session.storage import SessionStorage
+
+        await SessionStorage().append_user_message_search_content(
+            str(payload["session_id"]),
+            str(payload["content"]),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Distributed user-message search-index update failed; retrying: run_id=%s",
+            run_id,
+        )
+        raise Retry(defer=5) from exc
+
+    await payload_store.delete(run_id)
+
+
 class WorkerSettings:
-    functions = [run_agent_task]
+    functions = [run_agent_task, update_user_message_search_index]
     on_startup = worker_startup

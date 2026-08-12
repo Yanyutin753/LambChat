@@ -4,6 +4,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from arq import Retry
 
 from src.infra.task import arq_worker
 from src.infra.task.exceptions import TaskInterruptedError
@@ -16,6 +17,19 @@ class _FakePayloadStore:
 
     async def load(self, run_id: str):
         return self.payload if run_id == self.payload["run_id"] else None
+
+    async def delete(self, run_id: str) -> bool:
+        self.deleted.append(run_id)
+        return True
+
+
+class _SearchIndexPayloadStore:
+    def __init__(self, payload: dict | None) -> None:
+        self.payload = payload
+        self.deleted: list[str] = []
+
+    async def load(self, run_id: str):
+        return self.payload
 
     async def delete(self, run_id: str) -> bool:
         self.deleted.append(run_id)
@@ -91,6 +105,62 @@ async def test_worker_settings_validate_distributed_runtime_on_startup(
     await arq_worker.WorkerSettings.on_startup({})
 
     assert calls == [arq_worker.settings]
+
+
+@pytest.mark.asyncio
+async def test_update_user_message_search_index_runs_on_any_worker_and_deletes_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload_store = _SearchIndexPayloadStore({"session_id": "session-1", "content": "hello"})
+    updates: list[tuple[str, str]] = []
+
+    class _SessionStorage:
+        async def append_user_message_search_content(
+            self,
+            session_id: str,
+            content: str,
+        ) -> bool:
+            updates.append((session_id, content))
+            return True
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _SessionStorage)
+
+    await arq_worker.update_user_message_search_index(
+        {"search_index_payload_store": payload_store},
+        "run-1",
+    )
+
+    assert updates == [("session-1", "hello")]
+    assert payload_store.deleted == ["run-1"]
+
+
+@pytest.mark.asyncio
+async def test_update_user_message_search_index_retains_payload_for_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload_store = _SearchIndexPayloadStore({"session_id": "session-1", "content": "hello"})
+
+    class _FailingSessionStorage:
+        async def append_user_message_search_content(
+            self,
+            session_id: str,
+            content: str,
+        ) -> bool:
+            raise RuntimeError("mongo unavailable")
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _FailingSessionStorage)
+
+    with pytest.raises(Retry):
+        await arq_worker.update_user_message_search_index(
+            {"search_index_payload_store": payload_store},
+            "run-1",
+        )
+
+    assert payload_store.deleted == []
+
+
+def test_worker_settings_registers_distributed_search_index_job() -> None:
+    assert arq_worker.update_user_message_search_index in arq_worker.WorkerSettings.functions
 
 
 @pytest.mark.asyncio

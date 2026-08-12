@@ -202,6 +202,33 @@ async def test_user_message_search_index_does_not_block_after_durable_save(
 
 
 @pytest.mark.asyncio
+async def test_user_message_can_defer_search_index_to_distributed_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    presenter = _presenter()
+    index_calls: list[tuple[str, str]] = []
+
+    async def _save_event(event: dict[str, Any], **kwargs: Any) -> None:
+        assert kwargs == {"raise_on_error": True}
+
+    class _SessionStorageSpy:
+        async def append_user_message_search_content(
+            self,
+            session_id: str,
+            content: str,
+        ) -> None:
+            index_calls.append((session_id, content))
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _SessionStorageSpy)
+    monkeypatch.setattr(presenter, "save_event", _save_event)
+
+    await presenter.emit_user_message("hello", schedule_search_index=False)
+    await asyncio.sleep(0)
+
+    assert index_calls == []
+
+
+@pytest.mark.asyncio
 async def test_user_message_flush_failure_releases_preclaim_and_reraises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

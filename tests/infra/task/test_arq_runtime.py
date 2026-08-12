@@ -60,6 +60,10 @@ async def test_start_embedded_arq_worker_runs_with_signals_disabled(
     assert runtime.is_running is True
     assert _FakeWorker.instances
     worker = _FakeWorker.instances[0]
+    assert worker.args[0] == [
+        arq_runtime.run_agent_task,
+        arq_runtime.update_user_message_search_index,
+    ]
     assert worker.kwargs["handle_signals"] is False
     assert worker.kwargs["max_jobs"] == 128
     assert worker.kwargs["job_timeout"] == 30
