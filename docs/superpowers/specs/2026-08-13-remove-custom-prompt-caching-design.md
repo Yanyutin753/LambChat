@@ -40,6 +40,8 @@ Use the existing DeepAgents 0.7.5 defaults without upgrading dependencies.
   from every main-agent and subagent middleware stack.
 - Stop adding `prompt_cache_key`, `prompt_cache_retention`,
   `prompt_cache_options`, or prompt-cache breakpoints in `LLMClient`.
+- Stop injecting `metadata["lambchat_provider"]`; it exists only to route the
+  deleted cache middleware. Preserve any metadata supplied by the caller.
 - Remove the LambChat-only deferred-tool volatility marker.
 - Remove settings and live environment documentation that only configure the
   deleted middleware.
@@ -59,6 +61,8 @@ features.
   and Team agent builders.
 - OpenAI cache-policy helpers, model-family allowlists, and constructor kwargs
   used only for prompt caching.
+- The `_merge_runtime_metadata` helper and its LambChat-specific provider
+  metadata injection, while leaving unrelated caller metadata untouched.
 - The `_lambchat_prompt_cache_volatile` tool extra and the logic that attaches
   it.
 - `PROMPT_CACHE_MAX_SYSTEM_BLOCKS` and `PROMPT_CACHE_MAX_TOOLS` from backend
@@ -73,6 +77,8 @@ features.
 - Usage persistence, aggregation, API schemas, frontend types, and cache-hit
   reporting.
 - The `LLMClient` model-instance LRU cache and all non-LLM-prompt caches.
+- Environment-prompt memoization and distributed invalidation in
+  `src/infra/tool/env_var_prompt.py`, plus HTTP/static-asset caches.
 - Existing prompt, schema-compaction, tool-discovery, retry, timeout, and
   fallback behavior except where a test only encoded cache ownership/order.
 - Historical design and plan documents as records of earlier decisions. Live
@@ -120,8 +126,9 @@ Follow TDD for the ownership change:
    stack still imports or mounts `PromptCachingMiddleware`, then remove all six
    registrations.
 3. Replace the OpenAI cache-configuration tests with assertions that model
-   construction emits none of the removed prompt-cache kwargs; verify the test
-   fails before changing `LLMClient`.
+   construction emits none of the removed prompt-cache kwargs or
+   `lambchat_provider` metadata while preserving caller-supplied metadata;
+   verify the test fails before changing `LLMClient`.
 4. Add configuration-surface assertions for removal of the two obsolete
    settings, then remove backend definitions, docs, and translations.
 5. Run focused agent, middleware, LLM-client, settings, usage-metric, and
@@ -141,5 +148,7 @@ claim a live provider cache hit without an authorized repeated-prefix API call.
 - Removed cache-tuning settings no longer appear in live backend/frontend/docs
   surfaces.
 - Cache usage statistics remain available and their existing tests pass.
-- Focused tests and repository searches provide evidence for the complete
-  removal boundary.
+- Focused tests and negative repository searches for `lambchat_provider`,
+  cache-policy helpers and allowlists, removed settings, and the volatility
+  marker provide evidence for the complete removal boundary. Historical design
+  records and cache-usage telemetry fields are excluded from these searches.
