@@ -1,4 +1,4 @@
-"""DeepAgent middleware: retry, prompt injection, tool interception, and prompt caching."""
+"""DeepAgent middleware: retry, prompt injection, and tool interception."""
 
 from src.infra.agent.middleware.artifact_delivery import ArtifactDeliveryMiddleware
 from src.infra.agent.middleware.code_interpreter import create_code_interpreter_middleware
