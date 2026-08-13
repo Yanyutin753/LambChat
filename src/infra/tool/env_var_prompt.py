@@ -13,21 +13,19 @@ logger = get_logger(__name__)
 
 _CACHE_TTL = 300
 _MAX_PROMPT_CACHE_ENTRIES = 500
-_env_var_prompt_cache: dict[str, tuple[tuple[str, ...], float]] = {}
+_env_var_prompt_cache: dict[str, tuple[str, float]] = {}
 
 
-async def build_env_var_prompt_sections(
-    user_id: str, force_refresh: bool = False
-) -> tuple[str, ...]:
-    """Build prompt sections listing environment variable keys for a user."""
+async def build_env_var_prompt(user_id: str, force_refresh: bool = False) -> str:
+    """Build a prompt listing environment variable keys for a user."""
     if not user_id:
-        return ()
+        return ""
 
     _cleanup_stale_cache()
     if not force_refresh and user_id in _env_var_prompt_cache:
-        prompt_sections, ts = _env_var_prompt_cache[user_id]
+        prompt, ts = _env_var_prompt_cache[user_id]
         if time.time() - ts < _CACHE_TTL:
-            return prompt_sections
+            return prompt
 
     try:
         variables = await EnvVarStorage().list_vars(user_id)
@@ -35,11 +33,11 @@ async def build_env_var_prompt_sections(
         logger.warning(
             "[EnvVar Prompt] Failed to list env vars for user %s", user_id, exc_info=True
         )
-        return ()
+        return ""
 
     keys = sorted(variable.key for variable in variables if getattr(variable, "key", ""))
     if not keys:
-        prompt_sections = ()
+        prompt = ""
     else:
         intro_lines = [
             "## Available Environment Variables",
@@ -48,15 +46,10 @@ async def build_env_var_prompt_sections(
             "never print or reveal values.",
         ]
         key_lines = [f"- `{key}`" for key in keys]
-        prompt_sections = ("\n".join(intro_lines), "\n".join(key_lines))
+        prompt = "\n\n".join(("\n".join(intro_lines), "\n".join(key_lines)))
 
-    _env_var_prompt_cache[user_id] = (prompt_sections, time.time())
-    return prompt_sections
-
-
-async def build_env_var_prompt(user_id: str, force_refresh: bool = False) -> str:
-    """Build a prompt section listing environment variable keys for a user."""
-    return "\n\n".join(await build_env_var_prompt_sections(user_id, force_refresh))
+    _env_var_prompt_cache[user_id] = (prompt, time.time())
+    return prompt
 
 
 def invalidate_env_var_prompt_cache(user_id: str) -> None:

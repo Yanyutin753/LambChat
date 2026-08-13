@@ -15,7 +15,6 @@ from langchain.agents.middleware.types import (
 
 from src.infra.agent.middleware._helpers import (
     _append_system_text_block,
-    _append_system_text_blocks,
     _normalize_prompt_text,
 )
 
@@ -108,10 +107,10 @@ class EnvVarPromptMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
-        from src.infra.tool.env_var_prompt import build_env_var_prompt_sections
+        from src.infra.tool.env_var_prompt import build_env_var_prompt
 
-        prompt_sections = await build_env_var_prompt_sections(self._user_id)
-        if prompt_sections:
-            new_system_message = _append_system_text_blocks(request.system_message, prompt_sections)
+        prompt = await build_env_var_prompt(self._user_id)
+        if prompt:
+            new_system_message = _append_system_text_block(request.system_message, prompt)
             request = request.override(system_message=new_system_message)
         return await handler(request)

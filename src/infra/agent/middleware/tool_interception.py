@@ -27,10 +27,9 @@ if TYPE_CHECKING:
     from src.infra.tool.deferred_manager import DeferredToolManager
 
 from src.infra.agent.middleware._helpers import (
-    _append_system_text_blocks,
+    _append_system_text_block,
     _normalize_prompt_text,
     _system_message_to_blocks,
-    _tool_sort_key,
 )
 from src.infra.async_utils import run_blocking_io
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE
@@ -516,8 +515,8 @@ class ToolSearchMiddleware(AgentMiddleware):
     Two core hooks:
 
     * ``awrap_model_call`` — before each LLM call:
-      1. Injects the undiscovered deferred tool name list into the system prompt tail
-      2. Injects ``search_tools`` tool + discovered tool schemas into ``request.tools``
+      1. Injects the complete undiscovered deferred tool prompt
+      2. Injects discovered tool schemas and ``search_tools`` into ``request.tools``
 
     * ``awrap_tool_call`` — during tool execution:
       If the tool name is in the discovered set but not in the ToolNode registry,
@@ -571,25 +570,27 @@ class ToolSearchMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         """Inject deferred tool prompt and dynamic tool schemas."""
-        # 1. Inject deferred tool name list + discovered tool state (uses manager's dirty flag cache)
-        prompt_sections = self._deferred_manager.get_deferred_prompt_blocks()
-        if prompt_sections and self._system_message_contains_search_guide(request.system_message):
-            prompt_sections = prompt_sections[1:]
-        if prompt_sections:
-            new_system_message = _append_system_text_blocks(request.system_message, prompt_sections)
+        # 1. Inject the complete deferred tool prompt from the manager.
+        prompt = _normalize_prompt_text(self._deferred_manager.get_deferred_stubs_string())
+        if prompt and self._system_message_contains_search_guide(request.system_message):
+            guide = _normalize_prompt_text(DEFERRED_TOOL_SEARCH_GUIDE)
+            if prompt == guide:
+                prompt = ""
+            elif prompt.startswith(f"{guide}\n\n"):
+                prompt = prompt[len(guide) + 2 :]
+        if prompt:
+            new_system_message = _append_system_text_block(request.system_message, prompt)
             request = request.override(system_message=new_system_message)
 
-        # 2. Inject search_tools itself and discovered tools (ensures sub-agents share the same dynamic loading path)
+        # 2. Append missing discovered tools, then search_tools as an ordinary auxiliary tool.
         search_tool = self._get_search_tool()
         discovered = self._deferred_manager.get_discovered_tools()
         existing_names = {
             t.name if hasattr(t, "name") else t.get("name", "") for t in request.tools
         }
-        new_tools = []
+        new_tools = [tool for tool in discovered if tool.name not in existing_names]
         if search_tool.name not in existing_names:
             new_tools.append(search_tool)
-        discovered_tools = [tool for tool in discovered if tool.name not in existing_names]
-        new_tools.extend(sorted(discovered_tools, key=_tool_sort_key))
         if new_tools:
             combined = list(request.tools) + new_tools
             request = request.override(tools=combined)

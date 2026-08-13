@@ -66,6 +66,25 @@ def test_deferred_manager_fork_inherits_parent_later_discoveries() -> None:
     assert [tool.name for tool in forked.get_discovered_tools()] == ["alpha:create", "beta:list"]
 
 
+def test_deferred_manager_fork_rebuilds_prompt_after_parent_discovery() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
+            _FakeTool(name="beta:list", description="beta list", server="beta"),
+        ],
+        session_id="session-1",
+    )
+    forked = manager.fork_for_scope("subagent")
+
+    before = forked.get_deferred_stubs_string()
+    manager.discover_tools(["alpha:create"])
+    after = forked.get_deferred_stubs_string()
+
+    assert "- alpha:create" in before
+    assert "- alpha:create" not in after
+    assert "- beta:list" in after
+
+
 async def test_tool_search_middleware_intercepts_registered_search_tool_with_own_manager() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[
@@ -127,7 +146,76 @@ async def test_tool_search_middleware_preserves_discovered_tool_extras() -> None
     result = await middleware.awrap_model_call(_Request(), _handler)
     discovered_tool = next(tool for tool in result.tools if tool.name == "alpha:create")
 
+    assert discovered_tool is manager.get_tool("alpha:create")
     assert discovered_tool.extras == {"existing": "value"}
+
+
+async def test_tool_search_middleware_keeps_manager_order_then_appends_search() -> None:
+    zeta = _FakeTool(name="zeta:lookup", description="zeta lookup", server="zeta")
+    alpha = _FakeTool(name="alpha:create", description="alpha create", server="alpha")
+    manager = DeferredToolManager(
+        all_deferred_tools=[zeta, alpha],
+        session_id="session-1",
+        pre_discovered_names=[zeta.name, alpha.name],
+    )
+    manager.get_discovered_tools = lambda: [zeta, alpha]  # type: ignore[method-assign]
+    middleware = ToolSearchMiddleware(deferred_manager=manager, search_limit=5)
+    existing = _FakeTool(name="existing", description="existing")
+
+    class _Request:
+        def __init__(self) -> None:
+            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
+            self.tools = [existing]
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            clone.tools = kwargs.get("tools", self.tools)
+            return clone
+
+    async def _handler(request):
+        return request
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert result.tools[:3] == [existing, zeta, alpha]
+    assert [tool.name for tool in result.tools] == [
+        "existing",
+        "zeta:lookup",
+        "alpha:create",
+        "search_tools",
+    ]
+
+
+async def test_tool_search_middleware_does_not_duplicate_existing_search_tool() -> None:
+    discovered = _FakeTool(name="zeta:lookup", description="zeta lookup", server="zeta")
+    manager = DeferredToolManager(
+        all_deferred_tools=[discovered],
+        session_id="session-1",
+        pre_discovered_names=[discovered.name],
+    )
+    middleware = ToolSearchMiddleware(deferred_manager=manager, search_limit=5)
+    search_tool = middleware._get_search_tool()
+    existing = _FakeTool(name="existing", description="existing")
+
+    class _Request:
+        def __init__(self) -> None:
+            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
+            self.tools = [existing, search_tool]
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            clone.tools = kwargs.get("tools", self.tools)
+            return clone
+
+    async def _handler(request):
+        return request
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert result.tools == [existing, search_tool, discovered]
+    assert [tool.name for tool in result.tools].count("search_tools") == 1
 
 
 async def test_tool_search_middleware_skips_duplicate_search_guide_when_already_present() -> None:
@@ -165,6 +253,7 @@ async def test_tool_search_middleware_skips_duplicate_search_guide_when_already_
 
     assert system_text.count("## Tool Search Guide") == 1
     assert "## MCP Tools (Deferred)" in system_text
+    assert len(result.system_message.content) == 3
 
 
 def test_deferred_search_guide_has_compact_budget() -> None:
@@ -189,7 +278,7 @@ def test_deferred_prompt_does_not_repeat_loaded_tool_names() -> None:
     assert "beta list" not in prompt
 
 
-def test_deferred_prompt_blocks_split_stable_rules_and_dynamic_tool_list() -> None:
+def test_deferred_prompt_string_contains_complete_guide_and_tool_list() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[
             _FakeTool(name="beta:list", description="beta list", server="beta"),
@@ -197,17 +286,16 @@ def test_deferred_prompt_blocks_split_stable_rules_and_dynamic_tool_list() -> No
         session_id="session-1",
     )
 
-    blocks = manager.get_deferred_prompt_blocks()
+    prompt = manager.get_deferred_stubs_string()
 
-    assert len(blocks) == 2
-    assert blocks[0].startswith("## Tool Search Guide")
-    assert "search_tools" in blocks[0]
-    assert blocks[1].startswith("## MCP Tools (Deferred)")
-    assert "- beta:list" in blocks[1]
-    assert "beta list" not in blocks[1]
+    assert prompt.startswith("## Tool Search Guide")
+    assert "search_tools" in prompt
+    assert "## MCP Tools (Deferred)" in prompt
+    assert "- beta:list" in prompt
+    assert "beta list" not in prompt
 
 
-def test_deferred_prompt_keeps_search_guide_stable_after_discovery() -> None:
+def test_deferred_prompt_rebuilds_complete_string_after_discovery() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[
             _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
@@ -216,14 +304,46 @@ def test_deferred_prompt_keeps_search_guide_stable_after_discovery() -> None:
         session_id="session-1",
     )
 
-    before = manager.get_deferred_prompt_blocks()
+    before = manager.get_deferred_stubs_string()
     manager.discover_tools(["alpha:create"])
-    after = manager.get_deferred_prompt_blocks()
+    after = manager.get_deferred_stubs_string()
 
-    assert before[0] == after[0]
-    assert "- alpha:create" in before[1]
-    assert "- alpha:create" not in after[1]
-    assert "- beta:list" in after[1]
+    assert before.startswith("## Tool Search Guide")
+    assert after.startswith("## Tool Search Guide")
+    assert "- alpha:create" in before
+    assert "- alpha:create" not in after
+    assert "- beta:list" in after
+
+
+async def test_tool_search_middleware_appends_one_complete_deferred_prompt_block() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="beta:list", description="beta list", server="beta"),
+        ],
+        session_id="session-1",
+    )
+    middleware = ToolSearchMiddleware(deferred_manager=manager, search_limit=5)
+
+    class _Request:
+        def __init__(self) -> None:
+            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
+            self.tools = []
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            clone.tools = kwargs.get("tools", self.tools)
+            return clone
+
+    async def _handler(request):
+        return request
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert [block["text"] for block in result.system_message.content] == [
+        "base",
+        DEFERRED_TOOL_SEARCH_GUIDE + "\n\n## MCP Tools (Deferred)\n\n- beta:list",
+    ]
 
 
 def test_deferred_prompt_string_is_stably_sorted() -> None:

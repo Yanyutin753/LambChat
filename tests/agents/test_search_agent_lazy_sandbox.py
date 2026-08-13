@@ -306,8 +306,8 @@ def _patch_graph_dependencies(
     async def fake_emit_token_usage(*_args: Any, **_kwargs: Any) -> None:
         return None
 
-    async def fake_env_var_prompt_sections(*_args: Any, **_kwargs: Any) -> tuple[str, ...]:
-        return ()
+    async def fake_env_var_prompt(*_args: Any, **_kwargs: Any) -> str:
+        return ""
 
     from src.infra.tool import env_var_prompt
 
@@ -325,8 +325,8 @@ def _patch_graph_dependencies(
     monkeypatch.setattr(search_nodes, "emit_token_usage", fake_emit_token_usage)
     monkeypatch.setattr(
         env_var_prompt,
-        "build_env_var_prompt_sections",
-        fake_env_var_prompt_sections,
+        "build_env_var_prompt",
+        fake_env_var_prompt,
     )
     monkeypatch.setattr(
         search_nodes.ArtifactDeliveryMiddleware,

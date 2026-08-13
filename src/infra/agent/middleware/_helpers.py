@@ -38,22 +38,3 @@ def _append_system_text_block(system_message: Any, text: str) -> SystemMessage:
     if normalized:
         blocks.append({"type": "text", "text": normalized})
     return SystemMessage(content=blocks)
-
-
-def _append_system_text_blocks(
-    system_message: Any, texts: list[str] | tuple[str, ...]
-) -> SystemMessage:
-    """Append multiple deterministic text blocks to the system message."""
-    blocks = _system_message_to_blocks(system_message)
-    for text in texts:
-        normalized = _normalize_prompt_text(text)
-        if normalized:
-            blocks.append({"type": "text", "text": normalized})
-    return SystemMessage(content=blocks)
-
-
-def _tool_sort_key(tool: Any) -> tuple[str, str]:
-    """Stable ordering for dynamically appended tools."""
-    name = getattr(tool, "name", "") or ""
-    server = getattr(tool, "server", "") or ""
-    return (server, name)

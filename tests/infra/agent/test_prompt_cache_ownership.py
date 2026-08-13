@@ -49,3 +49,38 @@ def test_tool_search_does_not_add_lambchat_prompt_cache_markers() -> None:
     source = _source("src/infra/agent/middleware/tool_interception.py")
 
     assert "_lambchat_prompt_cache_volatile" not in source
+
+
+def test_dynamic_prompt_and_tool_injection_do_not_shape_requests_for_cache_hits() -> None:
+    prompt_paths = (
+        "src/infra/tool/env_var_prompt.py",
+        "src/infra/tool/deferred_manager.py",
+        "src/infra/agent/middleware/prompt_injection.py",
+        "src/infra/agent/middleware/tool_interception.py",
+        "src/infra/agent/middleware/_helpers.py",
+        "tests/agents/test_search_agent_lazy_sandbox.py",
+        "tests/infra/agent/test_tool_interception_uploads.py",
+    )
+    forbidden_prompt_shaping = (
+        "_append_system_text_blocks",
+        "build_env_var_prompt_sections",
+        "get_deferred_prompt_blocks",
+    )
+
+    violations = []
+    for path in prompt_paths:
+        source = _source(path)
+        for marker in forbidden_prompt_shaping:
+            if marker in source:
+                violations.append((path, marker))
+
+    assert violations == []
+
+    tool_interception = _source("src/infra/agent/middleware/tool_interception.py")
+    assert re.search(r"system prompt tail", tool_interception, re.IGNORECASE) is None
+
+    for path in (
+        "src/infra/agent/middleware/_helpers.py",
+        "src/infra/agent/middleware/tool_interception.py",
+    ):
+        assert "_tool_sort_key" not in _source(path), path

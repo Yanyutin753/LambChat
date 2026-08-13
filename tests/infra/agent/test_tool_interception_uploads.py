@@ -580,8 +580,8 @@ async def test_tool_search_middleware_offloads_deferred_tool_dict_serialization(
             assert tool_name == "deferred_tool"
             return _DeferredTool()
 
-        def get_deferred_prompt_blocks(self) -> list[str]:
-            return []
+        def get_deferred_stubs_string(self) -> str:
+            return ""
 
         def get_discovered_tools(self) -> list[Any]:
             return []

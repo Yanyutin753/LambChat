@@ -105,7 +105,6 @@ class DeferredToolManager:
 
         # 缓存
         self._cached_stubs: list[DeferredToolStub] = []
-        self._cached_prompt_blocks: tuple[str, ...] = ()
         self._cached_stubs_string: str = ""
 
         logger.info(
@@ -201,11 +200,11 @@ class DeferredToolManager:
         self.stale = self._stubs_stale or self._prompt_stale
         return self._cached_stubs
 
-    def get_deferred_prompt_blocks(self) -> tuple[str, ...]:
-        """Return prompt blocks for deferred MCP guidance and visible tool stubs."""
+    def get_deferred_stubs_string(self) -> str:
+        """返回可直接拼入系统提示的预格式化字符串（带脏标记缓存）。"""
         self._sync_parent_discoveries()
         if not self._prompt_stale:
-            return self._cached_prompt_blocks
+            return self._cached_stubs_string
 
         stubs = self.get_deferred_stubs()
         if stubs:
@@ -222,21 +221,13 @@ class DeferredToolManager:
                     "## System Tools (Deferred)\n\n"
                     + "\n".join(f"- {stub.name}: {stub.description}" for stub in system_stubs)
                 )
-            result = tuple(parts)
+            result = "\n\n".join(parts)
         else:
-            result = ()
+            result = ""
 
-        self._cached_prompt_blocks = result
-        self._cached_stubs_string = "\n\n".join(result)
+        self._cached_stubs_string = result
         self._prompt_stale = False
         self.stale = self._stubs_stale or self._prompt_stale
-        return result
-
-    def get_deferred_stubs_string(self) -> str:
-        """返回可直接拼入系统提示的预格式化字符串（带脏标记缓存）。"""
-        if not self._prompt_stale:
-            return self._cached_stubs_string
-        self.get_deferred_prompt_blocks()
         return self._cached_stubs_string
 
     def get_discovered_tools(self) -> list["BaseTool"]:

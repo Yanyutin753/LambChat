@@ -126,7 +126,7 @@ async def test_env_var_prompt_lists_keys_without_values(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
-async def test_env_var_prompt_sections_split_intro_and_key_list(
+async def test_env_var_prompt_returns_one_normalized_full_string(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.infra.tool import env_var_prompt
@@ -135,13 +135,40 @@ async def test_env_var_prompt_sections_split_intro_and_key_list(
     monkeypatch.setattr(env_var_prompt, "EnvVarStorage", lambda: storage)
     env_var_prompt.invalidate_env_var_prompt_cache("user-1")
 
-    sections = await env_var_prompt.build_env_var_prompt_sections("user-1")
+    prompt = await env_var_prompt.build_env_var_prompt("user-1")
 
-    assert len(sections) == 2
-    assert "## Available Environment Variables" in sections[0]
-    assert len(sections[0]) <= 200
-    assert "`FIRECRAWL_API_KEY`" in sections[1]
-    assert "os.environ" not in sections[1]
+    assert prompt == (
+        "## Available Environment Variables\n\n"
+        'Names only; values are secret. Reference `$KEY` or `os.environ.get("KEY")`; '
+        "never print or reveal values.\n\n"
+        "- `FIRECRAWL_API_KEY`"
+    )
+
+
+@pytest.mark.asyncio
+async def test_env_var_prompt_cache_stores_full_string_and_force_refreshes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import env_var_prompt
+
+    storage = _FakeEnvVarStorage()
+    monkeypatch.setattr(env_var_prompt, "EnvVarStorage", lambda: storage)
+    env_var_prompt.invalidate_env_var_prompt_cache("user-1")
+
+    prompt = await env_var_prompt.build_env_var_prompt("user-1")
+    cached_prompt = await env_var_prompt.build_env_var_prompt("user-1")
+
+    assert cached_prompt == prompt
+    assert env_var_prompt._env_var_prompt_cache["user-1"][0] == prompt
+    assert storage.calls == [("list", "user-1", None)]
+
+    refreshed_prompt = await env_var_prompt.build_env_var_prompt("user-1", force_refresh=True)
+
+    assert refreshed_prompt == prompt
+    assert storage.calls == [
+        ("list", "user-1", None),
+        ("list", "user-1", None),
+    ]
 
 
 def test_env_var_prompt_cache_eviction_caps_users(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -149,9 +176,9 @@ def test_env_var_prompt_cache_eviction_caps_users(monkeypatch: pytest.MonkeyPatc
 
     env_var_prompt._env_var_prompt_cache.clear()
     monkeypatch.setattr(env_var_prompt, "_MAX_PROMPT_CACHE_ENTRIES", 2, raising=False)
-    env_var_prompt._env_var_prompt_cache["user-old"] = (("old",), 1.0)
-    env_var_prompt._env_var_prompt_cache["user-mid"] = (("mid",), 2.0)
-    env_var_prompt._env_var_prompt_cache["user-new"] = (("new",), 3.0)
+    env_var_prompt._env_var_prompt_cache["user-old"] = ("old", 1.0)
+    env_var_prompt._env_var_prompt_cache["user-mid"] = ("mid", 2.0)
+    env_var_prompt._env_var_prompt_cache["user-new"] = ("new", 3.0)
 
     removed = env_var_prompt._cleanup_excess_prompt_cache_entries()
 
@@ -160,20 +187,20 @@ def test_env_var_prompt_cache_eviction_caps_users(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_env_var_prompt_middleware_appends_key_list(
+async def test_env_var_prompt_middleware_appends_one_full_prompt_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.infra.agent import middleware
     from src.infra.tool import env_var_prompt
 
-    async def fake_build_env_var_prompt_sections(user_id: str) -> tuple[str, ...]:
+    async def fake_build_env_var_prompt(user_id: str) -> str:
         assert user_id == "user-1"
-        return ("## Available Environment Variables", "- `FIRECRAWL_API_KEY`")
+        return "## Available Environment Variables\n\n- `FIRECRAWL_API_KEY`"
 
     monkeypatch.setattr(
         env_var_prompt,
-        "build_env_var_prompt_sections",
-        fake_build_env_var_prompt_sections,
+        "build_env_var_prompt",
+        fake_build_env_var_prompt,
     )
 
     captured = []
@@ -190,8 +217,10 @@ async def test_env_var_prompt_middleware_appends_key_list(
     assert result == "ok"
     assert captured[0].system_message.content == [
         {"type": "text", "text": "base"},
-        {"type": "text", "text": "## Available Environment Variables"},
-        {"type": "text", "text": "- `FIRECRAWL_API_KEY`"},
+        {
+            "type": "text",
+            "text": "## Available Environment Variables\n\n- `FIRECRAWL_API_KEY`",
+        },
     ]
 
 
