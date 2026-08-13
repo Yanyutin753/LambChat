@@ -334,7 +334,7 @@ def test_create_model_does_not_forward_app_only_profile_keys() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_model_preserves_inferred_provider_for_known_unprefixed_model(
+async def test_get_model_uses_inferred_provider_for_known_unprefixed_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clear_api_key_cache()
@@ -374,7 +374,7 @@ async def test_get_model_preserves_inferred_provider_for_known_unprefixed_model(
     assert captured["timeout"] is None
     assert captured["first_event_timeout"] == 120.0
     assert captured["non_streaming_timeout"] == 120.0
-    assert captured["metadata"]["lambchat_provider"] == "deepseek"
+    assert "lambchat_provider" not in (captured.get("metadata") or {})
     assert "prompt_cache_key" not in captured.get("model_kwargs", {})
     assert "prompt_cache_retention" not in captured.get("model_kwargs", {})
 
