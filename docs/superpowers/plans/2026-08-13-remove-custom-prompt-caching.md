@@ -405,3 +405,108 @@ git log -5 --oneline
 ```
 
 Confirm that no usage telemetry file was changed, no dependency was upgraded, and no unrelated user changes were included.
+
+### Task 5: Remove Cache-Oriented Prompt Segmentation Found by Final Review
+
+**Files:**
+- Modify: `tests/infra/agent/test_prompt_cache_ownership.py`
+- Modify: `tests/infra/agent/test_tool_search_middleware.py`
+- Modify: `tests/agents/core/test_subagent_prompts.py`
+- Modify: `src/infra/agent/middleware/prompt_injection.py`
+- Modify: `src/infra/agent/middleware/__init__.py`
+- Modify: `src/agents/fast_agent/nodes.py`
+- Modify: `src/agents/search_agent/nodes.py`
+- Modify: `src/agents/team_agent/nodes.py`
+- Modify: `src/agents/fast_agent/prompt.py`
+- Modify: `src/agents/search_agent/prompt.py`
+
+Final code review found that the original removal inventory was incomplete:
+`VolatileSectionPromptMiddleware` was introduced specifically to move changing
+goal/mode content behind a stable prefix, while `SectionPromptMiddleware`
+creates one content block per section explicitly for fine-grained KV cache
+breakpoints. Preserve every prompt's text but remove this cache-oriented request
+shape and ordering.
+
+- [ ] **Step 1: Write failing semantic ownership tests**
+
+Extend `test_prompt_cache_ownership.py` so production sources contain neither
+`VolatileSectionPromptMiddleware` nor cache-specific prompt-shaping language
+such as `KV cache`, `cache breakpoint`, `stable → semi-stable → dynamic`, or
+`session-static`.
+
+Before production edits:
+
+- Change the `SectionPromptMiddleware` behavior test to require all supplied
+  sections to be normalized and joined with `"\n\n"` into one appended system
+  text block, preserving their order and content.
+- Replace the volatile-order source test with assertions that Fast, Search, and
+  Team add active-goal/auto-mode content to their ordinary `_prompt_sections`
+  and never import or instantiate `VolatileSectionPromptMiddleware`.
+
+- [ ] **Step 2: Run the focused tests and verify RED**
+
+Run:
+
+```bash
+uv run pytest \
+  tests/infra/agent/test_prompt_cache_ownership.py \
+  tests/infra/agent/test_tool_search_middleware.py \
+  tests/agents/core/test_subagent_prompts.py -q
+```
+
+Expected: FAIL because the volatile class/registrations and multi-block section
+behavior still exist.
+
+- [ ] **Step 3: Remove cache-oriented prompt shaping while preserving content**
+
+- Make `SectionPromptMiddleware` normalize its non-empty sections, join them
+  with a blank line, and append the result as one ordinary system text block.
+- Delete `VolatileSectionPromptMiddleware` and its package import/export.
+- In all three main-agent builders, calculate active goal and auto-mode before
+  installing `SectionPromptMiddleware`, add those strings to the existing
+  `_prompt_sections`, and install one ordinary section middleware when any
+  content exists.
+- Remove the three volatile imports/registrations and cache-order comments.
+- Rewrite prompt-module/node comments that claim independent blocks or stable
+  bases optimize KV caching; retain accurate functional descriptions.
+- Do not remove persona, workflow, skill, memory-guide, sandbox-runtime, active
+  goal, or auto-mode content. Do not alter dynamic environment, native-memory
+  index, or deferred-tool functionality.
+
+- [ ] **Step 4: Run focused tests and verify GREEN**
+
+Run the exact Step 2 command, then:
+
+```bash
+uv run ruff check \
+  src/infra/agent/middleware/prompt_injection.py \
+  src/infra/agent/middleware/__init__.py \
+  src/agents/fast_agent \
+  src/agents/search_agent \
+  src/agents/team_agent \
+  tests/infra/agent/test_prompt_cache_ownership.py \
+  tests/infra/agent/test_tool_search_middleware.py \
+  tests/agents/core/test_subagent_prompts.py
+git diff --check
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit and repeat the final verification/review gates**
+
+```bash
+git add \
+  src/infra/agent/middleware/prompt_injection.py \
+  src/infra/agent/middleware/__init__.py \
+  src/agents/fast_agent \
+  src/agents/search_agent \
+  src/agents/team_agent \
+  tests/infra/agent/test_prompt_cache_ownership.py \
+  tests/infra/agent/test_tool_search_middleware.py \
+  tests/agents/core/test_subagent_prompts.py
+git commit -m "refactor(agent): remove cache-oriented prompt shaping"
+```
+
+Repeat Task 4's negative searches, telemetry/cache-preservation tests, static
+checks, and full repository gate. The semantic negative search must now cover
+the deleted volatile class and cache-specific prompt-shaping language.
