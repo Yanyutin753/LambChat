@@ -89,7 +89,6 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module, "create_retry_middleware", lambda **_kwargs: [])
     monkeypatch.setattr(module, "ToolResultBinaryMiddleware", lambda **_kwargs: object())
     monkeypatch.setattr(module, "SubagentResultHandoffMiddleware", lambda **_kwargs: object())
-    monkeypatch.setattr(module, "PromptCachingMiddleware", lambda: object())
     monkeypatch.setattr(module.settings, "ENABLE_MCP", False)
     monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(module.settings, "ENABLE_SKILLS", False)
@@ -186,7 +185,7 @@ async def test_fast_agent_node_passes_backend_instance_to_deepagents(
 
 
 @pytest.mark.asyncio
-async def test_fast_agent_subagent_middleware_retags_prompt_cache_last(
+async def test_fast_agent_subagent_keeps_functional_middleware(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
@@ -195,7 +194,12 @@ async def test_fast_agent_subagent_middleware_retags_prompt_cache_last(
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, fast_nodes, fake_graph)
     monkeypatch.setattr(fast_nodes, "create_persistent_backend", lambda **_kwargs: object())
-    monkeypatch.setattr(fast_nodes, "PromptCachingMiddleware", lambda: "prompt-cache")
+    binary = object()
+    artifact = object()
+    activity = object()
+    monkeypatch.setattr(fast_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary)
+    monkeypatch.setattr(fast_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact)
+    monkeypatch.setattr(fast_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity)
 
     context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
     config = {
@@ -214,7 +218,7 @@ async def test_fast_agent_subagent_middleware_retags_prompt_cache_last(
 
     assert fake_graph.captured_create_kwargs is not None
     subagent_middleware = fake_graph.captured_create_kwargs["subagents"][0]["middleware"]
-    assert subagent_middleware[-1] == "prompt-cache"
+    assert subagent_middleware[:3] == [binary, artifact, activity]
 
 
 @pytest.mark.asyncio
@@ -497,7 +501,7 @@ async def test_search_agent_node_passes_backend_instance_to_deepagents(
 
 
 @pytest.mark.asyncio
-async def test_search_agent_subagent_middleware_retags_prompt_cache_last(
+async def test_search_agent_subagent_keeps_functional_middleware(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _reset_fake_event_processor()
@@ -505,7 +509,12 @@ async def test_search_agent_subagent_middleware_retags_prompt_cache_last(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, search_nodes, fake_graph)
-    monkeypatch.setattr(search_nodes, "PromptCachingMiddleware", lambda: "prompt-cache")
+    binary = object()
+    artifact = object()
+    activity = object()
+    monkeypatch.setattr(search_nodes, "ToolResultBinaryMiddleware", lambda **_kwargs: binary)
+    monkeypatch.setattr(search_nodes, "ArtifactDeliveryMiddleware", lambda **_kwargs: artifact)
+    monkeypatch.setattr(search_nodes, "SubagentActivityMiddleware", lambda **_kwargs: activity)
 
     async def fake_create_backend_and_prompt(**_kwargs):
         return object(), "system prompt", object(), None, None
@@ -529,7 +538,7 @@ async def test_search_agent_subagent_middleware_retags_prompt_cache_last(
 
     assert fake_graph.captured_create_kwargs is not None
     subagent_middleware = fake_graph.captured_create_kwargs["subagents"][0]["middleware"]
-    assert subagent_middleware[-1] == "prompt-cache"
+    assert subagent_middleware[:3] == [binary, artifact, activity]
 
 
 @pytest.mark.asyncio

@@ -51,10 +51,9 @@ def test_sandbox_lifecycle_still_syncs_user_environment_variables() -> None:
         assert "sync_sandbox_env_vars" in _source(path), path
 
 
-def test_runtime_guidance_and_cache_do_not_reference_mcporter() -> None:
+def test_runtime_guidance_does_not_reference_mcporter() -> None:
     paths = (
         "src/agents/core/prompt_policy.py",
-        "src/infra/agent/middleware/prompt_caching.py",
         "src/infra/agent/middleware/tool_interception.py",
         "src/infra/tool/cache_pubsub.py",
         "src/infra/tool/deferred_manager.py",

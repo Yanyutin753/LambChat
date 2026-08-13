@@ -45,7 +45,6 @@ from src.infra.agent.middleware import (
     ArtifactDeliveryMiddleware,
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
-    PromptCachingMiddleware,
     SectionPromptMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
@@ -245,7 +244,6 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
                     search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
                 )
             )
-        mw.append(PromptCachingMiddleware())
         return mw
 
     custom_subagents: list[SubAgent | CompiledSubAgent] = [
@@ -281,8 +279,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         },
     ]
 
-    # 构建中间件栈：retry → binary upload → skills+memory → memory_index → tool search → cache tag
-    # Order: stable → semi-stable → dynamic → cache breakpoint
+    # 构建中间件栈：retry → binary upload → skills+memory → memory_index → tool search
+    # Order: stable → semi-stable → dynamic
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
@@ -291,7 +289,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     if image_url_to_base64:
         user_middleware.append(ImageUrlToBase64Middleware())
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
-    # persona_sections returns 0-2 blocks (role + behavior) for fine-grained KV cache
+    # Persona, skills, and memory guidance are injected as separate prompt sections.
     _prompt_sections = [
         s
         for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
@@ -332,9 +330,6 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
-
-    # KV cache: tag final system block + last tool AFTER all dynamic injection
-    user_middleware.append(PromptCachingMiddleware())
 
     inner_graph = create_deep_agent(
         model=llm,

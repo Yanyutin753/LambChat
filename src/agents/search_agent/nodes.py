@@ -51,7 +51,6 @@ from src.infra.agent.middleware import (
     EnvVarPromptMiddleware,
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
-    PromptCachingMiddleware,
     SectionPromptMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
@@ -236,7 +235,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                     search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
                 )
             )
-        mw.append(PromptCachingMiddleware())
         return mw
 
     custom_subagents: list[SubAgent | CompiledSubAgent] = [
@@ -272,8 +270,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         },
     ]
 
-    # 构建中间件栈：retry → binary → skills+memory → sandbox runtime/tools → memory_index → tool search → cache tag
-    # Order: stable → semi-stable → dynamic → cache breakpoint
+    # 构建中间件栈：retry → binary → skills+memory → sandbox runtime/tools → memory_index → tool search
+    # Order: stable → semi-stable → dynamic
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
@@ -329,9 +327,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
-
-    # KV cache: tag final system block + last tool AFTER all dynamic injection
-    user_middleware.append(PromptCachingMiddleware())
 
     inner_graph = create_deep_agent(
         model=llm,
@@ -469,7 +464,7 @@ async def _create_backend_and_prompt(
     创建 Backend 实例和系统提示
 
     根据是否启用沙箱模式，返回相应的 Backend 实例和系统提示。
-    skills 和 memory_guide 的注入由 SectionPromptMiddleware 在请求时完成（KV cache 友好）。
+    skills 和 memory_guide 由 SectionPromptMiddleware 在模型请求时分段注入。
 
     Args:
         state: 状态字典

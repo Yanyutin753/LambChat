@@ -69,7 +69,6 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeep
     monkeypatch.setattr(module, "create_retry_middleware", lambda **_kwargs: [])
     monkeypatch.setattr(module, "ToolResultBinaryMiddleware", lambda **_kwargs: object())
     monkeypatch.setattr(module, "SubagentResultHandoffMiddleware", lambda **_kwargs: object())
-    monkeypatch.setattr(module, "PromptCachingMiddleware", lambda: object())
     monkeypatch.setattr(module.settings, "ENABLE_MCP", False)
     monkeypatch.setattr(module.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(module.settings, "ENABLE_SKILLS", False)

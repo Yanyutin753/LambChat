@@ -63,7 +63,6 @@ from src.infra.agent.middleware import (
     EnvVarPromptMiddleware,
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
-    PromptCachingMiddleware,
     SectionPromptMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
@@ -556,7 +555,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
                 )
             )
-        mw.append(PromptCachingMiddleware())
         return mw
 
     custom_subagents: list[SubAgent | CompiledSubAgent] = []
@@ -814,8 +812,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
-
-    user_middleware.append(PromptCachingMiddleware())
 
     inner_graph = create_deep_agent(
         model=llm,

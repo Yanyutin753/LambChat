@@ -38,7 +38,6 @@ from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
 
-_PROMPT_CACHE_VOLATILE_TOOL_EXTRA = "_lambchat_prompt_cache_volatile"
 _BINARY_UPLOAD_SPOOL_MEMORY_LIMIT = 2 * 1024 * 1024
 _BINARY_BLOCK_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
 _BINARY_BLOCK_UPLOAD_TOTAL_MAX_BYTES = 50 * 1024 * 1024
@@ -589,18 +588,7 @@ class ToolSearchMiddleware(AgentMiddleware):
         new_tools = []
         if search_tool.name not in existing_names:
             new_tools.append(search_tool)
-        discovered_tools = [
-            tool.model_copy(
-                update={
-                    "extras": {
-                        **(tool.extras or {}),
-                        _PROMPT_CACHE_VOLATILE_TOOL_EXTRA: True,
-                    }
-                }
-            )
-            for tool in discovered
-            if tool.name not in existing_names
-        ]
+        discovered_tools = [tool for tool in discovered if tool.name not in existing_names]
         new_tools.extend(sorted(discovered_tools, key=_tool_sort_key))
         if new_tools:
             combined = list(request.tools) + new_tools
