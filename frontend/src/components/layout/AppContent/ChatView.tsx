@@ -10,7 +10,7 @@ import { SessionImageGalleryProvider } from "../../chat/ChatMessage/sessionImage
 import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
-import { Virtuoso, type ListRange } from "react-virtuoso";
+import { Virtuoso } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel";
 import {
@@ -167,7 +167,6 @@ export function ChatView({
   const [messageListSessionKey, setMessageListSessionKey] = useState(
     sessionId ?? "__new_session__",
   );
-  const [visibleRange, setVisibleRange] = useState<ListRange | null>(null);
 
   const {
     messagesContainerRef,
@@ -224,9 +223,8 @@ export function ChatView({
   );
 
   // --- Outline panel (side effects managed by hook) ---
-  useChatOutline(
+  const { handleVisibleRangeChange } = useChatOutline(
     messages,
-    visibleRange,
     virtuosoRef,
     assistantIdentity.avatar,
     outlineToggleRef,
@@ -305,14 +303,6 @@ export function ChatView({
   );
 
   // --- Virtuoso rendering ---
-  const handleVirtuosoRangeChanged = useCallback((range: ListRange) => {
-    setVisibleRange((current) =>
-      current?.startIndex === range.startIndex &&
-      current?.endIndex === range.endIndex
-        ? current
-        : range,
-    );
-  }, []);
   const handleVirtuosoFollowOutput = useCallback(
     (isAtBottom: boolean) => {
       if (isLoadingHistory) {
@@ -527,7 +517,7 @@ export function ChatView({
             atBottomStateChange={handleVirtuosoAtBottomChange}
             atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
             followOutput={handleVirtuosoFollowOutput}
-            rangeChanged={handleVirtuosoRangeChanged}
+            rangeChanged={handleVisibleRangeChange}
             components={virtuosoComponents}
             itemContent={virtuosoItemContent}
           />

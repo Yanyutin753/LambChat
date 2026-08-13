@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 import type { TFunction } from "i18next";
 import { ListTree } from "lucide-react";
 import type { ListRange, VirtuosoHandle } from "react-virtuoso";
@@ -23,26 +23,27 @@ export interface ChatOutlineReturn {
   outlineItems: ReturnType<typeof extractMessageOutline>;
   activeOutlineId: string | null;
   handleOpenOutline: () => void;
+  handleVisibleRangeChange: (range: ListRange) => void;
 }
 
 export function useChatOutline(
   messages: Message[],
-  visibleRange: ListRange | null,
   virtuosoRef: React.RefObject<VirtuosoHandle | null>,
   assistantAvatar: string | null,
   outlineToggleRef: React.RefObject<(() => void) | null> | undefined,
   t: TFunction,
 ): ChatOutlineReturn {
   const showOutline = shouldShowMessageOutline(messages);
+  const visibleRangeRef = useRef<ListRange | null>(null);
   const outlineItems = useMemo(
     () => (showOutline ? extractMessageOutline(messages) : []),
     [messages, showOutline],
   );
 
-  const activeOutlineId = useMemo(() => {
+  const getActiveOutlineId = useCallback(() => {
     const rangeActiveId = getOutlineActiveAnchorIdForRange(
       messages,
-      visibleRange,
+      visibleRangeRef.current,
     );
     if (rangeActiveId) {
       return rangeActiveId;
@@ -50,7 +51,9 @@ export function useChatOutline(
 
     const latestMessage = messages[messages.length - 1];
     return latestMessage ? createMessageAnchorId(latestMessage.id) : null;
-  }, [messages, visibleRange]);
+  }, [messages]);
+
+  const activeOutlineId = getActiveOutlineId();
 
   const handleOutlineNavigate = useCallback(
     (anchorId: string, messageIndex: number) => {
@@ -89,7 +92,7 @@ export function useChatOutline(
       children: (
         <MessageOutlinePanel
           items={outlineItems}
-          activeId={activeOutlineId}
+          activeId={getActiveOutlineId()}
           onNavigate={handleOutlineNavigate}
           personaAvatar={assistantAvatar}
         />
@@ -97,11 +100,40 @@ export function useChatOutline(
     });
   }, [
     outlineItems,
-    activeOutlineId,
+    getActiveOutlineId,
     handleOutlineNavigate,
     t,
     assistantAvatar,
   ]);
+
+  const handleVisibleRangeChange = useCallback(
+    (range: ListRange) => {
+      if (
+        visibleRangeRef.current?.startIndex === range.startIndex &&
+        visibleRangeRef.current?.endIndex === range.endIndex
+      ) {
+        return;
+      }
+      visibleRangeRef.current = range;
+
+      if (!isPersistentToolPanelOpen("outline")) return;
+      updatePersistentToolPanel(
+        (prev: PersistentToolPanelState) => ({
+          ...prev,
+          children: (
+            <MessageOutlinePanel
+              items={outlineItems}
+              activeId={getActiveOutlineId()}
+              onNavigate={handleOutlineNavigate}
+              personaAvatar={assistantAvatar}
+            />
+          ),
+        }),
+        "outline",
+      );
+    },
+    [assistantAvatar, getActiveOutlineId, handleOutlineNavigate, outlineItems],
+  );
 
   useEffect(() => {
     if (outlineToggleRef) {
@@ -126,5 +158,11 @@ export function useChatOutline(
     );
   }, [outlineItems, activeOutlineId, handleOutlineNavigate]);
 
-  return { showOutline, outlineItems, activeOutlineId, handleOpenOutline };
+  return {
+    showOutline,
+    outlineItems,
+    activeOutlineId,
+    handleOpenOutline,
+    handleVisibleRangeChange,
+  };
 }

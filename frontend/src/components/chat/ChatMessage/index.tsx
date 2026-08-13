@@ -494,7 +494,10 @@ export const ChatMessage = memo(function ChatMessage({
       data-outline-anchor="true"
       data-outline-id={createMessageAnchorId(message.id)}
       className={clsx(
-        "group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6 rounded-2xl transition-[background-color,box-shadow] duration-300 data-[external-navigation-highlighted=true]:bg-amber-50/85 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/60 dark:data-[external-navigation-highlighted=true]:bg-amber-500/12 dark:data-[external-navigation-highlighted=true]:ring-amber-400/50",
+        "group w-full scroll-mt-6 rounded-2xl transition-[background-color,box-shadow] duration-300 data-[external-navigation-highlighted=true]:bg-amber-50/85 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/60 dark:data-[external-navigation-highlighted=true]:bg-amber-500/12 dark:data-[external-navigation-highlighted=true]:ring-amber-400/50",
+        isLastMessage &&
+          message.isStreaming &&
+          "animate-[fade-in_0.3s_ease-out]",
         !isFirst && "pt-2",
       )}
     >
