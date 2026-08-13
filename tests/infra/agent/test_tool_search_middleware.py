@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
-from src.infra.agent import middleware as middleware_package
 from src.infra.agent.middleware import SectionPromptMiddleware, ToolSearchMiddleware
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE, DeferredToolManager
 
@@ -320,8 +319,8 @@ def test_deferred_manager_prefers_system_tool_on_duplicate_name(caplog) -> None:
     assert "duplicate" in caplog.text.lower()
 
 
-async def test_section_prompt_middleware_appends_separate_blocks() -> None:
-    middleware = SectionPromptMiddleware(sections=["skills block", "memory block"])
+async def test_section_prompt_middleware_appends_one_normalized_block() -> None:
+    middleware = SectionPromptMiddleware(sections=[" skills block  ", "memory block"])
 
     class _Request:
         def __init__(self) -> None:
@@ -338,44 +337,30 @@ async def test_section_prompt_middleware_appends_separate_blocks() -> None:
     result = await middleware.awrap_model_call(_Request(), _handler)
 
     assert isinstance(result.content, list)
-    assert [block["text"] for block in result.content] == ["base", "skills block", "memory block"]
-
-
-async def test_volatile_sections_append_after_session_stable_sections() -> None:
-    middleware_type = getattr(middleware_package, "VolatileSectionPromptMiddleware", None)
-    assert middleware_type is not None
-
-    middleware = middleware_type(
-        sections=[
-            "## Active Goal\nObjective: ship",
-            "### Auto Mode (Autonomous Execution)",
-        ]
-    )
-
-    class _Request:
-        def __init__(self) -> None:
-            self.system_message = SystemMessage(
-                content=[
-                    {"type": "text", "text": "base"},
-                    {"type": "text", "text": "## Sandbox Runtime\nwork_dir: /workspace"},
-                    {"type": "text", "text": "## Available Environment Variables\n- TOKEN"},
-                ]
-            )
-
-        def override(self, **kwargs):
-            clone = _Request()
-            clone.system_message = kwargs.get("system_message", self.system_message)
-            return clone
-
-    async def _handler(request):
-        return request.system_message
-
-    result = await middleware.awrap_model_call(_Request(), _handler)
-
-    assert [block["text"].splitlines()[0] for block in result.content] == [
+    assert [block["text"] for block in result.content] == [
         "base",
-        "## Sandbox Runtime",
-        "## Available Environment Variables",
-        "## Active Goal",
-        "### Auto Mode (Autonomous Execution)",
+        "skills block\n\nmemory block",
     ]
+
+
+def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -> None:
+    from inspect import getsource
+
+    from src.agents.fast_agent.nodes import fast_agent_node
+    from src.agents.search_agent.nodes import agent_node
+    from src.agents.team_agent.nodes import team_router_node
+
+    for node in (fast_agent_node, agent_node, team_router_node):
+        source = getsource(node)
+        active_goal = source.rfind('active_goal = configurable.get("active_goal")')
+        goal_section = source.rfind("goal_section = build_goal_prompt_section(active_goal)")
+        auto_section = source.rfind("auto_section = AUTO_MODE_PROMPT_SECTION")
+        assembly = source.rfind("_prompt_sections = [")
+        extension = source.rfind("_prompt_sections.extend(")
+        installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
+
+        assert -1 < active_goal < goal_section < auto_section < assembly < extension < installation
+        extension_source = source[extension:installation]
+        assert "goal_section" in extension_source
+        assert "auto_section" in extension_source
+        assert "VolatileSectionPromptMiddleware" not in source

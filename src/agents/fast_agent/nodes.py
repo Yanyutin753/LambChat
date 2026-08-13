@@ -49,7 +49,6 @@ from src.infra.agent.middleware import (
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
-    VolatileSectionPromptMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
 )
@@ -110,7 +109,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 构建记忆系统提示
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
 
-    # 构建系统提示（persona 由 SectionPromptMiddleware 注入，保持基础提示词稳定以优化 KV 缓存）
+    # 构建系统提示（persona 由 SectionPromptMiddleware 注入）
     system_prompt = FAST_SYSTEM_PROMPT
 
     session_id = state.get("session_id", str(uuid.uuid4()))
@@ -279,8 +278,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         },
     ]
 
-    # 构建中间件栈：retry → binary upload → skills+memory → memory_index → tool search
-    # Order: stable → semi-stable → dynamic
+    # 构建中间件栈：retry → binary upload → authored prompts → memory_index → tool search
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
@@ -288,21 +286,18 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware.append(ArtifactDeliveryMiddleware())
     if image_url_to_base64:
         user_middleware.append(ImageUrlToBase64Middleware())
-    # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
-    # Persona, skills, and memory guidance are injected as separate prompt sections.
+    active_goal = configurable.get("active_goal")
+    goal_section = build_goal_prompt_section(active_goal)
+    auto_section = AUTO_MODE_PROMPT_SECTION if configurable.get("auto_mode") else None
+    # Persona, skills, memory guidance, goal, and mode share one authored prompt block.
     _prompt_sections = [
         s
         for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
         if s
     ]
+    _prompt_sections.extend(section for section in (goal_section, auto_section) if section)
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
-    active_goal = configurable.get("active_goal")
-    goal_section = build_goal_prompt_section(active_goal)
-    auto_section = AUTO_MODE_PROMPT_SECTION if configurable.get("auto_mode") else None
-    _volatile_sections = [section for section in (goal_section, auto_section) if section]
-    if _volatile_sections:
-        user_middleware.append(VolatileSectionPromptMiddleware(sections=_volatile_sections))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 

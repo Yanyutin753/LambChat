@@ -201,7 +201,7 @@ def test_dynamic_prompt_middleware_order_is_canonical() -> None:
         assert "PromptCachingMiddleware" not in source
 
 
-def test_static_prompt_order_places_runtime_before_goal_and_mode() -> None:
+def test_authored_prompt_sections_place_runtime_before_goal_and_mode() -> None:
     from inspect import getsource
 
     from src.agents.search_agent.nodes import agent_node
@@ -209,9 +209,13 @@ def test_static_prompt_order_places_runtime_before_goal_and_mode() -> None:
 
     for node in (agent_node, team_router_node):
         source = getsource(node)
+        assembly = source.rfind("_prompt_sections = [")
         runtime = source.rfind("RUNTIME_SECTION.format")
-        stable = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
-        env = source.rfind("EnvVarPromptMiddleware")
-        volatile = source.rfind("VolatileSectionPromptMiddleware")
-        memory = source.rfind("MemoryIndexMiddleware")
-        assert -1 < runtime < stable < env < volatile < memory
+        extension = source.rfind("_prompt_sections.extend(")
+        installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
+
+        assert -1 < assembly < runtime < extension < installation
+        extension_source = source[extension:installation]
+        assert "goal_section" in extension_source
+        assert "auto_section" in extension_source
+        assert "VolatileSectionPromptMiddleware" not in source

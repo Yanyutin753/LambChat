@@ -4,7 +4,7 @@ Search Agent 系统提示词
 - DEFAULT_SYSTEM_PROMPT: 非沙箱模式，统一路径管理
 
 角色身份通过 SectionPromptMiddleware 独立注入（见 persona.py），
-基础提示词只包含能力描述，保证全局 KV 缓存稳定。
+基础提示词只包含能力描述。
 """
 
 from src.agents.core.prompt_policy import (
