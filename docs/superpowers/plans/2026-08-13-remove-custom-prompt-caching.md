@@ -510,3 +510,91 @@ git commit -m "refactor(agent): remove cache-oriented prompt shaping"
 Repeat Task 4's negative searches, telemetry/cache-preservation tests, static
 checks, and full repository gate. The semantic negative search must now cover
 the deleted volatile class and cache-specific prompt-shaping language.
+
+### Task 6: Remove Dynamic Prompt Splitting and Cache-Derived Tool Ordering
+
+**Files:**
+- Modify: `tests/infra/agent/test_prompt_cache_ownership.py`
+- Modify: `tests/infra/agent/test_tool_search_middleware.py`
+- Modify: `tests/infra/tool/test_env_var_tool.py`
+- Modify: `src/infra/tool/env_var_prompt.py`
+- Modify: `src/infra/tool/deferred_manager.py`
+- Modify: `src/infra/agent/middleware/prompt_injection.py`
+- Modify: `src/infra/agent/middleware/tool_interception.py`
+- Modify: `src/infra/agent/middleware/_helpers.py`
+
+Final whole-feature review found two older request-shaping paths that predate
+the deleted provider middleware. Environment and deferred-tool prompts still
+split stable guidance from changing inventories, and tool search still keeps a
+separate `search_tools` prefix before a re-sorted discovered tail. Preserve the
+data/query caches and all text, but remove these LLM request-shape policies.
+
+- [ ] **Step 1: Write failing behavior and semantic tests**
+
+- Change the environment prompt tests to require one complete cached string,
+  and require `EnvVarPromptMiddleware` to append exactly one block containing
+  both guidance and key names.
+- Change deferred prompt tests to use one complete dirty-cached prompt string;
+  delete assertions about stable/dynamic block splitting while retaining name,
+  description, discovery invalidation, sorting, duplicate-guide, and compact
+  content contracts.
+- Add a ToolSearchMiddleware request test where manager-returned discovered
+  tools have a known order. Require the middleware to preserve that order and
+  append `search_tools` as an ordinary auxiliary tool rather than constructing
+  a cache-oriented prefix/tail or sorting the discovered tools again.
+- Extend semantic ownership tests to reject production uses of
+  `_append_system_text_blocks`, `build_env_var_prompt_sections`,
+  `get_deferred_prompt_blocks`, prompt `tail` wording, and middleware-owned
+  `_tool_sort_key`.
+
+- [ ] **Step 2: Run focused tests and verify RED**
+
+```bash
+uv run pytest \
+  tests/infra/agent/test_prompt_cache_ownership.py \
+  tests/infra/agent/test_tool_search_middleware.py \
+  tests/infra/tool/test_env_var_tool.py -q
+```
+
+Expected: FAIL on the current two-block APIs, multi-block middleware output,
+and cache-derived tool placement/order.
+
+- [ ] **Step 3: Collapse prompt APIs without removing data caches**
+
+- In `env_var_prompt.py`, cache one complete prompt string per user instead of
+  a tuple of sections. Keep `_CACHE_TTL`, maximum-entry eviction, storage error
+  handling, secret-safe content, `force_refresh`, and invalidation unchanged.
+- Make `EnvVarPromptMiddleware` call `build_env_var_prompt` and append the full
+  prompt via `_append_system_text_block` once.
+- In `DeferredToolManager`, replace the cached prompt-block tuple with one
+  cached prompt string assembled from the same guide, MCP names, and system
+  descriptions. Keep stub sorting, dirty flags, parent/fork synchronization,
+  and discovery invalidation unchanged.
+- Make `ToolSearchMiddleware` consume `get_deferred_stubs_string`, remove the
+  guide prefix from that complete string only when it already exists, and
+  append the remaining full prompt once.
+
+- [ ] **Step 4: Restore functional tool ordering**
+
+- Use `DeferredToolManager.get_discovered_tools()` as the sole ordering source
+  for discovered tools.
+- Append only missing discovered tools in that order, and append the missing
+  `search_tools` helper as an ordinary auxiliary tool. Do not establish a
+  dedicated stable prefix or re-sort discovered tools in the middleware.
+- Remove the now-unused middleware `_tool_sort_key` helper/import. Keep the
+  manager's internal sort helper because it provides deterministic functional
+  inventory/discovery behavior.
+
+- [ ] **Step 5: Verify GREEN and commit**
+
+Run the exact Step 2 command, the environment cache invalidation tests, Ruff on
+the changed sources/tests, semantic negative searches, and `git diff --check`.
+Then commit only these files:
+
+```bash
+git commit -m "refactor(agent): remove cache-derived prompt and tool shaping"
+```
+
+Repeat Task 4 verification and whole-feature review. A completion claim requires
+the final reviewer to find no remaining active LambChat-owned request mutation
+whose purpose is increasing LLM prompt/KV cache hits.
