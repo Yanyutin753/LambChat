@@ -65,7 +65,7 @@ async def test_tool_cache_pubsub_subscribes_to_shared_channel(
 
 @pytest.mark.asyncio
 async def test_tool_cache_pubsub_invalidates_foreign_env_var_prompt_cache() -> None:
-    _env_var_prompt_cache["user-1"] = (("section",), 123.0)
+    _env_var_prompt_cache["user-1"] = ("section", 123.0)
     pubsub = ToolCachePubSub()
     pubsub._instance_id = "instance-a"
 
