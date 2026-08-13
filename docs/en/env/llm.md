@@ -31,12 +31,10 @@ LambChat supports multi-model management through the UI. The env vars above set 
 | `LLM_TEMPERATURE` | _(none)_ | Optional: default temperature for LLM calls. |
 | `LLM_MAX_TOKENS` | _(none)_ | Optional: max output tokens for LLM calls. |
 
-## Prompt Cache Settings
+## DeepAgent Context Settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PROMPT_CACHE_MAX_SYSTEM_BLOCKS` | `12` | Maximum cached system prompt blocks. |
-| `PROMPT_CACHE_MAX_TOOLS` | `12` | Maximum cached tool definitions. |
 | `DEEPAGENT_DEFAULT_MAX_INPUT_TOKENS` | `64000` | Default max input tokens for DeepAgent. |
 
 ## Example

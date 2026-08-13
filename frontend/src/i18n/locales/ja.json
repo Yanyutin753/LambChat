@@ -2350,8 +2350,6 @@
     "POSTGRES_POOL_MIN_SIZE": "PostgreSQL接続プール最小サイズ",
     "POSTGRES_PORT": "PostgreSQLポート",
     "POSTGRES_USER": "PostgreSQLユーザー名",
-    "PROMPT_CACHE_MAX_SYSTEM_BLOCKS": "キャッシュするシステムプロンプトブロックの最大数",
-    "PROMPT_CACHE_MAX_TOOLS": "キャッシュするツール定義の最大数",
     "RECOMMEND_QUESTIONS_MAX_BACKGROUND_TASKS": "おすすめ質問生成の最大並行バックグラウンドタスク数",
     "REDIS_PASSWORD": "Redisパスワード",
     "REDIS_URL": "Redis接続URL",

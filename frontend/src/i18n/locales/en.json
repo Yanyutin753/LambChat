@@ -2350,8 +2350,6 @@
     "POSTGRES_POOL_MIN_SIZE": "PostgreSQL connection pool minimum size",
     "POSTGRES_PORT": "PostgreSQL port",
     "POSTGRES_USER": "PostgreSQL username",
-    "PROMPT_CACHE_MAX_SYSTEM_BLOCKS": "Maximum cached system prompt blocks",
-    "PROMPT_CACHE_MAX_TOOLS": "Maximum cached tool definitions",
     "RECOMMEND_QUESTIONS_MAX_BACKGROUND_TASKS": "Maximum concurrent background tasks for generating recommended follow-up questions",
     "REDIS_PASSWORD": "Redis password",
     "REDIS_URL": "Redis connection URL",

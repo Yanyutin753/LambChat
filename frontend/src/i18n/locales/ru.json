@@ -2350,8 +2350,6 @@
     "POSTGRES_POOL_MIN_SIZE": "Минимальный размер пула подключений PostgreSQL",
     "POSTGRES_PORT": "Порт PostgreSQL",
     "POSTGRES_USER": "Имя пользователя PostgreSQL",
-    "PROMPT_CACHE_MAX_SYSTEM_BLOCKS": "Максимальное количество кэшируемых блоков системного промпта",
-    "PROMPT_CACHE_MAX_TOOLS": "Максимальное количество кэшируемых определений инструментов",
     "RECOMMEND_QUESTIONS_MAX_BACKGROUND_TASKS": "Максимальное количество параллельных фоновых задач для генерации рекомендуемых вопросов",
     "REDIS_PASSWORD": "Пароль Redis",
     "REDIS_URL": "URL подключения Redis",

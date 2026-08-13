@@ -31,12 +31,10 @@ LambChat 支持通过 UI 进行多模型管理。以上环境变量设置的是*
 | `LLM_TEMPERATURE` | _(无)_ | 可选：LLM 调用的默认温度。 |
 | `LLM_MAX_TOKENS` | _(无)_ | 可选：LLM 调用的最大输出 token 数。 |
 
-## 提示缓存设置
+## DeepAgent 上下文设置
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `PROMPT_CACHE_MAX_SYSTEM_BLOCKS` | `12` | 最大缓存系统提示块数。 |
-| `PROMPT_CACHE_MAX_TOOLS` | `12` | 最大缓存工具定义数。 |
 | `DEEPAGENT_DEFAULT_MAX_INPUT_TOKENS` | `64000` | DeepAgent 默认最大输入 token 数。 |
 
 ## 示例

@@ -2350,8 +2350,6 @@
     "POSTGRES_POOL_MIN_SIZE": "PostgreSQL 连接池最小大小",
     "POSTGRES_PORT": "PostgreSQL 端口",
     "POSTGRES_USER": "PostgreSQL 用户名",
-    "PROMPT_CACHE_MAX_SYSTEM_BLOCKS": "最大缓存系统提示块数",
-    "PROMPT_CACHE_MAX_TOOLS": "最大缓存工具定义数",
     "RECOMMEND_QUESTIONS_MAX_BACKGROUND_TASKS": "生成推荐追问的最大并发后台任务数",
     "REDIS_PASSWORD": "Redis 密码",
     "REDIS_URL": "Redis 连接 URL",

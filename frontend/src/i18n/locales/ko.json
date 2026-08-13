@@ -2350,8 +2350,6 @@
     "POSTGRES_POOL_MIN_SIZE": "PostgreSQL 연결 풀 최소 크기",
     "POSTGRES_PORT": "PostgreSQL 포트",
     "POSTGRES_USER": "PostgreSQL 사용자 이름",
-    "PROMPT_CACHE_MAX_SYSTEM_BLOCKS": "캐시할 시스템 프롬프트 블록 최대 수",
-    "PROMPT_CACHE_MAX_TOOLS": "캐시할 도구 정의 최대 수",
     "RECOMMEND_QUESTIONS_MAX_BACKGROUND_TASKS": "추천 질문 생성 최대 동시 백그라운드 작업 수",
     "REDIS_PASSWORD": "Redis 비밀번호",
     "REDIS_URL": "Redis 연결 URL",
