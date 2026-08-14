@@ -7,6 +7,10 @@ import type { FileCheckResult } from "../types";
 import { compressImageFile } from "../utils/imageCompression";
 import { uuid } from "../utils/uuid";
 import type { MessageAttachment, FileCategory } from "../types";
+import { createUploadProgressController } from "./uploadProgress";
+
+const MEBIBYTE = 1024 * 1024;
+const MAX_IMAGE_PREPARATION_BYTES = 50 * MEBIBYTE;
 
 export interface UploadLimits {
   image: number;
@@ -38,14 +42,28 @@ function getFileCategory(file: File): FileCategory {
   return "document";
 }
 
-function computeFileHash(file: File): Promise<string> {
+function computeFileHash(file: File, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(
-      new URL("../workers/hashWorker.ts", import.meta.url),
-      { type: "module" },
-    );
-    worker.onmessage = (e) => {
+    let worker: Worker;
+    try {
+      worker = new Worker(
+        new URL("../workers/hashWorker.ts", import.meta.url),
+        { type: "module" },
+      );
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const cleanup = () => {
+      signal?.removeEventListener("abort", handleAbort);
       worker.terminate();
+    };
+    const handleAbort = () => {
+      cleanup();
+      reject(new DOMException("Upload was aborted", "AbortError"));
+    };
+    worker.onmessage = (e) => {
+      cleanup();
       if (e.data.error) {
         reject(new Error(e.data.error));
       } else {
@@ -53,11 +71,19 @@ function computeFileHash(file: File): Promise<string> {
       }
     };
     worker.onerror = (e) => {
-      worker.terminate();
+      cleanup();
       reject(new Error(e.message));
     };
+    signal?.addEventListener("abort", handleAbort, { once: true });
     worker.postMessage({ file });
   });
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === "AbortError") ||
+    (error instanceof Error && error.message === "Upload was aborted")
+  );
 }
 
 export function useFileUpload({
@@ -71,6 +97,7 @@ export function useFileUpload({
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     const abortMap = abortMapRef.current;
     return () => {
       isMountedRef.current = false;
@@ -122,6 +149,28 @@ export function useFileUpload({
     [uploadLimits, t],
   );
 
+  const validateInputSize = useCallback(
+    (file: File, category: FileCategory): boolean => {
+      if (file.size <= 0) {
+        toast.error(t("fileUpload.emptyFile"));
+        return false;
+      }
+      if (!uploadLimits) return true;
+      const maxBytes = uploadLimits[category] * MEBIBYTE;
+      if (file.size <= maxBytes) return true;
+      const preparationCeiling = Math.max(
+        maxBytes,
+        Math.min(maxBytes * 2, MAX_IMAGE_PREPARATION_BYTES),
+      );
+      if (category === "image" && file.size <= preparationCeiling) return true;
+      toast.error(
+        `${t("fileUpload.fileTooLarge")} (${uploadLimits[category]}MB)`,
+      );
+      return false;
+    },
+    [uploadLimits, t],
+  );
+
   /** Validate file count (existing + new), returns true if ok */
   const validateCount = useCallback(
     (newFileCount: number): boolean => {
@@ -155,157 +204,183 @@ export function useFileUpload({
   const uploadFile = useCallback(
     (file: File, category?: FileCategory, clientMeta?: UploadClientMeta) => {
       const fileCategory = category || getFileCategory(file);
-      if (!validateSize(file, fileCategory)) return;
+      if (!validateInputSize(file, fileCategory)) return;
 
-      // Compress images before upload
-      const maybeCompress =
-        fileCategory === "image"
-          ? compressImageFile(file).catch(() => file)
-          : Promise.resolve(file);
+      const tempId = `temp-${uuid()}`;
+      const controller = new AbortController();
+      let xhrAbort: (() => void) | undefined;
+      let disposeProgress: (() => void) | undefined;
+      const cancelTask = () => {
+        controller.abort();
+        xhrAbort?.();
+        disposeProgress?.();
+      };
+      abortMapRef.current.set(tempId, cancelTask);
 
-      maybeCompress.then((processedFile) => {
-        if (!isMountedRef.current) {
-          return;
-        }
-        const tempId = `temp-${uuid()}`;
-
-        const tempAttachment: MessageAttachment = {
+      onAttachmentsChange((prev) => [
+        ...prev,
+        {
           id: tempId,
           key: "",
-          name: processedFile.name,
+          name: file.name,
           type: fileCategory,
-          mimeType: processedFile.type,
-          size: processedFile.size,
+          mimeType: file.type,
+          size: file.size,
           url: "",
           uploadProgress: 0,
+          uploadStage: "preparing",
           isUploading: true,
           ...clientMeta,
-        };
+        },
+      ]);
 
-        onAttachmentsChange((prev) => [...prev, tempAttachment]);
+      void (async () => {
+        try {
+          const maxBytes = uploadLimits
+            ? uploadLimits[fileCategory] * MEBIBYTE
+            : null;
+          const processedFile =
+            fileCategory === "image"
+              ? await compressImageFile(file, {
+                  signal: controller.signal,
+                  fallback:
+                    maxBytes !== null && file.size > maxBytes
+                      ? "main-thread"
+                      : "original",
+                })
+              : file;
+          if (controller.signal.aborted)
+            throw new DOMException("Aborted", "AbortError");
+          if (!validateSize(processedFile, fileCategory)) {
+            onAttachmentsChange((prev) => prev.filter((a) => a.id !== tempId));
+            return;
+          }
 
-        computeFileHash(processedFile)
-          .then((hash) => {
-            if (!isMountedRef.current) {
-              throw new Error("Upload was aborted");
-            }
-            onAttachmentsChange((prev: MessageAttachment[]) =>
-              prev.map((a) =>
-                a.id === tempId ? { ...a, uploadProgress: 1 } : a,
+          onAttachmentsChange((prev) =>
+            prev.map((attachment) =>
+              attachment.id === tempId
+                ? {
+                    ...attachment,
+                    name: processedFile.name,
+                    mimeType: processedFile.type,
+                    size: processedFile.size,
+                  }
+                : attachment,
+            ),
+          );
+
+          let check: FileCheckResult = { exists: false };
+          try {
+            const hash = await computeFileHash(
+              processedFile,
+              controller.signal,
+            );
+            if (controller.signal.aborted)
+              throw new DOMException("Aborted", "AbortError");
+            check = await uploadApi.checkFile(
+              hash,
+              processedFile.size,
+              processedFile.name,
+              processedFile.type,
+            );
+          } catch (error) {
+            if (isAbortError(error)) throw error;
+          }
+
+          if (check.exists && check.key) {
+            const finalAttachment: MessageAttachment = {
+              id: uuid(),
+              key: check.key,
+              name: check.name || processedFile.name,
+              type: (check.type as FileCategory) || fileCategory,
+              mimeType: check.mimeType ?? processedFile.type,
+              size: check.size ?? processedFile.size,
+              url: buildApiUrl(check.url || `/api/upload/file/${check.key}`),
+              ...clientMeta,
+            };
+            onAttachmentsChange((prev) =>
+              prev.map((attachment) =>
+                attachment.id === tempId ? finalAttachment : attachment,
               ),
             );
-            return uploadApi
-              .checkFile(
-                hash,
-                processedFile.size,
-                processedFile.name,
-                processedFile.type,
-              )
-              .then((check) => ({ check }));
-          })
-          .catch(() => ({ check: { exists: false } }))
-          .then(({ check }) => {
-            if (!isMountedRef.current) {
-              return;
-            }
-            if (check.exists && "key" in check) {
-              abortMapRef.current.delete(tempId);
-              const c = check as FileCheckResult;
-              const finalAttachment: MessageAttachment = {
-                id: uuid(),
-                key: c.key ?? "",
-                name: c.name || processedFile.name,
-                type: c.type as FileCategory,
-                mimeType: c.mimeType ?? processedFile.type,
-                size: c.size ?? processedFile.size,
-                url: buildApiUrl(c.url || `/api/upload/file/${c.key ?? ""}`),
-                ...clientMeta,
-              };
-              onAttachmentsChange((prev: MessageAttachment[]) =>
-                prev.map((a) =>
-                  a.id === tempId
+            return;
+          }
+
+          const progressController = createUploadProgressController(
+            ({ progress, stage }) => {
+              if (!isMountedRef.current || controller.signal.aborted) return;
+              onAttachmentsChange((prev) =>
+                prev.map((attachment) =>
+                  attachment.id === tempId
                     ? {
-                        ...finalAttachment,
-                        uploadProgress: 100,
-                        isUploading: false,
+                        ...attachment,
+                        uploadProgress: progress,
+                        uploadStage: stage,
+                        isUploading: true,
                       }
-                    : a,
+                    : attachment,
                 ),
               );
-              return;
-            }
-
-            const handle = uploadApi.uploadFile(processedFile, {
-              onProgress: (progress) => {
-                if (!isMountedRef.current) {
-                  return;
-                }
-                onAttachmentsChange((prev: MessageAttachment[]) =>
-                  prev.map((a) =>
-                    a.id === tempId
-                      ? { ...a, uploadProgress: progress, isUploading: true }
-                      : a,
-                  ),
-                );
-              },
-            });
-
-            abortMapRef.current.set(tempId, handle.abort);
-
-            return handle.promise.then((result) => {
-              if (!isMountedRef.current) {
-                return;
-              }
-              abortMapRef.current.delete(tempId);
-              const finalAttachment: MessageAttachment = {
-                id: uuid(),
-                key: result.key,
-                name: result.name || processedFile.name,
-                type: result.type as FileCategory,
-                mimeType: result.mimeType,
-                size: result.size,
-                url: buildApiUrl(result.url),
-                ...clientMeta,
-              };
-              onAttachmentsChange((prev: MessageAttachment[]) =>
-                prev.map((a) => (a.id === tempId ? finalAttachment : a)),
-              );
-            });
-          })
-          .catch((error) => {
-            abortMapRef.current.delete(tempId);
-            if (!isMountedRef.current) {
-              return;
-            }
-            if (
-              error instanceof Error &&
-              error.message === "Upload was aborted"
-            ) {
-              return;
-            }
-            console.error("Upload failed:", error);
-            const message =
-              error instanceof Error
-                ? error.message
-                : t("fileUpload.uploadFailed");
-            toast.error(message);
-            onAttachmentsChange((prev: MessageAttachment[]) =>
-              clientMeta?.composerReferenceId
-                ? prev.map((attachment) =>
-                    attachment.id === tempId
-                      ? {
-                          ...attachment,
-                          isUploading: false,
-                          uploadError: message,
-                        }
-                      : attachment,
-                  )
-                : prev.filter((attachment) => attachment.id !== tempId),
-            );
+            },
+          );
+          disposeProgress = progressController.dispose;
+          const handle = uploadApi.uploadFile(processedFile, {
+            onProgress: progressController.report,
           });
-      });
+          xhrAbort = handle.abort;
+          if (controller.signal.aborted) {
+            handle.abort();
+            throw new DOMException("Aborted", "AbortError");
+          }
+          const result = await handle.promise;
+          progressController.dispose();
+
+          if (!isMountedRef.current || controller.signal.aborted) return;
+          const finalAttachment: MessageAttachment = {
+            id: uuid(),
+            key: result.key,
+            name: result.name || processedFile.name,
+            type: result.type as FileCategory,
+            mimeType: result.mimeType,
+            size: result.size,
+            url: buildApiUrl(result.url),
+            ...clientMeta,
+          };
+          onAttachmentsChange((prev) =>
+            prev.map((attachment) =>
+              attachment.id === tempId ? finalAttachment : attachment,
+            ),
+          );
+        } catch (error) {
+          if (!isMountedRef.current || isAbortError(error)) return;
+          console.error("Upload failed:", error);
+          const message =
+            error instanceof Error
+              ? error.message
+              : t("fileUpload.uploadFailed");
+          toast.error(message);
+          onAttachmentsChange((prev) =>
+            clientMeta?.composerReferenceId
+              ? prev.map((attachment) =>
+                  attachment.id === tempId
+                    ? {
+                        ...attachment,
+                        isUploading: false,
+                        uploadProgress: undefined,
+                        uploadStage: undefined,
+                        uploadError: message,
+                      }
+                    : attachment,
+                )
+              : prev.filter((attachment) => attachment.id !== tempId),
+          );
+        } finally {
+          disposeProgress?.();
+          abortMapRef.current.delete(tempId);
+        }
+      })();
     },
-    [onAttachmentsChange, t, validateSize],
+    [onAttachmentsChange, t, uploadLimits, validateInputSize, validateSize],
   );
 
   /** Validate and upload multiple files */
@@ -320,7 +395,7 @@ export function useFileUpload({
 
       const validFiles = fileArray.filter((file) => {
         const fileCategory = category || getFileCategory(file);
-        return validateSize(file, fileCategory);
+        return validateInputSize(file, fileCategory);
       });
       if (validFiles.length === 0 || !validateCount(validFiles.length)) return;
 
@@ -329,7 +404,7 @@ export function useFileUpload({
         uploadFile(file, fileCategory, clientMeta);
       }
     },
-    [validateCount, validateSize, uploadFile],
+    [validateCount, validateInputSize, uploadFile],
   );
 
   return {

@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useRef, useState } from "react";
+import { afterEach, vi } from "vitest";
 import { PASTE_TEXT_THRESHOLD } from "../../components/chat/chatInputConstants";
 import { usePasteHandler } from "../usePasteHandler";
 
@@ -10,6 +11,10 @@ const selectionEnd = selectionStart + "SELECTED".length;
 const pastedText = "p".repeat(PASTE_TEXT_THRESHOLD + 1);
 const PNG_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function PasteHarness() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -79,12 +84,21 @@ test("zero-byte clipboard placeholders do not upload or insert fallback text", (
   );
 });
 
-test("embedded data images upload through the legacy paste handler", () => {
+test("embedded data images upload asynchronously through the legacy paste handler", async () => {
+  vi.stubGlobal("Worker", undefined);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      blob: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+    })),
+  );
   render(<PasteHarness />);
   paste((type) => (type === "text/html" ? `<img src="${PNG_DATA_URL}">` : ""));
 
-  expect(screen.getByLabelText("uploaded name")).toHaveTextContent(
-    "pasted-image.png",
+  await waitFor(() =>
+    expect(screen.getByLabelText("uploaded name")).toHaveTextContent(
+      "pasted-image.png",
+    ),
   );
   expect(screen.getByLabelText("invalid image count")).toHaveTextContent("0");
   expect(screen.getByRole("textbox", { name: "composer" })).toHaveValue(

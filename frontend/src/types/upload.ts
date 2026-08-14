@@ -3,6 +3,7 @@
 // ============================================
 
 export type FileCategory = "image" | "video" | "audio" | "document";
+export type UploadStage = "preparing" | "uploading" | "processing";
 
 export interface MessageAttachment {
   id: string;
@@ -16,6 +17,8 @@ export interface MessageAttachment {
   uploadProgress?: number;
   /** Whether upload is in progress */
   isUploading?: boolean;
+  /** Client-only stage for an in-progress upload. */
+  uploadStage?: UploadStage;
   /**
    * Client-only: original text when this attachment was created from long-text conversion.
    * Must be stripped before API submit.

@@ -1,7 +1,10 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, test, vi } from "vitest";
-import { classifyClipboardFiles } from "../clipboardFiles";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import {
+  classifyClipboardFiles,
+  decodeEmbeddedClipboardImage,
+} from "../clipboardFiles";
 
 const PNG_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -25,6 +28,33 @@ function clipboardData({
   };
 }
 
+class SuccessfulClipboardWorker {
+  static terminations = 0;
+  onmessage: ((event: MessageEvent<{ ok: true; blob: Blob }>) => void) | null =
+    null;
+  onerror: ((event: ErrorEvent) => void) | null = null;
+
+  postMessage() {
+    queueMicrotask(() => {
+      this.onmessage?.({
+        data: {
+          ok: true,
+          blob: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
+        },
+      } as MessageEvent<{ ok: true; blob: Blob }>);
+    });
+  }
+
+  terminate() {
+    SuccessfulClipboardWorker.terminations += 1;
+  }
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 describe("classifyClipboardFiles", () => {
   test("keeps non-empty native clipboard files", () => {
     const image = new File(["image-bytes"], "capture.png", {
@@ -45,8 +75,9 @@ describe("classifyClipboardFiles", () => {
     ).toEqual({ kind: "invalid-image" });
   });
 
-  test("recovers an embedded data image when the native file is empty", () => {
+  test("classifies an embedded image without decoding bytes synchronously", () => {
     const placeholder = new File([], "bpm_r5.bin", { type: "" });
+    const atobSpy = vi.spyOn(globalThis, "atob");
 
     const result = classifyClipboardFiles(
       clipboardData({
@@ -55,14 +86,12 @@ describe("classifyClipboardFiles", () => {
       }),
     );
 
-    expect(result.kind).toBe("files");
-    if (result.kind !== "files") throw new Error("expected recovered file");
-    expect(result.files).toHaveLength(1);
-    expect(result.files[0]).toMatchObject({
-      name: "pasted-image.png",
-      type: "image/png",
+    expect(result).toEqual({
+      kind: "embedded-image",
+      source: PNG_DATA_URL,
+      mimeType: "image/png",
     });
-    expect(result.files[0].size).toBeGreaterThan(0);
+    expect(atobSpy).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -100,4 +129,28 @@ describe("classifyClipboardFiles", () => {
       classifyClipboardFiles(clipboardData({ text: "ordinary pasted text" })),
     ).toEqual({ kind: "none" });
   });
+});
+
+test("decodes a validated embedded image in a worker", async () => {
+  SuccessfulClipboardWorker.terminations = 0;
+  vi.stubGlobal("Worker", SuccessfulClipboardWorker);
+
+  const file = await decodeEmbeddedClipboardImage(PNG_DATA_URL, "image/png");
+
+  expect(file).toMatchObject({ name: "pasted-image.png", type: "image/png" });
+  expect(file.size).toBe(3);
+  expect(SuccessfulClipboardWorker.terminations).toBe(1);
+});
+
+test("decodes a validated embedded image asynchronously when Worker is unavailable", async () => {
+  vi.stubGlobal("Worker", undefined);
+  const fetchMock = vi.fn(async () => ({
+    blob: async () => new Blob([new Uint8Array([4, 5])], { type: "image/png" }),
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const file = await decodeEmbeddedClipboardImage(PNG_DATA_URL, "image/png");
+
+  expect(file.size).toBe(2);
+  expect(fetchMock).toHaveBeenCalledWith(PNG_DATA_URL);
 });

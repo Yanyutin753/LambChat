@@ -60,10 +60,10 @@ test("upload attachment fallback URLs use the configured backend base", () => {
 
   expect(source).toMatch(/import \{ buildApiUrl \}/);
   expect(source).toMatch(
-    /url:\s*buildApiUrl\(c\.url \|\| `\/api\/upload\/file/,
+    /url:\s*buildApiUrl\(\s*check\.url\s*\|\|\s*`\/api\/upload\/file/,
   );
   expect(source).toMatch(/url:\s*buildApiUrl\(result\.url\)/);
-  expect(source).not.toMatch(/url:\s*c\.url \|\| `\/api\/upload\/file/);
+  expect(source).not.toMatch(/url:\s*check\.url\s*\|\|/);
 });
 
 test("signed upload URLs are resolved for packaged app document fetches", () => {

@@ -154,3 +154,107 @@ test("file-count validation ignores empty files in a mixed batch", async () => {
   expect(HashWorker.starts).toBe(1);
   expect(apiMocks.checkFile).toHaveBeenCalledOnce();
 });
+
+test("moves an upload from preparing through throttled uploading and server processing", async () => {
+  apiMocks.checkFile.mockResolvedValueOnce({ exists: false } as never);
+  let resolveUpload!: (value: {
+    key: string;
+    url: string;
+    name: string;
+    type: "document";
+    mimeType: string;
+    size: number;
+  }) => void;
+  const uploadPromise = new Promise<{
+    key: string;
+    url: string;
+    name: string;
+    type: "document";
+    mimeType: string;
+    size: number;
+  }>((resolve) => {
+    resolveUpload = resolve;
+  });
+  apiMocks.uploadFile.mockReturnValueOnce({
+    promise: uploadPromise,
+    abort: vi.fn(),
+  });
+  const { result } = renderHook(() => useUploadHarness());
+  const file = new File(["upload body"], "notes.txt", {
+    type: "text/plain",
+  });
+
+  act(() => result.current.uploadFile(file));
+
+  expect(result.current.attachments[0]).toMatchObject({
+    name: "notes.txt",
+    isUploading: true,
+    uploadProgress: 0,
+    uploadStage: "preparing",
+  });
+  await waitFor(() => expect(apiMocks.uploadFile).toHaveBeenCalledOnce());
+  const options = apiMocks.uploadFile.mock.calls[0]?.[1] as {
+    onProgress?: (progress: number) => void;
+  };
+
+  act(() => options.onProgress?.(35));
+  expect(result.current.attachments[0]).toMatchObject({
+    uploadProgress: 35,
+    uploadStage: "uploading",
+  });
+
+  act(() => options.onProgress?.(100));
+  expect(result.current.attachments[0]).toMatchObject({
+    uploadProgress: 99,
+    uploadStage: "processing",
+  });
+
+  act(() =>
+    resolveUpload({
+      key: "documents/test/notes.txt",
+      url: "/api/upload/file/documents/test/notes.txt",
+      name: "notes.txt",
+      type: "document",
+      mimeType: "text/plain",
+      size: file.size,
+    }),
+  );
+  await waitFor(() =>
+    expect(result.current.attachments[0]).toEqual(
+      expect.objectContaining({ key: "documents/test/notes.txt" }),
+    ),
+  );
+  expect(result.current.attachments[0]).not.toHaveProperty("isUploading");
+  expect(result.current.attachments[0]).not.toHaveProperty("uploadProgress");
+  expect(result.current.attachments[0]).not.toHaveProperty("uploadStage");
+});
+
+test("shows preparing immediately and terminates image work when cancelled", async () => {
+  class PendingImageWorker {
+    static terminations = 0;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onerror: ((event: ErrorEvent) => void) | null = null;
+    postMessage() {}
+    terminate() {
+      PendingImageWorker.terminations += 1;
+    }
+  }
+  vi.stubGlobal("Worker", PendingImageWorker);
+  const { result } = renderHook(() => useUploadHarness());
+  const file = new File([new Uint8Array(300 * 1024)], "capture.png", {
+    type: "image/png",
+  });
+
+  act(() => result.current.uploadFile(file));
+
+  expect(result.current.attachments[0]).toMatchObject({
+    name: "capture.png",
+    uploadStage: "preparing",
+  });
+  const tempId = result.current.attachments[0].id;
+  act(() => result.current.cancelUpload(tempId));
+
+  expect(result.current.attachments).toEqual([]);
+  expect(PendingImageWorker.terminations).toBe(1);
+  expect(apiMocks.uploadFile).not.toHaveBeenCalled();
+});

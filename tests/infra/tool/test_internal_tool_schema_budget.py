@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-import json
+from pathlib import Path
 from typing import Any
 
 import tiktoken
+import tiktoken.load
+from langchain_core.messages.utils import count_tokens_approximately
 from langchain_core.tools import BaseTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
@@ -28,8 +30,7 @@ from src.infra.tool.transfer_file_tool import (
 )
 from src.infra.tool.upload_url_tool import get_upload_url_tool
 
-BASELINE_SCHEMA_TOKENS = 8666
-MAX_SCHEMA_TOKENS = 5700
+MAX_ESTIMATED_SCHEMA_TOKENS = 5700
 EXPECTED_TOOL_NAMES = {
     "ask_human",
     "audio_transcribe",
@@ -82,12 +83,9 @@ def _definitions(tools: list[BaseTool] | None = None) -> dict[str, dict[str, Any
     return {tool.name: convert_to_openai_tool(tool)["function"] for tool in scoped_tools}
 
 
-def _token_count(definitions: dict[str, dict[str, Any]]) -> int:
-    encoding = tiktoken.get_encoding("o200k_base")
-    return sum(
-        len(encoding.encode(json.dumps(definition, ensure_ascii=False, separators=(",", ":"))))
-        for definition in definitions.values()
-    )
+def _estimated_token_count(definitions: dict[str, dict[str, Any]]) -> int:
+    # Model-specific tiktoken encodings are downloaded lazily; tests must stay offline.
+    return count_tokens_approximately([], tools=list(definitions.values()))
 
 
 def _enum_values(property_schema: dict[str, Any]) -> list[str] | None:
@@ -99,6 +97,27 @@ def _enum_values(property_schema: dict[str, Any]) -> list[str] | None:
     return None
 
 
+def test_schema_budget_measurement_does_not_require_network(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.delitem(tiktoken.registry.ENCODINGS, "o200k_base", raising=False)
+    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path))
+
+    def reject_download(_: str) -> bytes:
+        raise AssertionError("schema budget measurement must stay offline")
+
+    monkeypatch.setattr(tiktoken.load, "read_file", reject_download)
+    definitions = {
+        "example": {
+            "name": "example",
+            "description": "abcd汉",
+            "parameters": {"type": "object", "properties": {}},
+        }
+    }
+
+    assert _estimated_token_count(definitions) == 25
+
+
 def test_internal_tool_schema_token_budget() -> None:
     tools = _scoped_tools()
     names = [tool.name for tool in tools]
@@ -107,8 +126,7 @@ def test_internal_tool_schema_token_budget() -> None:
     assert len(names) == len(EXPECTED_TOOL_NAMES)
     assert len(names) == len(set(names))
     assert set(names) == EXPECTED_TOOL_NAMES
-    assert _token_count(definitions) < BASELINE_SCHEMA_TOKENS
-    assert _token_count(definitions) <= MAX_SCHEMA_TOKENS
+    assert _estimated_token_count(definitions) <= MAX_ESTIMATED_SCHEMA_TOKENS
 
 
 def test_closed_string_arguments_are_exposed_as_enums() -> None:

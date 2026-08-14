@@ -4,7 +4,10 @@ import {
   cleanPastedHtml,
 } from "../components/chat/chatInputTurndown";
 import { PASTE_TEXT_THRESHOLD } from "../components/chat/chatInputConstants";
-import { classifyClipboardFiles } from "../components/chat/clipboardFiles";
+import {
+  classifyClipboardFiles,
+  decodeEmbeddedClipboardImage,
+} from "../components/chat/clipboardFiles";
 import type { FileCategory } from "../types";
 
 export interface UsePasteHandlerOptions {
@@ -72,6 +75,18 @@ export function usePasteHandler({
       if (fileResult.kind === "invalid-image") {
         e.preventDefault();
         onInvalidImagePaste?.();
+        return;
+      }
+      if (fileResult.kind === "embedded-image") {
+        e.preventDefault();
+        void decodeEmbeddedClipboardImage(
+          fileResult.source,
+          fileResult.mimeType,
+        )
+          .then((file) => {
+            if (validateCount(1)) uploadFiles([file]);
+          })
+          .catch(() => onInvalidImagePaste?.());
         return;
       }
       if (fileResult.kind === "files") {

@@ -90,6 +90,12 @@ export const AttachmentCard = memo(function AttachmentCard({
   const isThumbnail = isImage || isExcalidraw;
   const isCompact = size === "compact";
   const isFailed = Boolean(attachment.uploadError);
+  const uploadStatusLabel =
+    attachment.uploadStage === "preparing"
+      ? t("fileUpload.preparing", "Preparing image…")
+      : attachment.uploadStage === "processing"
+        ? t("fileUpload.serverProcessing", "Processing on server…")
+        : `${Math.min(99, attachment.uploadProgress ?? 0)}%`;
 
   const handleClick = () => {
     onClick?.();
@@ -157,7 +163,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           <div className="mt-0.5 flex items-center justify-between gap-2 min-w-0">
             <span className="text-xs text-stone-400 dark:text-stone-500 truncate">
               {isUploading
-                ? `${attachment.uploadProgress ?? 0}%`
+                ? uploadStatusLabel
                 : isFailed
                   ? t("fileUpload.composerUploadFailed", "Upload failed")
                   : formatFileSize(attachment.size)}

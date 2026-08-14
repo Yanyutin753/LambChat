@@ -12,7 +12,24 @@ export interface CompressOptions {
   targetSizeKB?: number;
   /** Skip compression if file is already under this size in KB (default 200) */
   skipBelowKB?: number;
+  /** Abort in-flight worker compression. */
+  signal?: AbortSignal;
+  /** Compatibility behavior when worker image APIs are unavailable. */
+  fallback?: "original" | "main-thread";
 }
+
+type CompressionWorkerResponse =
+  | {
+      ok: true;
+      blob: Blob;
+      mimeType: string;
+      extension: string;
+    }
+  | {
+      ok: false;
+      code: "unsupported" | "failed";
+      message: string;
+    };
 
 /**
  * Compress an image file using Canvas API.
@@ -28,7 +45,11 @@ export async function compressImageFile(
     maxDimension = MAX_DIMENSION,
     targetSizeKB = TARGET_SIZE_KB,
     skipBelowKB = SMALL_FILE_THRESHOLD_KB,
+    signal,
+    fallback = "original",
   } = options ?? {};
+
+  if (signal?.aborted) throw createAbortError();
 
   // Skip tiny files
   if (file.size < skipBelowKB * 1024) return file;
@@ -39,6 +60,80 @@ export async function compressImageFile(
   // Skip SVG — vector format, canvas rasterization is undesirable
   if (file.type === "image/svg+xml") return file;
 
+  try {
+    const response = await compressImageInWorker(file, {
+      maxDimension,
+      targetSizeKB,
+      signal,
+    });
+    if (response.ok) {
+      if (response.blob.size >= file.size) return file;
+      return blobToFile(
+        response.blob,
+        replaceExtension(file.name, response.extension),
+        response.mimeType,
+      );
+    }
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+  }
+  if (fallback === "main-thread") {
+    return compressImageOnMainThread(file, { maxDimension, targetSizeKB });
+  }
+  return file;
+}
+
+function compressImageInWorker(
+  file: File,
+  options: {
+    maxDimension: number;
+    targetSizeKB: number;
+    signal?: AbortSignal;
+  },
+): Promise<CompressionWorkerResponse> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker;
+    try {
+      worker = new Worker(
+        new URL("../workers/imageCompressionWorker.ts", import.meta.url),
+        { type: "module" },
+      );
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    const cleanup = () => {
+      options.signal?.removeEventListener("abort", handleAbort);
+      worker.terminate();
+    };
+    const handleAbort = () => {
+      cleanup();
+      reject(createAbortError());
+    };
+
+    worker.onmessage = (event: MessageEvent<CompressionWorkerResponse>) => {
+      cleanup();
+      resolve(event.data);
+    };
+    worker.onerror = (event) => {
+      cleanup();
+      reject(new Error(event.message || "Image compression worker failed"));
+    };
+    options.signal?.addEventListener("abort", handleAbort, { once: true });
+    worker.postMessage({
+      file,
+      maxDimension: options.maxDimension,
+      targetSizeKB: options.targetSizeKB,
+    });
+  });
+}
+
+async function compressImageOnMainThread(
+  file: File,
+  options: { maxDimension: number; targetSizeKB: number },
+): Promise<File> {
+  const { maxDimension, targetSizeKB } = options;
   const bitmap = await createImageBitmap(file);
   let { width, height } = bitmap;
 
@@ -89,6 +184,14 @@ export async function compressImageFile(
   }
 
   return file;
+}
+
+function createAbortError(): DOMException {
+  return new DOMException("Image compression aborted", "AbortError");
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function canvasToBlob(

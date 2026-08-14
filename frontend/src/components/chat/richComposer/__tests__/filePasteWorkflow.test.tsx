@@ -1,12 +1,22 @@
 /** @vitest-environment jsdom */
 
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import {
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vitest";
 import { PASTE_TEXT_THRESHOLD } from "../../chatInputConstants";
 import { RichChatComposer } from "../RichChatComposer";
 
 const PNG_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function paste(
   element: HTMLElement,
@@ -161,7 +171,14 @@ test("zero-byte clipboard placeholders are consumed as unavailable images", () =
   expect(editor).not.toHaveTextContent("stale fallback text");
 });
 
-test("embedded data images are uploaded instead of inserted as text", () => {
+test("embedded data images are decoded asynchronously instead of inserted as text", async () => {
+  vi.stubGlobal("Worker", undefined);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      blob: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+    })),
+  );
   const onFiles = vi.fn();
   const onInvalidImage = vi.fn();
   const onLongTextCreate = vi.fn();
@@ -180,7 +197,8 @@ test("embedded data images are uploaded instead of inserted as text", () => {
 
   paste(editor, [], "", `<img src="${PNG_DATA_URL}">`);
 
-  expect(onFiles).toHaveBeenCalledOnce();
+  expect(onFiles).not.toHaveBeenCalled();
+  await waitFor(() => expect(onFiles).toHaveBeenCalledOnce());
   const uploadedFiles = onFiles.mock.calls[0]?.[0] as File[];
   expect(uploadedFiles[0]).toMatchObject({
     name: "pasted-image.png",
