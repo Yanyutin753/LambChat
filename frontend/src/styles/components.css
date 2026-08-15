@@ -714,7 +714,7 @@
 
 .panel-header__mobile-menu-item > .agent-model-section-switcher {
   display: grid;
-  width: min(18rem, calc(100vw - 2rem));
+  width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.25rem;
   border-color: var(--glass-border);

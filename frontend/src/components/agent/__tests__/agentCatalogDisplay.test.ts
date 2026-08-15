@@ -3,12 +3,12 @@ import {
   resolveAgentDisplayName,
 } from "../agentCatalog";
 
-const t = (key: string) => `i18n:${key}`;
+const t = (key: string, defaultValue?: string) => defaultValue ?? `i18n:${key}`;
 
 const agent = {
   id: "search",
-  name: "agents.search.name",
-  description: "agents.search.description",
+  name: "Search Agent",
+  description: "For research and complex tasks",
   labels: {
     zh: {
       name: "搜索助手",
@@ -26,9 +26,23 @@ test("resolves agent display metadata from the current locale", () => {
   expect(resolveAgentDescription(agent, "zh-CN", t)).toBe("面向检索和复杂任务");
 });
 
-test("falls back through configured languages before legacy i18n keys", () => {
-  expect(resolveAgentDisplayName(agent, "ja", t)).toBe("搜索助手");
-  expect(resolveAgentDescription({ ...agent, labels: {} }, "ja", t)).toBe(
-    "i18n:agents.search.description",
+test("falls back to i18n key when current locale has no label", () => {
+  // ja has no label → skips to i18n key → t("agents.search.name", "Search Agent")
+  expect(resolveAgentDisplayName(agent, "ja", t)).toBe("Search Agent");
+});
+
+test("falls back to i18n key when no labels are configured", () => {
+  // labels empty → falls back to t("agents.search.name", "Search Agent")
+  expect(resolveAgentDisplayName({ ...agent, labels: {} }, "ja", t)).toBe(
+    "Search Agent",
   );
+  expect(resolveAgentDescription({ ...agent, labels: {} }, "ja", t)).toBe(
+    "For research and complex tasks",
+  );
+});
+
+test("falls back to raw name when agent has no id and no labels", () => {
+  const noIdAgent = { ...agent, id: undefined, labels: {} };
+  // no id → t("Search Agent") without defaultValue → "i18n:Search Agent"
+  expect(resolveAgentDisplayName(noIdAgent, "ja", t)).toBe("i18n:Search Agent");
 });

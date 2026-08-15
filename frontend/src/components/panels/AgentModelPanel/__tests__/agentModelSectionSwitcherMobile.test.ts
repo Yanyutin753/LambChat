@@ -11,7 +11,7 @@ const componentsCss = readFileSync(
 test("agent model section switcher keeps a compact segmented layout in the mobile header menu", () => {
   expect(panelSource).toMatch(/agent-model-section-switcher/);
   expect(componentsCss).toMatch(
-    /\.panel-header__mobile-menu-item > \.agent-model-section-switcher\s*\{[\s\S]*?display:\s*grid;[\s\S]*?width:\s*min\(18rem,\s*calc\(100vw - 2rem\)\);/,
+    /\.panel-header__mobile-menu-item > \.agent-model-section-switcher\s*\{[\s\S]*?display:\s*grid;[\s\S]*?width:\s*100%;/,
   );
   expect(componentsCss).toMatch(
     /\.panel-header__mobile-menu-item > \.agent-model-section-switcher > button\s*\{[\s\S]*?height:\s*2\.625rem;[\s\S]*?justify-content:\s*center;/,
