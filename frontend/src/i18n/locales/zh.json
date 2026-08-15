@@ -225,15 +225,15 @@
   "agents": {
     "fast": {
       "description": "无沙箱，响应更快，适合日常对话",
-      "name": "Fast Agent"
+      "name": "快速助手"
     },
     "search": {
       "description": "支持代码解释器和沙箱，适合复杂任务",
-      "name": "Search Agent"
+      "name": "搜索助手"
     },
     "team": {
       "description": "按角色分派子代理，无团队时回退到单代理模式",
-      "name": "Team Agent"
+      "name": "团队助手"
     }
   },
   "appName": "LambChat",

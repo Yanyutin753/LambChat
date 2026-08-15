@@ -225,15 +225,15 @@
   "agents": {
     "fast": {
       "description": "샌드박스 없음, 빠른 응답, 일상 대화용",
-      "name": "Fast Agent"
+      "name": "빠른 에이전트"
     },
     "search": {
       "description": "코드 인터프리터 & 샌드박스 지원, 복잡한 작업용",
-      "name": "Search Agent"
+      "name": "검색 에이전트"
     },
     "team": {
       "description": "역할 기반 서브 에이전트에 작업을 라우팅합니다. 팀 미설정 시 단일 에이전트 모드로 폴백합니다.",
-      "name": "Team Agent"
+      "name": "팀 에이전트"
     }
   },
   "appName": "LambChat",
