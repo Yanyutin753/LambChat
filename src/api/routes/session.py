@@ -725,6 +725,34 @@ async def toggle_session_favorite(
     }
 
 
+@router.post("/{session_id}/pin")
+async def toggle_session_pin(
+    session_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Toggle a session's pinned-to-top state."""
+
+    manager = SessionManager()
+    storage = SessionStorage()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    verify_session_ownership(session, user)
+
+    favorites_project_id = await _get_favorites_project_id(user.sub)
+    updated_session = await storage.toggle_pin(session_id, user.sub)
+    if not updated_session:
+        raise HTTPException(status_code=500, detail="置顶状态更新失败")
+
+    updated_session = _normalize_session(updated_session, favorites_project_id)
+    return {
+        "status": "updated",
+        "is_pinned": bool(updated_session.metadata.get("is_pinned", False)),
+        "session": updated_session,
+    }
+
+
 @router.post("/{session_id}/generate-title")
 async def generate_session_title(
     session_id: str,
