@@ -628,6 +628,7 @@
       "forkFailed": "Fork failed",
       "forkSuccess": "Forked to new session",
       "generating": "Generating",
+      "generatingImage": "Generating image",
       "interrupted": "You stopped this response",
       "mermaidError": "Mermaid Error",
       "model": "Model",

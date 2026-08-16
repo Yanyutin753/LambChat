@@ -3572,7 +3572,7 @@
   background: color-mix(in srgb, #10b981 6%, var(--theme-bg));
 }
 
-/* Image generation — scoped creative surface */
+/* Image generation — aicss.dev-inspired dot-grid + morphing glow canvas */
 .ai-image-generation__header,
 .ai-image-generation__compact-header {
   box-shadow: inset 0 0 0 0.5px
@@ -3580,89 +3580,242 @@
 }
 
 .ai-image-generation__icon {
-  color: #7c3aed;
-  border: 1px solid color-mix(in srgb, #8b5cf6 20%, var(--theme-border));
-  background: color-mix(in srgb, #8b5cf6 10%, var(--theme-bg-card));
-}
-
-.dark .ai-image-generation__icon {
-  color: #c4b5fd;
+  color: var(--theme-text-secondary);
+  border: 1px solid
+    color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-text) 6%, var(--theme-bg-card));
 }
 
 .ai-image-generation-frame {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-height: 10rem;
-  border: 1px solid color-mix(in srgb, #8b5cf6 18%, var(--theme-border));
-  border-radius: 0.75rem;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, #8b5cf6 7%, var(--theme-bg-card)),
-    color-mix(in srgb, var(--theme-bg) 90%, #8b5cf6 10%)
-  );
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, white 35%, transparent),
-    0 8px 24px -20px color-mix(in srgb, #6d28d9 45%, transparent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 
-.ai-image-generation-frame::before {
-  content: "";
+.ig-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  background: var(--theme-bg-card);
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+}
+
+.ig-canvas--compact {
+  aspect-ratio: 16 / 9;
+}
+
+.ig-dots {
   position: absolute;
-  z-index: -1;
-  inset: 0;
-  width: 48%;
-  transform: translateX(-130%) skewX(-12deg);
+  inset: 2px;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--theme-text) 22%, transparent) 0.7px,
+    transparent 1.3px
+  );
+  background-size: 11px 11px;
+  background-repeat: space;
+  opacity: 0.22;
+}
+
+.ig-glow {
+  position: absolute;
+  inset: 2px;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--theme-text) 85%, transparent) 1.1px,
+    transparent 1.6px
+  );
+  background-size: 11px 11px;
+  background-repeat: space;
+  mask-image: radial-gradient(ellipse at center, #000 0%, transparent 60%),
+    radial-gradient(ellipse at center, #000 0%, transparent 62%);
+  -webkit-mask-image: radial-gradient(
+      ellipse at center,
+      #000 0%,
+      transparent 60%
+    ),
+    radial-gradient(ellipse at center, #000 0%, transparent 62%);
+  mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  mask-size:
+    72% 62%,
+    52% 52%;
+  -webkit-mask-size:
+    72% 62%,
+    52% 52%;
+  mask-position:
+    16% 20%,
+    30% 32%;
+  -webkit-mask-position:
+    16% 20%,
+    30% 32%;
+  animation:
+    ig-morph 4.2s cubic-bezier(0.35, 1.55, 0.65, 1) infinite,
+    ig-breathe 1.9s cubic-bezier(0.66, 0, 0.34, 1) infinite;
+}
+
+@keyframes ig-morph {
+  0% {
+    -webkit-mask-size:
+      52% 46%,
+      40% 40%;
+    mask-size:
+      52% 46%,
+      40% 40%;
+    -webkit-mask-position:
+      16% 20%,
+      30% 32%;
+    mask-position:
+      16% 20%,
+      30% 32%;
+  }
+  25% {
+    -webkit-mask-size:
+      46% 58%,
+      44% 38%;
+    mask-size:
+      46% 58%,
+      44% 38%;
+    -webkit-mask-position:
+      84% 16%,
+      66% 30%;
+    mask-position:
+      84% 16%,
+      66% 30%;
+  }
+  50% {
+    -webkit-mask-size:
+      60% 44%,
+      38% 46%;
+    mask-size:
+      60% 44%,
+      38% 46%;
+    -webkit-mask-position:
+      82% 84%,
+      62% 68%;
+    mask-position:
+      82% 84%,
+      62% 68%;
+  }
+  75% {
+    -webkit-mask-size:
+      48% 54%,
+      46% 40%;
+    mask-size:
+      48% 54%,
+      46% 40%;
+    -webkit-mask-position:
+      14% 82%,
+      34% 66%;
+    mask-position:
+      14% 82%,
+      34% 66%;
+  }
+  100% {
+    -webkit-mask-size:
+      52% 46%,
+      40% 40%;
+    mask-size:
+      52% 46%,
+      40% 40%;
+    -webkit-mask-position:
+      16% 20%,
+      30% 32%;
+    mask-position:
+      16% 20%,
+      30% 32%;
+  }
+}
+
+@keyframes ig-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.ig-res {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--theme-text-tertiary);
+  background: color-mix(in srgb, var(--theme-bg) 72%, transparent);
+  padding: 2px 7px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+
+.ig-canvas--compact .ig-res {
+  font-size: 9px;
+  top: 6px;
+  right: 6px;
+  padding: 1px 5px;
+}
+
+.ig-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
+.ig-label {
   background: linear-gradient(
     90deg,
-    transparent,
-    color-mix(in srgb, white 58%, transparent),
-    transparent
+    var(--theme-text) 0%,
+    var(--theme-text) 30%,
+    color-mix(in srgb, var(--theme-text) 45%, transparent) 45%,
+    color-mix(in srgb, var(--theme-text) 45%, transparent) 55%,
+    var(--theme-text) 70%,
+    var(--theme-text) 100%
   );
-  animation: ai-image-generation-shimmer 1.8s ease-in-out infinite;
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: ig-shine 2.25s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+  font-weight: 550;
+  font-size: 14px;
 }
 
-.ai-image-generation-frame--compact {
-  min-height: 7rem;
-  margin-bottom: 0.5rem;
+.ig-canvas--compact ~ .ig-meta .ig-label {
+  font-size: 12px;
 }
 
-.ai-image-generation-frame__status {
-  position: absolute;
-  inset: auto 0.75rem 0.75rem;
-  z-index: 1;
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid color-mix(in srgb, #8b5cf6 16%, var(--theme-border));
-  border-radius: 999px;
-  color: color-mix(in srgb, #6d28d9 75%, var(--theme-text));
-  background: color-mix(in srgb, var(--theme-bg-card) 90%, transparent);
-  box-shadow: 0 4px 14px -10px color-mix(in srgb, #6d28d9 40%, transparent);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  backdrop-filter: blur(8px);
+@keyframes ig-shine {
+  0%,
+  18% {
+    background-position: 100% 0;
+  }
+  82%,
+  100% {
+    background-position: 0% 0;
+  }
 }
 
-.dark .ai-image-generation-frame__status {
-  color: #ddd6fe;
+.ig-prompt {
+  color: var(--theme-text-secondary);
+  font-size: 13px;
+}
+
+.ig-canvas--compact ~ .ig-meta .ig-prompt {
+  font-size: 11px;
 }
 
 .ai-image-generation-result {
   animation: ai-image-generation-result-in 0.28s cubic-bezier(0.16, 1, 0.3, 1)
     both;
-}
-
-@keyframes ai-image-generation-shimmer {
-  0% {
-    transform: translateX(-130%) skewX(-12deg);
-  }
-  65%,
-  100% {
-    transform: translateX(310%) skewX(-12deg);
-  }
 }
 
 @keyframes ai-image-generation-result-in {
@@ -3757,7 +3910,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ai-image-generation-frame::before,
+  .ig-glow,
+  .ig-label,
   .ai-image-generation-result {
     animation: none;
   }

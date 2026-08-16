@@ -628,6 +628,7 @@
       "forkFailed": "포크 실패",
       "forkSuccess": "새 세션으로 포크됨",
       "generating": "생성 중",
+      "generatingImage": "이미지 생성 중",
       "interrupted": "답변을 중단했습니다",
       "mermaidError": "Mermaid 오류",
       "model": "모델",

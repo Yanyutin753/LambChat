@@ -80,7 +80,7 @@ export function UserMessageBubble({
   );
 
   return (
-    <div className="w-full px-4 sm:px-6 py-4 group">
+    <div className="w-full px-4 sm:px-8 py-4 group">
       <div className="mx-auto flex max-w-4xl lg:max-w-5xl xl:max-w-6xl justify-end">
         <div className="flex flex-col items-end max-w-[90%]">
           {/* Attachment preview - outside message bubble */}

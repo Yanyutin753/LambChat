@@ -664,7 +664,7 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div
-      className="chat-input-shell sm:px-4 pb-3 sm:pb-5"
+      className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-5"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       {composerExpanded ? (
@@ -676,9 +676,7 @@ export const ChatInput = memo(function ChatInput({
       ) : null}
       <form
         onSubmit={handleSubmit}
-        className={
-          className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl px-2"
-        }
+        className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}
       >
         <div
           ref={containerRef}

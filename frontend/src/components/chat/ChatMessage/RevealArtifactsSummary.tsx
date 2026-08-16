@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   Copy,
+  Check,
   Loader2,
 } from "lucide-react";
 import clsx from "clsx";
@@ -135,6 +136,7 @@ function TreeFileRow({
   onOpenImagePreview?: (artifact: RevealArtifact & { kind: "file" }) => void;
 }) {
   const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
   const ext = node.artifact.name.split(".").pop()?.toLowerCase() || "";
   const imageSrc = isImageFile(ext) ? node.artifact.preview.signedUrl : null;
 
@@ -187,11 +189,18 @@ function TreeFileRow({
           copyToClipboard(
             node.artifact.preview.signedUrl || node.artifact.path,
           );
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
         }}
-        className="shrink-0 p-1.5 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 opacity-0 group-hover:opacity-100 transition-all"
-        title={t("chat.message.copy")}
+        className={clsx(
+          "shrink-0 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100",
+          copied
+            ? "text-emerald-500 dark:text-emerald-400"
+            : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700",
+        )}
+        title={copied ? t("chat.message.copied") : t("chat.message.copy")}
       >
-        <Copy size={20} />
+        {copied ? <Check size={20} /> : <Copy size={20} />}
       </span>
     </button>
   );

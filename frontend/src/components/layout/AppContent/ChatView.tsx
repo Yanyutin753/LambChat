@@ -556,7 +556,7 @@ export function ChatView({
             key={messageListSessionKey}
             ref={virtuosoRef}
             className="dark:divide-stone-800 overflow-x-hidden"
-            style={showTimelineRail ? { paddingRight: 56 } : undefined}
+            style={undefined}
             data={messages}
             computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}

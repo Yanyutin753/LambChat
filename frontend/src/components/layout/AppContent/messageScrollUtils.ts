@@ -616,9 +616,9 @@ export function startVirtuosoScrollToBottom({
         notifyInitialSettle();
       }
       finish(
-        hasExceededScrollBudget || hasReachedAttemptLimit
-          ? "max-attempts"
-          : "settled",
+        isAtBottom && hasStableHeight && attempts >= minAttemptsBeforeSettling
+          ? "settled"
+          : "max-attempts",
       );
       return;
     }

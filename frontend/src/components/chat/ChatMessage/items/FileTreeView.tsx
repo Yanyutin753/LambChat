@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Download, ChevronRight, Copy } from "lucide-react";
+import { Download, ChevronRight, Copy, Check } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { getFileTypeInfo, isImageFile } from "../../../documents/utils";
@@ -170,6 +170,7 @@ function FileTreeNode({
 }) {
   const { t } = useTranslation();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { textFiles, binFiles } = useMemo(
     () => collectSubtreeFiles(node, files),
     [node, files],
@@ -304,11 +305,18 @@ function FileTreeNode({
           onClick={(e) => {
             e.stopPropagation();
             copyToClipboard(files[node.path]);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
           }}
-          className="shrink-0 p-1.5 rounded-lg text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle opacity-0 group-hover:opacity-100 transition-all"
-          title={t("chat.message.copy")}
+          className={clsx(
+            "shrink-0 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100",
+            copied
+              ? "text-emerald-500 dark:text-emerald-400"
+              : "text-theme-text-tertiary hover:text-theme-text-secondary hover:bg-theme-bg-subtle",
+          )}
+          title={copied ? t("chat.message.copied") : t("chat.message.copy")}
         >
-          <Copy size={20} />
+          {copied ? <Check size={20} /> : <Copy size={20} />}
         </span>
       )}
     </button>

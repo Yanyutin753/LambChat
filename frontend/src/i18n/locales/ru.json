@@ -628,6 +628,7 @@
       "forkFailed": "Не удалось создать форк",
       "forkSuccess": "Форк создан в новой сессии",
       "generating": "Генерация",
+      "generatingImage": "Генерация изображения",
       "interrupted": "Вы остановили этот ответ",
       "mermaidError": "Ошибка Mermaid",
       "model": "Модель",

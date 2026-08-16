@@ -628,6 +628,7 @@
       "forkFailed": "分叉失败",
       "forkSuccess": "已分叉到新会话",
       "generating": "生成中",
+      "generatingImage": "正在生成图片",
       "interrupted": "你已终止本次回答",
       "mermaidError": "Mermaid 错误",
       "model": "模型",

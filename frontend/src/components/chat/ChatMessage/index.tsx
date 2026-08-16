@@ -2,7 +2,7 @@ import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { Copy, GitBranch, Info, Sparkles, Target } from "lucide-react";
+import { Check, Copy, GitBranch, Info, Sparkles, Target } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
@@ -442,6 +442,7 @@ export const ChatMessage = memo(function ChatMessage({
   const { isAuthenticated } = useAuth();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
+  const [copied, setCopied] = useState(false);
   const modelDetails = resolveTokenUsageModelDetails({
     modelId: message.tokenUsage?.model_id,
     model: message.tokenUsage?.model,
@@ -501,7 +502,7 @@ export const ChatMessage = memo(function ChatMessage({
         !isFirst && "pt-2",
       )}
     >
-      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-6">
+      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-8">
         {/* Content */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
           {/* Header: Avatar + Role label + Stop button */}
@@ -622,18 +623,21 @@ export const ChatMessage = memo(function ChatMessage({
                 const textContent = getAssistantTextContent();
                 if (textContent) {
                   copyToClipboard(textContent);
+                  setCopied(true);
                   toast.success(t("chat.message.copied"));
+                  setTimeout(() => setCopied(false), 2000);
                 }
               }}
               className={clsx(
                 "p-1.5 rounded-md transition-colors",
                 !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
-                "hover:bg-stone-200 dark:hover:bg-stone-700",
-                "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
+                copied
+                  ? "text-emerald-500 dark:text-emerald-400"
+                  : "hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
               )}
-              title={t("chat.message.copy")}
+              title={copied ? t("chat.message.copied") : t("chat.message.copy")}
             >
-              <Copy size={16} />
+              {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
             {sessionId && onForkMessage && (
               <button

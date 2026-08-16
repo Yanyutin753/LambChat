@@ -129,7 +129,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
           </div>
         </div>
         {images.length > 0 && (
-          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 dark:bg-white/10 text-violet-600 dark:text-violet-300 text-xs font-medium shadow-sm">
+          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-theme-bg-subtle text-theme-text-secondary text-xs font-medium shadow-sm">
             <ImageIcon size={10} />
             {images.length}
           </span>
@@ -138,56 +138,63 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
 
       {isPending && images.length === 0 && (
         <div
-          className="ai-image-generation-frame aspect-[4/3]"
-          data-state={status}
+          className="ai-image-generation-frame"
           role="status"
-          aria-live="polite"
+          aria-label={t("chat.message.generatingImage", "Generating image")}
         >
-          <div className="ai-image-generation-frame__status">
-            <Sparkles size={14} aria-hidden="true" />
-            <span>
-              {t("chat.message.running")} ·{" "}
-              {t("chat.message.toolImageGenerate")}
+          <div className="ig-canvas">
+            <span className="ig-dots" aria-hidden />
+            <span className="ig-glow" aria-hidden />
+            {size && <span className="ig-res">{size}</span>}
+          </div>
+          <div className="ig-meta">
+            <span className="ig-label">
+              {t("chat.message.generatingImage", "Generating image")}
             </span>
+            {prompt && (
+              <span className="ig-prompt">
+                "{prompt.length > 80 ? prompt.slice(0, 77) + "…" : prompt}"
+              </span>
+            )}
           </div>
         </div>
       )}
 
       {/* ── Tags ── */}
       <div className="flex flex-wrap gap-1.5">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-xs">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs">
           <Tag size={9} className="opacity-50" />
           {t("chat.message.toolImageTag")}
         </span>
         {model && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-xs">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs">
             <Layers size={9} className="opacity-50" />
             {model}
           </span>
         )}
         {size && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-xs">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs">
             <ImageIcon size={10} className="opacity-50" />
             {size}
           </span>
         )}
         {quality && (
-          <span className="px-2 py-0.5 rounded-md bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-xs capitalize">
+          <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs capitalize">
             {quality}
           </span>
         )}
         {style && (
-          <span className="px-2 py-0.5 rounded-md bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-xs capitalize">
+          <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs capitalize">
             {style}
           </span>
         )}
         {outputFormat && (
-          <span className="px-2 py-0.5 rounded-md bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-xs font-mono uppercase">
+          <span className="px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs font-mono uppercase">
             {outputFormat}
           </span>
         )}
         {inputImages.length > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-xs">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs">
             <ImagePlus size={10} className="opacity-50" />
             {t("chat.message.toolImageRefCount", { count: inputImages.length })}
           </span>
@@ -198,10 +205,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {prompt && (
         <div className="relative rounded-lg tool-code-block">
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-theme-bg-subtle text-theme-text-tertiary text-xs transition-colors duration-200">
-            <Sparkles
-              size={12}
-              className="text-violet-500 dark:text-violet-400"
-            />
+            <Sparkles size={12} className="text-theme-text-secondary" />
             <span className="min-w-0 flex-1 truncate">
               {t("chat.message.toolImagePrompt")}
             </span>
@@ -221,14 +225,11 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {inputImages.length > 0 && (
         <div className="rounded-lg border border-theme-border overflow-hidden">
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-theme-bg-subtle text-theme-text-tertiary text-xs">
-            <ImagePlus
-              size={12}
-              className="text-violet-500 dark:text-violet-400"
-            />
+            <ImagePlus size={12} className="text-theme-text-secondary" />
             <span className="min-w-0 flex-1 truncate">
               {t("chat.message.toolImageRefImages", "Reference Images")}
             </span>
-            <span className="shrink-0 text-[10px] text-violet-500 dark:text-violet-400">
+            <span className="shrink-0 text-[10px] text-theme-text-secondary">
               {inputImages.length}
             </span>
           </div>
@@ -248,8 +249,8 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
                   key={i}
                   className={clsx(
                     "relative rounded-lg overflow-hidden",
-                    "border border-dashed border-violet-300/60 dark:border-violet-700/40",
-                    "hover:border-violet-400 dark:hover:border-violet-600/50",
+                    "border border-dashed border-theme-border",
+                    "hover:border-theme-text-tertiary",
                     "transition-colors cursor-pointer",
                   )}
                   onClick={() => openImagePreview(resolvedUrl)}
@@ -285,7 +286,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
               className={clsx(
                 "ai-image-generation-result group/img relative rounded-xl overflow-hidden",
                 "border border-theme-border",
-                "hover:border-violet-200 dark:hover:border-violet-800/50 hover:shadow-lg",
+                "hover:shadow-lg hover:border-theme-text-tertiary",
                 "transition-all duration-200",
                 "cursor-pointer",
               )}
@@ -332,14 +333,14 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       <div className="ai-image-generation__compact-header flex items-center gap-2 px-2 py-1.5 rounded-lg mb-2 border border-theme-border bg-theme-bg-card">
         <ImageIcon
           size={14}
-          className="shrink-0 text-violet-500 dark:text-violet-400"
+          className="shrink-0 text-theme-text-secondary"
           aria-hidden="true"
         />
-        <span className="text-xs text-violet-700 dark:text-violet-300 font-medium truncate min-w-0 flex-1 overflow-hidden">
+        <span className="text-xs text-theme-text font-medium truncate min-w-0 flex-1 overflow-hidden">
           {t("chat.message.toolImageGenerate")}
         </span>
         {images.length > 0 && (
-          <span className="ml-auto shrink-0 text-[10px] text-violet-500 dark:text-violet-400">
+          <span className="ml-auto shrink-0 text-[10px] text-theme-text-secondary">
             {t("chat.message.toolImageImgCount", { count: images.length })}
           </span>
         )}
@@ -347,26 +348,33 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
 
       {isPending && images.length === 0 && (
         <div
-          className="ai-image-generation-frame ai-image-generation-frame--compact aspect-[16/9]"
-          data-state={status}
+          className="ai-image-generation-frame mb-2"
           role="status"
-          aria-live="polite"
+          aria-label={t("chat.message.generatingImage", "Generating image")}
         >
-          <div className="ai-image-generation-frame__status">
-            <Sparkles size={12} aria-hidden="true" />
-            <span>{t("chat.message.running")}</span>
+          <div className="ig-canvas ig-canvas--compact">
+            <span className="ig-dots" aria-hidden />
+            <span className="ig-glow" aria-hidden />
+            {size && <span className="ig-res">{size}</span>}
+          </div>
+          <div className="ig-meta">
+            <span className="ig-label">
+              {t("chat.message.generatingImage", "Generating image")}
+            </span>
+            {prompt && (
+              <span className="ig-prompt">
+                "{prompt.length > 60 ? prompt.slice(0, 57) + "…" : prompt}"
+              </span>
+            )}
           </div>
         </div>
       )}
 
-      {/* Compact prompt */}
-      {prompt && (
+      {/* Compact prompt (only when not pending) */}
+      {!isPending && prompt && (
         <ToolArgsBlock size="compact" wrap>
-          <Sparkles
-            size={12}
-            className="shrink-0 text-violet-500 dark:text-violet-400"
-          />
-          <span className="truncate text-violet-600 dark:text-violet-300">
+          <Sparkles size={12} className="shrink-0 text-theme-text-secondary" />
+          <span className="truncate text-theme-text-secondary">
             {prompt.length > 120 ? prompt.slice(0, 117) + "…" : prompt}
           </span>
         </ToolArgsBlock>
@@ -375,22 +383,22 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {/* Compact tags */}
       <div className="flex flex-wrap gap-1">
         {images.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px]">
             {t("chat.message.toolImageCount", { count: images.length })}
           </span>
         )}
         {inputImages.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px]">
             {t("chat.message.toolImageRefCount", { count: inputImages.length })}
           </span>
         )}
         {size && (
-          <span className="px-1.5 py-0.5 rounded bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-[10px] font-mono">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px] font-mono">
             {size}
           </span>
         )}
         {quality && (
-          <span className="px-1.5 py-0.5 rounded bg-violet-100/60 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 text-[10px] capitalize">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px] capitalize">
             {quality}
           </span>
         )}
@@ -404,7 +412,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
             return (
               <div
                 key={i}
-                className="relative shrink-0 w-12 h-12 rounded-md overflow-hidden border border-dashed border-violet-300/60 dark:border-violet-700/40 cursor-pointer"
+                className="relative shrink-0 w-12 h-12 rounded-md overflow-hidden border border-dashed border-theme-border cursor-pointer"
                 onClick={() => openImagePreview(resolvedUrl)}
               >
                 <ImageWithSkeleton
@@ -421,7 +429,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
             );
           })}
           {inputImages.length > 4 && (
-            <div className="shrink-0 w-12 h-12 rounded-md bg-violet-100/60 dark:bg-violet-900/20 border border-dashed border-violet-300/60 dark:border-violet-700/40 flex items-center justify-center text-violet-600 dark:text-violet-400 text-[10px] font-medium">
+            <div className="shrink-0 w-12 h-12 rounded-md bg-theme-bg-subtle border border-dashed border-theme-border flex items-center justify-center text-theme-text-secondary text-[10px] font-medium">
               +{inputImages.length - 4}
             </div>
           )}
@@ -434,7 +442,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
           {images.slice(0, 4).map((img, i) => (
             <div
               key={i}
-              className="ai-image-generation-result relative rounded-lg overflow-hidden border border-theme-border hover:border-violet-200 dark:hover:border-violet-800/50 transition-colors cursor-pointer"
+              className="ai-image-generation-result relative rounded-lg overflow-hidden border border-theme-border hover:border-theme-text-tertiary transition-colors cursor-pointer"
               onClick={() => openImagePreview(img.url)}
             >
               <ImageWithSkeleton
