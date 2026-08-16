@@ -227,7 +227,7 @@ describe("frontend performance budgets", () => {
     expect(result.warnings).toEqual([]);
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatch(/eager JavaScript: \d+\/512000 bytes/);
-    expect(logs[0]).toMatch(/precache: 8 entries, \d+\/4194304 bytes/);
+    expect(logs[0]).toMatch(/precache: 8 entries, \d+\/5242880 bytes/);
   });
 
   test("fails deterministic eager and precache budgets", async () => {
@@ -278,9 +278,9 @@ describe("frontend performance budgets", () => {
     await expect(
       makeTransform((filePath) =>
         filePath === "/dist/assets/index.js"
-          ? Buffer.alloc(4 * 1024 * 1024 + 1, 0)
+          ? Buffer.alloc(5 * 1024 * 1024 + 1, 0)
           : baseFiles.get(filePath)!,
-      )([{ url: "assets/index.js", size: 4 * 1024 * 1024 + 1 }]),
-    ).rejects.toThrow(/precache budget exceeded: 4194305 > 4194304 bytes/);
+      )([{ url: "assets/index.js", size: 5 * 1024 * 1024 + 1 }]),
+    ).rejects.toThrow(/precache budget exceeded: 5242881 > 5242880 bytes/);
   });
 });
