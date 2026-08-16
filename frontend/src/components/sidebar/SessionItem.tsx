@@ -310,8 +310,8 @@ function SessionItemComponent({
 
         {/* Title - editable or display */}
         <div className="min-w-0 flex-1 flex items-center gap-2">
-          {(session.task_status === "running" ||
-            session.task_status === "pending") && (
+          {(session.metadata?.task_status === "running" ||
+            session.metadata?.task_status === "pending") && (
             <span className="shrink-0 h-2 w-2 rounded-full border-2 border-blue-500 border-t-transparent animate-spin opacity-70" />
           )}
           {isEditing ? (

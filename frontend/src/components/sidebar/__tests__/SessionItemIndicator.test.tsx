@@ -17,7 +17,7 @@ describe("SessionItem task running indicator", () => {
   it("shows spinner when task_status is running", () => {
     render(
       <SessionItem
-        session={{ ...baseSession, task_status: "running" }}
+        session={{ ...baseSession, metadata: { task_status: "running" } }}
         isActive={false}
         projects={[]}
         onSelect={vi.fn()}
@@ -31,7 +31,7 @@ describe("SessionItem task running indicator", () => {
   it("shows spinner when task_status is pending", () => {
     render(
       <SessionItem
-        session={{ ...baseSession, task_status: "pending" }}
+        session={{ ...baseSession, metadata: { task_status: "pending" } }}
         isActive={false}
         projects={[]}
         onSelect={vi.fn()}
@@ -45,7 +45,7 @@ describe("SessionItem task running indicator", () => {
   it("hides spinner when task_status is completed", () => {
     render(
       <SessionItem
-        session={{ ...baseSession, task_status: "completed" }}
+        session={{ ...baseSession, metadata: { task_status: "completed" } }}
         isActive={false}
         projects={[]}
         onSelect={vi.fn()}
@@ -56,10 +56,10 @@ describe("SessionItem task running indicator", () => {
     );
     expect(document.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
-  it("hides spinner when task_status is null", () => {
+  it("hides spinner when task_status is absent", () => {
     render(
       <SessionItem
-        session={{ ...baseSession, task_status: null }}
+        session={baseSession}
         isActive={false}
         projects={[]}
         onSelect={vi.fn()}
