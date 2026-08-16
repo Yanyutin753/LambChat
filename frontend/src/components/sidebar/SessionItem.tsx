@@ -340,7 +340,7 @@ function SessionItemComponent({
         {/* Task running indicator - same position/size as unread badge */}
         {(session.metadata?.task_status === "running" ||
           session.metadata?.task_status === "pending") && (
-          <span className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin opacity-70" />
+          <span className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500 dark:border-amber-400 border-t-transparent animate-spin opacity-70" />
         )}
 
         {/* Unread dot - hidden when session is active (user is viewing it) */}
