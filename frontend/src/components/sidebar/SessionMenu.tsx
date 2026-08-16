@@ -2,7 +2,7 @@
  * Session context menu component for session actions
  */
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   Share2,
   Star,
+  Pin,
   Check,
 } from "lucide-react";
 import type { BackendSession } from "../../services/api/session";
@@ -33,8 +34,11 @@ interface SessionMenuProps {
   onMoveToProject: (projectId: string | null) => void;
   onShare?: () => void;
   onToggleFavorite?: () => void;
+  onTogglePin?: () => void;
   anchorEl: HTMLElement | null;
   isFavorite?: boolean;
+  isPinned?: boolean;
+  cursorPosition?: { x: number; y: number };
   currentProjectId?: string | null;
 }
 
@@ -48,8 +52,11 @@ export function SessionMenu({
   onMoveToProject,
   onShare,
   onToggleFavorite,
+  onTogglePin,
   anchorEl,
   isFavorite = false,
+  isPinned = false,
+  cursorPosition,
   currentProjectId,
 }: SessionMenuProps) {
   const { t } = useTranslation();
@@ -58,21 +65,37 @@ export function SessionMenu({
   const anchorRef = useRef(anchorEl);
   anchorRef.current = anchorEl;
 
-  const menuStyle = useStickyDropdownPosition(anchorRef, isOpen, (rect) => {
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const openBelow = spaceBelow >= spaceAbove;
-    return {
-      position: "fixed",
-      ...(openBelow
-        ? { top: rect.bottom + 4 }
-        : { bottom: window.innerHeight - rect.top + 4 }),
-      right: window.innerWidth - rect.right,
-      maxHeight: (openBelow ? spaceBelow : spaceAbove) - 16,
-      overflowY: "auto",
-      zIndex: 50,
-    };
-  });
+  const stickyMenuStyle = useStickyDropdownPosition(
+    anchorRef,
+    isOpen,
+    (rect) => {
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const openBelow = spaceBelow >= spaceAbove;
+      return {
+        position: "fixed",
+        ...(openBelow
+          ? { top: rect.bottom + 4 }
+          : { bottom: window.innerHeight - rect.top + 4 }),
+        right: window.innerWidth - rect.right,
+        maxHeight: (openBelow ? spaceBelow : spaceAbove) - 16,
+        overflowY: "auto",
+        zIndex: 50,
+      };
+    },
+  );
+
+  // When opened via right-click, anchor the dropdown at the cursor instead
+  // of the trigger element. The sticky-position hook must still be called
+  // unconditionally (Rules of Hooks), so we select the style afterwards.
+  const menuStyle: CSSProperties = cursorPosition
+    ? {
+        position: "fixed",
+        left: cursorPosition.x,
+        top: cursorPosition.y,
+        zIndex: 50,
+      }
+    : stickyMenuStyle;
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -178,6 +201,29 @@ export function SessionMenu({
             {isFavorite
               ? t("sidebar.removeFromFavorites")
               : t("sidebar.addToFavorites")}
+          </span>
+        </button>
+      )}
+
+      {/* Pin */}
+      {onTogglePin && (
+        <button
+          onClick={() => {
+            onTogglePin();
+            onClose();
+          }}
+          className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
+            isPinned
+              ? "text-blue-500 hover:bg-blue-500/10"
+              : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-bg-subtle)]"
+          }`}
+        >
+          <Pin
+            size={16}
+            className={`shrink-0 ${isPinned ? "fill-blue-500" : ""}`}
+          />
+          <span>
+            {isPinned ? t("sidebar.unpinFromTop") : t("sidebar.pinToTop")}
           </span>
         </button>
       )}
