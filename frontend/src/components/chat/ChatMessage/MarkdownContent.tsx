@@ -573,7 +573,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                 src={resolvedSrc}
                 alt={alt}
                 loading="eager"
-                className="max-w-full h-auto rounded-lg shadow hover:opacity-90 transition-opacity"
+                className="max-w-lg h-auto rounded-lg shadow hover:opacity-90 transition-opacity cursor-zoom-in"
                 onClick={() => {
                   if (!resolvedSrc) return;
                   sessionImageGallery?.openImage(resolvedSrc, alt || undefined);
