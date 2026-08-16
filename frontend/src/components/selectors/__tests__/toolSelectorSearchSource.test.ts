@@ -50,11 +50,7 @@ test("skill selector search uses the same editing-safe input", () => {
 
 test("tool selector filters tools before grouping and pagination", () => {
   expect(source).toMatch(/const filteredTools = useMemo/);
-  expect(source).toMatch(/tool\.name/);
-  expect(source).toMatch(/tool\.description/);
-  expect(source).toMatch(/tool\.server/);
-  expect(source).toMatch(/t\(`tools\.categories\.\$\{tool\.category\}`\)/);
-  expect(source).toMatch(/tool\.parameters\?\.flatMap/);
+  expect(source).toMatch(/matchTool\(query, tool, t\)/);
   expect(source).toMatch(/total: filteredTools\.length/);
   expect(source).toMatch(/createPagedGroups\(filteredTools/);
   expect(source).toMatch(/total=\{filteredTools\.length\}/);

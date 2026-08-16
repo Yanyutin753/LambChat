@@ -475,11 +475,14 @@ class MCPStorage(StorageOperations):
                         if isinstance(tool.args_schema, dict):
                             schema = tool.args_schema
                         else:
-                            schema = tool.args_schema.schema()
+                            # 兼容 Pydantic v1 (.schema()) 和 v2 (.model_json_schema())
+                            schema = getattr(
+                                tool.args_schema, "model_json_schema", tool.args_schema.schema
+                            )()
                         properties = schema.get("properties", {})
                         required = set(schema.get("required", []))
-                        for index, (param_name, param_info) in enumerate(properties.items()):
-                            if index >= MCP_DISCOVER_TOOL_PARAMETER_LIMIT:
+                        for param_index, (param_name, param_info) in enumerate(properties.items()):
+                            if param_index >= MCP_DISCOVER_TOOL_PARAMETER_LIMIT:
                                 break
                             if isinstance(param_info, dict):
                                 tool_info["parameters"].append(
@@ -491,8 +494,12 @@ class MCPStorage(StorageOperations):
                                         "default": param_info.get("default"),
                                     }
                                 )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        "[MCP] Failed to extract parameters for tool '%s': %s",
+                        tool.name,
+                        e,
+                    )
                 result.append(tool_info)
 
             return result, None

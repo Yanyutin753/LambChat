@@ -21,6 +21,7 @@ const directRenderers = listTsxFiles(sourceRoot)
 test("tracks every direct ReactMarkdown renderer", () => {
   expect(directRenderers.map(({ path }) => path).sort()).toEqual([
     "components/chat/ChatMessage/MarkdownContent.tsx",
+    "components/layout/AppContent/MessageTimelineRail.tsx",
     "components/layout/AppContent/TaskToastMarkdown.tsx",
     "components/panels/ApprovalPanel.tsx",
   ]);

@@ -100,6 +100,14 @@ export function getNextMessageScrollFollowStateForAtBottomChange({
     return state;
   }
 
+  // When the user has explicitly detached from stream-follow (e.g. scrolled up
+  // during streaming), reaching the bottom via followOutput must NOT clear their
+  // intent — otherwise followOutput and atBottomChange form a feedback loop that
+  // prevents the user from ever staying scrolled up.
+  if (state.manualDetachFromStream) {
+    return state;
+  }
+
   return {
     ...state,
     userScrolledUp: false,

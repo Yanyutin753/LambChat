@@ -76,3 +76,32 @@ def test_pinyin_failure_falls_back_to_normalized_text_search(monkeypatch) -> Non
     records = [DiscoveryRecord(name="web_search", text="search the web")]
 
     assert names("web-search", records) == ["web_search"]
+
+
+def test_multi_term_query_partial_match() -> None:
+    """OR semantics: a record matching only one of several terms should still be returned."""
+    records = [
+        DiscoveryRecord(name="alpha_tool", text="does alpha things"),
+        DiscoveryRecord(name="beta_tool", text="does beta things"),
+        DiscoveryRecord(name="gamma_tool", text="does gamma things"),
+    ]
+
+    # Query with two terms — alpha_tool matches only "alpha", not "zzz"
+    result = names("alpha zzz", records)
+    assert "alpha_tool" in result
+    # gamma_tool matches neither term
+    assert "gamma_tool" not in result
+
+
+def test_multi_term_all_match_ranks_higher() -> None:
+    """Records matching more terms should rank higher than those matching fewer."""
+    records = [
+        DiscoveryRecord(name="alpha_beta_tool", text="alpha and beta"),
+        DiscoveryRecord(name="alpha_tool", text="alpha only"),
+    ]
+
+    matches = search_records("alpha beta", records, max_results=10)
+    assert len(matches) == 2
+    # alpha_beta_tool matches both terms → higher score → first
+    assert matches[0].name == "alpha_beta_tool"
+    assert matches[1].name == "alpha_tool"

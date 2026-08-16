@@ -18,6 +18,7 @@ import type { ToolState, ToolCategory, ToolParamInfo } from "../../types";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useClientPagination } from "../../hooks/useClientPagination";
+import { matchTool } from "../../utils/pinyinSearch";
 import { Pagination } from "../common/Pagination";
 import { PanelSearchInput } from "../common/PanelSearchInput";
 import {
@@ -78,24 +79,7 @@ export function ToolSelector({
     const query = searchQuery.trim().toLowerCase();
     if (!query) return tools;
 
-    return tools.filter((tool) => {
-      const searchable = [
-        tool.name,
-        tool.description,
-        tool.server,
-        t(`tools.categories.${tool.category}`),
-        ...(tool.parameters?.flatMap((param) => [
-          param.name,
-          param.type,
-          param.description,
-        ]) ?? []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return searchable.includes(query);
-    });
+    return tools.filter((tool) => matchTool(query, tool, t));
   }, [searchQuery, t, tools]);
 
   const { page, pageSize, setPage, totalPages } = useClientPagination({

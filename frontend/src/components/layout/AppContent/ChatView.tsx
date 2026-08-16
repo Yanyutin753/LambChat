@@ -10,7 +10,7 @@ import { SessionImageGalleryProvider } from "../../chat/ChatMessage/sessionImage
 import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, type ListRange } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel";
 import {
@@ -31,6 +31,11 @@ import type { MessageAttachment } from "../../../types";
 import type { ChatViewProps } from "./ChatViewProps";
 import { useCurrentTeam, resolveChatAssistantIdentity } from "./ChatViewProps";
 import { useChatOutline } from "./useChatOutline";
+import { shouldShowMessageOutline } from "./messageOutline";
+import {
+  MessageTimelineRail,
+  updateTimelineRange,
+} from "./MessageTimelineRail";
 import { useRevealPreview } from "./useRevealPreview";
 import { findCancelledRetryTarget } from "../../chat/ChatMessage/cancelledRetry";
 import {
@@ -175,6 +180,7 @@ export function ChatView({
     messagesEndRef,
     isNearBottom,
     isNearTop,
+    manualDetachFromStreamRef,
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,
@@ -223,12 +229,45 @@ export function ChatView({
   );
 
   // --- Outline panel (side effects managed by hook) ---
-  const { handleVisibleRangeChange } = useChatOutline(
-    messages,
-    virtuosoRef,
-    assistantIdentity.avatar,
-    outlineToggleRef,
-    t,
+  const { outlineItems, handleVisibleRangeChange: handleOutlineRangeChange } =
+    useChatOutline(
+      messages,
+      virtuosoRef,
+      assistantIdentity.avatar,
+      outlineToggleRef,
+      t,
+    );
+
+  // --- Timeline rail (mini-map navigation strip) ---
+  const showTimelineRail = shouldShowMessageOutline(messages);
+
+  const handleVisibleRangeChange = useCallback(
+    (range: ListRange) => {
+      handleOutlineRangeChange(range);
+      updateTimelineRange(range);
+    },
+    [handleOutlineRangeChange],
+  );
+
+  const handleTimelineNavigate = useCallback(
+    (anchorId: string, messageIndex: number) => {
+      virtuosoRef.current?.scrollToIndex({
+        index: messageIndex,
+        behavior: "smooth",
+        align: "start",
+      });
+      requestAnimationFrame(() => {
+        const el = document.getElementById(anchorId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          el.setAttribute("data-external-navigation-highlighted", "true");
+          setTimeout(() => {
+            el.removeAttribute("data-external-navigation-highlighted");
+          }, 1600);
+        }
+      });
+    },
+    [virtuosoRef],
   );
 
   // --- Reveal preview ---
@@ -307,6 +346,11 @@ export function ChatView({
     (isAtBottom: boolean) => {
       if (isLoadingHistory) {
         return isAtBottom ? "auto" : false;
+      }
+      // When the user has explicitly scrolled up during streaming, do not let
+      // Virtuoso's built-in followOutput pull the view back to the bottom.
+      if (manualDetachFromStreamRef.current) {
+        return false;
       }
       return isAtBottom ? "smooth" : false;
     },
@@ -512,6 +556,7 @@ export function ChatView({
             key={messageListSessionKey}
             ref={virtuosoRef}
             className="dark:divide-stone-800 overflow-x-hidden"
+            style={showTimelineRail ? { paddingRight: 56 } : undefined}
             data={messages}
             computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}
@@ -520,6 +565,12 @@ export function ChatView({
             rangeChanged={handleVisibleRangeChange}
             components={virtuosoComponents}
             itemContent={virtuosoItemContent}
+          />
+        )}
+        {showTimelineRail && (
+          <MessageTimelineRail
+            items={outlineItems}
+            onNavigate={handleTimelineNavigate}
           />
         )}
       </main>

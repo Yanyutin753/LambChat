@@ -600,7 +600,7 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             query["metadata.scheduled_task_id"] = scheduled_task_id
         result = await self.collection.update_many(
             query,
-            {"$set": {"unread_count": 0, "updated_at": utc_now()}},
+            {"$set": {"unread_count": 0}},
         )
         return result.modified_count
 

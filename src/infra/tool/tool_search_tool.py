@@ -155,10 +155,18 @@ def _format_tool_result(result: ToolSearchResult) -> str:
     schema: dict[str, Any] = {}
     args_schema = getattr(tool, "args_schema", None)
     if args_schema is not None:
-        try:
-            schema = args_schema.model_json_schema()
-        except Exception:
-            pass
+        if isinstance(args_schema, dict):
+            # MCP tools sometimes carry dict schemas directly
+            schema = args_schema
+        else:
+            try:
+                schema = args_schema.model_json_schema()
+            except Exception as e:
+                logger.warning(
+                    "Failed to generate schema for tool '%s': %s",
+                    result.name,
+                    e,
+                )
 
     callable_schema = {
         key: _compact_schema_value(schema[key]) for key in _CALLABLE_SCHEMA_KEYS if key in schema

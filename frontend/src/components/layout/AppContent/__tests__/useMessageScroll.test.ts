@@ -34,12 +34,31 @@ test("clears the user-scrolled flag when virtuoso reports bottom reached", () =>
         userScrolledUp: true,
         autoScrollActive: true,
         streamLockActive: true,
-        manualDetachFromStream: true,
+        manualDetachFromStream: false,
       }),
       atBottom: true,
     }),
   ).toEqual({
     userScrolledUp: false,
+    autoScrollActive: true,
+    streamLockActive: true,
+    manualDetachFromStream: false,
+  });
+});
+
+test("preserves user-scrolled flag when user has explicitly detached from stream follow", () => {
+  expect(
+    getNextMessageScrollFollowStateForAtBottomChange({
+      state: createMessageScrollFollowState({
+        userScrolledUp: true,
+        autoScrollActive: true,
+        streamLockActive: true,
+        manualDetachFromStream: true,
+      }),
+      atBottom: true,
+    }),
+  ).toEqual({
+    userScrolledUp: true,
     autoScrollActive: true,
     streamLockActive: true,
     manualDetachFromStream: true,

@@ -188,9 +188,10 @@ def search_records(
         if any(not _term_matches_required(term, parsed) for term in required):
             continue
         scores = [_score_term(term, parsed) for term in terms]
-        if not scores or any(score <= 0 for score in scores):
+        positive_scores = [s for s in scores if s > 0]
+        if not positive_scores:
             continue
-        ranked.append(DiscoveryMatch(record=parsed.record, score=sum(scores)))
+        ranked.append(DiscoveryMatch(record=parsed.record, score=sum(positive_scores)))
 
     ranked.sort(key=lambda match: (-match.score, match.name.lower(), match.name))
     return ranked[:max_results]

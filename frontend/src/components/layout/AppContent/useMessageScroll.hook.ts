@@ -42,6 +42,9 @@ interface UseMessageScrollReturn {
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   isNearBottom: boolean;
   isNearTop: boolean;
+  /** Ref that is true when the user has explicitly scrolled up during streaming and
+   *  should not be pulled back to the bottom by followOutput. */
+  manualDetachFromStreamRef: React.RefObject<boolean>;
   handleVirtuosoAtBottomChange: (atBottom: boolean) => void;
   scrollToBottom: () => void;
   scrollToTop: () => void;
@@ -751,6 +754,7 @@ export function useMessageScroll(
     messagesEndRef,
     isNearBottom,
     isNearTop,
+    manualDetachFromStreamRef,
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,

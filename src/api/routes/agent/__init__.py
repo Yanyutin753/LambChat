@@ -228,6 +228,17 @@ HUMAN_TOOLS = [
 ]
 
 
+def _sanitize_schema_for_params(schema: dict) -> dict:
+    """清洗 schema 中的 None-valued properties，避免前端展示空参数。
+
+    复用 mcp_schema_sanitizer 的清洗逻辑，但不依赖 Pydantic 模型操作。
+    仅用于 extract_tool_parameters 的 dict 路径。
+    """
+    from src.infra.tool.mcp_schema_sanitizer import _sanitize_json_schema
+
+    return _sanitize_json_schema(schema)
+
+
 def extract_tool_parameters(tool) -> list[ToolParamInfo]:
     """从 LangChain 工具中提取参数信息"""
     parameters: list[ToolParamInfo] = []
@@ -238,11 +249,16 @@ def extract_tool_parameters(tool) -> list[ToolParamInfo]:
                 schema = tool.args_schema
             else:
                 try:
-                    schema = tool.args_schema.schema()
+                    # 兼容 Pydantic v1 (.schema()) 和 v2 (.model_json_schema())
+                    schema = getattr(
+                        tool.args_schema, "model_json_schema", tool.args_schema.schema
+                    )()
                 except Exception as e:
                     # Pydantic may fail to generate schema for types like Callable
                     logger.warning(f"Failed to generate schema for tool {tool.name}: {e}")
                     return parameters
+            # 清洗 None-valued properties，避免前端展示空参数
+            schema = _sanitize_schema_for_params(schema)
             properties = schema.get("properties", {})
             required = set(schema.get("required", []))
 

@@ -539,8 +539,11 @@ class MCPClientManager:
                 if server_config.get("headers"):
                     server_configs[server_name]["headers"] = server_config["headers"]
             else:
-                logger.debug(
-                    f"Skipping MCP server '{server_name}': unsupported transport '{transport}'"
+                logger.warning(
+                    "[MCP] Skipping server '%s': unsupported transport '%s' "
+                    "(only sse and streamable_http are supported)",
+                    server_name,
+                    transport,
                 )
                 continue
 
@@ -707,7 +710,8 @@ class MCPClientManager:
                 if hasattr(tool, "args_schema") and tool.args_schema:
                     if not isinstance(tool.args_schema, dict):
                         # 尝试生成 schema，如果失败则跳过该工具
-                        tool.args_schema.schema()
+                        # 兼容 Pydantic v1 (.schema()) 和 v2 (.model_json_schema())
+                        getattr(tool.args_schema, "model_json_schema", tool.args_schema.schema)()
             except Exception as e:
                 # Pydantic 无法为该工具生成 schema，跳过该工具
                 logger.warning(
