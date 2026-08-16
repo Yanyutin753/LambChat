@@ -2535,6 +2535,11 @@
   },
   "sidebar": {
     "addToFavorites": "Добавить в избранное",
+    "pinToTop": "Закрепить",
+    "pinToggleFailed": "Не удалось обновить статус закрепления",
+    "pinned": "Закреплено",
+    "unpinFromTop": "Открепить",
+    "unpinned": "Откреплено",
     "batchDeleteConfirm": "Удалить {{count}} выбранных сессий? Это действие нельзя отменить.",
     "batchDeletePartialFailed": "Не удалось удалить {{count}} сеанс(ов)",
     "batchDeleted": "Удалено {{count}} сеанс(ов)",

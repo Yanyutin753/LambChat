@@ -2535,6 +2535,11 @@
   },
   "sidebar": {
     "addToFavorites": "添加到收藏",
+    "pinToTop": "置顶",
+    "pinToggleFailed": "置顶状态更新失败",
+    "pinned": "已置顶",
+    "unpinFromTop": "取消置顶",
+    "unpinned": "已取消置顶",
     "batchDeleteConfirm": "确定要删除选中的 {{count}} 个会话吗？此操作无法撤销。",
     "batchDeletePartialFailed": "{{count}} 个会话删除失败",
     "batchDeleted": "已删除 {{count}} 个会话",

@@ -2535,6 +2535,11 @@
   },
   "sidebar": {
     "addToFavorites": "お気に入りに追加",
+    "pinToTop": "ピン留め",
+    "pinToggleFailed": "ピン留め状態の更新に失敗しました",
+    "pinned": "ピン留めしました",
+    "unpinFromTop": "ピン留めを外す",
+    "unpinned": "ピン留めを外しました",
     "batchDeleteConfirm": "選択した{{count}}件のセッションを削除しますか？この操作は取り消せません。",
     "batchDeletePartialFailed": "{{count}}件のセッションの削除に失敗しました",
     "batchDeleted": "{{count}}件のセッションを削除しました",

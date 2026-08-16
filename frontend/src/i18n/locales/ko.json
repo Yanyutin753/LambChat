@@ -2535,6 +2535,11 @@
   },
   "sidebar": {
     "addToFavorites": "즐겨찾기에 추가",
+    "pinToTop": "고정",
+    "pinToggleFailed": "고정 상태 업데이트 실패",
+    "pinned": "고정됨",
+    "unpinFromTop": "고정 해제",
+    "unpinned": "고정 해제됨",
     "batchDeleteConfirm": "선택한 {{count}}개의 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
     "batchDeletePartialFailed": "{{count}}개 세션 삭제 실패",
     "batchDeleted": "{{count}}개 세션 삭제됨",

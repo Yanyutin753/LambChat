@@ -2535,6 +2535,11 @@
   },
   "sidebar": {
     "addToFavorites": "Add to Favorites",
+    "pinToTop": "Pin to top",
+    "pinToggleFailed": "Failed to update pin status",
+    "pinned": "Pinned",
+    "unpinFromTop": "Unpin",
+    "unpinned": "Unpinned",
     "batchDeleteConfirm": "Delete the {{count}} selected sessions? This action cannot be undone.",
     "batchDeletePartialFailed": "{{count}} session(s) failed to delete",
     "batchDeleted": "Deleted {{count}} session(s)",
