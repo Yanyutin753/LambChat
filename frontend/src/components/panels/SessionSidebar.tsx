@@ -82,6 +82,10 @@ export interface SessionSidebarHandle {
     isFavorite?: boolean,
     scheduledTaskId?: string | null,
   ) => void;
+  updateSessionMetadata: (
+    sessionId: string,
+    metadataPatch: Record<string, unknown>,
+  ) => void;
 }
 
 // ─── Component ─────────────────────────────────────────────────────
@@ -269,10 +273,46 @@ export const SessionSidebar = forwardRef<
 
   // ─── Imperative handle ────────────────────────────────────────────
 
+  const updateSessionMetadata = useCallback(
+    (sessionId: string, metadataPatch: Record<string, unknown>) => {
+      const patchSession = (
+        sessions: BackendSession[],
+      ): BackendSession | null => {
+        return sessions.find((s) => s.id === sessionId) ?? null;
+      };
+
+      // Try uncategorized list first
+      const uncategorized = patchSession(uncategorizedList.sessions);
+      if (uncategorized) {
+        uncategorizedList.updateSession({
+          ...uncategorized,
+          metadata: { ...uncategorized.metadata, ...metadataPatch },
+        });
+        return;
+      }
+
+      // Then check all project lists
+      for (const [, handle] of projectRefs.current) {
+        const found = patchSession(handle.sessions);
+        if (found) {
+          handle.updateSession({
+            ...found,
+            metadata: { ...found.metadata, ...metadataPatch },
+          });
+          return;
+        }
+      }
+    },
+    [uncategorizedList],
+  );
+
   useImperativeHandle(
     ref,
-    () => ({ updateSessionUnread: actions.handleSessionUnread }),
-    [actions.handleSessionUnread],
+    () => ({
+      updateSessionUnread: actions.handleSessionUnread,
+      updateSessionMetadata,
+    }),
+    [actions.handleSessionUnread, updateSessionMetadata],
   );
 
   // ─── Total unread count ────────────────────────────────────────────

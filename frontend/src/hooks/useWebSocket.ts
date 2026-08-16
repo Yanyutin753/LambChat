@@ -32,6 +32,10 @@ export interface RecommendQuestionsNotification {
 export interface WebSocketMessageHandlers {
   onTaskComplete?: (notification: TaskCompleteNotification) => void;
   onRecommendQuestions?: (notification: RecommendQuestionsNotification) => void;
+  onSessionTaskStatus?: (data: {
+    session_id: string;
+    task_status: string;
+  }) => void;
 }
 
 interface UseWebSocketOptions extends WebSocketMessageHandlers {
@@ -59,6 +63,20 @@ export function dispatchWebSocketMessage(
       return;
     }
     handlers.onRecommendQuestions?.(message as RecommendQuestionsNotification);
+  } else if (typedMessage.type === "session:task_status") {
+    const data = (message as { data?: unknown }).data;
+    if (data && typeof data === "object") {
+      const payload = data as Record<string, unknown>;
+      if (
+        typeof payload.session_id === "string" &&
+        typeof payload.task_status === "string"
+      ) {
+        handlers.onSessionTaskStatus?.({
+          session_id: payload.session_id,
+          task_status: payload.task_status,
+        });
+      }
+    }
   }
 }
 
@@ -70,13 +88,19 @@ const MAX_AUTH_FAILURES = 3; // Switch to long interval after this many consecut
 const AUTH_FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown after max failures
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { onTaskComplete, onRecommendQuestions, enabled = true } = options;
+  const {
+    onTaskComplete,
+    onRecommendQuestions,
+    onSessionTaskStatus,
+    enabled = true,
+  } = options;
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const onTaskCompleteRef = useRef(onTaskComplete);
   const onRecommendQuestionsRef = useRef(onRecommendQuestions);
+  const onSessionTaskStatusRef = useRef(onSessionTaskStatus);
   const isMountedRef = useRef(true);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -97,6 +121,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   useEffect(() => {
     onRecommendQuestionsRef.current = onRecommendQuestions;
   }, [onRecommendQuestions]);
+
+  useEffect(() => {
+    onSessionTaskStatusRef.current = onSessionTaskStatus;
+  }, [onSessionTaskStatus]);
 
   const connect = useCallback(async () => {
     // Prevent multiple simultaneous connection attempts
@@ -191,6 +219,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           dispatchWebSocketMessage(message, {
             onTaskComplete: onTaskCompleteRef.current,
             onRecommendQuestions: onRecommendQuestionsRef.current,
+            onSessionTaskStatus: onSessionTaskStatusRef.current,
           });
         } catch (e) {
           console.error("[WebSocket] Failed to parse message:", e);

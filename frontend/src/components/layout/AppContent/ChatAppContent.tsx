@@ -639,6 +639,11 @@ export function ChatAppContent({
         scheduledTaskId,
       );
     },
+    onSessionTaskStatus: (data) => {
+      sidebarRef.current?.updateSessionMetadata(data.session_id, {
+        task_status: data.task_status,
+      });
+    },
   });
 
   const externalNavigation = useExternalNavigationTarget({

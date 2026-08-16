@@ -30,6 +30,10 @@ interface UseWebSocketNotificationsOptions {
     scheduledTaskId?: string | null,
   ) => void;
   onRecommendQuestions?: (notification: RecommendQuestionsNotification) => void;
+  onSessionTaskStatus?: (data: {
+    session_id: string;
+    task_status: string;
+  }) => void;
 }
 
 export function useWebSocketNotifications({
@@ -37,6 +41,7 @@ export function useWebSocketNotifications({
   enabled = true,
   onSessionUnread,
   onRecommendQuestions,
+  onSessionTaskStatus,
 }: UseWebSocketNotificationsOptions) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -45,10 +50,15 @@ export function useWebSocketNotifications({
   onSessionUnreadRef.current = onSessionUnread;
   const onRecommendQuestionsRef = useRef(onRecommendQuestions);
   onRecommendQuestionsRef.current = onRecommendQuestions;
+  const onSessionTaskStatusRef = useRef(onSessionTaskStatus);
+  onSessionTaskStatusRef.current = onSessionTaskStatus;
 
   // WebSocket for task completion notifications
   useWebSocket({
     enabled,
+    onSessionTaskStatus: (data) => {
+      onSessionTaskStatusRef.current?.(data);
+    },
     onRecommendQuestions: (notification) => {
       onRecommendQuestionsRef.current?.(notification);
     },

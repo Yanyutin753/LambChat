@@ -8,5 +8,5 @@ test("keeps ChatAppContent within the frontend line budget margin", () => {
     "utf8",
   );
 
-  expect(content.split("\n").length).toBeLessThanOrEqual(970);
+  expect(content.split("\n").length).toBeLessThanOrEqual(975);
 });

@@ -87,6 +87,7 @@ class TaskExecutor:
 
         presenter = None
         dual_writer = None
+        self._user_id = user_id
 
         try:
             await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
@@ -632,6 +633,26 @@ class TaskExecutor:
                 session_id,
                 SessionUpdate(metadata=metadata),
             )
+
+            # Send real-time task status update to sidebar
+            try:
+                uid = getattr(self, "_user_id", None)
+                if uid:
+                    from src.infra.websocket import get_connection_manager
+
+                    cm = get_connection_manager()
+                    await cm.send_to_user_with_broadcast(
+                        uid,
+                        {
+                            "type": "session:task_status",
+                            "data": {
+                                "session_id": session_id,
+                                "task_status": status.value,
+                            },
+                        },
+                    )
+            except Exception:
+                logger.debug("Failed to send task status WebSocket notification")
         except Exception as e:
             logger.warning(f"Failed to update session status: {e}")
 
