@@ -41,6 +41,7 @@ import {
 import { SessionItem } from "../../sidebar/SessionItem";
 import { APP_NAME, GITHUB_URL } from "../../../constants";
 import { isSessionFavorite } from "../../sidebar/sessionFavorites";
+import { isSessionPinned } from "../../sidebar/sessionPin";
 import type { Project } from "../../../types";
 import type { ScheduledTask } from "../../../types/scheduledTask";
 import { isSidebarProject } from "./projectFilters";
@@ -58,6 +59,7 @@ export interface SessionActions {
   onDeleteSession: (id: string) => void;
   onMoveSession: (id: string, projectId: string | null) => void;
   onToggleFavorite: (id: string) => void;
+  onTogglePin: (id: string) => void;
   onShareSession: (id: string) => void;
   onRequestBatchMoveSessions: (ids: string[], projectId: string | null) => void;
   onRequestBatchDeleteSessions: (ids: string[]) => void;
@@ -477,6 +479,7 @@ export function SessionListContent({
                   onDeleteSession={sessionActions.onDeleteSession}
                   onMoveSession={sessionActions.onMoveSession}
                   onToggleFavorite={sessionActions.onToggleFavorite}
+                  onTogglePin={sessionActions.onTogglePin}
                   onShareSession={sessionActions.onShareSession}
                   onShareProject={projectActions.onShareProject}
                   onRenameProject={projectActions.onRenameProject}
@@ -512,6 +515,7 @@ export function SessionListContent({
                 onDeleteSession={sessionActions.onDeleteSession}
                 onMoveSession={sessionActions.onMoveSession}
                 onToggleFavorite={sessionActions.onToggleFavorite}
+                onTogglePin={sessionActions.onTogglePin}
                 onShareSession={sessionActions.onShareSession}
                 onShareProject={projectActions.onShareProject}
                 onRenameProject={projectActions.onRenameProject}
@@ -737,6 +741,10 @@ export function SessionListContent({
                                 }
                                 onSessionUpdate={onUpdateUncategorizedSession}
                                 isFavorite={isSessionFavorite(session)}
+                                onTogglePin={() =>
+                                  sessionActions.onTogglePin(session.id)
+                                }
+                                isPinned={isSessionPinned(session)}
                                 onDragStartTouch={
                                   sessionActions.onDragStartTouch
                                 }

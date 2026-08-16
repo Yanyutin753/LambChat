@@ -22,6 +22,7 @@ import { ProjectMenu } from "./ProjectMenu";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DynamicIcon } from "../common/DynamicIcon";
 import { isSessionFavorite } from "./sessionFavorites";
+import { isSessionPinned } from "./sessionPin";
 import { shouldAutoExpandProject } from "./autoExpandProject";
 import {
   getUnreadCountForFavorites,
@@ -47,6 +48,7 @@ interface ProjectItemProps {
   onDeleteSession: (sessionId: string) => void;
   onMoveSession: (sessionId: string, projectId: string | null) => void;
   onToggleFavorite?: (sessionId: string) => void;
+  onTogglePin?: (sessionId: string) => void;
   onShareSession?: (sessionId: string) => void;
   onShareProject?: (projectId: string) => void;
   onRenameProject: (projectId: string, name: string) => void;
@@ -76,6 +78,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       onDeleteSession,
       onMoveSession,
       onToggleFavorite,
+      onTogglePin,
       onShareSession,
       onShareProject,
       onRenameProject,
@@ -429,6 +432,10 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                     }
                     onSessionUpdate={updateSession}
                     isFavorite={isSessionFavorite(session)}
+                    onTogglePin={
+                      onTogglePin ? () => onTogglePin(session.id) : undefined
+                    }
+                    isPinned={isSessionPinned(session)}
                     onDragStartTouch={undefined}
                     isDraggingTouch={draggingSessionId === session.id}
                     selectionMode={selectionMode}

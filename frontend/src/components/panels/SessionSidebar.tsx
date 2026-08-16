@@ -348,6 +348,7 @@ export const SessionSidebar = forwardRef<
         actions.setDeleteConfirm({ isOpen: true, sessionId: id }),
       onMoveSession: actions.handleMoveSession,
       onToggleFavorite: actions.handleToggleFavorite,
+      onTogglePin: actions.handleTogglePin,
       onShareSession: actions.handleShareSession,
       onRequestBatchMoveSessions: (ids, projectId) =>
         actions.setBatchMoveConfirm({
