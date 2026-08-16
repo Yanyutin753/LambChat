@@ -15,9 +15,10 @@ describe("MessageImageGallery", () => {
     expect(source).toContain("images: RevealFileImageInfo[]");
   });
 
-  it("uses flex justify-center layout for single image", () => {
+  it("uses no centering layout for single image (left-aligned)", () => {
     expect(source).toContain("images.length === 1");
-    expect(source).toContain("flex justify-center");
+    // Single image should NOT use flex justify-center — left-aligned
+    expect(source).not.toContain("flex justify-center");
   });
 
   it("uses grid grid-cols-2 for 2-3 images", () => {
@@ -52,14 +53,15 @@ describe("MessageImageGallery", () => {
     expect(source).toContain('"reveal-file"');
   });
 
-  it("shows hover overlay with ExternalLink icon", () => {
+  it("shows hover icon in top-right corner", () => {
     expect(source).toContain("ExternalLink");
-    expect(source).toContain("group-hover:opacity-100");
+    expect(source).toContain("absolute top-2 right-2");
+    expect(source).toContain("group-hover/img:opacity-100");
   });
 
   it("shows file name on hover at bottom", () => {
     expect(source).toContain("image.fileName");
-    expect(source).toContain("truncate block");
+    expect(source).toContain("group-hover/img:opacity-100");
   });
 
   it("uses break-inside-avoid for masonry items", () => {

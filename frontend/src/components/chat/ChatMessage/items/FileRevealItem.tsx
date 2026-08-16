@@ -330,9 +330,10 @@ export function FileRevealItem({
       {(canPreview || isExcalidraw) && parsed.s3Url && success ? (
         <div
           className={clsx(
-            "w-full rounded-xl border overflow-hidden transition-colors transition-shadow",
+            "rounded-xl border overflow-hidden transition-colors transition-shadow",
             "border-theme-border bg-white dark:bg-theme-bg",
             "hover:shadow-lg hover:border-theme-border-hover",
+            isImage && "max-w-md",
           )}
         >
           {isAudio ? (
@@ -346,8 +347,8 @@ export function FileRevealItem({
             </div>
           ) : (
             <div
-              className="relative group cursor-pointer"
-              style={{ aspectRatio: isImage ? "16/10" : "16/9" }}
+              className="relative group/img cursor-pointer"
+              style={isImage ? undefined : { aspectRatio: "16/9" }}
               onClick={() => {
                 if (isImage) openImagePreview(parsed.s3Url);
                 else if (isVideo) setVideoViewerSrc(parsed.s3Url);
@@ -365,7 +366,7 @@ export function FileRevealItem({
                   alt={fileName}
                   skipUrlResolve
                   inline
-                  className="absolute inset-0 w-full h-full object-cover z-[1] rounded-lg"
+                  className="w-full h-auto object-contain z-[1] rounded-lg"
                   onLoad={() => setMediaLoaded(true)}
                   onError={() => setMediaLoaded(true)}
                 />
@@ -386,14 +387,22 @@ export function FileRevealItem({
                 )
               )}
               {(isImage || isVideo || isExcalidraw) && (
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center pointer-events-none">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-white/90 dark:bg-theme-bg-card/90 shadow-lg pointer-events-auto cursor-pointer">
-                    <ExternalLink
-                      size={16}
-                      className="text-theme-text-secondary"
-                    />
+                <>
+                  <div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none z-[2]">
+                    <div className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm shadow pointer-events-auto">
+                      <ExternalLink size={14} className="text-white" />
+                    </div>
                   </div>
-                </div>
+                  {isImage && (fileName || parsed.description) && (
+                    <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 transition-opacity z-[2]">
+                      <div className="px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent">
+                        <span className="text-[11px] text-white/90 truncate block">
+                          {parsed.description || fileName}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
