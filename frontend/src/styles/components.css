@@ -3804,6 +3804,17 @@
   }
 }
 
+@keyframes ai-image-generation-shimmer {
+  0%,
+  18% {
+    background-position: 100% 0;
+  }
+  82%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
 .ig-prompt {
   color: var(--theme-text-secondary);
   font-size: 13px;
@@ -3910,6 +3921,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ai-image-generation-frame,
   .ig-glow,
   .ig-label,
   .ai-image-generation-result {

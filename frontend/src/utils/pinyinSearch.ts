@@ -16,7 +16,7 @@ function buildSearchableText(
   tool: ToolInfo,
   getCategoryLabel: (key: string) => string,
 ): string {
-  const parts: string[] = [
+  const parts: (string | undefined)[] = [
     tool.name,
     tool.description,
     tool.server,
@@ -27,7 +27,10 @@ function buildSearchableText(
       param.description,
     ]) ?? []),
   ];
-  return parts.filter(Boolean).join(" ").toLowerCase();
+  return parts
+    .filter((p): p is string => Boolean(p))
+    .join(" ")
+    .toLowerCase();
 }
 
 /**

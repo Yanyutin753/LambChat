@@ -114,7 +114,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
           "border border-theme-border bg-theme-bg-card transition-colors",
         )}
       >
-        <div className="ai-image-generation__icon w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center shrink-0">
+        <div className="ai-image-generation__icon w-10 h-10 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center shrink-0 text-violet-500">
           <ImageIcon size={20} aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
@@ -139,6 +139,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {isPending && images.length === 0 && (
         <div
           className="ai-image-generation-frame"
+          data-state={status}
           role="status"
           aria-label={t("chat.message.generatingImage", "Generating image")}
         >
@@ -349,6 +350,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {isPending && images.length === 0 && (
         <div
           className="ai-image-generation-frame mb-2"
+          data-state={status}
           role="status"
           aria-label={t("chat.message.generatingImage", "Generating image")}
         >
