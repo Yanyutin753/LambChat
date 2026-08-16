@@ -343,10 +343,14 @@ export function useSessionSidebarActions({
         const updatedSession = response.session;
         if (uncategorizedList.sessions.some((s) => s.id === sessionId)) {
           uncategorizedList.updateSession(updatedSession);
+          // updateSession keeps list order; refetch so the pinned session
+          // moves to its pinned-first position (mirrors mark-all-read).
+          uncategorizedList.softRefresh();
         }
         for (const [, handle] of projectRefs.current) {
           if (handle.sessions.some((s) => s.id === sessionId)) {
             handle.updateSession(updatedSession);
+            handle.softRefresh();
           }
         }
       } catch (err) {

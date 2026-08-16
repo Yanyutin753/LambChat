@@ -24,6 +24,39 @@ import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import { isSidebarProject } from "../panels/SidebarParts/projectFilters";
 
+/** Cursor-anchored menu dimensions: w-56 = 224px wide, height estimate. */
+const CURSOR_MENU_WIDTH = 224;
+const CURSOR_MENU_ESTIMATED_HEIGHT = 320;
+
+/**
+ * Fixed position for a cursor-anchored menu, clamped to the viewport so the
+ * menu never renders off-screen: flips up when there is no room below the
+ * cursor, flips left when there is no room to the right, and caps height
+ * with scroll as a safety net.
+ */
+function getCursorMenuStyle(cursorPosition: {
+  x: number;
+  y: number;
+}): CSSProperties {
+  const flipUp =
+    cursorPosition.y + CURSOR_MENU_ESTIMATED_HEIGHT > window.innerHeight;
+  const flipLeft = cursorPosition.x + CURSOR_MENU_WIDTH > window.innerWidth;
+  const top = flipUp
+    ? Math.max(4, cursorPosition.y - CURSOR_MENU_ESTIMATED_HEIGHT)
+    : cursorPosition.y;
+  const left = flipLeft
+    ? Math.max(4, cursorPosition.x - CURSOR_MENU_WIDTH)
+    : cursorPosition.x;
+  return {
+    position: "fixed",
+    left,
+    top,
+    maxHeight: Math.max(120, window.innerHeight - top - 8),
+    overflowY: "auto",
+    zIndex: 50,
+  };
+}
+
 interface SessionMenuProps {
   session: BackendSession;
   projects: Project[];
@@ -89,12 +122,7 @@ export function SessionMenu({
   // of the trigger element. The sticky-position hook must still be called
   // unconditionally (Rules of Hooks), so we select the style afterwards.
   const menuStyle: CSSProperties = cursorPosition
-    ? {
-        position: "fixed",
-        left: cursorPosition.x,
-        top: cursorPosition.y,
-        zIndex: 50,
-      }
+    ? getCursorMenuStyle(cursorPosition)
     : stickyMenuStyle;
 
   const [isMobile, setIsMobile] = useState(() => {
