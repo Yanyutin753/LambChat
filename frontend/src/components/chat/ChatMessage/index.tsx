@@ -16,6 +16,11 @@ import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallItem } from "./ToolCallItem";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { MessagePartRenderer } from "./MessagePartRenderer";
+import {
+  isRevealFileImagePart,
+  type RevealFileImageInfo,
+} from "./revealFileImageUtils";
+import { MessageImageGallery } from "./MessageImageGallery";
 import { RevealArtifactsSummary } from "./RevealArtifactsSummary";
 import { FeedbackButtons } from "./FeedbackButtons";
 import { AssistantAvatar } from "./AssistantAvatar";
@@ -420,6 +425,69 @@ function GoalDetailsButton({
   );
 }
 
+/** Groups consecutive image reveal_file parts for gallery rendering. */
+function groupPartsForGallery(parts: MessagePart[]): Array<
+  | {
+      type: "gallery";
+      images: RevealFileImageInfo[];
+      startPartIndex: number;
+    }
+  | { type: "single"; part: MessagePart; partIndex: number }
+> {
+  const groups: Array<
+    | {
+        type: "gallery";
+        images: RevealFileImageInfo[];
+        startPartIndex: number;
+      }
+    | { type: "single"; part: MessagePart; partIndex: number }
+  > = [];
+  let imageBuffer: RevealFileImageInfo[] | null = null;
+  let bufferStartIndex = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+
+    // Check if this part is an image reveal_file
+    if (part.type === "tool") {
+      const imageInfo = isRevealFileImagePart(part);
+      if (imageInfo) {
+        if (!imageBuffer) {
+          imageBuffer = [];
+          bufferStartIndex = i;
+        }
+        imageBuffer.push(imageInfo);
+        continue;
+      }
+    }
+
+    // Non-image part: flush buffer if any
+    if (imageBuffer) {
+      groups.push({
+        type: "gallery",
+        images: imageBuffer,
+        startPartIndex: bufferStartIndex,
+      });
+      imageBuffer = null;
+    }
+
+    if (part.type !== "recommend_questions") {
+      groups.push({ type: "single", part, partIndex: i });
+    }
+  }
+
+  // Flush remaining buffer
+  if (imageBuffer) {
+    groups.push({
+      type: "gallery",
+      images: imageBuffer,
+      startPartIndex: bufferStartIndex,
+    });
+  }
+
+  return groups;
+}
+
 export const ChatMessage = memo(function ChatMessage({
   message,
   sessionId,
@@ -534,26 +602,31 @@ export const ChatMessage = memo(function ChatMessage({
 
           {hasParts ? (
             <div className="space-y-3 my-2">
-              {message.parts!.map((part: MessagePart, index: number) =>
-                part.type === "recommend_questions" ? null : (
+              {groupPartsForGallery(message.parts!).map((group) =>
+                group.type === "gallery" ? (
+                  <MessageImageGallery
+                    key={`gallery-${group.startPartIndex}`}
+                    images={group.images}
+                  />
+                ) : (
                   <MessagePartRenderer
-                    key={index}
-                    part={part}
+                    key={group.partIndex}
+                    part={group.part}
                     messageId={message.id}
-                    partIndex={index}
+                    partIndex={group.partIndex}
                     isStreaming={message.isStreaming}
-                    isLast={index === message.parts!.length - 1}
+                    isLast={group.partIndex === message.parts!.length - 1}
                     activePreview={activePreview}
                     onOpenPreview={onOpenPreview}
                     onRecommendQuestionClick={onRecommendQuestionClick}
                     onRetryCancelled={
-                      part.type === "cancelled" && onRetryCancelledMessage
+                      group.part.type === "cancelled" && onRetryCancelledMessage
                         ? () => void onRetryCancelledMessage(message.id)
                         : undefined
                     }
                     allowAutoPreview={shouldAllowAutoPreviewForPart({
                       messageId: message.id,
-                      partIndex: index,
+                      partIndex: group.partIndex,
                       latestAutoPreview: latestAutoPreview ?? null,
                     })}
                   />
