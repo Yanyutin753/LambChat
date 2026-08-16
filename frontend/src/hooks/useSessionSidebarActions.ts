@@ -334,6 +334,29 @@ export function useSessionSidebarActions({
     ],
   );
 
+  // ─── Toggle pin ───────────────────────────────────────────────────
+
+  const handleTogglePin = useCallback(
+    async (sessionId: string) => {
+      try {
+        const response = await sessionApi.togglePin(sessionId);
+        const updatedSession = response.session;
+        if (uncategorizedList.sessions.some((s) => s.id === sessionId)) {
+          uncategorizedList.updateSession(updatedSession);
+        }
+        for (const [, handle] of projectRefs.current) {
+          if (handle.sessions.some((s) => s.id === sessionId)) {
+            handle.updateSession(updatedSession);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to toggle pin:", err);
+        toast.error(t("sidebar.pinToggleFailed", "置顶状态更新失败"));
+      }
+    },
+    [projectRefs, t, uncategorizedList],
+  );
+
   // ─── Mark all read ────────────────────────────────────────────────
 
   const handleMarkAllRead = useCallback(
@@ -577,6 +600,7 @@ export function useSessionSidebarActions({
       confirmBatchMoveSessions,
       handleShareSession,
       handleToggleFavorite,
+      handleTogglePin,
       handleMarkAllRead,
       markingReadId,
       shareDialogSessionId,
@@ -599,6 +623,7 @@ export function useSessionSidebarActions({
       confirmBatchMoveSessions,
       handleShareSession,
       handleToggleFavorite,
+      handleTogglePin,
       handleMarkAllRead,
       markingReadId,
       shareDialogSessionId,
