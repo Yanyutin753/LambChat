@@ -156,7 +156,7 @@ export function combinePrecacheBudgetEntries(
 }
 
 export const EAGER_JAVASCRIPT_BUDGET_BYTES = 500 * 1024;
-export const PRECACHE_BUDGET_BYTES = 4 * 1024 * 1024;
+export const PRECACHE_BUDGET_BYTES = 5 * 1024 * 1024;
 export const PRECACHE_ADDITIONAL_ENTRIES: PrecacheEntry[] = [];
 
 export interface PerformanceManifestTransformOptions {
