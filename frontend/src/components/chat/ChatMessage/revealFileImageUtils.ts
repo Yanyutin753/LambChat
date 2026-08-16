@@ -43,7 +43,7 @@ export function isRevealFileImagePart(
       if (r.type === "image" && r.url) {
         return {
           id: part.id || `reveal-${r.key}`,
-          src: getFullUrl(r.url),
+          src: getFullUrl(r.url) || "",
           fileName: r.name || "image",
         };
       }
@@ -60,7 +60,7 @@ export function isRevealFileImagePart(
       if (!isImageFile(ext) || !s3Url) return null;
       return {
         id: part.id || `reveal-${path}`,
-        src: getFullUrl(s3Url),
+        src: getFullUrl(s3Url) || "",
         fileName: path.split("/").pop() || "image",
       };
     }
