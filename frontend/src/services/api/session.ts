@@ -22,6 +22,7 @@ export interface BackendSession {
   name?: string;
   metadata: Record<string, unknown>;
   unread_count?: number;
+  task_status?: string | null;
 }
 
 // Session list response type
@@ -387,6 +388,19 @@ export const sessionApi = {
     session: BackendSession;
   }> {
     return authFetch(`${API_BASE}/api/sessions/${sessionId}/favorite`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Toggle session pin state
+   */
+  async togglePin(sessionId: string): Promise<{
+    status: string;
+    is_pinned: boolean;
+    session: BackendSession;
+  }> {
+    return authFetch(`${API_BASE}/api/sessions/${sessionId}/pin`, {
       method: "POST",
     });
   },
