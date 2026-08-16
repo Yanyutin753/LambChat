@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from bson import ObjectId
+from pymongo import ReturnDocument
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.session.favorites import (
@@ -932,3 +933,40 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             return None
 
         return self._build_session(result, favorites_project_id)
+
+    async def toggle_pin(
+        self,
+        session_id: str,
+        user_id: str,
+    ) -> Optional[Session]:
+        """Toggle a session's pinned-to-top state."""
+
+        try:
+            object_id = ObjectId(session_id)
+        except Exception:
+            return None
+
+        doc = await self.collection.find_one(
+            {"_id": object_id, "user_id": user_id},
+        )
+        if not doc or doc.get("user_id") != user_id:
+            return None
+
+        current_pinned = bool(doc.get("metadata", {}).get("is_pinned", False))
+        next_pinned = not current_pinned
+
+        result = await self.collection.find_one_and_update(
+            {"_id": object_id, "user_id": user_id},
+            {
+                "$set": {
+                    "metadata.is_pinned": next_pinned,
+                    "updated_at": utc_now(),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if not result:
+            return None
+
+        return self._build_session(result)
