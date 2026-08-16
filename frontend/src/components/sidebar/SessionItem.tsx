@@ -208,6 +208,7 @@ function SessionItemComponent({
 
   // Right-click opens the menu anchored at the cursor; suppress during drag
   const handleContextMenu = (e: React.MouseEvent) => {
+    if (isEditing) return; // Allow native context menu during rename
     if (isDragging) {
       e.preventDefault();
       return;

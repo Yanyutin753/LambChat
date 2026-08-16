@@ -946,30 +946,38 @@ class SessionStorage(SessionAttachmentOperationsMixin):
     ) -> Optional[Session]:
         """Toggle a session's pinned-to-top state."""
 
-        try:
-            object_id = ObjectId(session_id)
-        except Exception:
+        session = await self.get_by_session_id(session_id)
+        if not session:
+            try:
+                session = await self.get_by_id(session_id)
+            except Exception:
+                session = None
+
+        if not session or session.user_id != user_id:
             return None
 
-        doc = await self.collection.find_one(
-            {"_id": object_id, "user_id": user_id},
-        )
-        if not doc or doc.get("user_id") != user_id:
-            return None
-
-        current_pinned = bool(doc.get("metadata", {}).get("is_pinned", False))
+        current_pinned = bool(session.metadata.get("is_pinned", False))
         next_pinned = not current_pinned
+        update_dict: dict[str, Any] = {
+            "updated_at": utc_now(),
+            "metadata.is_pinned": next_pinned,
+        }
 
         result = await self.collection.find_one_and_update(
-            {"_id": object_id, "user_id": user_id},
-            {
-                "$set": {
-                    "metadata.is_pinned": next_pinned,
-                    "updated_at": utc_now(),
-                }
-            },
+            {"session_id": session_id, "user_id": user_id},
+            {"$set": update_dict},
             return_document=ReturnDocument.AFTER,
         )
+
+        if not result:
+            try:
+                result = await self.collection.find_one_and_update(
+                    {"_id": ObjectId(session_id), "user_id": user_id},
+                    {"$set": update_dict},
+                    return_document=ReturnDocument.AFTER,
+                )
+            except Exception:
+                return None
 
         if not result:
             return None
