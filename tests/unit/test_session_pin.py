@@ -118,3 +118,28 @@ async def test_toggle_pin_wrong_user(storage):
     result = await storage.toggle_pin(session_id, "user_1")
     assert result is None
     storage._collection.find_one_and_update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_sorts_pinned_first(storage):
+    """Verify list_sessions uses compound sort with pinned first."""
+    user_id = "user_1"
+
+    mock_cursor = MagicMock()
+    mock_cursor.skip = MagicMock(return_value=mock_cursor)
+    mock_cursor.limit = MagicMock(return_value=mock_cursor)
+    mock_cursor.sort = MagicMock(return_value=mock_cursor)
+    mock_cursor.to_list = AsyncMock(return_value=[])
+    mock_cursor.count_documents = AsyncMock(return_value=0)
+
+    storage._collection = MagicMock()
+    storage._collection.find = MagicMock(return_value=mock_cursor)
+    storage._collection.count_documents = AsyncMock(return_value=0)
+    storage._collection.create_index = AsyncMock()
+
+    # Bypass ensure_indexes_if_needed by setting the class flag
+    SessionStorage._indexes_done = True
+
+    await storage.list_sessions(user_id=user_id, skip=0, limit=20)
+
+    mock_cursor.sort.assert_called_once_with([("metadata.is_pinned", -1), ("updated_at", -1)])

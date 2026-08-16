@@ -433,7 +433,12 @@ class SessionStorage(SessionAttachmentOperationsMixin):
             else:
                 query["$or"] = favorite_query
 
-        cursor = self.collection.find(query).skip(skip).limit(limit).sort("updated_at", -1)
+        cursor = (
+            self.collection.find(query)
+            .skip(skip)
+            .limit(limit)
+            .sort([("metadata.is_pinned", -1), ("updated_at", -1)])
+        )
         total, session_dicts = await asyncio.gather(
             self.collection.count_documents(query),
             cursor.to_list(length=limit),

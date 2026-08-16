@@ -24,14 +24,41 @@ class _FakeUpdateResult:
     modified_count: int = 1
 
 
+def _sort_value(doc: dict[str, Any], field: str) -> tuple[int, Any]:
+    """Resolve dotted paths into a type-safe sort key.
+
+    Missing values sort before present ones; booleans are ranked by int value
+    so compound sorts like metadata.is_pinned stay comparable.
+    """
+    value: Any = doc
+    for part in field.split("."):
+        if not isinstance(value, dict):
+            value = None
+            break
+        value = value.get(part)
+    if isinstance(value, bool):
+        return (1, int(value))
+    if value is None or value == "":
+        return (0, 0)
+    return (2, value)
+
+
 class _FakeCursor:
     def __init__(self, docs: list[dict[str, Any]]):
         self._docs = [dict(doc) for doc in docs]
         self._skip = 0
         self._limit: int | None = None
 
-    def sort(self, field: str, direction: int):
-        self._docs.sort(key=lambda doc: doc.get(field, ""), reverse=direction < 0)
+    def sort(self, key_or_list: Any, direction: int | None = None):
+        # Mirror pymongo: sort("field", direction) or sort([(field, direction), ...]).
+        pairs = (
+            [(key_or_list, direction if direction is not None else 1)]
+            if isinstance(key_or_list, str)
+            else list(key_or_list)
+        )
+        # Stable sort: apply keys from least to most significant.
+        for field, dir_ in reversed(pairs):
+            self._docs.sort(key=lambda doc: _sort_value(doc, field), reverse=dir_ < 0)
         return self
 
     def skip(self, value: int):
