@@ -22,7 +22,7 @@
       position: relative;
       width: 1600px;
       height: 820px;
-      padding: 70px 86px;
+      padding: 64px 78px;
     }
     .shell {
       position: relative;
@@ -36,10 +36,10 @@
     }
     .copy {
       position: absolute;
-      z-index: 4;
-      left: 58px;
-      top: 64px;
-      width: 470px;
+      z-index: 6;
+      left: 56px;
+      top: 66px;
+      width: 452px;
     }
     .eyebrow {
       display: inline-flex;
@@ -92,8 +92,8 @@
       border-radius: 26px;
       overflow: hidden;
       background: #fff;
-      border: 1px solid rgba(35, 52, 43, .14);
-      box-shadow: 0 28px 70px rgba(30, 43, 36, .22);
+      border: 1px solid rgba(35, 52, 43, .2);
+      box-shadow: 0 28px 70px rgba(30, 43, 36, .26);
     }
     .screen::before {
       content: "";
@@ -110,59 +110,43 @@
       height: 100%;
       object-fit: cover;
     }
+    /* bento layout: all screens fully visible, one deliberate overlap (phone) */
     .main {
-      left: 600px;
-      top: 78px;
+      left: 496px;
+      top: 24px;
       width: 770px;
-      height: 482px;
+      height: 428px;
     }
     .main img { object-position: center top; }
     .secondary {
-      left: 778px;
-      top: 498px;
-      width: 416px;
-      height: 260px;
+      left: 496px;
+      top: 476px;
+      width: 458px;
+      height: 168px;
       border-radius: 22px;
     }
     .tertiary {
-      left: 1130px;
-      top: 422px;
-      width: 300px;
-      height: 188px;
-      border-radius: 20px;
+      left: 970px;
+      top: 476px;
+      width: 454px;
+      height: 168px;
+      border-radius: 22px;
     }
     .phone {
-      left: 1282px;
-      top: 210px;
-      width: 174px;
-      height: 352px;
+      left: 1240px;
+      top: 140px;
+      width: 154px;
+      height: 312px;
       border-radius: 28px;
-      box-shadow: 0 26px 64px rgba(30, 43, 36, .28);
+      box-shadow: 0 30px 70px rgba(30, 43, 36, .34);
+      z-index: 4;
     }
     .phone img { object-position: center top; }
-    .chip-row {
-      position: absolute;
-      z-index: 5;
-      left: 614px;
-      bottom: 54px;
-      display: flex;
-      gap: 12px;
-    }
-    .chip {
-      border-radius: 999px;
-      background: rgba(255,255,255,.88);
-      border: 1px solid rgba(220, 232, 225, .95);
-      padding: 13px 17px;
-      color: #34483c;
-      font-size: 16px;
-      font-weight: 780;
-      box-shadow: 0 14px 32px rgba(31, 44, 38, .09);
-    }
     .wash {
       position: absolute;
       z-index: 3;
       inset: 0;
-      background: linear-gradient(90deg, rgba(250,253,251,.96) 0%, rgba(250,253,251,.76) 32%, rgba(250,253,251,0) 60%);
+      background: linear-gradient(90deg, rgba(250,253,251,.97) 0%, rgba(250,253,251,.72) 26%, rgba(250,253,251,0) 50%);
       pointer-events: none;
     }
   </style>
@@ -187,13 +171,6 @@
           <div class="pill">Skill marketplace</div>
           <div class="pill">Model routing</div>
         </div>
-      </div>
-      <div class="chip-row" aria-hidden="true">
-        <div class="chip">Chat</div>
-        <div class="chip">Files</div>
-        <div class="chip">Skills</div>
-        <div class="chip">MCP</div>
-        <div class="chip">Memory</div>
       </div>
     </section>
   </main>
