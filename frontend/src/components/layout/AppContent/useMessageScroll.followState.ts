@@ -140,7 +140,7 @@ export function getNextMessageScrollFollowStateForBottomScroll({
 
 export function getNextMessageScrollFollowStateForUserIntent({
   state,
-  isMobileViewport,
+  isMobileViewport: _isMobileViewport,
   streamingAssistantActive,
 }: {
   state: MessageScrollFollowState;
@@ -167,7 +167,7 @@ export function getNextMessageScrollFollowStateForUserIntent({
 
 export function getNextMessageScrollFollowStateForUserGesture({
   state,
-  isMobileViewport,
+  isMobileViewport: _isMobileViewport,
   streamingAssistantActive,
 }: {
   state: MessageScrollFollowState;

@@ -135,7 +135,7 @@ interface SessionListContentProps {
   isSelectionMode: boolean;
   selectedSessionIds: Set<string>;
   onSetSelectionMode: (enabled: boolean) => void;
-  onSetSelectedSessionIds: (ids: Set<string>) => void;
+  onSetSelectedSessionIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   onClearSelection: () => void;
 }
 
