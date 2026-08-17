@@ -973,7 +973,7 @@ test("detaches the active desktop stream immediately on an explicit upward wheel
   expect(nextState.userScrolledUp).toBe(true);
   expect(nextState.autoScrollActive).toBe(false);
   expect(nextState.streamLockActive).toBe(false);
-  expect(nextState.manualDetachFromStream).toBe(false);
+  expect(nextState.manualDetachFromStream).toBe(true);
 });
 
 test("detaches the active desktop stream on the first slight upward scroll", () => {
@@ -996,7 +996,7 @@ test("detaches the active desktop stream on the first slight upward scroll", () 
   expect(nextState.userScrolledUp).toBe(true);
   expect(nextState.autoScrollActive).toBe(false);
   expect(nextState.streamLockActive).toBe(false);
-  expect(nextState.manualDetachFromStream).toBe(false);
+  expect(nextState.manualDetachFromStream).toBe(true);
 });
 
 test("does not re-arm streaming follow mode while mobile detach lock is active", () => {

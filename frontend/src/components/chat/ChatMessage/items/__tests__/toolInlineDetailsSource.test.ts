@@ -32,10 +32,10 @@ test("tool inline preview details share the indented natural-height container", 
   expect(componentsCss).toMatch(/padding-left:\s*0\.75rem/);
   expect(componentsCss).toMatch(/border-left:\s*2px solid/);
   expect(componentsCss).not.toMatch(
-    /\.tool-inline-details\s*\{[\s\S]*max-height:/,
+    /\.tool-inline-details\s*\{[^}]*max-height:/,
   );
   expect(componentsCss).not.toMatch(
-    /\.tool-inline-details\s*\{[\s\S]*overflow-y:\s*auto/,
+    /\.tool-inline-details\s*\{[^}]*overflow-y:\s*auto/,
   );
   expect(componentsCss).toMatch(/overflow-x:\s*auto/);
   expect(componentsCss).toMatch(/min-width:\s*0/);

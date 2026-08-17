@@ -58,7 +58,7 @@ const EditFileItem = memo(function EditFileItem({
               <span aria-hidden="true">−</span>
               {t("chat.message.toolEditRemoved")}
             </div>
-            <div className="ai-file-diff__body relative group overflow-hidden tool-diff-removed">
+            <div className="ai-file-diff__body relative group tool-diff-removed">
               <DeferredCodeMirrorViewer
                 value={oldString}
                 filePath={filePath}
@@ -81,7 +81,7 @@ const EditFileItem = memo(function EditFileItem({
               <span aria-hidden="true">+</span>
               {t("chat.message.toolEditAdded")}
             </div>
-            <div className="ai-file-diff__body relative group overflow-hidden tool-diff-added">
+            <div className="ai-file-diff__body relative group tool-diff-added">
               <DeferredCodeMirrorViewer
                 value={newString}
                 filePath={filePath}

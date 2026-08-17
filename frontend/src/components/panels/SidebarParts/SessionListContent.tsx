@@ -305,18 +305,18 @@ export function SessionListContent({
   }, [isSelectionMode, onClearSelection, onSetSelectionMode]);
 
   const handleToggleAllVisible = useCallback(() => {
-    onSetSelectedSessionIds(
-      toggleAllVisibleSessions(selectedSessionIds, visibleUncategorizedIds),
+    onSetSelectedSessionIds((prev) =>
+      toggleAllVisibleSessions(prev, visibleUncategorizedIds),
     );
-  }, [onSetSelectedSessionIds, selectedSessionIds, visibleUncategorizedIds]);
+  }, [onSetSelectedSessionIds, visibleUncategorizedIds]);
 
   const handleToggleSessionSelected = useCallback(
     (sessionId: string) => {
-      onSetSelectedSessionIds(
-        toggleSessionSelection(selectedSessionIds, sessionId),
+      onSetSelectedSessionIds((prev) =>
+        toggleSessionSelection(prev, sessionId),
       );
     },
-    [onSetSelectedSessionIds, selectedSessionIds],
+    [onSetSelectedSessionIds],
   );
 
   const handleMoveSelected = useCallback(

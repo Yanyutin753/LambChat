@@ -46,6 +46,6 @@ test("expanded collapsible section cards fill the available panel height", () =>
   );
   expect(sectionSource).toMatch(/expanded && expandedClassName/);
   expect(panelSource).toMatch(
-    /title=\{t\("chat\.message\.result"\)\}[\s\S]*?expandedClassName="flex min-h-0 flex-1 flex-col"/,
+    /title=\{t\("chat\.message\.result"\)\}[\s\S]*?expandedClassName="flex min-h-0 flex-col grow shrink-0"/,
   );
 });

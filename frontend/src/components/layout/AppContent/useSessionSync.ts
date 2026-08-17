@@ -314,7 +314,12 @@ export function useSessionSync({
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
   useEffect(() => {
-    if (isSyncingRef.current || isInternalNavRef.current) return;
+    if (
+      isSyncingRef.current ||
+      isInternalNavRef.current ||
+      isLoadingRef.current
+    )
+      return;
 
     const action = getSessionRouteSyncAction({
       activeTab,

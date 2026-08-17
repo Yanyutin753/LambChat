@@ -161,8 +161,7 @@ export function getNextMessageScrollFollowStateForUserIntent({
     autoScrollActive: false,
     streamLockActive: false,
     manualDetachFromStream:
-      state.manualDetachFromStream ||
-      (isMobileViewport && streamingAssistantActive),
+      state.manualDetachFromStream || streamingAssistantActive,
   };
 }
 
@@ -189,8 +188,7 @@ export function getNextMessageScrollFollowStateForUserGesture({
     autoScrollActive: false,
     streamLockActive: false,
     manualDetachFromStream:
-      state.manualDetachFromStream ||
-      (isMobileViewport && streamingAssistantActive),
+      state.manualDetachFromStream || streamingAssistantActive,
   };
 }
 
@@ -237,8 +235,7 @@ export function getNextMessageScrollFollowStateForUserScroll({
     autoScrollActive: false,
     streamLockActive: false,
     manualDetachFromStream:
-      state.manualDetachFromStream ||
-      (isMobileViewport && streamingAssistantActive),
+      state.manualDetachFromStream || streamingAssistantActive,
   };
 }
 

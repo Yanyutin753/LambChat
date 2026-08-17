@@ -235,7 +235,7 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
           <CollapsibleSection
             title={t("chat.message.result")}
             action={<CopyButton text={data.result} />}
-            expandedClassName="flex min-h-0 flex-1 flex-col"
+            expandedClassName="flex min-h-0 flex-col grow shrink-0"
           >
             <div className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
               <SidebarMarkdownContent content={data.result} />
