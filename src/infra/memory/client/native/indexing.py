@@ -17,7 +17,7 @@ def choose_index_memories(
     now: datetime,
     staleness_days: int,
 ) -> list[dict[str, Any]]:
-    def score(doc: dict[str, Any]) -> tuple[float, float]:
+    def score(doc: dict[str, Any]) -> tuple[float, float, str]:
         source = str(doc.get("source", "manual"))
         source_score = (
             2.0
