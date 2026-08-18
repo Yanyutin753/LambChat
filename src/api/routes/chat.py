@@ -20,6 +20,7 @@ from src.api.routes.auth.utils import _get_language
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
+from src.infra.chat.turn_context import append_turn_context_prompt
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
@@ -457,6 +458,14 @@ async def chat_stream(
     formatted_message = append_required_skills_prompt(
         formatted_message,
         request.enabled_skills,
+    )
+    # Per-turn context (goal / auto mode) is persisted into the user message,
+    # keeping the sent prompt byte-identical to the stored history so the
+    # provider prompt-cache prefix stays continuous across turns.
+    formatted_message = append_turn_context_prompt(
+        formatted_message,
+        active_goal,
+        request.auto_mode,
     )
 
     # 生成 run_id（不管是否排队都需要唯一 ID）

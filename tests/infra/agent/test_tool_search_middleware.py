@@ -481,29 +481,33 @@ async def test_memory_index_keeps_current_user_question_as_final_message(monkeyp
     )
 
     class _Request:
-        def __init__(self, messages=None) -> None:
+        def __init__(self, messages=None, system_message=None) -> None:
             self.messages = messages or [history, current]
+            self.system_message = system_message or SystemMessage(content="base")
 
         def override(self, **kwargs):
-            return _Request(kwargs.get("messages", self.messages))
+            return _Request(
+                kwargs.get("messages", self.messages),
+                kwargs.get("system_message", self.system_message),
+            )
 
     async def _handler(request):
-        return request.messages
+        return request
 
-    messages = await middleware.awrap_model_call(_Request(), _handler)
+    result = await middleware.awrap_model_call(_Request(), _handler)
 
-    # The memory reference is appended to the current user message content as
-    # a clearly separated system-injected block (request-only copy); the real
-    # user text stays wrapped in <user_message> and no extra ephemeral message
-    # is inserted; the persisted message object itself is left untouched.
-    assert messages[0] is history
-    assert len(messages) == 2
-    assert messages[1] is not current
-    rendered = str(messages[1].content)
-    assert "<user_message>" in rendered and "current question" in rendered
+    # Codex-style layering: the memory index is a framed block in the system
+    # prompt tail (versioned by content), and the user messages are left
+    # completely untouched — pure and persisted byte-for-byte as sent.
+    assert result.messages[0] is history
+    assert result.messages[1] is current
+    assert len(result.messages) == 2
+    assert current.content == "current question"
+    rendered = str(result.system_message.content)
+    assert "base" in rendered
     assert "<memory_index_context>" in rendered
     assert "Not authored by the user" in rendered
-    assert current.content == "current question"
+    assert "<memory_index>" in rendered
 
 
 async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypatch) -> None:
@@ -525,28 +529,27 @@ async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypat
     )
 
     class _Request:
-        def __init__(self, messages=None) -> None:
+        def __init__(self, messages=None, system_message=None) -> None:
             self.messages = messages or [previous, current, assistant, tool]
+            self.system_message = system_message or SystemMessage(content="base")
 
         def override(self, **kwargs):
-            return _Request(kwargs.get("messages", self.messages))
+            return _Request(
+                kwargs.get("messages", self.messages),
+                kwargs.get("system_message", self.system_message),
+            )
 
     async def _handler(request):
-        return request.messages
+        return request
 
-    messages = await middleware.awrap_model_call(_Request(), _handler)
+    result = await middleware.awrap_model_call(_Request(), _handler)
 
-    # During tool loops the reference stays inside the current user turn
-    # (stable position) as a separated system-injected block, the trailing
-    # AI/Tool messages keep their order, and persisted messages are untouched.
-    assert messages[0] is previous
-    assert len(messages) == 4
-    assert messages[1] is not current
-    rendered = str(messages[1].content)
-    assert "<user_message>" in rendered and "current question" in rendered
-    assert "<memory_index_context>" in rendered
-    assert messages[2:] == [assistant, tool]
+    # The message sequence is never modified — not even reordered — so the
+    # prompt-cache prefix stays continuous during tool loops.
+    assert result.messages == [previous, current, assistant, tool]
     assert current.content == "current question"
+    rendered = str(result.system_message.content)
+    assert "<memory_index_context>" in rendered
 
 
 def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -> None:
@@ -555,20 +558,27 @@ def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -
     from src.agents.fast_agent.nodes import fast_agent_node
     from src.agents.search_agent.nodes import agent_node
     from src.agents.team_agent.nodes import team_router_node
+    from src.api.routes.chat import append_turn_context_prompt as _chat_import  # noqa: F401
+
+    chat_source = getsource(_load_module("src.api.routes.chat"))
+    # Goal/auto-mode context is persisted into the user message at write time
+    # (same layering as the timestamp and skills prompt), keeping the sent
+    # prompt byte-identical to the stored history.
+    assert "append_turn_context_prompt(" in chat_source
+    assert "request.auto_mode" in chat_source
 
     for node in (fast_agent_node, agent_node, team_router_node):
         source = getsource(node)
-        active_goal = source.rfind('active_goal = configurable.get("active_goal")')
-        goal_section = source.rfind("goal_section = build_goal_prompt_section(active_goal)")
-        auto_section = source.rfind("auto_section = AUTO_MODE_PROMPT_SECTION")
-        assembly = source.rfind("_prompt_sections = [")
-        extension = source.rfind("_prompt_sections.extend(")
-        installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
-
-        assert -1 < active_goal < goal_section < auto_section < assembly
-        memory = source.rfind("MemoryIndexMiddleware")
-        dynamic = source.rfind(
-            "dynamic_sections = [section for section in (goal_section, auto_section) if section]"
-        )
-        assert assembly < memory < dynamic
+        # Agents must NOT inject per-turn goal/auto content at request time:
+        # request-time injection forks the prompt prefix between turns and
+        # defeats provider prompt caching.
+        assert "build_goal_prompt_section" not in source
+        assert "AUTO_MODE_PROMPT_SECTION" not in source
+        assert "TurnContextPromptMiddleware" not in source
         assert "VolatileSectionPromptMiddleware" not in source
+
+
+def _load_module(dotted: str):
+    import importlib
+
+    return importlib.import_module(dotted)

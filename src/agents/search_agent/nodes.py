@@ -28,7 +28,6 @@ from src.agents.core.node_utils import (
 from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.startup_preparation import prepare_agent_inputs
 from src.agents.core.subagent_prompts import (
-    AUTO_MODE_PROMPT_SECTION,
     CODEBASE_INVESTIGATOR_PROMPT,
     IMPLEMENTATION_WORKER_PROMPT,
     MAIN_AGENT_PROMPT_SECTIONS,
@@ -55,7 +54,6 @@ from src.infra.agent.middleware import (
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
-    TurnContextPromptMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
 )
@@ -66,7 +64,6 @@ from src.infra.backend import (
 )
 from src.infra.goal import (
     build_goal_input,
-    build_goal_prompt_section,
     create_goal_rubric_middleware,
 )
 from src.infra.llm.client import LLMClient
@@ -279,8 +276,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     if image_url_to_base64:
         user_middleware.append(ImageUrlToBase64Middleware())
     active_goal = configurable.get("active_goal")
-    goal_section = build_goal_prompt_section(active_goal)
-    auto_section = AUTO_MODE_PROMPT_SECTION if configurable.get("auto_mode") else None
     # Prompt sections use one SectionPromptMiddleware instance.
     # Duplicate middleware classes are rejected by langchain's agent factory.
     _prompt_sections = [
@@ -298,12 +293,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
-    dynamic_sections = [section for section in (goal_section, auto_section) if section]
-    if dynamic_sections:
-        # Per-turn sections go into the current user message, NOT the system
-        # prompt: run-scoped content in the system prompt invalidates the
-        # provider prompt-cache prefix on every turn.
-        user_middleware.append(TurnContextPromptMiddleware(sections=dynamic_sections))
 
     # Tool search: per-turn dynamic content
     if context.deferred_manager is not None:
