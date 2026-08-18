@@ -77,7 +77,24 @@ class MemoryIndexMiddleware(AgentMiddleware):
             ),
             additional_kwargs={"lambchat_ephemeral": True},
         )
-        request = request.override(messages=[*request.messages, reference])
+        # Keep the reference at a stable boundary before the current user turn.
+        # During tool loops, AI/Tool messages are appended after that turn; using
+        # the last message instead would move the reference on every model call.
+        messages = request.messages
+        insertion_index = next(
+            (
+                index
+                for index in range(len(messages) - 1, -1, -1)
+                if isinstance(messages[index], HumanMessage)
+            ),
+            len(messages),
+        )
+        request_messages = [
+            *messages[:insertion_index],
+            reference,
+            *messages[insertion_index:],
+        ]
+        request = request.override(messages=request_messages)
         return await handler(request)
 
 

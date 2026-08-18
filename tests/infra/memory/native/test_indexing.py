@@ -101,15 +101,17 @@ async def test_build_memory_index_orders_string_memory_types_by_configured_prior
 
     index = await build_memory_index(FakeBackend(docs), user_id="u1")
 
-    user_pos = index.index("## [user]")
-    project_pos = index.index("## [project]")
-    reference_pos = index.index("## [reference]")
+    user_pos = index.index("## User")
+    project_pos = index.index("## Project")
+    reference_pos = index.index("## Reference")
 
     assert user_pos < project_pos < reference_pos
 
 
 @pytest.mark.asyncio
-async def test_build_memory_index_omits_internal_ids_and_relative_age_metadata(monkeypatch):
+async def test_build_memory_index_renders_markdown_dates_and_summaries_without_internal_ids(
+    monkeypatch,
+):
     class FakeCursor:
         def __init__(self, docs):
             self._docs = docs
@@ -145,7 +147,7 @@ async def test_build_memory_index_omits_internal_ids_and_relative_age_metadata(m
             "source_refs": [{"session_id": "private-session-id", "run_id": "private-run-id"}],
             "memory_type": "user",
             "title": "Current preference",
-            "summary": "Current preference",
+            "summary": "The current user preference",
             "updated_at": now,
             "source": "manual",
             "access_count": 1,
@@ -164,7 +166,16 @@ async def test_build_memory_index_omits_internal_ids_and_relative_age_metadata(m
     index = await build_memory_index(FakeBackend(docs), user_id="u1")
 
     assert index == (
-        "<memory_index>\n\n## [user]\n- Current preference\n- Older preference\n\n</memory_index>"
+        "<memory_index>\n"
+        "# Cross-Session Memory Index\n\n"
+        "## User\n\n"
+        "- **Current preference**\n"
+        "  - Updated: 2026-04-02\n"
+        "  - Summary: The current user preference\n\n"
+        "- **Older preference**\n"
+        "  - Updated: 2026-03-01\n"
+        "  - Summary: Older preference\n\n"
+        "</memory_index>"
     )
     assert "private-session-id" not in index
     assert "private-run-id" not in index

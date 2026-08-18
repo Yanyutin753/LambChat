@@ -52,7 +52,7 @@ def evict_index_cache(index_cache: dict[str, tuple[float, str]], max_size: int) 
 
 
 async def build_memory_index(backend, user_id: str) -> str:
-    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
+    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 3600)
     cached = backend._index_cache.get(user_id)
     if cached:
         built_at, cached_str = cached
@@ -93,19 +93,34 @@ async def build_memory_index(backend, user_id: str) -> str:
         MemoryType.REFERENCE.value: 3,
     }
 
-    lines = ["<memory_index>"]
+    type_labels = {
+        MemoryType.USER.value: "User",
+        MemoryType.FEEDBACK.value: "Feedback",
+        MemoryType.PROJECT.value: "Project",
+        MemoryType.REFERENCE.value: "Reference",
+    }
+
+    lines = ["<memory_index>", "# Cross-Session Memory Index"]
     for mtype in sorted(grouped.keys(), key=lambda key: type_order.get(key, 99)):
         chosen = choose_index_memories(
             grouped[mtype], per_type_limit=5, now=now, staleness_days=staleness_days
         )
         if not chosen:
             continue
-        lines.append(f"\n## [{mtype}]")
+        lines.append(f"\n## {type_labels.get(mtype, mtype.title())}")
         for item in chosen:
             display_title = item.get("index_label") or item.get("title") or ""
             if not display_title:
                 display_title = (item.get("summary") or "")[:30]
-            lines.append(f"- {display_title}")
+            updated_at = ensure_utc(item.get("updated_at", now)).date().isoformat()
+            summary = str(item.get("summary") or display_title).strip()
+            lines.extend(
+                (
+                    f"\n- **{display_title}**",
+                    f"  - Updated: {updated_at}",
+                    f"  - Summary: {summary}",
+                )
+            )
 
     lines.append("\n</memory_index>")
     result = "\n".join(lines)

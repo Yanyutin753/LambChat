@@ -1,9 +1,13 @@
 from types import SimpleNamespace
 
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
-from src.infra.agent.middleware import SectionPromptMiddleware, ToolSearchMiddleware
+from src.infra.agent.middleware import (
+    MemoryIndexMiddleware,
+    SectionPromptMiddleware,
+    ToolSearchMiddleware,
+)
 from src.infra.tool.deferred_manager import DEFERRED_TOOL_SEARCH_GUIDE, DeferredToolManager
 
 
@@ -461,6 +465,71 @@ async def test_section_prompt_middleware_appends_one_normalized_block() -> None:
         "base",
         "skills block\n\nmemory block",
     ]
+
+
+async def test_memory_index_keeps_current_user_question_as_final_message(monkeypatch) -> None:
+    middleware = MemoryIndexMiddleware(user_id="user-1")
+    history = HumanMessage(content="earlier question")
+    current = HumanMessage(content="current question")
+
+    async def _build_index(_user_id: str) -> str:
+        return "<memory_index>\n- preference\n</memory_index>"
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.prompt_injection._build_memory_index_for_user",
+        _build_index,
+    )
+
+    class _Request:
+        def __init__(self, messages=None) -> None:
+            self.messages = messages or [history, current]
+
+        def override(self, **kwargs):
+            return _Request(kwargs.get("messages", self.messages))
+
+    async def _handler(request):
+        return request.messages
+
+    messages = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert messages[0] is history
+    assert "memory_index_context" in messages[1].content
+    assert messages[-1] is current
+
+
+async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypatch) -> None:
+    middleware = MemoryIndexMiddleware(user_id="user-1")
+    previous = HumanMessage(content="previous question")
+    current = HumanMessage(content="current question")
+    assistant = AIMessage(
+        content="",
+        tool_calls=[{"name": "lookup", "args": {}, "id": "call-1"}],
+    )
+    tool = ToolMessage(content="result", tool_call_id="call-1")
+
+    async def _build_index(_user_id: str) -> str:
+        return "<memory_index>\n- preference\n</memory_index>"
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.prompt_injection._build_memory_index_for_user",
+        _build_index,
+    )
+
+    class _Request:
+        def __init__(self, messages=None) -> None:
+            self.messages = messages or [previous, current, assistant, tool]
+
+        def override(self, **kwargs):
+            return _Request(kwargs.get("messages", self.messages))
+
+    async def _handler(request):
+        return request.messages
+
+    messages = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert messages[0] is previous
+    assert "memory_index_context" in messages[1].content
+    assert messages[2:] == [current, assistant, tool]
 
 
 def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -> None:

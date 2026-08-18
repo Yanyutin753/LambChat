@@ -211,11 +211,12 @@ def test_authored_prompt_sections_place_runtime_before_goal_and_mode() -> None:
         source = getsource(node)
         assembly = source.rfind("_prompt_sections = [")
         runtime = source.rfind("RUNTIME_SECTION.format")
-        extension = source.rfind("_prompt_sections.extend(")
         installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
 
-        assert -1 < assembly < runtime < extension < installation
-        extension_source = source[extension:installation]
-        assert "goal_section" in extension_source
-        assert "auto_section" in extension_source
+        dynamic = source.rfind(
+            "dynamic_sections = [section for section in (goal_section, auto_section) if section]"
+        )
+        assert -1 < assembly < runtime < installation < dynamic
+        assert "goal_section" in source[dynamic:]
+        assert "auto_section" in source[dynamic:]
         assert "VolatileSectionPromptMiddleware" not in source
