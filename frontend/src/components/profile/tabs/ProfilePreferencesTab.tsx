@@ -169,7 +169,7 @@ export function ProfilePreferencesTab() {
       ) {
         return stored;
       }
-      return "off";
+      return "low";
     });
 
   // Default model preference

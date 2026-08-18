@@ -62,7 +62,7 @@ class TeamAgent(BaseGraphAgent):
     _options = {
         "enable_thinking": {
             "type": "string",
-            "default": "off",
+            "default": "low",
             "label": "Thinking",
             "label_key": "agentOptions.enableThinking.label",
             "description": "Control thinking intensity (supported models only)",

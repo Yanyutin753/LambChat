@@ -147,7 +147,7 @@ def _create_rubric_middleware_with_retry(
       exponential back-off.
     - **400 (e.g. thinking + tool_choice)** → ``ModelRetryMiddleware`` skips
       (400 is not retryable), ``ModelFallbackMiddleware`` catches and replays
-      on the fallback model (without thinking).
+      on the fallback model (with the same thinking config).
 
     Non-retryable, non-fallback errors still surface as ``grader_error`` via
     the base class ``_handle_grader_exception``.
