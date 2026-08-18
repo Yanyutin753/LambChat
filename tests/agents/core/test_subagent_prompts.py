@@ -213,10 +213,10 @@ def test_authored_prompt_sections_place_runtime_before_goal_and_mode() -> None:
         runtime = source.rfind("RUNTIME_SECTION.format")
         installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
 
-        dynamic = source.rfind(
-            "dynamic_sections = [section for section in (goal_section, auto_section) if section]"
-        )
-        assert -1 < assembly < runtime < installation < dynamic
-        assert "goal_section" in source[dynamic:]
-        assert "auto_section" in source[dynamic:]
+        assert -1 < assembly < runtime < installation
+        # Goal/auto-mode context is persisted into the user message at write
+        # time (chat layer), never injected at request time by the agents.
+        assert "goal_section" not in source
+        assert "auto_section" not in source
+        assert "TurnContextPromptMiddleware" not in source
         assert "VolatileSectionPromptMiddleware" not in source

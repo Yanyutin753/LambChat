@@ -58,6 +58,14 @@ class SkillSearchTool(BaseTool):
             )
             for name in sorted(unique, key=lambda item: (item.lower(), item))
         )
+        # Codex-style layering: the Skill inventory lives on the tool it
+        # describes, not in the system prompt — the system prompt stays fully
+        # static and the inventory is versioned with the tool definition.
+        from src.infra.skill.loader import format_skills_prompt
+
+        inventory = format_skills_prompt(skills)
+        if inventory:
+            self.description = f"{self.description}\n\n{inventory.strip()}"
 
     def _run(self, query: str) -> str:
         if not query.strip():

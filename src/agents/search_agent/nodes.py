@@ -28,7 +28,6 @@ from src.agents.core.node_utils import (
 from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.startup_preparation import prepare_agent_inputs
 from src.agents.core.subagent_prompts import (
-    AUTO_MODE_PROMPT_SECTION,
     CODEBASE_INVESTIGATOR_PROMPT,
     IMPLEMENTATION_WORKER_PROMPT,
     MAIN_AGENT_PROMPT_SECTIONS,
@@ -55,7 +54,6 @@ from src.infra.agent.middleware import (
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
-    TurnContextPromptMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
 )
@@ -66,13 +64,11 @@ from src.infra.backend import (
 )
 from src.infra.goal import (
     build_goal_input,
-    build_goal_prompt_section,
     create_goal_rubric_middleware,
 )
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
 from src.infra.sandbox.session_manager import get_session_sandbox_manager
-from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
 from src.infra.writer.present import Presenter
@@ -157,15 +153,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         logger.debug(f"[Agent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
         return result
 
-    async def _load_skills_prompt() -> str:
-        if not settings.ENABLE_SKILLS or not context.skills:
-            return ""
-        try:
-            return await build_skills_prompt(context.skills)
-        except Exception as exc:
-            logger.warning("Failed to build skills prompt: %s", exc)
-            return ""
-
     async def _load_context_tools() -> list[Any]:
         get_tools = getattr(context, "get_tools", None)
         if callable(get_tools):
@@ -178,13 +165,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     prepared = await prepare_agent_inputs(
         model=_load_model_bundle(),
         backend=_load_backend_bundle(),
-        skills_prompt=_load_skills_prompt(),
         tools=_load_context_tools(),
         checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
     )
     llm, fallback_model_value, supports_vision, image_url_to_base64 = prepared.model
     backend, system_prompt, store, sandbox_backend, sandbox_work_dir = prepared.backend
-    skills_prompt = prepared.skills_prompt
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
 
@@ -206,7 +191,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     search_base_url = configurable.get("base_url", "")
-    subagent_prompt_sections = [s for s in (*persona_sections, skills_prompt, memory_guide) if s]
+    subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
     if sandbox_backend and sandbox_work_dir:
         subagent_prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
 
@@ -279,14 +264,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     if image_url_to_base64:
         user_middleware.append(ImageUrlToBase64Middleware())
     active_goal = configurable.get("active_goal")
-    goal_section = build_goal_prompt_section(active_goal)
-    auto_section = AUTO_MODE_PROMPT_SECTION if configurable.get("auto_mode") else None
     # Prompt sections use one SectionPromptMiddleware instance.
     # Duplicate middleware classes are rejected by langchain's agent factory.
     _prompt_sections = [
-        s
-        for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
-        if s
+        s for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, memory_guide) if s
     ]
     if sandbox_backend and sandbox_work_dir:
         _prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
@@ -298,12 +279,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
-    dynamic_sections = [section for section in (goal_section, auto_section) if section]
-    if dynamic_sections:
-        # Per-turn sections go into the current user message, NOT the system
-        # prompt: run-scoped content in the system prompt invalidates the
-        # provider prompt-cache prefix on every turn.
-        user_middleware.append(TurnContextPromptMiddleware(sections=dynamic_sections))
 
     # Tool search: per-turn dynamic content
     if context.deferred_manager is not None:

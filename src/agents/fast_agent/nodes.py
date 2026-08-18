@@ -27,7 +27,6 @@ from src.agents.core.node_utils import (
 from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.startup_preparation import prepare_agent_inputs
 from src.agents.core.subagent_prompts import (
-    AUTO_MODE_PROMPT_SECTION,
     CODEBASE_INVESTIGATOR_PROMPT,
     IMPLEMENTATION_WORKER_PROMPT,
     MAIN_AGENT_PROMPT_SECTIONS,
@@ -49,19 +48,16 @@ from src.infra.agent.middleware import (
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
-    TurnContextPromptMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
 )
 from src.infra.backend.deepagent import create_persistent_backend
 from src.infra.goal import (
     build_goal_input,
-    build_goal_prompt_section,
     create_goal_rubric_middleware,
 )
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
-from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
 from src.kernel.config import settings
@@ -153,20 +149,6 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         logger.debug(f"[FastAgent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
         return loaded_backend, loaded_store
 
-    async def _load_skills_prompt() -> str:
-        if not settings.ENABLE_SKILLS or not context.skills:
-            return ""
-        try:
-            skills_start = time.time()
-            prompt = await build_skills_prompt(context.skills)
-            logger.debug(
-                f"[FastAgent] Skills prompt init: {(time.time() - skills_start) * 1000:.3f}ms"
-            )
-            return prompt
-        except Exception as exc:
-            logger.warning("Failed to build skills prompt: %s", exc)
-            return ""
-
     async def _load_context_tools() -> list[Any]:
         get_tools = getattr(context, "get_tools", None)
         if callable(get_tools):
@@ -179,13 +161,11 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     prepared = await prepare_agent_inputs(
         model=_load_model_bundle(),
         backend=_load_backend_bundle(),
-        skills_prompt=_load_skills_prompt(),
         tools=_load_context_tools(),
         checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
     )
     llm, fallback_model_value, supports_vision, image_url_to_base64 = prepared.model
     backend, store = prepared.backend
-    skills_prompt = prepared.skills_prompt
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
 
@@ -219,7 +199,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     subagent_base_url = configurable.get("base_url", "")
-    subagent_prompt_sections = [s for s in (*persona_sections, skills_prompt, memory_guide) if s]
+    subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
 
     def _build_subagent_middleware(subagent_type: str) -> list:
         mw = [
@@ -288,13 +268,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     if image_url_to_base64:
         user_middleware.append(ImageUrlToBase64Middleware())
     active_goal = configurable.get("active_goal")
-    goal_section = build_goal_prompt_section(active_goal)
-    auto_section = AUTO_MODE_PROMPT_SECTION if configurable.get("auto_mode") else None
     # Persona, skills, memory guidance, goal, and mode share one authored prompt block.
     _prompt_sections = [
-        s
-        for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
-        if s
+        s for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, memory_guide) if s
     ]
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
@@ -302,12 +278,6 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
-    dynamic_sections = [section for section in (goal_section, auto_section) if section]
-    if dynamic_sections:
-        # Per-turn sections go into the current user message, NOT the system
-        # prompt: run-scoped content in the system prompt invalidates the
-        # provider prompt-cache prefix on every turn.
-        user_middleware.append(TurnContextPromptMiddleware(sections=dynamic_sections))
 
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware

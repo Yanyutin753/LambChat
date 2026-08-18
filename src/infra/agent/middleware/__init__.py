@@ -8,7 +8,6 @@ from src.infra.agent.middleware.prompt_injection import (
     EnvVarPromptMiddleware,
     MemoryIndexMiddleware,
     SectionPromptMiddleware,
-    TurnContextPromptMiddleware,
 )
 from src.infra.agent.middleware.retry import (
     EmptyContentRetryMiddleware,
@@ -38,6 +37,5 @@ __all__ = [
     "SubagentResultHandoffMiddleware",
     "ToolResultBinaryMiddleware",
     "ToolSearchMiddleware",
-    "TurnContextPromptMiddleware",
     "_is_empty_content",
 ]
