@@ -492,9 +492,15 @@ async def test_memory_index_keeps_current_user_question_as_final_message(monkeyp
 
     messages = await middleware.awrap_model_call(_Request(), _handler)
 
+    # The memory reference is appended to the current user message content
+    # (request-only copy); no extra ephemeral message is inserted, and the
+    # persisted message object itself is left untouched.
     assert messages[0] is history
+    assert len(messages) == 2
+    assert messages[1] is not current
+    assert messages[1].content.startswith("current question")
     assert "memory_index_context" in messages[1].content
-    assert messages[-1] is current
+    assert current.content == "current question"
 
 
 async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypatch) -> None:
@@ -527,9 +533,16 @@ async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypat
 
     messages = await middleware.awrap_model_call(_Request(), _handler)
 
+    # During tool loops the reference stays inside the current user turn
+    # (stable position), the trailing AI/Tool messages keep their order, and
+    # the persisted message objects are not mutated.
     assert messages[0] is previous
+    assert len(messages) == 4
+    assert messages[1] is not current
+    assert messages[1].content.startswith("current question")
     assert "memory_index_context" in messages[1].content
-    assert messages[2:] == [current, assistant, tool]
+    assert messages[2:] == [assistant, tool]
+    assert current.content == "current question"
 
 
 def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -> None:

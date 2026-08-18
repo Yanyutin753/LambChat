@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 
 def _normalize_prompt_text(text: str) -> str:
@@ -38,3 +38,27 @@ def _append_system_text_block(system_message: Any, text: str) -> SystemMessage:
     if normalized:
         blocks.append({"type": "text", "text": normalized})
     return SystemMessage(content=blocks)
+
+
+def _append_human_text(message: BaseMessage, text: str) -> HumanMessage:
+    """Return a copy of a human message with text appended to its content.
+
+    Preserves list-shaped multimodal content by appending a text block; string
+    content is concatenated. The original message object is not mutated.
+    """
+    normalized = _normalize_prompt_text(text)
+    content = message.content
+    if isinstance(content, list):
+        new_content: Any = [
+            block if isinstance(block, dict) else {"type": "text", "text": str(block)}
+            for block in content
+        ]
+        if normalized:
+            new_content.append({"type": "text", "text": normalized})
+    elif isinstance(content, str):
+        new_content = (
+            f"{content}\n\n{normalized}" if normalized and content else (normalized or content)
+        )
+    else:
+        new_content = content
+    return HumanMessage(content=new_content)
