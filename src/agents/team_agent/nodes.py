@@ -64,10 +64,10 @@ from src.infra.agent.middleware import (
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
     SectionPromptMiddleware,
-    TurnContextPromptMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
+    TurnContextPromptMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
 )
