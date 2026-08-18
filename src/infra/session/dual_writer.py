@@ -378,11 +378,24 @@ class DualEventWriter:
                             continue
                         start_seq = int(trace_doc.get("event_count", 0)) - len(events) + 1
                     else:
-                        trace_doc = {
-                            "trace_id": trace_id,
-                            "session_id": items[0][3],
-                            "run_id": items[0][4],
-                        }
+                        # Retry path: prefer the real trace document so chunk
+                        # metadata (session_id/run_id) matches storage instead
+                        # of the possibly divergent buffered values.
+                        stored_doc = None
+                        try:
+                            stored_doc = await self.trace.collection.find_one(
+                                {"trace_id": trace_id}, {"_id": 0}
+                            )
+                        except Exception:
+                            stored_doc = None
+                        if stored_doc is not None:
+                            trace_doc = stored_doc
+                        else:
+                            trace_doc = {
+                                "trace_id": trace_id,
+                                "session_id": items[0][3],
+                                "run_id": items[0][4],
+                            }
                     appended = await self.trace.append_events_to_chunks(
                         trace_doc,
                         events,
@@ -395,17 +408,22 @@ class DualEventWriter:
                         failed_chunk_items.extend(
                             _with_chunk_retry_metadata(
                                 item,
-                                reserved_start_seq=start_seq + offset,
+                                # Keep the group base seq for every item so the
+                                # retry re-forms one group instead of one group
+                                # per event.
+                                reserved_start_seq=start_seq,
                                 skip_legacy=dual_write_legacy or _buffer_item_skip_legacy(item),
                             )
-                            for offset, item in enumerate(items)
+                            for item in items
                         )
                     else:
                         failed_chunk_items.extend(items)
-                    logger.warning(
-                        "Chunk write failed for trace %s with %s events: %s",
+                    logger.error(
+                        "Chunk write failed for trace %s with %s events (seq %s..%s): %s",
                         trace_id,
                         len(events),
+                        start_seq,
+                        (start_seq or 0) + len(events) - 1,
                         e,
                     )
 

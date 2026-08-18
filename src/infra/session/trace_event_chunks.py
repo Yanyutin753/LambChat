@@ -69,7 +69,6 @@ class TraceEventChunkMixin:
             )
             if not current:
                 return None
-            expected_updated_at = current.get("updated_at")
             trace_doc = {**trace_doc, **current}
         if trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD) is not None:
             return None
@@ -90,9 +89,12 @@ class TraceEventChunkMixin:
         if kind == "replace":
             marker["staging_trace_id"] = f"{trace_id}:replace:{operation_id}"
             marker["recovery_after"] = now + timedelta(minutes=5)
+        # Fence on the monotonic event revision alone. Matching updated_at as
+        # well turned every concurrent revision-bumping write (e.g. recommend
+        # questions) into a spurious CAS failure, and matching session_id broke
+        # claims whenever the buffered session_id diverged from the stored one.
         query: Dict[str, Any] = {
             "trace_id": trace_id,
-            "updated_at": expected_updated_at,
             ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
         }
         query[TRACE_EVENT_REVISION_FIELD] = (
@@ -100,8 +102,6 @@ class TraceEventChunkMixin:
         )
         if trace_doc.get("_id") is not None:
             query["_id"] = trace_doc["_id"]
-        if trace_doc.get("session_id"):
-            query["session_id"] = trace_doc["session_id"]
         claimed = await self.collection.find_one_and_update(
             query,
             {
@@ -312,9 +312,9 @@ class TraceEventChunkMixin:
         """Recover expired durable replacements without touching an active writer."""
         recovered = 0
         now = utc_now()
-        cursor = self.collection.find({f"{ATTACHMENT_CHUNK_WRITE_FIELD}.kind": "replace"}).limit(
-            max(int(limit or 0), 1)
-        )
+        cursor = self.collection.find(
+            {f"{ATTACHMENT_CHUNK_WRITE_FIELD}.kind": {"$in": ["replace", "append"]}}
+        ).limit(max(int(limit or 0), 1))
         async for trace_doc in cursor:
             marker = trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD)
             if not isinstance(marker, dict):
@@ -326,6 +326,28 @@ class TraceEventChunkMixin:
                         continue
                 except TypeError:
                     pass
+            if marker.get("kind") == "append":
+                # An expired append marker means its writer is gone. Release
+                # the marker so retries, complete_trace and the merger can
+                # proceed; the reserved sequence range simply stays reserved.
+                operation_id = marker.get("id")
+                revision = marker.get("revision")
+                if not isinstance(operation_id, str) or not isinstance(revision, int):
+                    continue
+                result = await self.collection.update_one(
+                    {
+                        "trace_id": trace_doc.get("trace_id"),
+                        TRACE_EVENT_REVISION_FIELD: revision,
+                        f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                        f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
+                    },
+                    {
+                        "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                        "$set": {"updated_at": utc_now()},
+                    },
+                )
+                recovered += int(result.modified_count > 0)
+                continue
             try:
                 if marker.get("phase") == "staging":
                     operation_id = marker.get("id")
@@ -715,7 +737,6 @@ class TraceEventChunkMixin:
         operation_id = uuid.uuid4().hex
         query: Dict[str, Any] = {
             "trace_id": trace_id,
-            "updated_at": current.get("updated_at"),
             ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
             TRACE_EVENT_REVISION_FIELD: (
                 expected_revision if raw_revision is not None else {"$exists": False}
@@ -733,6 +754,7 @@ class TraceEventChunkMixin:
                         "id": operation_id,
                         "kind": "append",
                         "revision": claimed_revision,
+                        "recovery_after": now + timedelta(minutes=5),
                     },
                     "updated_at": now,
                 },
@@ -876,12 +898,45 @@ class TraceEventChunkMixin:
                     "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
                 },
             )
-            return result.modified_count > 0
-        except BaseException:
-            await self.collection.update_one(
+            if result.modified_count > 0:
+                return True
+            # The final update can miss while our marker is still in place
+            # (e.g. a concurrent revision bump raced the CAS). Re-check and
+            # retry once instead of returning False with the marker left
+            # behind, which would deadlock every later writer on this trace.
+            current = await self.collection.find_one(
+                {"trace_id": trace_id}, {ATTACHMENT_CHUNK_WRITE_FIELD: 1}
+            )
+            current_marker = (current or {}).get(ATTACHMENT_CHUNK_WRITE_FIELD)
+            if (
+                not isinstance(current_marker, dict)
+                or current_marker.get("id") != operation_id
+                or current_marker.get("revision") != revision
+            ):
+                return False
+            retry = await self.collection.update_one(
                 {
                     "trace_id": trace_id,
-                    TRACE_EVENT_REVISION_FIELD: revision,
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                    f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
+                },
+                {
+                    "$set": update_fields,
+                    "$max": {"chunk_count": max(grouped) + 1},
+                    "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                },
+            )
+            return retry.modified_count > 0
+        except BaseException:
+            # Emergency marker release. Match on the marker identity only: a
+            # concurrent event_revision bump (complete_trace, recommend
+            # questions, legacy appends) must not leave the marker stuck,
+            # because a stuck marker fences every later chunk write and blocks
+            # complete_trace, leaving the trace in status="running" where the
+            # session read path hides all non-user events.
+            released = await self.collection.update_one(
+                {
+                    "trace_id": trace_id,
                     f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
                     f"{ATTACHMENT_CHUNK_WRITE_FIELD}.revision": revision,
                 },
@@ -890,6 +945,17 @@ class TraceEventChunkMixin:
                     "$set": {"updated_at": utc_now()},
                 },
             )
+            if getattr(released, "modified_count", 0) == 0:
+                await self.collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+                    },
+                    {
+                        "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                        "$set": {"updated_at": utc_now()},
+                    },
+                )
             raise
 
     async def rollback_event_sequence_range(

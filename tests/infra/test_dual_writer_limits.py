@@ -1037,9 +1037,11 @@ async def test_flush_mongo_buffer_requeues_failed_chunk_write_with_reserved_sequ
 
     await writer._do_flush()
 
+    # Both events keep the group base seq so the retry re-forms a single
+    # group (one claim/append round trip) instead of one group per event.
     assert writer._mongo_buffer == [
         (*events[0], 6, False),
-        (*events[1], 7, False),
+        (*events[1], 6, False),
     ]
 
 

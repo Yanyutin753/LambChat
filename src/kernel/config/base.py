@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     SESSION_EVENT_CHUNK_STORAGE_ENABLED: bool = False
     SESSION_EVENT_CHUNK_DUAL_WRITE_LEGACY: bool = False
     SESSION_EVENT_CHUNK_SIZE: int = 5000
+    SESSION_ACTIVE_RUN_STALE_MINUTES: int = 10  # running trace 超过该时长未更新则视为已终止
     FEISHU_UPLOAD_BYTES_MAX_SIZE: int = 20 * 1024 * 1024
 
     # ============================================

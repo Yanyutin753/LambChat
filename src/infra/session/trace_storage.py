@@ -27,6 +27,7 @@ Trace Storage - 按 trace 聚合事件存储
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional
 
 from src.infra.logging import get_logger
@@ -65,6 +66,7 @@ from src.infra.session.trace_attachment_cleanup import TraceAttachmentCleanupMix
 from src.infra.session.trace_event_chunks import TraceEventChunkMixin
 from src.infra.session.trace_storage_writes import TraceStorageWriteMixin
 from src.infra.storage.mongodb import get_mongo_client
+from src.infra.utils.datetime import ensure_utc, parse_iso, utc_now
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
@@ -616,6 +618,30 @@ class TraceStorage(
         try:
             event_types = _bounded_unique_strings(event_types, SESSION_EVENT_FILTER_LIST_LIMIT)
             run_ids = _bounded_unique_strings(run_ids, SESSION_EVENT_FILTER_LIST_LIMIT)
+            now = utc_now()
+            stale_running_cutoff = now - timedelta(
+                minutes=max(int(getattr(settings, "SESSION_ACTIVE_RUN_STALE_MINUTES", 10)), 1)
+            )
+
+            def _is_stale_running(trace: Dict[str, Any]) -> bool:
+                """A running trace untouched for too long is treated as terminal.
+
+                Its writer is gone (crash, lost marker lease); hiding every
+                non-user event behind an SSE replay that will never come would
+                make stored events unreachable after a refresh.
+                """
+                updated_at = trace.get("updated_at")
+                if not updated_at:
+                    return True
+                try:
+                    if isinstance(updated_at, datetime):
+                        parsed = ensure_utc(updated_at)
+                    else:
+                        parsed = parse_iso(str(updated_at))
+                except (TypeError, ValueError, AttributeError):
+                    return True
+                return parsed < stale_running_cutoff
+
             # 构建查询条件
             match_query: Dict[str, Any] = {"session_id": session_id}
             if run_ids:
@@ -645,6 +671,7 @@ class TraceStorage(
                             "$and": [
                                 {"$eq": ["$status", "running"]},
                                 {"$eq": ["$run_id", active_run_id]},
+                                {"$gte": ["$updated_at", stale_running_cutoff]},
                             ]
                         },
                         {
@@ -666,6 +693,7 @@ class TraceStorage(
                     "run_id": 1,
                     "status": 1,
                     "started_at": 1,
+                    "updated_at": 1,
                     "events": events_projection,
                     "recommend_questions": 1,
                     "recommend_questions_updated_at": 1,
@@ -675,7 +703,9 @@ class TraceStorage(
             traces: List[Dict[str, Any]] = []
             async for trace in cursor:
                 if completed_only and trace.get("status") == "running":
-                    if not active_run_id or trace.get("run_id") != active_run_id:
+                    if _is_stale_running(trace):
+                        pass  # writer is gone; surface whatever was stored
+                    elif not active_run_id or trace.get("run_id") != active_run_id:
                         continue
                 traces.append(trace)
 
@@ -685,6 +715,7 @@ class TraceStorage(
                 if active_run_id
                 and trace.get("run_id") == active_run_id
                 and trace.get("status") == "running"
+                and not _is_stale_running(trace)
                 and trace.get("trace_id")
             }
             if active_user_only_trace_ids:
@@ -710,6 +741,7 @@ class TraceStorage(
                     active_run_id
                     and trace.get("run_id") == active_run_id
                     and trace.get("status") == "running"
+                    and not _is_stale_running(trace)
                 )
                 if is_active_running:
                     trace_events = [

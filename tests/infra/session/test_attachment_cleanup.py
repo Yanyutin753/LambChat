@@ -1664,6 +1664,13 @@ async def test_chunk_rewrite_with_stale_parent_version_does_not_mutate_chunks() 
                 "trace_id": "trace-terminal",
                 "status": "completed",
                 "updated_at": current_updated_at,
+                # An in-flight chunk write marker fences any new replacement,
+                # keeping the existing chunks untouched.
+                "attachment_chunk_write_operation": {
+                    "id": "in-flight",
+                    "kind": "append",
+                    "revision": 3,
+                },
                 "events": [
                     {
                         "seq": 1,

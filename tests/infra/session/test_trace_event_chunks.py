@@ -377,8 +377,6 @@ async def test_replace_trace_events_with_chunks_splits_events_and_updates_metada
     assert claim_query == {
         "_id": "parent-1",
         "trace_id": "trace-1",
-        "session_id": "session-1",
-        "updated_at": "version-1",
         "attachment_chunk_write_operation": {"$exists": False},
         "event_revision": {"$exists": False},
     }
@@ -795,7 +793,6 @@ async def test_reserve_event_sequence_range_atomically_increments_event_count() 
     assert trace_doc["attachment_chunk_write_operation"]["kind"] == "append"
     assert collection.find_one_and_update_calls[0][0] == {
         "trace_id": "trace-1",
-        "updated_at": "version-1",
         "attachment_chunk_write_operation": {"$exists": False},
         "event_revision": {"$exists": False},
     }
@@ -883,14 +880,17 @@ async def test_append_events_to_chunks_does_not_upsert_when_parent_version_is_st
     storage._collection = trace_collection
     storage._chunks_collection = chunk_collection
 
+    # A stale updated_at on the passed-in doc must not fence the append: the
+    # claim refreshes the parent and fences on the event revision alone, so
+    # concurrent revision-bumping writes no longer cause silent event loss.
     appended = await storage.append_events_to_chunks(
         _trace_document(updated_at="version-1"),
         [_event("message", "must-survive")],
         start_seq=1,
     )
 
-    assert appended is False
-    assert chunk_collection.update_calls == []
+    assert appended is True
+    assert len(chunk_collection.update_calls) == 1
     assert chunk_collection.deleted_queries == []
     assert chunk_collection.inserted_docs == []
 
@@ -1096,6 +1096,7 @@ async def test_get_session_events_reads_chunks_across_traces_in_started_order() 
                 "run_id": 1,
                 "status": 1,
                 "started_at": 1,
+                "updated_at": 1,
                 "events": 1,
                 "recommend_questions": 1,
                 "recommend_questions_updated_at": 1,
@@ -1122,6 +1123,7 @@ async def test_get_session_events_snapshot_returns_active_user_and_requires_stre
                 "run_id": "run-active",
                 "status": "running",
                 "started_at": "2026-04-25T00:02:00Z",
+                "updated_at": "2999-01-01T00:00:00Z",
             },
         ]
     )
@@ -1184,6 +1186,7 @@ async def test_active_snapshot_projects_large_running_trace_to_user_events() -> 
                 "run_id": "run-active",
                 "status": "running",
                 "started_at": "2026-04-25T00:02:00Z",
+                "updated_at": "2999-01-01T00:00:00Z",
                 "events": [_event("user:message", "active-user", 1), *assistant_events],
             }
         ]
@@ -1209,6 +1212,44 @@ async def test_active_snapshot_projects_large_running_trace_to_user_events() -> 
     assert [event["event_type"] for event in snapshot.events] == ["user:message"]
     assert "$cond" in trace_collection.find_calls[0][1]["events"]
     assert "$cond" in chunk_collection.find_calls[0][1]["events"]
+
+
+@pytest.mark.asyncio
+async def test_active_snapshot_returns_full_events_for_stale_running_trace() -> None:
+    """A running trace whose writer is gone must not hide stored events."""
+    storage = TraceStorage()
+    trace_collection = _FakeSessionTraceCollection(
+        [
+            {
+                "trace_id": "trace-active",
+                "session_id": "session-1",
+                "run_id": "run-active",
+                "status": "running",
+                "started_at": "2020-04-25T00:02:00Z",
+                "updated_at": "2020-04-25T00:03:00Z",
+                "events": [
+                    _event("user:message", "active-user", 1),
+                    _event("message:chunk", "active-assistant", 2),
+                    _event("done", None, 3),
+                ],
+            },
+        ]
+    )
+    storage._collection = trace_collection
+    storage._chunks_collection = _FakeChunkCollection()
+
+    snapshot = await storage.get_session_events_snapshot(
+        "session-1",
+        active_run_id="run-active",
+    )
+
+    assert snapshot.history_mode == "complete"
+    assert snapshot.stream_run_id is None
+    assert [event["event_type"] for event in snapshot.events] == [
+        "user:message",
+        "message:chunk",
+        "done",
+    ]
 
 
 @pytest.mark.asyncio
