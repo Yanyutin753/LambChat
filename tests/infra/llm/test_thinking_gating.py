@@ -1,0 +1,310 @@
+"""Capability-gated thinking parameter construction for the three protocol branches.
+
+Covers the maximum-compatibility policy from issue #211: every model family
+only receives thinking parameters documented as supported; unverified
+combinations are never sent (prefer a silent no-op over a provider 400).
+"""
+
+from src.infra.llm.client import LLMClient
+
+_BUDGETS = {"low": 1024, "medium": 8192, "high": 32768, "max": 65536}
+ENABLED = lambda level: {"type": "enabled", "level": level, "budget_tokens": _BUDGETS[level]}  # noqa: E731
+OFF = {"type": "disabled", "level": "off", "budget_tokens": 0}
+
+
+def _openai_model(provider: str, model_name: str, thinking: dict | None):
+    return LLMClient._create_model(
+        provider,
+        model_name,
+        temperature=0.7,
+        api_key="sk-test",
+        thinking=thinking,
+    )
+
+
+def _anthropic_model(model_name: str, thinking: dict | None, temperature: float = 0.7):
+    return LLMClient._create_model(
+        "anthropic",
+        model_name,
+        temperature=temperature,
+        api_key="sk-test",
+        thinking=thinking,
+    )
+
+
+def _google_model(model_name: str, thinking: dict | None):
+    return LLMClient._create_model(
+        "google",
+        model_name,
+        temperature=0.7,
+        api_key="sk-test",
+        thinking=thinking,
+    )
+
+
+# ── OpenAI provider ──────────────────────────────────────────────────────
+
+
+def test_openai_reasoning_models_receive_effort_per_level() -> None:
+    for level, expected in [("low", "low"), ("medium", "medium"), ("high", "high"), ("max", "high")]:
+        model = _openai_model("openai", "gpt-5.5", ENABLED(level))
+        assert model.reasoning_effort == expected
+
+
+def test_openai_off_maps_to_none_when_supported() -> None:
+    for model_name in ("gpt-5.1", "gpt-5.5", "gpt-5.5-chat"):
+        model = _openai_model("openai", model_name, OFF)
+        assert model.reasoning_effort == "none", model_name
+
+
+def test_openai_off_maps_to_minimal_on_gpt5_family_without_none() -> None:
+    for model_name in ("gpt-5", "gpt-5-mini", "gpt-5-nano"):
+        model = _openai_model("openai", model_name, OFF)
+        assert model.reasoning_effort == "minimal", model_name
+
+
+def test_openai_off_maps_to_low_on_o_series() -> None:
+    for model_name in ("o3", "o3-mini", "o4-mini"):
+        model = _openai_model("openai", model_name, OFF)
+        assert model.reasoning_effort == "low", model_name
+
+
+def test_openai_non_reasoning_models_never_receive_effort() -> None:
+    for model_name in ("gpt-4o", "gpt-4o-mini", "gpt-4.1"):
+        for thinking in (ENABLED("high"), OFF):
+            model = _openai_model("openai", model_name, thinking)
+            assert model.reasoning_effort is None, model_name
+
+
+def test_openai_chat_latest_variants_receive_no_effort() -> None:
+    for thinking in (ENABLED("low"), OFF):
+        model = _openai_model("openai", "gpt-5.1-chat-latest", thinking)
+        assert model.reasoning_effort is None
+
+
+# ── xAI provider (grok) ──────────────────────────────────────────────────
+
+
+def test_xai_grok46_receives_effort_per_level() -> None:
+    for level, expected in [("low", "low"), ("medium", "medium"), ("high", "high")]:
+        model = _openai_model("xai", "grok-4.6", ENABLED(level))
+        assert model.reasoning_effort == expected
+    model = _openai_model("xai", "grok-4.6", ENABLED("max"))
+    assert model.reasoning_effort == "xhigh"
+
+
+def test_xai_grok45_has_no_xhigh() -> None:
+    model = _openai_model("xai", "grok-4.5", ENABLED("max"))
+    assert model.reasoning_effort == "high"
+
+
+def test_xai_off_maps_to_lowest_supported() -> None:
+    for model_name in ("grok-4.5", "grok-4.6", "grok-4-fast"):
+        model = _openai_model("xai", model_name, OFF)
+        assert model.reasoning_effort == "low", model_name
+
+
+def test_xai_older_grok_models_receive_nothing() -> None:
+    for thinking in (ENABLED("high"), OFF):
+        model = _openai_model("xai", "grok-3-mini", thinking)
+        assert model.reasoning_effort is None
+
+
+def test_xai_dated_alias_is_not_misread_as_47() -> None:
+    # 回归：grok-4-0709-beta 的日期后缀曾被吞成次版本号 (4,709)，max 档误发 xhigh
+    model = _openai_model("xai", "grok-4-0709-beta", ENABLED("max"))
+    assert model.reasoning_effort == "high"
+
+
+def test_xai_non_reasoning_variant_excluded() -> None:
+    for thinking in (ENABLED("low"), OFF):
+        model = _openai_model("xai", "grok-4-fast-non-reasoning", thinking)
+        assert model.reasoning_effort is None
+
+
+def test_openai_o1_family_not_supported() -> None:
+    # o1-preview/o1-mini 不支持 reasoning_effort（发送即 400），o1 已退役 → 整族不发送
+    for model_name in ("o1", "o1-mini", "o1-preview"):
+        for thinking in (ENABLED("low"), OFF):
+            model = _openai_model("openai", model_name, thinking)
+            assert model.reasoning_effort is None, model_name
+
+
+def test_openai_pro_variants_off_floor_to_low() -> None:
+    # gpt-5-pro 仅支持 low/medium/high，不支持 minimal/none
+    for model_name in ("gpt-5-pro", "gpt-5.1-pro"):
+        model = _openai_model("openai", model_name, OFF)
+        assert model.reasoning_effort == "low", model_name
+
+
+# ── zhipu provider (GLM) ─────────────────────────────────────────────────
+
+
+def test_zhipu_glm4_receives_thinking_body() -> None:
+    model = _openai_model("zhipu", "glm-4.6", ENABLED("low"))
+    assert model.model_kwargs["thinking"] == {"type": "enabled"}
+    model = _openai_model("zhipu", "glm-4.5-air", ENABLED("high"))
+    assert model.model_kwargs["thinking"] == {"type": "enabled"}
+
+
+def test_zhipu_glm4_off_disables_thinking() -> None:
+    model = _openai_model("zhipu", "glm-4.6", OFF)
+    assert model.model_kwargs["thinking"] == {"type": "disabled"}
+
+
+def test_zhipu_glm5_cannot_disable() -> None:
+    model = _openai_model("zhipu", "glm-5.3", OFF)
+    assert "thinking" not in model.model_kwargs
+    model = _openai_model("zhipu", "glm-5.3", ENABLED("medium"))
+    assert model.model_kwargs["thinking"] == {"type": "enabled"}
+
+
+def test_zhipu_legacy_models_receive_nothing() -> None:
+    for thinking in (ENABLED("low"), OFF):
+        model = _openai_model("zhipu", "chatglm-3-turbo", thinking)
+        assert "thinking" not in model.model_kwargs
+        assert model.reasoning_effort is None
+
+
+def test_zhipu_unverified_families_receive_nothing() -> None:
+    # glm-4.7 未在官方矩阵核实 → 不发送
+    for thinking in (ENABLED("low"), OFF):
+        model = _openai_model("zhipu", "glm-4.7", thinking)
+        assert "thinking" not in model.model_kwargs
+
+
+def test_zhipu_body_not_sent_to_other_providers_hosting_glm() -> None:
+    # 第三方 GLM 托管（SiliconFlow/OpenRouter 等）只按模型名匹配时不得收到智谱字段
+    for provider in ("openai", "deepseek", "siliconflow"):
+        model = _openai_model(provider, "glm-4.6", ENABLED("low"))
+        assert "thinking" not in model.model_kwargs, provider
+
+
+def test_zhipu_does_not_receive_openai_cache_extensions() -> None:
+    model = _openai_model("zhipu", "glm-4.6", ENABLED("low"))
+    assert "prompt_cache_key" not in model.model_kwargs
+    assert "prompt_cache_retention" not in model.model_kwargs
+
+
+# ── other OpenAI-compatible providers keep current behaviour ────────────
+
+
+def test_other_openai_protocol_providers_receive_no_thinking_params() -> None:
+    for provider, model_name in (("deepseek", "deepseek-chat"), ("qwen", "qwen-max")):
+        for thinking in (ENABLED("medium"), OFF):
+            model = _openai_model(provider, model_name, thinking)
+            assert model.reasoning_effort is None
+            assert "thinking" not in model.model_kwargs
+
+
+# ── Anthropic protocol branch ────────────────────────────────────────────
+
+
+def test_claude_3_5_receives_no_thinking_params() -> None:
+    for thinking in (ENABLED("high"), OFF):
+        model = _anthropic_model("claude-3-5-sonnet-latest", thinking)
+        assert model.thinking is None
+        assert model.reasoning_effort is None
+
+
+def test_claude_manual_era_receives_thinking_and_budget() -> None:
+    for model_name in ("claude-opus-4-1-20250805", "claude-sonnet-4-5", "claude-3-7-sonnet-latest"):
+        model = _anthropic_model(model_name, ENABLED("medium"))
+        assert model.thinking == {"type": "enabled", "budget_tokens": 8192}, model_name
+        assert model.reasoning_effort is None
+        # manual thinking rejects any temperature other than 1
+        assert model.temperature == 1.0, model_name
+
+
+def test_claude_manual_era_off_sends_nothing_and_keeps_temperature() -> None:
+    model = _anthropic_model("claude-opus-4-1-20250805", OFF)
+    assert model.thinking is None
+    assert model.reasoning_effort is None
+    assert model.temperature == 0.7
+
+
+def test_claude_dated_ids_resolve_to_manual_era() -> None:
+    # 回归：日期后缀（20250514）曾被正则吞成次版本号，导致 Claude 4 被误判
+    # 进 effort era（发 output_config.effort 而不发 manual thinking）
+    for model_name in ("claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-opus-4-0-20250514"):
+        model = _anthropic_model(model_name, ENABLED("medium"))
+        assert model.thinking == {"type": "enabled", "budget_tokens": 8192}, model_name
+        assert model.reasoning_effort is None, model_name
+        off = _anthropic_model(model_name, OFF)
+        assert off.thinking is None
+        assert off.reasoning_effort is None
+        assert off.temperature == 0.7
+
+
+def test_claude_4_6_gap_sends_nothing() -> None:
+    for thinking in (ENABLED("medium"), OFF):
+        model = _anthropic_model("claude-opus-4-6", thinking)
+        assert model.thinking is None
+        assert model.reasoning_effort is None
+
+
+def test_claude_effort_era_receives_effort_only() -> None:
+    for model_name in ("claude-opus-5", "claude-sonnet-5", "claude-opus-4-7"):
+        model = _anthropic_model(model_name, ENABLED("low"))
+        assert model.thinking is None, model_name
+        assert model.reasoning_effort == "low", model_name
+        # newest models also reject non-default sampling parameters
+        assert model.temperature == 1.0, model_name
+
+
+def test_claude_effort_era_max_maps_to_high() -> None:
+    model = _anthropic_model("claude-opus-5", ENABLED("max"))
+    assert model.reasoning_effort == "high"
+
+
+def test_claude_effort_era_off_floors_to_low() -> None:
+    model = _anthropic_model("claude-opus-5", OFF)
+    assert model.thinking is None
+    assert model.reasoning_effort == "low"
+
+
+def test_anthropic_without_thinking_config_keeps_current_behaviour() -> None:
+    # 未配置思考的调用方（标题生成/推荐等）不应被注入任何参数
+    model = _anthropic_model("claude-opus-5", None)
+    assert model.thinking is None
+    assert model.reasoning_effort is None
+    assert model.temperature == 0.7
+
+
+def test_anthropic_protocol_third_party_models_receive_nothing() -> None:
+    for model_name in ("kimi-k2-instruct", "minimax-m2", "glm-4.7"):
+        for thinking in (ENABLED("high"), OFF):
+            model = _anthropic_model(model_name, thinking)
+            assert model.thinking is None, model_name
+            assert model.reasoning_effort is None, model_name
+
+
+# ── Google protocol branch ───────────────────────────────────────────────
+
+
+def test_gemini_2_5_receives_thinking_level_per_level() -> None:
+    for level, expected in [("low", "low"), ("medium", "medium"), ("high", "high"), ("max", "high")]:
+        model = _google_model("gemini-2.5-flash", ENABLED(level))
+        assert model.reasoning_effort == expected
+
+
+def test_gemini_off_omits_thinking_level() -> None:
+    model = _google_model("gemini-2.5-flash", OFF)
+    assert model.reasoning_effort is None
+
+
+def test_gemini_newer_families_supported() -> None:
+    model = _google_model("gemini-3-pro-preview", ENABLED("low"))
+    assert model.reasoning_effort == "low"
+
+
+def test_gemini_old_models_receive_nothing() -> None:
+    for model_name in ("gemini-2.0-flash", "gemini-1.5-pro", "gemma-3-27b-it", "gemini-flash-latest"):
+        for thinking in (ENABLED("high"), OFF):
+            model = _google_model(model_name, thinking)
+            assert model.reasoning_effort is None, model_name
+
+
+def test_gemini_2_5_lite_variant_supported() -> None:
+    model = _google_model("gemini-2.5-flash-lite", ENABLED("low"))
+    assert model.reasoning_effort == "low"

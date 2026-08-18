@@ -12,7 +12,11 @@ BUDGET_TOKENS_MAP: dict[str, int] = {
 
 
 def normalize_thinking_level(value: Any) -> str:
-    """Normalize legacy and current thinking option values."""
+    """Normalize legacy and current thinking option values.
+
+    Missing/invalid values normalize to "low" (the default intensity);
+    explicit off-aliases (false/none/disabled) normalize to "off".
+    """
     if isinstance(value, bool):
         return "medium" if value else "off"
 
@@ -25,19 +29,25 @@ def normalize_thinking_level(value: Any) -> str:
         if normalized in {"disabled", "disable", "false", "none"}:
             return "off"
 
-    return "off"
+    return "low"
 
 
-def build_thinking_config(agent_options: dict[str, Any] | None) -> dict[str, Any] | None:
+def build_thinking_config(agent_options: dict[str, Any] | None) -> dict[str, Any]:
     """Build provider thinking config from agent options.
 
+    Never returns None: an explicit "off" yields a disabled dict so the client
+    layer can still express "disable thinking" to providers that need it
+    explicitly (e.g. reasoning_effort="none"); omitting the option yields the
+    default "low" level.
+
     Returns a dict with:
-      - "level": normalized level string (for Google protocol)
-      - "budget_tokens": mapped token budget (for Anthropic protocol)
+      - "type": "enabled" | "disabled"
+      - "level": normalized level string (also used by Google protocol)
+      - "budget_tokens": mapped token budget (used by Anthropic manual thinking)
     """
     level = normalize_thinking_level((agent_options or {}).get("enable_thinking"))
     if level == "off":
-        return None
+        return {"type": "disabled", "level": "off", "budget_tokens": 0}
 
     return {
         "type": "enabled",

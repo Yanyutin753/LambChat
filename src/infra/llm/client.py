@@ -6,6 +6,7 @@ LLM 客户端
 
 import asyncio
 import os
+import re
 from collections import OrderedDict
 from functools import lru_cache
 from typing import Any, Optional
@@ -133,6 +134,169 @@ def _langchain_profile(profile: Optional[dict]) -> Optional[dict]:
     }
 
 
+# ── Thinking-effort capability gating (issue #211) ──
+# Maximum-compatibility policy: every model family only receives thinking
+# parameters documented as supported by its provider; unverified combinations
+# are never sent (prefer a silent no-op over a provider 400).
+
+# OpenAI-protocol providers whose reasoning models accept reasoning_effort.
+# o1 系不发送：o1-preview/o1-mini 不支持该参数（发送即 400），o1 已退役。
+_REASONING_EFFORT_PREFIXES: dict[str, tuple[str, ...]] = {
+    "openai": ("gpt-5", "o3", "o4"),
+    "xai": ("grok-4",),
+}
+# gpt 版本解析：reasoning_effort="none" 自 gpt-5.1 起支持，用版本比较保持
+# 对未来 5.x 家族的前向兼容（避免硬编码枚举封顶）。
+_GPT_VERSION_RE = re.compile(r"(?:chatgpt-)?gpt-(\d+)(?:[.](\d{1,2})(?!\d))?")
+# zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
+# field (via model_kwargs). GLM-4.x supports explicit "disabled"; GLM-5.x does
+# not (its thinking cannot be turned off). glm-4.7 未核实，不发送。
+_ZHIPU_THINKING_PREFIXES = (
+    "glm-4.5",
+    "glm-4-5",
+    "glm-4.6",
+    "glm-4-6",
+    "glm-5",
+)
+_ZHIPU_DISABLED_PREFIXES = ("glm-4.5", "glm-4-5", "glm-4.6", "glm-4-6")
+
+# 次版本限定为 1-2 位数字且后不跟数字：防止把官方 model ID 里的发布日期
+# 后缀（claude-opus-4-20250514 / grok-4-0709-beta）当成次版本吞掉——否则
+# (4, 20250514) 会被误判进 effort era。
+_CLAUDE_VERSION_RE = re.compile(r"claude-(?:[a-z]+-)*?(\d+)(?:[-.](\d{1,2})(?!\d))?")
+_GEMINI_VERSION_RE = re.compile(r"gemini-(\d+)(?:[-.](\d{1,2})(?!\d))?")
+_GROK_VERSION_RE = re.compile(r"grok-(\d+)(?:[-.](\d{1,2})(?!\d))?")
+
+_EFFORT_BY_LEVEL = {"low": "low", "medium": "medium", "high": "high", "max": "high"}
+
+
+def _version_tuple(match: "re.Match[str]") -> tuple[int, int]:
+    return int(match.group(1)), int(match.group(2) or 0)
+
+
+def _resolve_reasoning_effort(
+    provider: str,
+    model_name: str,
+    thinking: dict[str, Any],
+) -> Optional[str]:
+    """Map a thinking config to reasoning_effort for OpenAI-protocol providers.
+
+    Returns None when the provider/model family is not documented to accept
+    reasoning_effort. For "off", falls back to the model's lowest supported
+    effort value ("none" where the family supports it) so the disable intent
+    is still expressed instead of silently reverting to the model default.
+    """
+    prefixes = _REASONING_EFFORT_PREFIXES.get(provider)
+    if not prefixes:
+        return None
+    name = model_name.lower()
+    # 固定档/非推理变体（gpt-5.1-chat-latest、grok-4-fast-non-reasoning 等）：
+    # effort 不可配置，发送会 400
+    if name.endswith("-chat-latest") or name.endswith("-non-reasoning"):
+        return None
+    if not any(name.startswith(prefix) for prefix in prefixes):
+        return None
+
+    level = str(thinking.get("level") or "medium")
+    enabled = thinking.get("type") == "enabled"
+    if provider == "xai":
+        # grok has no "none" value; omitting the parameter would default to
+        # high, so an explicit off floors to the lowest supported effort.
+        if not enabled:
+            return "low"
+        if level == "max":
+            match = _GROK_VERSION_RE.search(name)
+            return "xhigh" if match and _version_tuple(match) >= (4, 6) else "high"
+        return _EFFORT_BY_LEVEL.get(level, "medium")
+
+    if enabled:
+        return _EFFORT_BY_LEVEL.get(level, "medium")
+    # off → 该模型最低支持档；-pro 变体不支持 minimal/none，统一落到 low
+    if "-pro" not in name:
+        match = _GPT_VERSION_RE.search(name)
+        if match and _version_tuple(match) >= (5, 1):
+            return "none"
+        if name.startswith("gpt-5"):
+            return "minimal"
+    return "low"
+
+
+def _resolve_zhipu_thinking_body(
+    provider: str,
+    model_name: str,
+    thinking: dict[str, Any],
+) -> Optional[dict[str, Any]]:
+    """Map a thinking config to zhipu's `thinking` request-body field."""
+    # 仅智谱官方端点已验证；第三方 GLM 托管（SiliconFlow/OpenRouter 等）不发送
+    if provider != "zhipu":
+        return None
+    name = model_name.lower()
+    if not any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES):
+        return None
+    if thinking.get("type") == "enabled":
+        return {"thinking": {"type": "enabled"}}
+    if any(name.startswith(prefix) for prefix in _ZHIPU_DISABLED_PREFIXES):
+        return {"thinking": {"type": "disabled"}}
+    # GLM-5.x rejects thinking.type="disabled"; leave the model default alone.
+    return None
+
+
+def _resolve_anthropic_thinking(
+    model_name: str,
+    thinking: Optional[dict[str, Any]],
+) -> tuple[Optional[dict[str, Any]], Optional[str], Optional[float]]:
+    """Resolve (thinking_param, effort_param, temperature_override) for Claude.
+
+    Family eras: legacy (<= claude-3-5) and the 4.6 gap accept nothing;
+    manual era (3.7 ~ 4.5) uses thinking+budget_tokens with temperature=1;
+    effort era (4.7+/5) uses effort only — manual "enabled" is rejected there
+    (and triggers a client-side ValueError for claude-opus-5*).
+    """
+    if not thinking:
+        # 未配置思考的调用方（标题生成/推荐等）保持原行为，不注入任何参数
+        return None, None, None
+    match = _CLAUDE_VERSION_RE.search(model_name.lower())
+    if match is None:
+        return None, None, None
+    version = _version_tuple(match)
+
+    if version[0] >= 5 or version >= (4, 7):
+        level = str(thinking.get("level") or "low")
+        if thinking.get("type") != "enabled":
+            # Newest models always think and reject "disabled"; floor effort.
+            level = "low"
+        effort = _EFFORT_BY_LEVEL.get(level, "low")
+        # Newest models also reject non-default sampling parameters outright.
+        return None, effort, 1.0
+    if version == (4, 6):
+        # Manual thinking returns 400 and adaptive thinking is only accepted
+        # on 4.7+/Sonnet 5 — no verified combination, send nothing.
+        return None, None, None
+    if (3, 7) <= version <= (4, 5):
+        if thinking.get("type") != "enabled":
+            return None, None, None
+        manual: dict[str, Any] = {"type": "enabled"}
+        # Anthropic 对 enabled thinking 强制要求 budget_tokens（>=1024）
+        manual["budget_tokens"] = thinking.get("budget_tokens") or 1024
+        # Manual thinking is incompatible with any temperature other than 1.
+        return manual, None, 1.0
+    return None, None, None
+
+
+def _resolve_gemini_thinking_level(
+    model_name: str,
+    thinking: dict[str, Any],
+) -> Optional[str]:
+    """Map a thinking config to thinking_level for Gemini 2.5+ models."""
+    match = _GEMINI_VERSION_RE.search(model_name.lower())
+    if match is None or _version_tuple(match) < (2, 5):
+        return None
+    if thinking.get("type") != "enabled":
+        return None
+    level = str(thinking.get("level") or "medium")
+    return _EFFORT_BY_LEVEL.get(level, "medium")
+
+
 async def _lookup_stored_api_key(
     *,
     model_id: Optional[str],
@@ -231,22 +395,18 @@ class LLMClient:
         protocol = _resolve_protocol(provider)
 
         if protocol == "anthropic":
-            # 将 thinking config 转换为 Anthropic API 格式
-            anthropic_thinking = None
-            effort = None
-            if thinking and thinking.get("type") == "enabled":
-                budget_tokens = thinking.get("budget_tokens")
-                level = thinking.get("level", "medium")
-                # 新版模型 (Claude 4.7+) 使用 output_config.effort
-                # 旧版模型使用 budget_tokens
-                # 两者都传，由 API 选择
-                anthropic_thinking = {"type": "enabled"}
-                if budget_tokens:
-                    anthropic_thinking["budget_tokens"] = budget_tokens
-                effort = level
+            # 按 Claude 家族分代门控（issue #211）：manual 时代（3.7~4.5）传
+            # thinking+budget_tokens 并强制 temperature=1；4.7+/5 系只传 effort
+            # （对这些模型传 manual thinking 会被 API 拒绝，claude-opus-5* 更会
+            # 触发 langchain-anthropic 客户端 ValueError）；3-5 系与 4.6 不传。
+            anthropic_thinking, effort, temperature_override = _resolve_anthropic_thinking(
+                model_name, thinking
+            )
             anthropic_kwargs: dict[str, Any] = {
                 "model_name": model_name,
-                "temperature": temperature,
+                "temperature": (
+                    temperature_override if temperature_override is not None else temperature
+                ),
                 "max_tokens": max_tokens,  # type: ignore[arg-type]
                 "thinking": anthropic_thinking,
                 "effort": effort,
@@ -262,13 +422,10 @@ class LLMClient:
                 anthropic_kwargs["profile"] = profile
             return ChatAnthropic(**anthropic_kwargs, **kwargs)
         if protocol == "google":
-            if thinking and thinking.get("type") == "enabled":
-                thinking_level = thinking.get("level", "medium")
-                # Google only accepts minimal/low/medium/high — map "max" to "high"
-                if thinking_level == "max":
-                    thinking_level = "high"
-            else:
-                thinking_level = None
+            # 仅 Gemini 2.5+ 思考系接受 thinking_level；老模型与关闭档一律不传。
+            # （langchain-google-genai 文档注明 2.5 系惯用 thinking_budget、3 系用
+            # thinking_level；沿用本分支原有的 thinking_level 行为，非本次回归项。）
+            thinking_level = _resolve_gemini_thinking_level(model_name, thinking or {})
             google_kwargs: dict[str, Any] = {
                 "model": model_name,
                 "temperature": temperature,
@@ -298,27 +455,30 @@ class LLMClient:
             "first_event_timeout": settings.LLM_REQUEST_TIMEOUT,
             "non_streaming_timeout": settings.LLM_REQUEST_TIMEOUT,
         }
-        # OpenAI 协议: 传递 reasoning_effort 给推理模型
-        # 仅 OpenAI 官方模型 (provider="openai") 支持 reasoning_effort 参数。
-        # 其他 OpenAI 兼容提供商 (DeepSeek、Qwen 等) 有各自的推理机制，
-        # 发送 reasoning_effort 会触发不兼容的"思考模式"导致 API 报错。
-        if thinking and thinking.get("type") == "enabled":
-            if provider == "openai":
-                level = thinking.get("level", "medium")
-                openai_effort_map = {
-                    "low": "low",
-                    "medium": "medium",
-                    "high": "high",
-                    "max": "high",
-                }
-                openai_kwargs["reasoning_effort"] = openai_effort_map.get(level, "medium")
-            else:
+        # OpenAI 协议：按 provider/模型家族门控思考参数（issue #211）
+        # - openai/xai 推理模型收到 reasoning_effort（off 映射到该模型最低
+        #   支持档，支持 none 的家族为 "none"）
+        # - zhipu GLM-4.5+/GLM-5 收到 `thinking` 请求体字段（经 model_kwargs）
+        # - 其他 OpenAI 兼容提供商 (DeepSeek、Qwen 等) 有各自的推理机制，
+        #   发送 reasoning_effort 会触发不兼容的"思考模式"导致 API 报错
+        reasoning_effort: Optional[str] = None
+        zhipu_thinking_body: Optional[dict[str, Any]] = None
+        if thinking:
+            reasoning_effort = _resolve_reasoning_effort(provider, model_name, thinking)
+            zhipu_thinking_body = _resolve_zhipu_thinking_body(provider, model_name, thinking)
+            if reasoning_effort is None and zhipu_thinking_body is None:
                 logger.debug(
-                    "Thinking requested but reasoning_effort not supported "
+                    "Thinking requested but no thinking parameter is supported "
                     "for provider '%s' (model: %s); skipped.",
                     provider,
                     model_name,
                 )
+        if reasoning_effort is not None:
+            openai_kwargs["reasoning_effort"] = reasoning_effort
+        if zhipu_thinking_body:
+            model_kwargs = dict(kwargs.pop("model_kwargs", {}) or {})
+            model_kwargs.update(zhipu_thinking_body)
+            openai_kwargs["model_kwargs"] = model_kwargs
         if profile:
             openai_kwargs["profile"] = profile
         return ChatOpenAI(**openai_kwargs, **kwargs)
