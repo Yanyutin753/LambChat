@@ -490,6 +490,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
           return sessionConfig;
         }
+
+        // A deleted or inaccessible session must not look like an empty,
+        // successfully loaded conversation.
+        if (!isStaleHistoryLoad()) {
+          setError(i18n.t("chat.sessionUnavailable", "会话不存在或已被删除"));
+        }
       } catch (err) {
         if (
           isStaleHistoryLoad() ||

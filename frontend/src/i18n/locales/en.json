@@ -1278,7 +1278,7 @@
     "composerRetry": "Retry",
     "composerUploadFailed": "Upload failed",
     "composerUploading": "Uploading",
-    "preparing": "Preparing image…",
+    "preparing": "Preparing upload…",
     "serverProcessing": "Processing on server…",
     "dragDrop": "Drag and drop files here or click to upload",
     "dragDropHint": "Drag and drop files here",

@@ -1278,7 +1278,7 @@
     "composerRetry": "Повторить",
     "composerUploadFailed": "Ошибка загрузки",
     "composerUploading": "Загрузка",
-    "preparing": "Обработка изображения…",
+    "preparing": "Подготовка загрузки…",
     "serverProcessing": "Обработка на сервере…",
     "dragDrop": "Перетащите файлы сюда или нажмите для загрузки",
     "dragDropHint": "Перетащите файлы сюда",

@@ -322,6 +322,7 @@ export function useFileUpload({
                 ),
               );
             },
+            250,
           );
           disposeProgress = progressController.dispose;
           const handle = uploadApi.uploadFile(processedFile, {

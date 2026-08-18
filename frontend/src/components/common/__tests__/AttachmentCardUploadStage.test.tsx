@@ -40,7 +40,7 @@ beforeEach(async () => {
 
 test("shows preparing, uploading, and server-processing stages without 100 percent", () => {
   const view = renderStage("preparing", 0);
-  expect(screen.getByText("Preparing image…")).toBeInTheDocument();
+  expect(screen.getByText("Preparing upload…")).toBeInTheDocument();
   expect(screen.getByTitle("Cancel upload")).toBeInTheDocument();
 
   view.rerender(
@@ -74,4 +74,24 @@ test("shows preparing, uploading, and server-processing stages without 100 perce
   expect(screen.getByText("Processing on server…")).toBeInTheDocument();
   expect(screen.queryByText("100%")).not.toBeInTheDocument();
   expect(screen.getByTitle("Cancel upload")).toBeInTheDocument();
+});
+
+test("uses generic preparing copy for non-image attachments", () => {
+  render(
+    <AttachmentCard
+      attachment={{
+        ...baseAttachment,
+        name: "notes.txt",
+        type: "document",
+        mimeType: "text/plain",
+      }}
+      variant="editable"
+      size="compact"
+      isUploading
+      onCancel={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("Preparing upload…")).toBeInTheDocument();
+  expect(screen.queryByText("Preparing image…")).not.toBeInTheDocument();
 });

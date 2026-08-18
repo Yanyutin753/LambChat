@@ -92,7 +92,7 @@ export const AttachmentCard = memo(function AttachmentCard({
   const isFailed = Boolean(attachment.uploadError);
   const uploadStatusLabel =
     attachment.uploadStage === "preparing"
-      ? t("fileUpload.preparing", "Preparing image…")
+      ? t("fileUpload.preparing", "Preparing upload…")
       : attachment.uploadStage === "processing"
         ? t("fileUpload.serverProcessing", "Processing on server…")
         : `${Math.min(99, attachment.uploadProgress ?? 0)}%`;

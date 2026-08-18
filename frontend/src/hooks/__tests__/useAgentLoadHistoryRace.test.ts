@@ -57,3 +57,9 @@ test("feedback is deferred outside the essential session and events request pair
   expect(essentialRequestPair).not.toMatch(/feedbackPromise/);
   expect(source).toMatch(/void feedbackPromise\.then/);
 });
+
+test("missing sessions surface an unavailable-session error instead of a blank success", () => {
+  const source = readFileSync(resolve(__dirname, "../useAgent.ts"), "utf8");
+  expect(source).toMatch(/chat\.sessionUnavailable/);
+  expect(source).toMatch(/会话不存在或已被删除/);
+});

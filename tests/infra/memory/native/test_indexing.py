@@ -5,12 +5,12 @@ import pytest
 from src.infra.memory.client.native.indexing import build_memory_index, choose_index_memories
 
 
-def test_choose_index_memories_stays_capped_and_prefers_stable_items():
+def test_choose_index_memories_is_deterministic_without_access_count():
     docs = [
         {
             "memory_id": "m1",
             "source": "manual",
-            "access_count": 5,
+            "access_count": 0,
             "updated_at": datetime(2026, 4, 1, tzinfo=timezone.utc),
             "summary": "Stable preference",
         },
@@ -24,7 +24,7 @@ def test_choose_index_memories_stays_capped_and_prefers_stable_items():
         {
             "memory_id": "m3",
             "source": "manual",
-            "access_count": 3,
+            "access_count": 99,
             "updated_at": datetime(2026, 3, 30, tzinfo=timezone.utc),
             "summary": "Another useful preference",
         },
@@ -109,7 +109,7 @@ async def test_build_memory_index_orders_string_memory_types_by_configured_prior
 
 
 @pytest.mark.asyncio
-async def test_build_memory_index_omits_internal_ids_but_keeps_age_metadata(monkeypatch):
+async def test_build_memory_index_omits_internal_ids_and_relative_age_metadata(monkeypatch):
     class FakeCursor:
         def __init__(self, docs):
             self._docs = docs
@@ -164,11 +164,7 @@ async def test_build_memory_index_omits_internal_ids_but_keeps_age_metadata(monk
     index = await build_memory_index(FakeBackend(docs), user_id="u1")
 
     assert index == (
-        "<memory_index>\n"
-        "\n## [user]\n"
-        "- Current preference\n"
-        "- Older preference (stale:32d)\n"
-        "\n</memory_index>"
+        "<memory_index>\n\n## [user]\n- Current preference\n- Older preference\n\n</memory_index>"
     )
     assert "private-session-id" not in index
     assert "private-run-id" not in index

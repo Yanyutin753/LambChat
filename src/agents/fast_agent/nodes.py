@@ -295,13 +295,15 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
         if s
     ]
-    _prompt_sections.extend(section for section in (goal_section, auto_section) if section)
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
+    dynamic_sections = [section for section in (goal_section, auto_section) if section]
+    if dynamic_sections:
+        user_middleware.append(SectionPromptMiddleware(sections=dynamic_sections))
 
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware

@@ -252,6 +252,7 @@ class MainAgentContextMiddleware(AgentMiddleware):
         self._max_log_chars = max_log_chars
         self._run_id_factory = run_id_factory or (lambda: uuid.uuid4().hex[:8])
         self._snapshot_cache: dict[tuple[Any, ...], str] = {}
+        self._snapshot_cache_max_size = 128
 
     def _get_backend(self, runtime: Any) -> Any:
         if callable(self._backend):
@@ -260,9 +261,17 @@ class MainAgentContextMiddleware(AgentMiddleware):
 
     @staticmethod
     def _cache_key(request: Any, messages: list[Any]) -> tuple[Any, ...]:
+        message_ids = tuple(getattr(message, "id", None) for message in messages)
+        if all(message_ids):
+            return ("message_ids", message_ids)
         runtime = getattr(request, "runtime", None)
-        message_ids = tuple(getattr(message, "id", None) or id(message) for message in messages)
-        return (id(runtime), id(messages), len(messages), message_ids)
+        return (
+            "fallback",
+            id(runtime),
+            id(messages),
+            len(messages),
+            tuple(id(message) for message in messages),
+        )
 
     @staticmethod
     def _messages_from_request(request: Any) -> list[Any]:
@@ -341,6 +350,9 @@ class MainAgentContextMiddleware(AgentMiddleware):
         if not context_path:
             return None
         self._snapshot_cache[cache_key] = context_path
+        if len(self._snapshot_cache) > self._snapshot_cache_max_size:
+            oldest_key = next(iter(self._snapshot_cache))
+            del self._snapshot_cache[oldest_key]
         return context_path
 
     @staticmethod

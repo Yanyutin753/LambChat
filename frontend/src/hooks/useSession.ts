@@ -18,6 +18,27 @@ function dedup(sessions: BackendSession[]): BackendSession[] {
   });
 }
 
+function mergeSessionWithLocalStatus(
+  latest: BackendSession,
+  previousById: ReadonlyMap<string, BackendSession>,
+): BackendSession {
+  const previous = previousById.get(latest.id);
+  const previousTaskStatus = previous?.metadata?.task_status;
+  const latestTaskStatus = latest.metadata?.task_status;
+
+  if (previousTaskStatus === undefined || latestTaskStatus !== undefined) {
+    return latest;
+  }
+
+  return {
+    ...latest,
+    metadata: {
+      ...latest.metadata,
+      task_status: previousTaskStatus,
+    },
+  };
+}
+
 export function reconcileSessionList(input: {
   previous: BackendSession[];
   latest: BackendSession[];
@@ -29,7 +50,12 @@ export function reconcileSessionList(input: {
     excludedSessionIds?.has(session.id) ?? false;
   const visibleLatest = latest.filter((session) => !isExcluded(session));
   const latestIds = new Set(visibleLatest.map((session) => session.id));
-  const merged = visibleLatest.map((session) => session);
+  const previousById = new Map(
+    previous.map((session) => [session.id, session]),
+  );
+  const merged = visibleLatest.map((session) =>
+    mergeSessionWithLocalStatus(session, previousById),
+  );
 
   if (removeMissing) {
     return dedup(merged);

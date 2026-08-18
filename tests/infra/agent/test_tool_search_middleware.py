@@ -479,8 +479,10 @@ def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -
         extension = source.rfind("_prompt_sections.extend(")
         installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
 
-        assert -1 < active_goal < goal_section < auto_section < assembly < extension < installation
-        extension_source = source[extension:installation]
-        assert "goal_section" in extension_source
-        assert "auto_section" in extension_source
+        assert -1 < active_goal < goal_section < auto_section < assembly
+        memory = source.rfind("MemoryIndexMiddleware")
+        dynamic = source.rfind(
+            "dynamic_sections = [section for section in (goal_section, auto_section) if section]"
+        )
+        assert assembly < memory < dynamic
         assert "VolatileSectionPromptMiddleware" not in source

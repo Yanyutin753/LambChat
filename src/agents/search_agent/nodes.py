@@ -289,7 +289,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     ]
     if sandbox_backend and sandbox_work_dir:
         _prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
-    _prompt_sections.extend(section for section in (goal_section, auto_section) if section)
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if sandbox_backend:
@@ -298,6 +297,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
+    dynamic_sections = [section for section in (goal_section, auto_section) if section]
+    if dynamic_sections:
+        user_middleware.append(SectionPromptMiddleware(sections=dynamic_sections))
 
     # Tool search: per-turn dynamic content
     if context.deferred_manager is not None:

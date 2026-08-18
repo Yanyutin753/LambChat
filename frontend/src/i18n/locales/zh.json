@@ -1278,7 +1278,7 @@
     "composerRetry": "重试",
     "composerUploadFailed": "上传失败",
     "composerUploading": "上传中",
-    "preparing": "正在处理图片…",
+    "preparing": "正在准备上传…",
     "serverProcessing": "服务器处理中…",
     "dragDrop": "拖拽文件到这里或点击上传",
     "dragDropHint": "拖放文件到此处",

@@ -42,3 +42,18 @@ test("reconcileSessionList does not resurrect locally deleted sessions from stal
 
   expect(reconcileSessionList(input).map((item) => item.id)).toEqual(["keep"]);
 });
+
+test("reconcileSessionList preserves a locally newer task status", () => {
+  const local = session("active");
+  local.metadata = { task_status: "running" };
+  const staleApi = session("active");
+  staleApi.metadata = {};
+
+  expect(
+    reconcileSessionList({
+      previous: [local],
+      latest: [staleApi],
+      removeMissing: true,
+    })[0].metadata?.task_status,
+  ).toBe("running");
+});

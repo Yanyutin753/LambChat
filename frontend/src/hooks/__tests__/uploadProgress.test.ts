@@ -11,8 +11,9 @@ afterEach(() => {
 test("coalesces repeated and high-frequency upload progress", () => {
   vi.useFakeTimers();
   const updates: UploadProgressUpdate[] = [];
-  const controller = createUploadProgressController((update) =>
-    updates.push(update),
+  const controller = createUploadProgressController(
+    (update) => updates.push(update),
+    100,
   );
 
   controller.report(10);

@@ -1278,7 +1278,7 @@
     "composerRetry": "再試行",
     "composerUploadFailed": "アップロード失敗",
     "composerUploading": "アップロード中",
-    "preparing": "画像を処理中…",
+    "preparing": "アップロードを準備中…",
     "serverProcessing": "サーバーで処理中…",
     "dragDrop": "ドラッグ＆ドロップまたはクリックしてアップロード",
     "dragDropHint": "ファイルをここにドラッグ＆ドロップ",

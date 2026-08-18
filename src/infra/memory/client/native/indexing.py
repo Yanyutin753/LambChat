@@ -28,10 +28,11 @@ def choose_index_memories(
             if source == "consolidated"
             else 0.5
         )
-        access_score = min(float(doc.get("access_count", 0) or 0), 5.0) * 0.3
         age_days = (now - ensure_utc(doc.get("updated_at", now))).days
         freshness_score = max(0.0, 2.0 - (age_days / max(staleness_days, 1)))
-        return (source_score + access_score + freshness_score, -age_days)
+        # Access statistics are mutable on every recall and must not affect the
+        # system-prompt prefix. Updated time is the stable memory revision.
+        return (source_score + freshness_score, -age_days, str(doc.get("memory_id", "")))
 
     ranked = sorted(docs, key=score, reverse=True)
     return ranked[:per_type_limit]
@@ -39,7 +40,7 @@ def choose_index_memories(
 
 def evict_index_cache(index_cache: dict[str, tuple[float, str]], max_size: int) -> None:
     now = time.monotonic()
-    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
+    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 3600)
     expired = [uid for uid, (t, _) in index_cache.items() if (now - t) >= cache_ttl]
     for uid in expired:
         del index_cache[uid]
@@ -66,7 +67,6 @@ async def build_memory_index(backend, user_id: str) -> str:
         "updated_at": 1,
         "memory_type": 1,
         "source": 1,
-        "access_count": 1,
     }
     docs = (
         await backend._collection.find(
@@ -102,21 +102,10 @@ async def build_memory_index(backend, user_id: str) -> str:
             continue
         lines.append(f"\n## [{mtype}]")
         for item in chosen:
-            age_days = (now - ensure_utc(item["updated_at"])).days
-            if age_days == 0:
-                age_str = ""
-            elif age_days == 1:
-                age_str = "yesterday"
-            elif age_days <= 7:
-                age_str = f"{age_days}d ago"
-            elif age_days > staleness_days:
-                age_str = f"stale:{age_days}d"
-            else:
-                age_str = f"{age_days}d ago"
             display_title = item.get("index_label") or item.get("title") or ""
             if not display_title:
                 display_title = (item.get("summary") or "")[:30]
-            lines.append(f"- {display_title} ({age_str})" if age_str else f"- {display_title}")
+            lines.append(f"- {display_title}")
 
     lines.append("\n</memory_index>")
     result = "\n".join(lines)
