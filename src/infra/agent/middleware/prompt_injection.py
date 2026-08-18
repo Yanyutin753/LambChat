@@ -12,6 +12,7 @@ from langchain.agents.middleware.types import (
     ModelResponse,
     ResponseT,
 )
+from langchain_core.tools import BaseTool
 
 from src.infra.agent.middleware._helpers import (
     _append_system_text_block,
@@ -85,13 +86,14 @@ class MemoryIndexMiddleware(AgentMiddleware):
             ),
             None,
         )
-        if recall_index is not None:
-            base_description = getattr(tools[recall_index], "description", "") or ""
+        target = tools[recall_index] if recall_index is not None else None
+        if recall_index is not None and isinstance(target, BaseTool):
+            base_description = target.description or ""
             if "<memory_index_context>" not in base_description:
-                tools[recall_index] = tools[recall_index].model_copy(
+                tools[recall_index] = target.model_copy(
                     update={"description": f"{base_description}\n\n{framed}"}
                 )
-            request = request.override(tools=tools)
+                request = request.override(tools=tools)
         else:
             system_message = _append_system_text_block(request.system_message, framed)
             request = request.override(system_message=system_message)

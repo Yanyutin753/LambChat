@@ -603,8 +603,9 @@ class ToolSearchMiddleware(AgentMiddleware):
                 ),
                 None,
             )
-            if search_index is not None:
-                base_description = getattr(tools[search_index], "description", "") or ""
+            target = tools[search_index] if search_index is not None else None
+            if search_index is not None and isinstance(target, BaseTool):
+                base_description = target.description or ""
                 if "<deferred_tools>" not in base_description:
                     framed = (
                         "<deferred_tools>\n"
@@ -613,10 +614,10 @@ class ToolSearchMiddleware(AgentMiddleware):
                         f"{stubs}\n"
                         "</deferred_tools>"
                     )
-                    tools[search_index] = tools[search_index].model_copy(
+                    tools[search_index] = target.model_copy(
                         update={"description": f"{base_description}\n\n{framed}"}
                     )
-                request = request.override(tools=tools)
+                    request = request.override(tools=tools)
 
         return await handler(request)
 
