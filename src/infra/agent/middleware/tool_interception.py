@@ -591,6 +591,9 @@ class ToolSearchMiddleware(AgentMiddleware):
         new_tools = [tool for tool in discovered if tool.name not in existing_names]
         if search_tool.name not in existing_names:
             new_tools.append(search_tool)
+        # Deterministic ordering: the tools list is part of the provider
+        # prompt-cache prefix; unstable append order invalidates the cache.
+        new_tools.sort(key=lambda tool: getattr(tool, "name", ""))
         if new_tools:
             combined = list(request.tools) + new_tools
             request = request.override(tools=combined)

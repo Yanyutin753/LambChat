@@ -64,6 +64,7 @@ from src.infra.agent.middleware import (
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
     SectionPromptMiddleware,
+    TurnContextPromptMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
@@ -788,7 +789,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
     dynamic_sections = [section for section in (goal_section, auto_section) if section]
     if dynamic_sections:
-        user_middleware.append(SectionPromptMiddleware(sections=dynamic_sections))
+        # Per-turn sections go into the current user message, NOT the system
+        # prompt: run-scoped content in the system prompt invalidates the
+        # provider prompt-cache prefix on every turn.
+        user_middleware.append(TurnContextPromptMiddleware(sections=dynamic_sections))
 
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware
