@@ -46,7 +46,12 @@ def _google_model(model_name: str, thinking: dict | None):
 
 
 def test_openai_reasoning_models_receive_effort_per_level() -> None:
-    for level, expected in [("low", "low"), ("medium", "medium"), ("high", "high"), ("max", "high")]:
+    for level, expected in [
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("max", "high"),
+    ]:
         model = _openai_model("openai", "gpt-5.5", ENABLED(level))
         assert model.reasoning_effort == expected
 
@@ -226,7 +231,11 @@ def test_claude_manual_era_off_sends_nothing_and_keeps_temperature() -> None:
 def test_claude_dated_ids_resolve_to_manual_era() -> None:
     # 回归：日期后缀（20250514）曾被正则吞成次版本号，导致 Claude 4 被误判
     # 进 effort era（发 output_config.effort 而不发 manual thinking）
-    for model_name in ("claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-opus-4-0-20250514"):
+    for model_name in (
+        "claude-opus-4-20250514",
+        "claude-sonnet-4-20250514",
+        "claude-opus-4-0-20250514",
+    ):
         model = _anthropic_model(model_name, ENABLED("medium"))
         assert model.thinking == {"type": "enabled", "budget_tokens": 8192}, model_name
         assert model.reasoning_effort is None, model_name
@@ -283,7 +292,12 @@ def test_anthropic_protocol_third_party_models_receive_nothing() -> None:
 
 
 def test_gemini_2_5_receives_thinking_level_per_level() -> None:
-    for level, expected in [("low", "low"), ("medium", "medium"), ("high", "high"), ("max", "high")]:
+    for level, expected in [
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("max", "high"),
+    ]:
         model = _google_model("gemini-2.5-flash", ENABLED(level))
         assert model.reasoning_effort == expected
 
@@ -299,7 +313,12 @@ def test_gemini_newer_families_supported() -> None:
 
 
 def test_gemini_old_models_receive_nothing() -> None:
-    for model_name in ("gemini-2.0-flash", "gemini-1.5-pro", "gemma-3-27b-it", "gemini-flash-latest"):
+    for model_name in (
+        "gemini-2.0-flash",
+        "gemini-1.5-pro",
+        "gemma-3-27b-it",
+        "gemini-flash-latest",
+    ):
         for thinking in (ENABLED("high"), OFF):
             model = _google_model(model_name, thinking)
             assert model.reasoning_effort is None, model_name

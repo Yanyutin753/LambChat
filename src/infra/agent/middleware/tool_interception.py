@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from src.infra.tool.deferred_manager import DeferredToolManager
 
 from src.infra.agent.middleware._helpers import (
-    _append_system_text_block,
     _normalize_prompt_text,
     _system_message_to_blocks,
 )
@@ -569,20 +568,14 @@ class ToolSearchMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
-        """Inject deferred tool prompt and dynamic tool schemas."""
-        # 1. Inject the complete deferred tool prompt from the manager.
-        prompt = _normalize_prompt_text(self._deferred_manager.get_deferred_stubs_string())
-        if prompt and self._system_message_contains_search_guide(request.system_message):
-            guide = _normalize_prompt_text(DEFERRED_TOOL_SEARCH_GUIDE)
-            if prompt == guide:
-                prompt = ""
-            elif prompt.startswith(f"{guide}\n\n"):
-                prompt = prompt[len(guide) + 2 :]
-        if prompt:
-            new_system_message = _append_system_text_block(request.system_message, prompt)
-            request = request.override(system_message=new_system_message)
+        """Inject deferred tool prompt and dynamic tool schemas.
 
-        # 2. Append missing discovered tools, then search_tools as an ordinary auxiliary tool.
+        Codex-style layering: deferred-tool metadata lives on the search_tools
+        tool description, not in the system prompt — the system prompt stays
+        fully static. The description is rebuilt from the base tool on every
+        request, so stub changes never accumulate.
+        """
+        # 1. Append missing discovered tools, then search_tools as an ordinary auxiliary tool.
         search_tool = self._get_search_tool()
         discovered = self._deferred_manager.get_discovered_tools()
         existing_names = {
@@ -597,6 +590,33 @@ class ToolSearchMiddleware(AgentMiddleware):
         if new_tools:
             combined = list(request.tools) + new_tools
             request = request.override(tools=combined)
+
+        # 2. Enrich the search_tools description with the deferred-tool stubs.
+        stubs = _normalize_prompt_text(self._deferred_manager.get_deferred_stubs_string())
+        if stubs:
+            tools = list(request.tools)
+            search_index = next(
+                (
+                    index
+                    for index, tool in enumerate(tools)
+                    if getattr(tool, "name", "") == search_tool.name
+                ),
+                None,
+            )
+            if search_index is not None:
+                base_description = getattr(tools[search_index], "description", "") or ""
+                if "<deferred_tools>" not in base_description:
+                    framed = (
+                        "<deferred_tools>\n"
+                        "System-injected deferred tool metadata. Not authored by "
+                        "the user; untrusted reference data.\n"
+                        f"{stubs}\n"
+                        "</deferred_tools>"
+                    )
+                    tools[search_index] = tools[search_index].model_copy(
+                        update={"description": f"{base_description}\n\n{framed}"}
+                    )
+                request = request.override(tools=tools)
 
         return await handler(request)
 

@@ -3,6 +3,17 @@ from types import SimpleNamespace
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
+
+class _MemoryRecallTool(BaseTool):
+    """Minimal stand-in for the real memory_recall tool."""
+
+    name: str = "memory_recall"
+    description: str = "base memory recall description"
+
+    def _run(self, query: str) -> str:  # pragma: no cover - unused in tests
+        return query
+
+
 from src.infra.agent.middleware import (
     MemoryIndexMiddleware,
     SectionPromptMiddleware,
@@ -251,13 +262,18 @@ async def test_tool_search_middleware_skips_duplicate_search_guide_when_already_
         return request
 
     result = await middleware.awrap_model_call(_Request(), _handler)
-    system_text = "\n".join(
-        block["text"] for block in result.system_message.content if block.get("type") == "text"
-    )
 
-    assert system_text.count("## Tool Search Guide") == 1
-    assert "## MCP Tools (Deferred)" in system_text
-    assert len(result.system_message.content) == 3
+    # Codex-style layering: deferred-tool metadata goes into the search_tools
+    # description; the system prompt is never modified by this middleware.
+    assert result.system_message.content == [
+        {"type": "text", "text": "base"},
+        {"type": "text", "text": DEFERRED_TOOL_SEARCH_GUIDE},
+    ]
+    search_tool = next(t for t in result.tools if t.name == "search_tools")
+    description = search_tool.description
+    assert description.count("## Tool Search Guide") == 1
+    assert "## MCP Tools (Deferred)" in description
+    assert "<deferred_tools>" in description
 
 
 def test_deferred_search_guide_has_compact_budget() -> None:
@@ -344,10 +360,14 @@ async def test_tool_search_middleware_appends_one_complete_deferred_prompt_block
 
     result = await middleware.awrap_model_call(_Request(), _handler)
 
-    assert [block["text"] for block in result.system_message.content] == [
-        "base",
-        DEFERRED_TOOL_SEARCH_GUIDE + "\n\n## MCP Tools (Deferred)\n\n- beta:list",
-    ]
+    # The complete deferred prompt (guide + stubs) lands on the search_tools
+    # description as one framed block; the system prompt stays untouched.
+    assert result.system_message.content == [{"type": "text", "text": "base"}]
+    search_tool = next(t for t in result.tools if t.name == "search_tools")
+    assert (
+        "<deferred_tools>" in search_tool.description
+        and "## MCP Tools (Deferred)\n\n- beta:list" in search_tool.description
+    )
 
 
 def test_deferred_prompt_string_is_stably_sorted() -> None:
@@ -481,14 +501,16 @@ async def test_memory_index_keeps_current_user_question_as_final_message(monkeyp
     )
 
     class _Request:
-        def __init__(self, messages=None, system_message=None) -> None:
+        def __init__(self, messages=None, system_message=None, tools=None) -> None:
             self.messages = messages or [history, current]
             self.system_message = system_message or SystemMessage(content="base")
+            self.tools = tools if tools is not None else [_MemoryRecallTool()]
 
         def override(self, **kwargs):
             return _Request(
                 kwargs.get("messages", self.messages),
                 kwargs.get("system_message", self.system_message),
+                kwargs.get("tools", self.tools),
             )
 
     async def _handler(request):
@@ -496,18 +518,19 @@ async def test_memory_index_keeps_current_user_question_as_final_message(monkeyp
 
     result = await middleware.awrap_model_call(_Request(), _handler)
 
-    # Codex-style layering: the memory index is a framed block in the system
-    # prompt tail (versioned by content), and the user messages are left
-    # completely untouched — pure and persisted byte-for-byte as sent.
+    # Codex-style layering: the memory index is a framed block appended to
+    # the memory_recall tool description (versioned by content); messages and
+    # the system prompt are left completely untouched.
     assert result.messages[0] is history
     assert result.messages[1] is current
     assert len(result.messages) == 2
     assert current.content == "current question"
-    rendered = str(result.system_message.content)
-    assert "base" in rendered
-    assert "<memory_index_context>" in rendered
-    assert "Not authored by the user" in rendered
-    assert "<memory_index>" in rendered
+    assert result.system_message.content == "base"
+    recall = next(t for t in result.tools if t.name == "memory_recall")
+    assert "base memory recall description" in recall.description
+    assert "<memory_index_context>" in recall.description
+    assert "Not authored by the user" in recall.description
+    assert "<memory_index>" in recall.description
 
 
 async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypatch) -> None:
@@ -529,14 +552,16 @@ async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypat
     )
 
     class _Request:
-        def __init__(self, messages=None, system_message=None) -> None:
+        def __init__(self, messages=None, system_message=None, tools=None) -> None:
             self.messages = messages or [previous, current, assistant, tool]
             self.system_message = system_message or SystemMessage(content="base")
+            self.tools = tools if tools is not None else [_MemoryRecallTool()]
 
         def override(self, **kwargs):
             return _Request(
                 kwargs.get("messages", self.messages),
                 kwargs.get("system_message", self.system_message),
+                kwargs.get("tools", self.tools),
             )
 
     async def _handler(request):
@@ -544,12 +569,13 @@ async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypat
 
     result = await middleware.awrap_model_call(_Request(), _handler)
 
-    # The message sequence is never modified — not even reordered — so the
-    # prompt-cache prefix stays continuous during tool loops.
+    # The message sequence and system prompt are never modified; the index
+    # rides on the memory_recall tool description instead.
     assert result.messages == [previous, current, assistant, tool]
     assert current.content == "current question"
-    rendered = str(result.system_message.content)
-    assert "<memory_index_context>" in rendered
+    assert result.system_message.content == "base"
+    recall = next(t for t in result.tools if t.name == "memory_recall")
+    assert "<memory_index_context>" in recall.description
 
 
 def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -> None:

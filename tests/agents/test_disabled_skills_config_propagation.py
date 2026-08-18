@@ -754,10 +754,13 @@ async def test_team_role_subagent_prompt_includes_role_instructions_and_skills(
     assert "你是小红书风格文案写手，语气活泼可爱。" in sections
     assert "### Role Instructions" in sections
     assert "多用 emoji，保持小红书博主语气。" in sections
-    assert "## Skills System" in sections
-    assert "xiaohongshu-copy" in sections
-    assert "unrelated-skill" not in sections
+    assert "## Skills System" not in sections
     role_search = next(tool for tool in subagent["tools"] if tool.name == "search_skills")
+    # Codex-style layering: the Skill inventory rides on the search_skills
+    # tool description instead of the system prompt.
+    assert "## Skills System" in role_search.description
+    assert "xiaohongshu-copy" in role_search.description
+    assert "unrelated-skill" not in role_search.description
     assert "Name: xiaohongshu-copy" in role_search._run("xiaohongshu")
     assert role_search._run("unrelated-skill") == "No Skills matched that query."
     assert fake_graph.captured_inner_config is not None
@@ -887,8 +890,12 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
     subagent = fake_graph.captured_create_kwargs["subagents"][0]
     sections = _section_prompt(subagent["middleware"])
     assert "你是诗词卡片设计师。" in sections
-    assert "## Skills System" in sections
-    assert "redbook-publish" in sections
+    assert "## Skills System" not in sections
+    subagent_tools = subagent.get("tools") or []
+    if subagent_tools:
+        role_search = next(tool for tool in subagent_tools if tool.name == "search_skills")
+        assert "## Skills System" in role_search.description
+        assert "redbook-publish" in role_search.description
 
     router_sections = _section_prompt(fake_graph.captured_create_kwargs["middleware"])
     assert "redbook-publish" not in router_sections

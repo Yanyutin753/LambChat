@@ -58,7 +58,6 @@ from src.infra.goal import (
 )
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
-from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
 from src.kernel.config import settings
@@ -150,20 +149,6 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         logger.debug(f"[FastAgent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
         return loaded_backend, loaded_store
 
-    async def _load_skills_prompt() -> str:
-        if not settings.ENABLE_SKILLS or not context.skills:
-            return ""
-        try:
-            skills_start = time.time()
-            prompt = await build_skills_prompt(context.skills)
-            logger.debug(
-                f"[FastAgent] Skills prompt init: {(time.time() - skills_start) * 1000:.3f}ms"
-            )
-            return prompt
-        except Exception as exc:
-            logger.warning("Failed to build skills prompt: %s", exc)
-            return ""
-
     async def _load_context_tools() -> list[Any]:
         get_tools = getattr(context, "get_tools", None)
         if callable(get_tools):
@@ -176,13 +161,11 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     prepared = await prepare_agent_inputs(
         model=_load_model_bundle(),
         backend=_load_backend_bundle(),
-        skills_prompt=_load_skills_prompt(),
         tools=_load_context_tools(),
         checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
     )
     llm, fallback_model_value, supports_vision, image_url_to_base64 = prepared.model
     backend, store = prepared.backend
-    skills_prompt = prepared.skills_prompt
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
 
@@ -216,7 +199,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     subagent_base_url = configurable.get("base_url", "")
-    subagent_prompt_sections = [s for s in (*persona_sections, skills_prompt, memory_guide) if s]
+    subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
 
     def _build_subagent_middleware(subagent_type: str) -> list:
         mw = [
@@ -287,9 +270,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     active_goal = configurable.get("active_goal")
     # Persona, skills, memory guidance, goal, and mode share one authored prompt block.
     _prompt_sections = [
-        s
-        for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
-        if s
+        s for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, memory_guide) if s
     ]
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))

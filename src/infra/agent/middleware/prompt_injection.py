@@ -44,13 +44,13 @@ class SectionPromptMiddleware(AgentMiddleware):
 
 
 class MemoryIndexMiddleware(AgentMiddleware):
-    """Adds the native memory index as a framed system-prompt tail block.
+    """Injects the memory index into the memory_recall tool description.
 
-    Codex-style layering: low-frequency reference context (the memory index)
-    belongs in the system layer, versioned by content — the prefix is
-    invalidated only when the user's memories actually change, not on every
-    turn. User messages stay pure and persisted byte-for-byte as sent, keeping
-    the provider prompt-cache prefix continuous across turns.
+    Codex-style layering: context metadata lives on the tool it belongs to,
+    not in the system prompt. The index is versioned by content — the prefix
+    is invalidated only when the user's memories actually change — and the
+    system prompt stays fully static. Falls back to a system-prompt tail block
+    when the memory_recall tool is not part of the request.
     """
 
     def __init__(self, *, user_id: str | None) -> None:
@@ -76,8 +76,25 @@ class MemoryIndexMiddleware(AgentMiddleware):
             f"{index_str}\n"
             "</memory_index_context>"
         )
-        system_message = _append_system_text_block(request.system_message, framed)
-        request = request.override(system_message=system_message)
+        tools = list(request.tools)
+        recall_index = next(
+            (
+                index
+                for index, tool in enumerate(tools)
+                if getattr(tool, "name", "") == "memory_recall"
+            ),
+            None,
+        )
+        if recall_index is not None:
+            base_description = getattr(tools[recall_index], "description", "") or ""
+            if "<memory_index_context>" not in base_description:
+                tools[recall_index] = tools[recall_index].model_copy(
+                    update={"description": f"{base_description}\n\n{framed}"}
+                )
+            request = request.override(tools=tools)
+        else:
+            system_message = _append_system_text_block(request.system_message, framed)
+            request = request.override(system_message=system_message)
         return await handler(request)
 
 

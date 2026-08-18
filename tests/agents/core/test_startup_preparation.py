@@ -21,18 +21,17 @@ async def test_prepare_agent_inputs_starts_all_independent_work_together() -> No
         prepare_agent_inputs(
             model=gated("model", "llm"),
             backend=gated("backend", "backend"),
-            skills_prompt=gated("skills", "skills"),
             tools=gated("tools", ["tool"]),
             checkpointer=gated("checkpointer", "checkpointer"),
         )
     )
 
     for _ in range(20):
-        if len(started) == 5:
+        if len(started) == 4:
             break
         await asyncio.sleep(0)
 
-    assert started == {"model", "backend", "skills", "tools", "checkpointer"}
+    assert started == {"model", "backend", "tools", "checkpointer"}
     assert task.done() is False
 
     release.set()
@@ -40,7 +39,6 @@ async def test_prepare_agent_inputs_starts_all_independent_work_together() -> No
     assert result == PreparedAgentInputs(
         model="llm",
         backend="backend",
-        skills_prompt="skills",
         tools=["tool"],
         checkpointer="checkpointer",
     )
@@ -63,7 +61,6 @@ async def test_prepare_agent_inputs_cancels_siblings_when_one_dependency_fails()
         await prepare_agent_inputs(
             model=fail(),
             backend=wait_until_cancelled(),
-            skills_prompt=wait_until_cancelled(),
             tools=wait_until_cancelled(),
             checkpointer=wait_until_cancelled(),
         )

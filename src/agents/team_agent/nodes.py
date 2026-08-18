@@ -80,7 +80,6 @@ from src.infra.goal import (
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
 from src.infra.sandbox.session_manager import get_session_sandbox_manager
-from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
 from src.kernel.config import settings
@@ -398,20 +397,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             loaded_sandbox_work_dir,
         )
 
-    async def _load_skills_prompt() -> str:
-        if not settings.ENABLE_SKILLS or not context.skills:
-            return ""
-        try:
-            skills_start = time.time()
-            prompt = await build_skills_prompt(context.skills)
-            logger.debug(
-                f"[TeamAgent] Skills prompt init: {(time.time() - skills_start) * 1000:.3f}ms"
-            )
-            return prompt
-        except Exception as exc:
-            logger.warning("Failed to build skills prompt: %s", exc)
-            return ""
-
     async def _load_context_tools() -> list[Any]:
         get_tools = getattr(context, "get_tools", None)
         if callable(get_tools):
@@ -424,20 +409,16 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     prepared = await prepare_agent_inputs(
         model=_load_model_bundle(),
         backend=_load_backend_bundle(),
-        skills_prompt=_load_skills_prompt(),
         tools=_load_context_tools(),
         checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
     )
     llm, fallback_model_value, supports_vision, image_url_to_base64 = prepared.model
     backend, store, sandbox_backend, sandbox_work_dir = prepared.backend
-    skills_prompt = prepared.skills_prompt
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
-    router_skills_prompt = "" if team else skills_prompt
 
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
     role_system_prompts: dict[str, str] = {}
-    role_skill_prompts: dict[str, str] = {}
     role_skills_by_member: dict[str, list[dict]] = {}
     role_summaries: dict[str, str] = {}
 
@@ -459,10 +440,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         skill for skill in context.skills if skill.get("name") in role_skill_names
                     ]
                     role_skills_by_member[member.member_id] = role_skills
-                    role_skill_prompts[member.member_id] = await build_skills_prompt(role_skills)
                 else:
                     role_skills_by_member[member.member_id] = list(context.skills)
-                    role_skill_prompts[member.member_id] = skills_prompt
                 summary = summarize_role_system_prompt(preset_snapshot.system_prompt)
                 if summary:
                     role_summaries[member.member_id] = summary
@@ -622,7 +601,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                             sandbox_active=bool(sandbox_backend),
                         ),
                         role_section,
-                        role_skill_prompts.get(member.member_id, skills_prompt),
                         memory_guide,
                         subagent_runtime_section,
                     )
@@ -701,9 +679,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     # Fallback: built-in specialist subagents when no explicit team is selected
     if not custom_subagents:
         subagent_prompt_sections = [
-            s
-            for s in (*persona_sections, skills_prompt, memory_guide, subagent_runtime_section)
-            if s
+            s for s in (*persona_sections, memory_guide, subagent_runtime_section) if s
         ]
         custom_subagents = [
             {
@@ -767,7 +743,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         for s in (
             *MAIN_AGENT_PROMPT_SECTIONS,
             *persona_sections,
-            router_skills_prompt,
             memory_guide,
         )
         if s

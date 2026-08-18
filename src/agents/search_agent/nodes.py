@@ -69,7 +69,6 @@ from src.infra.goal import (
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
 from src.infra.sandbox.session_manager import get_session_sandbox_manager
-from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
 from src.infra.writer.present import Presenter
@@ -154,15 +153,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         logger.debug(f"[Agent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
         return result
 
-    async def _load_skills_prompt() -> str:
-        if not settings.ENABLE_SKILLS or not context.skills:
-            return ""
-        try:
-            return await build_skills_prompt(context.skills)
-        except Exception as exc:
-            logger.warning("Failed to build skills prompt: %s", exc)
-            return ""
-
     async def _load_context_tools() -> list[Any]:
         get_tools = getattr(context, "get_tools", None)
         if callable(get_tools):
@@ -175,13 +165,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     prepared = await prepare_agent_inputs(
         model=_load_model_bundle(),
         backend=_load_backend_bundle(),
-        skills_prompt=_load_skills_prompt(),
         tools=_load_context_tools(),
         checkpointer=get_async_checkpointer(thread_id=state.get("session_id")),
     )
     llm, fallback_model_value, supports_vision, image_url_to_base64 = prepared.model
     backend, system_prompt, store, sandbox_backend, sandbox_work_dir = prepared.backend
-    skills_prompt = prepared.skills_prompt
     filtered_tool_list = prepared.tools
     inner_checkpointer = prepared.checkpointer
 
@@ -203,7 +191,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     search_base_url = configurable.get("base_url", "")
-    subagent_prompt_sections = [s for s in (*persona_sections, skills_prompt, memory_guide) if s]
+    subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
     if sandbox_backend and sandbox_work_dir:
         subagent_prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
 
@@ -279,9 +267,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # Prompt sections use one SectionPromptMiddleware instance.
     # Duplicate middleware classes are rejected by langchain's agent factory.
     _prompt_sections = [
-        s
-        for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, skills_prompt, memory_guide)
-        if s
+        s for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, memory_guide) if s
     ]
     if sandbox_backend and sandbox_work_dir:
         _prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
