@@ -56,7 +56,9 @@ def _append_human_text(message: BaseMessage, text: str) -> HumanMessage:
         if normalized:
             new_content.append({"type": "text", "text": normalized})
     elif isinstance(content, str):
-        new_content = f"{content}\n\n{normalized}" if normalized and content else (normalized or content)
+        new_content = (
+            f"{content}\n\n{normalized}" if normalized and content else (normalized or content)
+        )
     else:
         new_content = content
     return HumanMessage(content=new_content)
