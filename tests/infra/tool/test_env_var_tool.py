@@ -6,8 +6,19 @@ from types import SimpleNamespace
 
 import pytest
 from langchain_core.messages import SystemMessage
+from langchain_core.tools import BaseTool
 
 from src.kernel.schemas.envvar import EnvVarResponse
+
+
+class _EnvVarListTool(BaseTool):
+    """Minimal stand-in for the real env_var_list tool."""
+
+    name: str = "env_var_list"
+    description: str = "base env var list description"
+
+    def _run(self) -> str:  # pragma: no cover - unused in tests
+        return "ok"
 
 
 class _Runtime:
@@ -47,11 +58,15 @@ class _FakeEnvVarStorage:
 
 
 class _Request:
-    def __init__(self, system_message):
+    def __init__(self, system_message, tools=None):
         self.system_message = system_message
+        self.tools = tools if tools is not None else []
 
     def override(self, **kwargs):
-        return _Request(kwargs.get("system_message", self.system_message))
+        return _Request(
+            kwargs.get("system_message", self.system_message),
+            kwargs.get("tools", self.tools),
+        )
 
 
 def _load_module_from_path(module_name: str, relative_path: str):
@@ -187,7 +202,7 @@ def test_env_var_prompt_cache_eviction_caps_users(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_env_var_prompt_middleware_appends_one_full_prompt_block(
+async def test_env_var_prompt_rides_on_env_var_list_tool_description(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.infra.agent import middleware
@@ -210,18 +225,100 @@ async def test_env_var_prompt_middleware_appends_one_full_prompt_block(
         return "ok"
 
     result = await middleware.EnvVarPromptMiddleware(user_id="user-1").awrap_model_call(
-        _Request(SystemMessage(content="base")),
+        _Request(SystemMessage(content="base"), tools=[_EnvVarListTool()]),
         handler,
     )
 
     assert result == "ok"
-    assert captured[0].system_message.content == [
-        {"type": "text", "text": "base"},
-        {
-            "type": "text",
-            "text": "## Available Environment Variables\n\n- `FIRECRAWL_API_KEY`",
-        },
-    ]
+    # Codex-style layering: the key list is a framed block appended to the
+    # env_var_list tool description (versioned by content); the system prompt
+    # stays fully static.
+    assert captured[0].system_message.content == "base"
+    env_list = next(t for t in captured[0].tools if t.name == "env_var_list")
+    assert "base env var list description" in env_list.description
+    assert "<env_var_keys_context>" in env_list.description
+    assert "Not authored by the user" in env_list.description
+    assert "- `FIRECRAWL_API_KEY`" in env_list.description
+
+
+@pytest.mark.asyncio
+async def test_env_var_prompt_rebuilds_tool_description_each_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.agent import middleware
+    from src.infra.tool import env_var_prompt
+
+    prompts = iter(
+        [
+            "## Available Environment Variables\n\n- `FIRST_KEY`",
+            "## Available Environment Variables\n\n- `FIRST_KEY`\n- `SECOND_KEY`",
+        ]
+    )
+
+    async def fake_build_env_var_prompt(user_id: str) -> str:
+        return next(prompts)
+
+    monkeypatch.setattr(
+        env_var_prompt,
+        "build_env_var_prompt",
+        fake_build_env_var_prompt,
+    )
+
+    base_tool = _EnvVarListTool()
+    captured = []
+
+    async def handler(request):
+        captured.append(request)
+        return "ok"
+
+    middleware_instance = middleware.EnvVarPromptMiddleware(user_id="user-1")
+    await middleware_instance.awrap_model_call(_Request(None, tools=[base_tool]), handler)
+    await middleware_instance.awrap_model_call(
+        _Request(None, tools=[captured[0].tools[0]]), handler
+    )
+
+    first = captured[0].tools[0].description
+    second = captured[1].tools[0].description
+    assert first.count("<env_var_keys_context>") == 1
+    assert second.count("<env_var_keys_context>") == 1
+    assert "- `FIRST_KEY`" in second
+    assert "- `SECOND_KEY`" in second
+
+
+@pytest.mark.asyncio
+async def test_env_var_prompt_falls_back_to_system_tail_without_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.agent import middleware
+    from src.infra.tool import env_var_prompt
+
+    async def fake_build_env_var_prompt(user_id: str) -> str:
+        assert user_id == "user-1"
+        return "## Available Environment Variables\n\n- `FIRECRAWL_API_KEY`"
+
+    monkeypatch.setattr(
+        env_var_prompt,
+        "build_env_var_prompt",
+        fake_build_env_var_prompt,
+    )
+
+    captured = []
+
+    async def handler(request):
+        captured.append(request)
+        return "ok"
+
+    result = await middleware.EnvVarPromptMiddleware(user_id="user-1").awrap_model_call(
+        _Request(SystemMessage(content="base"), tools=[]),
+        handler,
+    )
+
+    assert result == "ok"
+    assert captured[0].tools == []
+    fallback_text = "\n\n".join(block["text"] for block in captured[0].system_message.content)
+    assert "base" in fallback_text
+    assert "<env_var_keys_context>" in fallback_text
+    assert "- `FIRECRAWL_API_KEY`" in fallback_text
 
 
 @pytest.mark.asyncio
