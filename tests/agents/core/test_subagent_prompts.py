@@ -210,10 +210,15 @@ def test_authored_prompt_sections_place_runtime_before_goal_and_mode() -> None:
     for node in (agent_node, team_router_node):
         source = getsource(node)
         assembly = source.rfind("_prompt_sections = [")
-        runtime = source.rfind("RUNTIME_SECTION.format")
         installation = source.rfind("SectionPromptMiddleware(sections=_prompt_sections)")
 
-        assert -1 < assembly < runtime < installation
+        assert -1 < assembly < installation
+        # The session workspace path moved out of the system prompt onto the
+        # file-tool descriptions (Codex-style layering); the middleware must
+        # be installed after the env-var middleware it follows.
+        env = source.rfind("EnvVarPromptMiddleware")
+        sandbox = source.rfind("SandboxWorkspaceMiddleware")
+        assert -1 < env < sandbox
         # Goal/auto-mode context is persisted into the user message at write
         # time (chat layer), never injected at request time by the agents.
         assert "goal_section" not in source

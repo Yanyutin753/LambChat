@@ -15,6 +15,7 @@ from src.infra.agent.middleware.retry import (
     _is_empty_content,
     create_retry_middleware,
 )
+from src.infra.agent.middleware.sandbox_workspace import SandboxWorkspaceMiddleware
 from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
 from src.infra.agent.middleware.subagent_result_handoff import SubagentResultHandoffMiddleware
 from src.infra.agent.middleware.tool_interception import (
@@ -32,6 +33,7 @@ __all__ = [
     "MainAgentContextMiddleware",
     "MemoryIndexMiddleware",
     "ModelFallbackMiddleware",
+    "SandboxWorkspaceMiddleware",
     "SectionPromptMiddleware",
     "SubagentActivityMiddleware",
     "SubagentResultHandoffMiddleware",

@@ -192,8 +192,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     search_base_url = configurable.get("base_url", "")
     subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
-    if sandbox_backend and sandbox_work_dir:
-        subagent_prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
+    sandbox_runtime_policy = (
+        SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
+        if sandbox_backend and sandbox_work_dir
+        else ""
+    )
 
     def _build_subagent_middleware(subagent_type: str) -> list:
         mw = [
@@ -208,6 +211,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             mw.append(SectionPromptMiddleware(sections=subagent_prompt_sections))
         if sandbox_backend:
             mw.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+        if sandbox_runtime_policy:
+            from src.infra.agent.middleware import SandboxWorkspaceMiddleware
+
+            mw.append(SandboxWorkspaceMiddleware(policy_text=sandbox_runtime_policy))
         if context.deferred_manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
@@ -269,12 +276,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     _prompt_sections = [
         s for s in (*MAIN_AGENT_PROMPT_SECTIONS, *persona_sections, memory_guide) if s
     ]
-    if sandbox_backend and sandbox_work_dir:
-        _prompt_sections.append(SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+        if sandbox_work_dir:
+            from src.infra.agent.middleware import SandboxWorkspaceMiddleware
+
+            user_middleware.append(
+                SandboxWorkspaceMiddleware(
+                    policy_text=SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
+                )
+            )
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
