@@ -251,10 +251,13 @@ export function ApprovalPanel({
   const DEFAULT_TIMEOUT = 300; // 5min fallback when backend doesn't provide data
 
   // Initialize deadlines from expires_at / timeout / default
+  // 无截止时间审批（interrupt 模式，无 expires_at 且无 timeout）：
+  // 不设置倒计时，无限期等待用户响应，也不会自动拒绝
   useEffect(() => {
     const now = Date.now();
     for (const a of approvals) {
       if (deadlinesRef.current[a.id]) continue;
+      if (!a.expires_at && !a.timeout) continue; // no deadline — wait indefinitely
       let deadline: number;
       let seconds: number;
       if (a.expires_at) {

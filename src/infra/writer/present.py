@@ -91,6 +91,9 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
 
     def __init__(self, config: Optional[PresenterConfig] = None):
         self.config = config or PresenterConfig()
+        # HITL interrupt 模式（issue #218）：由 agent 节点在图挂起时置 True，
+        # TaskExecutor 据此将会话标记为 WAITING_HUMAN 而非 COMPLETED。
+        self.hitl_suspended: bool = False
         self._tool_calls: List[Dict] = []
         self._step_count: int = 0
         self._dual_writer = None

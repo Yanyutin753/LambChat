@@ -198,6 +198,11 @@ class Settings(BaseSettings):
     CHECKPOINT_PG_POOL_MIN_SIZE: int = 2
     CHECKPOINT_PG_POOL_MAX_SIZE: int = 10
 
+    # HITL (ask_human) mode:
+    #   blocking - 协程内阻塞等待用户响应（旧行为）
+    #   interrupt - LangGraph interrupt() 挂起 + Command(resume=...) 恢复
+    HITL_MODE: str = "blocking"
+
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
     SANDBOX_PLATFORM: str = "daytona"

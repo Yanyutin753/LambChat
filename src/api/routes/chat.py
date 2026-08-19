@@ -329,6 +329,7 @@ async def _execute_agent_stream(
     active_goal: dict | None = None,
     recommendation_input: str | None = None,
     auto_mode: bool = False,
+    hitl_resume: dict | None = None,
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
     from src.infra.task.manager import TaskInterruptedError
@@ -360,6 +361,7 @@ async def _execute_agent_stream(
             auto_mode=auto_mode,
             goal_started_at=started_at,
             recommendation_input=recommendation_input,
+            hitl_resume=hitl_resume,
         ):
             if event.get("event") == "goal:end":
                 goal_end_emitted = True

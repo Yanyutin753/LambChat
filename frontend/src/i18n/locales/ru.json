@@ -2195,6 +2195,7 @@
     "AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES": "Максимальный размер загрузки для транскрипции аудио в байтах",
     "AUDIO_TRANSCRIPTION_MODEL": "Имя модели распознавания по умолчанию для инструмента audio_transcribe, например gpt-4o-mini-transcribe или FunAudioLLM/SenseVoiceSmall.",
     "CHECKPOINT_BACKEND": "Бэкенд хранения контрольных точек. Используйте 'postgres' для обхода ограничения MongoDB в 16 МБ на документ в длинных беседах.",
+    "HITL_MODE": "Режим ask_human (human-in-the-loop). blocking=корутина блокируется в ожидании (устаревший); interrupt=приостановка через LangGraph interrupt() и возобновление с точки останова даже после перезапуска процесса (требуется постоянный checkpointer).",
     "CHECKPOINT_MONGO_POOL_MAX_SIZE": "Максимальный размер выделенного пула подключений MongoDB для контрольных точек (физически изолирован от бизнес-пула).",
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": "Минимальный размер выделенного пула подключений MongoDB для контрольных точек (физически изолирован от бизнес-пула).",
     "CHECKPOINT_PG_DB": "База данных PostgreSQL для хранения контрольных точек. Оставьте пустым для использования POSTGRES_DB.",

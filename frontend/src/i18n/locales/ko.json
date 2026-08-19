@@ -2195,6 +2195,7 @@
     "AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES": "음성 transcription 최대 다운로드 크기（바이트）",
     "AUDIO_TRANSCRIPTION_MODEL": "audio_transcribe 도구에서 사용할 기본 전사 모델 이름입니다. 예: gpt-4o-mini-transcribe 또는 FunAudioLLM/SenseVoiceSmall.",
     "CHECKPOINT_BACKEND": "체크포인트 스토리지 백엔드. 긴 대화에서 MongoDB의 16MB 문서 크기 제한을 피하려면 'postgres'를 사용.",
+    "HITL_MODE": "ask_human 휴먼 인 더 루프 모드. blocking=코루틴이 대기 중 차단(기존); interrupt=LangGraph interrupt()로 일시 중지 후 프로세스 재시작 후에도 중단 지점부터 재개(영구 체크포인터 필요).",
     "CHECKPOINT_MONGO_POOL_MAX_SIZE": "MongoDB 체크포인터 전용 연결 풀 최대 크기 (비즈니스 연결 풀과 물리적으로 분리됨).",
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": "MongoDB 체크포인터 전용 연결 풀 최소 크기 (비즈니스 연결 풀과 물리적으로 분리됨).",
     "CHECKPOINT_PG_DB": "체크포인트 저장용 PostgreSQL 데이터베이스. 비워두면 POSTGRES_DB 사용.",

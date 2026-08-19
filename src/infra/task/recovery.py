@@ -506,6 +506,14 @@ class TaskRecoveryService:
                 "message": "没有可恢复的任务",
             }
 
+        if task_status == TaskStatus.WAITING_HUMAN.value:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": "任务正在等待用户输入，请先响应审批请求",
+            }
+
         if task_status == TaskStatus.COMPLETED.value:
             return {
                 "success": False,

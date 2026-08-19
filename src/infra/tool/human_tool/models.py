@@ -94,12 +94,6 @@ class AskHumanInput(BaseModel):
         default=False,
         description="choices 是否多选",
     )
-    timeout: int = Field(
-        default=300,
-        ge=10,
-        le=3600,
-        description="等待秒数（10-3600）",
-    )
     allow_other: bool = Field(
         default=True,
         description="添加其他意见输入，返回 _other",

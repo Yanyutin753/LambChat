@@ -162,7 +162,7 @@ async def test_create_approval_bounded_local_event_cache(
     created_ids: list[str] = []
 
     class _FakeApprovalStorage:
-        async def create(self, approval):
+        async def create(self, approval, ttl=3600):
             created_ids.append(approval.id)
             return approval
 

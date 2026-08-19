@@ -2195,6 +2195,7 @@
     "AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES": "音声書き起こしの最大ダウンロードサイズ（バイト）",
     "AUDIO_TRANSCRIPTION_MODEL": "audio_transcribe ツールで使う既定の文字起こしモデル名。例: gpt-4o-mini-transcribe や FunAudioLLM/SenseVoiceSmall。",
     "CHECKPOINT_BACKEND": "チェックポイントストレージバックエンド。長い会話でMongoDBの16MBドキュメント制限を回避するには'postgres'を使用。",
+    "HITL_MODE": "ask_human ヒューマンインザループモード。blocking=コルーチンが待機中にブロック（旧方式）；interrupt=LangGraph interrupt() で中断し、プロセス再起動後もブレークポイントから再開（永続チェックポインタが必要）。",
     "CHECKPOINT_MONGO_POOL_MAX_SIZE": "MongoDB チェックポインタ専用接続プールの最大サイズ（業務用接続プールから物理分離）。",
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": "MongoDB チェックポインタ専用接続プールの最小サイズ（業務用接続プールから物理分離）。",
     "CHECKPOINT_PG_DB": "チェックポイント保存用PostgreSQLデータベース。空の場合はPOSTGRES_DBを使用。",

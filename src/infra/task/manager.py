@@ -288,6 +288,7 @@ class BackgroundTaskManager:
         user_message_written: bool = False,
         write_user_message_immediately: bool = False,
         attachment_references_claimed: bool = False,
+        hitl_resume: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -386,6 +387,7 @@ class BackgroundTaskManager:
                     auto_mode=auto_mode,
                     user_message_written=user_message_written,
                     attachment_references_claimed=attachment_references_claimed,
+                    hitl_resume=hitl_resume,
                 )
             )
             self._tasks[run_id] = task
