@@ -384,7 +384,15 @@ class DualEventWriter:
                         stored_doc = None
                         try:
                             stored_doc = await self.trace.collection.find_one(
-                                {"trace_id": trace_id}, {"_id": 0}
+                                # Keep the projection tight: legacy traces can
+                                # carry a huge embedded events array.
+                                {"trace_id": trace_id},
+                                {
+                                    "_id": 0,
+                                    "events": 0,
+                                    "first_event_preview": 0,
+                                    "last_event_preview": 0,
+                                },
                             )
                         except Exception:
                             stored_doc = None
@@ -533,6 +541,7 @@ class DualEventWriter:
         trace_id: str,
         status: str = "completed",
         metadata: Optional[Dict[str, Any]] = None,
+        ensure_token_usage: bool = True,
     ) -> bool:
         """
         标记 trace 完成
@@ -541,11 +550,12 @@ class DualEventWriter:
             trace_id: Trace ID
             status: 最终状态 (completed/error)
             metadata: 额外元数据
-
-        Returns:
+            ensure_token_usage: 是否在 storage 侧补写 token:usage 事件
             是否更新成功
         """
-        return await self.trace.complete_trace(trace_id, status, metadata)
+        return await self.trace.complete_trace(
+            trace_id, status, metadata, ensure_token_usage=ensure_token_usage
+        )
 
     async def set_run_recommend_questions(
         self,

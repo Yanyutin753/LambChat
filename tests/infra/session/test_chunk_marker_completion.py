@@ -245,6 +245,39 @@ async def test_complete_trace_waits_for_in_flight_marker(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_complete_trace_never_releases_replace_marker(monkeypatch):
+    """A replace marker mid-flight must never be force-released.
+
+    Releasing it after old chunks were deleted would make the staging
+    install unrecoverable and lose every stored event of the trace.
+    """
+    marker = {
+        "id": "op-replace",
+        "kind": "replace",
+        "revision": 4,
+        "phase": "old_deleted",
+        "recovery_after": utc_now() - timedelta(minutes=10),
+    }
+    trace_doc = {
+        "trace_id": "trace-3",
+        "session_id": "session-3",
+        "run_id": "run-3",
+        "status": "running",
+        "event_count": 3,
+        "event_revision": 4,
+        "attachment_chunk_write_operation": marker,
+    }
+    storage, collection, _ = _make_storage(monkeypatch, trace_doc)
+
+    ok = await storage.complete_trace("trace-3", "completed", ensure_token_usage=False)
+    # Completion stays blocked, but the marker survives for
+    # recover_incomplete_chunk_replacements to finish the replacement.
+    assert ok is False
+    assert collection.doc["status"] == "running"
+    assert collection.doc["attachment_chunk_write_operation"]["id"] == "op-replace"
+
+
+@pytest.mark.asyncio
 async def test_append_exception_releases_marker_despite_revision_bump(monkeypatch):
     """The emergency unset must not be fenced by event_revision.
 

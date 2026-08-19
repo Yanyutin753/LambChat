@@ -447,9 +447,11 @@ class StoragePresenterMixin:
             # Flush first so events are durable, but never let a flush failure
             # block complete_trace: a trace stuck in status="running" hides all
             # its non-user events from the session events read path.
+            flush_ok = True
             try:
                 await dual_writer.flush_mongo_buffer(require_empty=True)
             except Exception as e:
+                flush_ok = False
                 logger.error(
                     "Mongo event buffer not empty while completing trace %s; "
                     "events remain buffered for retry: %s",
@@ -469,6 +471,11 @@ class StoragePresenterMixin:
                             "step_count": self._step_count,
                             "tool_calls": len(self._tool_calls),
                         },
+                        # The real token:usage event may still sit in the
+                        # unflushed buffer; letting storage insert a zero-usage
+                        # fallback here would duplicate it once the buffer
+                        # retries.
+                        ensure_token_usage=flush_ok,
                     )
                     if completed:
                         break

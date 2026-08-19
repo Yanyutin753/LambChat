@@ -829,7 +829,16 @@ class SessionManager:
                 cloned_chunk.pop("replacement_operation_id", None)
                 docs.append(cloned_chunk)
             if docs:
-                await self.trace_storage.chunks_collection.insert_many(docs)
+                try:
+                    await self.trace_storage.chunks_collection.insert_many(docs, ordered=False)
+                except Exception:
+                    # Partial inserts would leave the clone with a subset of
+                    # its events; remove everything and let the compat reader
+                    # fall back to whatever legacy events remain.
+                    await self.trace_storage.chunks_collection.delete_many(
+                        {"trace_id": cloned_trace_id}
+                    )
+                    raise
         except Exception as e:
             logger.warning(
                 "Failed to clone chunk docs from trace %s to %s: %s",

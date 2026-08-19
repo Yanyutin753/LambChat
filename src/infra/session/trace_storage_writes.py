@@ -399,6 +399,7 @@ class TraceStorageWriteMixin:
         chunk-write marker: wait briefly for an in-flight writer, then release
         an expired marker ourselves and finish the status transition.
         """
+        last_seen_marker_id: str | None = None
         for attempt in range(4):
             marker_doc = await self.collection.find_one(
                 {"trace_id": trace_id},
@@ -416,6 +417,17 @@ class TraceStorageWriteMixin:
                 if result.modified_count > 0:
                     return result
                 continue
+            marker_id = marker.get("id")
+            if isinstance(marker_id, str):
+                last_seen_marker_id = marker_id
+            # Never release a replace marker here: a replace mid-flight may
+            # have already deleted the old chunks; removing its marker makes
+            # the staging install unrecoverable and loses every stored event.
+            # Replaces are recovered by recover_incomplete_chunk_replacements
+            # once their recovery_after expires.
+            if marker.get("kind") == "replace":
+                await asyncio.sleep(0.05 * (attempt + 1))
+                continue
             recovery_after = marker.get("recovery_after")
             expired = True
             if recovery_after is not None:
@@ -425,43 +437,49 @@ class TraceStorageWriteMixin:
                     expired = ensure_utc(recovery_after) <= utc_now()
                 except (TypeError, ValueError):
                     expired = True
-            if expired:
-                marker_id = marker.get("id")
-                if isinstance(marker_id, str):
-                    await self.collection.update_one(
-                        {
-                            "trace_id": trace_id,
-                            f"{_ATTACHMENT_CHUNK_WRITE_FIELD}.id": marker_id,
-                        },
-                        {
-                            "$unset": {_ATTACHMENT_CHUNK_WRITE_FIELD: ""},
-                            "$set": {"updated_at": utc_now()},
-                        },
+            if expired and isinstance(marker_id, str):
+                await self.collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        f"{_ATTACHMENT_CHUNK_WRITE_FIELD}.id": marker_id,
+                        f"{_ATTACHMENT_CHUNK_WRITE_FIELD}.kind": "append",
+                    },
+                    {
+                        "$unset": {_ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                        "$set": {"updated_at": utc_now()},
+                    },
+                )
+                result = await self.collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                    },
+                    update,
+                )
+                if result.modified_count > 0:
+                    logger.warning(
+                        "Completed trace %s after releasing stuck chunk marker",
+                        trace_id,
                     )
-                    result = await self.collection.update_one(
-                        {
-                            "trace_id": trace_id,
-                            _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-                        },
-                        update,
-                    )
-                    if result.modified_count > 0:
-                        logger.warning(
-                            "Completed trace %s after releasing stuck chunk marker",
-                            trace_id,
-                        )
-                        return result
+                    return result
             await asyncio.sleep(0.05 * (attempt + 1))
-        # Last resort: the marker writer is gone (its recovery_after is in the
-        # future but nothing is progressing). Release it unconditionally — a
-        # trace stuck in "running" is strictly worse than a fenced retry.
-        await self.collection.update_one(
-            {"trace_id": trace_id},
-            {
-                "$unset": {_ATTACHMENT_CHUNK_WRITE_FIELD: ""},
-                "$set": {"updated_at": utc_now()},
-            },
-        )
+        # Last resort: the append marker writer is gone (its recovery_after is
+        # in the future but nothing is progressing). Release only the append
+        # marker we last observed, by id — a fenced append retry is idempotent
+        # and safe, unlike a replace. A trace stuck in "running" is strictly
+        # worse than a fenced retry.
+        if last_seen_marker_id is not None:
+            await self.collection.update_one(
+                {
+                    "trace_id": trace_id,
+                    f"{_ATTACHMENT_CHUNK_WRITE_FIELD}.id": last_seen_marker_id,
+                    f"{_ATTACHMENT_CHUNK_WRITE_FIELD}.kind": "append",
+                },
+                {
+                    "$unset": {_ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                    "$set": {"updated_at": utc_now()},
+                },
+            )
         return await self.collection.update_one(
             {
                 "trace_id": trace_id,
