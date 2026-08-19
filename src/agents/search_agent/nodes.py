@@ -278,7 +278,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
-        user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
+        user_middleware.append(
+            MemoryIndexMiddleware(user_id=context.user_id, session_id=context.session_id)
+        )
 
     # Tool search: per-turn dynamic content
     if context.deferred_manager is not None:
