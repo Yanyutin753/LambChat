@@ -12,6 +12,7 @@ export type EventType =
   | "metadata"
   | "message:chunk"
   | "user:message"
+  | "steer:message"
   | "user:cancel"
   | "thinking"
   | "tool:start"
@@ -256,6 +257,8 @@ export interface UseAgentReturn {
   ) => Promise<void>;
   steerMessage: (content: string) => Promise<void>;
   cancelSteer: (content: string) => void;
+  steerMessages: import("../../utils/mergeSteers").SteerItem[];
+  markSteerDelivered: (content: string) => void;
   applyRecommendQuestions: (runId: string, questions: string[]) => void;
   clearActiveGoal: () => void;
   stopGeneration: () => Promise<void>;

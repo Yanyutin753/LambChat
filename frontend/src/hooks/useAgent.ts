@@ -167,7 +167,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
-  const steerQueue = useSteerQueue({ sessionIdRef, setMessages, setError });
+  const steerQueue = useSteerQueue({ sessionIdRef, setError });
 
   useEffect(() => {
     currentRunIdRef.current = currentRunId;
@@ -188,7 +188,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       streamVersionRef,
       setSessionId,
       setMessages,
-      messagesRef,
       setConnectionStatus: (status) =>
         setConnectionStatus(status as ConnectionStatus),
       setIsInitializingSandbox,

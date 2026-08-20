@@ -29,40 +29,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def _persist_delivered_user_messages(
+async def _persist_delivered_steer_messages(
     session_id: str, texts: list[str], presenter: Any = None
 ) -> None:
-    """把已注入的插话消息写入 user:message 事件（尽力而为）。
+    """把已注入的插话消息写入独立的 steer:message 事件（尽力而为）。
 
-    优先复用当前 run 的 ``presenter.emit_user_message``：事件自动归属
-    该 run 的 trace，MongoDB 历史（completed_only 聚合）刷新后可见。
-    无 presenter 时回退 dual_writer 直写（仅 Redis SSE，不进历史，
-    仅作实时展示兜底）。失败只记日志，不影响注入。
+    插话与用户消息管线完全解耦：自有事件类型，不参与 user:message
+    的语义（去重/轮次归属/回放）。优先复用当前 run 的 presenter
+    （事件归属该 run 的 trace，MongoDB 历史刷新后可见）；无 presenter
+    时回退 dual_writer 直写（仅实时 SSE 兜底）。失败只记日志。
     """
     import uuid
 
     try:
-        if presenter is not None:
-            for text in texts:
-                await presenter.emit_user_message(
-                    text,
-                    message_id=f"steer-{uuid.uuid4().hex[:12]}",
-                )
-            return
-
-        from src.infra.session.dual_writer import get_dual_writer
-        from src.infra.utils.datetime import utc_now_iso
-
-        writer = get_dual_writer()
         for text in texts:
-            await writer.write_event(
+            data = {
+                "content": text,
+                "message_id": f"steer-{uuid.uuid4().hex[:12]}",
+            }
+            if presenter is not None:
+                await presenter.save_event({"event": "steer:message", "data": data})
+                continue
+
+            from src.infra.session.dual_writer import get_dual_writer
+
+            await get_dual_writer().write_event(
                 session_id=session_id,
-                event_type="user:message",
-                data={
-                    "content": text,
-                    "timestamp": utc_now_iso(),
-                    "message_id": f"steer-{uuid.uuid4().hex[:12]}",
-                },
+                event_type="steer:message",
+                data=data,
             )
     except Exception:
         logger.warning(
@@ -108,7 +102,7 @@ class SteerMiddleware(AgentMiddleware):
         # 注入成功：写 user:message 事件（SSE + 历史持久化），
         # 再把插话消息写入图状态，checkpoint 持久化
         if self._session_id:
-            await _persist_delivered_user_messages(
+            await _persist_delivered_steer_messages(
                 self._session_id, pending, presenter=self._presenter
             )
 

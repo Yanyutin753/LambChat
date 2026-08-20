@@ -126,16 +126,16 @@ async def test_failed_model_call_requeues_messages() -> None:
 
 
 async def test_successful_injection_persists_via_presenter(monkeypatch) -> None:
-    """注入成功后经 presenter.emit_user_message 持久化（归属当前 run 的 trace，刷新后历史可见）。"""
+    """注入成功后经 presenter.save_event 写独立 steer:message 事件（归属当前 run 的 trace）。"""
     from src.infra.task.steer import get_steer_queue
 
     await get_steer_queue().enqueue("session-p", "要持久化的插话")
 
-    emitted: list[dict] = []
+    saved: list[dict] = []
 
     class _FakePresenter:
-        async def emit_user_message(self, content, message_id=None, **kwargs):
-            emitted.append({"content": content, "message_id": message_id})
+        async def save_event(self, event):
+            saved.append(event)
 
     middleware = SteerMiddleware(session_id="session-p", presenter=_FakePresenter())
 
@@ -144,9 +144,10 @@ async def test_successful_injection_persists_via_presenter(monkeypatch) -> None:
 
     await middleware.awrap_model_call(_Request(), handler)
 
-    assert len(emitted) == 1
-    assert emitted[0]["content"] == "要持久化的插话"
-    assert str(emitted[0]["message_id"]).startswith("steer-")
+    assert len(saved) == 1
+    assert saved[0]["event"] == "steer:message"
+    assert saved[0]["data"]["content"] == "要持久化的插话"
+    assert str(saved[0]["data"]["message_id"]).startswith("steer-")
 
 
 async def test_successful_injection_falls_back_to_dual_writer(monkeypatch) -> None:
@@ -171,7 +172,7 @@ async def test_successful_injection_falls_back_to_dual_writer(monkeypatch) -> No
     await middleware.awrap_model_call(_Request(), handler)
 
     assert len(written) == 1
-    assert written[0]["event_type"] == "user:message"
+    assert written[0]["event_type"] == "steer:message"
     assert written[0]["data"]["content"] == "兜底的插话"
 
 

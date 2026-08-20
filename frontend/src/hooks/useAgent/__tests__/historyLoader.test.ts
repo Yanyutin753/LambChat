@@ -656,3 +656,44 @@ test("still deduplicates replayed canonical user messages within one run", () =>
   );
   expect(messages.filter((m) => m.role === "user")).toHaveLength(1);
 });
+
+test("reconstructs steer:message events as standalone steer items between turns", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-s",
+        timestamp: "2026-08-20T10:00:00.000Z",
+        data: { content: "任务", message_id: "run-s:user", attachments: [] },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: "run-s",
+        timestamp: "2026-08-20T10:00:05.000Z",
+        data: { content: "第一轮" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "steer:message",
+        run_id: "run-s",
+        timestamp: "2026-08-20T10:00:30.000Z",
+        data: { content: "插话", message_id: "steer-abc" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: "run-s",
+        timestamp: "2026-08-20T10:01:00.000Z",
+        data: { content: "回复插话" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const steer = messages.find((m) => m.id === "steer-abc");
+  expect(steer?.role).toBe("user");
+  expect(steer?.content).toBe("插话");
+  expect(steer?.metadata).toEqual({ steer: true });
+  const steerIndex = messages.findIndex((m) => m.id === "steer-abc");
+  expect(messages[steerIndex - 1].role).toBe("assistant");
+  expect(messages[steerIndex + 1].role).toBe("assistant");
+});

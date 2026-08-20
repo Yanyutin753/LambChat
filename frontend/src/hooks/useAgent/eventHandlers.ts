@@ -22,10 +22,7 @@ import type {
   UseAgentOptions,
 } from "./types";
 import { clearAllLoadingStates } from "./messageParts";
-import {
-  hasQueuedSteerMessage,
-  splitAssistantTurnOnSteerDelivery,
-} from "./steerTurnSplit";
+import { splitAssistantTurn } from "./steerTurnSplit";
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
 
@@ -41,7 +38,7 @@ export interface EventHandlerContext {
   streamVersionRef: React.MutableRefObject<number>;
   setSessionId: (id: string) => void;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  messagesRef?: React.MutableRefObject<Message[]>;
+  markSteerDelivered?: (content: string) => void;
   setConnectionStatus: (status: string) => void;
   setIsInitializingSandbox: (loading: boolean) => void;
   setSandboxError: (error: string | null) => void;
@@ -211,19 +208,16 @@ export function handleStreamEvent(
     }
 
     case "user:message": {
-      // 插话送达：先做轮次分割（封存当前助手轮次，插话后开新轮次），
-      // 再走标准 user:message 原地更新（清除排队态）
+      handleUserMessage(data, messageId, eventTimestamp, ctx);
+      return;
+    }
+
+    case "steer:message": {
+      // 插话送达（独立事件，不走用户消息管线）：轮次分割 + 插话项转正式
+      ctx.setMessages((prev) => splitAssistantTurn(prev, messageId));
       const steerContent =
         typeof data.content === "string" ? data.content.trim() : "";
-      if (
-        steerContent &&
-        hasQueuedSteerMessage(ctx.messagesRef?.current ?? [], steerContent)
-      ) {
-        ctx.setMessages((prev) =>
-          splitAssistantTurnOnSteerDelivery(prev, steerContent, messageId),
-        );
-      }
-      handleUserMessage(data, messageId, eventTimestamp, ctx);
+      if (steerContent) ctx.markSteerDelivered?.(steerContent);
       return;
     }
 
