@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import type { RefObject } from "react";
 
 import i18n from "../../i18n";
@@ -20,7 +21,9 @@ interface SteerQueueOptions {
  * - 取消：删除排队气泡 + DELETE 后端队列中未送达的消息
  */
 export function useSteerQueue({ sessionIdRef, setMessages, setError }: SteerQueueOptions) {
-  const steerMessage = async (content: string) => {
+  // 引用必须稳定：作为 props 传给 memo(ChatInput)，流式期间父级高频
+  // 重渲染时不能破坏记忆化（否则编辑器每个 token 重渲染一次）
+  const steerMessage = useCallback(async (content: string) => {
     const text = content.trim();
     const currentSessionId = sessionIdRef.current;
     if (!text || !currentSessionId) return;
@@ -34,9 +37,9 @@ export function useSteerQueue({ sessionIdRef, setMessages, setError }: SteerQueu
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setError(i18n.t("chat.steerFailed", "插话发送失败，请稍后重试"));
     }
-  };
+  }, [setMessages, setError]);
 
-  const cancelSteer = (content: string) => {
+  const cancelSteer = useCallback((content: string) => {
     setMessages((prev) =>
       prev.filter(
         (m) => !(m.role === "user" && m.metadata?.queued === true && m.content === content),
@@ -46,7 +49,7 @@ export function useSteerQueue({ sessionIdRef, setMessages, setError }: SteerQueu
     if (currentSessionId) {
       sessionApi.cancelSteer(currentSessionId, content).catch(() => {});
     }
-  };
+  }, [setMessages]);
 
   return { steerMessage, cancelSteer };
 }
