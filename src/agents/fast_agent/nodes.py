@@ -45,6 +45,7 @@ from src.infra.agent.middleware import (
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
     SectionPromptMiddleware,
+    SteerMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
@@ -260,10 +261,11 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         },
     ]
 
-    # 构建中间件栈：retry → binary upload → authored prompts → memory_index → tool search
+    # 构建中间件栈：steer → retry → binary upload → authored prompts → memory_index → tool search
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
+    user_middleware.insert(0, SteerMiddleware(session_id=str(session_id)))
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     user_middleware.append(ArtifactDeliveryMiddleware())
     if image_url_to_base64:

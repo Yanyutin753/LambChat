@@ -140,7 +140,7 @@ export interface UseAgentOptions {
     timeout?: number;
     metadata?: Record<string, unknown>;
   }) => void;
-  onClearApprovals?: () => void;
+  onClearApprovals?: (sessionId?: string | null) => void;
   getEnabledTools?: () => string[];
   getDisabledSkills?: () => string[];
   getEnabledSkills?: () => string[] | undefined;
@@ -254,6 +254,7 @@ export interface UseAgentReturn {
     runOptions?: { enabledSkills?: string[] },
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => Promise<void>;
+  steerMessage: (content: string) => Promise<void>;
   applyRecommendQuestions: (runId: string, questions: string[]) => void;
   clearActiveGoal: () => void;
   stopGeneration: () => Promise<void>;

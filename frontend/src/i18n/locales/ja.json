@@ -788,6 +788,7 @@
     "status": {
       "cancelled": "キャンセル済み"
     },
+    "steerFailed": "ステアリングメッセージの送信に失敗しました。もう一度お試しください",
     "stop": "生成を停止",
     "stopConfirmMessage": "本当に生成を停止しますか？生成された内容は保持されます。",
     "stopConfirmTitle": "生成を停止",

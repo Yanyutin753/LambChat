@@ -788,6 +788,7 @@
     "status": {
       "cancelled": "취소됨"
     },
+    "steerFailed": "스티어링 메시지 전송에 실패했습니다. 다시 시도해 주세요",
     "stop": "생성 중지",
     "stopConfirmMessage": "정말로 생성을 중단하시겠습니까? 지금까지 생성된 내용은 유지됩니다.",
     "stopConfirmTitle": "생성 중단",

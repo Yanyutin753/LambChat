@@ -67,6 +67,7 @@ export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
   onSend,
   onStop,
+  onSteer,
   isLoading,
   disabled,
   canSend = true,
@@ -536,20 +537,32 @@ export const ChatInput = memo(function ChatInput({
         if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         if (!isSendEnterKey(event)) return;
         event.preventDefault();
-        if (isLoading) setStopConfirmOpen(true);
-        else event.currentTarget.closest("form")?.requestSubmit();
+        // 运行中且支持插话：Enter 发送 steer 消息（Codex 式），否则保留停止确认
+        if (isLoading) {
+          if (onSteer && input.trim()) {
+            onSteer(input);
+            setInput("");
+          } else {
+            setStopConfirmOpen(true);
+          }
+        } else {
+          event.currentTarget.closest("form")?.requestSubmit();
+        }
         return;
       }
     },
     [
       applyMentionSelection,
       applyTeamMentionSelection,
+      input,
       isLoading,
       mention.highlightedIndex,
       mention.isActive,
       mentionMode,
       mentionSearch.presets,
+      onSteer,
       resetMention,
+      setInput,
       teamMentionSearch.teams,
     ],
   );

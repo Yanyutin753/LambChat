@@ -14,6 +14,7 @@ import type {
   MessageAttachment,
 } from "../types";
 import { sessionApi, type BackendSession } from "../services/api";
+import { buildSteerUserMessage } from "../utils/steerMessages";
 import { authenticatedRequest } from "../services/api/authenticatedRequest";
 import { API_BASE } from "../services/api/config";
 import { feedbackApi } from "../services/api/feedback";
@@ -833,7 +834,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setSandboxError(null);
 
     // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
-    options?.onClearApprovals?.();
+    options?.onClearApprovals?.(sessionIdRef.current ?? undefined);
 
     // Clear loading states on all messages and their parts
     setMessages((prev) =>
@@ -856,6 +857,26 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       }
     }
   }, [options]);
+
+  // Codex 式运行中插话：消息进入后端队列，当前步骤后注入；先乐观展示
+  const steerMessage = useCallback(async (content: string) => {
+    const text = content.trim();
+    const currentSessionId = sessionIdRef.current;
+    if (!text || !currentSessionId) return;
+
+    const optimistic = buildSteerUserMessage({
+      previousCount: 0,
+      content: text,
+    });
+    setMessages((prev) => [...prev, optimistic]);
+    try {
+      await sessionApi.steer(currentSessionId, text);
+    } catch (error) {
+      console.error("[steerMessage] Failed to steer session:", error);
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+      setError(i18n.t("chat.steerFailed", "插话发送失败，请稍后重试"));
+    }
+  }, []);
 
   const clearMessages = useCallback(() => {
     loadHistoryRequestIdRef.current += 1;
@@ -951,6 +972,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isInitializingSandbox,
     sandboxError,
     sendMessage,
+    steerMessage,
     applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,

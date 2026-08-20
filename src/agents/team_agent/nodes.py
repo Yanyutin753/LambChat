@@ -63,6 +63,7 @@ from src.infra.agent.middleware import (
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
     SectionPromptMiddleware,
+    SteerMiddleware,
     SubagentActivityMiddleware,
     SubagentResultHandoffMiddleware,
     ToolResultBinaryMiddleware,
@@ -735,6 +736,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
+    user_middleware.insert(0, SteerMiddleware(session_id=str(state.get("session_id") or "")))
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     if image_url_to_base64:
