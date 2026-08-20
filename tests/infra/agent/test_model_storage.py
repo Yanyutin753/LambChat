@@ -6,6 +6,7 @@ import pytest
 
 from src.infra.agent import model_storage
 from src.infra.agent.model_storage import ModelStorage
+from src.infra.mcp.encryption import DecryptionError
 
 
 class _FakeModelCursor:
@@ -160,6 +161,25 @@ async def test_get_offloads_api_key_decryption(monkeypatch: pytest.MonkeyPatch) 
     assert calls == [model_storage.decrypt_value]
     assert model is not None
     assert model.api_key == "plain-key"
+
+
+@pytest.mark.asyncio
+async def test_get_returns_model_without_unrecoverable_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = ModelStorage()
+    storage._collection = _CrudModelCollection(_model_doc())
+
+    async def failing_decrypt(_func, *_args, **_kwargs):
+        raise DecryptionError("key mismatch")
+
+    monkeypatch.setattr(model_storage, "run_blocking_io", failing_decrypt, raising=False)
+
+    model = await storage.get("model-1")
+
+    assert model is not None
+    assert model.value == "openai/gpt-4.1"
+    assert model.api_key is None
 
 
 @pytest.mark.asyncio

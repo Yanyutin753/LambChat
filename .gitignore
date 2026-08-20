@@ -108,3 +108,5 @@ k8s/lambchat.yaml
 
 # Personal logs & audits (not for sync)
 log_and_audit/
+uv.lock
+uv.lock

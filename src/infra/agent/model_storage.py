@@ -11,7 +11,8 @@ from typing import Any, Optional
 from pymongo import UpdateOne
 
 from src.infra.async_utils import run_blocking_io
-from src.infra.mcp.encryption import decrypt_value, encrypt_value
+from src.infra.logging import get_logger
+from src.infra.mcp.encryption import DecryptionError, decrypt_value, encrypt_value
 from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.config import settings
 from src.kernel.schemas.model import ModelConfig
@@ -22,6 +23,7 @@ _PLAINTEXT_KEY_MIGRATION_BATCH_SIZE = 100
 MODEL_BULK_WRITE_BATCH_SIZE = 100
 MODEL_RESTRICTED_LIST_LIMIT = 100
 MODEL_LIST_LIMIT = 500
+logger = get_logger(__name__)
 
 
 async def _bulk_write_in_batches(collection: Any, operations: list[Any]) -> None:
@@ -84,7 +86,18 @@ class ModelStorage:
         """解密 API Key"""
         if encrypted is None:
             return None
-        result = await run_blocking_io(decrypt_value, encrypted)
+        try:
+            result = await run_blocking_io(decrypt_value, encrypted)
+        except DecryptionError as exc:
+            # A key encrypted with a previous/unknown application secret must not
+            # make the entire model list endpoint fail.  Keep the model metadata
+            # visible so the user can re-save its API key with the current secret.
+            logger.warning(
+                "无法解密模型 API Key，可能使用了不同的加密密钥；"
+                "请重新保存该模型配置。原因: %s",
+                exc,
+            )
+            return None
         if isinstance(result, dict):
             return result.get("v")
         # 向后兼容：如果值是明文字符串，直接返回
