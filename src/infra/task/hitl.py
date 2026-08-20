@@ -42,9 +42,11 @@ def extract_ask_human_interrupts(snapshot: Any) -> List[Dict[str, Any]]:
     payloads: List[Dict[str, Any]] = []
     tasks = getattr(snapshot, "tasks", None) or ()
     if isinstance(tasks, dict):
-        tasks = [t for group in tasks.values() for t in (
-            group if isinstance(group, (list, tuple)) else [group]
-        )]
+        tasks = [
+            t
+            for group in tasks.values()
+            for t in (group if isinstance(group, (list, tuple)) else [group])
+        ]
     for task in tasks:
         for intr in getattr(task, "interrupts", None) or ():
             value = getattr(intr, "value", None)
@@ -107,9 +109,8 @@ async def materialize_ask_human_approvals(
     if session_id:
         try:
             existing = [
-                a.message for a in await get_approval_storage().list_pending(
-                    session_id=session_id, limit=100
-                )
+                a.message
+                for a in await get_approval_storage().list_pending(session_id=session_id, limit=100)
             ]
         except Exception as e:
             logger.warning("[HITL] Failed to list pending approvals: %s", e)

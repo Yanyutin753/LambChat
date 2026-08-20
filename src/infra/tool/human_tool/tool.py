@@ -116,9 +116,7 @@ class AskHumanTool(BaseTool):
 
         # 将字段序列化为 dict 列表（JSON 模式：枚举转字符串，
         # interrupt payload 会随 checkpoint 持久化，需可序列化）
-        field_dicts = (
-            [f.model_dump(mode="json") for f in parsed_fields] if parsed_fields else []
-        )
+        field_dicts = [f.model_dump(mode="json") for f in parsed_fields] if parsed_fields else []
 
         use_interrupt = (
             getattr(settings, "HITL_MODE", "blocking") == "interrupt"
@@ -144,9 +142,7 @@ class AskHumanTool(BaseTool):
         await self._send_approval_event(approval, session_id, run_id, parsed_fields)
 
         # 等待用户响应
-        response = await wait_for_response(
-            approval.id, timeout=self.BLOCKING_FALLBACK_TIMEOUT
-        )
+        response = await wait_for_response(approval.id, timeout=self.BLOCKING_FALLBACK_TIMEOUT)
 
         if response is None:
             # 超时：构建超时响应

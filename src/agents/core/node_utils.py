@@ -118,9 +118,7 @@ async def resolve_fallback_model(
     return _global_fallback_model(selected_model, log_prefix)
 
 
-def _global_fallback_model(
-    selected_model: str | None, log_prefix: str = ""
-) -> str | None:
+def _global_fallback_model(selected_model: str | None, log_prefix: str = "") -> str | None:
     """全局兜底模型：DB 未配置 fallback_model 时使用 LLM_FALLBACK_MODEL。"""
     from src.kernel.config import settings
 

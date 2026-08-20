@@ -16,6 +16,4 @@ from contextvars import ContextVar
 
 # 当前图执行是否支持 interrupt 模式（由 fast_agent_node 在持久
 # checkpointer 可用时设置）
-hitl_interrupt_supported: ContextVar[bool] = ContextVar(
-    "hitl_interrupt_supported", default=False
-)
+hitl_interrupt_supported: ContextVar[bool] = ContextVar("hitl_interrupt_supported", default=False)

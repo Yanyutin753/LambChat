@@ -354,9 +354,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
                 base_url=configurable.get("base_url", ""),
                 force_data_url=image_url_to_base64,
             )
-        new_message = build_human_message(
-            user_input, attachments, supports_vision=supports_vision
-        )
+        new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
         graph_input = build_goal_input(
             new_message, active_goal, rubric_middleware=rubric_middleware
         )
