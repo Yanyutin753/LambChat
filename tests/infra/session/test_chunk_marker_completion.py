@@ -104,6 +104,9 @@ def _matches(document: dict[str, Any], query: dict[str, Any]) -> bool:
                 if op == "$exists":
                     if (value is not _MISSING) != bool(operand):
                         return False
+                elif op == "$in":
+                    if value not in operand:
+                        return False
                 elif op == "$eq":
                     if value != operand:
                         return False
@@ -220,8 +223,13 @@ async def test_complete_trace_releases_stuck_append_marker(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_complete_trace_waits_for_in_flight_marker(monkeypatch):
-    """An in-flight (unexpired) marker is retried, then force-released."""
+async def test_complete_trace_defers_to_in_flight_marker(monkeypatch):
+    """An unexpired marker belongs to a live writer and must not be force-released.
+
+    Force-releasing it would break the append mutual exclusion; completion
+    defers instead, and the recovery job finishes the trace once the lease
+    lapses.
+    """
     marker = {
         "id": "op-live",
         "kind": "append",
@@ -240,7 +248,61 @@ async def test_complete_trace_waits_for_in_flight_marker(monkeypatch):
     storage, collection, _ = _make_storage(monkeypatch, trace_doc)
 
     ok = await storage.complete_trace("trace-2", "completed", ensure_token_usage=False)
-    assert ok is True
+    assert ok is False
+    assert collection.doc["status"] == "running"
+    assert collection.doc["attachment_chunk_write_operation"]["id"] == "op-live"
+
+
+@pytest.mark.asyncio
+async def test_recover_skips_unexpired_append_marker(monkeypatch):
+    """The recovery job must not release a marker whose lease is still valid."""
+    marker = {
+        "id": "op-live",
+        "kind": "append",
+        "revision": 2,
+        "recovery_after": utc_now() + timedelta(minutes=5),
+    }
+    trace_doc = {
+        "trace_id": "trace-5",
+        "session_id": "session-5",
+        "run_id": "run-5",
+        "status": "running",
+        "event_count": 2,
+        "event_revision": 2,
+        "attachment_chunk_write_operation": marker,
+    }
+    storage, collection, _ = _make_storage(monkeypatch, trace_doc)
+
+    recovered = await storage.recover_incomplete_chunk_replacements()
+    assert recovered == 0
+    assert collection.doc["attachment_chunk_write_operation"]["id"] == "op-live"
+    assert collection.doc["status"] == "running"
+
+
+@pytest.mark.asyncio
+async def test_recover_releases_expired_append_marker_and_completes_trace(monkeypatch):
+    """An expired append marker means the writer is gone: release it and finish
+    a lingering running status so the read path stops hiding non-user events."""
+    marker = {
+        "id": "op-dead",
+        "kind": "append",
+        "revision": 2,
+        "recovery_after": utc_now() - timedelta(minutes=1),
+    }
+    trace_doc = {
+        "trace_id": "trace-6",
+        "session_id": "session-6",
+        "run_id": "run-6",
+        "status": "running",
+        "event_count": 2,
+        "event_revision": 2,
+        "attachment_chunk_write_operation": marker,
+    }
+    storage, collection, _ = _make_storage(monkeypatch, trace_doc)
+
+    recovered = await storage.recover_incomplete_chunk_replacements()
+    assert recovered == 1
+    assert "attachment_chunk_write_operation" not in collection.doc
     assert collection.doc["status"] == "completed"
 
 

@@ -392,14 +392,22 @@ class TraceStorageWriteMixin:
         trace_id: str,
         update: Dict[str, Dict[str, Any]],
     ) -> Any:
-        """Retry a blocked complete_trace after releasing a stuck chunk marker.
+        """Retry a blocked complete_trace, releasing only an *expired* marker.
 
         A trace left in status="running" hides all its non-user events from the
         session events read path, so completion must not stay blocked behind a
-        chunk-write marker: wait briefly for an in-flight writer, then release
-        an expired marker ourselves and finish the status transition.
+        chunk-write marker. But a marker with an unexpired lease belongs to a
+        live writer and must not be force-released — that would break the
+        append mutual exclusion. Wait briefly for an in-flight writer, release
+        only markers whose lease has expired (writer gone), and otherwise
+        defer: the periodic recovery job releases the marker once the lease
+        lapses and finishes the trace.
         """
-        for attempt in range(4):
+        from types import SimpleNamespace
+
+        from src.infra.session.trace_event_chunks import _marker_recovery_expired
+
+        for attempt in range(6):
             marker_doc = await self.collection.find_one(
                 {"trace_id": trace_id},
                 {_ATTACHMENT_CHUNK_WRITE_FIELD: 1},
@@ -415,17 +423,7 @@ class TraceStorageWriteMixin:
                 )
                 if result.modified_count > 0:
                     return result
-                continue
-            recovery_after = marker.get("recovery_after")
-            expired = True
-            if recovery_after is not None:
-                try:
-                    from src.infra.utils.datetime import ensure_utc
-
-                    expired = ensure_utc(recovery_after) <= utc_now()
-                except (TypeError, ValueError):
-                    expired = True
-            if expired:
+            elif _marker_recovery_expired(marker.get("recovery_after"), utc_now()):
                 marker_id = marker.get("id")
                 if isinstance(marker_id, str):
                     await self.collection.update_one(
@@ -447,25 +445,14 @@ class TraceStorageWriteMixin:
                     )
                     if result.modified_count > 0:
                         logger.warning(
-                            "Completed trace %s after releasing stuck chunk marker",
+                            "Completed trace %s after releasing expired chunk marker",
                             trace_id,
                         )
                         return result
             await asyncio.sleep(0.05 * (attempt + 1))
-        # Last resort: the marker writer is gone (its recovery_after is in the
-        # future but nothing is progressing). Release it unconditionally — a
-        # trace stuck in "running" is strictly worse than a fenced retry.
-        await self.collection.update_one(
-            {"trace_id": trace_id},
-            {
-                "$unset": {_ATTACHMENT_CHUNK_WRITE_FIELD: ""},
-                "$set": {"updated_at": utc_now()},
-            },
+        logger.warning(
+            "complete_trace for %s deferred: an in-flight chunk marker is still "
+            "held; recovery will release it once its lease expires",
+            trace_id,
         )
-        return await self.collection.update_one(
-            {
-                "trace_id": trace_id,
-                _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-            },
-            update,
-        )
+        return SimpleNamespace(matched_count=0, modified_count=0)

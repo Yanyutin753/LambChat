@@ -12,11 +12,25 @@ from pymongo import ReturnDocument
 from src.infra.logging import get_logger
 from src.infra.session import trace_storage as trace_storage_helpers
 from src.infra.session.trace_chunk_rollback import TraceChunkRollbackMixin
-from src.infra.utils.datetime import utc_now
+from src.infra.utils.datetime import ensure_utc, utc_now
 
 logger = get_logger(__name__)
 ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
 TRACE_EVENT_REVISION_FIELD = "event_revision"
+
+
+def _marker_recovery_expired(recovery_after: Any, now: Any) -> bool:
+    """True unless the marker holds an unexpired lease.
+
+    Missing or unparseable ``recovery_after`` values only occur on legacy or
+    corrupt markers whose writer cannot be act, so they count as expired.
+    """
+    if recovery_after is None:
+        return True
+    try:
+        return ensure_utc(recovery_after) <= now
+    except (TypeError, ValueError, AttributeError):
+        return True
 
 
 def _replacement_digest(
@@ -320,13 +334,11 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
             marker = trace_doc.get(ATTACHMENT_CHUNK_WRITE_FIELD)
             if not isinstance(marker, dict):
                 continue
-            recovery_after = marker.get("recovery_after")
-            if recovery_after is not None:
-                try:
-                    if recovery_after > now:
-                        continue
-                except TypeError:
-                    pass
+            # A marker with an unexpired lease belongs to a live writer and
+            # must never be released here — releasing it would break the
+            # append mutual exclusion and let two writers interleave.
+            if not _marker_recovery_expired(marker.get("recovery_after"), now):
+                continue
             if marker.get("kind") == "append":
                 # An expired append marker means its writer is gone. Release
                 # the marker so retries, complete_trace and the merger can
@@ -347,7 +359,21 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
                         "$set": {"updated_at": utc_now()},
                     },
                 )
-                recovered += int(result.modified_count > 0)
+                if result.modified_count > 0:
+                    recovered += 1
+                    # The writer is gone, so nothing will ever complete this
+                    # trace; flip a lingering running status so the session
+                    # read path stops hiding its non-user events behind an
+                    # SSE replay that will never come.
+                    await self.collection.update_one(
+                        {
+                            "trace_id": trace_doc.get("trace_id"),
+                            "status": "running",
+                        },
+                        {
+                            "$set": {"status": "completed", "updated_at": utc_now()},
+                        },
+                    )
                 continue
             try:
                 if marker.get("phase") == "staging":

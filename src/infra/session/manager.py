@@ -756,6 +756,9 @@ class SessionManager:
             # use the compat reader so both storage modes are covered.
             trace_id = trace.get("trace_id")
             compat_reader = getattr(self.trace_storage, "read_trace_events_compat", None)
+            # Chunked event storage keeps events out of the trace document;
+            # the compat reader covers both storage modes, with the in-document
+            # events as the legacy fallback.
             events: list[dict] = list(trace.get("events") or [])
             if callable(compat_reader) and trace_id:
                 try:
@@ -829,14 +832,21 @@ class SessionManager:
                 cloned_chunk.pop("replacement_operation_id", None)
                 docs.append(cloned_chunk)
             if docs:
-                await self.trace_storage.chunks_collection.insert_many(docs)
+                await self.trace_storage.chunks_collection.insert_many(docs, ordered=False)
         except Exception as e:
-            logger.warning(
+            logger.error(
                 "Failed to clone chunk docs from trace %s to %s: %s",
                 source_trace_id,
                 cloned_trace_id,
                 e,
             )
+            # A chunked clone advertising event_count > 0 with no chunk docs
+            # has zero readable events — the exact symptom this clone path
+            # exists to avoid — so reset the counters to keep it consistent.
+            # Legacy docs keep their inline events and stay untouched.
+            if not cloned_trace.get("events"):
+                cloned_trace["event_count"] = 0
+                cloned_trace.pop("chunk_count", None)
 
     def _build_partial_user_trace_doc(
         self,

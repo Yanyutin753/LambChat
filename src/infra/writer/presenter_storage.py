@@ -473,14 +473,16 @@ class StoragePresenterMixin:
                     if completed:
                         break
                     await asyncio.sleep(0.2 * (attempt + 1))
-                if not completed:
+                if completed:
+                    self._completed = True
+                    logger.debug("Trace completed: %s, status=%s", self.trace_id, status)
+                else:
                     logger.error(
-                        "Failed to complete trace %s after retries; "
-                        "non-user events stay hidden until recovery",
+                        "Failed to complete trace %s after retries; the recovery "
+                        "job must release the chunk marker lease before the "
+                        "non-user events become readable",
                         self.trace_id,
                     )
-                self._completed = True
-                logger.debug("Trace completed: %s, status=%s", self.trace_id, status)
 
                 # AI 回复完成或出错时递增未读计数，确保用户下次打开能看到。
                 if should_increment_unread_for_trace_status(status) and self.config.session_id:
