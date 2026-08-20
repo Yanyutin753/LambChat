@@ -98,7 +98,7 @@ async def resolve_fallback_model(
         return None
 
     if not db_model or not db_model.fallback_model:
-        return None
+        return _global_fallback_model(selected_model, log_prefix)
 
     try:
         fallback_db = await storage.get(db_model.fallback_model)
@@ -115,7 +115,28 @@ async def resolve_fallback_model(
         )
         return fallback_db.value
 
-    return None
+    return _global_fallback_model(selected_model, log_prefix)
+
+
+def _global_fallback_model(
+    selected_model: str | None, log_prefix: str = ""
+) -> str | None:
+    """全局兜底模型：DB 未配置 fallback_model 时使用 LLM_FALLBACK_MODEL。"""
+    from src.kernel.config import settings
+
+    fallback = settings.LLM_FALLBACK_MODEL
+    if not fallback or not fallback.strip():
+        return None
+    fallback = fallback.strip()
+    if selected_model and fallback == selected_model:
+        logger.warning(
+            "%s Global fallback model equals primary model (%s); skipping self-fallback",
+            log_prefix,
+            fallback,
+        )
+        return None
+    logger.info("%s Using global fallback model: %s", log_prefix, fallback)
+    return fallback
 
 
 async def _resolve_model_profile_bool(

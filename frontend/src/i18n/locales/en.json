@@ -2281,6 +2281,7 @@
     "LLM_MODEL_CACHE_SIZE": "LLM model instance cache size (~10-30MB per instance). Default 50, supports multi-user/multi-parameter scenarios. Too small causes frequent create/destroy, too large consumes more memory.",
     "LLM_RETRY_DELAY": "LLM API retry base wait time in seconds (exponential backoff starting value)",
     "LLM_REQUEST_TIMEOUT": "Seconds allowed for the first streaming event or a complete non-streaming response",
+    "LLM_FALLBACK_MODEL": "Model to switch to when the primary model fails after all retries and no per-model fallback is configured (empty = disabled)",
     "LOCAL_STORAGE_PATH": "Local storage path when S3 is not enabled (default: ./uploads)",
     "LOG_LEVEL": "Logging level (DEBUG, INFO, WARNING, ERROR)",
     "MCP_EFFECTIVE_CONFIG_MAX_SERVERS": "Maximum number of MCP servers allowed in effective config",
