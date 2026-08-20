@@ -43,8 +43,8 @@ class DeferredToolStub:
 class DeferredToolManager:
     """管理延迟 MCP 工具的发现和提升
 
-    内置 dirty flag 机制：stubs 和 prompt string 仅在 discover_tools() 后才重建，
-    避免每次 LLM 调用时重复分配。
+    会话级冻结：stubs 列表和 prompt string 从完整候选集构建一次后不再重建，
+    保证 search_tools 描述（provider prompt-cache 前缀的一部分）跨请求稳定。
     """
 
     def __init__(
@@ -105,14 +105,13 @@ class DeferredToolManager:
         self._session_id = session_id
         self._parent = parent
 
-        # Backward-compatible aggregate dirty flag.
-        self.stale: bool = True
-        self._stubs_stale: bool = True
-        self._prompt_stale: bool = True
-
-        # 缓存
-        self._cached_stubs: list[DeferredToolStub] = []
-        self._cached_stubs_string: str = ""
+        # Frozen stub caches: the stub list is part of the search_tools tool
+        # description (provider prompt-cache prefix), so it is built once from
+        # the full deferred tool set and never rebuilt — discovery state must
+        # not leak into it. Searching an already-loaded tool simply reports
+        # "already available", so freezing costs nothing functionally.
+        self._cached_stubs: list[DeferredToolStub] | None = None
+        self._cached_stubs_string: str | None = None
 
         logger.info(
             "[DeferredToolManager] Created: %d deferred tools for session %s "
@@ -154,9 +153,6 @@ class DeferredToolManager:
 
         self._discovered_names.update(new_names)
         self._discovered_order.extend(sorted(new_names))
-        self.stale = True
-        self._stubs_stale = True
-        self._prompt_stale = True
 
     @property
     def total_deferred(self) -> int:
@@ -182,15 +178,12 @@ class DeferredToolManager:
         return self.total_deferred - self.discovered_count
 
     def get_deferred_stubs(self) -> list[DeferredToolStub]:
-        """获取未发现工具的轻量描述列表（带脏标记缓存）"""
-        self._sync_parent_discoveries()
-        if not self._stubs_stale:
+        """全部延迟工具的轻量描述列表（会话级冻结，不随发现状态变化）"""
+        if self._cached_stubs is not None:
             return self._cached_stubs
 
         stubs: list[DeferredToolStub] = []
         for tool in self._all_tools:
-            if tool.name in self._discovered_names:
-                continue
             desc = getattr(tool, "description", "") or ""
             hint = desc.split("\n")[0].strip()[:120]
             stubs.append(
@@ -204,14 +197,11 @@ class DeferredToolManager:
             )
 
         self._cached_stubs = sorted(stubs, key=lambda stub: (stub.server, stub.name))
-        self._stubs_stale = False
-        self.stale = self._stubs_stale or self._prompt_stale
         return self._cached_stubs
 
     def get_deferred_stubs_string(self) -> str:
-        """返回可直接拼入系统提示的预格式化字符串（带脏标记缓存）。"""
-        self._sync_parent_discoveries()
-        if not self._prompt_stale:
+        """返回可直接拼入 search_tools 描述的预格式化字符串（会话级冻结）。"""
+        if self._cached_stubs_string is not None:
             return self._cached_stubs_string
 
         stubs = self.get_deferred_stubs()
@@ -234,8 +224,6 @@ class DeferredToolManager:
             result = ""
 
         self._cached_stubs_string = result
-        self._prompt_stale = False
-        self.stale = self._stubs_stale or self._prompt_stale
         return self._cached_stubs_string
 
     def get_discovered_tools(self) -> list["BaseTool"]:
@@ -266,9 +254,6 @@ class DeferredToolManager:
                 newly_discovered.append(self._tool_map[name])
 
         if newly_discovered:
-            self.stale = True
-            self._stubs_stale = True
-            self._prompt_stale = True
             logger.info(
                 "[DeferredToolManager] Discovered %d tools: %s (session %s)",
                 len(newly_discovered),
