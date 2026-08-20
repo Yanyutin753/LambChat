@@ -3,6 +3,29 @@
 from src.infra.task.steer import SteerItem, SteerQueue
 
 
+async def test_default_queue_does_not_silently_fallback_when_redis_is_unavailable(
+    monkeypatch,
+) -> None:
+    async def fail_ping(*_args, **_kwargs):
+        raise ConnectionError("redis unavailable")
+
+    class BrokenRedis:
+        async def ping(self):
+            return await fail_ping()
+
+    monkeypatch.setattr(
+        "src.infra.storage.redis.create_redis_client",
+        lambda **_kwargs: BrokenRedis(),
+    )
+    queue = SteerQueue()
+    try:
+        await queue.enqueue("distributed-only", "must fail closed")
+    except RuntimeError as exc:
+        assert "requires Redis" in str(exc)
+    else:
+        raise AssertionError("queue must not use a process-local fallback")
+
+
 async def test_enqueue_then_drain_returns_fifo_and_empties() -> None:
     queue = SteerQueue(redis=None)
 

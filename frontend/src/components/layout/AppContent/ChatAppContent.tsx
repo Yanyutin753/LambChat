@@ -42,10 +42,8 @@ import { ChatView } from "./ChatView";
 import { filterApprovalsBySession } from "../../../utils/approvals";
 import { shouldShowMessageOutline } from "./messageOutline";
 import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
-
 const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
-
 export interface ChatAppContentProps {
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
@@ -56,7 +54,6 @@ export interface ChatAppContentProps {
   setMobileSidebarOpen: (open: boolean) => void;
   onShowProfile: () => void;
 }
-
 export function ChatAppContent({
   showProfileModal,
   onCloseProfileModal,
@@ -73,10 +70,8 @@ export function ChatAppContent({
   const { enableSkills, availableModels, systemDefaultModelId, defaultModel } =
     useSettingsContext();
   const { hasPermission, isAuthenticated } = useAuth();
-
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
     useDragAndDrop();
-
   const {
     approvals,
     refresh: refreshApprovals,
@@ -85,7 +80,6 @@ export function ChatAppContent({
     clearApprovals,
     isLoading: approvalLoading,
   } = useApprovals({ sessionId: null });
-
   const {
     tools,
     isLoading: toolsLoading,
@@ -93,7 +87,6 @@ export function ChatAppContent({
     getDisabledToolNames,
     refreshToolsForAgent,
   } = useTools();
-
   const {
     skills,
     isLoading: skillsLoading,
@@ -101,7 +94,6 @@ export function ChatAppContent({
     isMutating: skillsMutating,
     fetchSkills,
   } = useSkills({ enabled: enableSkills, listParams: CHAT_SKILL_LIST_PARAMS });
-
   const canReadPersonaPresets = hasPermission(Permission.PERSONA_PRESET_READ);
   const canManagePersonaPresets =
     hasPermission(Permission.PERSONA_PRESET_WRITE) ||

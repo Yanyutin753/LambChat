@@ -139,12 +139,82 @@ describe("MessageTimelineRail", () => {
     expect((bar as HTMLElement)?.style.width).toBe("16px");
   });
 
-  test("bars have fixed 12px gap", () => {
+  test("bars have compact 8px gap", () => {
     const items = createPairedItems();
     render(<MessageTimelineRail items={items} onNavigate={onNavigate} />);
 
     const btn = screen.getByRole("button", { name: "Timeline" });
-    expect(btn.style.gap).toBe("12px");
+    expect(btn.style.gap).toBe("8px");
+  });
+
+  test("touch dragging navigates to the turn on release", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    const targets = container.querySelectorAll("button > span.cursor-pointer");
+    vi.spyOn(targets[1]!, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      bottom: 56,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 16,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.pointerDown(btn, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    fireEvent.pointerMove(btn, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    fireEvent.pointerUp(btn, {
+      pointerId: 1,
+      pointerType: "touch",
+      clientY: 48,
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("chat-outline-message-u2", 2);
+  });
+
+  test("touching a turn creates a length-based wave across nearby bars", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    const targets = container.querySelectorAll("button > span.cursor-pointer");
+    vi.spyOn(targets[1]!, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      bottom: 56,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 16,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.pointerDown(btn, {
+      pointerId: 2,
+      pointerType: "touch",
+      clientY: 48,
+    });
+
+    const bars = container.querySelectorAll(
+      "button > span > span.rounded-full",
+    );
+    expect((bars[1] as HTMLElement).style.width).toBe("24px");
+    expect((bars[0] as HTMLElement).style.width).toBe("22px");
   });
 
   test("inactive bars use color-mix transparent background", () => {
@@ -327,14 +397,14 @@ describe("MessageTimelineRail", () => {
     const bar = container.querySelector(
       "button > span > span.rounded-full",
     ) as HTMLElement;
-    expect(bar.style.width).toBe("16px");
+    expect(bar.style.width).toBe("24px");
 
     // Hover the parent span
     const clickTarget = container.querySelector(
       "button > span.cursor-pointer",
     )!;
     fireEvent.mouseEnter(clickTarget);
-    expect(bar.style.width).toBe("24px");
+    expect(bar.style.width).toBe("16px");
   });
 
   test("hovering second turn shows second turn's content", () => {

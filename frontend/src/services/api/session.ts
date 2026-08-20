@@ -84,7 +84,7 @@ export function buildSubmitChatBody({
   message,
   sessionId,
   agentOptions,
-  attachments,
+  attachments: inputAttachments,
   projectId,
   disabledSkills,
   enabledSkills,
@@ -107,13 +107,14 @@ export function buildSubmitChatBody({
   teamId?: string | null;
   goal?: RunGoalSpec | null;
 }): Record<string, unknown> {
+  const attachments = inputAttachments
+    ? filterSendableAttachments(inputAttachments)
+    : inputAttachments;
   const body: Record<string, unknown> = {
     message,
     session_id: sessionId,
     agent_options: agentOptions,
-    attachments: stripLocalAttachmentFields(
-      attachments ? filterSendableAttachments(attachments) : attachments,
-    ),
+    attachments: stripLocalAttachmentFields(attachments),
     disabled_skills: disabledSkills,
     enabled_skills: enabledSkills,
     persona_preset_id: personaPresetId || undefined,

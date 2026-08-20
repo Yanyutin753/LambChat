@@ -5,6 +5,7 @@ import {
   useRef,
   useCallback,
   type RefObject,
+  type PointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
@@ -24,6 +25,7 @@ import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosit
 const timelineRangeStore = createSingletonStore<ListRange | null>(null);
 
 /** Call from ChatView's rangeChanged handler — no React state needed. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function updateTimelineRange(range: ListRange | null): void {
   timelineRangeStore.set(range);
 }
@@ -166,12 +168,56 @@ export function MessageTimelineRail({
   const { t } = useTranslation();
 
   const [hoveredTurnIndex, setHoveredTurnIndex] = useState<number | null>(null);
+  const [touchTurnIndex, setTouchTurnIndex] = useState<number | null>(null);
   const hoveredBarRef = useRef<HTMLSpanElement | null>(null);
+  const barRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const draggingRef = useRef(false);
+  const touchTurnRef = useRef<number | null>(null);
 
   const handleRailMouseLeave = useCallback(() => {
     setHoveredTurnIndex(null);
     hoveredBarRef.current = null;
   }, []);
+
+  const findTurnAtY = useCallback((clientY: number) => {
+    let nearestIndex: number | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    barRefs.current.forEach((bar, index) => {
+      if (!bar) return;
+      const rect = bar.getBoundingClientRect();
+      const center = rect.top + rect.height / 2;
+      const distance = Math.abs(clientY - center);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    return nearestIndex;
+  }, []);
+
+  const handleTouchStart = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+      draggingRef.current = true;
+      const index = findTurnAtY(event.clientY);
+      touchTurnRef.current = index;
+      setTouchTurnIndex(index);
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+    [findTurnAtY],
+  );
+
+  const handleTouchMove = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      if (!draggingRef.current) return;
+      event.preventDefault();
+      const index = findTurnAtY(event.clientY);
+      if (index === null || index === touchTurnRef.current) return;
+      touchTurnRef.current = index;
+      setTouchTurnIndex(index);
+    },
+    [findTurnAtY],
+  );
 
   // Only user-message and assistant-message items (exclude headings).
   const messageItems = useMemo(
@@ -185,6 +231,21 @@ export function MessageTimelineRail({
   // Group into turns (user + following assistant responses).
   const turns = useMemo(() => groupIntoTurns(messageItems), [messageItems]);
 
+  const handleTouchEnd = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      const index = touchTurnRef.current;
+      touchTurnRef.current = null;
+      setTouchTurnIndex(null);
+      if (index !== null && turns[index]) {
+        onNavigate(turns[index].user.anchorId, turns[index].user.messageIndex);
+      }
+    },
+    [onNavigate, turns],
+  );
+
   if (turns.length === 0) return null;
 
   const count = turns.length;
@@ -196,8 +257,12 @@ export function MessageTimelineRail({
         className="group/timeline pointer-events-auto flex flex-col items-end px-4 py-3 pr-1 transition-all duration-150"
         aria-label={t("chat.timeline", "Timeline")}
         title={`${t("chat.timeline", "Timeline")} · ${count}`}
-        style={{ gap: 12 }}
+        style={{ gap: 8, touchAction: "none" }}
         onMouseLeave={handleRailMouseLeave}
+        onPointerDown={handleTouchStart}
+        onPointerMove={handleTouchMove}
+        onPointerUp={handleTouchEnd}
+        onPointerCancel={handleTouchEnd}
       >
         {turns.map((turn, index) => {
           const isActive =
@@ -214,11 +279,20 @@ export function MessageTimelineRail({
             turn.user.messageIndex >= visibleRange.startIndex &&
             turn.user.messageIndex <= visibleRange.endIndex;
 
-          const isHovered = hoveredTurnIndex === index;
+          const isHovered =
+            hoveredTurnIndex === index || touchTurnIndex === index;
+          const waveOffset =
+            touchTurnIndex === null
+              ? 0
+              : Math.max(0, 5 - Math.abs(index - touchTurnIndex) * 2);
 
           return (
             <span
               key={turn.user.id}
+              ref={(element) => {
+                barRefs.current[index] = element;
+              }}
+              data-turn-index={index}
               className="flex w-11 cursor-pointer items-center justify-end"
               onClick={(e) => {
                 e.stopPropagation();
@@ -231,7 +305,7 @@ export function MessageTimelineRail({
             >
               <span
                 className={clsx(
-                  "h-[3px] rounded-full transition-all duration-200 ease-out",
+                  "h-[3px] w-4 rounded-full transition-[transform,background-color] duration-200 ease-out",
                   isActive || userActive
                     ? "bg-[var(--theme-primary)]"
                     : isHovered
@@ -239,7 +313,8 @@ export function MessageTimelineRail({
                       : "bg-[color-mix(in_srgb,var(--theme-text-secondary)_22%,transparent)] group-hover/timeline:bg-[color-mix(in_srgb,var(--theme-primary)_32%,transparent)]",
                 )}
                 style={{
-                  width: isHovered ? "24px" : "16px",
+                  width: "16px",
+                  transform: `translateX(-${waveOffset}px)`,
                 }}
               />
             </span>

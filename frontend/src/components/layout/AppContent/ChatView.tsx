@@ -362,7 +362,7 @@ export function ChatView({
       }
       return isAtBottom ? "smooth" : false;
     },
-    [isLoadingHistory],
+    [isLoadingHistory, manualDetachFromStreamRef],
   );
 
   const virtuosoComponents = useMemo(

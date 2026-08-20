@@ -615,7 +615,6 @@ export const ChatInput = memo(function ChatInput({
       setComposerPlainText,
     ],
   );
-
   const hasContent =
     (!!input.trim() || visibleAttachments.length > 0) && !disabled;
   const canSubmit =
@@ -650,17 +649,14 @@ export const ChatInput = memo(function ChatInput({
     : mentionMode === "team"
       ? t("chat.teamPlaceholder")
       : t("chat.placeholder");
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(true);
   };
-
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(false);
   };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(false);
@@ -669,10 +665,8 @@ export const ChatInput = memo(function ChatInput({
     if (!validateCount(files.length)) return;
     uploadFiles(files);
   };
-
   const { label: thinkingLabel, level: thinkingLevel } =
     resolveThinkingPresentation(agentOptions, agentOptionValues, t);
-
   return (
     <div
       className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-5"
@@ -746,7 +740,6 @@ export const ChatInput = memo(function ChatInput({
                 placement={mentionPopupPlacement ?? undefined}
               />
             )}
-
           <ChatInputAttachments
             attachments={visibleAttachments}
             onAttachmentsChange={setAttachments}
@@ -764,7 +757,6 @@ export const ChatInput = memo(function ChatInput({
               }
             }}
           />
-
           <div className="chat-composer-editor-wrap px-2.5 pt-1">
             {composerExpanded ? (
               <div className="flex items-center justify-between border-b px-2 pb-3 pt-1">

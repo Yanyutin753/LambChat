@@ -1,7 +1,8 @@
 """Codex 式运行中插话（steer）消息队列。
 
-优先使用 Redis 列表（多 worker 共享、带 24 小时 TTL），Redis 不可用时
-降级到带锁的进程内存实现，保证本地开发仍可工作。消息由
+使用 Redis 列表（多 worker 共享、带 24 小时 TTL）；默认 Redis 不可用时
+直接失败，避免分布式部署静默降级为进程内队列。显式传入 ``redis=None``
+时才启用带锁的进程内实现（用于本地开发和单元测试）。消息由
 ``SteerMiddleware`` 在下一次模型调用时取出注入并持久化到图状态。
 """
 
@@ -39,12 +40,16 @@ class SteerQueue:
         self._redis = None if redis is _UNSET else redis
         self._redis_disabled = redis is None
         self._redis_loop: asyncio.AbstractEventLoop | None = None
+        self._lease_tokens: Dict[str, str] = {}
 
     def _key(self, session_id: str) -> str:
         return f"lambchat:steer:{session_id}"
 
     def _inflight_key(self, session_id: str) -> str:
         return f"{self._key(session_id)}:inflight"
+
+    def _lease_key(self, session_id: str) -> str:
+        return f"{self._key(session_id)}:lease"
 
     @staticmethod
     def _encode(item: SteerItem) -> str:
@@ -80,6 +85,7 @@ class SteerQueue:
             # Async Redis connections are loop-bound; this also keeps tests
             # and short-lived worker loops from reusing a closed connection.
             self._redis = None
+            self._lease_tokens.clear()
         if self._redis is not None:
             return self._redis
         try:
@@ -90,7 +96,9 @@ class SteerQueue:
             self._redis = client
             self._redis_loop = current_loop
             return client
-        except Exception:
+        except Exception as exc:
+            if not self._redis_disabled:
+                raise RuntimeError("SteerQueue requires Redis for distributed operation") from exc
             return None
 
     async def enqueue(self, session_id: str, message: str) -> int:
@@ -135,7 +143,9 @@ class SteerQueue:
                 )
                 return int(result)
             except Exception:
-                logger.warning("[Steer] Redis enqueue failed; using local fallback", exc_info=True)
+                logger.warning("[Steer] Redis enqueue failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
         async with self._lock:
             queue = self._pending.setdefault(session_id, [])
             if any(existing.id == item.id for existing in queue):
@@ -157,27 +167,53 @@ class SteerQueue:
         redis = await self._redis_or_none()
         if redis is not None:
             try:
+                token = self._lease_tokens.get(session_id) or uuid4().hex
                 raw_items = await redis.eval(
                     """
-                    if redis.call('EXISTS', KEYS[2]) == 0 and redis.call('EXISTS', KEYS[1]) == 1 then
+                    local pending = redis.call('EXISTS', KEYS[1])
+                    local inflight = redis.call('EXISTS', KEYS[2])
+                    local owner = redis.call('GET', KEYS[3])
+                    if pending == 0 and inflight == 0 then
+                      return {}
+                    end
+                    if owner and owner ~= ARGV[2] then
+                      return {}
+                    end
+                    if not owner then
+                      redis.call('SET', KEYS[3], ARGV[2], 'EX', ARGV[1])
+                    else
+                      redis.call('EXPIRE', KEYS[3], ARGV[1])
+                    end
+                    if inflight == 0 and pending == 1 then
                       redis.call('RENAME', KEYS[1], KEYS[2])
                       redis.call('EXPIRE', KEYS[2], ARGV[1])
                     end
-                    return redis.call('LRANGE', KEYS[2], 0, -1)
+                    local result = {ARGV[2]}
+                    for _, raw in ipairs(redis.call('LRANGE', KEYS[2], 0, -1)) do
+                      table.insert(result, raw)
+                    end
+                    return result
                     """,
-                    2,
+                    3,
                     self._key(session_id),
                     self._inflight_key(session_id),
+                    self._lease_key(session_id),
                     "3600",
+                    token,
                 )
-                messages = [self._decode(raw) for raw in raw_items]
+                if not raw_items:
+                    return []
+                self._lease_tokens[session_id] = str(raw_items[0])
+                messages = [self._decode(raw) for raw in raw_items[1:]]
                 if messages:
                     logger.info(
                         "[Steer] session=%s draining %d message(s)", session_id, len(messages)
                     )
                 return messages
             except Exception:
-                logger.warning("[Steer] Redis drain failed; using local fallback", exc_info=True)
+                logger.warning("[Steer] Redis drain failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
         async with self._lock:
             messages = self._pending.pop(session_id, [])
             if messages:
@@ -200,7 +236,9 @@ class SteerQueue:
                         items.append(item)
                 return items
             except Exception:
-                logger.warning("[Steer] Redis list failed; using local fallback", exc_info=True)
+                logger.warning("[Steer] Redis list failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
         async with self._lock:
             return list(self._pending.get(session_id, []))
 
@@ -220,15 +258,41 @@ class SteerQueue:
             try:
                 key = self._key(session_id)
                 inflight = self._inflight_key(session_id)
-                await redis.lpush(
+                lease = self._lease_key(session_id)
+                token = self._lease_tokens.get(session_id)
+                if not token:
+                    return
+                result = await redis.eval(
+                    """
+                    if redis.call('GET', KEYS[3]) ~= ARGV[1] then return 0 end
+                    local values = cjson.decode(ARGV[2])
+                    for i = #values, 1, -1 do
+                      redis.call('LPUSH', KEYS[1], values[i])
+                    end
+                    redis.call('DEL', KEYS[2], KEYS[3])
+                    redis.call('EXPIRE', KEYS[1], ARGV[3])
+                    return 1
+                    """,
+                    3,
                     key,
-                    *[self._encode(item) for item in reversed(messages)],
+                    inflight,
+                    lease,
+                    token,
+                    json.dumps([self._encode(item) for item in messages]),
+                    "86400",
                 )
-                await redis.delete(inflight)
-                await redis.expire(key, 86400)
+                if int(result) == 1:
+                    self._lease_tokens.pop(session_id, None)
+                else:
+                    logger.warning(
+                        "[Steer] session=%s lease lost before requeue; leaving inflight for recovery",
+                        session_id,
+                    )
                 return
             except Exception:
-                logger.warning("[Steer] Redis requeue failed; using local fallback", exc_info=True)
+                logger.warning("[Steer] Redis requeue failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
         async with self._lock:
             queue = self._pending.setdefault(session_id, [])
             queue[:0] = messages
@@ -243,9 +307,26 @@ class SteerQueue:
         redis = await self._redis_or_none()
         if redis is not None:
             try:
-                await redis.delete(self._inflight_key(session_id))
+                token = self._lease_tokens.get(session_id)
+                if not token:
+                    return
+                result = await redis.eval(
+                    """
+                    if redis.call('GET', KEYS[2]) ~= ARGV[1] then return 0 end
+                    redis.call('DEL', KEYS[1], KEYS[2])
+                    return 1
+                    """,
+                    2,
+                    self._inflight_key(session_id),
+                    self._lease_key(session_id),
+                    token,
+                )
+                if int(result) == 1:
+                    self._lease_tokens.pop(session_id, None)
             except Exception:
                 logger.warning("[Steer] Redis ack failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
 
     def pending_count(self, session_id: str) -> int:
         """该会话当前排队数（只读，用于观测）。"""
@@ -263,7 +344,9 @@ class SteerQueue:
                         return bool(await redis.lrem(key, 1, raw))
                 return False
             except Exception:
-                logger.warning("[Steer] Redis remove failed; using local fallback", exc_info=True)
+                logger.warning("[Steer] Redis remove failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
         async with self._lock:
             queue = self._pending.get(session_id)
             if not queue:
@@ -287,9 +370,9 @@ class SteerQueue:
                         return bool(await redis.lrem(key, 1, raw))
                 return False
             except Exception:
-                logger.warning(
-                    "[Steer] Redis ID remove failed; using local fallback", exc_info=True
-                )
+                logger.warning("[Steer] Redis ID remove failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
         async with self._lock:
             queue = self._pending.get(session_id)
             if not queue:
