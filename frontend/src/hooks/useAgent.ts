@@ -188,6 +188,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       streamVersionRef,
       setSessionId,
       setMessages,
+      messagesRef,
       setConnectionStatus: (status) =>
         setConnectionStatus(status as ConnectionStatus),
       setIsInitializingSandbox,

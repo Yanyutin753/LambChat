@@ -42,9 +42,7 @@ async def test_steer_enqueues_message_for_running_session(monkeypatch) -> None:
 
     from src.infra.task.steer import get_steer_queue
 
-    result = await steer_running_agent(
-        "session-1", SteerRequest(message="中途插话"), user=_user()
-    )
+    result = await steer_running_agent("session-1", SteerRequest(message="中途插话"), user=_user())
 
     assert result["status"] == "queued"
     assert await get_steer_queue().drain("session-1") == ["中途插话"]
@@ -57,15 +55,11 @@ async def test_steer_rejects_when_task_not_running(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "src.api.routes.chat.get_task_manager",
-        lambda: SimpleNamespace(
-            get_status=AsyncMock(return_value=TaskStatus.WAITING_HUMAN)
-        ),
+        lambda: SimpleNamespace(get_status=AsyncMock(return_value=TaskStatus.WAITING_HUMAN)),
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await steer_running_agent(
-            "session-1", SteerRequest(message="hi"), user=_user()
-        )
+        await steer_running_agent("session-1", SteerRequest(message="hi"), user=_user())
     assert exc_info.value.status_code == 409
 
 
@@ -76,9 +70,7 @@ async def test_steer_rejects_missing_session(monkeypatch) -> None:
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await steer_running_agent(
-            "session-1", SteerRequest(message="hi"), user=_user()
-        )
+        await steer_running_agent("session-1", SteerRequest(message="hi"), user=_user())
     assert exc_info.value.status_code == 404
 
 
@@ -89,9 +81,7 @@ async def test_steer_rejects_other_users_session(monkeypatch) -> None:
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await steer_running_agent(
-            "session-1", SteerRequest(message="hi"), user=_user("user-1")
-        )
+        await steer_running_agent("session-1", SteerRequest(message="hi"), user=_user("user-1"))
     assert exc_info.value.status_code == 403
 
 

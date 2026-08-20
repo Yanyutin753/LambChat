@@ -29,18 +29,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def _persist_delivered_user_messages(session_id: str, texts: list[str]) -> None:
+async def _persist_delivered_user_messages(
+    session_id: str, texts: list[str], presenter: Any = None
+) -> None:
     """把已注入的插话消息写入 user:message 事件（尽力而为）。
 
-    事件经 dual_writer 双写 Redis + MongoDB：SSE 实时下发（前端按标准
-    user:message 渲染）且刷新/重载后历史可见。失败只记日志，不影响注入。
+    优先复用当前 run 的 ``presenter.emit_user_message``：事件自动归属
+    该 run 的 trace，MongoDB 历史（completed_only 聚合）刷新后可见。
+    无 presenter 时回退 dual_writer 直写（仅 Redis SSE，不进历史，
+    仅作实时展示兜底）。失败只记日志，不影响注入。
     """
     import uuid
 
-    from src.infra.session.dual_writer import get_dual_writer
-    from src.infra.utils.datetime import utc_now_iso
-
     try:
+        if presenter is not None:
+            for text in texts:
+                await presenter.emit_user_message(
+                    text,
+                    message_id=f"steer-{uuid.uuid4().hex[:12]}",
+                )
+            return
+
+        from src.infra.session.dual_writer import get_dual_writer
+        from src.infra.utils.datetime import utc_now_iso
+
         writer = get_dual_writer()
         for text in texts:
             await writer.write_event(
@@ -63,9 +75,10 @@ async def _persist_delivered_user_messages(session_id: str, texts: list[str]) ->
 class SteerMiddleware(AgentMiddleware):
     """把会话插话队列中的用户消息注入下一次模型调用。"""
 
-    def __init__(self, *, session_id: str) -> None:
+    def __init__(self, *, session_id: str, presenter: Any = None) -> None:
         super().__init__()
         self._session_id = session_id
+        self._presenter = presenter
 
     async def awrap_model_call(
         self,
@@ -95,7 +108,9 @@ class SteerMiddleware(AgentMiddleware):
         # 注入成功：写 user:message 事件（SSE + 历史持久化），
         # 再把插话消息写入图状态，checkpoint 持久化
         if self._session_id:
-            await _persist_delivered_user_messages(self._session_id, pending)
+            await _persist_delivered_user_messages(
+                self._session_id, pending, presenter=self._presenter
+            )
 
         from langchain.agents.middleware.types import ExtendedModelResponse
         from langgraph.types import Command as LangCommand

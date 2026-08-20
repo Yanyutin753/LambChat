@@ -61,9 +61,7 @@ async def test_resolve_fallback_model_global_default(
 
         storage.get = AsyncMock(side_effect=get)
 
-    with patch(
-        "src.infra.agent.model_storage.get_model_storage", return_value=storage
-    ):
+    with patch("src.infra.agent.model_storage.get_model_storage", return_value=storage):
         result = await resolve_fallback_model(
             "m1" if db_model else None,
             db_model.value if db_model else "primary-model",
