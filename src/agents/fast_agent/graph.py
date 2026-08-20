@@ -188,6 +188,8 @@ class FastAgent(BaseGraphAgent):
             langsmith_context,
         )
 
+        hitl_resume = kwargs.get("hitl_resume")
+
         config: RunnableConfig = {
             "configurable": {
                 "thread_id": session_id,
@@ -201,6 +203,7 @@ class FastAgent(BaseGraphAgent):
                 "base_url": kwargs.get("base_url", ""),
                 "active_goal": kwargs.get("active_goal"),
                 "recommendation_input": kwargs.get("recommendation_input"),
+                "hitl_resume": hitl_resume,
             },
             "metadata": langsmith_metadata,
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,
@@ -246,6 +249,18 @@ class FastAgent(BaseGraphAgent):
         except Exception as e:
             yield presenter.error(str(e), type(e).__name__)
             raise
+
+        # interrupt 模式挂起（issue #218）：通知前端运行暂停等待人工输入
+        else:
+            if getattr(presenter, "hitl_suspended", False):
+                yield {
+                    "event": "hitl:suspended",
+                    "data": {
+                        "session_id": session_id,
+                        "run_id": presenter.run_id,
+                        "status": "waiting_human",
+                    },
+                }
 
         finally:
             # goal:end 必须在 done 之前发出，保证事件顺序正确

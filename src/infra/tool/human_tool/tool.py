@@ -5,7 +5,7 @@ Human Tool 实现
 """
 
 import json
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, ClassVar, Dict, List, Optional, Type
 
 from langchain_core.tools import BaseTool
 
@@ -13,6 +13,8 @@ from src.api.routes.human import create_approval, wait_for_response
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.tool.human_tool.models import AskHumanInput, FieldType, FormField
+from src.infra.tool.human_tool.runtime import hitl_interrupt_supported
+from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
@@ -45,18 +47,21 @@ class AskHumanTool(BaseTool):
 
     name: str = "ask_human"
     description: str = """向用户提问并等待回复。仅在缺少必要信息、需要用户选择，或需确认敏感/不可逆操作时使用。
-简单选项用 choices（multiple 控制多选）；结构化表单用 fields。返回字段 JSON、超时或拒绝状态。"""
+简单选项用 choices（multiple 控制多选）；结构化表单用 fields。返回字段 JSON 或拒绝状态。"""
     args_schema: Type[AskHumanInput] = AskHumanInput
     return_direct: bool = False
 
     # 从 context 注入（可选，优先使用 TraceContext）
     session_id: str = ""
 
+    # 阻塞回退模式（interrupt 不可用时）的内部等待上限，
+    # 不再暴露给模型参数（interrupt 模式无超时概念，与 deepagents 官方 HITL 一致）
+    BLOCKING_FALLBACK_TIMEOUT: ClassVar[int] = 300
+
     def _run(
         self,
         message: str,
         fields: Optional[List[FormField]] = None,
-        timeout: int = 300,
     ) -> str:
         """同步执行（不支持，返回错误）"""
         return "Error: ask_human only supports async execution. Use ainvoke instead."
@@ -67,7 +72,6 @@ class AskHumanTool(BaseTool):
         fields: Optional[List[FormField]] = None,
         choices: Optional[List[str]] = None,
         multiple: bool = False,
-        timeout: int = 300,
         allow_other: bool = False,
     ) -> str:
         """
@@ -76,7 +80,6 @@ class AskHumanTool(BaseTool):
         Args:
             message: 向用户展示的提示消息
             fields: 表单字段列表
-            timeout: 超时时间（秒），范围 10-3600
 
         Returns:
             JSON 字符串，包含状态和字段值或错误消息
@@ -111,8 +114,20 @@ class AskHumanTool(BaseTool):
         # 构建审批类型和字段列表
         approval_type = "form"
 
-        # 将字段序列化为 dict 列表
-        field_dicts = [f.model_dump() for f in parsed_fields] if parsed_fields else []
+        # 将字段序列化为 dict 列表（JSON 模式：枚举转字符串，
+        # interrupt payload 会随 checkpoint 持久化，需可序列化）
+        field_dicts = [f.model_dump(mode="json") for f in parsed_fields] if parsed_fields else []
+
+        use_interrupt = (
+            getattr(settings, "HITL_MODE", "blocking") == "interrupt"
+            and hitl_interrupt_supported.get()
+        )
+        if use_interrupt:
+            return await self._run_interrupt_mode(
+                message=message,
+                field_dicts=field_dicts,
+                parsed_fields=parsed_fields,
+            )
 
         # 创建审批请求
         approval = await create_approval(
@@ -124,18 +139,16 @@ class AskHumanTool(BaseTool):
         )
 
         # 通过 SSE 流发送 approval_required 事件
-        await self._send_approval_event(
-            approval, session_id, run_id, parsed_fields, timeout=timeout
-        )
+        await self._send_approval_event(approval, session_id, run_id, parsed_fields)
 
         # 等待用户响应
-        response = await wait_for_response(approval.id, timeout=timeout)
+        response = await wait_for_response(approval.id, timeout=self.BLOCKING_FALLBACK_TIMEOUT)
 
         if response is None:
             # 超时：构建超时响应
             result = {
                 "status": "timeout",
-                "message": f"等待用户响应超时（{timeout}秒）",
+                "message": f"等待用户响应超时（{self.BLOCKING_FALLBACK_TIMEOUT}秒）",
                 "values": self._get_default_values(parsed_fields),
             }
             return await _json_dumps_result(result)
@@ -162,6 +175,56 @@ class AskHumanTool(BaseTool):
             "values": values,
         }
         return await _json_dumps_result(result)
+
+    async def _run_interrupt_mode(
+        self,
+        *,
+        message: str,
+        field_dicts: List[dict],
+        parsed_fields: List[FormField],
+    ) -> str:
+        """interrupt 模式：通过 LangGraph interrupt() 挂起而非阻塞等待。
+
+        对齐 deepagents 官方 HITL 语义：工具内零副作用、无超时，
+        interrupt payload 由编排层（fast_agent_node 挂起后）转为审批
+        记录与 SSE 通知，resume 值直接作为工具返回。
+        """
+        from langgraph.types import interrupt
+
+        resume_value = interrupt(
+            {
+                "kind": "ask_human",
+                "message": message,
+                "fields": field_dicts,
+            }
+        )
+        result = self._result_from_resume(resume_value, parsed_fields)
+        return await _json_dumps_result(result)
+
+    def _result_from_resume(
+        self,
+        resume_value: Any,
+        parsed_fields: List[FormField],
+    ) -> Dict[str, Any]:
+        """将 resume 值映射为工具返回结果（与阻塞模式返回结构一致）。"""
+        if not isinstance(resume_value, dict):
+            resume_value = {}
+
+        if not resume_value.get("approved", False):
+            return {
+                "status": "rejected",
+                "message": "用户拒绝了此请求",
+                "values": {},
+            }
+
+        values = resume_value.get("values")
+        if not isinstance(values, dict) or not values:
+            values = self._get_default_values(parsed_fields)
+        return {
+            "status": "success",
+            "message": "用户已响应",
+            "values": values,
+        }
 
     def _expand_short_choices(
         self,
@@ -317,7 +380,6 @@ class AskHumanTool(BaseTool):
         session_id: Optional[str],
         run_id: Optional[str],
         fields: List[FormField],
-        timeout: int = 300,
     ) -> None:
         """
         发送 approval_required 事件到 SSE 流
@@ -346,13 +408,13 @@ class AskHumanTool(BaseTool):
                 f"session={session_id}, run_id={run_id}"
             )
 
-            # 构建事件数据
+            # 构建事件数据（无超时概念：不发送 timeout 字段，
+            # 前端对缺失 timeout 且无 expires_at 的审批不显示倒计时）
             event_data = {
                 "id": approval.id,
                 "message": approval.message,
                 "type": approval.type,
                 "fields": [f.model_dump() for f in fields],
-                "timeout": timeout,
             }
 
             await dual_writer.write_event(

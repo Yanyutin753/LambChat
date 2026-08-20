@@ -158,6 +158,11 @@ class MongoDBStorage(StorageBase):
 APPROVAL_TTL = 3600  # 1 hour
 
 
+def _not_expired_query() -> dict:
+    """未过期判定：expires_at 大于当前时间，或未设置（interrupt 模式审批无超时）。"""
+    return {"$or": [{"expires_at": {"$gt": utc_now()}}, {"expires_at": None}]}
+
+
 class PendingApproval(BaseModel):
     """待处理的审批请求"""
 
@@ -225,14 +230,22 @@ class ApprovalStorage:
         )
         self._indexes_created = True
 
-    async def create(self, approval: PendingApproval, ttl: int = APPROVAL_TTL) -> PendingApproval:
-        """创建审批记录"""
+    async def create(
+        self, approval: PendingApproval, ttl: int | None = APPROVAL_TTL
+    ) -> PendingApproval:
+        """创建审批记录
+
+        Args:
+            approval: 审批对象
+            ttl: 过期秒数；None 表示不过期（interrupt 模式无超时，
+                响应后由 expire_after 设置 GC 时间）
+        """
         await self.ensure_indexes()
         now = utc_now()
         doc = approval.model_dump()
         doc["_id"] = approval.id
         doc["created_at"] = now
-        doc["expires_at"] = now + timedelta(seconds=ttl)
+        doc["expires_at"] = now + timedelta(seconds=ttl) if ttl is not None else None
 
         await self.collection.insert_one(doc)
         return approval
@@ -240,7 +253,7 @@ class ApprovalStorage:
     async def get(self, approval_id: str) -> Optional[PendingApproval]:
         """获取审批记录（排除 response 子文档，减少传输量）"""
         doc = await self.collection.find_one(
-            {"_id": approval_id, "expires_at": {"$gt": utc_now()}},
+            {"_id": approval_id, **_not_expired_query()},
             {"response": 0},
         )
         if not doc:
@@ -278,7 +291,7 @@ class ApprovalStorage:
             {
                 "_id": approval_id,
                 "status": "pending",
-                "expires_at": {"$gt": utc_now()},
+                **_not_expired_query(),
             },
             {"$set": update_doc},
             projection={"response": 0},
@@ -288,6 +301,18 @@ class ApprovalStorage:
             return None
         doc.pop("_id", None)
         return PendingApproval(**doc)
+
+    async def expire_after(self, approval_id: str, seconds: int = 3600) -> bool:
+        """响应/取消后设置 GC 过期时间（interrupt 审批创建时不过期）。"""
+        result = await self.collection.update_one(
+            {"_id": approval_id},
+            {
+                "$set": {
+                    "expires_at": utc_now() + timedelta(seconds=seconds),
+                }
+            },
+        )
+        return result.modified_count > 0
 
     async def extend_expires_at(
         self,
@@ -343,7 +368,7 @@ class ApprovalStorage:
         limit: int = 100,
     ) -> List[PendingApproval]:
         """获取待处理审批列表"""
-        query = {"status": "pending", "expires_at": {"$gt": utc_now()}}
+        query = {"status": "pending", **_not_expired_query()}
         if session_id:
             query["session_id"] = session_id
         if user_id:

@@ -17,9 +17,8 @@ async def test_ask_human_offloads_response_result_json(
     async def fake_create_approval(**kwargs):
         return SimpleNamespace(id="approval-1")
 
-    async def fake_wait_for_response(approval_id: str, timeout: int):
+    async def fake_wait_for_response(approval_id: str, timeout: int = 300):
         assert approval_id == "approval-1"
-        assert timeout == 10
         return SimpleNamespace(approved=True, response={"answer": "yes"})
 
     async def fake_send_approval_event(self, *args, **kwargs):
@@ -38,7 +37,6 @@ async def test_ask_human_offloads_response_result_json(
         await human_tool.AskHumanTool()._arun(
             message="Continue?",
             fields=[],
-            timeout=10,
         )
     )
 
@@ -61,9 +59,8 @@ async def test_ask_human_offloads_fields_parsing(
         captured_fields.extend(kwargs["fields"])
         return SimpleNamespace(id="approval-1")
 
-    async def fake_wait_for_response(approval_id: str, timeout: int):
+    async def fake_wait_for_response(approval_id: str, timeout: int = 300):
         assert approval_id == "approval-1"
-        assert timeout == 10
         return SimpleNamespace(approved=True, response={"choice": "yes"})
 
     async def fake_send_approval_event(self, *args, **kwargs):
@@ -91,7 +88,6 @@ async def test_ask_human_offloads_fields_parsing(
                     }
                 ]
             ),
-            timeout=10,
         )
     )
 
@@ -110,7 +106,7 @@ async def test_ask_human_expands_short_choice_options(
         captured_fields.extend(kwargs["fields"])
         return SimpleNamespace(id="approval-1")
 
-    async def fake_wait_for_response(approval_id: str, timeout: int):
+    async def fake_wait_for_response(approval_id: str, timeout: int = 300):
         return SimpleNamespace(approved=True, response={"choice": "later"})
 
     async def fake_send_approval_event(self, *args, **kwargs):
@@ -123,7 +119,6 @@ async def test_ask_human_expands_short_choice_options(
     await human_tool.AskHumanTool()._arun(
         message="When should I continue?",
         choices=["now", "later"],
-        timeout=10,
     )
 
     assert captured_fields == [
@@ -150,7 +145,7 @@ async def test_ask_human_expands_multiple_choice_options(
         captured_fields.extend(kwargs["fields"])
         return SimpleNamespace(id="approval-1")
 
-    async def fake_wait_for_response(approval_id: str, timeout: int):
+    async def fake_wait_for_response(approval_id: str, timeout: int = 300):
         return SimpleNamespace(approved=True, response={"choice": ["a", "b"]})
 
     async def fake_send_approval_event(self, *args, **kwargs):
@@ -164,7 +159,6 @@ async def test_ask_human_expands_multiple_choice_options(
         message="Pick blockers",
         choices=["a", "b", "c"],
         multiple=True,
-        timeout=10,
     )
 
     assert captured_fields[0]["type"] == "multi_select"
@@ -182,7 +176,7 @@ async def test_ask_human_infers_field_type_from_options(
         captured_fields.extend(kwargs["fields"])
         return SimpleNamespace(id="approval-1")
 
-    async def fake_wait_for_response(approval_id: str, timeout: int):
+    async def fake_wait_for_response(approval_id: str, timeout: int = 300):
         return SimpleNamespace(approved=True, response={"choice": "ship it"})
 
     async def fake_send_approval_event(self, *args, **kwargs):
@@ -195,7 +189,6 @@ async def test_ask_human_infers_field_type_from_options(
     await human_tool.AskHumanTool()._arun(
         message="Decision?",
         fields=[{"options": ["ship it", "hold"], "multiple": False}],
-        timeout=10,
     )
 
     assert captured_fields[0]["name"] == "choice"

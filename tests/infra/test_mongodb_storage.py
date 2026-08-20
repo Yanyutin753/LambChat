@@ -160,9 +160,14 @@ async def test_respond_if_pending_returns_updated_approval() -> None:
 
     filter_doc, update_doc, projection, return_document = collection.calls[0]
     # Only a still-pending, unexpired approval may be claimed atomically.
+    # Interrupt-mode approvals carry no expires_at and remain claimable.
     assert filter_doc["_id"] == "approval-1"
     assert filter_doc["status"] == "pending"
-    assert "$gt" in filter_doc["expires_at"]
+    expiry_clauses = filter_doc["$or"]
+    assert {"expires_at": None} in expiry_clauses
+    future_clauses = [c for c in expiry_clauses if c != {"expires_at": None}]
+    assert len(future_clauses) == 1
+    assert "$gt" in future_clauses[0]["expires_at"]
     assert update_doc["$set"]["status"] == "approved"
     assert update_doc["$set"]["response"] == response.model_dump()
     assert projection == {"response": 0}
@@ -182,11 +187,12 @@ async def test_respond_if_pending_returns_none_when_already_handled_or_expired()
     assert result is None
     filter_doc, _update_doc, _projection, _return_document = collection.calls[0]
     # The atomic guard rejects already-responded or expired approvals by
-    # requiring both pending status and a future expiry.
-    assert set(filter_doc.keys()) == {"_id", "status", "expires_at"}
+    # requiring pending status plus a future expiry (or no expiry at all,
+    # which is the interrupt-mode no-timeout contract).
+    assert set(filter_doc.keys()) == {"_id", "status", "$or"}
     assert filter_doc["_id"] == "approval-1"
     assert filter_doc["status"] == "pending"
-    assert "$gt" in filter_doc["expires_at"]
+    assert {"expires_at": None} in filter_doc["$or"]
 
 
 def test_close_approval_storage_releases_cached_singleton() -> None:

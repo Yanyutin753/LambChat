@@ -22,6 +22,7 @@ from src.api.deps import require_permissions
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.mongodb import (
+    APPROVAL_TTL,
     ApprovalResponse,
     PendingApproval,
     get_approval_storage,
@@ -107,6 +108,7 @@ async def create_approval(
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
     metadata: Optional[dict] = None,
+    ttl: Optional[int] = APPROVAL_TTL,
 ) -> PendingApproval:
     """
     创建审批请求 (供 Agent 调用)
@@ -117,6 +119,8 @@ async def create_approval(
         fields: 表单字段列表
         session_id: 关联的会话 ID
         user_id: 关联的用户 ID
+        metadata: 元数据（interrupt 模式记录 mode/run_id/thread_id）
+        ttl: 过期时间（秒），interrupt 模式下与工具超时对齐
 
     Returns:
         PendingApproval 对象
@@ -135,7 +139,7 @@ async def create_approval(
     )
 
     # 存储到 MongoDB
-    await _approval_storage.create(approval)
+    await _approval_storage.create(approval, ttl=ttl)
     logger.info(
         "[HITL] approval_id=%s Approval created (type=%s)",
         approval_id,
@@ -318,6 +322,11 @@ async def respond_to_approval(
     else:
         await _approval_storage.update_status(approval_id, status, approval_response)
 
+    # interrupt 审批创建时不过期（无超时），响应后设置 GC 过期时间
+    expire_after = getattr(_approval_storage, "expire_after", None)
+    if callable(expire_after):
+        await expire_after(approval_id)
+
     logger.info(
         "[HITL] approval_id=%s Approval response recorded, notifying waiters",
         approval_id,
@@ -332,7 +341,24 @@ async def respond_to_approval(
     if entry:
         entry[0].set()
 
-    return {"status": "success", "approval_id": approval_id, "approved": approved}
+    # 3. interrupt 模式（issue #218）：提交恢复运行，从 checkpoint 断点继续
+    resume_result: dict | None = None
+    from src.infra.task.hitl import (
+        hitl_interrupt_mode_enabled,
+        is_interrupt_approval,
+        submit_hitl_resume_run,
+    )
+
+    if hitl_interrupt_mode_enabled() and is_interrupt_approval(approval):
+        resume_result = await submit_hitl_resume_run(
+            approval,
+            {"approved": approved, "values": response_data},
+        )
+
+    result = {"status": "success", "approval_id": approval_id, "approved": approved}
+    if resume_result is not None:
+        result["hitl_resume"] = resume_result
+    return result
 
 
 @router.post("/{approval_id}/extend", dependencies=[Depends(require_permissions("chat:write"))])
@@ -342,7 +368,14 @@ async def extend_approval_timeout(
 ):
     """
     延长审批超时时间（用户交互时触发，支持分布式）
+
+    interrupt 模式审批无超时、不过期，直接返回成功（前端倒计时逻辑
+    对无截止时间的审批不生效）。
     """
+    approval = await _approval_storage.get(approval_id)
+    if approval and (getattr(approval, "metadata", None) or {}).get("mode") == "interrupt":
+        return {"status": "success", "expires_at": None}
+
     new_expires = await _approval_storage.extend_expires_at(
         approval_id,
         extra_seconds=extra_seconds,

@@ -380,6 +380,15 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "options": ["mongodb", "postgres"],
         "frontend_visible": True,
     },
+    "HITL_MODE": {
+        "type": SettingType.SELECT,
+        "category": SettingCategory.CHECKPOINT,
+        "subcategory": "general",
+        "description": "settingDesc.HITL_MODE",
+        "default": "blocking",
+        "options": ["blocking", "interrupt"],
+        "frontend_visible": True,
+    },
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.CHECKPOINT,

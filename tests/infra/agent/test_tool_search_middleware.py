@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
@@ -31,7 +32,14 @@ class _FakeTool(BaseTool):
         return "ok"
 
 
-def test_deferred_manager_returns_discovered_tools_in_sorted_order() -> None:
+def test_deferred_manager_returns_discovered_tools_in_discovery_order() -> None:
+    """Order follows discovery (or persisted restore) order, not name order.
+
+    The tools list is part of the provider prompt-cache prefix; the online
+    path appends newly discovered tools in discovery order, so the restore
+    path must reproduce the same order to avoid a full-prefix cache miss
+    after a process restart.
+    """
     manager = DeferredToolManager(
         all_deferred_tools=[
             _FakeTool(name="zeta:lookup", description="zeta lookup", server="zeta"),
@@ -44,7 +52,7 @@ def test_deferred_manager_returns_discovered_tools_in_sorted_order() -> None:
 
     discovered = manager.get_discovered_tools()
 
-    assert [tool.name for tool in discovered] == ["alpha:create", "zeta:lookup"]
+    assert [tool.name for tool in discovered] == ["zeta:lookup", "alpha:create"]
 
 
 def test_deferred_manager_fork_does_not_mutate_parent_discoveries() -> None:
@@ -492,7 +500,7 @@ async def test_memory_index_keeps_current_user_question_as_final_message(monkeyp
     history = HumanMessage(content="earlier question")
     current = HumanMessage(content="current question")
 
-    async def _build_index(_user_id: str) -> str:
+    async def _build_index(_user_id: str, *, session_id=None) -> str:
         return "<memory_index>\n- preference\n</memory_index>"
 
     monkeypatch.setattr(
@@ -543,7 +551,7 @@ async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypat
     )
     tool = ToolMessage(content="result", tool_call_id="call-1")
 
-    async def _build_index(_user_id: str) -> str:
+    async def _build_index(_user_id: str, *, session_id=None) -> str:
         return "<memory_index>\n- preference\n</memory_index>"
 
     monkeypatch.setattr(
@@ -608,3 +616,31 @@ def _load_module(dotted: str):
     import importlib
 
     return importlib.import_module(dotted)
+
+
+@pytest.mark.asyncio
+async def test_memory_index_snapshotted_per_user_with_ttl(monkeypatch) -> None:
+    """With a session_id the index is built once and reused (Codex-style
+    session snapshot), so auto memory capture cannot churn the tools prefix
+    every turn."""
+    from src.infra.agent.middleware import prompt_injection
+
+    prompt_injection._MEMORY_INDEX_SNAPSHOTS.clear()
+    calls = {"n": 0}
+
+    async def _uncached(_user_id: str) -> str:
+        calls["n"] += 1
+        return "<memory_index>\n- item\n</memory_index>"
+
+    monkeypatch.setattr(prompt_injection, "_build_memory_index_uncached", _uncached)
+
+    first = await prompt_injection._build_memory_index_for_user("u1", session_id="s1")
+    second = await prompt_injection._build_memory_index_for_user("u1", session_id="s1")
+    assert first == second == "<memory_index>\n- item\n</memory_index>"
+    assert calls["n"] == 1
+
+    # Without a session_id (legacy call sites) every call rebuilds.
+    await prompt_injection._build_memory_index_for_user("u1")
+    assert calls["n"] == 2
+
+    prompt_injection._MEMORY_INDEX_SNAPSHOTS.clear()

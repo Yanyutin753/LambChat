@@ -81,6 +81,7 @@ class TaskExecutor:
         active_goal: Optional[Dict[str, Any]] = None,
         auto_mode: bool = False,
         attachment_references_claimed: bool = False,
+        hitl_resume: Optional[Dict[str, Any]] = None,
     ) -> None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -188,8 +189,24 @@ class TaskExecutor:
                 team_id=team_id,
                 active_goal=active_goal,
                 auto_mode=auto_mode,
+                hitl_resume=hitl_resume,
             ):
                 await presenter.save_event(event)
+
+            # interrupt 模式挂起（issue #218）：保留 checkpoint，标记 WAITING_HUMAN
+            if presenter is not None and getattr(presenter, "hitl_suspended", False):
+                await presenter.complete("completed")
+                await self._update_session_status(
+                    session_id, TaskStatus.WAITING_HUMAN, run_id=run_id
+                )
+                logger.info(
+                    "Task waiting for human input: session=%s, run_id=%s", session_id, run_id
+                )
+                await self._send_task_notification(
+                    session_id, run_id, TaskStatus.WAITING_HUMAN, user_id
+                )
+                await self._expire_terminal_stream(session_id, run_id, dual_writer)
+                return
 
             # 完成 trace（更新 MongoDB trace 状态为 completed）
             await presenter.complete("completed")

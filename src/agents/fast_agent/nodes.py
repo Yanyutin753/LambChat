@@ -50,6 +50,7 @@ from src.infra.agent.middleware import (
     ToolResultBinaryMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
+    summarization_fallback_patch,
 )
 from src.infra.backend.deepagent import create_persistent_backend
 from src.infra.goal import (
@@ -277,7 +278,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
-        user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
+        user_middleware.append(
+            MemoryIndexMiddleware(user_id=context.user_id, session_id=context.session_id)
+        )
 
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware
@@ -302,17 +305,18 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
 
-    inner_graph = create_deep_agent(
-        model=llm,
-        system_prompt=system_prompt,
-        backend=backend,
-        tools=filtered_tools,
-        checkpointer=inner_checkpointer,
-        store=store,
-        skills=None,
-        subagents=custom_subagents,
-        middleware=user_middleware,
-    )
+    with summarization_fallback_patch(fallback_model_value, thinking_config):
+        inner_graph = create_deep_agent(
+            model=llm,
+            system_prompt=system_prompt,
+            backend=backend,
+            tools=filtered_tools,
+            checkpointer=inner_checkpointer,
+            store=store,
+            skills=None,
+            subagents=custom_subagents,
+            middleware=user_middleware,
+        )
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
@@ -336,15 +340,26 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 构建传入的新消息（包含附件）
     # 注意：checkpointer + add_messages reducer 会自动维护历史消息，
     # 只需传入新消息，避免与 checkpoint 中的历史消息重复。
+    # HITL 恢复运行（issue #218）：以 Command(resume=...) 从挂起断点继续，
+    # 不注入新的用户消息。
+    hitl_resume = configurable.get("hitl_resume")
     user_input = state.get("input", "")
     recommendation_input = configurable.get("recommendation_input") or user_input
-    if supports_vision:
-        attachments = await inline_image_attachments_as_data_urls(
-            attachments,
-            base_url=configurable.get("base_url", ""),
-            force_data_url=image_url_to_base64,
+    if hitl_resume is not None:
+        from langgraph.types import Command
+
+        graph_input: Any = Command(resume=hitl_resume.get("resume_value"))
+    else:
+        if supports_vision:
+            attachments = await inline_image_attachments_as_data_urls(
+                attachments,
+                base_url=configurable.get("base_url", ""),
+                force_data_url=image_url_to_base64,
+            )
+        new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
+        graph_input = build_goal_input(
+            new_message, active_goal, rubric_middleware=rubric_middleware
         )
-    new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
 
     # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
     logger.info("[FastAgent] Creating AgentEventProcessor")
@@ -352,14 +367,29 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     logger.info("[FastAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
+    # interrupt 模式仅在持久 checkpointer（非 MemorySaver）可用时启用，
+    # 否则 ask_human 自动回退阻塞模式。
+    from langgraph.checkpoint.memory import MemorySaver
+
+    from src.infra.tool.human_tool.runtime import hitl_interrupt_supported
+
+    interrupt_supported = (
+        getattr(settings, "HITL_MODE", "blocking") == "interrupt"
+        and inner_checkpointer is not None
+        and not isinstance(inner_checkpointer, MemorySaver)
+    )
     try:
         async with isolated_nested_graph_run():
-            async for event in inner_graph.astream_events(  # type: ignore[call-overload]
-                build_goal_input(new_message, active_goal, rubric_middleware=rubric_middleware),
-                inner_config,
-                version="v2",
-            ):
-                await event_processor.process_event(event)
+            token_supported = hitl_interrupt_supported.set(interrupt_supported)
+            try:
+                async for event in inner_graph.astream_events(  # type: ignore[call-overload]
+                    graph_input,
+                    inner_config,
+                    version="v2",
+                ):
+                    await event_processor.process_event(event)
+            finally:
+                hitl_interrupt_supported.reset(token_supported)
     finally:
         await event_processor.flush()
         await emit_token_usage(
@@ -371,7 +401,33 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         )
     logger.info("[FastAgent] astream_events completed")
 
-    if settings.ENABLE_MEMORY and context.user_id:
+    # 检测 interrupt 挂起（issue #218）：图存在待恢复任务时标记 WAITING_HUMAN，
+    # 并将 ask_human interrupt payload 物化为审批记录 + SSE 通知
+    # （工具内零副作用，对齐 deepagents 官方 HITL，重放不会重复创建）
+    if interrupt_supported:
+        try:
+            snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
+            if snapshot is not None and snapshot.next:
+                presenter.hitl_suspended = True
+                logger.info(
+                    "[FastAgent] Graph suspended by interrupt: session=%s run_id=%s",
+                    state.get("session_id"),
+                    getattr(presenter, "run_id", None),
+                )
+                from src.infra.logging.context import TraceContext
+                from src.infra.task.hitl import materialize_ask_human_approvals
+
+                ctx = TraceContext.get_request_context()
+                await materialize_ask_human_approvals(
+                    snapshot,
+                    session_id=state.get("session_id"),
+                    run_id=getattr(presenter, "run_id", None) or ctx.run_id,
+                    user_id=context.user_id or ctx.user_id,
+                )
+        except Exception as e:
+            logger.warning("[FastAgent] Failed to inspect graph state after run: %s", e)
+
+    if settings.ENABLE_MEMORY and context.user_id and hitl_resume is None:
         from src.infra.logging.context import TraceContext
         from src.infra.memory.tools import schedule_auto_memory_capture
         from src.kernel.schemas.conversation_history import ConversationSourceRef
@@ -408,7 +464,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     output_text = event_processor.output_text
     event_processor.clear()
 
-    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS:
+    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS and hitl_resume is None:
         try:
             from src.agents.core.recommendations import schedule_recommend_questions_from_state
 

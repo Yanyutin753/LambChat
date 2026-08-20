@@ -3,14 +3,13 @@
 PERSISTENT_STORAGE_POLICY = """## Storage
 
 - `/workflow/<session-id>`: current session workspace for new files.
-- `/skills/`: virtual Skill store, accessed with file tools.
+- `/skills/`: virtual Skill store, accessed with file tools (see the file-tool descriptions).
 Use an existing project path only when requested or clearly relevant; otherwise work in the current session workspace."""
 
 SANDBOX_STORAGE_POLICY = """## Storage
 
-- Sandbox local: use the runtime-supplied current session workspace for shell, files, and uploads.
-- `/skills/`: virtual Skill storage accessed with file tools.
-Download URLs with `upload_url_to_sandbox(url, absolute_workspace_path)`."""
+- Sandbox local: use the runtime-supplied current session workspace for shell, files, and uploads (the file-tool descriptions carry the session workspace path).
+- `/skills/`: virtual Skill storage accessed with file tools (see the file-tool descriptions)."""
 
 SANDBOX_RUNTIME_POLICY = """## Sandbox Runtime
 

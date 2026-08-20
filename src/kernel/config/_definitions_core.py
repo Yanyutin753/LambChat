@@ -199,6 +199,13 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LLM_REQUEST_TIMEOUT",
         "default": 120.0,
     },
+    "LLM_FALLBACK_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.LLM,
+        "subcategory": "retry",
+        "description": "settingDesc.LLM_FALLBACK_MODEL",
+        "default": None,
+    },
     "LLM_MODEL_CACHE_SIZE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,

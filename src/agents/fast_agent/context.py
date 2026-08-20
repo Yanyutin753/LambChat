@@ -66,6 +66,10 @@ class FastAgentContext:
         self._deferred_system_tools: List[Any] = []
 
     def _append_unique_tools(self, tools: List[Any], *, reserved: set[str] | None = None) -> None:
+        # Deterministic order: DB queries and MCP reconnects do not guarantee
+        # a stable return order, and the tools list is part of the provider
+        # prompt-cache prefix — any reorder invalidates the cached prefix.
+        tools = sorted(tools, key=lambda t: getattr(t, "name", "") or "")
         existing = {getattr(tool, "name", "") for tool in self.tools}
         blocked = reserved or set()
         for tool in tools:
@@ -168,9 +172,14 @@ class FastAgentContext:
 
                 pre_discovered = await restore_discovered_tools(self.session_id)
                 if self.deferred_manager is not None:
-                    pre_discovered = sorted(
-                        set(pre_discovered).union(self.deferred_manager.discovered_names)
-                    )
+                    # Preserve order: restored discovery order first, then any
+                    # names only the in-memory manager knows about. Sorting
+                    # here would disagree with the online append order and
+                    # cost a full prefix cache miss after restart.
+                    seen = set(pre_discovered)
+                    pre_discovered = pre_discovered + [
+                        name for name in self.deferred_manager.discovered_names if name not in seen
+                    ]
 
                 direct_names = {getattr(tool, "name", "") for tool in self.tools}
                 deferred_mcp_tools = [
