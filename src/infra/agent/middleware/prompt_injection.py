@@ -21,6 +21,19 @@ from src.infra.agent.middleware._helpers import (
 
 logger = logging.getLogger(__name__)
 
+# Codex-style session snapshot: the memory index is built once per session
+# (with a TTL backstop) instead of on every model call. Auto memory capture
+# writes memories after each turn; rebuilding the index mid-session would
+# change the memory_recall tool description — and with it the entire tools
+# prefix — on almost every turn.
+_MEMORY_INDEX_SNAPSHOTS: dict[str, tuple[float, str]] = {}
+_MEMORY_INDEX_SNAPSHOT_TTL_SECONDS = 30 * 60
+
+
+def invalidate_memory_index_snapshot(user_id: str) -> None:
+    """Drop the cached index so the next call rebuilds it (e.g. explicit refresh)."""
+    _MEMORY_INDEX_SNAPSHOTS.pop(user_id, None)
+
 
 class SectionPromptMiddleware(AgentMiddleware):
     """Append normalized prompt sections as one system text block."""
@@ -54,9 +67,10 @@ class MemoryIndexMiddleware(AgentMiddleware):
     when the memory_recall tool is not part of the request.
     """
 
-    def __init__(self, *, user_id: str | None) -> None:
+    def __init__(self, *, user_id: str | None, session_id: str | None = None) -> None:
         super().__init__()
         self._user_id = user_id
+        self._session_id = session_id
 
     async def awrap_model_call(
         self,
@@ -66,7 +80,7 @@ class MemoryIndexMiddleware(AgentMiddleware):
         if not self._user_id:
             return await handler(request)
 
-        index_str = await _build_memory_index_for_user(self._user_id)
+        index_str = await _build_memory_index_for_user(self._user_id, session_id=self._session_id)
         if not index_str:
             return await handler(request)
 
@@ -100,8 +114,31 @@ class MemoryIndexMiddleware(AgentMiddleware):
         return await handler(request)
 
 
-async def _build_memory_index_for_user(user_id: str) -> str:
-    """Build memory index string for a user. Returns empty string on any failure."""
+async def _build_memory_index_for_user(user_id: str, *, session_id: str | None = None) -> str:
+    """Build memory index string for a user. Returns empty string on any failure.
+
+    With a session_id, the index is snapshotted per user for the TTL: memories
+    captured during the session only surface in later sessions, keeping the
+    tools prefix byte-stable across the turns of one conversation.
+    """
+    import time as _time
+
+    cache_key = user_id
+    cached = _MEMORY_INDEX_SNAPSHOTS.get(cache_key)
+    now = _time.monotonic()
+    if (
+        session_id is not None
+        and cached is not None
+        and (now - cached[0]) < _MEMORY_INDEX_SNAPSHOT_TTL_SECONDS
+    ):
+        return cached[1]
+    index = await _build_memory_index_uncached(user_id)
+    if index:
+        _MEMORY_INDEX_SNAPSHOTS[cache_key] = (now, index)
+    return index
+
+
+async def _build_memory_index_uncached(user_id: str) -> str:
     try:
         from src.infra.memory.tools import _get_backend
 

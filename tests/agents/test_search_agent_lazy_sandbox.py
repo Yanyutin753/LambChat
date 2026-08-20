@@ -133,6 +133,7 @@ class _RouteBackend:
 class _ScriptedChatModel(BaseChatModel):
     mode: str
     calls: ClassVar[list[list[tuple[str, str]]]] = []
+    tool_sets: ClassVar[list[str]] = []
     call_count: ClassVar[int] = 0
 
     @property
@@ -146,12 +147,20 @@ class _ScriptedChatModel(BaseChatModel):
         tool_choice: Any = None,
         **kwargs: Any,
     ) -> _ScriptedChatModel:
-        del tools, tool_choice, kwargs
+        if tools:
+            parts: list[str] = []
+            for tool in tools:
+                name = getattr(tool, "name", "") or ""
+                description = getattr(tool, "description", "") or ""
+                parts.append(f"{name}: {description}")
+            type(self).tool_sets.append("\n".join(parts))
+        del tool_choice, kwargs
         return self
 
     @classmethod
     def reset(cls) -> None:
         cls.calls = []
+        cls.tool_sets = []
         cls.call_count = 0
 
     def _next_message(self, messages: list[BaseMessage]) -> AIMessage:
@@ -804,8 +813,15 @@ async def test_search_stream_subagent_receives_public_workspace_before_handoff_i
     assert len(model.calls) >= 3
     main_prompt = "\n".join(content for _kind, content in model.calls[0])
     subagent_prompt = "\n".join(content for _kind, content in model.calls[1])
-    assert "/workspace/session-1" in main_prompt
-    assert "/workspace/session-1" in subagent_prompt
+    # Codex-style layering: the workspace path lives on the file-tool
+    # descriptions (framed <sandbox_workspace_context>), not in prompts.
+    assert "/workspace/session-1" not in main_prompt
+    # The subagent prompt may legitimately reference the handoff context
+    # file path; the runtime policy block itself must be gone.
+    assert "Sandbox Runtime" not in subagent_prompt
+    assert model.tool_sets, "expected bound tool sets to be recorded"
+    assert any("/workspace/session-1" in tool_set for tool_set in model.tool_sets)
+    assert any("<sandbox_workspace_context>" in tool_set for tool_set in model.tool_sets)
     artifact_workspaces = [
         item for item in graph_timeline if item.startswith("artifact-workspace:")
     ]

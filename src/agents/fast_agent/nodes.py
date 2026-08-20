@@ -278,7 +278,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
-        user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
+        user_middleware.append(
+            MemoryIndexMiddleware(user_id=context.user_id, session_id=context.session_id)
+        )
 
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware

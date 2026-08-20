@@ -520,6 +520,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             mw.append(SectionPromptMiddleware(sections=prompt_sections))
         if sandbox_backend:
             mw.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+            if subagent_runtime_section:
+                from src.infra.agent.middleware import SandboxWorkspaceMiddleware
+
+                mw.append(SandboxWorkspaceMiddleware(policy_text=subagent_runtime_section))
         if context.deferred_manager is not None:
             from src.infra.agent.middleware import ToolSearchMiddleware
 
@@ -540,7 +544,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     subagent_runtime_section = (
         TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
         if sandbox_backend and sandbox_work_dir
-        else None
+        else ""
     )
 
     if team and team.active_members:
@@ -603,7 +607,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         ),
                         role_section,
                         memory_guide,
-                        subagent_runtime_section,
                     )
                     if s
                 ]
@@ -679,9 +682,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     # Fallback: built-in specialist subagents when no explicit team is selected
     if not custom_subagents:
-        subagent_prompt_sections = [
-            s for s in (*persona_sections, memory_guide, subagent_runtime_section) if s
-        ]
+        subagent_prompt_sections = [s for s in (*persona_sections, memory_guide) if s]
         custom_subagents = [
             {
                 "name": "general-purpose",
@@ -748,16 +749,27 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         )
         if s
     ]
-    if sandbox_backend and sandbox_work_dir:
-        _prompt_sections.append(TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir))
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+        if sandbox_work_dir:
+            from src.infra.agent.middleware import SandboxWorkspaceMiddleware
+
+            user_middleware.append(
+                SandboxWorkspaceMiddleware(
+                    policy_text=TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=sandbox_work_dir)
+                )
+            )
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
-        user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
+        user_middleware.append(
+            MemoryIndexMiddleware(
+                user_id=context.user_id,
+                session_id=getattr(context, "session_id", None),
+            )
+        )
 
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware

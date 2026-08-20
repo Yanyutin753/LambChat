@@ -95,6 +95,13 @@ class DeferredToolManager:
         # 恢复上次已发现工具（从 store 持久化的数据）
         pre_set = set(pre_discovered_names or []) & set(self._tool_map.keys())
         self._discovered_names: set[str] = pre_set
+        # Discovery order (persisted order on restore, append order online).
+        # The tools list is part of the provider prompt-cache prefix; keeping
+        # the online and restore paths on the same ordering rule avoids a
+        # one-shot full-prefix cache miss after a process restart.
+        self._discovered_order: list[str] = [
+            n for n in (pre_discovered_names or []) if n in pre_set
+        ]
         self._session_id = session_id
         self._parent = parent
 
@@ -146,6 +153,7 @@ class DeferredToolManager:
             return
 
         self._discovered_names.update(new_names)
+        self._discovered_order.extend(sorted(new_names))
         self.stale = True
         self._stubs_stale = True
         self._prompt_stale = True
@@ -163,9 +171,9 @@ class DeferredToolManager:
 
     @property
     def discovered_names(self) -> list[str]:
-        """已发现工具名列表"""
+        """已发现工具名列表（按发现顺序）"""
         self._sync_parent_discoveries()
-        return sorted(self._discovered_names)
+        return [n for n in self._discovered_order if n in self._discovered_names]
 
     @property
     def remaining_count(self) -> int:
@@ -231,9 +239,9 @@ class DeferredToolManager:
         return self._cached_stubs_string
 
     def get_discovered_tools(self) -> list["BaseTool"]:
-        """获取已发现工具的完整 BaseTool 列表"""
+        """获取已发现工具的完整 BaseTool 列表（按发现顺序）"""
         self._sync_parent_discoveries()
-        return [self._tool_map[n] for n in sorted(self._discovered_names) if n in self._tool_map]
+        return [self._tool_map[n] for n in self.discovered_names if n in self._tool_map]
 
     def get_undiscovered_tools(self) -> list["BaseTool"]:
         """获取未发现工具的完整 BaseTool 列表（用于搜索）"""
@@ -254,6 +262,7 @@ class DeferredToolManager:
         for name in names:
             if name in self._tool_map and name not in self._discovered_names:
                 self._discovered_names.add(name)
+                self._discovered_order.append(name)
                 newly_discovered.append(self._tool_map[name])
 
         if newly_discovered:

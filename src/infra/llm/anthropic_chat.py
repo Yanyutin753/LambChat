@@ -8,13 +8,17 @@ from typing import Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from pydantic import Field
 
 from src.infra.llm.streaming import aiter_with_first_event_timeout
 
 _CACHE_CONTROL = {"type": "ephemeral"}
+
+# Anthropic requires >= ~1024 tokens between adjacent breakpoints; estimate
+# tokens from chars at ~3.5 chars/token and require a healthy margin.
+_MIN_CACHE_SEGMENT_CHARS = 3600
 
 
 def _to_text_blocks(content: Any) -> list[dict[str, Any]] | None:
@@ -44,23 +48,53 @@ def _mark_last_block(messages: list[BaseMessage], index: int) -> BaseMessage:
     return message.model_copy(update={"content": blocks})
 
 
+def _message_chars(message: BaseMessage) -> int:
+    """Rough size estimate (chars) of a message's text content."""
+    blocks = _to_text_blocks(message.content)
+    if blocks is None:
+        return 0
+    return sum(len(block.get("text") or "") for block in blocks if isinstance(block, dict))
+
+
 def _apply_prompt_cache_control(messages: list[BaseMessage]) -> list[BaseMessage]:
     """Add Anthropic prompt-cache breakpoints without mutating the input list.
 
-    Breakpoints (max 2 of the 4 allowed):
-      1. The last system message — caches the stable system prefix.
-      2. The final message — caches the full conversation prefix so each
-         subsequent turn reuses everything up to the previous turn.
+    Breakpoints (3 of the 4 allowed):
+        1. The last system message - caches the stable system prefix.
+        2. The end of the previous turn (message right before the newest
+           human message) - lets tool-loop iterations and retries reuse the
+           conversation prefix up to the last completed turn. Skipped when
+           the segment since that point is too small to be cacheable
+           (Anthropic requires >= ~1024 tokens between breakpoints).
+        3. The final message - caches the full conversation prefix so each
+           subsequent turn reuses everything up to the previous turn.
     """
     result = list(messages)
-    # System message breakpoint.
+    # 1. System message breakpoint.
     for index in range(len(result) - 1, -1, -1):
         if isinstance(result[index], SystemMessage):
             result[index] = _mark_last_block(result, index)
             break
-    # Final message breakpoint.
-    if result:
-        result[-1] = _mark_last_block(result, len(result) - 1)
+    # 2. Previous-turn boundary breakpoint.
+    last_human = next(
+        (i for i in range(len(result) - 1, -1, -1) if isinstance(result[i], HumanMessage)),
+        None,
+    )
+    if (
+        last_human is not None
+        and last_human > 0
+        and not isinstance(result[last_human - 1], SystemMessage)
+    ):
+        boundary = last_human - 1
+        segment_chars = sum(_message_chars(m) for m in result[boundary:-1])
+        if segment_chars >= _MIN_CACHE_SEGMENT_CHARS:
+            result[boundary] = _mark_last_block(result, boundary)
+    # 3. Final message breakpoint (fall back to the nearest message that
+    # actually has content blocks, e.g. pure tool-call AIMessages).
+    for index in range(len(result) - 1, -1, -1):
+        if _to_text_blocks(result[index].content):
+            result[index] = _mark_last_block(result, index)
+            break
     return result
 
 
