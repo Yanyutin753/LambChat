@@ -103,9 +103,95 @@ def test_deferred_manager_fork_rebuilds_prompt_after_parent_discovery() -> None:
     manager.discover_tools(["alpha:create"])
     after = forked.get_deferred_stubs_string()
 
-    assert "- alpha:create" in before
-    assert "- alpha:create" not in after
+    # The stub list is frozen at session scope: discovery must never rewrite
+    # the search_tools description, or the provider prompt-cache prefix
+    # breaks exactly at the search_tools position.
+    assert before == after
+    assert "- alpha:create" in after
     assert "- beta:list" in after
+
+
+def test_deferred_stubs_string_is_frozen_across_discovery() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
+            _FakeTool(name="beta:list", description="beta list", server="beta"),
+        ],
+        session_id="session-1",
+    )
+
+    before = manager.get_deferred_stubs_string()
+    manager.discover_tools(["alpha:create"])
+    after = manager.get_deferred_stubs_string()
+
+    assert before == after
+
+
+def test_deferred_stubs_string_is_identical_for_fork_and_parent() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
+            _FakeTool(name="beta:list", description="beta list", server="beta"),
+        ],
+        session_id="session-1",
+    )
+    manager.discover_tools(["alpha:create"])
+    forked = manager.fork_for_scope("subagent")
+
+    # Main and sub agents alternate requests against the same cache prefix;
+    # their stub lists must be byte-identical regardless of discovery state.
+    assert forked.get_deferred_stubs_string() == manager.get_deferred_stubs_string()
+
+
+def test_deferred_stubs_string_ignores_pre_discovered_restore_state() -> None:
+    fresh = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
+        ],
+        session_id="session-1",
+    )
+    restored = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
+        ],
+        session_id="session-1",
+        pre_discovered_names=["alpha:create"],
+    )
+
+    assert restored.get_deferred_stubs_string() == fresh.get_deferred_stubs_string()
+
+
+async def test_search_tools_description_is_stable_across_model_calls() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
+            _FakeTool(name="beta:list", description="beta list", server="beta"),
+        ],
+        session_id="session-1",
+    )
+    middleware = ToolSearchMiddleware(deferred_manager=manager, search_limit=5)
+
+    class _Request:
+        def __init__(self) -> None:
+            self.system_message = SystemMessage(content="base")
+            self.tools = []
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.tools = kwargs.get("tools", self.tools)
+            return clone
+
+    async def _handler(request):
+        return request
+
+    first = await middleware.awrap_model_call(_Request(), _handler)
+    first_desc = next(t for t in first.tools if t.name == "search_tools").description
+
+    manager.discover_tools(["alpha:create"])
+    second = await middleware.awrap_model_call(_Request(), _handler)
+    second_desc = next(t for t in second.tools if t.name == "search_tools").description
+
+    assert first_desc == second_desc
 
 
 async def test_tool_search_middleware_intercepts_registered_search_tool_with_own_manager() -> None:
@@ -237,8 +323,13 @@ async def test_tool_search_middleware_does_not_duplicate_existing_search_tool() 
 
     result = await middleware.awrap_model_call(_Request(), _handler)
 
-    assert result.tools == [existing, search_tool, discovered]
-    assert [tool.name for tool in result.tools].count("search_tools") == 1
+    # The search_tools entry is replaced by an enriched copy (frozen stubs now
+    # include already-discovered names), but it must never be duplicated.
+    assert [tool.name for tool in result.tools] == [
+        "existing",
+        "search_tools",
+        "zeta:lookup",
+    ]
 
 
 async def test_tool_search_middleware_skips_duplicate_search_guide_when_already_present() -> None:
@@ -288,7 +379,7 @@ def test_deferred_search_guide_has_compact_budget() -> None:
     assert len(DEFERRED_TOOL_SEARCH_GUIDE) <= 300
 
 
-def test_deferred_prompt_does_not_repeat_loaded_tool_names() -> None:
+def test_deferred_prompt_keeps_loaded_tool_names_as_search_hints() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[
             _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
@@ -300,8 +391,10 @@ def test_deferred_prompt_does_not_repeat_loaded_tool_names() -> None:
 
     prompt = manager.get_deferred_stubs_string()
 
+    # Frozen stub list: names remain as searchable hints even after loading;
+    # descriptions stay hidden and no "(Loaded)" section is introduced.
     assert "## MCP Tools (Loaded)" not in prompt
-    assert "- alpha:create" not in prompt
+    assert "- alpha:create" in prompt
     assert "- beta:list" in prompt
     assert "beta list" not in prompt
 
@@ -323,7 +416,7 @@ def test_deferred_prompt_string_contains_complete_guide_and_tool_list() -> None:
     assert "beta list" not in prompt
 
 
-def test_deferred_prompt_rebuilds_complete_string_after_discovery() -> None:
+def test_deferred_prompt_string_is_unchanged_after_discovery() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[
             _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
@@ -337,10 +430,7 @@ def test_deferred_prompt_rebuilds_complete_string_after_discovery() -> None:
     after = manager.get_deferred_stubs_string()
 
     assert before.startswith("## Tool Search Guide")
-    assert after.startswith("## Tool Search Guide")
-    assert "- alpha:create" in before
-    assert "- alpha:create" not in after
-    assert "- beta:list" in after
+    assert before == after
 
 
 async def test_tool_search_middleware_appends_one_complete_deferred_prompt_block() -> None:
