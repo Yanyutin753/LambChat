@@ -156,7 +156,7 @@ const AgentSelector = memo(function AgentSelector({
 
       {/* 下拉列表 */}
       {showSelector && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-theme-bg-card dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {agentsLoading ? (
             <div className="flex items-center justify-center px-3 py-4 text-sm text-stone-400 dark:text-stone-500 gap-2">
               <LoadingSpinner size="sm" />

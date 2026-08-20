@@ -14,8 +14,10 @@ test("CodeMirrorViewer fills the available parent height by default", () => {
   expect(source).toMatch(
     /"\.cm-gutters, \.cm-gutter":\s*\{[\s\S]*minHeight:\s*"100% !important"/,
   );
-  expect(source).toMatch(/isDark \? "#282c34" : "#ffffff"/);
-  expect(source).toMatch(/isDark \? "#282c34" : "#fafafa"/);
+  expect(source).toMatch(/isDark \? "#282c34" : "var\(--theme-bg-code, #ffffff\)"/);
+  expect(source).toMatch(
+    /isDark \? "#282c34" : "var\(--theme-bg-code-gutter, #fafafa\)"/,
+  );
   expect(source).toMatch(/<CodeMirror[\s\S]*className="h-full"/);
   expect(source).toMatch(/<CodeMirror[\s\S]*height="100%"/);
   expect(source).toMatch(/copyable \? "group relative h-full"/);
@@ -63,6 +65,6 @@ test("document code preview relies on the shared viewer fill behavior", () => {
 
   expect(source).not.toMatch(/\[&_\.cm-editor\]:h-full/);
   expect(source).not.toMatch(/\[&_\.cm-scroller\]:!overflow-auto/);
-  expect(source).toMatch(/dark:bg-\[#282c34\]/);
+  expect(source).toMatch(/bg-theme-bg-code/);
   expect(source).toMatch(/className="h-full"/);
 });

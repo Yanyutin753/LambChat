@@ -756,7 +756,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                             setError(t("auth.turnstileError"));
                           }}
                           onExpire={() => setTurnstileToken(null)}
-                          theme={theme}
+                          theme={theme === "dark" ? "dark" : "light"}
                         />
                       </div>
                     </div>

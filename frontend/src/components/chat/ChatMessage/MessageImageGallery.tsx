@@ -40,7 +40,7 @@ export function MessageImageGallery({ images }: MessageImageGalleryProps) {
             }
           >
             <div
-              className="group/img relative cursor-pointer rounded-xl border overflow-hidden transition-shadow hover:shadow-lg border-theme-border bg-white dark:bg-theme-bg"
+              className="group/img relative cursor-pointer rounded-xl border overflow-hidden transition-shadow hover:shadow-lg border-theme-border bg-theme-bg-card dark:bg-theme-bg"
               onClick={() => handleImageClick(image)}
             >
               <ImageWithSkeleton

@@ -10,6 +10,7 @@ import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useA
 import { SkeletonLine } from "../../skeletons";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import type { AgentInfo } from "../../../types";
+import type { Theme } from "../../../utils/themeDom";
 import {
   parseSendModifier,
   SEND_MODIFIER_STORAGE_KEY,
@@ -31,9 +32,10 @@ const NEWLINE_OPTIONS: { key: SendModifier; labelKey: string }[] = [
   { key: "shift", labelKey: "profile.newlineShift" },
 ];
 
-const THEME_OPTIONS: { key: "light" | "dark"; labelKey: string }[] = [
+const THEME_OPTIONS: { key: Theme; labelKey: string }[] = [
   { key: "light", labelKey: "profile.lightTheme" },
   { key: "dark", labelKey: "profile.darkTheme" },
+  { key: "sepia", labelKey: "profile.sepiaTheme" },
 ];
 
 const THINKING_LEVEL_OPTIONS: { key: ThinkingLevel; labelKey: string }[] = [
@@ -99,7 +101,7 @@ function SelectRow<T extends string>({
           >
             <div className="absolute inset-0 bg-black/40" />
             <div
-              className="relative z-10 w-[300px] max-h-[60dvh] rounded-2xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-2xl overflow-hidden animate-scale-in"
+              className="relative z-10 w-[300px] max-h-[60dvh] rounded-2xl bg-theme-bg-card dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-2xl overflow-hidden animate-scale-in"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-5 pt-4 pb-2">
@@ -220,7 +222,7 @@ export function ProfilePreferencesTab() {
     setOpenDropdown(null);
   };
 
-  const handleThemeChange = (newTheme: "light" | "dark") => {
+  const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
     authApi.updateMetadata({ theme: newTheme }).catch(() => {});
     setOpenDropdown(null);
@@ -304,7 +306,7 @@ export function ProfilePreferencesTab() {
   };
 
   return (
-    <div className="rounded-2xl bg-stone-50 dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
       <div className="flex items-center gap-2 mb-3">
         <Settings size={15} className="text-amber-500 dark:text-amber-400" />
         <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">

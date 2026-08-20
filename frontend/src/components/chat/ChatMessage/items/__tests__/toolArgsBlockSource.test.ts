@@ -21,10 +21,10 @@ test("tool argument blocks share detail and compact wrappers", () => {
 
   expect(source).toMatch(/type ToolArgsBlockSize = "detail" \| "compact"/);
   expect(source).toMatch(
-    /detail:\s*"tool-args-block group\/args relative flex items-center gap-2 px-3 py-2 rounded-\[var\(--radius-sm\)\] bg-white dark:bg-\[var\(--theme-bg-card\)\] text-sm text-theme-text-tertiary font-mono/,
+    /detail:\s*"tool-args-block group\/args relative flex items-center gap-2 px-3 py-2 rounded-\[var\(--radius-sm\)\] bg-theme-bg-card text-sm text-theme-text-tertiary font-mono/,
   );
   expect(source).toMatch(
-    /compact:\s*"tool-args-block group\/args relative flex items-center gap-2 mb-2 px-2 py-1\.5 rounded-\[var\(--radius-sm\)\] bg-white dark:bg-\[var\(--theme-bg-card\)\] text-xs text-theme-text-tertiary font-mono/,
+    /compact:\s*"tool-args-block group\/args relative flex items-center gap-2 mb-2 px-2 py-1\.5 rounded-\[var\(--radius-sm\)\] bg-theme-bg-card text-xs text-theme-text-tertiary font-mono/,
   );
   expect(source).toMatch(/wrap \? "flex-wrap" : ""/);
   expect(source).toMatch(/copyText\?: string/);

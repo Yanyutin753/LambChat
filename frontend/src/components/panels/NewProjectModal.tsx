@@ -26,7 +26,7 @@ export function NewProjectModal({
       className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center"
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white dark:bg-stone-800 rounded-xl shadow-2xl p-5 w-[90vw] max-w-md space-y-3">
+      <div className="relative bg-theme-bg-card dark:bg-stone-800 rounded-xl shadow-2xl p-5 w-[90vw] max-w-md space-y-3">
         <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
           {t("sidebar.newProject")}
         </h3>
@@ -34,7 +34,7 @@ export function NewProjectModal({
           {t("sidebar.projectHint")}
         </p>
 
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-stone-200 dark:border-stone-600 bg-stone-50 dark:bg-stone-700/50 focus-within:ring-2 focus-within:ring-stone-400/50 focus-within:border-stone-300 dark:focus-within:border-stone-500 transition-all">
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-stone-200 dark:border-stone-600 bg-theme-bg-subtle dark:bg-stone-700/50 focus-within:ring-2 focus-within:ring-stone-400/50 focus-within:border-stone-300 dark:focus-within:border-stone-500 transition-all">
           <input
             type="text"
             value={icon}

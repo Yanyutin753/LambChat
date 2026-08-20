@@ -244,7 +244,7 @@ export function SearchDialog({
       {/* Dialog panel — scale + fade */}
       <div
         onTransitionEnd={handleTransitionEnd}
-        className={`relative w-[92vw] max-w-lg bg-white dark:bg-stone-900 rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)] border border-stone-200/60 dark:border-stone-700/40 overflow-hidden transition-all duration-200 ease-out origin-top ${
+        className={`relative w-[92vw] max-w-lg bg-theme-bg-card dark:bg-stone-900 rounded-2xl shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25)] dark:shadow-[0_25px_60px_-12px_rgba(0,0,0,0.5)] border border-stone-200/60 dark:border-stone-700/40 overflow-hidden transition-all duration-200 ease-out origin-top ${
           visible
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-[0.97] -translate-y-2"

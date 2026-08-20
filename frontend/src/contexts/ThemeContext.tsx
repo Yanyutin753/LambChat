@@ -11,6 +11,7 @@ import {
   applyThemeToDocument,
   getInitialThemePreference,
   isTheme,
+  resolveNextTheme,
   THEME_STORAGE_KEY,
   type Theme,
 } from "../utils/themeDom";
@@ -72,7 +73,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, []);
 
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === "light" ? "dark" : "light"));
+    setThemeState((prev) => resolveNextTheme(prev));
   };
 
   const setTheme = (newTheme: Theme) => {

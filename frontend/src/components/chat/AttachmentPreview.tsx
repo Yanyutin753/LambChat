@@ -32,7 +32,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({
   const { t } = useTranslation();
 
   return (
-    <div className="bg-white dark:bg-stone-800 rounded-lg shadow-lg border border-stone-200 dark:border-stone-700 p-2 space-y-2">
+    <div className="bg-theme-bg-card dark:bg-stone-800 rounded-lg shadow-lg border border-stone-200 dark:border-stone-700 p-2 space-y-2">
       {attachments.map((attachment) => {
         const Icon = ICON_MAP[attachment.type] || File;
         const isUploading = !!attachment.isUploading;

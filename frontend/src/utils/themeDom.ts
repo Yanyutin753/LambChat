@@ -1,11 +1,22 @@
-export type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "sepia";
 
 export const THEME_STORAGE_KEY = "lambchat-theme";
+
+/** Class挂在 <html> 上用于激活主题（light 不需要类） */
+const THEME_CLASSES: Record<Theme, string> = {
+  light: "",
+  dark: "dark",
+  sepia: "theme-sepia",
+};
 
 const THEME_COLORS: Record<Theme, string> = {
   light: "#f5f5f4",
   dark: "#151210",
+  sepia: "#f3edde",
 };
+
+/** 快捷切换按钮的循环顺序 */
+const THEME_CYCLE: readonly Theme[] = ["light", "dark", "sepia"];
 
 interface ThemePreferenceEnvironment {
   localStorage?: Pick<Storage, "getItem"> | null;
@@ -27,7 +38,12 @@ interface ThemeDocument {
 }
 
 export function isTheme(value: unknown): value is Theme {
-  return value === "light" || value === "dark";
+  return value === "light" || value === "dark" || value === "sepia";
+}
+
+export function resolveNextTheme(current: Theme): Theme {
+  const index = THEME_CYCLE.indexOf(current);
+  return THEME_CYCLE[(index + 1) % THEME_CYCLE.length] ?? "light";
 }
 
 export function getInitialThemePreference(
@@ -53,10 +69,14 @@ export function applyThemeToDocument(
   theme: Theme,
   doc: ThemeDocument = document,
 ): void {
-  if (theme === "dark") {
-    doc.documentElement.classList.add("dark");
-  } else {
-    doc.documentElement.classList.remove("dark");
+  for (const className of Object.values(THEME_CLASSES)) {
+    if (className) {
+      doc.documentElement.classList.remove(className);
+    }
+  }
+  const themeClass = THEME_CLASSES[theme];
+  if (themeClass) {
+    doc.documentElement.classList.add(themeClass);
   }
 
   const color = THEME_COLORS[theme];

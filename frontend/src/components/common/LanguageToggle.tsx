@@ -71,7 +71,7 @@ export function LanguageToggle({ className }: LanguageToggleProps) {
 
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-40 rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 py-1 z-50"
+          className="absolute right-0 mt-2 w-40 rounded-lg bg-theme-bg-card dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 py-1 z-50"
           role="menu"
         >
           {LANGUAGES.map((lang) => (

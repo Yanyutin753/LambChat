@@ -582,10 +582,10 @@ export function MessagePartRenderer({
             onClick={onRetryCancelled}
             className={clsx(
               "ml-0.5 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium",
-              "bg-white/70 dark:bg-white/[0.07]",
+              "bg-[var(--theme-overlay-panel)]",
               "border border-white/40 dark:border-white/10",
               "transition-all duration-150 ease-out",
-              "hover:bg-white dark:hover:bg-white/12",
+              "hover:bg-[var(--theme-bg-elevated)] dark:hover:bg-white/12",
               "active:scale-[0.97]",
               "[&>svg]:transition-transform [&>svg]:duration-300",
               "hover:[&>svg]:-rotate-180",

@@ -21,7 +21,7 @@ function CodeMirrorFallback({
       <div
         aria-label={loadingLabel}
         role="status"
-        className="flex min-h-24 items-center justify-center bg-white p-3 text-stone-500 dark:bg-[#282c34] dark:text-stone-400"
+        className="flex min-h-24 items-center justify-center bg-theme-bg-code p-3 text-stone-500 dark:bg-[#282c34] dark:text-stone-400"
         style={{
           ...(maxHeight ? { maxHeight } : {}),
           ...(fontSize ? { fontSize } : {}),
