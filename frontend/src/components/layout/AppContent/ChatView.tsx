@@ -13,6 +13,7 @@ import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { setSteerCancelHandler } from "../../chat/steerCancelStore";
+import { mergeMessagesWithSteers } from "../../../utils/mergeSteers";
 import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel";
 import {
   ChatSkeleton,
@@ -113,6 +114,7 @@ export function ChatView({
   onSendMessage,
   onStopGeneration,
   onSteerMessage,
+  steerMessages,
   onCancelSteer,
   activeGoal,
   goalsByRunId,
@@ -447,6 +449,12 @@ export function ChatView({
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
 
+  // 插话独立状态按时间戳合并进消息流渲染（不进 messages 数组）
+  const renderItems = useMemo(
+    () => mergeMessagesWithSteers(messages, steerMessages ?? []),
+    [messages, steerMessages],
+  );
+
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
     onSend: (
@@ -566,7 +574,7 @@ export function ChatView({
             ref={virtuosoRef}
             className="dark:divide-stone-800 overflow-x-hidden"
             style={undefined}
-            data={messages}
+            data={renderItems}
             computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}
             atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}

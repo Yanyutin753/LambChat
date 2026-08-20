@@ -250,6 +250,28 @@ export function reconstructMessagesFromEvents(
     const eventType = event.event_type;
     const eventData = event.data as HistoryEventData;
 
+    // Handle steer message separately（独立事件，不参与用户消息去重）
+    if (eventType === "steer:message") {
+      if (currentAssistantMessage) {
+        reconstructedMessages.push(currentAssistantMessage);
+        currentAssistantMessage = null;
+      }
+      const steerData = eventData as { content?: string; message_id?: string };
+      const steerId =
+        typeof steerData.message_id === "string" && steerData.message_id.trim()
+          ? steerData.message_id
+          : `steer-h-${sortedEvents.indexOf(event)}`;
+      reconstructedMessages.push({
+        id: steerId,
+        role: "user",
+        content: steerData.content || "",
+        timestamp: parseEventTimestamp(event.timestamp, Date.now()),
+        runId: event.run_id,
+        metadata: { steer: true },
+      });
+      continue;
+    }
+
     // Handle user message separately
     if (eventType === "user:message") {
       const userMessageId = resolveUserMessageId(event, eventData);
