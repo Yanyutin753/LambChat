@@ -73,9 +73,19 @@ export function registerLambChatPwa(): void {
 
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
-      .then((registration) => {
+      .then(async (registration) => {
         watchForPwaUpdates(registration);
-        return registration.update().catch(() => undefined);
+        // 页面加载即激活等待中的新版本：旧 controller 在跑且已有 waiting
+        // worker 时立即接管并重载一次，确保用户拿到最新 bundle，
+        // 而不是等提示被确认期间一直运行旧缓存
+        if (
+          navigator.serviceWorker.controller &&
+          registration.waiting &&
+          activateWaitingLambChatPwaUpdate(registration)
+        ) {
+          return;
+        }
+        await registration.update().catch(() => undefined);
       })
       .catch((error) => {
         console.warn("[PWA] Service worker registration failed:", error);
