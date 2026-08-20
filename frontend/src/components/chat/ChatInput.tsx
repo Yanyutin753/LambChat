@@ -852,6 +852,11 @@ export const ChatInput = memo(function ChatInput({
             onActivePanelChange={setActivePanel}
             canSend={canSend}
             isLoading={isLoading}
+            hasDraft={!!input.trim()}
+            onSteer={onSteer && (() => {
+              onSteer(input);
+              setInput("");
+            })}
             canSubmit={canSubmit}
             hasUploadingAttachment={hasUploadingAttachment}
             enabledToolsCount={enabledToolsCount}
