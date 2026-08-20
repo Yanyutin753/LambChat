@@ -125,11 +125,35 @@ async def test_failed_model_call_requeues_messages() -> None:
     assert await get_steer_queue().drain("session-fail") == ["重要插话"]
 
 
-async def test_successful_injection_persists_user_message_events(monkeypatch) -> None:
-    """注入成功后写 user:message 事件（SSE 实时 + 历史持久化）。"""
+async def test_successful_injection_persists_via_presenter(monkeypatch) -> None:
+    """注入成功后经 presenter.emit_user_message 持久化（归属当前 run 的 trace，刷新后历史可见）。"""
     from src.infra.task.steer import get_steer_queue
 
     await get_steer_queue().enqueue("session-p", "要持久化的插话")
+
+    emitted: list[dict] = []
+
+    class _FakePresenter:
+        async def emit_user_message(self, content, message_id=None, **kwargs):
+            emitted.append({"content": content, "message_id": message_id})
+
+    middleware = SteerMiddleware(session_id="session-p", presenter=_FakePresenter())
+
+    async def handler(_req):
+        return _Response()
+
+    await middleware.awrap_model_call(_Request(), handler)
+
+    assert len(emitted) == 1
+    assert emitted[0]["content"] == "要持久化的插话"
+    assert str(emitted[0]["message_id"]).startswith("steer-")
+
+
+async def test_successful_injection_falls_back_to_dual_writer(monkeypatch) -> None:
+    """无 presenter 时回退 dual_writer 直写（实时 SSE 兜底）。"""
+    from src.infra.task.steer import get_steer_queue
+
+    await get_steer_queue().enqueue("session-p2", "兜底的插话")
 
     written: list[dict] = []
 
@@ -137,12 +161,9 @@ async def test_successful_injection_persists_user_message_events(monkeypatch) ->
         async def write_event(self, **kwargs):
             written.append(kwargs)
 
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: _FakeWriter())
 
-    monkeypatch.setattr(
-        "src.infra.session.dual_writer.get_dual_writer", lambda: _FakeWriter()
-    )
-
-    middleware = SteerMiddleware(session_id="session-p")
+    middleware = SteerMiddleware(session_id="session-p2")
 
     async def handler(_req):
         return _Response()
@@ -150,10 +171,8 @@ async def test_successful_injection_persists_user_message_events(monkeypatch) ->
     await middleware.awrap_model_call(_Request(), handler)
 
     assert len(written) == 1
-    assert written[0]["session_id"] == "session-p"
     assert written[0]["event_type"] == "user:message"
-    assert written[0]["data"]["content"] == "要持久化的插话"
-    assert str(written[0]["data"]["message_id"]).startswith("steer-")
+    assert written[0]["data"]["content"] == "兜底的插话"
 
 
 async def test_persist_failure_does_not_break_injection(monkeypatch) -> None:
@@ -165,9 +184,7 @@ async def test_persist_failure_does_not_break_injection(monkeypatch) -> None:
     def broken_writer():
         raise RuntimeError("dual writer down")
 
-    monkeypatch.setattr(
-        "src.infra.session.dual_writer.get_dual_writer", broken_writer
-    )
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", broken_writer)
 
     middleware = SteerMiddleware(session_id="session-pp")
     sentinel = _Response()

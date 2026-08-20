@@ -268,7 +268,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
-    user_middleware.insert(0, SteerMiddleware(session_id=str(state.get("session_id") or "")))
+    user_middleware.insert(
+        0, SteerMiddleware(session_id=str(state.get("session_id") or ""), presenter=presenter)
+    )
     user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
     user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     if image_url_to_base64:

@@ -78,9 +78,7 @@ async def test_submit_resume_skips_when_not_waiting_human(fake_redis, monkeypatc
                 metadata={"task_status": "completed"},
             )
 
-    monkeypatch.setattr(
-        "src.infra.session.storage.SessionStorage", lambda: _Storage()
-    )
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", lambda: _Storage())
     result = await submit_hitl_resume_run(_approval(), {"approved": True, "values": {}})
     assert result["submitted"] is False
     assert "等待" in result["message"]
@@ -114,9 +112,7 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
                 },
             )
 
-    monkeypatch.setattr(
-        "src.infra.session.storage.SessionStorage", lambda: _Storage()
-    )
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", lambda: _Storage())
 
     async def fake_executor():
         yield
@@ -133,9 +129,7 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
             submitted["kwargs"] = kwargs
             return "run-2", "trace-2"
 
-    monkeypatch.setattr(
-        "src.infra.task.manager.get_task_manager", lambda: _FakeManager()
-    )
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeManager())
 
     resume_value = {"approved": True, "values": {"choice": "a"}}
     result = await submit_hitl_resume_run(_approval(), resume_value)
@@ -151,5 +145,3 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
         "approval_id": "approval-1",
         "resume_value": resume_value,
     }
-
-

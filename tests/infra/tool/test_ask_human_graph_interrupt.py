@@ -64,19 +64,12 @@ class ApprovalRecorder:
             list_pending=self._list_pending,
         )
 
-        monkeypatch.setattr(
-            "src.api.routes.human.create_approval", fake_create_approval
-        )
+        monkeypatch.setattr("src.api.routes.human.create_approval", fake_create_approval)
         monkeypatch.setattr(hitl_mod, "_send_approval_sse", fake_send_sse)
-        monkeypatch.setattr(
-            "src.infra.storage.mongodb.get_approval_storage", lambda: fake_storage
-        )
+        monkeypatch.setattr("src.infra.storage.mongodb.get_approval_storage", lambda: fake_storage)
 
     async def _list_pending(self, session_id=None, user_id=None, limit=100):
-        return [
-            SimpleNamespace(message=kw["message"])
-            for kw in self.created
-        ]
+        return [SimpleNamespace(message=kw["message"]) for kw in self.created]
 
 
 @pytest.fixture
@@ -269,18 +262,14 @@ async def test_new_ask_after_resume_suspends_again(
         assert len(recorder.created) == 1
 
         # 第一次恢复 → 第二次 ask_human 挂起
-        await _run(
-            graph, Command(resume={"approved": True, "values": {"choice": "a"}}), config
-        )
+        await _run(graph, Command(resume={"approved": True, "values": {"choice": "a"}}), config)
         state = await graph.aget_state(config)
         assert state.next, "第二个 ask_human 应再次挂起"
         await _materialize(graph, config, recorder)
         assert len(recorder.created) == 2
         assert recorder.created[1]["message"] == "第二个问题"
 
-        final_state = await graph.ainvoke(
-            Command(resume={"approved": False, "values": {}}), config
-        )
+        final_state = await graph.ainvoke(Command(resume={"approved": False, "values": {}}), config)
     finally:
         hitl_interrupt_supported.reset(token_supported)
 
