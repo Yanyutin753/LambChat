@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { areAttachmentsSendable, isAttachmentSendable } from "../attachmentValidation";
+import {
+  areAttachmentsSendable,
+  filterSendableAttachments,
+  isAttachmentSendable,
+} from "../attachmentValidation";
 
 const valid = {
   id: "file-1",
@@ -20,6 +24,13 @@ describe("attachmentValidation", () => {
 
   test("accepts only when every attachment is sendable", () => {
     expect(areAttachmentsSendable([valid])).toBe(true);
-    expect(areAttachmentsSendable([valid, { ...valid, id: "bad", key: "" }])).toBe(false);
+    expect(
+      areAttachmentsSendable([valid, { ...valid, id: "bad", key: "" }]),
+    ).toBe(false);
+  });
+
+  test("filters unusable attachments before a message is submitted", () => {
+    const invalid = { ...valid, id: "bad", key: "" };
+    expect(filterSendableAttachments([valid, invalid])).toEqual([valid]);
   });
 });

@@ -255,7 +255,10 @@ export interface UseAgentReturn {
     runOptions?: { enabledSkills?: string[] },
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => Promise<void>;
-  steerMessage: (content: string, attachments?: MessageAttachment[]) => Promise<void>;
+  steerMessage: (
+    content: string,
+    attachments?: MessageAttachment[],
+  ) => Promise<void>;
   cancelSteer: (content: string, messageId?: string) => void;
   steerMessages: import("../../utils/mergeSteers").SteerItem[];
   markSteerDelivered: (content: string, messageId?: string) => void;

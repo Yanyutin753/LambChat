@@ -452,7 +452,9 @@ export function ChatView({
   );
 
   useEffect(() => {
-    setSteerCancelHandler((content, messageId) => onCancelSteer?.(content, messageId));
+    setSteerCancelHandler(
+      (content, messageId) => onCancelSteer?.(content, messageId),
+    );
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
 
@@ -473,9 +475,7 @@ export function ChatView({
     isLoading: sessionRunning,
     sendBlocked:
       approvals.length > 0 ||
-      hasPendingAskHuman(
-        messages.flatMap((message) => message.parts ?? []),
-      ),
+      hasPendingAskHuman(messages.flatMap((message) => message.parts ?? [])),
     canSend: canSendMessage,
     tools,
     onToggleTool,
@@ -535,70 +535,76 @@ export function ChatView({
           ref={messagesContainerRef}
           className="relative flex-1 min-h-0 overflow-hidden"
         >
-        {/* Frosted glass fade mask — visual transition between messages and input */}
-        <div
-          className="pointer-events-none absolute bottom-0 left-0 right-0 z-10"
-          style={{
-            height: 48,
-            background:
-              "linear-gradient(to bottom, transparent, var(--theme-bg))",
-          }}
-        />
-        {messages.length === 0 ? (
-          isLoading ? (
-            <ChatSkeleton count={8} />
+          {/* Frosted glass fade mask — visual transition between messages and input */}
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 z-10"
+            style={{
+              height: 48,
+              background:
+                "linear-gradient(to bottom, transparent, var(--theme-bg))",
+            }}
+          />
+          {messages.length === 0 ? (
+            isLoading ? (
+              <ChatSkeleton count={8} />
+            ) : (
+              <WelcomePage
+                greeting={greeting}
+                subtitle={t(
+                  "chat.welcomeSubtitle",
+                  "How can I help you today?",
+                )}
+                refreshLabel={t("chat.welcomeRefresh", "Refresh")}
+                personasLabel={t("personaPresets.title", "Personas")}
+                starterPromptsLabel={t(
+                  "personaPresets.starterPrompts",
+                  "Start a conversation",
+                )}
+                changePersonaLabel={t(
+                  "personaPresets.change",
+                  "Change persona",
+                )}
+                personaPresets={personaPresets}
+                hasMorePersonaPresets={hasMorePersonaPresets}
+                isLoadingMorePersonaPresets={isLoadingMorePersonaPresets}
+                onLoadMorePersonaPresets={onLoadMorePersonaPresets}
+                selectedPersonaPresetId={selectedPersonaPresetId}
+                selectedPersonaSnapshot={selectedPersonaSnapshot}
+                personaPresetsLoading={personaPresetsLoading}
+                personaPresetsMutating={personaPresetsMutating}
+                currentAgent={currentAgent}
+                selectedTeamId={selectedTeamId}
+                canSendMessage={canSendMessage}
+                chatInputProps={chatInputProps}
+                activeGoal={visibleActiveGoal}
+                onClearActiveGoal={onClearActiveGoal}
+                onUsePersonaPreset={onUsePersonaPreset}
+                onClearPersonaPreset={onClearPersonaPreset}
+                onSelectTeam={onSelectTeam}
+              />
+            )
           ) : (
-            <WelcomePage
-              greeting={greeting}
-              subtitle={t("chat.welcomeSubtitle", "How can I help you today?")}
-              refreshLabel={t("chat.welcomeRefresh", "Refresh")}
-              personasLabel={t("personaPresets.title", "Personas")}
-              starterPromptsLabel={t(
-                "personaPresets.starterPrompts",
-                "Start a conversation",
-              )}
-              changePersonaLabel={t("personaPresets.change", "Change persona")}
-              personaPresets={personaPresets}
-              hasMorePersonaPresets={hasMorePersonaPresets}
-              isLoadingMorePersonaPresets={isLoadingMorePersonaPresets}
-              onLoadMorePersonaPresets={onLoadMorePersonaPresets}
-              selectedPersonaPresetId={selectedPersonaPresetId}
-              selectedPersonaSnapshot={selectedPersonaSnapshot}
-              personaPresetsLoading={personaPresetsLoading}
-              personaPresetsMutating={personaPresetsMutating}
-              currentAgent={currentAgent}
-              selectedTeamId={selectedTeamId}
-              canSendMessage={canSendMessage}
-              chatInputProps={chatInputProps}
-              activeGoal={visibleActiveGoal}
-              onClearActiveGoal={onClearActiveGoal}
-              onUsePersonaPreset={onUsePersonaPreset}
-              onClearPersonaPreset={onClearPersonaPreset}
-              onSelectTeam={onSelectTeam}
+            <Virtuoso
+              key={messageListSessionKey}
+              ref={virtuosoRef}
+              className="dark:divide-stone-800 overflow-x-hidden"
+              style={undefined}
+              data={renderItems}
+              computeItemKey={(_, message) => message.id}
+              atBottomStateChange={handleVirtuosoAtBottomChange}
+              atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
+              followOutput={handleVirtuosoFollowOutput}
+              rangeChanged={handleVisibleRangeChange}
+              components={virtuosoComponents}
+              itemContent={virtuosoItemContent}
             />
-          )
-        ) : (
-          <Virtuoso
-            key={messageListSessionKey}
-            ref={virtuosoRef}
-            className="dark:divide-stone-800 overflow-x-hidden"
-            style={undefined}
-            data={renderItems}
-            computeItemKey={(_, message) => message.id}
-            atBottomStateChange={handleVirtuosoAtBottomChange}
-            atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
-            followOutput={handleVirtuosoFollowOutput}
-            rangeChanged={handleVisibleRangeChange}
-            components={virtuosoComponents}
-            itemContent={virtuosoItemContent}
-          />
-        )}
-        {showTimelineRail && (
-          <MessageTimelineRail
-            items={outlineItems}
-            onNavigate={handleTimelineNavigate}
-          />
-        )}
+          )}
+          {showTimelineRail && (
+            <MessageTimelineRail
+              items={outlineItems}
+              onNavigate={handleTimelineNavigate}
+            />
+          )}
         </main>
 
         <RevealPreviewHost
@@ -610,83 +616,83 @@ export function ChatView({
         <AttachmentPreviewHost />
         <PersistentToolPanelHost />
 
-      {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
+        {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
         {messages.length > 0 && (
           <div className="relative">
-          <div
-            className={`absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
-          >
-            <SessionScheduledTasksButton
-              sessionId={sessionId}
-              refreshKey={scheduledTasksRefreshKey}
-              className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text active:scale-95 sm:h-10 sm:w-10"
-            />
-            <button
-              onClick={scrollToTop}
-              className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10"
-              style={{
-                opacity: isNearTop ? 0 : 1,
-                transform: isNearTop ? "translateY(6px)" : "translateY(0)",
-                pointerEvents: isNearTop ? "none" : "auto",
-              }}
+            <div
+              className={`absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+              <SessionScheduledTasksButton
+                sessionId={sessionId}
+                refreshKey={scheduledTasksRefreshKey}
+                className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text active:scale-95 sm:h-10 sm:w-10"
+              />
+              <button
+                onClick={scrollToTop}
+                className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10"
+                style={{
+                  opacity: isNearTop ? 0 : 1,
+                  transform: isNearTop ? "translateY(6px)" : "translateY(0)",
+                  pointerEvents: isNearTop ? "none" : "auto",
+                }}
               >
-                <path
-                  fillRule="evenodd"
-                  d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={scrollToBottom}
-              className={`group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10 ${
-                hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
-              }`}
-              style={{
-                opacity: isNearBottom ? 0 : 1,
-                transform: isNearBottom ? "translateY(6px)" : "translateY(0)",
-                pointerEvents: isNearBottom ? "none" : "auto",
-              }}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={scrollToBottom}
+                className={`group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 sm:h-10 sm:w-10 ${
+                  hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
+                }`}
+                style={{
+                  opacity: isNearBottom ? 0 : 1,
+                  transform: isNearBottom ? "translateY(6px)" : "translateY(0)",
+                  pointerEvents: isNearBottom ? "none" : "auto",
+                }}
               >
-                <path
-                  fillRule="evenodd"
-                  d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          </div>
-          <div className="approval-panel-scroll-region">
-            <ApprovalPanel
-              approvals={approvals}
-              onRespond={onRespondApproval}
-              isLoading={approvalLoading}
-            />
-          </div>
-          {!hasPendingAskHumanApproval && (
-            <ChatInput
-              {...chatInputProps}
-              activeGoal={visibleActiveGoal}
-              onClearActiveGoal={onClearActiveGoal}
-              goalLabel={t("chat.goal.active", "Goal")}
-              goalDurationLabel={t("chat.goal.running", "Running")}
-              goalClearLabel={t("chat.goal.clear", "Clear goal")}
-              showHelpMenu
-              helpMenuClassName="hidden sm:block"
-            />
-          )}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div className="approval-panel-scroll-region">
+              <ApprovalPanel
+                approvals={approvals}
+                onRespond={onRespondApproval}
+                isLoading={approvalLoading}
+              />
+            </div>
+            {!hasPendingAskHumanApproval && (
+              <ChatInput
+                {...chatInputProps}
+                activeGoal={visibleActiveGoal}
+                onClearActiveGoal={onClearActiveGoal}
+                goalLabel={t("chat.goal.active", "Goal")}
+                goalDurationLabel={t("chat.goal.running", "Running")}
+                goalClearLabel={t("chat.goal.clear", "Clear goal")}
+                showHelpMenu
+                helpMenuClassName="hidden sm:block"
+              />
+            )}
           </div>
         )}
       </div>

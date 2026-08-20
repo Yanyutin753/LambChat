@@ -239,7 +239,9 @@ export function handleStreamEvent(
         const splitMessages = splitAssistantTurn(prev, messageId);
         if (!steerContent) return splitMessages;
         const hasOptimisticById = splitMessages.some(
-          (message) => message.id === deliveredSteerId && message.metadata?.queued === true,
+          (message) =>
+            message.id === deliveredSteerId &&
+            message.metadata?.queued === true,
         );
         const alreadyPresent = splitMessages.some((message) =>
           typeof data.message_id === "string" && data.message_id.trim()

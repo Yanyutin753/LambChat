@@ -54,7 +54,10 @@ test("isSendEnterKey treats shift mode as shift only", () => {
 
 test("isSendEnterKey treats enter mode as an unmodified Enter", () => {
   expect(
-    isSendEnterKey({ ctrlKey: false, metaKey: false, shiftKey: false }, "enter"),
+    isSendEnterKey(
+      { ctrlKey: false, metaKey: false, shiftKey: false },
+      "enter",
+    ),
   ).toBe(true);
   expect(
     isSendEnterKey({ ctrlKey: true, metaKey: false, shiftKey: false }, "enter"),

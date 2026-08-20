@@ -183,3 +183,39 @@ test("strips client-only long text fields from submit attachments", () => {
     disabled_mcp_tools: undefined,
   });
 });
+
+test("omits unusable attachments from the submit body", () => {
+  const body = buildSubmitChatBody({
+    message: "hello",
+    attachments: [
+      {
+        id: "valid",
+        key: "uploads/valid",
+        name: "ok.txt",
+        type: "document",
+        mimeType: "text/plain",
+        size: 1,
+      },
+      {
+        id: "uploading",
+        key: "uploads/uploading",
+        name: "pending.txt",
+        type: "document",
+        mimeType: "text/plain",
+        size: 1,
+        isUploading: true,
+      },
+    ],
+  });
+
+  expect(body.attachments).toEqual([
+    {
+      id: "valid",
+      key: "uploads/valid",
+      name: "ok.txt",
+      type: "document",
+      mimeType: "text/plain",
+      size: 1,
+    },
+  ]);
+});

@@ -1,7 +1,9 @@
 import type { Message } from "../../../types/message";
 import { splitAssistantTurn } from "../steerTurnSplit";
 
-function msg(partial: Partial<Message> & Pick<Message, "id" | "role">): Message {
+function msg(
+  partial: Partial<Message> & Pick<Message, "id" | "role">,
+): Message {
   return { content: "", timestamp: new Date(), ...partial } as Message;
 }
 
@@ -9,7 +11,13 @@ describe("splitAssistantTurn", () => {
   test("封存当前流式助手轮次并追加新轮次（沿用原 id 接收后续事件）", () => {
     const base: Message[] = [
       msg({ id: "u1", role: "user", content: "任务" }),
-      msg({ id: "a1", role: "assistant", content: "第一轮", isStreaming: true, parts: [] }),
+      msg({
+        id: "a1",
+        role: "assistant",
+        content: "第一轮",
+        isStreaming: true,
+        parts: [],
+      }),
     ];
 
     const result = splitAssistantTurn(base, "a1");
@@ -23,7 +31,10 @@ describe("splitAssistantTurn", () => {
 
   test("多次分割递增后缀", () => {
     const once = splitAssistantTurn(
-      [msg({ id: "u", role: "user" }), msg({ id: "a1", role: "assistant", isStreaming: true })],
+      [
+        msg({ id: "u", role: "user" }),
+        msg({ id: "a1", role: "assistant", isStreaming: true }),
+      ],
       "a1",
     );
     // 模拟新轮次继续流式后再分割

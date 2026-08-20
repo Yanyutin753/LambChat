@@ -72,7 +72,11 @@ class SteerQueue:
         if self._redis_disabled:
             return None
         current_loop = asyncio.get_running_loop()
-        if self._redis is not None and self._redis_loop is not None and self._redis_loop is not current_loop:
+        if (
+            self._redis is not None
+            and self._redis_loop is not None
+            and self._redis_loop is not current_loop
+        ):
             # Async Redis connections are loop-bound; this also keeps tests
             # and short-lived worker loops from reusing a closed connection.
             self._redis = None
@@ -168,7 +172,9 @@ class SteerQueue:
                 )
                 messages = [self._decode(raw) for raw in raw_items]
                 if messages:
-                    logger.info("[Steer] session=%s draining %d message(s)", session_id, len(messages))
+                    logger.info(
+                        "[Steer] session=%s draining %d message(s)", session_id, len(messages)
+                    )
                 return messages
             except Exception:
                 logger.warning("[Steer] Redis drain failed; using local fallback", exc_info=True)
@@ -281,7 +287,9 @@ class SteerQueue:
                         return bool(await redis.lrem(key, 1, raw))
                 return False
             except Exception:
-                logger.warning("[Steer] Redis ID remove failed; using local fallback", exc_info=True)
+                logger.warning(
+                    "[Steer] Redis ID remove failed; using local fallback", exc_info=True
+                )
         async with self._lock:
             queue = self._pending.get(session_id)
             if not queue:

@@ -59,7 +59,10 @@ import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
 import { selectVisibleDraftAttachments } from "./acceptedDraftCleanup";
 import { ChatInputSteerQueue } from "./ChatInputSteerQueue";
-import { areAttachmentsSendable } from "./attachmentValidation";
+import {
+  areAttachmentsSendable,
+  filterSendableAttachments,
+} from "./attachmentValidation";
 import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
@@ -544,7 +547,7 @@ export const ChatInput = memo(function ChatInput({
             !hasFailedAttachment &&
             !hasInvalidAttachment
           ) {
-            onSteer(input, visibleAttachments);
+            onSteer(input, filterSendableAttachments(visibleAttachments));
             clearSteerDraft();
           } else {
             setStopConfirmOpen(true);
@@ -851,8 +854,9 @@ export const ChatInput = memo(function ChatInput({
             isLoading={isLoading}
             hasDraft={!!input.trim() || visibleAttachments.length > 0}
             onSteer={
-              onSteer && (() => {
-                onSteer(input, visibleAttachments);
+              onSteer &&
+              (() => {
+                onSteer(input, filterSendableAttachments(visibleAttachments));
                 clearSteerDraft();
               })
             }

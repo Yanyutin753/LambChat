@@ -279,7 +279,9 @@ function SessionItemComponent({
         }}
         // Keep taps on mobile as normal activation gestures; the long-press
         // handlers below still own drag initiation once movement is detected.
-        style={isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }}
+        style={
+          isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }
+        }
         className={`group relative flex cursor-pointer items-center gap-3 h-10 rounded-[10px] px-[9px] transition-colors ${
           isSelected
             ? "hover:bg-stone-100 dark:hover:bg-stone-800/40"
@@ -347,7 +349,14 @@ function SessionItemComponent({
           <span className="shrink-0 inline-flex items-center justify-center gap-1 text-xs text-amber-500 dark:text-amber-400">
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
             {isTouched && (
-              <span>{t(taskStatus === "pending" ? "sidebar.pendingStatus" : "sidebar.runningStatus", taskStatus === "pending" ? "等待中" : "运行中")}</span>
+              <span>
+                {t(
+                  taskStatus === "pending"
+                    ? "sidebar.pendingStatus"
+                    : "sidebar.runningStatus",
+                  taskStatus === "pending" ? "等待中" : "运行中",
+                )}
+              </span>
             )}
           </span>
         )}
@@ -360,7 +369,11 @@ function SessionItemComponent({
             className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
           >
             <AlertCircle size={16} strokeWidth={2.3} />
-            {isTouched && <span className="ml-1 text-xs">{t("sidebar.waitingHuman", "等待回复")}</span>}
+            {isTouched && (
+              <span className="ml-1 text-xs">
+                {t("sidebar.waitingHuman", "等待回复")}
+              </span>
+            )}
           </span>
         )}
 

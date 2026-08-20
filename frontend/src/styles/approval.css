@@ -40,7 +40,11 @@
 
 .approval-card.approval-card--composer {
   border-radius: 1.5rem;
-  border-color: color-mix(in srgb, var(--approval-accent) 34%, var(--approval-border));
+  border-color: color-mix(
+    in srgb,
+    var(--approval-accent) 34%,
+    var(--approval-border)
+  );
   box-shadow: 0 8px 24px -16px color-mix(in srgb, var(--approval-accent) 45%, transparent);
 }
 
@@ -74,7 +78,8 @@
 
 .approval-ask-human-badge {
   flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, var(--approval-text-dim) 45%, var(--approval-border));
+  border: 1px solid
+    color-mix(in srgb, var(--approval-text-dim) 45%, var(--approval-border));
   border-radius: 999px;
   background: color-mix(in srgb, var(--approval-bg) 80%, white 4%);
   padding: 0.22rem 0.62rem;
@@ -116,7 +121,10 @@
   color: var(--approval-text-dim);
   font-size: 1.35rem;
   line-height: 1;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .approval-ask-human-pagination button:hover:not(:disabled) {
@@ -147,12 +155,19 @@
   color: var(--approval-text-dim);
   font-weight: 400;
   text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .approval-ask-human-option:hover,
 .approval-ask-human-option--focused {
-  border-color: color-mix(in srgb, var(--approval-border) 80%, var(--approval-accent));
+  border-color: color-mix(
+    in srgb,
+    var(--approval-border) 80%,
+    var(--approval-accent)
+  );
   background: color-mix(in srgb, var(--approval-accent-light) 32%, transparent);
   color: var(--approval-text);
   font-weight: 400;
@@ -308,8 +323,14 @@
 }
 
 @keyframes approval-details-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dark .approval-card {

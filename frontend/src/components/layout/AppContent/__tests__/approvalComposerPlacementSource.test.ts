@@ -31,7 +31,7 @@ test("approval composer matches the input width and rounded border", () => {
     /approval-scroll-container[^"\n]*overflow-visible[^"\n]*px-2[^"\n]*sm:px-8/,
   );
   expect(approvalSource).toMatch(
-    /mx-auto w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl\"/,
+    /mx-auto w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl"/,
   );
   expect(approvalStyles).toMatch(
     /\.approval-card\.approval-card--composer\s*\{[^}]*border-radius:\s*1\.5rem;/s,

@@ -53,7 +53,9 @@ describe("hasPendingAskHuman", () => {
 
   it("ignores answered ask-human calls", () => {
     expect(
-      hasPendingAskHuman([{ ...pendingAskHuman, isPending: false, success: true }]),
+      hasPendingAskHuman([
+        { ...pendingAskHuman, isPending: false, success: true },
+      ]),
     ).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import type {
   MessageAttachment,
 } from "../../types";
 import { stripLocalAttachmentFields } from "../../components/chat/longTextConversion";
+import { filterSendableAttachments } from "../../components/chat/attachmentValidation";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 
@@ -110,7 +111,9 @@ export function buildSubmitChatBody({
     message,
     session_id: sessionId,
     agent_options: agentOptions,
-    attachments: stripLocalAttachmentFields(attachments),
+    attachments: stripLocalAttachmentFields(
+      attachments ? filterSendableAttachments(attachments) : attachments,
+    ),
     disabled_skills: disabledSkills,
     enabled_skills: enabledSkills,
     persona_preset_id: personaPresetId || undefined,
@@ -364,7 +367,9 @@ export const sessionApi = {
       body: JSON.stringify({
         message,
         ...(messageId ? { message_id: messageId } : {}),
-        attachments: stripLocalAttachmentFields(attachments),
+        attachments: stripLocalAttachmentFields(
+          attachments ? filterSendableAttachments(attachments) : attachments,
+        ),
       }),
     });
   },

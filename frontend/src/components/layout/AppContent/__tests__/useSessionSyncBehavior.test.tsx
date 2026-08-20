@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
-import { BrowserRouter, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { expect, test, vi } from "vitest";
 
 import { useSessionSync } from "../useSessionSync";
@@ -124,7 +124,6 @@ test("does not replace URL back to old session while browser-back load is in pro
   // Harness: starts on session-a, then navigates to session-b, then back
   function BackNavHarness() {
     const [sessionId, setSessionId] = useState<string | null>("session-a");
-    const navigate = useNavigate();
     const { handleSelectSession } = useSessionSync({
       activeTab: "chat",
       sessionId,

@@ -43,9 +43,7 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
   // 避免误清其他会话（如后台等待审批的会话）的待处理审批
   const clearApprovals = useCallback((sessionId?: string | null) => {
     setApprovals((prev) =>
-      sessionId == null
-        ? []
-        : prev.filter((a) => a.session_id !== sessionId),
+      sessionId == null ? [] : prev.filter((a) => a.session_id !== sessionId),
     );
     hasApprovalsRef.current = false;
   }, []);

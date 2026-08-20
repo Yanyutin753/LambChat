@@ -17,11 +17,7 @@ interface ShareButtonProps {
   className?: string;
 }
 
-export function ShareButton({
-  sessionId,
-  runId,
-  className,
-}: ShareButtonProps) {
+export function ShareButton({ sessionId, runId, className }: ShareButtonProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);

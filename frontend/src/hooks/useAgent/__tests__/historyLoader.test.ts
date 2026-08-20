@@ -103,8 +103,17 @@ test("does not render an empty assistant placeholder between persisted turns", (
     { activeSubagentStack: [] },
   );
 
-  expect(messages.filter((message) => message.role === "assistant")).toHaveLength(1);
-  expect(messages.some((message) => message.role === "assistant" && !message.content && !message.parts?.length)).toBe(false);
+  expect(
+    messages.filter((message) => message.role === "assistant"),
+  ).toHaveLength(1);
+  expect(
+    messages.some(
+      (message) =>
+        message.role === "assistant" &&
+        !message.content &&
+        !message.parts?.length,
+    ),
+  ).toBe(false);
 });
 
 test("prepareMessagesForRunningRun preserves the optimistic user message when running history has not persisted it yet", () => {
@@ -667,7 +676,10 @@ test("keeps steer user messages sharing the run with the initial user message", 
   );
 
   const users = messages.filter((m) => m.role === "user");
-  expect(users.map((m) => m.content)).toEqual(["搜索今日新闻", "给我多一点中国的"]);
+  expect(users.map((m) => m.content)).toEqual([
+    "搜索今日新闻",
+    "给我多一点中国的",
+  ]);
   // 顺序：首轮回复在插话前，插话后的回复在其后
   const steerIndex = messages.findIndex((m) => m.id === "steer-d8f46d22bcf5");
   const assistants = messages.filter((m) => m.role === "assistant");
@@ -684,13 +696,21 @@ test("still deduplicates replayed canonical user messages within one run", () =>
         event_type: "user:message",
         run_id: runId,
         timestamp: "2026-08-20T10:00:00.000Z",
-        data: { content: "hello", message_id: `${runId}:user`, attachments: [] },
+        data: {
+          content: "hello",
+          message_id: `${runId}:user`,
+          attachments: [],
+        },
       } satisfies HistoryEvent,
       {
         event_type: "user:message",
         run_id: runId,
         timestamp: "2026-08-20T10:00:01.000Z",
-        data: { content: "hello", message_id: `${runId}:user`, attachments: [] },
+        data: {
+          content: "hello",
+          message_id: `${runId}:user`,
+          attachments: [],
+        },
       } satisfies HistoryEvent,
     ],
     new Set<string>(),

@@ -101,12 +101,17 @@ export function UserMessageBubble({
         >
           {/* 排队中的插话：时钟角标 + 取消 */}
           {queued && (
-            <div className="mb-1 flex items-center gap-1.5 text-xs" style={{ color: "var(--theme-text-secondary)" }}>
+            <div
+              className="mb-1 flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--theme-text-secondary)" }}
+            >
               <Clock size={12} style={{ color: "var(--theme-primary)" }} />
               <span>{t("chat.steerQueued", "已排队，当前步骤后送达")}</span>
               <button
                 type="button"
-                onClick={() => content && cancelSteeredMessage(content, messageId)}
+                onClick={() =>
+                  content && cancelSteeredMessage(content, messageId)
+                }
                 className="rounded-full p-0.5 opacity-60 transition hover:opacity-100"
                 title={t("chat.steerCancel", "取消这条插话")}
                 aria-label={t("chat.steerCancel", "取消这条插话")}
@@ -116,12 +121,18 @@ export function UserMessageBubble({
             </div>
           )}
           {deferred && !queued && (
-            <div className="mb-1 text-xs" style={{ color: "var(--theme-text-secondary)" }}>
+            <div
+              className="mb-1 text-xs"
+              style={{ color: "var(--theme-text-secondary)" }}
+            >
               {t("chat.steerNext", "当前任务结束后发送")}
             </div>
           )}
           {failed && !queued && !deferred && (
-            <div className="mb-1 text-xs" style={{ color: "var(--theme-error, #b42318)" }}>
+            <div
+              className="mb-1 text-xs"
+              style={{ color: "var(--theme-error, #b42318)" }}
+            >
               {t("chat.steerFailedRetry", "插话发送失败，请检查网络后重试")}
             </div>
           )}

@@ -120,8 +120,12 @@ test("renders a delivered steer event and removes its optimistic duplicate", () 
   );
 
   const messages = ctx.messages();
-  expect(messages.filter((message) => message.content === "继续做这个")).toHaveLength(1);
-  expect(messages.find((message) => message.id === "steer-1")?.metadata).toEqual({
+  expect(
+    messages.filter((message) => message.content === "继续做这个"),
+  ).toHaveLength(1);
+  expect(
+    messages.find((message) => message.id === "steer-1")?.metadata,
+  ).toEqual({
     steer: true,
     queued: false,
   });
@@ -145,10 +149,12 @@ test("keeps distinct steer events with the same content when IDs differ", () => 
   } as StreamEvent;
   handleStreamEvent(first, "assistant-1", "steer-a-event", undefined, ctx);
   handleStreamEvent(second, "assistant-1", "steer-b-event", undefined, ctx);
-  expect(ctx.messages().filter((message) => message.metadata?.steer).map((m) => m.id)).toEqual([
-    "steer-a",
-    "steer-b",
-  ]);
+  expect(
+    ctx
+      .messages()
+      .filter((message) => message.metadata?.steer)
+      .map((m) => m.id),
+  ).toEqual(["steer-a", "steer-b"]);
 });
 
 test("ignores a delivered steer from a stale run", () => {
@@ -157,7 +163,11 @@ test("ignores a delivered steer from a stale run", () => {
   handleStreamEvent(
     {
       event: "steer:message",
-      data: JSON.stringify({ content: "旧消息", message_id: "old", run_id: "run-old" }),
+      data: JSON.stringify({
+        content: "旧消息",
+        message_id: "old",
+        run_id: "run-old",
+      }),
     },
     "assistant-1",
     "old-event",
@@ -192,7 +202,11 @@ test("keeps post-steer tool and assistant output after the steer message", () =>
     [
       {
         event: "tool:start",
-        data: JSON.stringify({ tool: "write_file", tool_call_id: "tool-1", args: {} }),
+        data: JSON.stringify({
+          tool: "write_file",
+          tool_call_id: "tool-1",
+          args: {},
+        }),
       },
       "tool-start",
     ],
@@ -203,10 +217,7 @@ test("keeps post-steer tool and assistant output after the steer message", () =>
       },
       "message-chunk",
     ],
-    [
-      { event: "done", data: JSON.stringify({ status: "completed" }) },
-      "done",
-    ],
+    [{ event: "done", data: JSON.stringify({ status: "completed" }) }, "done"],
   ];
   for (const [event, eventId] of events) {
     handleStreamEvent(

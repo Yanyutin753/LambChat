@@ -414,7 +414,12 @@ export function ChatInputToolbar({
           >
             <ArrowUp size={18} />
           </button>
-        ) : isLoading && hasDraft && onSteer && !hasUploadingAttachment && !hasFailedAttachment && !hasInvalidAttachment ? (
+        ) : isLoading &&
+          hasDraft &&
+          onSteer &&
+          !hasUploadingAttachment &&
+          !hasFailedAttachment &&
+          !hasInvalidAttachment ? (
           <button
             type="button"
             onClick={(e) => {

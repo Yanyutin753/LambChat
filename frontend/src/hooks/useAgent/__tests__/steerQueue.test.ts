@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { selectSteersForFollowUp } from "../steerQueue";
+import { removeSteerItem, selectSteersForFollowUp } from "../steerQueue";
 
 describe("selectSteersForFollowUp", () => {
   test("selects only accepted pending items when the active run ends", () => {
@@ -27,5 +27,20 @@ describe("selectSteersForFollowUp", () => {
     ]);
 
     expect(selected.map((item) => item.id)).toEqual(["pending"]);
+  });
+});
+
+test("removes a queued steer by id without deleting another identical message", () => {
+  const first = {
+    id: "first",
+    content: "重复内容",
+    queued: true,
+    timestamp: new Date(1),
+  };
+  const second = { ...first, id: "second", timestamp: new Date(2) };
+
+  expect(removeSteerItem([first, second], "重复内容", "second")).toEqual({
+    removed: second,
+    remaining: [first],
   });
 });

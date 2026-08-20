@@ -93,8 +93,7 @@ class ModelStorage:
             # make the entire model list endpoint fail.  Keep the model metadata
             # visible so the user can re-save its API key with the current secret.
             logger.warning(
-                "无法解密模型 API Key，可能使用了不同的加密密钥；"
-                "请重新保存该模型配置。原因: %s",
+                "无法解密模型 API Key，可能使用了不同的加密密钥；请重新保存该模型配置。原因: %s",
                 exc,
             )
             return None

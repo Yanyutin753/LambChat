@@ -164,12 +164,28 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const currentRunIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const sendMessageRef = useRef<
-    ((content: string, attachments?: MessageAttachment[]) => Promise<void>) | null
+    | ((content: string, attachments?: MessageAttachment[]) => Promise<void>)
+    | null
   >(null);
   const deferredSteersRef = useRef<
     Array<{ content: string; id: string; attachments?: MessageAttachment[] }>
   >([]);
   const followUpSteerIdsRef = useRef(new Set<string>());
+  const cancelledSteerIdsRef = useRef(new Set<string>());
+
+  const removeDeferredSteer = useCallback(
+    (content: string, messageId?: string) => {
+      const id = messageId;
+      if (id) {
+        cancelledSteerIdsRef.current.add(id);
+        followUpSteerIdsRef.current.delete(id);
+      }
+      deferredSteersRef.current = deferredSteersRef.current.filter((item) =>
+        id ? item.id !== id : item.content !== content,
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
@@ -179,13 +195,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     deferSteer: (content, id, attachments) => {
       deferredSteersRef.current.push({ content, id, attachments });
     },
+    removeDeferredSteer,
   });
-  const {
-    markSteerDelivered,
-    clearSteerMessages,
-    clearSteer,
-    hydrateSteers,
-  } = steerQueue;
+  const { markSteerDelivered, clearSteerMessages, clearSteer, hydrateSteers } =
+    steerQueue;
 
   useEffect(() => {
     currentRunIdRef.current = currentRunId;
@@ -388,6 +401,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       clearSteerMessages();
       deferredSteersRef.current = [];
       followUpSteerIdsRef.current.clear();
+      cancelledSteerIdsRef.current.clear();
       setError(null);
 
       processedEventIdsRef.current.clear();
@@ -419,7 +433,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const pendingSteersData = await sessionApi
           .getPendingSteers(targetSessionId)
           .catch((error) => {
-            console.warn("[loadHistory] Failed to restore pending steers:", error);
+            console.warn(
+              "[loadHistory] Failed to restore pending steers:",
+              error,
+            );
             return { session_id: targetSessionId, items: [] };
           });
         hydrateSteers(pendingSteersData.items);
@@ -554,7 +571,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       return null;
     },
-    [options, createSSEContext, canReadFeedback, clearSteerMessages, hydrateSteers],
+    [
+      options,
+      createSSEContext,
+      canReadFeedback,
+      clearSteerMessages,
+      hydrateSteers,
+    ],
   );
 
   // Send message
@@ -853,6 +876,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         if (deferredSteers.length > 0) {
           setTimeout(() => {
             for (const deferred of deferredSteers) {
+              if (cancelledSteerIdsRef.current.has(deferred.id)) continue;
               clearSteer(deferred.content, deferred.id);
               sendMessageRef.current?.(deferred.content, deferred.attachments);
             }
@@ -872,7 +896,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     ],
   );
 
-  sendMessageRef.current = (content: string, attachments?: MessageAttachment[]) => {
+  sendMessageRef.current = (
+    content: string,
+    attachments?: MessageAttachment[],
+  ) => {
     return sendMessage(content, undefined, attachments);
   };
 
@@ -891,7 +918,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       for (const item of followUps) {
-        if (cancelled) return;
+        if (cancelled || cancelledSteerIdsRef.current.has(item.id)) continue;
         clearSteer(item.content, item.id);
         // Preserve FIFO and wait for each normal turn to settle; firing all
         // at once would make useAgent's single-run guard drop later items.
@@ -934,7 +961,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       }
     }
   }, [options]);
-
 
   const clearMessages = useCallback(() => {
     loadHistoryRequestIdRef.current += 1;

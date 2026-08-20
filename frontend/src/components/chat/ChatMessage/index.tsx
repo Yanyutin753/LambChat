@@ -123,6 +123,29 @@ function TokenDetailsButton({
       ? (tokenUsage.cache_read_tokens ?? 0) / tokenUsage.input_tokens
       : null;
 
+  const popupStyle = useStickyDropdownPosition(
+    buttonRef,
+    showDetails,
+    (rect) => {
+      const popupHeight = popupRef.current?.offsetHeight ?? 280;
+      const popupWidth = Math.min(popupRef.current?.offsetWidth ?? 280, 360);
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const flipBelow = spaceAbove < popupHeight + 8 && spaceBelow > spaceAbove;
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - popupWidth - 8),
+      );
+
+      return {
+        position: "fixed",
+        left,
+        top: flipBelow ? rect.bottom + 8 : rect.top - 8,
+        transform: flipBelow ? "translateY(0)" : "translateY(-100%)",
+      };
+    },
+  );
+
   // Close details when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -159,116 +182,121 @@ function TokenDetailsButton({
         <Info size={16} />
       </button>
       {/* ChatGPT style details popup */}
-      {showDetails && (
-        <div
-          ref={popupRef}
-          className={clsx(
-            "absolute bottom-full mb-2 left-0 z-50",
-            "min-w-[150px] w-auto p-3 rounded-lg shadow-lg",
-            "bg-theme-bg-card",
-            "border border-theme-border",
-            "whitespace-nowrap",
-          )}
-        >
-          <div className="text-xs space-y-1.5">
-            {tokenUsage && (
-              <>
-                <div className="flex justify-between gap-4 text-sky-600 dark:text-sky-400">
-                  <span className="">{t("chat.message.tokenInput")}</span>
-                  <span className="font-medium">
-                    {tokenUsage.input_tokens?.toLocaleString()} tokens
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4 text-violet-600 dark:text-violet-400">
-                  <span className="">{t("chat.message.tokenOutput")}</span>
-                  <span className="font-medium">
-                    {tokenUsage.output_tokens?.toLocaleString()} tokens
-                  </span>
-                </div>
-                {(tokenUsage.cache_creation_tokens ?? 0) > 0 && (
-                  <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400">
-                    <span className="">
-                      {t("chat.message.tokenCacheCreation")}
-                    </span>
+      {showDetails &&
+        Object.keys(popupStyle).length > 0 &&
+        createPortal(
+          <div
+            ref={popupRef}
+            style={popupStyle}
+            className={clsx(
+              "z-[100] min-w-[150px] max-w-[calc(100vw-1rem)] w-auto p-3 rounded-lg shadow-lg",
+              "bg-theme-bg-card",
+              "border border-theme-border",
+              "whitespace-nowrap",
+            )}
+          >
+            <div className="text-xs space-y-1.5">
+              {tokenUsage && (
+                <>
+                  <div className="flex justify-between gap-4 text-sky-600 dark:text-sky-400">
+                    <span className="">{t("chat.message.tokenInput")}</span>
                     <span className="font-medium">
-                      {(tokenUsage.cache_creation_tokens ?? 0).toLocaleString()}{" "}
-                      tokens
+                      {tokenUsage.input_tokens?.toLocaleString()} tokens
                     </span>
                   </div>
-                )}
-                {cacheRate !== null && cacheRate > 0 && (
-                  <div className="flex justify-between gap-4 text-fuchsia-600 dark:text-fuchsia-400">
-                    <span className="">{t("chat.message.tokenCacheRate")}</span>
+                  <div className="flex justify-between gap-4 text-violet-600 dark:text-violet-400">
+                    <span className="">{t("chat.message.tokenOutput")}</span>
                     <span className="font-medium">
-                      {(cacheRate * 100).toFixed(1)}%
+                      {tokenUsage.output_tokens?.toLocaleString()} tokens
                     </span>
                   </div>
-                )}
-                {(tokenUsage.cache_read_tokens ?? 0) > 0 && (
-                  <div className="flex justify-between gap-4 text-pink-600 dark:text-pink-400">
-                    <span className="">{t("chat.message.tokenCacheRead")}</span>
+                  {(tokenUsage.cache_creation_tokens ?? 0) > 0 && (
+                    <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400">
+                      <span className="">
+                        {t("chat.message.tokenCacheCreation")}
+                      </span>
+                      <span className="font-medium">
+                        {(
+                          tokenUsage.cache_creation_tokens ?? 0
+                        ).toLocaleString()}{" "}
+                        tokens
+                      </span>
+                    </div>
+                  )}
+                  {cacheRate !== null && cacheRate > 0 && (
+                    <div className="flex justify-between gap-4 text-fuchsia-600 dark:text-fuchsia-400">
+                      <span className="">
+                        {t("chat.message.tokenCacheRate")}
+                      </span>
+                      <span className="font-medium">
+                        {(cacheRate * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                  {(tokenUsage.cache_read_tokens ?? 0) > 0 && (
+                    <div className="flex justify-between gap-4 text-pink-600 dark:text-pink-400">
+                      <span className="">
+                        {t("chat.message.tokenCacheRead")}
+                      </span>
+                      <span className="font-medium">
+                        {(tokenUsage.cache_read_tokens ?? 0).toLocaleString()}{" "}
+                        tokens
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
+                    <span className="">{t("chat.message.tokenTotal")}</span>
                     <span className="font-medium">
-                      {(tokenUsage.cache_read_tokens ?? 0).toLocaleString()}{" "}
-                      tokens
+                      {tokenUsage.total_tokens?.toLocaleString()} tokens
                     </span>
                   </div>
-                )}
-                <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
-                  <span className="">{t("chat.message.tokenTotal")}</span>
-                  <span className="font-medium">
-                    {tokenUsage.total_tokens?.toLocaleString()} tokens
+                </>
+              )}
+              {duration && (
+                <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
+                  <span className="text-theme-text-secondary">
+                    {t("chat.message.duration")}
+                  </span>
+                  <span className="text-theme-text font-medium">
+                    {(duration / 1000).toFixed(2)}s
                   </span>
                 </div>
-              </>
-            )}
-            {duration && (
-              <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
-                <span className="text-theme-text-secondary">
-                  {t("chat.message.duration")}
-                </span>
-                <span className="text-theme-text font-medium">
-                  {(duration / 1000).toFixed(2)}s
-                </span>
-              </div>
-            )}
-            {modelDetails && (
-              <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
-                <span className="text-theme-text-secondary">
-                  {t("chat.message.model")}
-                </span>
-                <span className="flex items-center gap-1.5 text-theme-text font-medium">
-                  <ModelIconImg
-                    model={modelDetails.value}
-                    provider={modelDetails.provider}
-                    icon={modelDetails.icon}
-                    size={16}
-                  />
-                  <span>{modelDetails.name}</span>
-                </span>
-              </div>
-            )}
-            {timestamp && (
-              <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
-                <span className="text-theme-text-secondary">
-                  {t("chat.message.startTime")}
-                </span>
-                <span className="text-theme-text font-medium tabular-nums">
-                  {formatDateTime(timestamp)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+              )}
+              {modelDetails && (
+                <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
+                  <span className="text-theme-text-secondary">
+                    {t("chat.message.model")}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-theme-text font-medium">
+                    <ModelIconImg
+                      model={modelDetails.value}
+                      provider={modelDetails.provider}
+                      icon={modelDetails.icon}
+                      size={16}
+                    />
+                    <span>{modelDetails.name}</span>
+                  </span>
+                </div>
+              )}
+              {timestamp && (
+                <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5">
+                  <span className="text-theme-text-secondary">
+                    {t("chat.message.startTime")}
+                  </span>
+                  <span className="text-theme-text font-medium tabular-nums">
+                    {formatDateTime(timestamp)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
 
-function GoalDetailsButton({
-  goal,
-}: {
-  goal: ActiveGoalSpec;
-}) {
+function GoalDetailsButton({ goal }: { goal: ActiveGoalSpec }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -753,9 +781,7 @@ export const ChatMessage = memo(function ChatMessage({
               </>
             )}
             {shouldShowGoalDetailsForMessage(activeGoal, message) && (
-              <GoalDetailsButton
-                goal={activeGoal!}
-              />
+              <GoalDetailsButton goal={activeGoal!} />
             )}
           </div>
         )}

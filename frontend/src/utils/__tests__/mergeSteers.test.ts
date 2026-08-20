@@ -2,21 +2,30 @@ import type { Message } from "../../types/message";
 import type { SteerItem } from "../../hooks/useAgent/steerQueue";
 import { mergeMessagesWithSteers } from "../mergeSteers";
 
-function msg(partial: Partial<Message> & Pick<Message, "id" | "role">): Message {
-  return { content: "", timestamp: new Date("2026-08-20T10:00:00Z"), ...partial } as Message;
+function msg(
+  partial: Partial<Message> & Pick<Message, "id" | "role">,
+): Message {
+  return {
+    content: "",
+    timestamp: new Date("2026-08-20T10:00:00Z"),
+    ...partial,
+  } as Message;
 }
 
 describe("mergeMessagesWithSteers", () => {
   test("preserves steer identity and explicit delivery status", () => {
-    const merged = mergeMessagesWithSteers([], [
-      {
-        id: "client-1",
-        content: "相同内容",
-        queued: false,
-        status: "failed",
-        timestamp: new Date(1),
-      },
-    ]);
+    const merged = mergeMessagesWithSteers(
+      [],
+      [
+        {
+          id: "client-1",
+          content: "相同内容",
+          queued: false,
+          status: "failed",
+          timestamp: new Date(1),
+        },
+      ],
+    );
 
     expect(merged[0].id).toBe("client-1");
     expect(merged[0].metadata).toMatchObject({
@@ -81,15 +90,18 @@ describe("mergeMessagesWithSteers", () => {
   });
 
   test("无法插入当前运行时的插话保留为下一条消息", () => {
-    const merged = mergeMessagesWithSteers([], [
-      {
-        id: "steer-failed",
-        content: "继续扩写",
-        queued: false,
-        deferred: true,
-        timestamp: new Date("2026-08-20T10:00:30Z"),
-      },
-    ]);
+    const merged = mergeMessagesWithSteers(
+      [],
+      [
+        {
+          id: "steer-failed",
+          content: "继续扩写",
+          queued: false,
+          deferred: true,
+          timestamp: new Date("2026-08-20T10:00:30Z"),
+        },
+      ],
+    );
 
     expect(merged).toHaveLength(1);
     expect(merged[0].metadata).toEqual({

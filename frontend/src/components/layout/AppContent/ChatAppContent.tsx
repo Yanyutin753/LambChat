@@ -930,8 +930,19 @@ export function ChatAppContent({
           approvals={filterApprovalsBySession(approvals, sessionId)}
           onRespondApproval={respondToApproval}
           approvalLoading={approvalLoading}
-          onSendMessage={(content, sendAttachments, runOptions, submissionCallbacks) =>
-            void sendMessage(content, undefined, sendAttachments, runOptions, submissionCallbacks)
+          onSendMessage={(
+            content,
+            sendAttachments,
+            runOptions,
+            submissionCallbacks,
+          ) =>
+            void sendMessage(
+              content,
+              undefined,
+              sendAttachments,
+              runOptions,
+              submissionCallbacks,
+            )
           }
           onStopGeneration={stopGeneration}
           onSteerMessage={steerMessage}

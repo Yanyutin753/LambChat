@@ -12,6 +12,9 @@ export function setSteerCancelHandler(next: SteerCancelHandler | null): void {
   handler = next;
 }
 
-export function cancelSteeredMessage(content: string, messageId?: string): void {
+export function cancelSteeredMessage(
+  content: string,
+  messageId?: string,
+): void {
   handler?.(content, messageId);
 }

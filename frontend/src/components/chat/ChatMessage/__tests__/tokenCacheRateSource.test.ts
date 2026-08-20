@@ -18,6 +18,15 @@ test("token details popover computes cache rate on the frontend", () => {
   expect(source).toMatch(/t\("chat\.message\.tokenCacheRate"\)/);
 });
 
+test("token details popover is viewport anchored so it cannot cover or be clipped by the message", () => {
+  const source = readFileSync(resolve(currentDir, "../index.tsx"), "utf8");
+
+  expect(source).toMatch(/const popupStyle = useStickyDropdownPosition\(/);
+  expect(source).toMatch(/position: "fixed"/);
+  expect(source).toMatch(/createPortal\(/);
+  expect(source).not.toMatch(/absolute bottom-full mb-2 left-0 z-50/);
+});
+
 test("cache rate label is available in every locale", () => {
   for (const locale of ["en", "zh", "ja", "ko", "ru"]) {
     const messages = readJson(

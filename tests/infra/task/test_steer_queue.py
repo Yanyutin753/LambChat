@@ -48,7 +48,9 @@ async def test_remove_cancels_first_matching_message() -> None:
     assert await queue.remove("session-r", "missing") is False
 
 
-async def test_enqueue_is_idempotent_by_message_id_and_cancel_does_not_confuse_duplicate_text() -> None:
+async def test_enqueue_is_idempotent_by_message_id_and_cancel_does_not_confuse_duplicate_text() -> (
+    None
+):
     queue = SteerQueue(redis=None)
     first = SteerItem(id="msg-1", content="相同内容")
     second = SteerItem(id="msg-2", content="相同内容")

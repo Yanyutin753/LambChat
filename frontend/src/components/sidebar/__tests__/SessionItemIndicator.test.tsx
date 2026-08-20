@@ -58,9 +58,7 @@ describe("SessionItem task running indicator", () => {
         onSessionUpdate={vi.fn()}
       />,
     );
-    const indicator = document.querySelector(
-      "[data-session-status=ask-human]",
-    );
+    const indicator = document.querySelector("[data-session-status=ask-human]");
     expect(indicator).toBeInTheDocument();
     expect(indicator).toHaveClass("w-4", "h-4");
     expect(indicator).not.toHaveClass("border", "bg-amber-100/70");

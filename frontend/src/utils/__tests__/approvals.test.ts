@@ -19,9 +19,9 @@ describe("filterApprovalsBySession", () => {
       approval({ id: "mine", session_id: "s-1" }),
       approval({ id: "other", session_id: "s-2" }),
     ];
-    expect(filterApprovalsBySession(approvals, "s-1").map((a) => a.id)).toEqual([
-      "mine",
-    ]);
+    expect(filterApprovalsBySession(approvals, "s-1").map((a) => a.id)).toEqual(
+      ["mine"],
+    );
   });
 
   test("无会话归属的审批（如全局任务）始终显示", () => {
@@ -30,10 +30,9 @@ describe("filterApprovalsBySession", () => {
       approval({ id: "global-undef" }),
       approval({ id: "other", session_id: "s-2" }),
     ];
-    expect(filterApprovalsBySession(approvals, "s-1").map((a) => a.id)).toEqual([
-      "global",
-      "global-undef",
-    ]);
+    expect(filterApprovalsBySession(approvals, "s-1").map((a) => a.id)).toEqual(
+      ["global", "global-undef"],
+    );
   });
 
   test("新对话（无当前会话）只显示无会话归属的审批", () => {
@@ -62,7 +61,9 @@ describe("buildSteerUserMessage", () => {
   });
 
   test("不修改原数组", () => {
-    const previous = [{ id: "u1", role: "user", content: "hi", timestamp: new Date() }];
+    const previous = [
+      { id: "u1", role: "user", content: "hi", timestamp: new Date() },
+    ];
     buildSteerUserMessage({
       previousCount: previous.length,
       content: "x",

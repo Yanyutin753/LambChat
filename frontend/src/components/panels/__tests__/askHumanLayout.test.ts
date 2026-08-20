@@ -19,7 +19,9 @@ test("renders ask-human as a full card with numbered choices and footer actions"
 test("paginates ask-human fields one question at a time", () => {
   expect(approvalSource).toMatch(/askHumanFieldIndex/);
   expect(approvalSource).toMatch(/currentAskHumanField/);
-  expect(approvalSource).toMatch(/isAskHuman[\s\S]*?currentAskHumanField\.label/);
+  expect(approvalSource).toMatch(
+    /isAskHuman[\s\S]*?currentAskHumanField\.label/,
+  );
 });
 
 test("hides the composer while an approval is pending", () => {

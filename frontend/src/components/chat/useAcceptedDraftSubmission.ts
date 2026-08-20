@@ -1,6 +1,7 @@
 import { useCallback, type FormEvent } from "react";
 import type { MessageAttachment } from "../../types";
 import type { ChatInputProps } from "./chatInputTypes";
+import { filterSendableAttachments } from "./attachmentValidation";
 import {
   moveSubmittedDraftToOutbox,
   restoreRejectedDraft,
@@ -61,7 +62,8 @@ export function useAcceptedDraftSubmission({
       const composer = composerRef.current;
       if (!composer) return;
       const historyEntry = input.trim();
-      const prepared = prepareSubmit(historyEntry, visibleAttachments);
+      const sendableAttachments = filterSendableAttachments(visibleAttachments);
+      const prepared = prepareSubmit(historyEntry, sendableAttachments);
       const draftState: DraftStateBindings = {
         composer,
         inputValueRef,
@@ -74,7 +76,7 @@ export function useAcceptedDraftSubmission({
       };
       const submittedDraft = moveSubmittedDraftToOutbox(
         composer.getSnapshot(),
-        visibleAttachments,
+        sendableAttachments,
         activeReferenceIds,
         draftState,
       );

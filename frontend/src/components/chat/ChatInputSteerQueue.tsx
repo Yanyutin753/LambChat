@@ -1,8 +1,6 @@
 import { Clock, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SteerItem } from "../../utils/mergeSteers";
-import { AttachmentCard } from "../common/AttachmentCard";
-import { openAttachmentPreview } from "./attachmentPreviewStore";
 
 interface ChatInputSteerQueueProps {
   items: SteerItem[];
@@ -40,15 +38,6 @@ export function ChatInputSteerQueue({
           >
             {deferred || failed ? <X size={14} /> : <Clock size={14} />}
             <span className="min-w-0 flex-1 truncate">{item.content}</span>
-            {item.attachments?.map((attachment) => (
-              <AttachmentCard
-                key={attachment.id}
-                attachment={attachment}
-                variant="preview"
-                size="compact"
-                onClick={() => openAttachmentPreview(attachment, "chat-input")}
-              />
-            ))}
             <span className="flex min-h-5 shrink-0 min-w-[7rem] items-center justify-center text-center text-xs">
               {failed
                 ? t("chat.steerFailedRetry", "发送失败，请重试")

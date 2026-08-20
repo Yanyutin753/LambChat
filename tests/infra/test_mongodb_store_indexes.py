@@ -55,7 +55,9 @@ def test_repeated_put_updates_existing_namespace_key() -> None:
 
         def update_one(self, filter_, update, upsert):
             identity = (tuple(filter_["namespace"]), filter_["key"])
-            doc = self.docs.setdefault(identity, {"namespace": filter_["namespace"], "key": filter_["key"]})
+            doc = self.docs.setdefault(
+                identity, {"namespace": filter_["namespace"], "key": filter_["key"]}
+            )
             doc.update(update["$set"])
 
     class FakeDatabase:
