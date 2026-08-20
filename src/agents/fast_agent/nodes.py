@@ -7,7 +7,7 @@ Fast Agent 节点 - 无沙箱，快速响应
 import inspect
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
@@ -410,7 +410,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         try:
             snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
             if isinstance(inner_config, dict):
-                inner_config["_recommendation_state_snapshot"] = snapshot
+                cast(dict[str, Any], inner_config)["_recommendation_state_snapshot"] = snapshot
             if snapshot is not None and snapshot.next:
                 presenter.hitl_suspended = True
                 logger.info(
