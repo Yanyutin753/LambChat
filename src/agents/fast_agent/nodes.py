@@ -371,15 +371,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 流式处理事件（不重试，直接调用）
     # interrupt 模式仅在持久 checkpointer（非 MemorySaver）可用时启用，
     # 否则 ask_human 自动回退阻塞模式。
-    from langgraph.checkpoint.memory import MemorySaver
-
-    from src.infra.tool.human_tool.runtime import hitl_interrupt_supported
-
-    interrupt_supported = (
-        getattr(settings, "HITL_MODE", "interrupt") == "interrupt"
-        and inner_checkpointer is not None
-        and not isinstance(inner_checkpointer, MemorySaver)
+    from src.infra.tool.human_tool.runtime import (
+        hitl_interrupt_supported,
+        interrupt_supported_for_checkpointer,
     )
+
+    interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
     try:
         async with isolated_nested_graph_run():
             token_supported = hitl_interrupt_supported.set(interrupt_supported)

@@ -849,14 +849,26 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     )
 
     logger.info("[TeamAgent] Starting astream_events")
+    # interrupt 模式仅在持久 checkpointer（非 MemorySaver）可用时启用，
+    # 否则 ask_human 自动回退阻塞模式。
+    from src.infra.tool.human_tool.runtime import (
+        hitl_interrupt_supported,
+        interrupt_supported_for_checkpointer,
+    )
+
+    interrupt_supported = interrupt_supported_for_checkpointer(inner_checkpointer)
     try:
         async with isolated_nested_graph_run():
-            async for event in inner_graph.astream_events(  # type: ignore[call-overload]
-                build_goal_input(new_message, active_goal, rubric_middleware=rubric_middleware),
-                inner_config,
-                version="v2",
-            ):
-                await event_processor.process_event(event)
+            token_supported = hitl_interrupt_supported.set(interrupt_supported)
+            try:
+                async for event in inner_graph.astream_events(  # type: ignore[call-overload]
+                    build_goal_input(new_message, active_goal, rubric_middleware=rubric_middleware),
+                    inner_config,
+                    version="v2",
+                ):
+                    await event_processor.process_event(event)
+            finally:
+                hitl_interrupt_supported.reset(token_supported)
     finally:
         await event_processor.flush()
         await emit_token_usage(
