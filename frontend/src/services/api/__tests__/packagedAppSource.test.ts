@@ -29,7 +29,9 @@ test("hooks with backend requests do not hardcode same-origin API roots", () => 
     "../../../components/profile/tabs/ProfileToolsTab.tsx",
   );
 
-  expect(useAgent).toMatch(/from "\.\.\/services\/api\/config"/);
+  expect(useAgent).toMatch(/from "\.\.\/services\/api\/config"|useAgentList/);
+  const agentList = readSource("../../../hooks/useAgent/agentList.ts");
+  expect(agentList).toMatch(/from "\.\.\/\.\.\/services\/api\/config"/);
   expect(useMcp).toMatch(/import \{ API_BASE/);
   expect(useTools).toMatch(/import \{ API_BASE/);
   expect(useApprovals).toMatch(/import \{ API_BASE/);

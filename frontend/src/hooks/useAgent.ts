@@ -8,14 +8,10 @@ import toast from "react-hot-toast";
 import i18n from "../i18n";
 import type {
   Message,
-  AgentInfo,
-  AgentListResponse,
   ConnectionStatus,
   MessageAttachment,
 } from "../types";
 import { sessionApi, type BackendSession } from "../services/api";
-import { authenticatedRequest } from "../services/api/authenticatedRequest";
-import { API_BASE } from "../services/api/config";
 import { feedbackApi } from "../services/api/feedback";
 import { useAuth } from "../hooks/useAuth";
 import { Permission } from "../types/auth";
@@ -50,31 +46,15 @@ import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
 import { planGoalSubmission } from "./useAgent/goalCommands";
 import { translateBackendError } from "../utils/backendErrors";
 import { dispatchSessionTitleUpdated } from "../utils/sessionTitleEvents";
-import { resolveAvailableAgentId } from "./useAgent/agentSelection";
+import { useAgentList } from "./useAgent/agentList";
+import {
+  notifySubmissionAccepted,
+  notifySubmissionRejected,
+} from "./useAgent/submissionNotifications";
 import {
   applyFeedbackToMessages,
   resolveHistoryStreamRunId,
 } from "./useAgent/historyLoadState";
-
-function notifySubmissionAccepted(
-  submissionCallbacks?: ChatSubmissionCallbacks,
-): void {
-  try {
-    submissionCallbacks?.onAccepted();
-  } catch (error) {
-    console.error("Failed to clear accepted chat draft:", error);
-  }
-}
-
-function notifySubmissionRejected(
-  submissionCallbacks?: ChatSubmissionCallbacks,
-): void {
-  try {
-    submissionCallbacks?.onRejected?.();
-  } catch (error) {
-    console.error("Failed to restore rejected chat draft:", error);
-  }
-}
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
@@ -92,10 +72,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [currentAgent, setCurrentAgent] = useState<string>("");
-  const [agentsLoading, setAgentsLoading] = useState(false);
-  const [allowedModelIds, setAllowedModelIds] = useState<string[] | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -246,110 +222,19 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     [createEventHandlerContext],
   );
 
-  // Ref for currentAgent to avoid dependency changes triggering refetch
-  const currentAgentRef = useRef(currentAgent);
-  useEffect(() => {
-    currentAgentRef.current = currentAgent;
-  }, [currentAgent]);
-
-  // Fetch available agents
-  const fetchAgents = useCallback(async () => {
-    setAgentsLoading(true);
-    try {
-      const response = await authenticatedRequest(`${API_BASE}/api/agents`, {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      if (!response.ok) throw new Error("Failed to fetch agents");
-      const data: AgentListResponse = await response.json();
-      const availableAgents = data.agents || [];
-      setAgents(availableAgents);
-      setAllowedModelIds(data.allowed_model_ids ?? null);
-      const nextAgentId = resolveAvailableAgentId(
-        currentAgentRef.current,
-        data.default_agent,
-        availableAgents,
-      );
-      if (nextAgentId !== currentAgentRef.current) {
-        currentAgentRef.current = nextAgentId;
-        setCurrentAgent(nextAgentId);
-      }
-    } catch (err) {
-      console.error("Failed to fetch agents:", err);
-    } finally {
-      setAgentsLoading(false);
-    }
-  }, []); // No dependencies - uses ref instead
-
-  // Load agents on mount
-  useEffect(() => {
-    fetchAgents();
-  }, [fetchAgents]);
-
-  // Refresh agents when page becomes visible (e.g., switching back to /chat tab)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchAgents();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [fetchAgents]);
-
-  // Listen for agent preference updates to refresh agents list and apply new default
-  useEffect(() => {
-    const handleAgentPreferenceUpdated = async () => {
-      // Fetch fresh agents data
-      setAgentsLoading(true);
-      try {
-        const response = await authenticatedRequest(`${API_BASE}/api/agents`, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        if (!response.ok) throw new Error("Failed to fetch agents");
-        const data: AgentListResponse = await response.json();
-
-        // Update agents list
-        const availableAgents = data.agents || [];
-        setAgents(availableAgents);
-        setAllowedModelIds(data.allowed_model_ids ?? null);
-
-        // Apply the new default agent if user doesn't have an active session
-        // (i.e., no current messages means it's a good time to switch)
-        const hasActiveSession = messagesRef.current.length > 0;
-        const nextAgentId = resolveAvailableAgentId(
-          hasActiveSession ? currentAgentRef.current : "",
-          data.default_agent,
-          availableAgents,
-        );
-        if (nextAgentId !== currentAgentRef.current) {
-          currentAgentRef.current = nextAgentId;
-          setCurrentAgent(nextAgentId);
-        }
-      } catch (err) {
-        console.error("Failed to fetch agents after preference update:", err);
-      } finally {
-        setAgentsLoading(false);
-      }
-    };
-
-    window.addEventListener(
-      "agent-preference-updated",
-      handleAgentPreferenceUpdated,
-    );
-    return () => {
-      window.removeEventListener(
-        "agent-preference-updated",
-        handleAgentPreferenceUpdated,
-      );
-    };
-  }, []);
+  // Agent list loading and default agent selection
+  const hasActiveMessages = useCallback(
+    () => messagesRef.current.length > 0,
+    [],
+  );
+  const {
+    agents,
+    currentAgent,
+    setCurrentAgent,
+    agentsLoading,
+    allowedModelIds,
+    fetchAgents,
+  } = useAgentList(hasActiveMessages);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1005,13 +890,16 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setCurrentAgent(agentId);
       clearMessages();
     },
-    [clearMessages],
+    [clearMessages, setCurrentAgent],
   );
 
   // Switch agent without clearing messages (for mode toggling)
-  const switchAgent = useCallback((agentId: string) => {
-    setCurrentAgent(agentId);
-  }, []);
+  const switchAgent = useCallback(
+    (agentId: string) => {
+      setCurrentAgent(agentId);
+    },
+    [setCurrentAgent],
+  );
 
   // Select a team for team-mode agent
   const selectTeam = useCallback((teamId: string | null) => {
