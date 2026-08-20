@@ -661,6 +661,7 @@ class SessionManager:
             if not run_id:
                 continue
             cloned_doc = None
+            clone_chunks = False
             if run_id == target["run_id"]:
                 if target["target_type"] == "user":
                     cloned_doc = await run_blocking_io(
@@ -677,6 +678,7 @@ class SessionManager:
                         target_session.id,
                         user_id,
                     )
+                    clone_chunks = True
             elif target.get("completed_run_ids") is not None:
                 if run_id in target["completed_run_ids"]:
                     cloned_doc = await run_blocking_io(
@@ -685,6 +687,7 @@ class SessionManager:
                         target_session.id,
                         user_id,
                     )
+                    clone_chunks = True
             else:
                 cloned_doc = await run_blocking_io(
                     self._build_cloned_trace_doc,
@@ -692,13 +695,35 @@ class SessionManager:
                     target_session.id,
                     user_id,
                 )
+                clone_chunks = True
 
             if cloned_doc is not None:
                 result.copied_trace_count += 1
+                # Chunked event storage: full clones keep the source's
+                # event_count/chunk_count, so the chunk documents must be
+                # copied under the cloned trace_id as well, otherwise the
+                # clone has zero readable events.
+                if clone_chunks:
+                    await self._clone_trace_chunk_docs(trace, cloned_doc)
                 if collect_checkpoint_messages:
+                    docs_for_messages = [cloned_doc]
+                    if clone_chunks and not cloned_doc.get("events"):
+                        # Chunked storage: rebuild the in-memory legacy view
+                        # from the source trace so message extraction works.
+                        try:
+                            source_events = await self.trace_storage.read_trace_events_compat(
+                                str(trace.get("trace_id"))
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to read source events for checkpoint clone: %s", e
+                            )
+                            source_events = []
+                        if source_events:
+                            docs_for_messages = [{**cloned_doc, "events": source_events}]
                     checkpoint_messages = await run_blocking_io(
                         build_messages_from_trace_events,
-                        [cloned_doc],
+                        docs_for_messages,
                     )
                     result.checkpoint_messages.extend(checkpoint_messages)
                 batch.append(cloned_doc)
@@ -718,8 +743,6 @@ class SessionManager:
                 "_id": 0,
                 "trace_id": 1,
                 "run_id": 1,
-                "events.event_type": 1,
-                "events.data": 1,
             },
         ).sort("started_at", 1)
         completed_run_count = 0
@@ -730,7 +753,21 @@ class SessionManager:
                 continue
             turn_index = completed_run_count + 1
 
-            for event in trace.get("events", []):
+            # Chunked event storage keeps events out of the trace document;
+            # use the compat reader so both storage modes are covered.
+            trace_id = trace.get("trace_id")
+            compat_reader = getattr(self.trace_storage, "read_trace_events_compat", None)
+            # Chunked event storage keeps events out of the trace document;
+            # the compat reader covers both storage modes, with the in-document
+            # events as the legacy fallback.
+            events: list[dict] = list(trace.get("events") or [])
+            if callable(compat_reader) and trace_id:
+                try:
+                    events = await compat_reader(str(trace_id), event_types=["user:message"])
+                except Exception as e:
+                    logger.warning("Failed to read events for fork target %s: %s", trace_id, e)
+                    events = []
+            for event in events:
                 if event.get("event_type") != "user:message":
                     continue
                 data = event.get("data") or {}
@@ -772,7 +809,45 @@ class SessionManager:
         cloned["trace_id"] = f"trace_{uuid.uuid4().hex}"
         cloned["session_id"] = session_id
         cloned["user_id"] = user_id
+        # Never inherit an in-flight chunk write marker: it would fence every
+        # later writer on the cloned trace with no owner to release it.
+        cloned.pop("attachment_chunk_write_operation", None)
         return cloned
+
+    async def _clone_trace_chunk_docs(self, source_trace: dict, cloned_trace: dict) -> None:
+        """Copy chunked event documents of a trace to its cloned trace_id."""
+        source_trace_id = source_trace.get("trace_id")
+        cloned_trace_id = cloned_trace.get("trace_id")
+        if not source_trace_id or not cloned_trace_id or source_trace_id == cloned_trace_id:
+            return
+        try:
+            cursor = self.trace_storage.chunks_collection.find({"trace_id": source_trace_id})
+            docs: list[dict] = []
+            async for chunk_doc in cursor:
+                cloned_chunk = deepcopy(chunk_doc)
+                cloned_chunk.pop("_id", None)
+                cloned_chunk["trace_id"] = cloned_trace_id
+                cloned_chunk["session_id"] = cloned_trace.get("session_id", "")
+                cloned_chunk.pop("attachment_chunk_staging", None)
+                cloned_chunk.pop("replacement_target_trace_id", None)
+                cloned_chunk.pop("replacement_operation_id", None)
+                docs.append(cloned_chunk)
+            if docs:
+                await self.trace_storage.chunks_collection.insert_many(docs, ordered=False)
+        except Exception as e:
+            logger.error(
+                "Failed to clone chunk docs from trace %s to %s: %s",
+                source_trace_id,
+                cloned_trace_id,
+                e,
+            )
+            # A chunked clone advertising event_count > 0 with no chunk docs
+            # has zero readable events — the exact symptom this clone path
+            # exists to avoid — so reset the counters to keep it consistent.
+            # Legacy docs keep their inline events and stay untouched.
+            if not cloned_trace.get("events"):
+                cloned_trace["event_count"] = 0
+                cloned_trace.pop("chunk_count", None)
 
     def _build_partial_user_trace_doc(
         self,

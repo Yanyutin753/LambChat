@@ -415,8 +415,6 @@ async def test_resolve_fork_target_projects_only_needed_trace_fields() -> None:
                 "_id": 0,
                 "trace_id": 1,
                 "run_id": 1,
-                "events.event_type": 1,
-                "events.data": 1,
             },
         ),
         {},

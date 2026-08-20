@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Dict
@@ -441,18 +442,47 @@ class StoragePresenterMixin:
         if dual_writer and self.config.session_id:
             try:
                 await self._ensure_token_usage_event()
-                # 先刷新 MongoDB 缓冲，确保所有事件已写入
+            except Exception as e:
+                logger.warning("Failed to ensure token usage event for %s: %s", self.trace_id, e)
+            # Flush first so events are durable, but never let a flush failure
+            # block complete_trace: a trace stuck in status="running" hides all
+            # its non-user events from the session events read path.
+            try:
                 await dual_writer.flush_mongo_buffer(require_empty=True)
-                await dual_writer.complete_trace(
-                    trace_id=self.trace_id,
-                    status=status,
-                    metadata={
-                        "step_count": self._step_count,
-                        "tool_calls": len(self._tool_calls),
-                    },
+            except Exception as e:
+                logger.error(
+                    "Mongo event buffer not empty while completing trace %s; "
+                    "events remain buffered for retry: %s",
+                    self.trace_id,
+                    e,
                 )
-                self._completed = True
-                logger.debug("Trace completed: %s, status=%s", self.trace_id, status)
+            try:
+                completed = False
+                # A trace stuck in status="running" hides all its non-user
+                # events from the session events read path, so retry the
+                # terminal transition instead of giving up on the first miss.
+                for attempt in range(3):
+                    completed = await dual_writer.complete_trace(
+                        trace_id=self.trace_id,
+                        status=status,
+                        metadata={
+                            "step_count": self._step_count,
+                            "tool_calls": len(self._tool_calls),
+                        },
+                    )
+                    if completed:
+                        break
+                    await asyncio.sleep(0.2 * (attempt + 1))
+                if completed:
+                    self._completed = True
+                    logger.debug("Trace completed: %s, status=%s", self.trace_id, status)
+                else:
+                    logger.error(
+                        "Failed to complete trace %s after retries; the recovery "
+                        "job must release the chunk marker lease before the "
+                        "non-user events become readable",
+                        self.trace_id,
+                    )
 
                 # AI 回复完成或出错时递增未读计数，确保用户下次打开能看到。
                 if should_increment_unread_for_trace_status(status) and self.config.session_id:

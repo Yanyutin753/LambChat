@@ -191,6 +191,29 @@ class TraceStorageWriteMixin:
                 },
             )
             if result.modified_count == 0:
+                # An in-flight chunk write holds the marker; retry briefly
+                # instead of silently dropping the recommendations.
+                for attempt in range(3):
+                    await asyncio.sleep(0.1 * (attempt + 1))
+                    now = utc_now()
+                    result = await self.collection.update_one(
+                        {
+                            "session_id": session_id,
+                            "run_id": run_id,
+                            _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                        },
+                        {
+                            "$inc": {_TRACE_EVENT_REVISION_FIELD: 1},
+                            "$set": {
+                                "recommend_questions": normalized,
+                                "recommend_questions_updated_at": now,
+                                "updated_at": now,
+                            },
+                        },
+                    )
+                    if result.modified_count > 0:
+                        break
+            if result.modified_count == 0:
                 logger.warning(
                     "Recommendation trace not found or unchanged: session=%s, run_id=%s",
                     session_id,
@@ -344,6 +367,8 @@ class TraceStorageWriteMixin:
                 },
                 update,
             )
+            if result.modified_count == 0:
+                result = await self._complete_trace_after_marker_release(trace_id, update)
             # 异步写入 usage_logs 集合（fire-and-forget，失败不影响主流程）
             if _USAGE_LOGS_ENABLED and result.modified_count > 0:
                 from src.infra.session.trace_storage import _write_usage_log
@@ -361,3 +386,73 @@ class TraceStorageWriteMixin:
         except Exception as e:
             logger.error(f"Failed to complete trace {trace_id}: {e}")
             return False
+
+    async def _complete_trace_after_marker_release(
+        self,
+        trace_id: str,
+        update: Dict[str, Dict[str, Any]],
+    ) -> Any:
+        """Retry a blocked complete_trace, releasing only an *expired* marker.
+
+        A trace left in status="running" hides all its non-user events from the
+        session events read path, so completion must not stay blocked behind a
+        chunk-write marker. But a marker with an unexpired lease belongs to a
+        live writer and must not be force-released — that would break the
+        append mutual exclusion. Wait briefly for an in-flight writer, release
+        only markers whose lease has expired (writer gone), and otherwise
+        defer: the periodic recovery job releases the marker once the lease
+        lapses and finishes the trace.
+        """
+        from types import SimpleNamespace
+
+        from src.infra.session.trace_event_chunks import _marker_recovery_expired
+
+        for attempt in range(6):
+            marker_doc = await self.collection.find_one(
+                {"trace_id": trace_id},
+                {_ATTACHMENT_CHUNK_WRITE_FIELD: 1},
+            )
+            marker = (marker_doc or {}).get(_ATTACHMENT_CHUNK_WRITE_FIELD)
+            if not isinstance(marker, dict):
+                result = await self.collection.update_one(
+                    {
+                        "trace_id": trace_id,
+                        _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                    },
+                    update,
+                )
+                if result.modified_count > 0:
+                    return result
+            elif _marker_recovery_expired(marker.get("recovery_after"), utc_now()):
+                marker_id = marker.get("id")
+                if isinstance(marker_id, str):
+                    await self.collection.update_one(
+                        {
+                            "trace_id": trace_id,
+                            f"{_ATTACHMENT_CHUNK_WRITE_FIELD}.id": marker_id,
+                        },
+                        {
+                            "$unset": {_ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                            "$set": {"updated_at": utc_now()},
+                        },
+                    )
+                    result = await self.collection.update_one(
+                        {
+                            "trace_id": trace_id,
+                            _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+                        },
+                        update,
+                    )
+                    if result.modified_count > 0:
+                        logger.warning(
+                            "Completed trace %s after releasing expired chunk marker",
+                            trace_id,
+                        )
+                        return result
+            await asyncio.sleep(0.05 * (attempt + 1))
+        logger.warning(
+            "complete_trace for %s deferred: an in-flight chunk marker is still "
+            "held; recovery will release it once its lease expires",
+            trace_id,
+        )
+        return SimpleNamespace(matched_count=0, modified_count=0)

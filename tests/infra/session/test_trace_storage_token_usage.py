@@ -483,6 +483,7 @@ async def test_get_session_events_uses_server_side_limit_when_max_events_is_set(
                 "run_id": 1,
                 "status": 1,
                 "started_at": 1,
+                "updated_at": 1,
                 "events": 1,
                 "recommend_questions": 1,
                 "recommend_questions_updated_at": 1,
