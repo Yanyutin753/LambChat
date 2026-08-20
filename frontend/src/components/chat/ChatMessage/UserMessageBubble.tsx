@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { clsx } from "clsx";
-import { Copy, Check, GitBranch } from "lucide-react";
+import { Copy, Check, GitBranch, Clock, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AttachmentCard, ImageViewer } from "../../common";
 import type { MessageAttachment } from "../../../types";
@@ -13,6 +13,7 @@ import { useSessionImageGallery } from "./sessionImageGallery";
 import { SkillChip } from "../SkillChip";
 import { FileReferenceChip } from "../richComposer/FileReferenceChip";
 import { splitUserMessageFileReferences } from "./userMessageFileReferences";
+import { cancelSteeredMessage } from "../steerCancelStore";
 
 // User message bubble component (with copy function, supports markdown rendering) - ChatGPT style
 export function UserMessageBubble({
@@ -21,12 +22,15 @@ export function UserMessageBubble({
   onFork,
   isLastMessage,
   enabledSkills,
+  queued,
 }: {
   content?: string;
   attachments?: MessageAttachment[];
   onFork?: () => void;
   isLastMessage?: boolean;
   enabledSkills?: string[];
+  /** 运行中插话的排队态：送达前置灰 + 时钟角标，可取消 */
+  queued?: boolean;
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -82,7 +86,28 @@ export function UserMessageBubble({
   return (
     <div className="w-full px-4 sm:px-8 py-4 group">
       <div className="mx-auto flex max-w-4xl lg:max-w-5xl xl:max-w-6xl justify-end">
-        <div className="flex flex-col items-end max-w-[90%]">
+        <div
+          className={`flex flex-col items-end max-w-[90%] transition-opacity ${
+            queued ? "opacity-70" : ""
+          }`}
+        >
+          {/* 排队中的插话：时钟角标 + 取消 */}
+          {queued && (
+            <div className="mb-1 flex items-center gap-1.5 text-xs" style={{ color: "var(--theme-text-secondary)" }}>
+              <Clock size={12} style={{ color: "var(--theme-primary)" }} />
+              <span>{t("chat.steerQueued", "已排队，当前步骤后送达")}</span>
+              <button
+                type="button"
+                onClick={() => content && cancelSteeredMessage(content)}
+                className="rounded-full p-0.5 opacity-60 transition hover:opacity-100"
+                title={t("chat.steerCancel", "取消这条插话")}
+                aria-label={t("chat.steerCancel", "取消这条插话")}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
+
           {/* Attachment preview - outside message bubble */}
           {hasAttachments && renderAttachments()}
 

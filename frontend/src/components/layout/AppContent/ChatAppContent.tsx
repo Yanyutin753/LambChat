@@ -180,8 +180,7 @@ export function ChatAppContent({
     goalsByRunId,
     sendMessage,
     steerMessage,
-    pendingSteers,
-    cancelPendingSteer,
+    cancelSteer,
     applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,
@@ -935,8 +934,7 @@ export function ChatAppContent({
           }
           onStopGeneration={stopGeneration}
           onSteerMessage={steerMessage}
-          pendingSteers={pendingSteers}
-          onCancelSteer={cancelPendingSteer}
+          onCancelSteer={cancelSteer}
           activeGoal={activeGoal}
           goalsByRunId={goalsByRunId}
           onClearActiveGoal={clearActiveGoal}
