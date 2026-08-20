@@ -912,3 +912,26 @@ async def steer_running_agent(
 
     queued = await get_steer_queue().enqueue(session_id, message)
     return {"status": "queued", "session_id": session_id, "queued": queued}
+
+
+@router.delete("/sessions/{session_id}/steer")
+async def cancel_steered_message(
+    session_id: str,
+    request: SteerRequest,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """
+    取消一条还在排队、尚未送达的插话消息。
+
+    已注入模型调用的消息无法撤回（返回 not_found）。
+    """
+    session_manager = SessionManager()
+    session = await session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_ownership(session, user)
+
+    from src.infra.task.steer import get_steer_queue
+
+    removed = await get_steer_queue().remove(session_id, request.message.strip())
+    return {"status": "removed" if removed else "not_found", "session_id": session_id}

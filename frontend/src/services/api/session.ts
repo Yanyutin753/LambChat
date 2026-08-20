@@ -325,6 +325,19 @@ export const sessionApi = {
   },
 
   /**
+   * Cancel a queued (not yet delivered) steering message
+   */
+  async cancelSteer(sessionId: string, message: string): Promise<{
+    status: string;
+  }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+  },
+
+  /**
    * Steer a running session (Codex-style mid-run user message)
    */
   async steer(sessionId: string, message: string): Promise<{

@@ -29,6 +29,37 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+async def _persist_delivered_user_messages(session_id: str, texts: list[str]) -> None:
+    """把已注入的插话消息写入 user:message 事件（尽力而为）。
+
+    事件经 dual_writer 双写 Redis + MongoDB：SSE 实时下发（前端按标准
+    user:message 渲染）且刷新/重载后历史可见。失败只记日志，不影响注入。
+    """
+    import uuid
+
+    from src.infra.session.dual_writer import get_dual_writer
+    from src.infra.utils.datetime import utc_now_iso
+
+    try:
+        writer = get_dual_writer()
+        for text in texts:
+            await writer.write_event(
+                session_id=session_id,
+                event_type="user:message",
+                data={
+                    "content": text,
+                    "timestamp": utc_now_iso(),
+                    "message_id": f"steer-{uuid.uuid4().hex[:12]}",
+                },
+            )
+    except Exception:
+        logger.warning(
+            "[Steer] session=%s failed to persist delivered steer message(s)",
+            session_id,
+            exc_info=True,
+        )
+
+
 class SteerMiddleware(AgentMiddleware):
     """把会话插话队列中的用户消息注入下一次模型调用。"""
 
@@ -61,7 +92,11 @@ class SteerMiddleware(AgentMiddleware):
             await queue.requeue_front(self._session_id, pending)
             raise
 
-        # 把插话消息写入图状态，checkpoint 持久化，历史可见
+        # 注入成功：写 user:message 事件（SSE + 历史持久化），
+        # 再把插话消息写入图状态，checkpoint 持久化
+        if self._session_id:
+            await _persist_delivered_user_messages(self._session_id, pending)
+
         from langchain.agents.middleware.types import ExtendedModelResponse
         from langgraph.types import Command as LangCommand
 

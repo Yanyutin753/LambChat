@@ -57,6 +57,19 @@ class SteerQueue:
         """该会话当前排队数（只读，用于观测）。"""
         return len(self._pending.get(session_id, []))
 
+    async def remove(self, session_id: str, message: str) -> bool:
+        """移除该会话中排队的第一条相同内容消息（用户取消插话）。"""
+        async with self._lock:
+            queue = self._pending.get(session_id)
+            if not queue:
+                return False
+            for index, queued in enumerate(queue):
+                if queued == message:
+                    del queue[index]
+                    logger.info("[Steer] session=%s cancelled one queued message", session_id)
+                    return True
+            return False
+
 
 _steer_queue: SteerQueue | None = None
 

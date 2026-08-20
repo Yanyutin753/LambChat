@@ -3,7 +3,7 @@
  * Provides agent communication, message management, and SSE streaming
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
 import type {
@@ -44,7 +44,7 @@ import {
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
-import { createSteerMessage } from "./useAgent/steerMessage";
+import { useSteerQueue } from "./useAgent/steerQueue";
 import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
 import { planGoalSubmission } from "./useAgent/goalCommands";
@@ -85,6 +85,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   // State
   const [messages, setMessages] = useState<Message[]>([]);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyLoadGeneration, setHistoryLoadGeneration] = useState(0);
@@ -166,6 +167,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+  const steerQueue = useSteerQueue({ sessionIdRef, setError });
 
   useEffect(() => {
     currentRunIdRef.current = currentRunId;
@@ -192,8 +194,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setSandboxError,
       setActiveGoal,
       setGoalsByRunId,
+      removePendingSteerByContent: steerQueue.removePendingSteerByContent,
     }),
-    [options],
+    [options, steerQueue],
   );
 
   // Create SSE connection context
@@ -377,6 +380,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       // Clear approvals before loading new session
       options?.onClearApprovals?.();
+      steerQueue.clearPendingSteers();
 
       try {
         const [sessionData, eventsData] = await Promise.all([
@@ -858,10 +862,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     }
   }, [options]);
 
-  const steerMessage = useMemo(
-    () => createSteerMessage({ sessionIdRef, setMessages, setError }),
-    [],
-  );
 
   const clearMessages = useCallback(() => {
     loadHistoryRequestIdRef.current += 1;
@@ -957,7 +957,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isInitializingSandbox,
     sandboxError,
     sendMessage,
-    steerMessage,
+    ...steerQueue,
     applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,
