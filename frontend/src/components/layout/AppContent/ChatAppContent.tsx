@@ -39,6 +39,7 @@ import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
 import { AppShell } from "./AppShell";
 import { ChatView } from "./ChatView";
+import { filterApprovalsBySession } from "../../../utils/approvals";
 import { shouldShowMessageOutline } from "./messageOutline";
 import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
 
@@ -78,6 +79,7 @@ export function ChatAppContent({
 
   const {
     approvals,
+    refresh: refreshApprovals,
     respondToApproval,
     addApproval,
     clearApprovals,
@@ -177,6 +179,7 @@ export function ChatAppContent({
     activeGoal,
     goalsByRunId,
     sendMessage,
+    steerMessage,
     applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,
@@ -233,6 +236,7 @@ export function ChatAppContent({
       setTimeout(() => fetchSkills(), 500);
     },
   });
+  useEffect(() => void refreshApprovals(), [sessionId, refreshApprovals]);
 
   const switchToPersonaAgentMode = useCallback(() => {
     if (currentAgent !== "team") return;
@@ -921,24 +925,14 @@ export function ChatAppContent({
           onSelectAgent={switchAgent}
           selectedTeamId={selectedTeamId}
           onSelectTeam={selectTeam}
-          approvals={approvals}
+          approvals={filterApprovalsBySession(approvals, sessionId)}
           onRespondApproval={respondToApproval}
           approvalLoading={approvalLoading}
-          onSendMessage={(
-            content,
-            sendAttachments,
-            runOptions,
-            submissionCallbacks,
-          ) =>
-            void sendMessage(
-              content,
-              undefined,
-              sendAttachments,
-              runOptions,
-              submissionCallbacks,
-            )
+          onSendMessage={(content, sendAttachments, runOptions, submissionCallbacks) =>
+            void sendMessage(content, undefined, sendAttachments, runOptions, submissionCallbacks)
           }
           onStopGeneration={stopGeneration}
+          onSteerMessage={steerMessage}
           activeGoal={activeGoal}
           goalsByRunId={goalsByRunId}
           onClearActiveGoal={clearActiveGoal}

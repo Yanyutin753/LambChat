@@ -188,6 +188,7 @@ export interface ChatViewProps {
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStopGeneration: () => void;
+  onSteerMessage?: (content: string) => void;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   onClearActiveGoal: () => void;

@@ -24,6 +24,8 @@ export interface ChatInputProps {
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStop: () => void;
+  /** 运行中插话（Codex 式 steer）：任务运行期间发送的消息进入队列，当前步骤后送达 */
+  onSteer?: (content: string) => void;
   isLoading: boolean;
   disabled?: boolean;
   canSend?: boolean;

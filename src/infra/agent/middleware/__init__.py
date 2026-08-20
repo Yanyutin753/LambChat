@@ -16,6 +16,7 @@ from src.infra.agent.middleware.retry import (
     create_retry_middleware,
 )
 from src.infra.agent.middleware.sandbox_workspace import SandboxWorkspaceMiddleware
+from src.infra.agent.middleware.steer import SteerMiddleware
 from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
 from src.infra.agent.middleware.subagent_result_handoff import SubagentResultHandoffMiddleware
 from src.infra.agent.middleware.summary_fallback import summarization_fallback_patch
@@ -36,6 +37,7 @@ __all__ = [
     "ModelFallbackMiddleware",
     "SandboxWorkspaceMiddleware",
     "SectionPromptMiddleware",
+    "SteerMiddleware",
     "SubagentActivityMiddleware",
     "SubagentResultHandoffMiddleware",
     "summarization_fallback_patch",

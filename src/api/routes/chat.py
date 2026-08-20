@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from src.agents.core import resolve_agent_name
 from src.agents.core.base import AgentFactory
@@ -869,3 +870,45 @@ async def resume_session(
 
     task_manager = get_task_manager()
     return await task_manager.resume_session(session_id)
+
+
+class SteerRequest(BaseModel):
+    """运行中插话请求体。"""
+
+    message: str = Field(..., min_length=1, max_length=32000)
+
+
+@router.post("/sessions/{session_id}/steer")
+async def steer_running_agent(
+    session_id: str,
+    request: SteerRequest,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """
+    向正在运行的会话插话（Codex 式 steer）。
+
+    消息进入会话插话队列，由 SteerMiddleware 在下一次主 agent 模型调用时
+    注入并持久化；当前步骤完成后 agent 即可看到。仅 RUNNING 状态接受插话。
+    """
+    session_manager = SessionManager()
+    session = await session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_ownership(session, user)
+
+    message = request.message.strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="插话内容不能为空")
+
+    task_manager = get_task_manager()
+    status = await task_manager.get_status(session_id)
+    if status != TaskStatus.RUNNING:
+        raise HTTPException(
+            status_code=409,
+            detail=f"会话当前状态为 {status.value if hasattr(status, 'value') else status}，仅运行中可插话",
+        )
+
+    from src.infra.task.steer import get_steer_queue
+
+    queued = await get_steer_queue().enqueue(session_id, message)
+    return {"status": "queued", "session_id": session_id, "queued": queued}

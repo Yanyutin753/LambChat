@@ -325,6 +325,20 @@ export const sessionApi = {
   },
 
   /**
+   * Steer a running session (Codex-style mid-run user message)
+   */
+  async steer(sessionId: string, message: string): Promise<{
+    status: string;
+    queued: number;
+  }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+  },
+
+  /**
    * Submit a chat message (returns immediately)
    */
   async submitChat(

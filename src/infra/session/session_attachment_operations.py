@@ -1,11 +1,16 @@
 """Session-anchor operations for attachment cleanup and trace writer fencing."""
 
 import uuid
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from bson import ObjectId
 
 from src.infra.utils.datetime import utc_now
+
+# A delete fence held longer than this TTL belongs to a delete that died
+# mid-flight (process killed before its cancel path ran) and is safe to reclaim.
+SESSION_DELETE_FENCE_TTL = timedelta(minutes=10)
 
 
 class SessionAttachmentOperationsMixin:
@@ -276,6 +281,47 @@ class SessionAttachmentOperationsMixin:
         field = "attachment_delete_operation"
         operation = {"id": uuid.uuid4().hex, "claimed_at": utc_now()}
 
+        async def _reclaim_stale(
+            identity: dict[str, Any], existing_operation: dict[str, Any]
+        ) -> dict[str, Any] | None:
+            # A fence whose claimant died mid-delete (no cancel ran) would block
+            # deletion forever; reclaim it once it is older than the TTL.
+            claimed_at = existing_operation.get("claimed_at")
+            if claimed_at is None:
+                return None
+            try:
+                from src.infra.utils.datetime import ensure_utc
+
+                claimed_at = ensure_utc(claimed_at)
+            except (TypeError, ValueError):
+                return None
+            if (
+                not isinstance(claimed_at, datetime)
+                or claimed_at > utc_now() - SESSION_DELETE_FENCE_TTL
+            ):
+                return None
+            result = await self.collection.find_one_and_update(
+                {
+                    **identity,
+                    f"{field}.id": existing_operation.get("id"),
+                    f"{field}.claimed_at": claimed_at,
+                },
+                [
+                    {
+                        "$set": {
+                            field: {**operation, "uploaded_by": "$user_id"},
+                            "updated_at": utc_now(),
+                        }
+                    }
+                ],
+                return_document=True,
+            )
+            if result:
+                claimed_operation = result.get(field)
+                if isinstance(claimed_operation, dict):
+                    return {**claimed_operation, "acquired": True}
+            return None
+
         async def _claim(identity: dict[str, Any]) -> dict[str, Any] | None:
             for writer_predicate in (0, {"$exists": False}):
                 result = await self.collection.find_one_and_update(
@@ -295,6 +341,9 @@ class SessionAttachmentOperationsMixin:
             result = await self.collection.find_one(identity, {field: 1})
             existing_operation = result.get(field) if result else None
             if isinstance(existing_operation, dict):
+                reclaimed = await _reclaim_stale(identity, existing_operation)
+                if reclaimed is not None:
+                    return reclaimed
                 return {**existing_operation, "acquired": False}
             return None
 

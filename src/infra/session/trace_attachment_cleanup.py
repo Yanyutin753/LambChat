@@ -1,15 +1,25 @@
 """Strict attachment-cleanup reads and CAS deletion for trace storage."""
 
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Optional
 
+from src.infra.logging import get_logger
 from src.infra.session._trace_storage_support import (
     SESSION_EVENT_FILTER_LIST_LIMIT,
     _bounded_unique_strings,
     _event_seq,
 )
 from src.infra.session.trace_event_chunks import ATTACHMENT_CHUNK_WRITE_FIELD
+from src.infra.utils.datetime import utc_now
 
 ATTACHMENT_CLEAR_TERMINAL_STATUSES = ("completed", "error")
+
+# A running trace whose updated_at heartbeat is older than this TTL belongs to
+# a writer that is gone (crashed run / missed restart recovery); it can never
+# reach a terminal status on its own and would block session deletion forever.
+STALE_RUNNING_TRACE_TTL = timedelta(minutes=10)
+
+logger = get_logger("src.infra.session.trace_storage")
 
 
 class TraceAttachmentCleanupMixin:
@@ -331,6 +341,51 @@ class TraceAttachmentCleanupMixin:
             return "deleted"
         survivor = await collection.find_one({"_id": document_id}, {"_id": 1})
         return "survivor" if survivor else "deleted"
+
+    async def expire_stale_running_traces(
+        self,
+        session_id: str,
+        *,
+        now: Optional[Any] = None,
+        ttl: timedelta = STALE_RUNNING_TRACE_TTL,
+    ) -> int:
+        """Transition stale running traces to error so destructive cleanup can proceed.
+
+        Only touches traces whose updated_at heartbeat is older than ``ttl``;
+        ``updated_at`` is deliberately preserved because it is the CAS version
+        the attachment-clear snapshot and group deletes match against.
+        """
+        current = now if now is not None else utc_now()
+        stale_before = current - ttl
+        try:
+            result = await self.collection.update_many(
+                {
+                    "session_id": session_id,
+                    "status": "running",
+                    "updated_at": {"$lte": stale_before},
+                },
+                {
+                    "$set": {
+                        "status": "error",
+                        "completed_at": current,
+                        "metadata.error_code": "stale_run_recovery",
+                    }
+                },
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to expire stale running traces for session %s: %s",
+                session_id,
+                e,
+            )
+            return 0
+        if result.modified_count:
+            logger.info(
+                "Expired %d stale running trace(s) for session %s",
+                result.modified_count,
+                session_id,
+            )
+        return result.modified_count
 
     async def has_session_trace_documents(self, session_id: str) -> bool:
         """Return whether any parent or directly session-scoped chunk survives."""

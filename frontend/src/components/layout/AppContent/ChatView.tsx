@@ -111,6 +111,7 @@ export function ChatView({
   approvalLoading,
   onSendMessage,
   onStopGeneration,
+  onSteerMessage,
   activeGoal,
   goalsByRunId,
   onClearActiveGoal,
@@ -450,6 +451,7 @@ export function ChatView({
     ) =>
       onSendMessage(content, sendAttachments, runOptions, submissionCallbacks),
     onStop: onStopGeneration,
+    onSteer: onSteerMessage,
     isLoading: sessionRunning,
     canSend: canSendMessage,
     tools,

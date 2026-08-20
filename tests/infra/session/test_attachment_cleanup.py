@@ -202,6 +202,15 @@ class _FilterAwareCollection:
                 )
         return SimpleNamespace(matched_count=0, modified_count=0)
 
+    async def update_many(self, query: dict[str, Any], update: dict, **_kwargs):
+        modified_count = 0
+        for document in self.documents:
+            if _matches(document, query):
+                before = deepcopy(document)
+                _apply_update(document, update)
+                modified_count += int(document != before)
+        return SimpleNamespace(matched_count=modified_count, modified_count=modified_count)
+
     async def insert_one(self, document: dict[str, Any]):
         self.documents.append(deepcopy(document))
         return SimpleNamespace(inserted_id=document.get("_id", "inserted"))
@@ -314,6 +323,9 @@ class _TraceStorage:
         self.deleted_session_ids.append(self.snapshot_session_id)
         self.events = []
         return "deleted"
+
+    async def expire_stale_running_traces(self, _session_id: str, **_kwargs) -> int:
+        return 0
 
     async def has_session_trace_documents(self, _session_id: str) -> bool:
         return bool(self.events)
@@ -1612,6 +1624,8 @@ async def test_delete_session_refuses_to_remove_anchor_while_running_trace_survi
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    # Pin "now" so the running trace stays fresh relative to the stale-TTL.
+    monkeypatch.setattr("src.infra.session.trace_attachment_cleanup.utc_now", lambda: cutoff)
     trace_storage, parents, _chunks = _trace_storage_with_documents(
         [
             {
@@ -1863,3 +1877,183 @@ async def test_concurrent_delete_request_cannot_cancel_the_owner_fence(
     allow_owner_to_finish.set()
     assert await owner is True
     assert storage.cancel_calls == []
+
+
+@pytest.mark.asyncio
+async def test_expire_stale_running_traces_transitions_only_stale_runs() -> None:
+    cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    trace_storage, parents, _chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-stale",
+                "session_id": "session-1",
+                "trace_id": "trace-stale",
+                "status": "running",
+                "updated_at": cutoff - timedelta(minutes=30),
+                "events": [],
+            },
+            {
+                "_id": "parent-fresh",
+                "session_id": "session-1",
+                "trace_id": "trace-fresh",
+                "status": "running",
+                "updated_at": cutoff - timedelta(minutes=1),
+                "events": [],
+            },
+            {
+                "_id": "parent-terminal",
+                "session_id": "session-1",
+                "trace_id": "trace-terminal",
+                "status": "completed",
+                "updated_at": cutoff - timedelta(hours=2),
+                "events": [],
+            },
+            {
+                "_id": "parent-other-session",
+                "session_id": "session-2",
+                "trace_id": "trace-other",
+                "status": "running",
+                "updated_at": cutoff - timedelta(hours=3),
+                "events": [],
+            },
+        ],
+        [],
+    )
+
+    expired = await trace_storage.expire_stale_running_traces("session-1", now=cutoff)
+
+    assert expired == 1
+    stale = next(d for d in parents.documents if d["_id"] == "parent-stale")
+    assert stale["status"] == "error"
+    assert stale["completed_at"] == cutoff
+    assert stale["metadata"]["error_code"] == "stale_run_recovery"
+    # updated_at is the CAS version used by the clear/delete snapshot; keep it.
+    assert stale["updated_at"] == cutoff - timedelta(minutes=30)
+    fresh = next(d for d in parents.documents if d["_id"] == "parent-fresh")
+    assert fresh["status"] == "running"
+    terminal = next(d for d in parents.documents if d["_id"] == "parent-terminal")
+    assert terminal["status"] == "completed"
+    other = next(d for d in parents.documents if d["_id"] == "parent-other-session")
+    assert other["status"] == "running"
+
+
+@pytest.mark.asyncio
+async def test_delete_session_expires_stale_running_trace_instead_of_refusing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cutoff = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("src.infra.session.trace_attachment_cleanup.utc_now", lambda: cutoff)
+    trace_storage, parents, _chunks = _trace_storage_with_documents(
+        [
+            {
+                "_id": "parent-running",
+                "session_id": "session-1",
+                "trace_id": "trace-running",
+                "status": "running",
+                "updated_at": cutoff - timedelta(minutes=30),
+                "events": [],
+            }
+        ],
+        [],
+    )
+    deleted_sessions: list[str] = []
+
+    class _Storage(_ExactSessionOperationStorage):
+        async def delete(self, session_id: str) -> bool:
+            deleted_sessions.append(session_id)
+            return True
+
+    class _RevealedStorage:
+        async def delete_by_session(self, _session_id: str) -> int:
+            return 0
+
+    manager = SessionManager()
+    manager._trace_storage = trace_storage
+    manager._file_record_storage = _FileRecordStorage()
+    manager.storage = _Storage(cutoff)
+    monkeypatch.setattr(
+        "src.infra.revealed_file.storage.get_revealed_file_storage",
+        lambda: _RevealedStorage(),
+    )
+
+    assert await manager.delete_session("session-1") is True
+
+    assert deleted_sessions == ["session-1"]
+    assert parents.ids() == set()
+
+
+@pytest.mark.asyncio
+async def test_stale_delete_fence_is_reclaimed_by_new_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("src.infra.session.session_attachment_operations.utc_now", lambda: now)
+
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "user_id": "owner-a",
+                "active_trace_writers": 0,
+                "attachment_delete_operation": {
+                    "id": "old-fence",
+                    "claimed_at": now - timedelta(minutes=11),
+                },
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    claim = await storage.claim_attachment_delete_operation("session-1")
+
+    assert claim is not None
+    assert claim["acquired"] is True
+    assert claim["id"] != "old-fence"
+
+    doc = collection.documents[0]
+    assert doc["attachment_delete_operation"]["id"] == claim["id"]
+    assert await storage.delete_claimed_session("session-1", claim["id"]) is True
+
+
+@pytest.mark.asyncio
+async def test_fresh_delete_fence_still_blocks_new_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("src.infra.session.session_attachment_operations.utc_now", lambda: now)
+
+    async def _skip_indexes(_storage: SessionStorage) -> None:
+        return None
+
+    monkeypatch.setattr(SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+    collection = _FilterAwareCollection(
+        [
+            {
+                "_id": "session-doc",
+                "session_id": "session-1",
+                "user_id": "owner-a",
+                "active_trace_writers": 0,
+                "attachment_delete_operation": {
+                    "id": "active-fence",
+                    "claimed_at": now - timedelta(seconds=30),
+                },
+            }
+        ]
+    )
+    storage = SessionStorage()
+    storage._collection = collection
+
+    claim = await storage.claim_attachment_delete_operation("session-1")
+
+    assert claim == {
+        "id": "active-fence",
+        "claimed_at": now - timedelta(seconds=30),
+        "acquired": False,
+    }
+    assert collection.documents[0]["attachment_delete_operation"]["id"] == "active-fence"

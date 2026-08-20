@@ -30,6 +30,8 @@ export interface Message {
   cancelled?: boolean;
   // 用户消息发送时启用的技能名称列表
   enabledSkills?: string[];
+  // 消息级元数据（如运行中插话 steered 标记）
+  metadata?: Record<string, unknown>;
 }
 
 // 消息内容块类型

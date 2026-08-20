@@ -3,7 +3,7 @@
  * Provides agent communication, message management, and SSE streaming
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
 import type {
@@ -44,6 +44,7 @@ import {
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
+import { createSteerMessage } from "./useAgent/steerMessage";
 import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
 import { planGoalSubmission } from "./useAgent/goalCommands";
@@ -833,7 +834,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setSandboxError(null);
 
     // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
-    options?.onClearApprovals?.();
+    options?.onClearApprovals?.(sessionIdRef.current ?? undefined);
 
     // Clear loading states on all messages and their parts
     setMessages((prev) =>
@@ -856,6 +857,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       }
     }
   }, [options]);
+
+  const steerMessage = useMemo(
+    () => createSteerMessage({ sessionIdRef, setMessages, setError }),
+    [],
+  );
 
   const clearMessages = useCallback(() => {
     loadHistoryRequestIdRef.current += 1;
@@ -951,6 +957,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isInitializingSandbox,
     sandboxError,
     sendMessage,
+    steerMessage,
     applyRecommendQuestions,
     clearActiveGoal,
     stopGeneration,
