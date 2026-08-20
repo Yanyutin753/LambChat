@@ -230,7 +230,16 @@ async def delete_session(
 
     verify_session_ownership(session, user)
 
-    success = await manager.delete_session(session_id)
+    try:
+        success = await manager.delete_session(session_id)
+    except SessionError as exc:
+        logger.error("Delete session %s failed: %s", session_id, exc)
+        status_code = (
+            status.HTTP_409_CONFLICT
+            if str(exc) == "session_delete_in_progress"
+            else status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     if not success:
         raise HTTPException(status_code=500, detail="删除失败")
 

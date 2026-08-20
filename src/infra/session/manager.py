@@ -383,6 +383,7 @@ class SessionManager:
             raise SessionError("session_delete_in_progress")
         delete_operation_id = delete_operation["id"]
         try:
+            await self.trace_storage.expire_stale_running_traces(session_id)
             await self.clear_session_messages(session_id)
             if await self.trace_storage.has_session_trace_documents(session_id):
                 raise SessionError("session_delete_has_trace_survivors")
