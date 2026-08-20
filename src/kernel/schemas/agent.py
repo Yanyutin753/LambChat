@@ -14,15 +14,15 @@ from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 class AttachmentSchema(BaseModel):
     """Attachment schema for file uploads."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, str_strip_whitespace=True)
 
-    id: str = Field(..., description="Unique attachment ID")
-    key: str = Field(..., description="Storage key")
-    name: str = Field(..., description="Original filename")
+    id: str = Field(..., min_length=1, description="Unique attachment ID")
+    key: str = Field(..., min_length=1, description="Storage key")
+    name: str = Field(..., min_length=1, description="Original filename")
     type: str = Field(..., description="File category: image, video, audio, document")
-    mime_type: str = Field(..., description="MIME type", alias="mimeType")
-    size: int = Field(..., description="File size in bytes")
-    url: str = Field(..., description="Accessible URL")
+    mime_type: str = Field(..., min_length=1, description="MIME type", alias="mimeType")
+    size: int = Field(..., gt=0, description="File size in bytes")
+    url: str = Field(..., min_length=1, description="Accessible URL")
 
 
 class AgentRequest(BaseModel):

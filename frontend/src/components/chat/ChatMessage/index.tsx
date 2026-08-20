@@ -43,6 +43,7 @@ import { formatDateTime, formatDateTimeShort } from "../../../utils/datetime";
 import { copyToClipboard } from "../../../utils/clipboard";
 import { shouldShowGoalDetailsForMessage } from "../goalVisibility";
 import { areChatMessagePropsEqual } from "./messageMemo";
+import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -102,7 +103,6 @@ function TokenDetailsButton({
   duration,
   timestamp,
   modelDetails,
-  isLastMessage,
 }: {
   tokenUsage?: TokenUsagePart;
   duration?: number;
@@ -113,7 +113,6 @@ function TokenDetailsButton({
     provider?: string;
     icon?: string;
   } | null;
-  isLastMessage?: boolean;
 }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
@@ -152,7 +151,6 @@ function TokenDetailsButton({
         onClick={() => setShowDetails(!showDetails)}
         className={clsx(
           "p-1.5 rounded-md transition-colors",
-          !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
           "hover:bg-stone-200 dark:hover:bg-stone-700",
           "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
         )}
@@ -268,10 +266,8 @@ function TokenDetailsButton({
 
 function GoalDetailsButton({
   goal,
-  isLastMessage,
 }: {
   goal: ActiveGoalSpec;
-  isLastMessage?: boolean;
 }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
@@ -357,7 +353,6 @@ function GoalDetailsButton({
         onClick={() => setShowDetails(!showDetails)}
         className={clsx(
           "p-1.5 rounded-md transition-colors",
-          !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
           "hover:bg-stone-200 dark:hover:bg-stone-700",
           "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
         )}
@@ -519,6 +514,7 @@ export const ChatMessage = memo(function ChatMessage({
 
   // If there are parts, render in order; otherwise fall back to old rendering method
   const hasParts = message.parts && message.parts.length > 0;
+  const isWaitingForHuman = hasPendingAskHuman(message.parts ?? []);
   // User message: bubble style, right aligned
   if (isUser) {
     return (
@@ -537,6 +533,9 @@ export const ChatMessage = memo(function ChatMessage({
           isLastMessage={isLastMessage}
           enabledSkills={message.enabledSkills}
           queued={message.metadata?.queued === true}
+          deferred={message.metadata?.deferred === true}
+          failed={message.metadata?.steerStatus === "failed"}
+          messageId={message.id}
         />
       </div>
     );
@@ -690,7 +689,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}
         </div>
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
-        {!message.isStreaming && (
+        {!message.isStreaming && !isWaitingForHuman && (
           <div className="chat-message-actions flex items-center gap-1 pb-2">
             <button
               onClick={() => {
@@ -704,7 +703,6 @@ export const ChatMessage = memo(function ChatMessage({
               }}
               className={clsx(
                 "p-1.5 rounded-md transition-colors",
-                !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
                 copied
                   ? "text-emerald-500 dark:text-emerald-400"
                   : "hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
@@ -718,7 +716,6 @@ export const ChatMessage = memo(function ChatMessage({
                 onClick={() => void onForkMessage(message.id)}
                 className={clsx(
                   "p-1.5 rounded-md transition-colors",
-                  !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
                   "hover:bg-stone-200 dark:hover:bg-stone-700",
                   "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
                 )}
@@ -734,7 +731,6 @@ export const ChatMessage = memo(function ChatMessage({
                 duration={message.duration}
                 timestamp={message.timestamp}
                 modelDetails={modelDetails}
-                isLastMessage={isLastMessage}
               />
             )}
             {showFeedbackAndShareActions && (
@@ -745,7 +741,6 @@ export const ChatMessage = memo(function ChatMessage({
                     sessionId={sessionId}
                     runId={message.runId || runId!}
                     currentFeedback={message.feedback}
-                    isLastMessage={isLastMessage}
                   />
                 )}
                 {/* Share button */}
@@ -753,7 +748,6 @@ export const ChatMessage = memo(function ChatMessage({
                   <ShareButton
                     sessionId={sessionId}
                     runId={message.runId || runId}
-                    isLastMessage={isLastMessage}
                   />
                 )}
               </>
@@ -761,12 +755,12 @@ export const ChatMessage = memo(function ChatMessage({
             {shouldShowGoalDetailsForMessage(activeGoal, message) && (
               <GoalDetailsButton
                 goal={activeGoal!}
-                isLastMessage={isLastMessage}
               />
             )}
           </div>
         )}
         {!message.isStreaming &&
+          !isWaitingForHuman &&
           isLastMessage &&
           message.parts?.some((p) => p.type === "recommend_questions") && (
             <div className="space-y-3 my-2">

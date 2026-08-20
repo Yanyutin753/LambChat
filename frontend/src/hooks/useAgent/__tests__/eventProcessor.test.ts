@@ -1,6 +1,48 @@
 import type { MessagePart } from "../../../types";
 import { processMessageEvent } from "../eventProcessor.ts";
 
+test("keeps legacy ask-human GraphInterrupt results pending", () => {
+  const started = processMessageEvent(
+    "tool:start",
+    {
+      tool: "ask_human",
+      tool_call_id: "ask-1",
+      args: { message: "请确认" },
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const interrupted = processMessageEvent(
+    "tool:result",
+    {
+      tool: "ask_human",
+      tool_call_id: "ask-1",
+      success: false,
+      error: "[MCP Tool Error] ask_human failed: [GraphInterrupt]",
+      result: "[MCP Tool Error] ask_human failed: [GraphInterrupt]",
+    },
+    started.parts,
+    "",
+    started.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(interrupted.parts[0]).toMatchObject({
+    type: "tool",
+    name: "ask_human",
+    isPending: true,
+  });
+});
+
 test("one thinking event immediately creates a streaming thinking part", () => {
   const result = processMessageEvent(
     "thinking",

@@ -24,12 +24,15 @@ export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
   onActivePanelChange: (panel: FeaturePanel) => void;
   canSend: boolean;
+  sendBlocked?: boolean;
   isLoading: boolean;
   /** 运行中是否有草稿文本：有则按钮发送插话（steer），无则保持停止 */
   hasDraft?: boolean;
   onSteer?: () => void;
   canSubmit: boolean;
   hasUploadingAttachment: boolean;
+  hasFailedAttachment?: boolean;
+  hasInvalidAttachment?: boolean;
   enabledToolsCount: number;
   totalToolsCount: number;
   enabledSkillsCount: number;
@@ -84,11 +87,14 @@ export function ChatInputToolbar({
   activePanel,
   onActivePanelChange,
   canSend,
+  sendBlocked = false,
   isLoading,
   hasDraft = false,
   onSteer,
   canSubmit,
   hasUploadingAttachment,
+  hasFailedAttachment = false,
+  hasInvalidAttachment = false,
   enabledToolsCount,
   totalToolsCount,
   enabledSkillsCount,
@@ -394,7 +400,21 @@ export function ChatInputToolbar({
           >
             <Lock size={18} />
           </button>
-        ) : isLoading && hasDraft && onSteer ? (
+        ) : sendBlocked ? (
+          <button
+            type="submit"
+            disabled
+            className="flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300"
+            style={{
+              backgroundColor: "transparent",
+              border: "1px solid var(--theme-border)",
+              color: "var(--theme-text-secondary)",
+            }}
+            title={t("chat.waitingForHuman", "等待人工确认后才能发送")}
+          >
+            <ArrowUp size={18} />
+          </button>
+        ) : isLoading && hasDraft && onSteer && !hasUploadingAttachment && !hasFailedAttachment && !hasInvalidAttachment ? (
           <button
             type="button"
             onClick={(e) => {
@@ -435,7 +455,7 @@ export function ChatInputToolbar({
         ) : (
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={sendBlocked || !canSubmit}
             className={`flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300`}
             style={
               canSubmit

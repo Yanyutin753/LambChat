@@ -27,6 +27,7 @@ const LANGUAGES = [
 type ThinkingLevel = "off" | "low" | "medium" | "high" | "max";
 
 const NEWLINE_OPTIONS: { key: SendModifier; labelKey: string }[] = [
+  { key: "enter", labelKey: "profile.newlineEnter" },
   { key: "ctrl", labelKey: "profile.newlineCtrl" },
   { key: "shift", labelKey: "profile.newlineShift" },
 ];
@@ -153,7 +154,7 @@ export function ProfilePreferencesTab() {
   const toggle = (key: string) =>
     setOpenDropdown((prev) => (prev === key ? null : key));
 
-  // Send modifier (Enter = newline; modifier + Enter = send)
+  // Send shortcut preference (Enter, Ctrl/⌘+Enter, or Shift+Enter sends)
   const [newlineModifier, setNewlineModifier] = useState<SendModifier>(() =>
     parseSendModifier(localStorage.getItem(SEND_MODIFIER_STORAGE_KEY)),
   );

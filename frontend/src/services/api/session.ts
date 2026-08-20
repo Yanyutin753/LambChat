@@ -327,28 +327,63 @@ export const sessionApi = {
   /**
    * Cancel a queued (not yet delivered) steering message
    */
-  async cancelSteer(sessionId: string, message: string): Promise<{
+  async cancelSteer(
+    sessionId: string,
+    message: string,
+    messageId?: string,
+  ): Promise<{
     status: string;
   }> {
     return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({
+        message,
+        ...(messageId ? { message_id: messageId } : {}),
+      }),
     });
   },
 
   /**
    * Steer a running session (Codex-style mid-run user message)
    */
-  async steer(sessionId: string, message: string): Promise<{
+  async steer(
+    sessionId: string,
+    message: string,
+    messageId?: string,
+    attachments?: MessageAttachment[],
+  ): Promise<{
     status: string;
+    outcome?: string;
+    message_id?: string;
     queued: number;
   }> {
     return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({
+        message,
+        ...(messageId ? { message_id: messageId } : {}),
+        attachments: stripLocalAttachmentFields(attachments),
+      }),
     });
+  },
+
+  async getPendingSteers(sessionId: string): Promise<{
+    session_id: string;
+    items: Array<{
+      message_id: string;
+      content: string;
+      created_at: string;
+      attachments?: Array<
+        Omit<MessageAttachment, "mimeType"> & {
+          mimeType?: string;
+          mime_type?: string;
+        }
+      >;
+    }>;
+  }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/steer`);
   },
 
   /**

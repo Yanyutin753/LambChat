@@ -25,9 +25,9 @@ class _Response:
 async def test_pending_message_is_injected_and_persisted() -> None:
     from src.infra.task.steer import get_steer_queue
 
-    await get_steer_queue().enqueue("session-1", "中途插话")
+    await get_steer_queue().enqueue("middleware-session-1", "中途插话")
 
-    middleware = SteerMiddleware(session_id="session-1")
+    middleware = SteerMiddleware(session_id="middleware-session-1")
     request = _Request()
     seen_requests: list[_Request] = []
 
@@ -52,7 +52,7 @@ async def test_pending_message_is_injected_and_persisted() -> None:
     assert injected[0].content == "中途插话"
 
     # 注入后队列被清空（不会重复注入下一次调用）
-    assert await get_steer_queue().drain("session-1") == []
+    assert await get_steer_queue().drain("middleware-session-1") == []
 
 
 async def test_no_pending_message_passes_through_untouched() -> None:
@@ -148,6 +148,30 @@ async def test_successful_injection_persists_via_presenter(monkeypatch) -> None:
     assert saved[0]["event"] == "steer:message"
     assert saved[0]["data"]["content"] == "要持久化的插话"
     assert str(saved[0]["data"]["message_id"]).startswith("steer-")
+
+
+async def test_successful_injection_preserves_client_message_id() -> None:
+    from src.infra.task.steer import SteerItem, get_steer_queue
+
+    await get_steer_queue().enqueue_item(
+        "session-id", SteerItem(id="client-123", content="按这个方向")
+    )
+    saved: list[dict] = []
+
+    class _FakePresenter:
+        run_id = "run-123"
+
+        async def save_event(self, event):
+            saved.append(event)
+
+    middleware = SteerMiddleware(session_id="session-id", presenter=_FakePresenter())
+
+    async def handler(_req):
+        return _Response()
+
+    await middleware.awrap_model_call(_Request(), handler)
+    assert saved[0]["data"]["message_id"] == "client-123"
+    assert saved[0]["data"]["run_id"] == "run-123"
 
 
 async def test_successful_injection_falls_back_to_dual_writer(monkeypatch) -> None:

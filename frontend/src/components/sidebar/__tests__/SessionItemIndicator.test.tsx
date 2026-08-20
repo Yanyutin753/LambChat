@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { SessionItem } from "../SessionItem";
 import type { BackendSession } from "../../../services/api/session";
 
@@ -15,7 +15,7 @@ const baseSession = {
 
 describe("SessionItem task running indicator", () => {
   it("shows spinner when task_status is running", () => {
-    render(
+    const view = render(
       <SessionItem
         session={{ ...baseSession, metadata: { task_status: "running" } }}
         isActive={false}
@@ -27,6 +27,10 @@ describe("SessionItem task running indicator", () => {
       />,
     );
     expect(document.querySelector(".animate-spin")).toBeInTheDocument();
+    fireEvent.touchStart(view.container.firstElementChild!, {
+      touches: [{ clientX: 10, clientY: 10 }],
+    });
+    expect(view.getByText("运行中")).toBeInTheDocument();
   });
   it("shows spinner when task_status is pending", () => {
     render(
@@ -41,6 +45,28 @@ describe("SessionItem task running indicator", () => {
       />,
     );
     expect(document.querySelector(".animate-spin")).toBeInTheDocument();
+  });
+  it("shows only a running-indicator-sized icon while waiting for a reply", () => {
+    render(
+      <SessionItem
+        session={{ ...baseSession, metadata: { task_status: "waiting_human" } }}
+        isActive={false}
+        projects={[]}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+        onMoveToProject={vi.fn()}
+        onSessionUpdate={vi.fn()}
+      />,
+    );
+    const indicator = document.querySelector(
+      "[data-session-status=ask-human]",
+    );
+    expect(indicator).toBeInTheDocument();
+    expect(indicator).toHaveClass("w-4", "h-4");
+    expect(indicator).not.toHaveClass("border", "bg-amber-100/70");
+    expect(indicator?.textContent).toBe("");
+    expect(indicator?.querySelector("svg")).toHaveAttribute("width", "16");
+    expect(indicator?.querySelector("svg")).toHaveAttribute("height", "16");
   });
   it("hides spinner when task_status is completed", () => {
     render(

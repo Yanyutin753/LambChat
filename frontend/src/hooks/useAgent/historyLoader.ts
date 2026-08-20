@@ -87,6 +87,7 @@ function processHistoryEvent(
   currentAssistantMessage: Message | null,
   processedEventIds: Set<string>,
   opts: ProcessHistoryOptions,
+  messageIdOverride?: string,
 ): Message | null {
   const eventType = event.event_type;
   const eventData = event.data as HistoryEventData;
@@ -158,7 +159,7 @@ function processHistoryEvent(
   // Ensure assistant message exists for other event types
   let msg = currentAssistantMessage;
   if (!msg) {
-    const messageId = event.run_id || uuid();
+    const messageId = messageIdOverride || event.run_id || uuid();
     msg = {
       id: messageId,
       role: "assistant",
@@ -256,7 +257,10 @@ export function reconstructMessagesFromEvents(
         reconstructedMessages.push(currentAssistantMessage);
         currentAssistantMessage = null;
       }
-      const steerData = eventData as { content?: string; message_id?: string };
+      const steerData = eventData as HistoryEventData & {
+        content?: string;
+        message_id?: string;
+      };
       const steerId =
         typeof steerData.message_id === "string" && steerData.message_id.trim()
           ? steerData.message_id
@@ -265,6 +269,7 @@ export function reconstructMessagesFromEvents(
         id: steerId,
         role: "user",
         content: steerData.content || "",
+        attachments: convertAttachments(steerData.attachments),
         timestamp: parseEventTimestamp(event.timestamp, Date.now()),
         runId: event.run_id,
         metadata: { steer: true },
@@ -380,6 +385,17 @@ export function reconstructMessagesFromEvents(
       currentAssistantMessage,
       processedEventIds,
       opts,
+      !currentAssistantMessage && event.run_id
+        ? (() => {
+            const priorAssistantTurns = reconstructedMessages.filter(
+              (message) =>
+                message.role === "assistant" && message.runId === event.run_id,
+            ).length;
+            return priorAssistantTurns === 0
+              ? event.run_id
+              : `${event.run_id}#t${priorAssistantTurns}`;
+          })()
+        : undefined,
     );
   }
 
@@ -387,7 +403,21 @@ export function reconstructMessagesFromEvents(
     reconstructedMessages.push(currentAssistantMessage);
   }
 
-  return reconstructedMessages;
+  // Some runs emit lifecycle events (for example `agent:start`) without ever
+  // producing assistant content. They still create a placeholder while the
+  // event stream is being folded, which leaves an empty assistant bubble in
+  // history between two real turns. Keep meaningful terminal/tool states, but
+  // remove content-less placeholders before the list reaches the UI.
+  return reconstructedMessages.filter((message) => {
+    if (message.role !== "assistant") return true;
+    return Boolean(
+      message.content?.trim() ||
+        message.parts?.length ||
+        message.toolCalls?.length ||
+        message.toolResults?.length ||
+        message.cancelled,
+    );
+  });
 }
 
 export interface RunningAssistantPreparationResult {

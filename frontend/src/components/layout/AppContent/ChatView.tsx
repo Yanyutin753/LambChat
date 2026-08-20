@@ -13,7 +13,6 @@ import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { setSteerCancelHandler } from "../../chat/steerCancelStore";
-import { mergeMessagesWithSteers } from "../../../utils/mergeSteers";
 import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel";
 import {
   ChatSkeleton,
@@ -49,6 +48,7 @@ import {
   syncToolCallPanelStore,
   toolCallPanelStore,
 } from "../../chat/ChatMessage/toolCallPanelStore";
+import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 
 const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
 
@@ -137,6 +137,9 @@ export function ChatView({
   const navigate = useNavigate();
   const { user } = useAuth();
   const sessionRunning = isSessionRunning(messages, isLoading);
+  const hasPendingAskHumanApproval = approvals.some(
+    (approval) => approval.metadata?.mode === "interrupt",
+  );
   const scheduledTasksRefreshKey = [
     sessionId ?? "",
     currentRunId ?? "",
@@ -406,13 +409,17 @@ export function ChatView({
     [showStreamingFooterSkeleton],
   );
 
+  // Pending steer items belong to the composer queue, not the conversation
+  // timeline. Delivered steer events are written into `messages` by SSE.
+  const renderItems = messages;
+
   const virtuosoItemContent = useCallback(
     (index: number, message: (typeof messages)[number]) => (
       <ChatMessage
         message={message}
         sessionId={sessionId ?? undefined}
         runId={currentRunId ?? undefined}
-        isLastMessage={index === messages.length - 1}
+        isLastMessage={index === renderItems.length - 1}
         personaAvatar={assistantIdentity.avatar}
         personaName={assistantIdentity.name}
         activePreview={activePreview}
@@ -430,7 +437,7 @@ export function ChatView({
     [
       sessionId,
       currentRunId,
-      messages.length,
+      renderItems.length,
       assistantIdentity.avatar,
       assistantIdentity.name,
       activePreview,
@@ -445,15 +452,9 @@ export function ChatView({
   );
 
   useEffect(() => {
-    setSteerCancelHandler((content) => onCancelSteer?.(content));
+    setSteerCancelHandler((content, messageId) => onCancelSteer?.(content, messageId));
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
-
-  // 插话独立状态按时间戳合并进消息流渲染（不进 messages 数组）
-  const renderItems = useMemo(
-    () => mergeMessagesWithSteers(messages, steerMessages ?? []),
-    [messages, steerMessages],
-  );
 
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
@@ -467,7 +468,14 @@ export function ChatView({
       onSendMessage(content, sendAttachments, runOptions, submissionCallbacks),
     onStop: onStopGeneration,
     onSteer: onSteerMessage,
+    steerMessages,
+    onCancelSteer,
     isLoading: sessionRunning,
+    sendBlocked:
+      approvals.length > 0 ||
+      hasPendingAskHuman(
+        messages.flatMap((message) => message.parts ?? []),
+      ),
     canSend: canSendMessage,
     tools,
     onToggleTool,
@@ -522,10 +530,11 @@ export function ChatView({
 
   return (
     <SessionImageGalleryProvider messages={messages}>
-      <main
-        ref={messagesContainerRef}
-        className="relative flex-1 min-h-0 overflow-hidden"
-      >
+      <div className="chat-view-content-region flex min-h-0 flex-1 flex-col overflow-hidden">
+        <main
+          ref={messagesContainerRef}
+          className="relative flex-1 min-h-0 overflow-hidden"
+        >
         {/* Frosted glass fade mask — visual transition between messages and input */}
         <div
           className="pointer-events-none absolute bottom-0 left-0 right-0 z-10"
@@ -590,26 +599,20 @@ export function ChatView({
             onNavigate={handleTimelineNavigate}
           />
         )}
-      </main>
+        </main>
 
-      <ApprovalPanel
-        approvals={approvals}
-        onRespond={onRespondApproval}
-        isLoading={approvalLoading}
-      />
-
-      <RevealPreviewHost
-        preview={activePreview}
-        automatic={activePreviewAutomatic}
-        onClose={() => handleClosePreview(true)}
-        onUserInteraction={handlePreviewInteraction}
-      />
-      <AttachmentPreviewHost />
-      <PersistentToolPanelHost />
+        <RevealPreviewHost
+          preview={activePreview}
+          automatic={activePreviewAutomatic}
+          onClose={() => handleClosePreview(true)}
+          onUserInteraction={handlePreviewInteraction}
+        />
+        <AttachmentPreviewHost />
+        <PersistentToolPanelHost />
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
-      {messages.length > 0 && (
-        <div className="relative">
+        {messages.length > 0 && (
+          <div className="relative">
           <div
             className={`absolute ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} right-2 z-50 flex flex-col gap-2 sm:right-4`}
           >
@@ -665,18 +668,28 @@ export function ChatView({
               </svg>
             </button>
           </div>
-          <ChatInput
-            {...chatInputProps}
-            activeGoal={visibleActiveGoal}
-            onClearActiveGoal={onClearActiveGoal}
-            goalLabel={t("chat.goal.active", "Goal")}
-            goalDurationLabel={t("chat.goal.running", "Running")}
-            goalClearLabel={t("chat.goal.clear", "Clear goal")}
-            showHelpMenu
-            helpMenuClassName="hidden sm:block"
-          />
-        </div>
-      )}
+          <div className="approval-panel-scroll-region">
+            <ApprovalPanel
+              approvals={approvals}
+              onRespond={onRespondApproval}
+              isLoading={approvalLoading}
+            />
+          </div>
+          {!hasPendingAskHumanApproval && (
+            <ChatInput
+              {...chatInputProps}
+              activeGoal={visibleActiveGoal}
+              onClearActiveGoal={onClearActiveGoal}
+              goalLabel={t("chat.goal.active", "Goal")}
+              goalDurationLabel={t("chat.goal.running", "Running")}
+              goalClearLabel={t("chat.goal.clear", "Clear goal")}
+              showHelpMenu
+              helpMenuClassName="hidden sm:block"
+            />
+          )}
+          </div>
+        )}
+      </div>
     </SessionImageGalleryProvider>
   );
 }

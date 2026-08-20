@@ -35,7 +35,7 @@ from src.infra.upload.file_record import AttachmentClaimError, FileRecordStorage
 from src.infra.writer.presenter_config import _extract_attachment_keys
 from src.kernel.config import settings
 from src.kernel.exceptions import AuthorizationError, NotFoundError
-from src.kernel.schemas.agent import AgentRequest
+from src.kernel.schemas.agent import AgentRequest, AttachmentSchema
 from src.kernel.schemas.model import ModelConfig
 from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.user import TokenPayload
@@ -876,6 +876,8 @@ class SteerRequest(BaseModel):
     """运行中插话请求体。"""
 
     message: str = Field(..., min_length=1, max_length=32000)
+    message_id: str | None = Field(default=None, min_length=1, max_length=128)
+    attachments: list[AttachmentSchema] | None = Field(default=None, max_length=20)
 
 
 @router.post("/sessions/{session_id}/steer")
@@ -908,10 +910,51 @@ async def steer_running_agent(
             detail=f"会话当前状态为 {status.value if hasattr(status, 'value') else status}，仅运行中可插话",
         )
 
+    from src.infra.task.steer import SteerItem, get_steer_queue
+
+    message_id = request.message_id or f"steer-{uuid.uuid4().hex}"
+    attachments = [a.model_dump() for a in request.attachments] if request.attachments else []
+    queued = await get_steer_queue().enqueue_item(
+        session_id,
+        SteerItem(id=message_id, content=message, attachments=attachments),
+    )
+    return {
+        # Keep `status=queued` for existing clients; `outcome` is the
+        # unambiguous protocol field for newer clients.
+        "status": "queued",
+        "outcome": "accepted",
+        "session_id": session_id,
+        "message_id": message_id,
+        "queued": queued,
+    }
+
+
+@router.get("/sessions/{session_id}/steer")
+async def list_pending_steers(
+    session_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """恢复刷新/重连后仍未送达的 steer，避免 composer 状态丢失。"""
+    session_manager = SessionManager()
+    session = await session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_ownership(session, user)
     from src.infra.task.steer import get_steer_queue
 
-    queued = await get_steer_queue().enqueue(session_id, message)
-    return {"status": "queued", "session_id": session_id, "queued": queued}
+    items = await get_steer_queue().list_items(session_id)
+    return {
+        "session_id": session_id,
+        "items": [
+            {
+                "message_id": item.id,
+                "content": item.content,
+                "attachments": item.attachments,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in items
+        ],
+    }
 
 
 @router.delete("/sessions/{session_id}/steer")
@@ -933,5 +976,14 @@ async def cancel_steered_message(
 
     from src.infra.task.steer import get_steer_queue
 
-    removed = await get_steer_queue().remove(session_id, request.message.strip())
-    return {"status": "removed" if removed else "not_found", "session_id": session_id}
+    queue = get_steer_queue()
+    removed = False
+    if request.message_id:
+        removed = await queue.remove_by_id(session_id, request.message_id)
+    else:
+        removed = await queue.remove(session_id, request.message.strip())
+    return {
+        "status": "removed" if removed else "not_found",
+        "session_id": session_id,
+        "message_id": request.message_id,
+    }

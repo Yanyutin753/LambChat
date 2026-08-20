@@ -30,7 +30,9 @@ export function splitAssistantTurn(
     ...messages[assistantIndex],
     id: `${assistantId}#t${nextTurn}`,
     isStreaming: false,
-    parts: clearAllLoadingStates(messages[assistantIndex].parts || []),
+    parts: clearAllLoadingStates(messages[assistantIndex].parts || [], {
+      preserveAskHuman: true,
+    }),
   };
 
   const freshTurn: Message = {

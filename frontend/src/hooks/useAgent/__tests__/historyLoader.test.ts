@@ -65,6 +65,48 @@ test("reconstructs the same message from raw and compacted text chunks", () => {
   expect(compactMessages).toEqual(rawMessages);
 });
 
+test("does not render an empty assistant placeholder between persisted turns", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-08-20T00:00:00.000Z",
+        data: { content: "asd", message_id: "user-1" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: "run-1",
+        timestamp: "2026-08-20T00:00:01.000Z",
+        data: { content: "ok" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "user:message",
+        run_id: "run-2",
+        timestamp: "2026-08-20T00:00:02.000Z",
+        data: { content: "asd", message_id: "user-2" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "agent:start",
+        run_id: "run-2",
+        timestamp: "2026-08-20T00:00:03.000Z",
+        data: {},
+      } satisfies HistoryEvent,
+      {
+        event_type: "user:message",
+        run_id: "run-3",
+        timestamp: "2026-08-20T00:00:04.000Z",
+        data: { content: "asd", message_id: "user-3" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  expect(messages.filter((message) => message.role === "assistant")).toHaveLength(1);
+  expect(messages.some((message) => message.role === "assistant" && !message.content && !message.parts?.length)).toBe(false);
+});
+
 test("prepareMessagesForRunningRun preserves the optimistic user message when running history has not persisted it yet", () => {
   const optimisticUser: Message = {
     id: "optimistic-user-latest",
@@ -696,4 +738,10 @@ test("reconstructs steer:message events as standalone steer items between turns"
   const steerIndex = messages.findIndex((m) => m.id === "steer-abc");
   expect(messages[steerIndex - 1].role).toBe("assistant");
   expect(messages[steerIndex + 1].role).toBe("assistant");
+  expect(messages.map((message) => message.id)).toEqual([
+    "run-s:user",
+    "run-s",
+    "steer-abc",
+    "run-s#t1",
+  ]);
 });

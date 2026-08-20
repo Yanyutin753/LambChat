@@ -110,10 +110,9 @@ async def test_resume_value_defaults_when_missing(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_falls_back_to_blocking_when_graph_unsupported(monkeypatch):
-    """interrupt 模式但图不支持（无持久 checkpointer 的 agent）时回退阻塞等待。"""
+async def test_interrupt_mode_rejects_graph_without_persistent_checkpoint(monkeypatch):
+    """无持久 checkpointer 时必须明确失败，不能静默回退 blocking。"""
     _setup_interrupt_mode(monkeypatch, resume_value=None)
-    response = SimpleNamespace(approved=True, response={"choice": "b"})
     created = []
 
     async def fake_create(**kwargs):
@@ -124,7 +123,7 @@ async def test_falls_back_to_blocking_when_graph_unsupported(monkeypatch):
         pass
 
     async def fake_wait(approval_id, timeout=300):
-        return response
+        raise AssertionError("interrupt 模式不应进入阻塞等待")
 
     monkeypatch.setattr(tool_mod, "create_approval", fake_create)
     monkeypatch.setattr(tool_mod, "wait_for_response", fake_wait)
@@ -132,7 +131,6 @@ async def test_falls_back_to_blocking_when_graph_unsupported(monkeypatch):
 
     tool = tool_mod.AskHumanTool(session_id="s1")
     # 不设置 hitl_interrupt_supported（默认 False）
-    result = json.loads(await tool._arun("需要确认", choices=["a", "b"]))
-    assert result["status"] == "success"
-    assert result["values"] == {"choice": "b"}
-    assert len(created) == 1
+    with pytest.raises(RuntimeError, match="persistent checkpointer"):
+        await tool._arun("需要确认", choices=["a", "b"])
+    assert created == []

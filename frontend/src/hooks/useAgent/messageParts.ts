@@ -598,17 +598,45 @@ export function updateToolResultInPartsById(
 // ============================================
 
 /**
+ * Whether a message still contains an unanswered ask-human interrupt.
+ * Ask-human may be nested inside one or more subagent parts.
+ */
+export function hasPendingAskHuman(parts: MessagePart[]): boolean {
+  return parts.some((part) => {
+    if (part.type === "tool") {
+      return (
+        part.name === "ask_human" &&
+        part.isPending === true &&
+        part.cancelled !== true
+      );
+    }
+
+    if (part.type === "subagent") {
+      return hasPendingAskHuman(part.parts ?? []);
+    }
+
+    return false;
+  });
+}
+
+/**
  * Clear all loading states in message parts recursively.
  * Sets isPending: false and cancelled: true on tools and subagents,
  * isStreaming: false on thinking, cancels unfinished todos.
  * Returns a new parts array with updated loading states.
  */
-export function clearAllLoadingStates(parts: MessagePart[]): MessagePart[] {
+export function clearAllLoadingStates(
+  parts: MessagePart[],
+  options?: { preserveAskHuman?: boolean },
+): MessagePart[] {
   return parts.map((part) => {
     switch (part.type) {
       case "tool": {
         const toolPart = part as ToolPart;
         if (!toolPart.isPending) return part;
+        if (options?.preserveAskHuman && toolPart.name === "ask_human") {
+          return toolPart;
+        }
         return { ...toolPart, isPending: false, cancelled: true };
       }
       case "thinking": {
@@ -619,7 +647,7 @@ export function clearAllLoadingStates(parts: MessagePart[]): MessagePart[] {
       case "subagent": {
         const subagentPart = part as SubagentPart;
         const updatedParts = subagentPart.parts
-          ? clearAllLoadingStates(subagentPart.parts)
+          ? clearAllLoadingStates(subagentPart.parts, options)
           : [];
         // Preserve existing terminal status (complete/error) instead of forcing cancelled
         const wasCompleted = subagentPart.status === "complete";

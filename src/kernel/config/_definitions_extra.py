@@ -385,8 +385,8 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.CHECKPOINT,
         "subcategory": "general",
         "description": "settingDesc.HITL_MODE",
-        "default": "blocking",
-        "options": ["blocking", "interrupt"],
+        "default": "interrupt",
+        "options": ["interrupt"],
         "frontend_visible": True,
     },
     "CHECKPOINT_MONGO_POOL_MIN_SIZE": {

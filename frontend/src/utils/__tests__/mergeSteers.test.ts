@@ -7,6 +7,23 @@ function msg(partial: Partial<Message> & Pick<Message, "id" | "role">): Message 
 }
 
 describe("mergeMessagesWithSteers", () => {
+  test("preserves steer identity and explicit delivery status", () => {
+    const merged = mergeMessagesWithSteers([], [
+      {
+        id: "client-1",
+        content: "相同内容",
+        queued: false,
+        status: "failed",
+        timestamp: new Date(1),
+      },
+    ]);
+
+    expect(merged[0].id).toBe("client-1");
+    expect(merged[0].metadata).toMatchObject({
+      steer: true,
+      steerStatus: "failed",
+    });
+  });
   test("按时间戳把插话插进消息流（流式回复之后、新轮次之前）", () => {
     const messages: Message[] = [
       msg({ id: "u1", role: "user", content: "任务" }),
@@ -61,5 +78,24 @@ describe("mergeMessagesWithSteers", () => {
   test("无插话时返回原数组", () => {
     const messages: Message[] = [msg({ id: "u1", role: "user" })];
     expect(mergeMessagesWithSteers(messages, [])).toBe(messages);
+  });
+
+  test("无法插入当前运行时的插话保留为下一条消息", () => {
+    const merged = mergeMessagesWithSteers([], [
+      {
+        id: "steer-failed",
+        content: "继续扩写",
+        queued: false,
+        deferred: true,
+        timestamp: new Date("2026-08-20T10:00:30Z"),
+      },
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].metadata).toEqual({
+      steer: true,
+      queued: false,
+      deferred: true,
+    });
   });
 });

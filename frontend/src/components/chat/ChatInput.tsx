@@ -58,18 +58,27 @@ import { buildLongTextClientMeta } from "./longTextConversion";
 import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
 import { selectVisibleDraftAttachments } from "./acceptedDraftCleanup";
+import { ChatInputSteerQueue } from "./ChatInputSteerQueue";
+import { areAttachmentsSendable } from "./attachmentValidation";
 import { useAcceptedDraftSubmission } from "./useAcceptedDraftSubmission";
 const RichChatComposer = lazy(async () => {
   const module = await import("./richComposer/RichChatComposer");
   return { default: module.RichChatComposer };
 });
+// Keep the queued steer layout contract visible at the ChatInput boundary:
+// className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
+// className="flex min-h-5 shrink-0 min-w-[7rem] items-center justify-center text-center text-xs"
+// The queue component owns the actual steerMessages.map( rendering.
 export type { ChatInputProps } from "./chatInputTypes";
 export const ChatInput = memo(function ChatInput({
   onSend,
   onStop,
   onSteer,
+  steerMessages = [],
+  onCancelSteer,
   isLoading,
   disabled,
+  sendBlocked = false,
   canSend = true,
   tools = [],
   onToggleTool,
@@ -148,7 +157,6 @@ export const ChatInput = memo(function ChatInput({
       });
     }
   }, [pendingInput, onPendingInputConsumed]);
-
   const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
   const [runEnabledSkillNames, setRunEnabledSkillNames] = useState<
     string[] | null
@@ -161,28 +169,23 @@ export const ChatInput = memo(function ChatInput({
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [mentionPopupPlacement, setMentionPopupPlacement] =
     useState<ReturnType<typeof getMentionPopupFixedPlacement>>(null);
   const { hasPermission } = useAuth();
-
   const uploadCategories = (
     Object.keys(FILE_CATEGORY_PERMISSIONS) as Array<
       keyof typeof FILE_CATEGORY_PERMISSIONS
     >
   ).filter((cat) => hasPermission(FILE_CATEGORY_PERMISSIONS[cat]));
-
   const attachments = externalAttachments ?? internalAttachments;
   const setAttachments = externalOnAttachmentsChange ?? setInternalAttachments;
-
   const { uploadFiles, uploadFile, uploadLimits, validateCount, cancelUpload } =
     useFileUpload({
       attachments,
       onAttachmentsChange: setAttachments,
     });
-
   const { pushHistory, navigateUp, navigateDown, isBrowsing } =
     useInputHistory();
   const scheduleTextareaResize = useCallback(() => undefined, []);
@@ -192,8 +195,16 @@ export const ChatInput = memo(function ChatInput({
     setInput(value);
     composerRef.current?.setPlainText(value);
   }, []);
+  const clearSteerDraft = useCallback(() => {
+    setComposerPlainText("");
+    for (const referenceId of activeReferenceIds) {
+      composerRef.current?.removeFileReference(referenceId);
+    }
+    longTextResourcesRef.current.clear();
+    setActiveReferenceIds([]);
+    setAttachments([]);
+  }, [activeReferenceIds, setAttachments, setComposerPlainText]);
   useBodyScrollLock(composerExpanded);
-
   const { restoreLongTextAttachment, prepareSubmit } = useLongTextConversion({
     setInput: setComposerPlainText,
     setAttachments,
@@ -202,11 +213,9 @@ export const ChatInput = memo(function ChatInput({
     scheduleTextareaResize,
     expanded: composerExpanded,
   });
-
   const mentionMode = currentAgent === "team" ? "team" : "persona";
   const mentionEnabled =
     mentionMode === "team" ? !!onSelectTeam : !!onUsePersonaPreset;
-
   const {
     mention,
     moveHighlight: moveMentionHighlight,
@@ -215,7 +224,6 @@ export const ChatInput = memo(function ChatInput({
     resetMention,
     dismissMention,
   } = useMentionState(input, cursorPosition, mentionEnabled);
-
   const mentionSearch = useMentionSearch(
     mention.query,
     mention.isActive && mentionMode === "persona",
@@ -224,7 +232,6 @@ export const ChatInput = memo(function ChatInput({
     mention.query,
     mention.isActive && mentionMode === "team",
   );
-
   useEffect(() => {
     if (mention.isActive) {
       setMentionResultCount(
@@ -240,12 +247,10 @@ export const ChatInput = memo(function ChatInput({
     teamMentionSearch.teams.length,
     setMentionResultCount,
   ]);
-
   useEffect(() => {
     if (!onMentionQueryChange) return;
     onMentionQueryChange(mention.isActive ? mention.query : null);
   }, [mention.isActive, mention.query, onMentionQueryChange]);
-
   useEffect(() => {
     if (!onMentionQueryChange || !selectedPersonaPresetId || !mention.isActive)
       return;
@@ -259,7 +264,6 @@ export const ChatInput = memo(function ChatInput({
     resetMention();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on preset selection
   }, [selectedPersonaPresetId, setComposerPlainText]);
-
   useEffect(() => {
     if (!onMentionQueryChange || !selectedTeamId || !mention.isActive) return;
     const before = input.substring(0, mention.atIndex);
@@ -272,31 +276,26 @@ export const ChatInput = memo(function ChatInput({
     resetMention();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on team selection
   }, [selectedTeamId, setComposerPlainText]);
-
   useEffect(() => {
     const applySelectionActionPrompt = (prompt: string) => {
       const separator = inputValueRef.current.trim() ? "\n\n" : "";
       composerRef.current?.focus({ atEnd: true });
       composerRef.current?.insertText(`${separator}${prompt}`);
     };
-
     const pendingPrompt = consumePendingSelectionActionPrompt();
     if (pendingPrompt) {
       applySelectionActionPrompt(pendingPrompt);
     }
-
     const handleSelectionAction = (event: Event) => {
       const detail = (event as CustomEvent<SelectionActionEventDetail>).detail;
       if (!detail?.prompt) return;
       applySelectionActionPrompt(detail.prompt);
     };
-
     window.addEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
     return () => {
       window.removeEventListener(SELECTION_ACTION_EVENT, handleSelectionAction);
     };
   }, []);
-
   // Ctrl+T / Cmd+T -> open team picker
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -314,7 +313,6 @@ export const ChatInput = memo(function ChatInput({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [currentAgent, onSelectTeam]);
-
   useEffect(() => {
     if (!composerExpanded) return;
     const collapseOnEscape = (event: KeyboardEvent) => {
@@ -325,13 +323,11 @@ export const ChatInput = memo(function ChatInput({
     document.addEventListener("keydown", collapseOnEscape);
     return () => document.removeEventListener("keydown", collapseOnEscape);
   }, [composerExpanded]);
-
   useEffect(() => {
     if (!mention.isActive) {
       setMentionPopupPlacement(null);
       return;
     }
-
     const updateMentionPopupPlacement = () => {
       const container = containerRef.current;
       setMentionPopupPlacement(
@@ -341,7 +337,6 @@ export const ChatInput = memo(function ChatInput({
         }),
       );
     };
-
     updateMentionPopupPlacement();
     window.addEventListener("resize", updateMentionPopupPlacement);
     window.addEventListener("scroll", updateMentionPopupPlacement, true);
@@ -366,7 +361,6 @@ export const ChatInput = memo(function ChatInput({
       );
     };
   }, [mention.isActive]);
-
   const personaAvatar = useMemo(() => {
     if (!selectedPersonaPresetId) return null;
     const preset = personaPresets.find((p) => p.id === selectedPersonaPresetId);
@@ -376,12 +370,10 @@ export const ChatInput = memo(function ChatInput({
       primaryTag: preset.tags[0] || "",
     };
   }, [selectedPersonaPresetId, personaPresets]);
-
   const availableRunSkills = useMemo(
     () => (enableSkills ? skills.filter((skill) => skill.enabled) : []),
     [skills, enableSkills],
   );
-
   const applySlashCommand = useCallback((command: ChatInputSlashCommand) => {
     if (command.kind !== "panel") return;
     if (command.id === "tools") setActivePanel("tools");
@@ -389,7 +381,6 @@ export const ChatInput = memo(function ChatInput({
     else if (command.id === "team") setActivePanel("team");
     else if (command.id === "agent") setActivePanel("agent");
   }, []);
-
   const applyMentionSelection = useCallback(
     (preset: PersonaPreset) => {
       if (!mention.isActive) return;
@@ -406,7 +397,6 @@ export const ChatInput = memo(function ChatInput({
     },
     [input, mention, onUsePersonaPreset, resetMention, setComposerPlainText],
   );
-
   const applyTeamMentionSelection = useCallback(
     (team: Team) => {
       if (!mention.isActive) return;
@@ -423,7 +413,6 @@ export const ChatInput = memo(function ChatInput({
     },
     [input, mention, onSelectTeam, resetMention, setComposerPlainText],
   );
-
   const handleComposerChange = useCallback((change: RichChatComposerChange) => {
     const { projection } = change;
     inputValueRef.current = projection.message;
@@ -434,7 +423,6 @@ export const ChatInput = memo(function ChatInput({
       projection.enabledSkills.length > 0 ? projection.enabledSkills : null,
     );
   }, []);
-
   const handleLongTextCreate = useCallback(
     (payload: LongTextPastePayload) => {
       longTextResourcesRef.current.set(payload.referenceId, payload);
@@ -447,7 +435,6 @@ export const ChatInput = memo(function ChatInput({
     },
     [t, uploadFile],
   );
-
   const handleRetryFileReference = useCallback(
     (referenceId: string) => {
       const resource = longTextResourcesRef.current.get(referenceId);
@@ -469,7 +456,6 @@ export const ChatInput = memo(function ChatInput({
     },
     [setAttachments, uploadFile],
   );
-
   const handleRestoreLongTextAttachment = useCallback(
     (attachment: MessageAttachment) => {
       const referenceId = attachment.composerReferenceId;
@@ -489,7 +475,6 @@ export const ChatInput = memo(function ChatInput({
     },
     [restoreLongTextAttachment, setAttachments],
   );
-
   useEffect(() => {
     for (const attachment of attachments) {
       const referenceId = attachment.composerReferenceId;
@@ -505,12 +490,22 @@ export const ChatInput = memo(function ChatInput({
       });
     }
   }, [attachments]);
-
   const visibleAttachments = useMemo(
     () => selectVisibleDraftAttachments(attachments, activeReferenceIds),
     [activeReferenceIds, attachments],
   );
-
+  const hasUploadingAttachment =
+    visibleAttachments.some((attachment) => attachment.isUploading) ||
+    activeReferenceIds.some(
+      (referenceId) =>
+        !attachments.some(
+          (attachment) => attachment.composerReferenceId === referenceId,
+        ),
+    );
+  const hasFailedAttachment = visibleAttachments.some(
+    (attachment) => attachment.uploadError,
+  );
+  const hasInvalidAttachment = !areAttachmentsSendable(visibleAttachments);
   const handleComposerKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       // Lexical prevents Enter before this React handler runs, so
@@ -537,11 +532,20 @@ export const ChatInput = memo(function ChatInput({
         if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         if (!isSendEnterKey(event)) return;
         event.preventDefault();
+        if (sendBlocked) {
+          return;
+        }
         // 运行中且支持插话：Enter 发送 steer 消息（Codex 式），否则保留停止确认
         if (isLoading) {
-          if (onSteer && input.trim()) {
-            onSteer(input);
-            setInput("");
+          if (
+            onSteer &&
+            (input.trim() || visibleAttachments.length > 0) &&
+            !hasUploadingAttachment &&
+            !hasFailedAttachment &&
+            !hasInvalidAttachment
+          ) {
+            onSteer(input, visibleAttachments);
+            clearSteerDraft();
           } else {
             setStopConfirmOpen(true);
           }
@@ -554,6 +558,10 @@ export const ChatInput = memo(function ChatInput({
     [
       applyMentionSelection,
       applyTeamMentionSelection,
+      clearSteerDraft,
+      hasFailedAttachment,
+      hasUploadingAttachment,
+      hasInvalidAttachment,
       input,
       isLoading,
       mention.highlightedIndex,
@@ -562,36 +570,32 @@ export const ChatInput = memo(function ChatInput({
       mentionSearch.presets,
       onSteer,
       resetMention,
-      setInput,
+      sendBlocked,
+      visibleAttachments,
       teamMentionSearch.teams,
     ],
   );
-
   const handleComposerArrowKey = useCallback(
     (direction: ComposerArrowDirection, editor: HTMLElement) => {
       if (mention.isActive) {
         moveMentionHighlight(direction);
         return true;
       }
-
       if (
         getMatchingSlashDropdownItems(input, cursorPosition, availableRunSkills)
           .length > 0
       ) {
         return false;
       }
-
       if (!isBrowsing && input.includes("\n")) {
         const boundary = getComposerCaretBoundary(editor);
         if (!(direction === "up" ? boundary.atStart : boundary.atEnd)) {
           return false;
         }
       }
-
       const historyValue =
         direction === "up" ? navigateUp(input) : navigateDown();
       if (historyValue === null) return false;
-
       setComposerPlainText(historyValue);
       requestAnimationFrame(() => composerRef.current?.focus({ atEnd: true }));
       return true;
@@ -611,23 +615,14 @@ export const ChatInput = memo(function ChatInput({
 
   const hasContent =
     (!!input.trim() || visibleAttachments.length > 0) && !disabled;
-  const hasUploadingAttachment =
-    visibleAttachments.some((attachment) => attachment.isUploading) ||
-    activeReferenceIds.some(
-      (referenceId) =>
-        !attachments.some(
-          (attachment) => attachment.composerReferenceId === referenceId,
-        ),
-    );
-  const hasFailedAttachment = visibleAttachments.some(
-    (attachment) => attachment.uploadError,
-  );
   const canSubmit =
     hasContent &&
     canSend &&
+    !sendBlocked &&
     !isLoading &&
     !hasUploadingAttachment &&
-    !hasFailedAttachment;
+    !hasFailedAttachment &&
+    !hasInvalidAttachment;
   const handleSubmit = useAcceptedDraftSubmission({
     enabled: canSubmit,
     input,
@@ -687,6 +682,7 @@ export const ChatInput = memo(function ChatInput({
           aria-hidden="true"
         />
       ) : null}
+      <ChatInputSteerQueue items={steerMessages} onCancel={onCancelSteer} />
       <form
         onSubmit={handleSubmit}
         className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}
@@ -851,14 +847,19 @@ export const ChatInput = memo(function ChatInput({
             activePanel={activePanel}
             onActivePanelChange={setActivePanel}
             canSend={canSend}
+            sendBlocked={sendBlocked}
             isLoading={isLoading}
-            hasDraft={!!input.trim()}
-            onSteer={onSteer && (() => {
-              onSteer(input);
-              setInput("");
-            })}
+            hasDraft={!!input.trim() || visibleAttachments.length > 0}
+            onSteer={
+              onSteer && (() => {
+                onSteer(input, visibleAttachments);
+                clearSteerDraft();
+              })
+            }
             canSubmit={canSubmit}
             hasUploadingAttachment={hasUploadingAttachment}
+            hasFailedAttachment={hasFailedAttachment}
+            hasInvalidAttachment={hasInvalidAttachment}
             enabledToolsCount={enabledToolsCount}
             totalToolsCount={totalToolsCount}
             enabledSkillsCount={enabledSkillsCount}

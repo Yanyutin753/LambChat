@@ -238,7 +238,7 @@
 }
 
 .pill-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: none;
   border-color: color-mix(in srgb, currentColor 24%, transparent);
   filter: saturate(1.06);
   box-shadow:
@@ -253,6 +253,13 @@
     inset 0 1px 0 color-mix(in srgb, currentColor 8%, transparent),
     0 5px 14px -8px color-mix(in srgb, currentColor 25%, transparent),
     0 2px 6px -3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+/* Touch browsers can keep :hover active after tapping. Never lift the pill there. */
+@media (hover: none), (pointer: coarse) {
+  .pill-btn:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
 .pill-btn:active:not(:disabled) {

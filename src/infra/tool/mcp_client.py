@@ -14,6 +14,7 @@ from typing import Any, Optional
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.errors import GraphBubbleUp
 from pydantic import PrivateAttr
 
 from src.infra.async_utils import run_blocking_io
@@ -259,6 +260,11 @@ class MCPToolWithRetry(BaseTool):
                     self._original_tool._arun(*args, config=config, **kwargs),
                     timeout=MCP_TOOL_TIMEOUT,
                 )
+            except GraphBubbleUp:
+                # LangGraph uses these exceptions for control flow (not tool
+                # failures). In particular, ask_human must propagate its
+                # GraphInterrupt so the graph can checkpoint and suspend.
+                raise
             except asyncio.TimeoutError:
                 last_error = TimeoutError(f"Tool timed out after {MCP_TOOL_TIMEOUT}s")
                 logger.warning(

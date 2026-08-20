@@ -25,3 +25,12 @@ test("does not replay assistant entrance animation for remounted history message
     /isLastMessage\s*&&\s*message\.isStreaming\s*&&\s*"animate-\[fade-in_0\.3s_ease-out\]"/,
   );
 });
+
+test("derives last-message state from the rendered list including steer items", () => {
+  expect(chatViewSource).toMatch(
+    /isLastMessage=\{index === renderItems\.length - 1\}/,
+  );
+  expect(chatViewSource.indexOf("const renderItems = useMemo")).toBeLessThan(
+    chatViewSource.indexOf("const virtuosoItemContent = useCallback"),
+  );
+});

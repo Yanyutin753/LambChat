@@ -8,6 +8,12 @@ import pytest
 from src.infra.tool.human_tool import tool as human_tool
 
 
+@pytest.fixture(autouse=True)
+def legacy_blocking_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep coverage for the retired blocking implementation in isolation."""
+    monkeypatch.setattr(human_tool.settings, "HITL_MODE", "blocking", raising=False)
+
+
 @pytest.mark.asyncio
 async def test_ask_human_offloads_response_result_json(
     monkeypatch: pytest.MonkeyPatch,

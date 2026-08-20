@@ -118,11 +118,13 @@ class AskHumanTool(BaseTool):
         # interrupt payload 会随 checkpoint 持久化，需可序列化）
         field_dicts = [f.model_dump(mode="json") for f in parsed_fields] if parsed_fields else []
 
-        use_interrupt = (
-            getattr(settings, "HITL_MODE", "blocking") == "interrupt"
-            and hitl_interrupt_supported.get()
-        )
-        if use_interrupt:
+        interrupt_mode = getattr(settings, "HITL_MODE", "interrupt") == "interrupt"
+        if interrupt_mode and not hitl_interrupt_supported.get():
+            raise RuntimeError(
+                "ask_human interrupt mode requires a persistent checkpointer; "
+                "blocking fallback is disabled"
+            )
+        if interrupt_mode:
             return await self._run_interrupt_mode(
                 message=message,
                 field_dicts=field_dicts,

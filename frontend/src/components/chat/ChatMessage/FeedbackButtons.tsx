@@ -14,7 +14,6 @@ interface FeedbackButtonsProps {
   currentFeedback?: RatingValue | null;
   onFeedbackChange?: (feedback: RatingValue | null) => void;
   className?: string;
-  isLastMessage?: boolean;
 }
 
 export function FeedbackButtons({
@@ -23,7 +22,6 @@ export function FeedbackButtons({
   currentFeedback: externalFeedback,
   onFeedbackChange,
   className,
-  isLastMessage,
 }: FeedbackButtonsProps) {
   const { t } = useTranslation();
   const [selectedRating, setSelectedRating] = useState<RatingValue | null>(
@@ -104,7 +102,6 @@ export function FeedbackButtons({
         <span
           className={clsx(
             "flex items-center justify-center rounded-md p-1.5 transition-all",
-            !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
             submittedFeedback === "up"
               ? "text-stone-600 dark:text-stone-300"
               : "text-stone-600 dark:text-stone-300",
@@ -129,7 +126,6 @@ export function FeedbackButtons({
           disabled={isSubmitting}
           className={clsx(
             "flex items-center justify-center rounded-md p-1.5 transition-all",
-            !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
             "text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300",
             "disabled:opacity-50 disabled:cursor-not-allowed",
           )}
@@ -149,7 +145,6 @@ export function FeedbackButtons({
           disabled={isSubmitting}
           className={clsx(
             "flex items-center justify-center rounded-md p-1.5 transition-all",
-            !isLastMessage && "sm:opacity-0 sm:group-hover:opacity-100",
             "text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300",
             "disabled:opacity-50 disabled:cursor-not-allowed",
           )}

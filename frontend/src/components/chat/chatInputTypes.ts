@@ -1,4 +1,5 @@
 import type { FeaturePanel } from "../selectors/FeatureMenu";
+import type { SteerItem } from "../../utils/mergeSteers";
 import type {
   ToolState,
   ToolCategory,
@@ -25,9 +26,13 @@ export interface ChatInputProps {
   ) => void;
   onStop: () => void;
   /** 运行中插话（Codex 式 steer）：任务运行期间发送的消息进入队列，当前步骤后送达 */
-  onSteer?: (content: string) => void;
+  onSteer?: (content: string, attachments?: MessageAttachment[]) => void;
+  steerMessages?: SteerItem[];
+  onCancelSteer?: (content: string, messageId?: string) => void;
   isLoading: boolean;
   disabled?: boolean;
+  /** Block sending while an ask-human interrupt is awaiting a response. */
+  sendBlocked?: boolean;
   canSend?: boolean;
   tools?: ToolState[];
   onToggleTool?: (toolName: string) => void;

@@ -235,6 +235,24 @@ class MongoDBStore(BaseStore):
         """使用 pymongo 同步客户端创建索引（线程安全，一次性操作）。"""
         client = self._client or get_mongo_client()
         sync_col = client.delegate[self._db_name][self._collection_name]
+
+        # Older releases created a unique index on ``key`` alone.  That makes
+        # otherwise valid files with the same name in different namespaces
+        # collide and causes repeated writes to fail with DuplicateKeyError.
+        # The store identity is the pair (namespace, key), so remove only the
+        # obsolete exact key-only unique index before ensuring the correct one.
+        for index_name, index_info in sync_col.index_information().items():
+            if (
+                index_name != "_id_"
+                and index_info.get("unique") is True
+                and index_info.get("key") == [("key", 1)]
+            ):
+                sync_col.drop_index(index_name)
+                logger.warning(
+                    "Dropped legacy MongoDB store unique index %s; store identity is (namespace, key)",
+                    index_name,
+                )
+
         sync_col.create_index(
             [("namespace", 1), ("key", 1)],
             unique=True,

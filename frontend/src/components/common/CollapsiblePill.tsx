@@ -158,7 +158,7 @@ export function CollapsiblePill({
         {icon}
         <span
           className={clsx(
-            "font-mono min-w-0 truncate overflow-hidden leading-none",
+            "font-sans font-medium tracking-[0.01em] min-w-0 truncate overflow-hidden h-4 text-xs leading-4 inline-flex items-center translate-y-px",
             animatedDots && "typing-dots",
           )}
         >

@@ -271,6 +271,18 @@ export function processMessageEvent(
       const resultContent = data.result || "";
       const completedAt = data.timestamp as string | undefined;
 
+      // Older backends let LangGraph's control-flow interrupt pass through the
+      // generic MCP error formatter. It is still a valid pending ask-human,
+      // not a completed tool failure, so leave the start part untouched.
+      const legacyInterruptText = `${errorMsg || ""} ${String(resultContent)}`;
+      if (
+        toolName === "ask_human" &&
+        !isSuccess &&
+        legacyInterruptText.includes("GraphInterrupt")
+      ) {
+        break;
+      }
+
       if (depth > 0 || toolCallId) {
         result.parts = updateToolResultInDepth(
           parts,
@@ -503,7 +515,7 @@ export function processMessageEvent(
 
     case "complete":
     case "done": {
-      result.parts = clearAllLoadingStates(parts);
+      result.parts = clearAllLoadingStates(parts, { preserveAskHuman: true });
       break;
     }
 

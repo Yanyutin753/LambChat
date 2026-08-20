@@ -201,9 +201,9 @@ class Settings(BaseSettings):
     CHECKPOINT_PG_POOL_MAX_SIZE: int = 10
 
     # HITL (ask_human) mode:
-    #   blocking - 协程内阻塞等待用户响应（旧行为）
     #   interrupt - LangGraph interrupt() 挂起 + Command(resume=...) 恢复
-    HITL_MODE: str = "blocking"
+    # blocking 仅保留为旧配置兼容值；新部署统一使用 interrupt。
+    HITL_MODE: str = "interrupt"
 
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True

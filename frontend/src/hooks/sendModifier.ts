@@ -1,4 +1,4 @@
-export type SendModifier = "ctrl" | "shift";
+export type SendModifier = "ctrl" | "shift" | "enter";
 
 /** Kept as newlineModifier for backend metadata compatibility. */
 export const SEND_MODIFIER_STORAGE_KEY = "newlineModifier";
@@ -9,6 +9,7 @@ type StorageReader = Pick<Storage, "getItem">;
 export function parseSendModifier(
   stored: string | null | undefined,
 ): SendModifier {
+  if (stored === "enter") return "enter";
   return stored === "shift" ? "shift" : "ctrl";
 }
 
@@ -22,6 +23,9 @@ export function isSendEnterKey(
   event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "shiftKey">,
   modifier: SendModifier = readSendModifier(),
 ): boolean {
+  if (modifier === "enter") {
+    return !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  }
   return modifier === "ctrl" ? event.ctrlKey || event.metaKey : event.shiftKey;
 }
 
@@ -33,6 +37,12 @@ export function getSendShortcutDisplay(modifier: SendModifier): {
     return {
       keys: ["Ctrl", "Enter"],
       macKeys: ["⌘", "Enter"],
+    };
+  }
+  if (modifier === "enter") {
+    return {
+      keys: ["Enter"],
+      macKeys: ["Enter"],
     };
   }
   return {

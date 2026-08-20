@@ -25,6 +25,13 @@ _ALLOW_EMPTY_STRING_SETTINGS = {
 }
 
 
+def _normalize_runtime_setting(key: str, value: Any) -> Any:
+    """Coerce retired setting values before they reach the live runtime."""
+    if key == "HITL_MODE":
+        return "interrupt"
+    return value
+
+
 def _mark_runtime_secret_as_explicit(key: str) -> None:
     if key == "JWT_SECRET_KEY":
         settings._jwt_secret_key_generated = False
@@ -64,14 +71,29 @@ async def initialize_settings() -> None:
                 and item.value is not None
                 and (item.value != "" or item.key in _ALLOW_EMPTY_STRING_SETTINGS)
             ):
-                _settings_cache[item.key] = item.value
+                normalized_value = _normalize_runtime_setting(item.key, item.value)
+                _settings_cache[item.key] = normalized_value
                 # Only update if the field exists in Settings class
                 if hasattr(settings, item.key):
-                    setattr(settings, item.key, item.value)
+                    setattr(settings, item.key, normalized_value)
                     _mark_runtime_secret_as_explicit(item.key)
                     loaded_count += 1
 
     logger.info(f"[Settings] Loaded {loaded_count} settings into cache")
+
+    # Migrate the retired blocking HITL value so the settings API and all
+    # replicas converge on interrupt mode instead of merely coercing locally.
+    if any(
+        item.key == "HITL_MODE" and item.value != "interrupt"
+        for items in all_settings.values()
+        for item in items
+        if item
+    ):
+        try:
+            await _settings_service.set("HITL_MODE", "interrupt", "system:migration")
+            logger.info("[Settings] Migrated HITL_MODE to interrupt")
+        except Exception as exc:
+            logger.warning("[Settings] Failed to persist HITL_MODE migration: %s", exc)
 
     # Persist auto-generated VAPID keys to database so they survive restarts
     if settings._vapid_keys_generated and _settings_service is not None:
@@ -147,8 +169,9 @@ async def refresh_settings(key: Optional[str] = None) -> None:
             and setting.value is not None
             and (setting.value != "" or key in _ALLOW_EMPTY_STRING_SETTINGS)
         ):
-            _settings_cache[key] = setting.value
-            setattr(settings, key, setting.value)
+            normalized_value = _normalize_runtime_setting(key, setting.value)
+            _settings_cache[key] = normalized_value
+            setattr(settings, key, normalized_value)
             _mark_runtime_secret_as_explicit(key)
             # Clear LLM model cache if this setting affects it
             if key in llm_affected_settings:
@@ -176,8 +199,9 @@ async def refresh_settings(key: Optional[str] = None) -> None:
                     and item.value is not None
                     and (item.value != "" or item.key in _ALLOW_EMPTY_STRING_SETTINGS)
                 ):
-                    _settings_cache[item.key] = item.value
-                    setattr(settings, item.key, item.value)
+                    normalized_value = _normalize_runtime_setting(item.key, item.value)
+                    _settings_cache[item.key] = normalized_value
+                    setattr(settings, item.key, normalized_value)
                     _mark_runtime_secret_as_explicit(item.key)
                     if item.key in llm_affected_settings:
                         any_llm_setting_changed = True

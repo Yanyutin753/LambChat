@@ -283,6 +283,33 @@ async def test_mcp_arun_retries_streamable_http_and_normalizes_args() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mcp_arun_propagates_graph_interrupt() -> None:
+    """LangGraph control-flow interrupts must not become MCP tool errors."""
+    from langgraph.errors import GraphInterrupt
+    from langgraph.types import Interrupt
+
+    from src.infra.tool.mcp_client import MCPToolWithRetry
+
+    graph_interrupt = GraphInterrupt((Interrupt(value={"kind": "ask_human"}),))
+
+    class _InterruptTool(BaseTool):
+        name: str = "ask_human"
+        description: str = "pause for human input"
+
+        def _run(self, *args, **kwargs):
+            raise NotImplementedError
+
+        async def _arun(self, *args, config=None, **kwargs):
+            raise graph_interrupt
+
+    wrapper = MCPToolWithRetry(original_tool=_InterruptTool())
+
+    with pytest.raises(GraphInterrupt) as captured:
+        await wrapper._arun()
+    assert captured.value is graph_interrupt
+
+
+@pytest.mark.asyncio
 async def test_mcp_arun_preserves_json_array_text_for_string_arguments() -> None:
     """JSON-looking text is still valid input for a schema-declared string."""
     from src.infra.tool.mcp_client import MCPToolWithRetry

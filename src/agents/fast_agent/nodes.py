@@ -376,7 +376,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     from src.infra.tool.human_tool.runtime import hitl_interrupt_supported
 
     interrupt_supported = (
-        getattr(settings, "HITL_MODE", "blocking") == "interrupt"
+        getattr(settings, "HITL_MODE", "interrupt") == "interrupt"
         and inner_checkpointer is not None
         and not isinstance(inner_checkpointer, MemorySaver)
     )

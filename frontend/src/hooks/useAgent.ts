@@ -44,7 +44,7 @@ import {
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
-import { useSteerQueue } from "./useAgent/steerQueue";
+import { selectSteersForFollowUp, useSteerQueue } from "./useAgent/steerQueue";
 import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
 import { planGoalSubmission } from "./useAgent/goalCommands";
@@ -163,11 +163,29 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>([]);
+  const sendMessageRef = useRef<
+    ((content: string, attachments?: MessageAttachment[]) => Promise<void>) | null
+  >(null);
+  const deferredSteersRef = useRef<
+    Array<{ content: string; id: string; attachments?: MessageAttachment[] }>
+  >([]);
+  const followUpSteerIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
-  const steerQueue = useSteerQueue({ sessionIdRef, setError });
+  const steerQueue = useSteerQueue({
+    sessionIdRef,
+    deferSteer: (content, id, attachments) => {
+      deferredSteersRef.current.push({ content, id, attachments });
+    },
+  });
+  const {
+    markSteerDelivered,
+    clearSteerMessages,
+    clearSteer,
+    hydrateSteers,
+  } = steerQueue;
 
   useEffect(() => {
     currentRunIdRef.current = currentRunId;
@@ -186,8 +204,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       lastHistoryTimestampRef,
       activeSubagentStackRef,
       streamVersionRef,
+      currentRunIdRef,
       setSessionId,
       setMessages,
+      markSteerDelivered,
       setConnectionStatus: (status) =>
         setConnectionStatus(status as ConnectionStatus),
       setIsInitializingSandbox,
@@ -195,7 +215,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setActiveGoal,
       setGoalsByRunId,
     }),
-    [options],
+    [options, markSteerDelivered],
   );
 
   // Create SSE connection context
@@ -363,6 +383,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       setIsLoading(true);
       setMessages([]);
+      // A history load replaces the rendered conversation. Drop any optimistic
+      // steer entries so they cannot survive a session switch or manual refresh.
+      clearSteerMessages();
+      deferredSteersRef.current = [];
+      followUpSteerIdsRef.current.clear();
       setError(null);
 
       processedEventIdsRef.current.clear();
@@ -390,6 +415,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           }),
         ]);
         if (isStaleHistoryLoad()) return null;
+
+        const pendingSteersData = await sessionApi
+          .getPendingSteers(targetSessionId)
+          .catch((error) => {
+            console.warn("[loadHistory] Failed to restore pending steers:", error);
+            return { session_id: targetSessionId, items: [] };
+          });
+        hydrateSteers(pendingSteersData.items);
 
         if (sessionData) {
           if (sessionData.name) {
@@ -521,7 +554,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       return null;
     },
-    [options, createSSEContext, canReadFeedback],
+    [options, createSSEContext, canReadFeedback, clearSteerMessages, hydrateSteers],
   );
 
   // Send message
@@ -816,6 +849,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       } finally {
         setIsLoading(false);
         isSendingRef.current = false;
+        const deferredSteers = deferredSteersRef.current.splice(0);
+        if (deferredSteers.length > 0) {
+          setTimeout(() => {
+            for (const deferred of deferredSteers) {
+              clearSteer(deferred.content, deferred.id);
+              sendMessageRef.current?.(deferred.content, deferred.attachments);
+            }
+          }, 0);
+        }
       }
     },
     [
@@ -826,8 +868,41 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       options,
       selectedTeamId,
       goalModeEnabled,
+      clearSteer,
     ],
   );
+
+  sendMessageRef.current = (content: string, attachments?: MessageAttachment[]) => {
+    return sendMessage(content, undefined, attachments);
+  };
+
+  // If the run finishes after the API accepted a steer but before the next
+  // model boundary, promote it to a normal follow-up instead of leaving it
+  // stranded above the composer.
+  useEffect(() => {
+    if (isLoading || isSendingRef.current) return;
+    const followUps = selectSteersForFollowUp(steerQueue.steerMessages).filter(
+      (item) => !followUpSteerIdsRef.current.has(item.id),
+    );
+    if (followUps.length === 0) return;
+    for (const item of followUps) {
+      followUpSteerIdsRef.current.add(item.id);
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      for (const item of followUps) {
+        if (cancelled) return;
+        clearSteer(item.content, item.id);
+        // Preserve FIFO and wait for each normal turn to settle; firing all
+        // at once would make useAgent's single-run guard drop later items.
+        await sendMessageRef.current?.(item.content, item.attachments);
+      }
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [clearSteer, isLoading, steerQueue.steerMessages]);
 
   const stopGeneration = useCallback(async () => {
     isSendingRef.current = false;
@@ -868,6 +943,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     historyAbortControllerRef.current?.abort();
     historyAbortControllerRef.current = null;
     setMessages([]);
+    clearSteerMessages();
+    deferredSteersRef.current = [];
     setIsLoading(false);
     setIsLoadingHistory(false);
     isLoadingHistoryRef.current = false;
@@ -890,7 +967,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       abortControllerRef.current = null;
     }
     clearReconnectTimeout(reconnectTimeoutRef);
-  }, []);
+  }, [clearSteerMessages]);
 
   const clearActiveGoal = useCallback(() => {
     setGoalModeEnabled(false);

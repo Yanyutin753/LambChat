@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _persist_delivered_steer_messages(
-    session_id: str, texts: list[str], presenter: Any = None
+    session_id: str, items: list[Any], presenter: Any = None
 ) -> None:
     """把已注入的插话消息写入独立的 steer:message 事件（尽力而为）。
 
@@ -41,12 +41,16 @@ async def _persist_delivered_steer_messages(
     """
     import uuid
 
-    try:
-        for text in texts:
+    for item in items:
+        try:
             data = {
-                "content": text,
-                "message_id": f"steer-{uuid.uuid4().hex[:12]}",
+                "content": item.content,
+                "message_id": item.id or f"steer-{uuid.uuid4().hex[:12]}",
+                "attachments": item.attachments,
             }
+            run_id = getattr(presenter, "run_id", None)
+            if run_id:
+                data["run_id"] = run_id
             if presenter is not None:
                 await presenter.save_event({"event": "steer:message", "data": data})
                 continue
@@ -58,12 +62,13 @@ async def _persist_delivered_steer_messages(
                 event_type="steer:message",
                 data=data,
             )
-    except Exception:
-        logger.warning(
-            "[Steer] session=%s failed to persist delivered steer message(s)",
-            session_id,
-            exc_info=True,
-        )
+        except Exception:
+            logger.warning(
+                "[Steer] session=%s failed to persist delivered steer message %s",
+                session_id,
+                getattr(item, "id", "unknown"),
+                exc_info=True,
+            )
 
 
 class SteerMiddleware(AgentMiddleware):
@@ -82,11 +87,11 @@ class SteerMiddleware(AgentMiddleware):
         from src.infra.task.steer import get_steer_queue
 
         queue = get_steer_queue()
-        pending = await queue.drain(self._session_id)
+        pending = await queue.drain_items(self._session_id)
         if not pending:
             return await handler(request)
 
-        injected = [build_human_message(text, None) for text in pending]
+        injected = [build_human_message(item.content, item.attachments) for item in pending]
         logger.info(
             "[Steer] session=%s injecting %d user message(s) into model call",
             self._session_id,
@@ -96,8 +101,10 @@ class SteerMiddleware(AgentMiddleware):
             response = await handler(request.override(messages=[*request.messages, *injected]))
         except BaseException:
             # 整体失败（含取消）：放回队首，等重试或下次运行送达，不丢失
-            await queue.requeue_front(self._session_id, pending)
+            await queue.requeue_front_items(self._session_id, pending)
             raise
+
+        await queue.ack_items(self._session_id)
 
         # 注入成功：写 user:message 事件（SSE + 历史持久化），
         # 再把插话消息写入图状态，checkpoint 持久化

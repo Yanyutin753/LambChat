@@ -83,6 +83,152 @@ test("skips SSE events older than loaded history", () => {
   expect(ctx.setMessagesCalls()).toBe(0);
 });
 
+test("renders a delivered steer event and removes its optimistic duplicate", () => {
+  const timestamp = "2026-04-19T01:02:03.456Z";
+  const marked: string[] = [];
+  const ctx = createContext(
+    [
+      {
+        id: "optimistic-steer",
+        role: "user",
+        content: "继续做这个",
+        timestamp: new Date(timestamp),
+        metadata: { steer: true, queued: true },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "前面的回答",
+        timestamp: new Date(timestamp),
+        parts: [],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+  ctx.markSteerDelivered = (content) => marked.push(content);
+
+  handleStreamEvent(
+    {
+      event: "steer:message",
+      data: JSON.stringify({ content: "继续做这个", message_id: "steer-1" }),
+    },
+    "assistant-1",
+    "steer-event-1",
+    timestamp,
+    ctx,
+  );
+
+  const messages = ctx.messages();
+  expect(messages.filter((message) => message.content === "继续做这个")).toHaveLength(1);
+  expect(messages.find((message) => message.id === "steer-1")?.metadata).toEqual({
+    steer: true,
+    queued: false,
+  });
+  expect(messages.map((message) => message.id)).toEqual([
+    "assistant-1#t1",
+    "steer-1",
+    "assistant-1",
+  ]);
+  expect(marked).toEqual(["继续做这个"]);
+});
+
+test("keeps distinct steer events with the same content when IDs differ", () => {
+  const ctx = createContext([], null);
+  const first = {
+    event: "steer:message",
+    data: JSON.stringify({ content: "同一句", message_id: "steer-a" }),
+  } as StreamEvent;
+  const second = {
+    event: "steer:message",
+    data: JSON.stringify({ content: "同一句", message_id: "steer-b" }),
+  } as StreamEvent;
+  handleStreamEvent(first, "assistant-1", "steer-a-event", undefined, ctx);
+  handleStreamEvent(second, "assistant-1", "steer-b-event", undefined, ctx);
+  expect(ctx.messages().filter((message) => message.metadata?.steer).map((m) => m.id)).toEqual([
+    "steer-a",
+    "steer-b",
+  ]);
+});
+
+test("ignores a delivered steer from a stale run", () => {
+  const ctx = createContext([], null);
+  ctx.currentRunIdRef = { current: "run-current" };
+  handleStreamEvent(
+    {
+      event: "steer:message",
+      data: JSON.stringify({ content: "旧消息", message_id: "old", run_id: "run-old" }),
+    },
+    "assistant-1",
+    "old-event",
+    undefined,
+    ctx,
+  );
+  expect(ctx.messages()).toEqual([]);
+});
+
+test("keeps post-steer tool and assistant output after the steer message", () => {
+  const ctx = createContext(
+    [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "第一轮回复",
+        timestamp: new Date("2026-08-20T12:45:43.970Z"),
+        parts: [{ type: "text", content: "第一轮回复" }],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+  const events: Array<[StreamEvent, string]> = [
+    [
+      {
+        event: "steer:message",
+        data: JSON.stringify({ content: "1500字的", message_id: "steer-1" }),
+      },
+      "steer-event",
+    ],
+    [
+      {
+        event: "tool:start",
+        data: JSON.stringify({ tool: "write_file", tool_call_id: "tool-1", args: {} }),
+      },
+      "tool-start",
+    ],
+    [
+      {
+        event: "message:chunk",
+        data: JSON.stringify({ content: "第二轮回复" }),
+      },
+      "message-chunk",
+    ],
+    [
+      { event: "done", data: JSON.stringify({ status: "completed" }) },
+      "done",
+    ],
+  ];
+  for (const [event, eventId] of events) {
+    handleStreamEvent(
+      event,
+      "assistant-1",
+      eventId,
+      "2026-08-20T12:46:03.142Z",
+      ctx,
+    );
+  }
+
+  const messages = ctx.messages();
+  expect(messages.map((message) => message.id)).toEqual([
+    "assistant-1#t1",
+    "steer-1",
+    "assistant-1",
+  ]);
+  expect(messages[2]?.content).toContain("第二轮回复");
+  expect(messages[2]?.toolCalls).toHaveLength(1);
+  expect(messages[2]?.isStreaming).toBe(false);
+});
+
 test("keeps distinct SSE events that share the same timestamp", () => {
   const timestamp = "2026-04-19T01:02:03.456Z";
   const ctx = createContext(

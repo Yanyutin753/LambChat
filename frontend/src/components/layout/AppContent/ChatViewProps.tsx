@@ -190,7 +190,7 @@ export interface ChatViewProps {
   onStopGeneration: () => void;
   onSteerMessage?: (content: string) => void;
   steerMessages?: import("../../../utils/mergeSteers").SteerItem[];
-  onCancelSteer?: (content: string) => void;
+  onCancelSteer?: (content: string, messageId?: string) => void;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   onClearActiveGoal: () => void;

@@ -243,7 +243,9 @@ export async function connectToSSE(
                 ? {
                     ...m,
                     isStreaming: false,
-                    parts: clearAllLoadingStates(m.parts || []),
+                    parts: clearAllLoadingStates(m.parts || [], {
+                      preserveAskHuman: true,
+                    }),
                   }
                 : m,
             ),
@@ -322,7 +324,9 @@ export async function reconnectSSE(
               ? {
                   ...m,
                   isStreaming: false,
-                  parts: clearAllLoadingStates(m.parts || []),
+                  parts: clearAllLoadingStates(m.parts || [], {
+                    preserveAskHuman: true,
+                  }),
                 }
               : m,
           ),

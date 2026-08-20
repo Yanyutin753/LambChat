@@ -36,9 +36,10 @@ export interface EventHandlerContext {
   lastHistoryTimestampRef: React.MutableRefObject<Date | null>;
   activeSubagentStackRef: React.MutableRefObject<SubagentStackItem[]>;
   streamVersionRef: React.MutableRefObject<number>;
+  currentRunIdRef?: React.MutableRefObject<string | null>;
   setSessionId: (id: string) => void;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  markSteerDelivered?: (content: string) => void;
+  markSteerDelivered?: (content: string, messageId?: string) => void;
   setConnectionStatus: (status: string) => void;
   setIsInitializingSandbox: (loading: boolean) => void;
   setSandboxError: (error: string | null) => void;
@@ -118,6 +119,17 @@ export function handleStreamEvent(
   }
 
   const depth = data.depth || 0;
+
+  // A late event from a previous run must never resurrect an optimistic steer
+  // after the user switched sessions or started a new turn.
+  if (
+    eventType === "steer:message" &&
+    data.run_id &&
+    ctx.currentRunIdRef?.current &&
+    data.run_id !== ctx.currentRunIdRef.current
+  ) {
+    return;
+  }
 
   // Events handled entirely by side effects (no message transformation)
   switch (eventType) {
@@ -213,11 +225,70 @@ export function handleStreamEvent(
     }
 
     case "steer:message": {
-      // 插话送达（独立事件，不走用户消息管线）：轮次分割 + 插话项转正式
-      ctx.setMessages((prev) => splitAssistantTurn(prev, messageId));
       const steerContent =
         typeof data.content === "string" ? data.content.trim() : "";
-      if (steerContent) ctx.markSteerDelivered?.(steerContent);
+      const steerAttachments = convertAttachments(data.attachments);
+      const deliveredSteerId =
+        typeof data.message_id === "string" && data.message_id.trim()
+          ? data.message_id
+          : `steer-${eventId}`;
+      // 插话送达：先封存当前助手轮次，再把事件本身落入 messages。
+      // 这样即使 SSE 重连时本地 optimistic 状态已丢失，消息仍会立即可见，
+      // 并且后续历史回放与实时状态使用同一条数据源。
+      ctx.setMessages((prev) => {
+        const splitMessages = splitAssistantTurn(prev, messageId);
+        if (!steerContent) return splitMessages;
+        const hasOptimisticById = splitMessages.some(
+          (message) => message.id === deliveredSteerId && message.metadata?.queued === true,
+        );
+        const alreadyPresent = splitMessages.some((message) =>
+          typeof data.message_id === "string" && data.message_id.trim()
+            ? message.id === deliveredSteerId
+            : message.role === "user" &&
+              message.content === steerContent &&
+              message.metadata?.steer === true &&
+              message.metadata?.queued !== true,
+        );
+        let removedOptimistic = false;
+        const withoutOptimistic = splitMessages.filter((message) => {
+          const isOptimistic =
+            message.role === "user" &&
+            message.metadata?.steer === true &&
+            message.metadata?.queued === true &&
+            (message.id === deliveredSteerId ||
+              (!hasOptimisticById && message.content === steerContent));
+          if (isOptimistic && !removedOptimistic) {
+            removedOptimistic = true;
+            return false;
+          }
+          return true;
+        });
+        if (alreadyPresent) return withoutOptimistic;
+        const delivered = {
+          id: deliveredSteerId,
+          role: "user" as const,
+          content: steerContent,
+          attachments: steerAttachments,
+          timestamp: eventTimestamp ? parseDate(eventTimestamp) : new Date(),
+          runId: data.run_id,
+          metadata: { steer: true, queued: false },
+        };
+        // splitAssistantTurn leaves a fresh assistant placeholder for the
+        // response after this steer. Insert before it so the visual order is
+        // assistant turn → steer → next assistant turn.
+        const nextAssistantIndex = withoutOptimistic.findIndex(
+          (message) => message.id === messageId && message.role === "assistant",
+        );
+        if (nextAssistantIndex === -1) return [...withoutOptimistic, delivered];
+        return [
+          ...withoutOptimistic.slice(0, nextAssistantIndex),
+          delivered,
+          ...withoutOptimistic.slice(nextAssistantIndex),
+        ];
+      });
+      if (steerContent) {
+        ctx.markSteerDelivered?.(steerContent, deliveredSteerId);
+      }
       return;
     }
 
@@ -234,7 +305,9 @@ export function handleStreamEvent(
             ? {
                 ...m,
                 isStreaming: false,
-                parts: clearAllLoadingStates(m.parts || []),
+                parts: clearAllLoadingStates(m.parts || [], {
+                  preserveAskHuman: true,
+                }),
               }
             : m,
         ),

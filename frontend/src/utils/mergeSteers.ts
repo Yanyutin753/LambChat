@@ -1,11 +1,17 @@
 import type { Message } from "../types/message";
+import type { MessageAttachment } from "../types/upload";
 
 /** 实时插话项：独立于 messages 的渲染数据源 */
 export interface SteerItem {
   id: string;
   content: string;
+  attachments?: MessageAttachment[];
   /** true = 已入队未送达（置灰 + 时钟角标） */
   queued: boolean;
+  /** Explicit lifecycle state; queued is retained for old renderers. */
+  status?: "pending" | "failed" | "deferred";
+  /** true = API raced with run completion; send as the next normal message */
+  deferred?: boolean;
   timestamp: Date;
 }
 
@@ -27,7 +33,12 @@ export function mergeMessagesWithSteers(
     role: "user",
     content: steer.content,
     timestamp: steer.timestamp,
-    metadata: { steer: true, queued: steer.queued },
+    metadata: {
+      steer: true,
+      queued: steer.queued,
+      ...(steer.status ? { steerStatus: steer.status } : {}),
+      ...(steer.deferred ? { deferred: true } : {}),
+    },
   }));
 
   return [...messages, ...steerMessages].sort(

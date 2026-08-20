@@ -23,6 +23,9 @@ export function UserMessageBubble({
   isLastMessage,
   enabledSkills,
   queued,
+  deferred,
+  failed,
+  messageId,
 }: {
   content?: string;
   attachments?: MessageAttachment[];
@@ -31,6 +34,11 @@ export function UserMessageBubble({
   enabledSkills?: string[];
   /** 运行中插话的排队态：送达前置灰 + 时钟角标，可取消 */
   queued?: boolean;
+  /** 当前任务结束后作为下一条普通消息发送 */
+  deferred?: boolean;
+  /** steer API failed; retain the draft instead of silently sending it later */
+  failed?: boolean;
+  messageId?: string;
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -98,13 +106,23 @@ export function UserMessageBubble({
               <span>{t("chat.steerQueued", "已排队，当前步骤后送达")}</span>
               <button
                 type="button"
-                onClick={() => content && cancelSteeredMessage(content)}
+                onClick={() => content && cancelSteeredMessage(content, messageId)}
                 className="rounded-full p-0.5 opacity-60 transition hover:opacity-100"
                 title={t("chat.steerCancel", "取消这条插话")}
                 aria-label={t("chat.steerCancel", "取消这条插话")}
               >
                 <X size={12} />
               </button>
+            </div>
+          )}
+          {deferred && !queued && (
+            <div className="mb-1 text-xs" style={{ color: "var(--theme-text-secondary)" }}>
+              {t("chat.steerNext", "当前任务结束后发送")}
+            </div>
+          )}
+          {failed && !queued && !deferred && (
+            <div className="mb-1 text-xs" style={{ color: "var(--theme-error, #b42318)" }}>
+              {t("chat.steerFailedRetry", "插话发送失败，请检查网络后重试")}
             </div>
           )}
 

@@ -98,7 +98,11 @@ export async function authFetch<T>(
       errorMessage =
         errorData.detail || `Request failed: ${response.statusText}`;
     }
-    throw new Error(translateBackendError(errorMessage, i18n.t.bind(i18n)));
+    const error = new Error(translateBackendError(errorMessage, i18n.t.bind(i18n))) as Error & {
+      status?: number;
+    };
+    error.status = response.status;
+    throw error;
   }
 
   // 处理空响应

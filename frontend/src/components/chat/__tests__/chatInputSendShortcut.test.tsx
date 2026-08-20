@@ -31,7 +31,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-async function sendDraft(modifier: "ctrl" | "shift") {
+async function sendDraft(modifier: "ctrl" | "shift" | "enter") {
   const onSend = vi.fn();
   render(
     <ChatInput
@@ -70,6 +70,19 @@ test("Ctrl+Enter sends the current rich-composer message by default", async () =
   expect(onSend.mock.calls[0]?.[4]).toEqual(
     expect.objectContaining({ onAccepted: expect.any(Function) }),
   );
+});
+
+test("Enter sends when the Enter shortcut is selected", async () => {
+  localStorage.setItem("newlineModifier", "enter");
+
+  const onSend = await sendDraft("enter");
+
+  expect(onSend.mock.calls[0]?.slice(0, 4)).toEqual([
+    "hello",
+    {},
+    [],
+    undefined,
+  ]);
 });
 
 test("Shift+Enter sends after selecting the Shift shortcut", async () => {

@@ -14,6 +14,7 @@ test("parseSendModifier defaults empty/unknown values to ctrl", () => {
   expect(parseSendModifier("nope")).toBe("ctrl");
   expect(parseSendModifier("ctrl")).toBe("ctrl");
   expect(parseSendModifier("shift")).toBe("shift");
+  expect(parseSendModifier("enter")).toBe("enter");
 });
 
 test("readSendModifier uses storage key and default", () => {
@@ -49,6 +50,21 @@ test("isSendEnterKey treats shift mode as shift only", () => {
   expect(
     isSendEnterKey({ ctrlKey: false, metaKey: false, shiftKey: true }, "shift"),
   ).toBe(true);
+});
+
+test("isSendEnterKey treats enter mode as an unmodified Enter", () => {
+  expect(
+    isSendEnterKey({ ctrlKey: false, metaKey: false, shiftKey: false }, "enter"),
+  ).toBe(true);
+  expect(
+    isSendEnterKey({ ctrlKey: true, metaKey: false, shiftKey: false }, "enter"),
+  ).toBe(false);
+  expect(
+    isSendEnterKey({ ctrlKey: false, metaKey: true, shiftKey: false }, "enter"),
+  ).toBe(false);
+  expect(
+    isSendEnterKey({ ctrlKey: false, metaKey: false, shiftKey: true }, "enter"),
+  ).toBe(false);
 });
 
 test("getSendShortcutDisplay keeps dialog in sync with default ctrl mode", () => {

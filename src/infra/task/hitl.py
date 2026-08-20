@@ -28,7 +28,7 @@ HITL_RESUME_LOCK_TTL_SECONDS = 300
 
 def hitl_interrupt_mode_enabled() -> bool:
     """当前是否启用 interrupt 模式的 ask_human。"""
-    return getattr(settings, "HITL_MODE", "blocking") == "interrupt"
+    return getattr(settings, "HITL_MODE", "interrupt") == "interrupt"
 
 
 def is_interrupt_approval(approval: Any) -> bool:

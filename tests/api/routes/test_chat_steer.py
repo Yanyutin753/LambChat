@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
-from src.api.routes.chat import SteerRequest, steer_running_agent
+from src.api.routes.chat import SteerRequest, list_pending_steers, steer_running_agent
 from src.infra.task.status import TaskStatus
 
 
@@ -42,10 +42,108 @@ async def test_steer_enqueues_message_for_running_session(monkeypatch) -> None:
 
     from src.infra.task.steer import get_steer_queue
 
-    result = await steer_running_agent("session-1", SteerRequest(message="中途插话"), user=_user())
+    result = await steer_running_agent(
+        "session-1", SteerRequest(message="中途插话", message_id="client-1"), user=_user()
+    )
 
     assert result["status"] == "queued"
+    assert result["message_id"] == "client-1"
     assert await get_steer_queue().drain("session-1") == ["中途插话"]
+
+
+async def test_steer_retry_with_same_id_does_not_duplicate(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.api.routes.chat.SessionManager",
+        lambda: SimpleNamespace(get_session=AsyncMock(return_value=_session())),
+    )
+    monkeypatch.setattr(
+        "src.api.routes.chat.get_task_manager",
+        lambda: SimpleNamespace(get_status=AsyncMock(return_value=TaskStatus.RUNNING)),
+    )
+
+    first = await steer_running_agent(
+        "session-1", SteerRequest(message="重复安全", message_id="same-id"), user=_user()
+    )
+    second = await steer_running_agent(
+        "session-1", SteerRequest(message="重复安全", message_id="same-id"), user=_user()
+    )
+    assert first["message_id"] == second["message_id"] == "same-id"
+    assert second["queued"] == 1
+    from src.infra.task.steer import get_steer_queue
+
+    await get_steer_queue().drain("session-1")
+
+
+async def test_steer_accepts_attachments(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.api.routes.chat.SessionManager",
+        lambda: SimpleNamespace(get_session=AsyncMock(return_value=_session())),
+    )
+    monkeypatch.setattr(
+        "src.api.routes.chat.get_task_manager",
+        lambda: SimpleNamespace(get_status=AsyncMock(return_value=TaskStatus.RUNNING)),
+    )
+
+    from src.infra.task.steer import get_steer_queue
+
+    result = await steer_running_agent(
+        "session-1",
+        SteerRequest(
+            message="分析这个文件",
+            message_id="with-file",
+            attachments=[
+                {
+                    "id": "file-1",
+                    "key": "uploads/file-1",
+                    "name": "报告.pdf",
+                    "type": "document",
+                    "mimeType": "application/pdf",
+                    "size": 100,
+                    "url": "/api/files/file-1",
+                }
+            ],
+        ),
+        user=_user(),
+    )
+
+    assert result["outcome"] == "accepted"
+    item = (await get_steer_queue().drain_items("session-1"))[0]
+    assert item.attachments[0]["name"] == "报告.pdf"
+    await get_steer_queue().ack_items("session-1")
+
+
+async def test_cancel_with_unknown_id_does_not_remove_same_text_message(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.api.routes.chat.SessionManager",
+        lambda: SimpleNamespace(get_session=AsyncMock(return_value=_session())),
+    )
+    from src.infra.task.steer import SteerItem, get_steer_queue
+
+    queue = get_steer_queue()
+    await queue.enqueue_item("session-1", SteerItem(id="real-id", content="同文本"))
+    from src.api.routes.chat import cancel_steered_message
+
+    result = await cancel_steered_message(
+        "session-1",
+        SteerRequest(message="同文本", message_id="missing-id"),
+        user=_user(),
+    )
+    assert result["status"] == "not_found"
+    assert [item.id for item in await queue.drain_items("session-1")] == ["real-id"]
+
+
+async def test_pending_steers_can_be_restored_after_refresh(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.api.routes.chat.SessionManager",
+        lambda: SimpleNamespace(get_session=AsyncMock(return_value=_session())),
+    )
+    from src.infra.task.steer import SteerItem, get_steer_queue
+
+    queue = get_steer_queue()
+    await queue.enqueue_item("session-refresh", SteerItem(id="restore-id", content="刷新后还在"))
+    result = await list_pending_steers("session-refresh", user=_user())
+    assert result["items"][0]["message_id"] == "restore-id"
+    await queue.drain("session-refresh")
 
 
 async def test_steer_rejects_when_task_not_running(monkeypatch) -> None:

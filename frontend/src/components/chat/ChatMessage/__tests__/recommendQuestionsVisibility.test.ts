@@ -6,6 +6,12 @@ const chatMessageSource = readFileSync(
 
 test("recommended questions wait for the completed assistant action bar", () => {
   expect(chatMessageSource).toMatch(
-    /!\s*message\.isStreaming\s*&&\s*isLastMessage\s*&&\s*message\.parts\?\.some\(\(p\) => p\.type === "recommend_questions"\)/,
+    /!\s*message\.isStreaming\s*&&\s*!isWaitingForHuman\s*&&\s*isLastMessage/,
+  );
+});
+
+test("finish-only message actions stay hidden while waiting for ask-human", () => {
+  expect(chatMessageSource).toMatch(
+    /!message\.isStreaming\s*&&\s*!isWaitingForHuman/,
   );
 });

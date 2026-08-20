@@ -229,6 +229,57 @@ function FormFieldRenderer({
   }
 }
 
+function AskHumanChoiceList({
+  field,
+  value,
+  disabled,
+  selectedIndex,
+  onSelect,
+  onInteract,
+}: {
+  field: FormField;
+  value: unknown;
+  disabled: boolean;
+  selectedIndex: number;
+  onSelect: (option: string, index: number) => void;
+  onInteract: () => void;
+}) {
+  const selectedValues = Array.isArray(value) ? (value as string[]) : [];
+  const selectedValue = typeof value === "string" ? value : "";
+  const isMultiple = field.type === "multi_select";
+
+  return (
+    <div className="approval-ask-human-options" role="listbox" aria-label={field.label}>
+      {(field.options ?? []).map((option, index) => {
+        const selected = isMultiple
+          ? selectedValues.includes(option)
+          : selectedValue === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="option"
+            aria-selected={selected}
+            disabled={disabled}
+            className={clsx(
+              "approval-ask-human-option",
+              selected && "approval-ask-human-option--selected",
+              selectedIndex === index && "approval-ask-human-option--focused",
+            )}
+            onClick={() => {
+              onInteract();
+              onSelect(option, index);
+            }}
+          >
+            <span className="approval-ask-human-option-index">{index + 1}.</span>
+            <span className="min-w-0 flex-1 text-left">{option}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ApprovalPanel({
   approvals,
   onRespond,
@@ -236,12 +287,16 @@ export function ApprovalPanel({
 }: ApprovalPanelProps) {
   const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [askHumanSelectedIndex, setAskHumanSelectedIndex] = useState(0);
+  const [askHumanFieldIndex, setAskHumanFieldIndex] = useState(0);
   const [formValues, setFormValues] = useState<
     Record<string, Record<string, unknown>>
   >({});
 
   // Countdown state: map of approval id -> remaining seconds
   const [remaining, setRemaining] = useState<Record<string, number>>({});
+  const currentApprovalId = approvals[currentIndex]?.id;
   // Track expiry deadlines so we can update them on extend
   const deadlinesRef = useRef<Record<string, number>>({});
   // Debounce extend calls (per approval)
@@ -256,6 +311,7 @@ export function ApprovalPanel({
   useEffect(() => {
     const now = Date.now();
     for (const a of approvals) {
+      if (a.metadata?.mode === "interrupt") continue;
       if (deadlinesRef.current[a.id]) continue;
       if (!a.expires_at && !a.timeout) continue; // no deadline — wait indefinitely
       let deadline: number;
@@ -275,7 +331,11 @@ export function ApprovalPanel({
       }));
     }
     // Clean up removed approvals
-    const ids = new Set(approvals.map((a) => a.id));
+    const ids = new Set(
+      approvals
+        .filter((approval) => approval.metadata?.mode !== "interrupt")
+        .map((approval) => approval.id),
+    );
     for (const id of Object.keys(deadlinesRef.current)) {
       if (!ids.has(id)) {
         delete deadlinesRef.current[id];
@@ -287,6 +347,11 @@ export function ApprovalPanel({
       }
     }
   }, [approvals]);
+
+  useEffect(() => {
+    setAskHumanSelectedIndex(0);
+    setAskHumanFieldIndex(0);
+  }, [currentApprovalId]);
 
   // Countdown tick
   useEffect(() => {
@@ -428,6 +493,9 @@ export function ApprovalPanel({
   const currentFormValues = formValues[currentApproval.id] ?? {};
   const currentRemaining = remaining[currentApproval.id];
   const isUrgent = currentRemaining !== undefined && currentRemaining <= 60;
+  const approvalSummary = currentApproval.message
+    .replace(/\s+/g, " ")
+    .trim();
 
   const handleFieldChange = (fieldName: string, value: unknown) => {
     setFormValues((prev) => ({
@@ -440,6 +508,11 @@ export function ApprovalPanel({
   };
 
   const handleSubmit = () => {
+    if (isAskHuman && askHumanFieldIndex < askHumanFields.length - 1) {
+      setAskHumanFieldIndex((index) => index + 1);
+      setAskHumanSelectedIndex(0);
+      return;
+    }
     onRespond(currentApproval.id, currentFormValues, true);
   };
 
@@ -447,8 +520,26 @@ export function ApprovalPanel({
     onRespond(currentApproval.id, {}, false);
   };
 
+  const isAskHuman = currentApproval.metadata?.mode === "interrupt";
+  const askHumanFields = currentApproval.fields;
+  const currentAskHumanField = askHumanFields[askHumanFieldIndex];
+  const askHumanChoiceField =
+    currentAskHumanField &&
+    (currentAskHumanField.type === "radio" ||
+      currentAskHumanField.type === "multi_select" ||
+      currentAskHumanField.type === "select")
+      ? currentAskHumanField
+      : undefined;
+  const askHumanQuestion = currentAskHumanField?.label || approvalSummary;
   const isSubmitDisabled =
-    isLoading || !isFormValid(currentApproval.fields, currentFormValues);
+    isLoading ||
+    !isFormValid(
+      isAskHuman && currentAskHumanField
+        ? [currentAskHumanField]
+        : currentApproval.fields,
+      currentFormValues,
+    );
+
 
   function isFormValid(
     fields: FormField[],
@@ -466,10 +557,10 @@ export function ApprovalPanel({
 
   return (
     <div
-      className="w-full max-h-[60dvh] shrink min-h-0 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 sm:py-3"
+      className="approval-scroll-container w-full shrink-0 min-h-0 overflow-visible px-2 py-2 sm:px-8 sm:py-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
-      <div className="mx-auto max-w-2xl lg:max-w-3xl xl:max-w-4xl">
+      <div className="mx-auto w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl">
         {/* Pagination */}
         {approvals.length > 1 && (
           <div className="mb-2 flex items-center justify-between px-1">
@@ -504,17 +595,50 @@ export function ApprovalPanel({
         )}
 
         <div
-          className="approval-card animate-glass-enter"
+          className={`approval-card approval-card--composer ${isAskHuman ? "approval-card--ask-human" : ""} animate-glass-enter ${isExpanded ? "approval-card--expanded" : "approval-card--compact"}`}
           key={currentApproval.id}
+          onKeyDown={(event) => {
+            if (!isAskHuman || !askHumanChoiceField?.options?.length) return;
+            const count = askHumanChoiceField.options.length;
+            if (event.key === "ArrowDown" || event.key === "Tab") {
+              event.preventDefault();
+              setAskHumanSelectedIndex((index) => (index + 1) % count);
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setAskHumanSelectedIndex((index) => (index - 1 + count) % count);
+            } else if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              const option = askHumanChoiceField.options[askHumanSelectedIndex];
+              if (option) {
+                handleFieldChange(
+                  askHumanChoiceField.name,
+                  askHumanChoiceField.type === "multi_select" ? [option] : option,
+                );
+              }
+            }
+          }}
+          tabIndex={isAskHuman ? 0 : undefined}
         >
-          {/* Header */}
-          <div className="approval-header">
+          {!isAskHuman ? <button
+            type="button"
+            className="approval-header approval-compact"
+            onClick={() => setIsExpanded((expanded) => !expanded)}
+            aria-expanded={isExpanded}
+            aria-controls={`approval-details-${currentApproval.id}`}
+          >
             <div className="approval-icon">
               <ShieldCheck size={16} strokeWidth={2} />
             </div>
-            <span className="approval-title">
-              {t("approvals.needsConfirmation")}
-            </span>
+            <div className="min-w-0 flex-1 text-left">
+              <span className="approval-title block">
+                {t("approvals.needsConfirmation")}
+              </span>
+              {!isExpanded && (
+                <span className="approval-summary block truncate">
+                  {approvalSummary}
+                </span>
+              )}
+            </div>
             {currentRemaining !== undefined && (
               <span
                 className={`approval-timer ml-auto flex items-center gap-1 text-xs tabular-nums ${
@@ -525,10 +649,30 @@ export function ApprovalPanel({
                 {formatCountdown(currentRemaining)}
               </span>
             )}
-          </div>
+            <ChevronRight
+              size={16}
+              className={`approval-expand-icon shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+              aria-hidden="true"
+            />
+          </button> : (
+            <div className="approval-ask-human-header">
+              <div className="approval-ask-human-title-row">
+                <span className="approval-ask-human-badge">{t("approvals.mainGoal", "主要目标")}</span>
+                <span className="approval-ask-human-question">{askHumanQuestion}</span>
+              </div>
+              {askHumanFields.length > 1 && (
+                <div className="approval-ask-human-pagination">
+                  <button type="button" onClick={() => setAskHumanFieldIndex((index) => Math.max(0, index - 1))} disabled={askHumanFieldIndex === 0} aria-label="上一项">‹</button>
+                  <span>{askHumanFieldIndex + 1} / {askHumanFields.length}</span>
+                  <button type="button" onClick={() => setAskHumanFieldIndex((index) => Math.min(askHumanFields.length - 1, index + 1))} disabled={askHumanFieldIndex === askHumanFields.length - 1} aria-label="下一项">›</button>
+                </div>
+              )}
+            </div>
+          )}
 
+          {(isExpanded || isAskHuman) && <div id={`approval-details-${currentApproval.id}`}>
           {/* Message */}
-          <div className="approval-message">
+          {!isAskHuman && <div className="approval-message">
             <div
               className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-0.5 prose-headings:my-1"
               style={{ color: "var(--theme-text)" }}
@@ -555,14 +699,33 @@ export function ApprovalPanel({
                 </ReactMarkdown>
               )}
             </div>
-          </div>
+          </div>}
+
+          {isAskHuman && askHumanChoiceField && (
+            <AskHumanChoiceList
+              field={askHumanChoiceField}
+              value={currentFormValues[askHumanChoiceField.name]}
+              disabled={isLoading}
+              selectedIndex={askHumanSelectedIndex}
+              onInteract={handleInteract(currentApproval.id)}
+              onSelect={(option, index) => {
+                setAskHumanSelectedIndex(index);
+                handleFieldChange(
+                  askHumanChoiceField.name,
+                  askHumanChoiceField.type === "multi_select"
+                    ? [option]
+                    : option,
+                );
+              }}
+            />
+          )}
 
           {/* Form fields */}
-          {currentApproval.fields.length > 0 && (
+          {!isAskHuman && currentApproval.fields.length > 0 && (
             <>
               <div className="approval-divider" />
               <div className="approval-form space-y-3">
-                {currentApproval.fields.map((field) => {
+                {currentApproval.fields.filter((field) => field !== askHumanChoiceField).map((field) => {
                   const isOther = field.name === "_other";
                   const displayField = isOther
                     ? {
@@ -606,26 +769,51 @@ export function ApprovalPanel({
               </div>
             </>
           )}
-          <div className="approval-actions">
+          {isAskHuman && currentAskHumanField && !askHumanChoiceField && (
+            <div className="approval-ask-human-text-field">
+              <label className="approval-ask-human-field-label">
+                {currentAskHumanField.label}
+              </label>
+              <FormFieldRenderer
+                field={currentAskHumanField}
+                value={currentFormValues[currentAskHumanField.name]}
+                onChange={(value) =>
+                  handleFieldChange(currentAskHumanField.name, value)
+                }
+                disabled={isLoading}
+                onInteract={handleInteract(currentApproval.id)}
+              />
+            </div>
+          )}
+          <div className={`approval-actions ${isAskHuman ? "approval-ask-human-footer" : ""}`}>
             <div className="flex gap-2">
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
+                aria-label={isAskHuman ? t("approvals.continue", "继续") : t("approvals.submit")}
+                title={isAskHuman ? t("approvals.continue", "继续") : t("approvals.submit")}
                 className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Send size={14} />
-                <span>{t("approvals.submit")}</span>
+                <span>
+                  {isAskHuman && askHumanFieldIndex < askHumanFields.length - 1
+                    ? t("approvals.continue", "继续")
+                    : t("approvals.submit")}
+                </span>
               </button>
               <button
                 onClick={handleCancel}
                 disabled={isLoading}
+                aria-label={isAskHuman ? t("approvals.ignore", "忽略") : t("approvals.cancel")}
+                title={isAskHuman ? t("approvals.ignore", "忽略") : t("approvals.cancel")}
                 className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <X size={14} />
-                <span>{t("approvals.cancel")}</span>
+                <span>{isAskHuman ? t("approvals.ignore", "忽略") : t("approvals.cancel")}</span>
               </button>
             </div>
           </div>
+          </div>}
         </div>
       </div>
     </div>

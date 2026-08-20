@@ -255,10 +255,10 @@ export interface UseAgentReturn {
     runOptions?: { enabledSkills?: string[] },
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => Promise<void>;
-  steerMessage: (content: string) => Promise<void>;
-  cancelSteer: (content: string) => void;
+  steerMessage: (content: string, attachments?: MessageAttachment[]) => Promise<void>;
+  cancelSteer: (content: string, messageId?: string) => void;
   steerMessages: import("../../utils/mergeSteers").SteerItem[];
-  markSteerDelivered: (content: string) => void;
+  markSteerDelivered: (content: string, messageId?: string) => void;
   applyRecommendQuestions: (runId: string, questions: string[]) => void;
   clearActiveGoal: () => void;
   stopGeneration: () => Promise<void>;

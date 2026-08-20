@@ -4,7 +4,7 @@
 
 import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, MoreHorizontal } from "lucide-react";
+import { AlertCircle, Check, MoreHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
@@ -247,6 +247,9 @@ function SessionItemComponent({
 
   // Get display title
   const displayTitle = getSessionTitle(session);
+  const taskStatus = session.metadata?.task_status;
+  const isWaitingForHuman = taskStatus === "waiting_human";
+  const isGenerating = taskStatus === "running" || taskStatus === "pending";
 
   return (
     <>
@@ -274,7 +277,9 @@ function SessionItemComponent({
             onSelect();
           }
         }}
-        style={isDragging ? { touchAction: "none" } : undefined}
+        // Keep taps on mobile as normal activation gestures; the long-press
+        // handlers below still own drag initiation once movement is detected.
+        style={isDragging ? { touchAction: "none" } : { touchAction: "manipulation" }}
         className={`group relative flex cursor-pointer items-center gap-3 h-10 rounded-[10px] px-[9px] transition-colors ${
           isSelected
             ? "hover:bg-stone-100 dark:hover:bg-stone-800/40"
@@ -338,9 +343,25 @@ function SessionItemComponent({
         </div>
 
         {/* Task running indicator - same position/size as unread badge */}
-        {(session.metadata?.task_status === "running" ||
-          session.metadata?.task_status === "pending") && (
-          <span className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
+        {isGenerating && (
+          <span className="shrink-0 inline-flex items-center justify-center gap-1 text-xs text-amber-500 dark:text-amber-400">
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
+            {isTouched && (
+              <span>{t(taskStatus === "pending" ? "sidebar.pendingStatus" : "sidebar.runningStatus", taskStatus === "pending" ? "等待中" : "运行中")}</span>
+            )}
+          </span>
+        )}
+
+        {isWaitingForHuman && (
+          <span
+            data-session-status="ask-human"
+            title="Ask human · 等待你的回复"
+            aria-label="Ask human · 等待你的回复"
+            className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
+          >
+            <AlertCircle size={16} strokeWidth={2.3} />
+            {isTouched && <span className="ml-1 text-xs">{t("sidebar.waitingHuman", "等待回复")}</span>}
+          </span>
         )}
 
         {/* Unread dot - hidden when session is active (user is viewing it) */}
