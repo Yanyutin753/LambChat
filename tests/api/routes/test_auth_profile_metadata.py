@@ -20,6 +20,60 @@ def _fake_user() -> TokenPayload:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("theme", ["light", "dark", "sepia"])
+async def test_update_profile_metadata_accepts_supported_themes(
+    monkeypatch: pytest.MonkeyPatch, theme: str
+) -> None:
+    received: dict = {}
+
+    class _FakeStorage:
+        async def update_metadata(self, _user_id, metadata):
+            received.update(metadata)
+            return {"metadata": metadata}
+
+    monkeypatch.setattr(user_storage, "UserStorage", lambda: _FakeStorage())
+
+    app = FastAPI()
+    app.include_router(profile_route.router, prefix="/api/auth")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.put(
+            "/api/auth/profile/metadata",
+            json={"metadata": {"theme": theme}},
+        )
+
+    assert response.status_code == 200
+    assert received == {"theme": theme}
+
+
+@pytest.mark.asyncio
+async def test_update_profile_metadata_rejects_unknown_theme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _StorageShouldNotBeCalled:
+        async def update_metadata(self, *_args, **_kwargs):
+            raise AssertionError("unknown theme should be rejected before storage update")
+
+    monkeypatch.setattr(user_storage, "UserStorage", lambda: _StorageShouldNotBeCalled())
+
+    app = FastAPI()
+    app.include_router(profile_route.router, prefix="/api/auth")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.put(
+            "/api/auth/profile/metadata",
+            json={"metadata": {"theme": "neon"}},
+        )
+
+    assert response.status_code == 400
+    assert "Invalid theme" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_update_profile_metadata_rejects_too_many_favorite_presets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

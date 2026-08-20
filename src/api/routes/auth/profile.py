@@ -134,7 +134,7 @@ async def update_user_metadata(
     部分更新当前用户 metadata（merge 方式）
 
     metadata 中的字段会与现有 metadata 合并。
-    支持的字段: language (str), theme (str: light/dark), disabled_tools (list[str])
+    支持的字段: language (str), theme (str: light/dark/sepia), disabled_tools (list[str])
     """
     from src.infra.user.storage import UserStorage
 
@@ -153,10 +153,10 @@ async def update_user_metadata(
     # Validate theme if provided
     if "theme" in request.metadata:
         theme = request.metadata["theme"]
-        if theme not in ("light", "dark"):
+        if theme not in ("light", "dark", "sepia"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid theme: {theme}. Must be 'light' or 'dark'.",
+                detail=f"Invalid theme: {theme}. Must be 'light', 'dark' or 'sepia'.",
             )
 
     # Validate disabled_tools if provided
