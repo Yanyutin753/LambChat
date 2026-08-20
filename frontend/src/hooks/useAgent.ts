@@ -167,7 +167,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
-  const steerQueue = useSteerQueue({ sessionIdRef, setError });
+  const steerQueue = useSteerQueue({ sessionIdRef, setMessages, setError });
 
   useEffect(() => {
     currentRunIdRef.current = currentRunId;
@@ -194,9 +194,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setSandboxError,
       setActiveGoal,
       setGoalsByRunId,
-      removePendingSteerByContent: steerQueue.removePendingSteerByContent,
     }),
-    [options, steerQueue],
+    [options],
   );
 
   // Create SSE connection context
@@ -380,7 +379,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       // Clear approvals before loading new session
       options?.onClearApprovals?.();
-      steerQueue.clearPendingSteers();
 
       try {
         const [sessionData, eventsData] = await Promise.all([

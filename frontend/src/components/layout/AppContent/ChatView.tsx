@@ -12,7 +12,7 @@ import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso, type ListRange } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
-import { SteerQueueChips } from "../../chat/SteerQueueChips";
+import { setSteerCancelHandler } from "../../chat/steerCancelStore";
 import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel";
 import {
   ChatSkeleton,
@@ -113,7 +113,6 @@ export function ChatView({
   onSendMessage,
   onStopGeneration,
   onSteerMessage,
-  pendingSteers,
   onCancelSteer,
   activeGoal,
   goalsByRunId,
@@ -443,6 +442,11 @@ export function ChatView({
     ],
   );
 
+  useEffect(() => {
+    setSteerCancelHandler((content) => onCancelSteer?.(content));
+    return () => setSteerCancelHandler(null);
+  }, [onCancelSteer]);
+
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
     onSend: (
@@ -653,7 +657,6 @@ export function ChatView({
               </svg>
             </button>
           </div>
-          <SteerQueueChips steers={pendingSteers ?? []} onCancel={onCancelSteer ?? (() => {})} />
           <ChatInput
             {...chatInputProps}
             activeGoal={visibleActiveGoal}

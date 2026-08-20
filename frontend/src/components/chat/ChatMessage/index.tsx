@@ -536,6 +536,7 @@ export const ChatMessage = memo(function ChatMessage({
           attachments={message.attachments}
           isLastMessage={isLastMessage}
           enabledSkills={message.enabledSkills}
+          queued={message.metadata?.queued === true}
         />
       </div>
     );

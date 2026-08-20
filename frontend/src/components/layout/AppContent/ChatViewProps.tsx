@@ -189,7 +189,6 @@ export interface ChatViewProps {
   ) => void;
   onStopGeneration: () => void;
   onSteerMessage?: (content: string) => void;
-  pendingSteers?: import("../../chat/SteerQueueChips").PendingSteer[];
   onCancelSteer?: (content: string) => void;
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;

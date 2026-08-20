@@ -46,7 +46,6 @@ export interface EventHandlerContext {
   setGoalsByRunId: React.Dispatch<
     React.SetStateAction<Record<string, import("./types").ActiveGoalSpec>>
   >;
-  removePendingSteerByContent?: (content: string) => void;
 }
 
 /**
@@ -208,10 +207,6 @@ export function handleStreamEvent(
 
     case "user:message": {
       handleUserMessage(data, messageId, eventTimestamp, ctx);
-      // 插话送达：移除对应的排队 chip（正式气泡已由 user:message 渲染）
-      if (typeof data.content === "string" && data.content.trim()) {
-        ctx.removePendingSteerByContent?.(data.content.trim());
-      }
       return;
     }
 
