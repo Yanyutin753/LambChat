@@ -281,10 +281,12 @@ export function MessageTimelineRail({
 
           const isHovered =
             hoveredTurnIndex === index || touchTurnIndex === index;
-          const waveOffset =
+          const waveWidth =
             touchTurnIndex === null
-              ? 0
-              : Math.max(0, 5 - Math.abs(index - touchTurnIndex) * 2);
+              ? isHovered
+                ? 24
+                : 16
+              : 16 + Math.max(0, 8 - Math.abs(index - touchTurnIndex));
 
           return (
             <span
@@ -305,7 +307,7 @@ export function MessageTimelineRail({
             >
               <span
                 className={clsx(
-                  "h-[3px] w-4 rounded-full transition-[transform,background-color] duration-200 ease-out",
+                  "h-[3px] rounded-full transition-[width,background-color] duration-200 ease-out",
                   isActive || userActive
                     ? "bg-[var(--theme-primary)]"
                     : isHovered
@@ -313,8 +315,7 @@ export function MessageTimelineRail({
                       : "bg-[color-mix(in_srgb,var(--theme-text-secondary)_22%,transparent)] group-hover/timeline:bg-[color-mix(in_srgb,var(--theme-primary)_32%,transparent)]",
                 )}
                 style={{
-                  width: "16px",
-                  transform: `translateX(-${waveOffset}px)`,
+                  width: `${waveWidth}px`,
                 }}
               />
             </span>

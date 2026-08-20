@@ -409,6 +409,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     if interrupt_supported:
         try:
             snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
+            if isinstance(inner_config, dict):
+                inner_config["_recommendation_state_snapshot"] = snapshot
             if snapshot is not None and snapshot.next:
                 presenter.hitl_suspended = True
                 logger.info(

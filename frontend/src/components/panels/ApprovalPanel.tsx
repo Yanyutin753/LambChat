@@ -527,14 +527,26 @@ export function ApprovalPanel({
   const isAskHuman = currentApproval.metadata?.mode === "interrupt";
   const askHumanFields = currentApproval.fields;
   const currentAskHumanField = askHumanFields[askHumanFieldIndex];
+  const currentAskHumanDisplayField = currentAskHumanField
+    ? currentAskHumanField.name === "_other"
+      ? {
+          ...currentAskHumanField,
+          label: t("chat.message.askHumanOtherLabel"),
+          placeholder:
+            currentAskHumanField.placeholder ||
+            t("chat.message.askHumanOtherPlaceholder"),
+        }
+      : currentAskHumanField
+    : undefined;
   const askHumanChoiceField =
-    currentAskHumanField &&
-    (currentAskHumanField.type === "radio" ||
-      currentAskHumanField.type === "multi_select" ||
-      currentAskHumanField.type === "select")
-      ? currentAskHumanField
+    currentAskHumanDisplayField &&
+    (currentAskHumanDisplayField.type === "radio" ||
+      currentAskHumanDisplayField.type === "multi_select" ||
+      currentAskHumanDisplayField.type === "select")
+      ? currentAskHumanDisplayField
       : undefined;
-  const askHumanQuestion = currentAskHumanField?.label || approvalSummary;
+  const askHumanQuestion =
+    currentAskHumanDisplayField?.label || approvalSummary;
   const isSubmitDisabled =
     isLoading ||
     !isFormValid(
@@ -671,7 +683,7 @@ export function ApprovalPanel({
             <div className="approval-ask-human-header">
               <div className="approval-ask-human-title-row">
                 <span className="approval-ask-human-badge">
-                  {t("approvals.mainGoal", "主要目标")}
+                  {t("approvals.mainGoal")}
                 </span>
                 <span className="approval-ask-human-question">
                   {askHumanQuestion}
@@ -685,7 +697,7 @@ export function ApprovalPanel({
                       setAskHumanFieldIndex((index) => Math.max(0, index - 1))
                     }
                     disabled={askHumanFieldIndex === 0}
-                    aria-label="上一项"
+                    aria-label={t("approvals.previous")}
                   >
                     ‹
                   </button>
@@ -700,7 +712,7 @@ export function ApprovalPanel({
                       )
                     }
                     disabled={askHumanFieldIndex === askHumanFields.length - 1}
-                    aria-label="下一项"
+                    aria-label={t("approvals.next")}
                   >
                     ›
                   </button>
@@ -814,16 +826,18 @@ export function ApprovalPanel({
                   </div>
                 </>
               )}
-              {isAskHuman && currentAskHumanField && !askHumanChoiceField && (
+              {isAskHuman &&
+                currentAskHumanDisplayField &&
+                !askHumanChoiceField && (
                 <div className="approval-ask-human-text-field">
                   <label className="approval-ask-human-field-label">
-                    {currentAskHumanField.label}
+                    {currentAskHumanDisplayField.label}
                   </label>
                   <FormFieldRenderer
-                    field={currentAskHumanField}
-                    value={currentFormValues[currentAskHumanField.name]}
+                    field={currentAskHumanDisplayField}
+                    value={currentFormValues[currentAskHumanDisplayField.name]}
                     onChange={(value) =>
-                      handleFieldChange(currentAskHumanField.name, value)
+                      handleFieldChange(currentAskHumanDisplayField.name, value)
                     }
                     disabled={isLoading}
                     onInteract={handleInteract(currentApproval.id)}
@@ -841,12 +855,12 @@ export function ApprovalPanel({
                     disabled={isSubmitDisabled}
                     aria-label={
                       isAskHuman
-                        ? t("approvals.continue", "继续")
+                        ? t("approvals.continue")
                         : t("approvals.submit")
                     }
                     title={
                       isAskHuman
-                        ? t("approvals.continue", "继续")
+                        ? t("approvals.continue")
                         : t("approvals.submit")
                     }
                     className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
@@ -855,7 +869,7 @@ export function ApprovalPanel({
                     <span>
                       {isAskHuman &&
                       askHumanFieldIndex < askHumanFields.length - 1
-                        ? t("approvals.continue", "继续")
+                        ? t("approvals.continue")
                         : t("approvals.submit")}
                     </span>
                   </button>
@@ -864,12 +878,12 @@ export function ApprovalPanel({
                     disabled={isLoading}
                     aria-label={
                       isAskHuman
-                        ? t("approvals.ignore", "忽略")
+                        ? t("approvals.ignore")
                         : t("approvals.cancel")
                     }
                     title={
                       isAskHuman
-                        ? t("approvals.ignore", "忽略")
+                        ? t("approvals.ignore")
                         : t("approvals.cancel")
                     }
                     className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
@@ -877,7 +891,7 @@ export function ApprovalPanel({
                     <X size={14} />
                     <span>
                       {isAskHuman
-                        ? t("approvals.ignore", "忽略")
+                        ? t("approvals.ignore")
                         : t("approvals.cancel")}
                     </span>
                   </button>

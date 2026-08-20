@@ -18,16 +18,17 @@ def _session(user_id="user-1"):
     return SimpleNamespace(user_id=user_id, session_id="session-1")
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def queue():
-    from src.infra.task.steer import get_steer_queue
+    import src.infra.task.steer as steer
 
-    q = get_steer_queue()
+    q = steer.SteerQueue(redis=None)
+    previous = steer._steer_queue
+    steer._steer_queue = q
     yield q
-    # 清理
-    import asyncio
-
-    asyncio.get_event_loop().run_until_complete(q.drain("session-1"))
+    steer._steer_queue = previous
+    # 清理本地测试队列；每个测试使用独立实例，不触碰共享 Redis。
+    q._pending.clear()
 
 
 async def test_steer_enqueues_message_for_running_session(monkeypatch) -> None:

@@ -214,7 +214,7 @@ describe("MessageTimelineRail", () => {
       "button > span > span.rounded-full",
     );
     expect((bars[1] as HTMLElement).style.width).toBe("24px");
-    expect((bars[0] as HTMLElement).style.width).toBe("22px");
+    expect((bars[0] as HTMLElement).style.width).toBe("23px");
   });
 
   test("inactive bars use color-mix transparent background", () => {
@@ -397,14 +397,14 @@ describe("MessageTimelineRail", () => {
     const bar = container.querySelector(
       "button > span > span.rounded-full",
     ) as HTMLElement;
-    expect(bar.style.width).toBe("24px");
+    expect(bar.style.width).toBe("16px");
 
     // Hover the parent span
     const clickTarget = container.querySelector(
       "button > span.cursor-pointer",
     )!;
     fireEvent.mouseEnter(clickTarget);
-    expect(bar.style.width).toBe("16px");
+    expect(bar.style.width).toBe("24px");
   });
 
   test("hovering second turn shows second turn's content", () => {

@@ -575,7 +575,13 @@ def schedule_recommend_questions_from_state(
             return
         history_messages: list[Any] = []
         try:
-            current_state = await inner_graph.aget_state(inner_config)
+            current_state = (
+                inner_config.get("_recommendation_state_snapshot")
+                if isinstance(inner_config, dict)
+                else None
+            )
+            if current_state is None:
+                current_state = await inner_graph.aget_state(inner_config)
             values = getattr(current_state, "values", {}) or {}
             history_messages = values.get("messages") or []
         except Exception as exc:
