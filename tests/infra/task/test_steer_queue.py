@@ -32,3 +32,17 @@ async def test_enqueue_returns_pending_count() -> None:
 
     assert await queue.enqueue("session-c", "one") == 1
     assert await queue.enqueue("session-c", "two") == 2
+
+
+async def test_remove_cancels_first_matching_message() -> None:
+    queue = get_steer_queue()
+
+    await queue.enqueue("session-r", "keep")
+    await queue.enqueue("session-r", "drop")
+    await queue.enqueue("session-r", "drop")
+
+    assert await queue.remove("session-r", "drop") is True
+    assert await queue.drain("session-r") == ["keep", "drop"]
+
+    # 不存在的内容返回 False
+    assert await queue.remove("session-r", "missing") is False

@@ -125,6 +125,61 @@ async def test_failed_model_call_requeues_messages() -> None:
     assert await get_steer_queue().drain("session-fail") == ["重要插话"]
 
 
+async def test_successful_injection_persists_user_message_events(monkeypatch) -> None:
+    """注入成功后写 user:message 事件（SSE 实时 + 历史持久化）。"""
+    from src.infra.task.steer import get_steer_queue
+
+    await get_steer_queue().enqueue("session-p", "要持久化的插话")
+
+    written: list[dict] = []
+
+    class _FakeWriter:
+        async def write_event(self, **kwargs):
+            written.append(kwargs)
+
+
+    monkeypatch.setattr(
+        "src.infra.session.dual_writer.get_dual_writer", lambda: _FakeWriter()
+    )
+
+    middleware = SteerMiddleware(session_id="session-p")
+
+    async def handler(_req):
+        return _Response()
+
+    await middleware.awrap_model_call(_Request(), handler)
+
+    assert len(written) == 1
+    assert written[0]["session_id"] == "session-p"
+    assert written[0]["event_type"] == "user:message"
+    assert written[0]["data"]["content"] == "要持久化的插话"
+    assert str(written[0]["data"]["message_id"]).startswith("steer-")
+
+
+async def test_persist_failure_does_not_break_injection(monkeypatch) -> None:
+    """事件写入失败不影响注入本身（尽力而为）。"""
+    from src.infra.task.steer import get_steer_queue
+
+    await get_steer_queue().enqueue("session-pp", "插话")
+
+    def broken_writer():
+        raise RuntimeError("dual writer down")
+
+    monkeypatch.setattr(
+        "src.infra.session.dual_writer.get_dual_writer", broken_writer
+    )
+
+    middleware = SteerMiddleware(session_id="session-pp")
+    sentinel = _Response()
+
+    async def handler(_req):
+        return sentinel
+
+    result = await middleware.awrap_model_call(_Request(), handler)
+
+    assert getattr(result, "command", None) is not None  # 注入仍成功
+
+
 def test_imports_match_langchain_middleware_shape() -> None:
     from langchain.agents.middleware.types import AgentMiddleware
 

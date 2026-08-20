@@ -2,24 +2,24 @@ import type { RefObject } from "react";
 
 import i18n from "../../i18n";
 import { sessionApi } from "../../services/api";
-import type { Message } from "../../types/message";
-import { buildSteerUserMessage } from "../../utils/steerMessages";
+import { uuid } from "../../utils/uuid";
 
 interface CreateSteerMessageOptions {
   sessionIdRef: RefObject<string | null>;
-  setMessages: (
-    updater: (prev: Message[]) => Message[],
-  ) => void;
+  onQueued: (steer: { id: string; content: string }) => void;
+  onFailed: (steerId: string) => void;
   setError: (error: string | null) => void;
 }
 
 /**
- * Codex 式运行中插话：消息进入后端队列，当前步骤后注入；先乐观展示，
- * 失败时回滚乐观消息并提示。
+ * Codex 式运行中插话：消息 POST 进后端队列，前端以"排队 chip"展示
+ * （不直接插入对话流，避免插在流式回复中间）；送达后后端发
+ * user:message 事件，由标准路径渲染正式气泡并移除 chip。
  */
 export function createSteerMessage({
   sessionIdRef,
-  setMessages,
+  onQueued,
+  onFailed,
   setError,
 }: CreateSteerMessageOptions) {
   return async (content: string) => {
@@ -27,13 +27,13 @@ export function createSteerMessage({
     const currentSessionId = sessionIdRef.current;
     if (!text || !currentSessionId) return;
 
-    const optimistic = buildSteerUserMessage({ previousCount: 0, content: text });
-    setMessages((prev) => [...prev, optimistic]);
+    const steer = { id: uuid(), content: text };
+    onQueued(steer);
     try {
       await sessionApi.steer(currentSessionId, text);
     } catch (error) {
       console.error("[steerMessage] Failed to steer session:", error);
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+      onFailed(steer.id);
       setError(i18n.t("chat.steerFailed", "插话发送失败，请稍后重试"));
     }
   };

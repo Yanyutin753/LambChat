@@ -255,6 +255,9 @@ export interface UseAgentReturn {
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => Promise<void>;
   steerMessage: (content: string) => Promise<void>;
+  pendingSteers: import("../../components/chat/SteerQueueChips").PendingSteer[];
+  cancelPendingSteer: (content: string) => void;
+  removePendingSteerByContent: (content: string) => void;
   applyRecommendQuestions: (runId: string, questions: string[]) => void;
   clearActiveGoal: () => void;
   stopGeneration: () => Promise<void>;
