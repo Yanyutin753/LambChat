@@ -257,14 +257,20 @@ export function reconstructMessagesFromEvents(
         typeof event.run_id === "string" && event.run_id.trim()
           ? event.run_id
           : null;
+      // run 级去重用于压制同 run 的重复回放（不同 id 的重复消息）；
+      // 插话消息（steer-* 前缀，由注入时生成）与首条用户消息同 run
+      // 但不是重复，不参与 run 级去重
+      const isSteerMessage = userMessageId.startsWith("steer-");
       if (
         seenUserMessageIds.has(userMessageId) ||
-        (userMessageRunId && seenUserMessageRunIds.has(userMessageRunId))
+        (!isSteerMessage &&
+          userMessageRunId != null &&
+          seenUserMessageRunIds.has(userMessageRunId))
       ) {
         continue;
       }
       seenUserMessageIds.add(userMessageId);
-      if (userMessageRunId) {
+      if (!isSteerMessage && userMessageRunId) {
         seenUserMessageRunIds.add(userMessageRunId);
       }
 

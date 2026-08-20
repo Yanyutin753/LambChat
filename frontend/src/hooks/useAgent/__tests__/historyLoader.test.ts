@@ -582,3 +582,77 @@ test("reconstructMessagesFromEvents keeps late run events after cancel on the ca
     "thinking",
   ]);
 });
+
+test("keeps steer user messages sharing the run with the initial user message", () => {
+  const runId = "run-1";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-08-20T10:34:41.000Z",
+        data: {
+          content: "搜索今日新闻",
+          message_id: `${runId}:user`,
+          attachments: [],
+        },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-08-20T10:34:45.000Z",
+        data: { content: "第一轮回复" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-08-20T10:34:55.000Z",
+        data: {
+          content: "给我多一点中国的",
+          message_id: "steer-d8f46d22bcf5",
+          attachments: [],
+        },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-08-20T10:35:02.000Z",
+        data: { content: "针对插话的回复" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const users = messages.filter((m) => m.role === "user");
+  expect(users.map((m) => m.content)).toEqual(["搜索今日新闻", "给我多一点中国的"]);
+  // 顺序：首轮回复在插话前，插话后的回复在其后
+  const steerIndex = messages.findIndex((m) => m.id === "steer-d8f46d22bcf5");
+  const assistants = messages.filter((m) => m.role === "assistant");
+  expect(assistants.length).toBe(2);
+  expect(messages[steerIndex - 1].role).toBe("assistant");
+  expect(messages[steerIndex + 1].role).toBe("assistant");
+});
+
+test("still deduplicates replayed canonical user messages within one run", () => {
+  const runId = "run-2";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-08-20T10:00:00.000Z",
+        data: { content: "hello", message_id: `${runId}:user`, attachments: [] },
+      } satisfies HistoryEvent,
+      {
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-08-20T10:00:01.000Z",
+        data: { content: "hello", message_id: `${runId}:user`, attachments: [] },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+  expect(messages.filter((m) => m.role === "user")).toHaveLength(1);
+});
