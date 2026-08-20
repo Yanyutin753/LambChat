@@ -56,6 +56,7 @@ from src.infra.agent.middleware import (
     ToolResultBinaryMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
+    summarization_fallback_patch,
 )
 from src.infra.backend import (
     LazySandboxBackend,
@@ -304,17 +305,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
 
-    inner_graph = create_deep_agent(
-        model=llm,
-        system_prompt=system_prompt,
-        backend=backend,
-        tools=filtered_tools,
-        checkpointer=inner_checkpointer,
-        store=store,  # 传递 PostgresStore
-        skills=None,  # 禁用 SkillsMiddleware，使用 build_skills_prompt 代替
-        subagents=custom_subagents,
-        middleware=user_middleware,
-    )
+    with summarization_fallback_patch(fallback_model_value, thinking_config):
+        inner_graph = create_deep_agent(
+            model=llm,
+            system_prompt=system_prompt,
+            backend=backend,
+            tools=filtered_tools,
+            checkpointer=inner_checkpointer,
+            store=store,  # 传递 PostgresStore
+            skills=None,  # 禁用 SkillsMiddleware，使用 build_skills_prompt 代替
+            subagents=custom_subagents,
+            middleware=user_middleware,
+        )
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[Agent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 

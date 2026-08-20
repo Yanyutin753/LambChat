@@ -17,6 +17,7 @@ from src.infra.agent.middleware.retry import (
 )
 from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
 from src.infra.agent.middleware.subagent_result_handoff import SubagentResultHandoffMiddleware
+from src.infra.agent.middleware.summary_fallback import summarization_fallback_patch
 from src.infra.agent.middleware.tool_interception import (
     ToolResultBinaryMiddleware,
     ToolSearchMiddleware,
@@ -35,6 +36,7 @@ __all__ = [
     "SectionPromptMiddleware",
     "SubagentActivityMiddleware",
     "SubagentResultHandoffMiddleware",
+    "summarization_fallback_patch",
     "ToolResultBinaryMiddleware",
     "ToolSearchMiddleware",
     "_is_empty_content",

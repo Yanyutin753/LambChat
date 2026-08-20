@@ -50,6 +50,7 @@ from src.infra.agent.middleware import (
     ToolResultBinaryMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
+    summarization_fallback_patch,
 )
 from src.infra.backend.deepagent import create_persistent_backend
 from src.infra.goal import (
@@ -302,17 +303,18 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware.append(MainAgentContextMiddleware(backend=backend))
     user_middleware.append(SubagentResultHandoffMiddleware(backend=backend))
 
-    inner_graph = create_deep_agent(
-        model=llm,
-        system_prompt=system_prompt,
-        backend=backend,
-        tools=filtered_tools,
-        checkpointer=inner_checkpointer,
-        store=store,
-        skills=None,
-        subagents=custom_subagents,
-        middleware=user_middleware,
-    )
+    with summarization_fallback_patch(fallback_model_value, thinking_config):
+        inner_graph = create_deep_agent(
+            model=llm,
+            system_prompt=system_prompt,
+            backend=backend,
+            tools=filtered_tools,
+            checkpointer=inner_checkpointer,
+            store=store,
+            skills=None,
+            subagents=custom_subagents,
+            middleware=user_middleware,
+        )
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
