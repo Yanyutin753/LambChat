@@ -25,6 +25,9 @@ export interface ChatInputToolbarProps {
   onActivePanelChange: (panel: FeaturePanel) => void;
   canSend: boolean;
   isLoading: boolean;
+  /** 运行中是否有草稿文本：有则按钮发送插话（steer），无则保持停止 */
+  hasDraft?: boolean;
+  onSteer?: () => void;
   canSubmit: boolean;
   hasUploadingAttachment: boolean;
   enabledToolsCount: number;
@@ -82,6 +85,8 @@ export function ChatInputToolbar({
   onActivePanelChange,
   canSend,
   isLoading,
+  hasDraft = false,
+  onSteer,
   canSubmit,
   hasUploadingAttachment,
   enabledToolsCount,
@@ -388,6 +393,24 @@ export function ChatInputToolbar({
             title={t("chat.noPermission")}
           >
             <Lock size={18} />
+          </button>
+        ) : isLoading && hasDraft && onSteer ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSteer();
+            }}
+            className="flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300 hover:scale-105 active:scale-95"
+            style={{
+              backgroundColor: "var(--theme-primary)",
+              border: "1px solid var(--theme-primary)",
+              color: "var(--theme-bg-card)",
+            }}
+            title={t("chat.steer", "发送插话（当前步骤后送达）")}
+          >
+            <ArrowUp size={18} />
           </button>
         ) : isLoading ? (
           <button

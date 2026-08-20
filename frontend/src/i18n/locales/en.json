@@ -788,6 +788,7 @@
     "status": {
       "cancelled": "Cancelled"
     },
+    "steer": "Send steering message (delivered after the current step)",
     "steerFailed": "Failed to send the steering message, please try again",
     "stop": "Stop generating",
     "stopConfirmMessage": "Are you sure you want to stop generating? The content generated so far will be kept.",
