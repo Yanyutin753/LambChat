@@ -24,7 +24,9 @@ test("localizes ask-human labels and pagination controls", () => {
   expect(approvalSource).toMatch(/aria-label=\{t\("approvals\.next"\)\}/);
   expect(approvalSource).not.toMatch(/aria-label="上一项"/);
   expect(approvalSource).not.toMatch(/aria-label="下一项"/);
-  expect(approvalSource).not.toMatch(/t\("approvals\.(?:mainGoal|continue|ignore)",\s*"/);
+  expect(approvalSource).not.toMatch(
+    /t\("approvals\.(?:mainGoal|continue|ignore)",\s*"/,
+  );
 });
 
 test("localizes the backend-generated other-opinion field", () => {

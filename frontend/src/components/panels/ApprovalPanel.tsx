@@ -829,21 +829,26 @@ export function ApprovalPanel({
               {isAskHuman &&
                 currentAskHumanDisplayField &&
                 !askHumanChoiceField && (
-                <div className="approval-ask-human-text-field">
-                  <label className="approval-ask-human-field-label">
-                    {currentAskHumanDisplayField.label}
-                  </label>
-                  <FormFieldRenderer
-                    field={currentAskHumanDisplayField}
-                    value={currentFormValues[currentAskHumanDisplayField.name]}
-                    onChange={(value) =>
-                      handleFieldChange(currentAskHumanDisplayField.name, value)
-                    }
-                    disabled={isLoading}
-                    onInteract={handleInteract(currentApproval.id)}
-                  />
-                </div>
-              )}
+                  <div className="approval-ask-human-text-field">
+                    <label className="approval-ask-human-field-label">
+                      {currentAskHumanDisplayField.label}
+                    </label>
+                    <FormFieldRenderer
+                      field={currentAskHumanDisplayField}
+                      value={
+                        currentFormValues[currentAskHumanDisplayField.name]
+                      }
+                      onChange={(value) =>
+                        handleFieldChange(
+                          currentAskHumanDisplayField.name,
+                          value,
+                        )
+                      }
+                      disabled={isLoading}
+                      onInteract={handleInteract(currentApproval.id)}
+                    />
+                  </div>
+                )}
               <div
                 className={`approval-actions ${
                   isAskHuman ? "approval-ask-human-footer" : ""
@@ -877,14 +882,10 @@ export function ApprovalPanel({
                     onClick={handleCancel}
                     disabled={isLoading}
                     aria-label={
-                      isAskHuman
-                        ? t("approvals.ignore")
-                        : t("approvals.cancel")
+                      isAskHuman ? t("approvals.ignore") : t("approvals.cancel")
                     }
                     title={
-                      isAskHuman
-                        ? t("approvals.ignore")
-                        : t("approvals.cancel")
+                      isAskHuman ? t("approvals.ignore") : t("approvals.cancel")
                     }
                     className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
