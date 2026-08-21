@@ -818,3 +818,39 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
         "hidden_from_conversation_list": True,
     }
     assert submitted["write_user_message_immediately"] is True
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_anchors_timestamp_to_run_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同一 run 的重试必须复用首次执行的时间戳（issue #212 缓存稳定性）。"""
+    task = _make_task(input_payload={"message": "hello", "user_timezone": "Asia/Shanghai"})
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            return TaskStatus.COMPLETED
+
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeTaskManager())
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+
+    class _FakeSessionManager:
+        async def update_session_metadata(self, session_id: str, metadata: dict) -> None:
+            pass
+
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", lambda: _FakeSessionManager())
+
+    anchored = datetime(2026, 8, 22, 1, 2, 3, tzinfo=timezone.utc)
+    await ScheduledTaskRunner()._execute_agent(
+        task, run_id="run_1", session_id="session_1", now=anchored
+    )
+    assert "[User message sent at: 2026-08-22 09:02:03" in submitted["message"]
