@@ -124,6 +124,7 @@ async def _send_scheduled_task_approval_event(
     session_id: str | None,
     run_id: str | None,
     timeout: int,
+    trace_id: str | None = None,
 ) -> None:
     if not session_id:
         logger.warning("[ScheduledTask] Cannot send approval event: no session_id")
@@ -143,6 +144,7 @@ async def _send_scheduled_task_approval_event(
                 "timeout": timeout,
             },
             run_id=run_id,
+            trace_id=trace_id,
         )
     except Exception as e:
         logger.error("[ScheduledTask] Failed to send approval event: %s", e, exc_info=True)
@@ -197,6 +199,7 @@ async def _confirm_scheduled_task_creation(
         session_id=ctx.session_id or None,
         run_id=ctx.run_id or None,
         timeout=timeout,
+        trace_id=ctx.trace_id,
     )
 
     response = await wait_for_response(approval.id, timeout=timeout)

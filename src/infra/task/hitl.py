@@ -69,8 +69,13 @@ async def _send_approval_sse(
     fields: List[dict],
     session_id: str,
     run_id: Optional[str],
+    trace_id: Optional[str] = None,
 ) -> None:
-    """挂起后发送 approval_required 事件到 SSE 流。"""
+    """挂起后发送 approval_required 事件到 SSE 流。
+
+    必须带 trace_id 双写：不传 trace_id 时 DualEventWriter 只写 Redis，
+    流过期后历史回放将永久缺失审批卡片（线上 approval_required 0 落库事故）。
+    """
     try:
         from src.infra.session.dual_writer import get_dual_writer
 
@@ -86,6 +91,7 @@ async def _send_approval_sse(
                 "interrupt_id": (getattr(approval, "metadata", None) or {}).get("interrupt_id"),
             },
             run_id=run_id,
+            trace_id=trace_id,
         )
     except Exception as e:
         logger.error(
@@ -171,7 +177,7 @@ async def materialize_ask_human_approvals(
             existing_interrupt_ids.add(interrupt_id)
         created += 1
         if session_id:
-            await _send_approval_sse(approval, fields, session_id, run_id)
+            await _send_approval_sse(approval, fields, session_id, run_id, trace_id)
         logger.info(
             "[HITL] approval_id=%s Materialized from interrupt: session=%s run_id=%s",
             approval.id,

@@ -861,6 +861,7 @@ async def test_create_confirmation_shows_preview_and_waits(monkeypatch: pytest.M
         session_id="session-1",
         run_id="run-1",
         timeout=120,
+        trace_id=None,
     )
     wait_for_response.assert_awaited_once_with("approval-3", timeout=120)
 

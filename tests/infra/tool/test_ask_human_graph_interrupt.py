@@ -57,7 +57,7 @@ class ApprovalRecorder:
                 type="form",
             )
 
-        async def fake_send_sse(approval, fields, session_id, run_id):
+        async def fake_send_sse(approval, fields, session_id, run_id, trace_id=None):
             self.sse.append(approval.id)
 
         fake_storage = SimpleNamespace(

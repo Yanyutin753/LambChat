@@ -111,6 +111,7 @@ class AskHumanTool(BaseTool):
         session_id = self.session_id or ctx.session_id
         run_id = ctx.run_id
         user_id = ctx.user_id
+        trace_id = ctx.trace_id
 
         # 构建审批类型和字段列表
         approval_type = "form"
@@ -143,7 +144,9 @@ class AskHumanTool(BaseTool):
         )
 
         # 通过 SSE 流发送 approval_required 事件
-        await self._send_approval_event(approval, session_id, run_id, parsed_fields)
+        await self._send_approval_event(
+            approval, session_id, run_id, parsed_fields, trace_id=trace_id
+        )
 
         # 等待用户响应
         response = await wait_for_response(approval.id, timeout=self.BLOCKING_FALLBACK_TIMEOUT)
@@ -386,6 +389,7 @@ class AskHumanTool(BaseTool):
         session_id: Optional[str],
         run_id: Optional[str],
         fields: List[FormField],
+        trace_id: Optional[str] = None,
     ) -> None:
         """
         发送 approval_required 事件到 SSE 流
@@ -395,6 +399,8 @@ class AskHumanTool(BaseTool):
             session_id: 会话 ID
             run_id: 运行 ID
             fields: 表单字段列表
+            trace_id: 追踪 ID（必须传，否则事件不落 MongoDB，
+                Redis 流过期后历史回放缺失审批卡片）
         """
         logger.info(
             f"[AskHuman] _send_approval_event called: session_id={session_id}, "
@@ -428,6 +434,7 @@ class AskHumanTool(BaseTool):
                 event_type="approval_required",
                 data=event_data,
                 run_id=run_id,
+                trace_id=trace_id,
             )
             logger.info(
                 f"[AskHuman] Sent approval_required event: approval_id={approval.id}, "
