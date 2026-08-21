@@ -322,7 +322,7 @@ export function SubagentBlock({
             "relative flex h-8 w-8 items-center justify-center rounded-lg shrink-0 overflow-hidden",
             "ring-1 ring-inset ring-black/5 dark:ring-white/10",
             agentAvatarUrl
-              ? "bg-white dark:bg-stone-800"
+              ? "bg-theme-bg-card dark:bg-stone-800"
               : roleIconMeta.bgClassName,
           )}
         >

@@ -468,7 +468,7 @@ const ModelSelector = memo(function ModelSelector({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[10000] w-[min(calc(100vw-0.75rem),24rem)] rounded-lg bg-white dark:bg-stone-800 shadow-[0_14px_36px_-22px_rgba(0,0,0,0.45)] border border-stone-200 dark:border-stone-700 overflow-hidden animate-scale-in"
+            className="fixed z-[10000] w-[min(calc(100vw-0.75rem),24rem)] rounded-lg bg-theme-bg-card dark:bg-stone-800 shadow-[0_14px_36px_-22px_rgba(0,0,0,0.45)] border border-stone-200 dark:border-stone-700 overflow-hidden animate-scale-in"
             style={dropdownStyle}
           >
             <div className="px-3 pt-2 pb-1.5">

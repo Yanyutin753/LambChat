@@ -11,6 +11,7 @@ import {
   Languages,
   Sun,
   Moon,
+  Coffee,
   Check,
   ChevronLeft,
   ListTree,
@@ -298,25 +299,22 @@ export function Header({
                         setMobileMenuOpen(false);
                       }}
                     >
-                      {theme === "light" ? (
-                        <>
-                          <HeaderMenuIcon>
-                            <Moon size={16} />
-                          </HeaderMenuIcon>
-                          <span className="truncate">
-                            {t("theme.switchToDark")}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <HeaderMenuIcon>
-                            <Sun size={16} />
-                          </HeaderMenuIcon>
-                          <span className="truncate">
-                            {t("theme.switchToLight")}
-                          </span>
-                        </>
-                      )}
+                      <HeaderMenuIcon>
+                        {theme === "light" ? (
+                          <Moon size={16} />
+                        ) : theme === "dark" ? (
+                          <Coffee size={16} />
+                        ) : (
+                          <Sun size={16} />
+                        )}
+                      </HeaderMenuIcon>
+                      <span className="truncate">
+                        {theme === "light"
+                          ? t("theme.switchToDark")
+                          : theme === "dark"
+                            ? t("theme.switchToSepia")
+                            : t("theme.switchToLight")}
+                      </span>
                     </HeaderMenuItem>
                     <HeaderMenuItem onClick={() => setLangMenuOpen(true)}>
                       <HeaderMenuIcon>

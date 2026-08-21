@@ -269,7 +269,7 @@ export function FileRevealItem({
 
   if (isPending) {
     return (
-      <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-theme-border bg-white dark:bg-theme-bg">
+      <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-theme-border bg-theme-bg-card dark:bg-theme-bg">
         <div className={`p-2.5 rounded-lg ${bg}`}>
           <LoadingSpinner size="sm" className={color} />
         </div>
@@ -331,7 +331,7 @@ export function FileRevealItem({
         <div
           className={clsx(
             "rounded-xl border overflow-hidden transition-colors transition-shadow",
-            "border-theme-border bg-white dark:bg-theme-bg",
+            "border-theme-border bg-theme-bg-card dark:bg-theme-bg",
             "hover:shadow-lg hover:border-theme-border-hover",
             isImage && "max-w-md",
           )}
@@ -442,7 +442,7 @@ export function FileRevealItem({
           className={clsx(
             "w-full flex items-center gap-3 p-4 rounded-xl border transition-colors transition-transform cursor-pointer text-left",
             success
-              ? "border-theme-border bg-white dark:bg-theme-bg hover:shadow-lg hover:border-theme-border-hover hover:scale-[1.005]"
+              ? "border-theme-border bg-theme-bg-card dark:bg-theme-bg hover:shadow-lg hover:border-theme-border-hover hover:scale-[1.005]"
               : "border-theme-border bg-theme-bg-subtle opacity-70",
           )}
           disabled={!parsed.filePath || !success}

@@ -111,6 +111,8 @@ export default function ProjectPreview({
 }: ProjectPreviewProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  // Sandpack 只支持 light/dark；sepia 属于亮色家族，回落到 light
+  const sandpackTheme = theme === "dark" ? "dark" : "light";
   const isFullscreen = !!externalFullscreen;
   const layout = useMemo(() => resolveProjectPreviewLayout(mode), [mode]);
   const [activeTab, setActiveTab] = useState<"preview" | "code">(
@@ -309,7 +311,7 @@ export default function ProjectPreview({
             template={config.template}
             customSetup={config.customSetup}
             files={config.files}
-            theme={theme}
+            theme={sandpackTheme}
             options={{
               activeFile: config.entryFile,
               visibleFiles: config.visibleFiles,
@@ -346,6 +348,8 @@ export function ProjectPreviewCompact({
 }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  // Sandpack 只支持 light/dark；sepia 属于亮色家族，回落到 light
+  const sandpackTheme = theme === "dark" ? "dark" : "light";
   const config = useMemo(
     () => buildSandpackConfig(template, files),
     [template, files],
@@ -404,7 +408,7 @@ export function ProjectPreviewCompact({
             template={config.template}
             customSetup={config.customSetup}
             files={config.files}
-            theme={theme}
+            theme={sandpackTheme}
             options={{
               activeFile: config.entryFile,
               visibleFiles: config.visibleFiles,

@@ -20,6 +20,7 @@ export default {
           "bg-card": "var(--theme-bg-card)",
           "bg-elevated": "var(--theme-bg-elevated)",
           "bg-subtle": "var(--theme-bg-subtle)",
+          "bg-code": "var(--theme-bg-code)",
           border: "var(--theme-border)",
           "border-hover": "var(--theme-border-hover)",
           "border-subtle": "var(--theme-border-subtle)",

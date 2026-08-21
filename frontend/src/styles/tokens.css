@@ -26,6 +26,8 @@
   --theme-bg-sidebar: #f5f5f4;
   --theme-bg-elevated: #ffffff;
   --theme-bg-subtle: #f5f5f4;
+  --theme-bg-code: #ffffff;
+  --theme-bg-code-gutter: #fafafa;
 
   /* ── Borders ── */
   --theme-border: #e7e5e4;
@@ -41,6 +43,7 @@
   /* ── Overlays ── */
   --theme-overlay: rgba(0, 0, 0, 0.4);
   --theme-overlay-strong: rgba(0, 0, 0, 0.5);
+  --theme-overlay-panel: rgba(255, 255, 255, 0.7);
 
   /* ── Shadows (raw opacity) ── */
   --theme-shadow-sm: rgba(0, 0, 0, 0.04);
@@ -224,6 +227,8 @@
   --theme-bg-sidebar: #151210;
   --theme-bg-elevated: #292524;
   --theme-bg-subtle: #252220;
+  --theme-bg-code: #282c34;
+  --theme-bg-code-gutter: #282c34;
 
   /* ── Borders ── */
   --theme-border: #3d3835;
@@ -239,6 +244,7 @@
   /* ── Overlays ── */
   --theme-overlay: rgba(0, 0, 0, 0.6);
   --theme-overlay-strong: rgba(0, 0, 0, 0.7);
+  --theme-overlay-panel: rgba(255, 255, 255, 0.07);
 
   /* ── Shadows (raw opacity) ── */
   --theme-shadow-sm: rgba(0, 0, 0, 0.2);
@@ -330,4 +336,49 @@
   --shadow-inset-success: inset 0 0 0 2px rgba(52, 211, 153, 0.2);
   --shadow-inset-error: inset 0 0 0 2px rgba(245, 101, 101, 0.2);
   --shadow-inset-warning: inset 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+/* ═══════════════════════════════════════════
+   Sepia (护眼模式) — 米黄色，亮色家族变体
+   不挂 dark 类，dark: 变体自动回落到亮色样式
+   ═══════════════════════════════════════════ */
+.theme-sepia {
+  /* ── Primary ── */
+  --theme-primary: #8a7c60;
+  --theme-primary-hover: #6f6249;
+  --theme-primary-light: #e9e0c9;
+  --theme-ring: #8a7c60;
+
+  /* ── Semantic Colors (降饱和，减少视觉刺激) ── */
+  --theme-success: #0f9d6e;
+  --theme-error: #d95c4a;
+  --theme-warning: #c98a1b;
+  --theme-info: #4d7fc1;
+
+  /* ── Backgrounds ── */
+  --theme-bg: #f3edde;
+  --theme-bg-card: #faf6ea;
+  --theme-bg-sidebar: #ece5d2;
+  --theme-bg-elevated: #fbf7ec;
+  --theme-bg-subtle: #eae2cd;
+  --theme-bg-code: #efe8d4;
+  --theme-bg-code-gutter: #e9e1cd;
+
+  /* ── Borders ── */
+  --theme-border: #ddd2b8;
+  --theme-border-hover: #cbc0a4;
+  --theme-border-subtle: #eae2cd;
+  --theme-border-faint: rgba(87, 74, 48, 0.07);
+
+  /* ── Text ── */
+  --theme-text: #453f33;
+  --theme-text-secondary: #7c715c;
+  --theme-text-tertiary: #a89e88;
+
+  /* ── Overlays ── */
+  --theme-overlay-panel: rgba(250, 246, 234, 0.7);
+
+  /* ── Accent ── */
+  --theme-accent-light: #f7ecd2;
+  --theme-accent-glow: rgba(251, 191, 36, 0.16);
 }

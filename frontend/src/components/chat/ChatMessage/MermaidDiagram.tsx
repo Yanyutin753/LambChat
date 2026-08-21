@@ -434,7 +434,7 @@ export function MermaidDiagram({
                 />
               </button>
               {showDownloadMenu && (
-                <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg overflow-hidden">
+                <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-stone-200 dark:border-stone-700 bg-theme-bg-card dark:bg-stone-800 shadow-lg overflow-hidden">
                   <ViewerDropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();

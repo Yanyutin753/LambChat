@@ -64,7 +64,7 @@ export function ContactAdminDialog({
       className="safe-area-viewport-padding fixed inset-0 z-[300] flex items-center justify-center p-4"
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-[420px] rounded-2xl border border-stone-200/60 bg-white shadow-2xl shadow-stone-900/8 dark:border-stone-700/50 dark:bg-stone-900 dark:shadow-stone-950/40 animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-[420px] rounded-2xl border border-stone-200/60 bg-theme-bg-card shadow-2xl shadow-stone-900/8 dark:border-stone-700/50 dark:bg-stone-900 dark:shadow-stone-950/40 animate-in fade-in zoom-in-95 duration-200">
         {/* Header illustration */}
         <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-b from-amber-50/80 to-white px-8 pb-7 pt-9 dark:from-amber-950/20 dark:to-stone-900">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent dark:via-amber-700/30" />

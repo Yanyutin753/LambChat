@@ -157,7 +157,7 @@ export function FeedbackDialog({
       >
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="relative z-10 w-full sm:max-w-md sm:mx-4 sm:pointer-events-auto bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200"
+          className="relative z-10 w-full sm:max-w-md sm:mx-4 sm:pointer-events-auto bg-theme-bg-card dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 dark:border-stone-700">
@@ -285,7 +285,7 @@ export function FeedbackDialog({
             <button
               onClick={onSkip}
               disabled={isSubmitting || isUploading}
-              className="px-4 py-2 text-sm font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium text-stone-700 dark:text-stone-300 bg-theme-bg-card dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t("common.skip") || "Skip"}
             </button>

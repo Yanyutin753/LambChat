@@ -281,30 +281,54 @@
     </style>
     <script>
       (() => {
-        const lightColor = "#f5f5f4";
-        const darkColor = "#151210";
+        const themeColors = {
+          light: "#f5f5f4",
+          dark: "#151210",
+          sepia: "#f3edde",
+        };
         const storageKey = "lambchat-theme";
         const storedTheme = localStorage.getItem(storageKey);
         const prefersDark = window.matchMedia(
           "(prefers-color-scheme: dark)",
         ).matches;
         const theme =
-          storedTheme === "light" || storedTheme === "dark"
+          storedTheme === "light" ||
+          storedTheme === "dark" ||
+          storedTheme === "sepia"
             ? storedTheme
             : prefersDark
               ? "dark"
               : "light";
-        const color = theme === "dark" ? darkColor : lightColor;
-        const themeColors = document.querySelectorAll(
+        const color = themeColors[theme];
+        const metaThemeColors = document.querySelectorAll(
           'meta[name="theme-color"]',
         );
         const statusBar = document.getElementById("apple-status-bar-style");
         document.documentElement.classList.toggle("dark", theme === "dark");
+        document.documentElement.classList.toggle(
+          "theme-sepia",
+          theme === "sepia",
+        );
+        if (theme === "sepia") {
+          document.documentElement.style.setProperty(
+            "--boot-theme-primary",
+            "#8a7c60",
+          );
+          document.documentElement.style.setProperty(
+            "--boot-theme-border",
+            "#ddd2b8",
+          );
+          document.documentElement.style.setProperty(
+            "--boot-theme-bg",
+            themeColors.sepia,
+          );
+        }
         document.documentElement.style.backgroundColor = color;
-        document.documentElement.style.colorScheme = theme;
+        document.documentElement.style.colorScheme =
+          theme === "dark" ? "dark" : "light";
         document.body.style.backgroundColor = color;
-        document.body.style.colorScheme = theme;
-        themeColors.forEach((themeColor) => {
+        document.body.style.colorScheme = theme === "dark" ? "dark" : "light";
+        metaThemeColors.forEach((themeColor) => {
           themeColor.setAttribute("content", color);
         });
         statusBar?.setAttribute(

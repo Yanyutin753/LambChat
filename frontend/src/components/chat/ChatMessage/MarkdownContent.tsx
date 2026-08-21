@@ -181,7 +181,7 @@ function CodeBlock({
       </div>
 
       {/* Code content */}
-      <div className="ai-code-block__body bg-white dark:bg-[#282c34] [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden rounded-b-xl">
+      <div className="ai-code-block__body bg-theme-bg-code [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden rounded-b-xl">
         <DeferredCodeMirrorViewer
           value={codeString}
           language={language || undefined}
