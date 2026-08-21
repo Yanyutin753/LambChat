@@ -174,6 +174,52 @@ async def test_successful_injection_preserves_client_message_id() -> None:
     assert saved[0]["data"]["run_id"] == "run-123"
 
 
+async def test_queued_steer_survives_hitl_pause_and_uses_same_resumed_run() -> None:
+    """挂起前已接收的 steer 在同 Run 恢复后仍只注入、持久化一次。"""
+    from src.infra.task.steer import SteerItem, get_steer_queue
+
+    queue = get_steer_queue()
+    await queue.enqueue_item(
+        "session-hitl", SteerItem(id="steer-before-pause", content="继续时按这个方向")
+    )
+
+    saved: list[dict] = []
+
+    class _ResumedPresenter:
+        run_id = "run-same"
+
+        async def save_event(self, event):
+            saved.append(event)
+
+    middleware = SteerMiddleware(
+        session_id="session-hitl", presenter=_ResumedPresenter()
+    )
+    seen: list[_Request] = []
+
+    async def handler(req):
+        seen.append(req)
+        return _Response()
+
+    await middleware.awrap_model_call(_Request(), handler)
+
+    assert [message.content for message in seen[0].messages] == [
+        "原消息",
+        "继续时按这个方向",
+    ]
+    assert saved == [
+        {
+            "event": "steer:message",
+            "data": {
+                "content": "继续时按这个方向",
+                "message_id": "steer-before-pause",
+                "attachments": [],
+                "run_id": "run-same",
+            },
+        }
+    ]
+    assert await queue.drain_items("session-hitl") == []
+
+
 async def test_successful_injection_falls_back_to_dual_writer(monkeypatch) -> None:
     """无 presenter 时回退 dual_writer 直写（实时 SSE 兜底）。"""
     from src.infra.task.steer import get_steer_queue

@@ -73,6 +73,7 @@ class AskHumanTool(BaseTool):
         choices: Optional[List[str]] = None,
         multiple: bool = False,
         allow_other: bool = False,
+        tool_call_id: str | None = None,
     ) -> str:
         """
         异步执行：创建审批请求并等待响应
@@ -129,6 +130,7 @@ class AskHumanTool(BaseTool):
                 message=message,
                 field_dicts=field_dicts,
                 parsed_fields=parsed_fields,
+                tool_call_id=tool_call_id,
             )
 
         # 创建审批请求
@@ -184,6 +186,7 @@ class AskHumanTool(BaseTool):
         message: str,
         field_dicts: List[dict],
         parsed_fields: List[FormField],
+        tool_call_id: str | None = None,
     ) -> str:
         """interrupt 模式：通过 LangGraph interrupt() 挂起而非阻塞等待。
 
@@ -193,13 +196,14 @@ class AskHumanTool(BaseTool):
         """
         from langgraph.types import interrupt
 
-        resume_value = interrupt(
-            {
-                "kind": "ask_human",
-                "message": message,
-                "fields": field_dicts,
-            }
-        )
+        payload: dict[str, Any] = {
+            "kind": "ask_human",
+            "message": message,
+            "fields": field_dicts,
+        }
+        if tool_call_id:
+            payload["tool_call_id"] = tool_call_id
+        resume_value = interrupt(payload)
         result = self._result_from_resume(resume_value, parsed_fields)
         return await _json_dumps_result(result)
 

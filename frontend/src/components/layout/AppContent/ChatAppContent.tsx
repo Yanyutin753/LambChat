@@ -70,6 +70,7 @@ export function ChatAppContent({
   const { enableSkills, availableModels, systemDefaultModelId, defaultModel } =
     useSettingsContext();
   const { hasPermission, isAuthenticated } = useAuth();
+  const ensureResumeStreamRef = useRef<() => void>(() => {});
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
     useDragAndDrop();
   const {
@@ -79,7 +80,10 @@ export function ChatAppContent({
     addApproval,
     clearApprovals,
     isLoading: approvalLoading,
-  } = useApprovals({ sessionId: null });
+  } = useApprovals({
+    sessionId: null,
+    onInterruptResume: () => ensureResumeStreamRef.current(),
+  });
   const {
     tools,
     isLoading: toolsLoading,
@@ -190,6 +194,7 @@ export function ChatAppContent({
     autoExpandProjectId,
     clearAutoExpandProjectId,
     currentProjectId,
+    reconnectSSE,
   } = useAgent({
     onApprovalRequired: (approval) => {
       void appNotificationService.notify({
@@ -230,6 +235,12 @@ export function ChatAppContent({
       setTimeout(() => fetchSkills(), 500);
     },
   });
+
+  ensureResumeStreamRef.current = () => {
+    if (connectionStatus !== "connected") {
+      void reconnectSSE();
+    }
+  };
   useEffect(() => void refreshApprovals(), [sessionId, refreshApprovals]);
 
   const switchToPersonaAgentMode = useCallback(() => {

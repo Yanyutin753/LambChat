@@ -3,7 +3,7 @@
 interrupt 模式下，ask_human 通过 LangGraph interrupt() 挂起并持久化
 checkpoint，进程重启后状态不丢。对齐 deepagents 官方 HITL 语义：
 无超时、无限期等待，用户响应（POST /human/{id}/respond）通过提交一个
-携带 hitl_resume 载荷的新运行来恢复：新运行重新进入 fast_agent_node，
+携带 hitl_resume 载荷的恢复尝试继续同一逻辑运行：重新进入 fast_agent_node，
 以 Command(resume=...) 从断点继续执行。
 
 跨副本重复恢复由 Redis 分布式锁 + 审批状态原子流转双重防护。
@@ -11,11 +11,13 @@ checkpoint，进程重启后状态不丢。对齐 deepagents 官方 HITL 语义�
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
+from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
 
 from .status import TaskStatus
@@ -24,6 +26,9 @@ logger = get_logger(__name__)
 
 HITL_RESUME_LOCK_PREFIX = "hitl:resume:"
 HITL_RESUME_LOCK_TTL_SECONDS = 300
+HITL_SOURCE_RELEASE_PREFIX = "hitl:source-released:"
+HITL_SOURCE_RELEASE_TTL_SECONDS = 300
+HITL_RESUME_ACTIVATION_PREFIX = "hitl:resume-activated:"
 
 
 def hitl_interrupt_mode_enabled() -> bool:
@@ -77,6 +82,12 @@ async def _send_approval_sse(
                 "message": approval.message,
                 "type": approval.type,
                 "fields": fields,
+                "tool_call_id": (getattr(approval, "metadata", None) or {}).get(
+                    "tool_call_id"
+                ),
+                "interrupt_id": (getattr(approval, "metadata", None) or {}).get(
+                    "interrupt_id"
+                ),
             },
             run_id=run_id,
         )
@@ -95,6 +106,8 @@ async def materialize_ask_human_approvals(
     session_id: Optional[str],
     run_id: Optional[str],
     user_id: Optional[str],
+    trace_id: Optional[str] = None,
+    resume_context: Optional[Dict[str, Any]] = None,
 ) -> int:
     """图挂起后，将 ask_human interrupt payload 物化为审批记录 + SSE 事件。
 
@@ -139,10 +152,16 @@ async def materialize_ask_human_approvals(
         metadata = {
             "mode": "interrupt",
             "run_id": run_id,
+            "trace_id": trace_id,
             "thread_id": session_id,
         }
+        if resume_context:
+            metadata["resume_context"] = resume_context
         if interrupt_id:
             metadata["interrupt_id"] = interrupt_id
+        tool_call_id = payload.get("tool_call_id")
+        if tool_call_id:
+            metadata["tool_call_id"] = str(tool_call_id)
         approval = await create_approval(
             message=message,
             approval_type="form",
@@ -194,7 +213,96 @@ async def _release_resume_lock(approval_id: str, token: str) -> None:
         logger.warning("Failed to release HITL resume lock %s: %s", approval_id, e)
 
 
-async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) -> Dict[str, Any]:
+async def mark_hitl_source_released(run_id: str) -> None:
+    """Publish that the suspended source attempt finished distributed cleanup."""
+    try:
+        await get_redis_client().set(
+            f"{HITL_SOURCE_RELEASE_PREFIX}{run_id}",
+            "1",
+            ex=HITL_SOURCE_RELEASE_TTL_SECONDS,
+        )
+    except Exception as e:
+        logger.warning("Failed to publish HITL source release for %s: %s", run_id, e)
+
+
+async def wait_for_hitl_source_release(
+    run_id: str,
+    user_id: str | None = None,
+    timeout: float = 2.0,
+) -> bool:
+    """Consume the source-release fence, falling back when its heartbeat is gone."""
+    redis = get_redis_client()
+    key = f"{HITL_SOURCE_RELEASE_PREFIX}{run_id}"
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        if await redis.get(key) is not None:
+            await redis.delete(key)
+            return True
+        await asyncio.sleep(0.02)
+
+    from .heartbeat import TaskHeartbeat
+
+    if await TaskHeartbeat().check_exists(run_id):
+        return False
+    if user_id:
+        from .concurrency import get_concurrency_limiter
+
+        if await get_concurrency_limiter().is_active_run(user_id, run_id):
+            return False
+    return True
+
+
+async def activate_hitl_resume_attempt(approval_id: str, attempt_id: str) -> None:
+    """Release a prepared resume job after the approval CAS succeeds."""
+    try:
+        await get_redis_client().set(
+            f"{HITL_RESUME_ACTIVATION_PREFIX}{attempt_id}",
+            approval_id,
+            ex=HITL_RESUME_LOCK_TTL_SECONDS,
+        )
+    except Exception as e:
+        # Mongo 中的 terminal approval + exact attempt_id 是持久化激活凭据；
+        # Redis 仅用于快速唤醒，失败时 worker 会走一次 Mongo 点查。
+        logger.warning(
+            "Failed to publish HITL resume activation for %s: %s", approval_id, e
+        )
+
+
+async def wait_for_hitl_resume_activation(
+    approval_id: str,
+    attempt_id: str,
+    timeout: float = 2.0,
+) -> bool:
+    """Wait for activation, then use one Mongo point read as crash fallback."""
+    redis = get_redis_client()
+    key = f"{HITL_RESUME_ACTIVATION_PREFIX}{attempt_id}"
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        if await redis.get(key) is not None:
+            await redis.delete(key)
+            return True
+        await asyncio.sleep(0.02)
+
+    from src.infra.storage.mongodb import get_approval_storage
+
+    approval = await get_approval_storage().get(approval_id)
+    metadata = getattr(approval, "metadata", None) or {}
+    return bool(
+        approval
+        and getattr(approval, "status", "pending") != "pending"
+        and metadata.get("resume_attempt_id") == attempt_id
+    )
+
+
+async def submit_hitl_resume_run(
+    approval: Any,
+    resume_value: Dict[str, Any],
+    *,
+    resume_attempt_id: str | None = None,
+    prepare_only: bool = False,
+) -> Dict[str, Any]:
     """为挂起的 interrupt 审批提交恢复运行。
 
     Args:
@@ -215,6 +323,9 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
         return {"submitted": False, "run_id": None, "message": "恢复已在其他实例中启动"}
 
     session_storage: Any = None
+    resume_slot_acquired = False
+    resume_user_id: str | None = None
+    source_run_id = ""
     try:
         from src.infra.session.storage import SessionStorage
 
@@ -230,6 +341,17 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
                 "submitted": False,
                 "run_id": None,
                 "message": "会话不在等待人工输入状态，跳过恢复",
+            }
+
+        approval_metadata = getattr(approval, "metadata", None) or {}
+        source_run_id = str(approval_metadata.get("run_id") or "")
+        source_trace_id = str(approval_metadata.get("trace_id") or "")
+        current_run_id = str(metadata.get("current_run_id") or "")
+        if not source_run_id or (current_run_id and current_run_id != source_run_id):
+            return {
+                "submitted": False,
+                "run_id": None,
+                "message": "审批所属运行已不是当前运行，跳过恢复",
             }
 
         from .concurrency import get_registered_executor
@@ -250,40 +372,101 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
 
         from .manager import get_task_manager
 
-        approval_metadata = getattr(approval, "metadata", None) or {}
         interrupt_id = approval_metadata.get("interrupt_id")
+        resume_context = approval_metadata.get("resume_context") or {}
         command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
-
-        run_id, _ = await get_task_manager().submit(
-            session_id,
-            str(metadata.get("agent_id") or "fast"),
-            "",
-            str(session.user_id),
-            executor_fn,
-            disabled_tools=metadata.get("disabled_tools") or None,
-            agent_options=metadata.get("agent_options") or None,
-            disabled_skills=metadata.get("disabled_skills") or None,
-            enabled_skills=metadata.get("enabled_skills") or None,
-            persona_system_prompt=(
+        hitl_resume = {
+            "approval_id": approval.id,
+            "resume_attempt_id": resume_attempt_id,
+            "resume_value": command_resume,
+            "goal_started_at": resume_context.get("goal_started_at"),
+            "approval_resolved": {
+                "id": approval.id,
+                "tool_call_id": approval_metadata.get("tool_call_id"),
+                "interrupt_id": interrupt_id,
+                "status": "approved" if resume_value.get("approved") else "rejected",
+                "success": bool(resume_value.get("approved")),
+                "result": {
+                    "status": "success" if resume_value.get("approved") else "rejected",
+                    "message": (
+                        "用户已响应" if resume_value.get("approved") else "用户拒绝了此请求"
+                    ),
+                    "values": resume_value.get("values") or {},
+                },
+                "timestamp": utc_now_iso(),
+            },
+        }
+        manager = get_task_manager()
+        common_kwargs = {
+            "disabled_tools": metadata.get("disabled_tools") or None,
+            "agent_options": metadata.get("agent_options") or None,
+            "disabled_skills": metadata.get("disabled_skills") or None,
+            "enabled_skills": metadata.get("enabled_skills") or None,
+            "persona_system_prompt": (
                 (metadata.get("persona_snapshot") or {}).get("system_prompt")
                 if isinstance(metadata.get("persona_snapshot"), dict)
                 else None
             ),
-            disabled_mcp_tools=metadata.get("disabled_mcp_tools") or None,
-            session_name=getattr(session, "name", None),
-            user_message_written=True,
-            hitl_resume={
-                "approval_id": approval.id,
-                "resume_value": command_resume,
-            },
-        )
+            "disabled_mcp_tools": metadata.get("disabled_mcp_tools") or None,
+            "session_name": getattr(session, "name", None),
+            "user_message_written": True,
+            "run_id": source_run_id,
+            "trace_id": source_trace_id or None,
+            "hitl_resume": hitl_resume,
+            "team_id": metadata.get("team_id") or None,
+            "active_goal": resume_context.get("active_goal"),
+            "recommendation_input": resume_context.get("recommendation_input"),
+            "auto_mode": bool(metadata.get("auto_mode", False)),
+        }
+        if getattr(settings, "TASK_BACKEND", "local") == "arq":
+            dispatch_id = resume_attempt_id or f"hitl-resume:{approval.id}:{uuid.uuid4().hex}"
+            run_id, _ = await manager.submit_arq(
+                session_id=session_id,
+                agent_id=str(metadata.get("agent_id") or "fast"),
+                message="",
+                user_id=str(session.user_id),
+                executor_key=executor_key,
+                dispatch_id=dispatch_id,
+                initial_status=None if prepare_only else TaskStatus.PENDING,
+                **common_kwargs,
+            )
+        else:
+            await manager.wait_for_task_completion(source_run_id)
+            from .concurrency import get_concurrency_limiter
+
+            resume_user_id = str(session.user_id)
+            limiter = get_concurrency_limiter()
+            resume_slot_acquired = await limiter.try_acquire_run_slot(
+                resume_user_id, source_run_id
+            )
+            if not resume_slot_acquired:
+                return {
+                    "submitted": False,
+                    "run_id": None,
+                    "message": "当前并发任务已满，请稍后重试恢复",
+                }
+            run_id, _ = await manager.submit(
+                session_id,
+                str(metadata.get("agent_id") or "fast"),
+                "",
+                str(session.user_id),
+                executor_fn,
+                **common_kwargs,
+            )
         logger.info(
             "[HITL] approval_id=%s Resume run submitted: session=%s run_id=%s",
             approval.id,
             session_id,
             run_id,
         )
-        return {"submitted": True, "run_id": run_id, "message": "恢复运行已提交"}
+        result = {
+            "submitted": True,
+            "run_id": run_id,
+            "message": "恢复运行已提交",
+        }
+        if resume_attempt_id:
+            result["resume_attempt_id"] = resume_attempt_id
+        return result
     except Exception as e:
         logger.error(
             "[HITL] approval_id=%s Failed to submit resume run: %s",
@@ -305,6 +488,17 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
                 approval.id,
                 restore_error,
             )
+        if resume_slot_acquired and resume_user_id and source_run_id:
+            try:
+                from .concurrency import get_concurrency_limiter
+
+                await get_concurrency_limiter().release(resume_user_id, source_run_id)
+            except Exception as release_error:
+                logger.warning(
+                    "[HITL] approval_id=%s Failed to release resume slot: %s",
+                    approval.id,
+                    release_error,
+                )
         return {"submitted": False, "run_id": None, "message": f"恢复任务失败: {e}"}
     finally:
         if token is not None:

@@ -204,6 +204,7 @@ class FastAgent(BaseGraphAgent):
                 "active_goal": kwargs.get("active_goal"),
                 "recommendation_input": kwargs.get("recommendation_input"),
                 "hitl_resume": hitl_resume,
+                "goal_started_at": kwargs.get("goal_started_at"),
             },
             "metadata": langsmith_metadata,
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,
@@ -267,7 +268,7 @@ class FastAgent(BaseGraphAgent):
             # 放在 finally 中确保即使异常也能发出
             active_goal = kwargs.get("active_goal")
             goal_started_at = kwargs.get("goal_started_at")
-            if active_goal is not None:
+            if active_goal is not None and not getattr(presenter, "hitl_suspended", False):
                 yield {
                     "event": "goal:end",
                     "data": {
@@ -279,4 +280,5 @@ class FastAgent(BaseGraphAgent):
             self._stream_tasks.pop(presenter.run_id, None)
             await context.close()
 
-        yield presenter.done()
+        if not getattr(presenter, "hitl_suspended", False):
+            yield presenter.done()

@@ -25,6 +25,9 @@ export type EventType =
   | "agent:call"
   | "agent:result"
   | "approval_required"
+  | "approval_resolved"
+  | "human_resume_started"
+  | "hitl:suspended"
   | "sandbox:starting"
   | "sandbox:ready"
   | "sandbox:error"
@@ -63,6 +66,8 @@ export interface EventData {
   depth?: number;
   // approval_required event fields
   id?: string;
+  approval_id?: string;
+  interrupt_id?: string;
   message?: string;
   choices?: string[];
   default?: string;
@@ -177,6 +182,9 @@ export interface HistoryEventData {
   content?: string;
   tool?: string;
   tool_call_id?: string;
+  id?: string;
+  approval_id?: string;
+  interrupt_id?: string;
   args?: Record<string, unknown>;
   result?: string | Record<string, unknown>;
   success?: boolean;

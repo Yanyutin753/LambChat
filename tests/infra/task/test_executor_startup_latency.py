@@ -57,7 +57,11 @@ def _executor(monkeypatch: pytest.MonkeyPatch, heartbeat=None) -> TaskExecutor:
 
     _FakePresenter.instances.clear()
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
-    monkeypatch.setattr("src.infra.task.executor.get_dual_writer", lambda: SimpleNamespace())
+    class _Writer:
+        async def flush_mongo_buffer(self, **_kwargs) -> None:
+            return None
+
+    monkeypatch.setattr("src.infra.task.executor.get_dual_writer", _Writer)
 
     async def _no_op(*_args, **_kwargs) -> None:
         return None
@@ -178,3 +182,79 @@ async def test_heartbeat_and_running_status_overlap_before_agent_execution(
         await task
 
     assert agent_started.is_set() is True
+
+
+@pytest.mark.asyncio
+async def test_suspended_run_stays_nonterminal_and_returns_handoff_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = _executor(monkeypatch)
+    statuses: list[TaskStatus] = []
+    expired: list[tuple] = []
+
+    async def _update_status(_session_id, status, *_args, **_kwargs):
+        statuses.append(status)
+
+    async def _expire(*args, **kwargs):
+        expired.append((args, kwargs))
+
+    async def _suspended_stream(*_args, **kwargs):
+        kwargs["presenter"].hitl_suspended = True
+        yield {"event": "hitl:suspended", "data": {"status": "waiting_human"}}
+
+    monkeypatch.setattr(executor, "_update_session_status", _update_status)
+    monkeypatch.setattr(executor, "_expire_terminal_stream", _expire)
+
+    suspended = await executor.run_task(
+        "session-1",
+        "run-1",
+        "search",
+        "hello",
+        "user-1",
+        _suspended_stream,
+        existing_trace_id="trace-1",
+        user_message_written=True,
+    )
+
+    presenter = _FakePresenter.instances[0]
+    assert suspended is True
+    assert presenter.completed == []
+    assert TaskStatus.WAITING_HUMAN in statuses
+    assert TaskStatus.COMPLETED not in statuses
+    assert expired == []
+
+
+@pytest.mark.asyncio
+async def test_resume_persists_resolution_before_agent_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = _executor(monkeypatch)
+    resolution = {
+        "id": "approval-1",
+        "tool_call_id": "call-1",
+        "interrupt_id": "interrupt-1",
+        "status": "approved",
+        "result": {"status": "success", "message": "用户已响应", "values": {"x": 1}},
+    }
+
+    await executor.run_task(
+        "session-1",
+        "run-1",
+        "search",
+        "",
+        "user-1",
+        _empty_agent_stream,
+        existing_trace_id="trace-1",
+        user_message_written=True,
+        hitl_resume={
+            "approval_id": "approval-1",
+            "resume_value": {"interrupt-1": {"approved": True, "values": {"x": 1}}},
+            "approval_resolved": resolution,
+        },
+    )
+
+    assert [event["event"] for event in _FakePresenter.instances[0].saved_events[:2]] == [
+        "approval_resolved",
+        "human_resume_started",
+    ]
+    assert _FakePresenter.instances[0].saved_events[0]["data"] == resolution

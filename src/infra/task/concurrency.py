@@ -380,6 +380,34 @@ class UserConcurrencyLimiter:
         except Exception as e:
             logger.warning(f"Failed to refresh concurrency entry: {e}")
 
+    async def is_active_run(self, user_id: str, run_id: str) -> bool:
+        """Return whether a run still owns a distributed concurrency slot."""
+        return await self.redis.zscore(self._active_key(user_id), run_id) is not None
+
+    async def try_acquire_run_slot(self, user_id: str, run_id: str) -> bool:
+        """Atomically reacquire capacity for a resumed logical run without queueing."""
+        try:
+            lock_key, token = await self._acquire_user_lock(user_id)
+            try:
+                max_concurrent, _ = await self.get_user_limits_from_cache(user_id)
+                if max_concurrent is None:
+                    return True
+
+                await self._cleanup_stale_active(user_id)
+                active_key = self._active_key(user_id)
+                if await self.redis.zscore(active_key, run_id) is not None:
+                    return True
+                active_count = await self._get_active_count(user_id)
+                if active_count >= max_concurrent:
+                    return False
+                await self.redis.zadd(active_key, {run_id: time.time()})
+                return True
+            finally:
+                await self._release_user_lock(lock_key, token)
+        except Exception as e:
+            logger.error("Resume concurrency slot acquisition failed open: %s", e)
+            return True
+
     async def _try_dequeue_next(self, user_id: str) -> None:
         """Try to dequeue next valid (non-expired) task from queue."""
         dequeued_task: _DequeuedTask | None = None

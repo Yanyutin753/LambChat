@@ -233,6 +233,9 @@ export function processMessageEvent(
 
     case "tool:start": {
       const toolCallId = data.tool_call_id as string | undefined;
+      if (toolCallId && hasToolCallId(parts, toolCallId)) {
+        break;
+      }
       const toolCall: ToolCall = {
         id: toolCallId,
         name: data.tool || "",
@@ -259,6 +262,34 @@ export function processMessageEvent(
       } else {
         result.parts = [...parts, toolPart];
         result.toolCalls = [...toolCalls, toolCall];
+      }
+      break;
+    }
+
+    case "approval_resolved": {
+      const toolCallId = data.tool_call_id as string | undefined;
+      const resolvedResult =
+        typeof data.result === "object" && data.result !== null
+          ? data.result
+          : { status: data.success === false ? "rejected" : "success" };
+      if (toolCallId) {
+        result.parts = updateToolResultInDepth(
+          parts,
+          toolCallId,
+          resolvedResult,
+          data.success !== false,
+          data.error,
+          depth,
+          agentId,
+          data.timestamp,
+        );
+      } else {
+        result.parts = resolveLatestPendingAskHuman(
+          parts,
+          resolvedResult,
+          data.success !== false,
+          data.timestamp,
+        );
       }
       break;
     }
@@ -541,6 +572,52 @@ export function processMessageEvent(
   }
 
   return result;
+}
+
+function hasToolCallId(parts: MessagePart[], toolCallId: string): boolean {
+  return parts.some((part) => {
+    if (part.type === "tool") return part.id === toolCallId;
+    if (part.type === "subagent") {
+      return hasToolCallId(part.parts ?? [], toolCallId);
+    }
+    return false;
+  });
+}
+
+function resolveLatestPendingAskHuman(
+  parts: MessagePart[],
+  resolvedResult: Record<string, unknown>,
+  success: boolean,
+  completedAt?: string,
+): MessagePart[] {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index];
+    if (part.type === "tool" && part.name === "ask_human" && part.isPending) {
+      const next = [...parts];
+      next[index] = {
+        ...part,
+        result: resolvedResult,
+        success,
+        isPending: false,
+        completedAt,
+      };
+      return next;
+    }
+    if (part.type === "subagent" && part.parts) {
+      const nested = resolveLatestPendingAskHuman(
+        part.parts,
+        resolvedResult,
+        success,
+        completedAt,
+      );
+      if (nested !== part.parts) {
+        const next = [...parts];
+        next[index] = { ...part, parts: nested };
+        return next;
+      }
+    }
+  }
+  return parts;
 }
 
 function isTransientAskHumanCancellation(text: string): boolean {

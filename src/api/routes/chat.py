@@ -340,8 +340,14 @@ async def _execute_agent_stream(
     started_at: str | None = None
     goal_end_emitted = False
     if active_goal is not None:
-        started_at = datetime.now(timezone.utc).isoformat()
-        yield {"event": "goal:start", "data": {"goal": active_goal, "started_at": started_at}}
+        started_at = (
+            hitl_resume.get("goal_started_at") if hitl_resume is not None else None
+        ) or datetime.now(timezone.utc).isoformat()
+        if hitl_resume is None:
+            yield {
+                "event": "goal:start",
+                "data": {"goal": active_goal, "started_at": started_at},
+            }
 
     try:
         agent = await AgentFactory.get(agent_id)
@@ -368,7 +374,11 @@ async def _execute_agent_stream(
                 goal_end_emitted = True
             yield event
 
-        if active_goal is not None and not goal_end_emitted:
+        if (
+            active_goal is not None
+            and not goal_end_emitted
+            and not getattr(presenter, "hitl_suspended", False)
+        ):
             ended_at = datetime.now(timezone.utc).isoformat()
             yield {
                 "event": "goal:end",

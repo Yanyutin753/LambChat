@@ -196,6 +196,33 @@ async def test_respond_if_pending_returns_none_when_already_handled_or_expired()
 
 
 @pytest.mark.asyncio
+async def test_respond_if_pending_records_resume_attempt_atomically() -> None:
+    storage = ApprovalStorage()
+    collection = _RespondCollection(
+        return_doc={
+            "id": "approval-1",
+            "message": "请确认",
+            "status": "approved",
+            "metadata": {"mode": "interrupt", "resume_attempt_id": "attempt-1"},
+        }
+    )
+    storage._collection = collection
+    storage._indexes_created = True
+
+    response = ApprovalResponse(approved=True, response={})
+    result = await storage.respond_if_pending_with_metadata(
+        "approval-1",
+        "approved",
+        response,
+        {"resume_attempt_id": "attempt-1"},
+    )
+
+    assert result is not None
+    update_doc = collection.calls[0][1]
+    assert update_doc["$set"]["metadata.resume_attempt_id"] == "attempt-1"
+
+
+@pytest.mark.asyncio
 async def test_restore_pending_if_status_removes_failed_response() -> None:
     storage = ApprovalStorage()
     collection = _RespondCollection(return_doc={"id": "approval-1"})

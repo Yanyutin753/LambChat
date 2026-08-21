@@ -5,8 +5,9 @@ Human Tool 模型定义
 """
 
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Annotated, Any, List, Optional
 
+from langchain_core.tools import InjectedToolCallId
 from pydantic import BaseModel, Field
 
 
@@ -98,3 +99,4 @@ class AskHumanInput(BaseModel):
         default=True,
         description="添加其他意见输入，返回 _other",
     )
+    tool_call_id: Annotated[str, InjectedToolCallId]

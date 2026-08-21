@@ -915,7 +915,13 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     snapshot,
                     session_id=state.get("session_id"),
                     run_id=getattr(presenter, "run_id", None) or ctx.run_id,
+                    trace_id=getattr(presenter, "trace_id", None) or ctx.trace_id,
                     user_id=context.user_id or ctx.user_id,
+                    resume_context={
+                        "active_goal": active_goal,
+                        "recommendation_input": recommendation_input,
+                        "goal_started_at": configurable.get("goal_started_at"),
+                    },
                 )
         except Exception as e:
             logger.warning("[TeamAgent] Failed to inspect graph state after run: %s", e)
@@ -957,7 +963,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     output_text = event_processor.output_text
     event_processor.clear()
 
-    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS and hitl_resume is None:
+    if (
+        recommendation_input
+        and settings.ENABLE_RECOMMEND_QUESTIONS
+        and not presenter.hitl_suspended
+    ):
         try:
             from src.agents.core.recommendations import schedule_recommend_questions_from_state
 

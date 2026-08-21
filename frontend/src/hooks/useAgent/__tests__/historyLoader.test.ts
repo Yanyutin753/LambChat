@@ -28,6 +28,57 @@ test("reconstructMessagesFromEvents preserves backend user message ids", () => {
   expect(messages[0]?.runId).toBe("run-1");
 });
 
+test("reconstructs one resolved ask-human item from same-run history", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:00.000Z",
+        data: { content: "start", message_id: "run-1:user" },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:01.000Z",
+        data: {
+          tool: "ask_human",
+          tool_call_id: "call-1",
+          args: { message: "confirm" },
+        },
+      },
+      {
+        event_type: "approval_resolved",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:02.000Z",
+        data: {
+          id: "approval-1",
+          tool_call_id: "call-1",
+          success: true,
+          result: { status: "success", message: "用户已响应", values: { choice: "a" } },
+        },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:03.000Z",
+        data: {
+          tool: "ask_human",
+          tool_call_id: "call-1",
+          args: { message: "confirm" },
+        },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const assistant = messages.find((message) => message.role === "assistant");
+  const tools = assistant?.parts?.filter((part) => part.type === "tool") ?? [];
+  expect(tools).toHaveLength(1);
+  expect(tools[0]).toMatchObject({ id: "call-1", isPending: false, success: true });
+});
+
 test("reconstructs the same message from raw and compacted text chunks", () => {
   const rawChunks = Array.from({ length: 15_000 }, (_, index) => ({
     event_type: "message:chunk" as const,

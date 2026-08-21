@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from arq import Retry
@@ -11,12 +12,13 @@ from src.infra.task.exceptions import TaskInterruptedError
 
 
 class _FakePayloadStore:
-    def __init__(self, payload: dict) -> None:
+    def __init__(self, payload: dict, key: str | None = None) -> None:
         self.payload = payload
+        self.key = key or payload["run_id"]
         self.deleted: list[str] = []
 
     async def load(self, run_id: str):
-        return self.payload if run_id == self.payload["run_id"] else None
+        return self.payload if run_id == self.key else None
 
     async def delete(self, run_id: str) -> bool:
         self.deleted.append(run_id)
@@ -46,6 +48,12 @@ class _FakeTaskExecutor:
 
     async def _update_session_status(self, *args, **kwargs) -> None:
         self.status_calls.append((args, kwargs))
+
+
+class _SuspendedTaskExecutor(_FakeTaskExecutor):
+    async def run_task(self, **kwargs) -> bool:
+        self.run_calls.append(kwargs)
+        return True
 
 
 class _CancelledTaskExecutor:
@@ -84,8 +92,14 @@ class _FakeStorage:
 
 
 class _FakeLimiter:
-    def __init__(self) -> None:
+    def __init__(self, *, can_acquire: bool = True) -> None:
         self.release_calls: list[tuple[str, str, bool]] = []
+        self.acquire_calls: list[tuple[str, str]] = []
+        self.can_acquire = can_acquire
+
+    async def try_acquire_run_slot(self, user_id: str, run_id: str) -> bool:
+        self.acquire_calls.append((user_id, run_id))
+        return self.can_acquire
 
     async def release(self, user_id: str, run_id: str, dequeue: bool = True) -> None:
         self.release_calls.append((user_id, run_id, dequeue))
@@ -212,6 +226,174 @@ async def test_run_agent_task_loads_payload_and_invokes_executor(
     }
     assert task_manager._run_info == {}
     assert payload_store.deleted == ["run-1"]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_task_uses_dispatch_key_but_executes_logical_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch_id = "hitl-resume:approval-1:attempt-1"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "user_message_written": True,
+        "hitl_resume": {"approval_id": "approval-1", "resume_value": {"approved": True}},
+    }
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    task_executor = _FakeTaskExecutor()
+    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+
+    async def _executor_fn(*args, **kwargs):
+        if False:
+            yield None
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda _key: _executor_fn)
+    limiter = _FakeLimiter()
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    release_checks: list[str] = []
+
+    async def _wait_for_release(run_id: str, user_id: str | None) -> bool:
+        release_checks.append(f"{run_id}:{user_id}")
+        return True
+
+    monkeypatch.setattr(arq_worker, "wait_for_hitl_source_release", _wait_for_release)
+
+    await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert task_executor.run_calls[0]["run_id"] == "run-1"
+    assert task_executor.run_calls[0]["existing_trace_id"] == "trace-1"
+    assert task_executor.run_calls[0]["hitl_resume"] == payload["hitl_resume"]
+    assert payload_store.deleted == [dispatch_id]
+    assert release_checks == ["run-1:user-1"]
+    assert limiter.acquire_calls == [("user-1", "run-1")]
+
+
+@pytest.mark.asyncio
+async def test_hitl_resume_retries_without_running_when_concurrency_slot_is_busy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch_id = "hitl-resume:approval-1:attempt-busy"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "user_message_written": True,
+        "hitl_resume": {"approval_id": "approval-1", "resume_value": {"approved": True}},
+    }
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    task_executor = _FakeTaskExecutor()
+    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    limiter = _FakeLimiter(can_acquire=False)
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(
+        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True)
+    )
+
+    with pytest.raises(Retry):
+        await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert limiter.acquire_calls == [("user-1", "run-1")]
+    assert task_executor.run_calls == []
+    assert payload_store.deleted == []
+
+
+@pytest.mark.asyncio
+async def test_unactivated_prepared_hitl_resume_is_deleted_without_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch_id = "hitl-resume:approval-1:orphan"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "hitl_resume": {
+            "approval_id": "approval-1",
+            "resume_attempt_id": dispatch_id,
+            "resume_value": {"approved": True},
+        },
+    }
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    manager_calls: list[bool] = []
+
+    monkeypatch.setattr(
+        arq_worker,
+        "wait_for_hitl_resume_activation",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        arq_worker,
+        "get_task_manager",
+        lambda: manager_calls.append(True),
+    )
+
+    await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert payload_store.deleted == [dispatch_id]
+    assert manager_calls == []
+
+
+@pytest.mark.asyncio
+async def test_suspended_arq_source_publishes_handoff_after_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "hello",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "user_message_written": True,
+    }
+    payload_store = _FakePayloadStore(payload)
+    task_executor = _SuspendedTaskExecutor()
+    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    order: list[str] = []
+
+    class _OrderedLimiter:
+        async def release(self, _user_id, _run_id, dequeue=True):
+            order.append("release")
+
+    original_delete = payload_store.delete
+
+    async def _delete(key: str) -> bool:
+        order.append("delete")
+        return await original_delete(key)
+
+    async def _mark(run_id: str) -> None:
+        order.append(f"mark:{run_id}")
+
+    payload_store.delete = _delete  # type: ignore[method-assign]
+
+    async def _executor_fn(*args, **kwargs):
+        if False:
+            yield None
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda _key: _executor_fn)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: _OrderedLimiter())
+    monkeypatch.setattr(arq_worker, "mark_hitl_source_released", _mark)
+
+    await arq_worker.run_agent_task({"payload_store": payload_store}, "run-1")
+
+    assert order == ["delete", "release", "mark:run-1"]
 
 
 @pytest.mark.asyncio

@@ -166,6 +166,47 @@ async def test_submit_arq_persists_payload_and_enqueues_job() -> None:
 
 
 @pytest.mark.asyncio
+async def test_submit_arq_uses_private_dispatch_id_for_same_run_resume() -> None:
+    manager = BackgroundTaskManager()
+    fake_executor = _FakeExecutor()
+    payload_store = _FakePayloadStore()
+    arq_pool = _FakeArqPool()
+    manager._executor = fake_executor  # type: ignore[assignment]
+
+    run_id, trace_id = await manager.submit_arq(
+        session_id="session-1",
+        agent_id="search",
+        message="",
+        user_id="user-1",
+        executor_key="agent_stream",
+        payload_store=cast(Any, payload_store),
+        arq_pool=arq_pool,
+        run_id="run-1",
+        trace_id="trace-1",
+        dispatch_id="hitl-resume:approval-1:attempt-1",
+        hitl_resume={"approval_id": "approval-1", "resume_value": {"approved": True}},
+        initial_status=TaskStatus.PENDING,
+        user_message_written=True,
+    )
+
+    assert (run_id, trace_id) == ("run-1", "trace-1")
+    assert fake_executor.status_calls[0][0][1] == TaskStatus.PENDING
+    assert len(payload_store.saved) == 1
+    assert payload_store.saved[0][0] == "hitl-resume:approval-1:attempt-1"
+    payload = payload_store.saved[0][1]
+    assert payload["run_id"] == "run-1"
+    assert payload["trace_id"] == "trace-1"
+    assert payload["hitl_resume"]["approval_id"] == "approval-1"
+    assert arq_pool.enqueued == [
+        (
+            "run_agent_task",
+            ("hitl-resume:approval-1:attempt-1",),
+            {"_job_id": "hitl-resume:approval-1:attempt-1"},
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_submit_arq_enqueues_distributed_search_index_with_opaque_arguments() -> None:
     manager = BackgroundTaskManager()
     fake_executor = _FakeExecutor()
@@ -558,6 +599,26 @@ async def test_shutdown_drains_release_concurrency_tasks(
     await manager.shutdown()
 
     assert release_finished is True
+    assert manager._release_tasks == set()
+
+
+def test_old_same_run_callback_does_not_clean_resumed_task_state() -> None:
+    manager = BackgroundTaskManager()
+    old_task = cast(Any, object())
+    resumed_task = cast(Any, object())
+    manager._tasks["run-1"] = resumed_task
+    manager._run_info["run-1"] = {
+        "user_id": "user-1",
+        "session_id": "session-1",
+        "trace_id": "trace-1",
+    }
+    manager._pending_tasks["run-1"] = {"message": "resumed"}
+
+    manager._on_task_done("run-1", old_task)
+
+    assert manager._tasks["run-1"] is resumed_task
+    assert manager._run_info["run-1"]["trace_id"] == "trace-1"
+    assert manager._pending_tasks["run-1"] == {"message": "resumed"}
     assert manager._release_tasks == set()
 
 

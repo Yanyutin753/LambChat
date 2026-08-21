@@ -1,6 +1,7 @@
 """结构测试：所有提供 ask_human 工具的 agent 节点都必须在流式执行时
 设置 hitl_interrupt_supported，否则 interrupt 模式下 ask_human 会直接抛错。"""
 
+import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src"
@@ -46,3 +47,14 @@ def test_agent_graphs_forward_hitl_resume_to_nodes() -> None:
         source = _read(rel)
         assert 'kwargs.get("hitl_resume")' in source, rel
         assert '"hitl_resume": hitl_resume' in source, rel
+
+
+def test_agent_graphs_keep_hitl_suspension_nonterminal() -> None:
+    for rel in AGENT_GRAPHS:
+        source = _read(rel)
+        assert '"event": "hitl:suspended"' in source, rel
+        assert re.search(
+            r'if (?:not )?getattr\(presenter, "hitl_suspended", False\):[\s\S]{0,500}'
+            r"yield presenter\.done\(\)",
+            source,
+        ), rel

@@ -429,10 +429,14 @@ class BackgroundTaskManager:
         write_user_message_immediately: bool = False,
         attachment_references_claimed: bool = False,
         index_user_message: bool = False,
+        dispatch_id: Optional[str] = None,
+        hitl_resume: Optional[Dict[str, Any]] = None,
+        initial_status: TaskStatus | None = TaskStatus.QUEUED,
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
         task_executor = self._ensure_executor()
         run_id = run_id or generate_run_id()
+        dispatch_id = dispatch_id or run_id
         trace_id = trace_id or ""
         payload_store = payload_store or TaskArqPayloadStore()
         search_index_payload_store = (
@@ -451,11 +455,12 @@ class BackgroundTaskManager:
                     session_name=session_name,
                     session_metadata=session_metadata,
                 )
-                await task_executor._update_session_status(
-                    session_id,
-                    TaskStatus.QUEUED,
-                    run_id=run_id,
-                )
+                if initial_status is not None:
+                    await task_executor._update_session_status(
+                        session_id,
+                        initial_status,
+                        run_id=run_id,
+                    )
             except Exception:
                 if not user_message_written:
                     await self._release_preclaimed_attachment_references(
@@ -481,7 +486,7 @@ class BackgroundTaskManager:
                 user_message_written = True
 
             await payload_store.save(
-                run_id,
+                dispatch_id,
                 {
                     "session_id": session_id,
                     "run_id": run_id,
@@ -504,6 +509,7 @@ class BackgroundTaskManager:
                     "active_goal": active_goal,
                     "recommendation_input": recommendation_input,
                     "auto_mode": auto_mode,
+                    "hitl_resume": hitl_resume,
                 },
             )
             if should_index_user_message and search_index_content:
@@ -518,7 +524,7 @@ class BackgroundTaskManager:
         if arq_pool is None:
             arq_pool = await self._get_arq_pool()
         enqueue_operations = [
-            arq_pool.enqueue_job("run_agent_task", run_id, _job_id=run_id),
+            arq_pool.enqueue_job("run_agent_task", dispatch_id, _job_id=dispatch_id),
         ]
         if should_index_user_message and search_index_content:
             enqueue_operations.append(
@@ -543,11 +549,23 @@ class BackgroundTaskManager:
         )
         return run_id, trace_id
 
+    async def wait_for_task_completion(self, run_id: str) -> None:
+        """Wait until a local source task fully releases its manager entry."""
+        task = self._tasks.get(run_id)
+        if task is asyncio.current_task():
+            return
+        if task is not None:
+            await asyncio.shield(task)
+        await asyncio.sleep(0)
+        await self._drain_release_tasks()
+
     def _on_task_done(self, run_id: str, task: asyncio.Task) -> None:
         """任务完成回调"""
-        # 清理任务引用
-        if run_id in self._tasks:
-            del self._tasks[run_id]
+        # 同一逻辑 run 可在 HITL 恢复时换成新的 asyncio.Task；旧 task 的
+        # 延迟 callback 不能清掉新 task 的状态或释放它刚重新占用的并发槽。
+        if self._tasks.get(run_id) is not task:
+            return
+        del self._tasks[run_id]
         # 清理运行信息，防止内存泄漏
         run_info = self._run_info.pop(run_id, None)
         # 清理待处理任务上下文（如果存在）

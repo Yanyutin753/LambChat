@@ -9,9 +9,10 @@ import {
 
 interface UseApprovalsOptions {
   sessionId: string | null;
+  onInterruptResume?: () => void;
 }
 
-export function useApprovals({ sessionId }: UseApprovalsOptions) {
+export function useApprovals({ sessionId, onInterruptResume }: UseApprovalsOptions) {
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const hasApprovalsRef = useRef(false);
@@ -77,6 +78,9 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
 
         if (isApprovalResponseAccepted(res)) {
           setApprovals((prev) => prev.filter((a) => a.id !== approvalId));
+          if (res?.hitl_resume?.submitted) {
+            onInterruptResume?.();
+          }
           return true;
         }
         return false;
@@ -87,7 +91,7 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
         setIsLoading(false);
       }
     },
-    [],
+    [onInterruptResume],
   );
 
   // 初始加载时获取一次（用于页面刷新后恢复状态）

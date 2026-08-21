@@ -295,7 +295,12 @@ async def test_same_message_interrupts_materialize_as_distinct_approvals(
                 interrupts=(
                     SimpleNamespace(
                         id="interrupt-a",
-                        value={"kind": "ask_human", "message": "same", "fields": []},
+                        value={
+                            "kind": "ask_human",
+                            "message": "same",
+                            "fields": [],
+                            "tool_call_id": "call-a",
+                        },
                     ),
                 )
             ),
@@ -303,7 +308,12 @@ async def test_same_message_interrupts_materialize_as_distinct_approvals(
                 interrupts=(
                     SimpleNamespace(
                         id="interrupt-b",
-                        value={"kind": "ask_human", "message": "same", "fields": []},
+                        value={
+                            "kind": "ask_human",
+                            "message": "same",
+                            "fields": [],
+                            "tool_call_id": "call-b",
+                        },
                     ),
                 )
             ),
@@ -314,6 +324,7 @@ async def test_same_message_interrupts_materialize_as_distinct_approvals(
         snapshot,
         session_id="session-1",
         run_id="run-1",
+        trace_id="trace-1",
         user_id="user-1",
     )
 
@@ -322,6 +333,11 @@ async def test_same_message_interrupts_materialize_as_distinct_approvals(
         "interrupt-a",
         "interrupt-b",
     ]
+    assert [item["metadata"]["tool_call_id"] for item in recorder.created] == [
+        "call-a",
+        "call-b",
+    ]
+    assert {item["metadata"]["trace_id"] for item in recorder.created} == {"trace-1"}
 
 
 async def test_parallel_ask_human_interrupts_resume_by_id(
@@ -367,6 +383,10 @@ async def test_parallel_ask_human_interrupts_resume_by_id(
 
         await _materialize(graph, config, recorder)
         assert len(recorder.created) == 2
+        assert {item["metadata"]["tool_call_id"] for item in recorder.created} == {
+            "call-a",
+            "call-b",
+        }
 
         first_id = interrupts[0]["interrupt_id"]
         second_id = interrupts[1]["interrupt_id"]

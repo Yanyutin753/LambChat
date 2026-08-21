@@ -69,6 +69,24 @@ async def test_first_execution_raises_without_side_effects(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_interrupt_payload_keeps_injected_tool_call_id(monkeypatch):
+    calls = _setup_interrupt_mode(monkeypatch, resume_value=None)
+    token = hitl_interrupt_supported.set(True)
+    try:
+        tool = tool_mod.AskHumanTool(session_id="s1")
+        with pytest.raises(_FakeInterrupt):
+            await tool._arun(
+                "需要确认",
+                choices=["a", "b"],
+                tool_call_id="call-ask-1",
+            )
+    finally:
+        hitl_interrupt_supported.reset(token)
+
+    assert calls.interrupts[0]["tool_call_id"] == "call-ask-1"
+
+
+@pytest.mark.asyncio
 async def test_resume_value_maps_to_success(monkeypatch):
     _setup_interrupt_mode(
         monkeypatch,

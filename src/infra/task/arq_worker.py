@@ -13,6 +13,11 @@ from src.kernel.config import settings
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
 from .concurrency import get_concurrency_limiter, get_registered_executor
 from .exceptions import TaskInterruptedError
+from .hitl import (
+    mark_hitl_source_released,
+    wait_for_hitl_resume_activation,
+    wait_for_hitl_source_release,
+)
 from .manager import get_task_manager
 from .status import TaskStatus
 
@@ -70,16 +75,37 @@ async def _release_concurrency_slot(user_id: str | None, run_id: str, *, dequeue
         logger.warning("Failed to release arq concurrency slot: %s", e)
 
 
-async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
+async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     """Run a previously persisted LambChat task from an arq worker."""
     payload_store: TaskArqPayloadStore = ctx.get("payload_store") or TaskArqPayloadStore()
-    payload = await payload_store.load(run_id)
+    payload = await payload_store.load(dispatch_id)
     if payload is None:
-        logger.warning("Missing arq task payload for run_id=%s", run_id)
+        logger.warning("Missing arq task payload for dispatch_id=%s", dispatch_id)
+        return
+    run_id = str(payload.get("run_id") or dispatch_id)
+
+    hitl_resume = payload.get("hitl_resume") or {}
+    resume_attempt_id = hitl_resume.get("resume_attempt_id")
+    if resume_attempt_id and not await wait_for_hitl_resume_activation(
+        str(hitl_resume.get("approval_id") or ""), str(resume_attempt_id)
+    ):
+        await payload_store.delete(dispatch_id)
         return
 
     task_manager = get_task_manager()
     task_executor = task_manager._ensure_executor()
+
+    if payload.get("hitl_resume") and not await wait_for_hitl_source_release(
+        run_id, payload.get("user_id")
+    ):
+        raise Retry(defer=1)
+    if payload.get("hitl_resume"):
+        limiter = get_concurrency_limiter()
+        if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
+            raise Retry(defer=1)
+        await task_executor._update_session_status(
+            payload["session_id"], TaskStatus.PENDING, run_id=run_id
+        )
 
     executor_key = str(payload["executor_key"])
     executor_fn = _resolve_executor(executor_key)
@@ -92,7 +118,7 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
             error_message,
             run_id=run_id,
         )
-        await payload_store.delete(run_id)
+        await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
         return
 
@@ -106,7 +132,7 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
     }
 
     try:
-        await task_executor.run_task(
+        suspended = await task_executor.run_task(
             session_id=payload["session_id"],
             run_id=run_id,
             agent_id=payload["agent_id"],
@@ -128,14 +154,15 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
             active_goal=payload.get("active_goal"),
             auto_mode=bool(payload.get("auto_mode", False)),
             attachment_references_claimed=bool(payload.get("attachment_references_claimed", False)),
+            hitl_resume=payload.get("hitl_resume"),
         )
     except TaskInterruptedError:
-        await payload_store.delete(run_id)
+        await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
         logger.info("Deleted arq payload after user interruption: run_id=%s", run_id)
     except asyncio.CancelledError:
         if await _is_user_cancelled_run(task_manager, payload["session_id"], run_id):
-            await payload_store.delete(run_id)
+            await payload_store.delete(dispatch_id)
             await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
             logger.info("Deleted arq payload after user cancellation: run_id=%s", run_id)
             return
@@ -144,15 +171,17 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
             run_id,
             "Server shutdown",
         )
-        await payload_store.delete(run_id)
+        await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
         raise
     except Exception:
         logger.warning("Keeping arq task payload for retry: run_id=%s", run_id)
         raise
     else:
-        await payload_store.delete(run_id)
+        await payload_store.delete(dispatch_id)
         await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=True)
+        if suspended:
+            await mark_hitl_source_released(run_id)
     finally:
         task_manager._run_info.pop(run_id, None)
 

@@ -233,6 +233,60 @@ async def test_interrupt_resume_success_skips_blocking_waiter_notification(
 
 
 @pytest.mark.asyncio
+async def test_arq_interrupt_prepares_before_atomic_response_and_activates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order: list[str] = []
+
+    class _FakeApproval:
+        id = "approval-1"
+        status = "pending"
+        session_id = "session-1"
+        metadata = {"mode": "interrupt", "run_id": "run-1", "trace_id": "trace-1"}
+
+    class _FakeApprovalStorage:
+        async def get(self, _approval_id: str):
+            return _FakeApproval()
+
+        async def respond_if_pending_with_metadata(
+            self, _approval_id, _status, _response, metadata_updates
+        ):
+            order.append("claim")
+            assert metadata_updates["resume_attempt_id"].startswith(
+                "hitl-resume:approval-1:"
+            )
+            return _FakeApproval()
+
+        async def expire_after(self, _approval_id: str):
+            return True
+
+    async def fake_prepare(_approval, _resume_value, **kwargs):
+        order.append("prepare")
+        assert kwargs["prepare_only"] is True
+        return {
+            "submitted": True,
+            "run_id": "run-1",
+            "message": "ok",
+            "resume_attempt_id": kwargs["resume_attempt_id"],
+        }
+
+    async def fake_activate(approval_id: str, attempt_id: str):
+        order.append("activate")
+        assert approval_id == "approval-1"
+        assert attempt_id.startswith("hitl-resume:approval-1:")
+
+    monkeypatch.setattr(human, "_approval_storage", _FakeApprovalStorage())
+    monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_prepare)
+    monkeypatch.setattr("src.infra.task.hitl.activate_hitl_resume_attempt", fake_activate)
+    monkeypatch.setattr("src.infra.task.hitl.settings.TASK_BACKEND", "arq")
+
+    result = await human.respond_to_approval("approval-1", approved=True, response="{}")
+
+    assert result["hitl_resume"]["run_id"] == "run-1"
+    assert order == ["prepare", "claim", "activate"]
+
+
+@pytest.mark.asyncio
 async def test_create_approval_bounded_local_event_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -30,6 +30,7 @@ from src.infra.storage.mongodb import (
     wait_for_response_distributed,
 )
 from src.infra.utils.datetime import utc_now
+from src.kernel.config import settings
 from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
@@ -314,18 +315,9 @@ async def respond_to_approval(
     # 记录响应并更新状态
     approval_response = ApprovalResponse(approved=approved, response=response_data)
     status = "approved" if approved else "rejected"
-    respond_if_pending = getattr(_approval_storage, "respond_if_pending", None)
-    if callable(respond_if_pending):
-        updated_approval = await respond_if_pending(approval_id, status, approval_response)
-        if updated_approval is None:
-            raise HTTPException(status_code=400, detail="审批请求已处理")
-    else:
-        await _approval_storage.update_status(approval_id, status, approval_response)
-
-    # interrupt 模式（issue #218）：提交恢复运行，从 checkpoint 断点继续。
-    # 只有恢复任务被接受后才最终确认审批；失败时回滚为 pending，允许重试。
     resume_result: dict | None = None
     from src.infra.task.hitl import (
+        activate_hitl_resume_attempt,
         is_interrupt_approval,
         submit_hitl_resume_run,
     )
@@ -333,19 +325,59 @@ async def respond_to_approval(
     # 审批 metadata 是该请求实际运行模式的权威来源；部署配置变更后，
     # 已挂起的 interrupt 仍必须沿原 checkpoint 恢复。
     interrupt_approval = is_interrupt_approval(approval)
-    if interrupt_approval:
+    respond_with_metadata = getattr(
+        _approval_storage, "respond_if_pending_with_metadata", None
+    )
+    distributed_prepare = (
+        interrupt_approval
+        and settings.TASK_BACKEND == "arq"
+        and callable(respond_with_metadata)
+    )
+
+    if distributed_prepare:
+        resume_attempt_id = f"hitl-resume:{approval_id}:{uuid.uuid4().hex}"
         resume_result = await submit_hitl_resume_run(
             approval,
             {"approved": approved, "values": response_data},
+            resume_attempt_id=resume_attempt_id,
+            prepare_only=True,
         )
         if not resume_result.get("submitted"):
-            restore_pending = getattr(_approval_storage, "restore_pending_if_status", None)
-            if callable(restore_pending):
-                await restore_pending(approval_id, status)
             raise HTTPException(
                 status_code=503,
                 detail=resume_result.get("message") or "恢复任务提交失败，请重试",
             )
+        updated_approval = await respond_with_metadata(
+            approval_id,
+            status,
+            approval_response,
+            {"resume_attempt_id": resume_attempt_id},
+        )
+        if updated_approval is None:
+            raise HTTPException(status_code=400, detail="审批请求已处理")
+        await activate_hitl_resume_attempt(approval_id, resume_attempt_id)
+    else:
+        respond_if_pending = getattr(_approval_storage, "respond_if_pending", None)
+        if callable(respond_if_pending):
+            updated_approval = await respond_if_pending(approval_id, status, approval_response)
+            if updated_approval is None:
+                raise HTTPException(status_code=400, detail="审批请求已处理")
+        else:
+            await _approval_storage.update_status(approval_id, status, approval_response)
+
+        if interrupt_approval:
+            resume_result = await submit_hitl_resume_run(
+                approval,
+                {"approved": approved, "values": response_data},
+            )
+            if not resume_result.get("submitted"):
+                restore_pending = getattr(_approval_storage, "restore_pending_if_status", None)
+                if callable(restore_pending):
+                    await restore_pending(approval_id, status)
+                raise HTTPException(
+                    status_code=503,
+                    detail=resume_result.get("message") or "恢复任务提交失败，请重试",
+                )
 
     # interrupt 审批创建时不过期（无超时），响应成功后设置 GC 过期时间
     expire_after = getattr(_approval_storage, "expire_after", None)

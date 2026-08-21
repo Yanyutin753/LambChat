@@ -85,6 +85,79 @@ test("keeps cancelled ask-human tool results pending while HITL resumes", () => 
   });
 });
 
+test("resolves the exact ask-human tool from a durable approval event", () => {
+  const first = processMessageEvent(
+    "tool:start",
+    { tool: "ask_human", tool_call_id: "ask-1", args: { message: "first" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  const second = processMessageEvent(
+    "tool:start",
+    { tool: "ask_human", tool_call_id: "ask-2", args: { message: "second" } },
+    first.parts,
+    "",
+    first.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const resolved = processMessageEvent(
+    "approval_resolved",
+    {
+      id: "approval-1",
+      tool_call_id: "ask-1",
+      result: { status: "success", message: "用户已响应", values: { choice: "a" } },
+      success: true,
+    },
+    second.parts,
+    "",
+    second.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(resolved.parts[0]).toMatchObject({ id: "ask-1", isPending: false, success: true });
+  expect(resolved.parts[1]).toMatchObject({ id: "ask-2", isPending: true });
+});
+
+test("does not duplicate a replayed tool start with the same tool call id", () => {
+  const started = processMessageEvent(
+    "tool:start",
+    { tool: "ask_human", tool_call_id: "ask-1", args: { message: "confirm" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  const replayed = processMessageEvent(
+    "tool:start",
+    { tool: "ask_human", tool_call_id: "ask-1", args: { message: "confirm" } },
+    started.parts,
+    "",
+    started.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(replayed.parts).toHaveLength(1);
+  expect(replayed.toolCalls).toHaveLength(1);
+});
+
 test("does not turn a transient ask-human cancellation error into a failed turn", () => {
   const started = processMessageEvent(
     "tool:start",

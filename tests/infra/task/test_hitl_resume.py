@@ -136,6 +136,7 @@ async def test_submit_resume_lock_prevents_duplicate(fake_redis, monkeypatch):
 @pytest.mark.asyncio
 async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypatch):
     monkeypatch.setattr(hitl_mod.settings, "HITL_MODE", "interrupt", raising=False)
+    monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "local", raising=False)
 
     class _Storage:
         async def get_by_session_id(self, session_id):
@@ -144,6 +145,7 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
                 name="s",
                 metadata={
                     "task_status": "waiting_human",
+                    "current_run_id": "run-1",
                     "executor_key": "agent_stream",
                     "agent_id": "search",
                     "agent_options": {"model": "m"},
@@ -162,11 +164,26 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
 
     submitted = {}
 
+    class _Limiter:
+        async def try_acquire_run_slot(self, user_id, run_id):
+            submitted["slot"] = (user_id, run_id)
+            return True
+
+        async def release(self, user_id, run_id):
+            submitted["released_slot"] = (user_id, run_id)
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter", lambda: _Limiter()
+    )
+
     class _FakeManager:
+        async def wait_for_task_completion(self, run_id):
+            submitted["waited_for"] = run_id
+
         async def submit(self, *args, **kwargs):
             submitted["args"] = args
             submitted["kwargs"] = kwargs
-            return "run-2", "trace-2"
+            return kwargs["run_id"], kwargs["trace_id"]
 
     monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeManager())
 
@@ -176,26 +193,103 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
             metadata={
                 "mode": "interrupt",
                 "run_id": "run-1",
+                "trace_id": "trace-1",
                 "thread_id": "session-1",
                 "interrupt_id": "interrupt-a",
+                "resume_context": {
+                    "active_goal": {"id": "goal-1"},
+                    "recommendation_input": "原始问题",
+                    "goal_started_at": "2026-08-21T10:00:00+00:00",
+                },
             }
         ),
         resume_value,
     )
     assert result == {
         "submitted": True,
-        "run_id": "run-2",
+        "run_id": "run-1",
         "message": "恢复运行已提交",
     }
+    assert submitted["waited_for"] == "run-1"
+    assert submitted["slot"] == ("user-1", "run-1")
     assert submitted["args"][0] == "session-1"  # session_id
     assert submitted["args"][1] == "search"  # preserve the session's agent
     assert submitted["args"][2] == ""  # 空消息，不注入新用户输入
     assert submitted["kwargs"]["user_message_written"] is True
     assert submitted["kwargs"]["agent_options"] == {"model": "m"}
-    assert submitted["kwargs"]["hitl_resume"] == {
-        "approval_id": "approval-1",
-        "resume_value": {"interrupt-a": resume_value},
+    assert submitted["kwargs"]["run_id"] == "run-1"
+    assert submitted["kwargs"]["trace_id"] == "trace-1"
+    assert submitted["kwargs"]["active_goal"] == {"id": "goal-1"}
+    assert submitted["kwargs"]["recommendation_input"] == "原始问题"
+    assert submitted["kwargs"]["hitl_resume"]["approval_id"] == "approval-1"
+    assert submitted["kwargs"]["hitl_resume"]["goal_started_at"] == (
+        "2026-08-21T10:00:00+00:00"
+    )
+    assert submitted["kwargs"]["hitl_resume"]["resume_value"] == {
+        "interrupt-a": resume_value
     }
+    assert submitted["kwargs"]["hitl_resume"]["approval_resolved"] == {
+        "id": "approval-1",
+        "tool_call_id": None,
+        "interrupt_id": "interrupt-a",
+        "status": "approved",
+        "success": True,
+        "result": {
+            "status": "success",
+            "message": "用户已响应",
+            "values": {"choice": "a"},
+        },
+        "timestamp": submitted["kwargs"]["hitl_resume"]["approval_resolved"]["timestamp"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_submit_resume_uses_arq_attempt_but_keeps_logical_run(fake_redis, monkeypatch):
+    monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "arq", raising=False)
+
+    class _Storage:
+        async def get_by_session_id(self, _session_id):
+            return SimpleNamespace(
+                user_id="user-1",
+                name="s",
+                metadata={
+                    "task_status": "waiting_human",
+                    "current_run_id": "run-1",
+                    "executor_key": "agent_stream",
+                    "agent_id": "team",
+                },
+            )
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _Storage)
+    submitted = {}
+
+    class _FakeManager:
+        async def submit_arq(self, *args, **kwargs):
+            submitted["args"] = args
+            submitted["kwargs"] = kwargs
+            return "run-1", "trace-1"
+
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: _FakeManager())
+
+    result = await submit_hitl_resume_run(
+        _approval(
+            metadata={
+                "mode": "interrupt",
+                "run_id": "run-1",
+                "trace_id": "trace-1",
+                "thread_id": "session-1",
+                "interrupt_id": "interrupt-a",
+            }
+        ),
+        {"approved": True, "values": {"choice": "a"}},
+    )
+
+    assert result["submitted"] is True
+    assert result["run_id"] == "run-1"
+    assert submitted["kwargs"]["run_id"] == "run-1"
+    assert submitted["kwargs"]["trace_id"] == "trace-1"
+    assert submitted["kwargs"]["dispatch_id"].startswith("hitl-resume:approval-1:")
+    assert submitted["kwargs"]["hitl_resume"]["approval_id"] == "approval-1"
 
 
 @pytest.mark.asyncio

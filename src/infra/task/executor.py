@@ -82,7 +82,7 @@ class TaskExecutor:
         auto_mode: bool = False,
         attachment_references_claimed: bool = False,
         hitl_resume: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    ) -> bool | None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
 
@@ -166,6 +166,25 @@ class TaskExecutor:
 
             dual_writer = get_dual_writer()
 
+            if hitl_resume is not None:
+                resolved = hitl_resume.get("approval_resolved")
+                if isinstance(resolved, dict):
+                    await presenter.save_event(
+                        {"event": "approval_resolved", "data": resolved}
+                    )
+                await presenter.save_event(
+                    {
+                        "event": "human_resume_started",
+                        "data": {
+                            "approval_id": hitl_resume.get("approval_id"),
+                            "session_id": session_id,
+                            "run_id": run_id,
+                            "trace_id": presenter.trace_id,
+                            "timestamp": utc_now_iso(),
+                        },
+                    }
+                )
+
             # 注意: 不再清除 Redis Stream，因为：
             # 1. 每个 run_id 都是唯一的，不会与之前的 events 冲突
             # 2. 清除可能导致与 SSE 连接的竞争条件
@@ -195,7 +214,11 @@ class TaskExecutor:
 
             # interrupt 模式挂起（issue #218）：保留 checkpoint，标记 WAITING_HUMAN
             if presenter is not None and getattr(presenter, "hitl_suspended", False):
-                await presenter.complete("completed")
+                if dual_writer is not None:
+                    try:
+                        await dual_writer.flush_mongo_buffer(require_empty=True)
+                    except Exception as e:
+                        logger.warning("Failed to flush suspended HITL trace: %s", e)
                 await self._update_session_status(
                     session_id, TaskStatus.WAITING_HUMAN, run_id=run_id
                 )
@@ -205,8 +228,7 @@ class TaskExecutor:
                 await self._send_task_notification(
                     session_id, run_id, TaskStatus.WAITING_HUMAN, user_id
                 )
-                await self._expire_terminal_stream(session_id, run_id, dual_writer)
-                return
+                return True
 
             # 完成 trace（更新 MongoDB trace 状态为 completed）
             await presenter.complete("completed")
@@ -217,6 +239,7 @@ class TaskExecutor:
             # 发送任务完成通知
             await self._send_task_notification(session_id, run_id, TaskStatus.COMPLETED, user_id)
             await self._expire_terminal_stream(session_id, run_id, dual_writer)
+            return False
 
         except asyncio.CancelledError:
             await self._handle_cancelled_error(session_id, run_id, user_id, dual_writer, presenter)

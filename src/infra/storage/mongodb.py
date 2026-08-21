@@ -302,6 +302,36 @@ class ApprovalStorage:
         doc.pop("_id", None)
         return PendingApproval(**doc)
 
+    async def respond_if_pending_with_metadata(
+        self,
+        approval_id: str,
+        status: str,
+        response: ApprovalResponse,
+        metadata_updates: dict[str, Any],
+    ) -> Optional[PendingApproval]:
+        """Atomically respond and bind a prepared distributed resume attempt."""
+        update_doc: dict[str, Any] = {
+            "status": status,
+            "updated_at": utc_now(),
+            "response": response.model_dump(),
+        }
+        for key, value in metadata_updates.items():
+            update_doc[f"metadata.{key}"] = value
+        doc = await self.collection.find_one_and_update(
+            {
+                "_id": approval_id,
+                "status": "pending",
+                **_not_expired_query(),
+            },
+            {"$set": update_doc},
+            projection={"response": 0},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not doc:
+            return None
+        doc.pop("_id", None)
+        return PendingApproval(**doc)
+
     async def restore_pending_if_status(self, approval_id: str, status: str) -> bool:
         """Restore a claimed interrupt approval when resume submission fails."""
         doc = await self.collection.find_one_and_update(
