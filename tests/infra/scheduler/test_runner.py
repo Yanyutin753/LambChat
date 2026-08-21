@@ -285,6 +285,10 @@ async def test_runner_retries_until_success(
 
     await _await_spawned(mock_spawn_monitor)
     assert runner._execute_agent.call_count == 2
+    # 同一 run 的重试必须复用同一锚定时间（issue #212 缓存稳定性）
+    anchored_times = [call.kwargs["now"] for call in runner._execute_agent.call_args_list]
+    assert anchored_times[0] is not None
+    assert anchored_times[1] == anchored_times[0]
     retry_updates = [
         call.args[1]["retry_count"]
         for call in mock_storage.update_run.call_args_list
@@ -853,4 +857,6 @@ async def test_execute_agent_anchors_timestamp_to_run_start(
     await ScheduledTaskRunner()._execute_agent(
         task, run_id="run_1", session_id="session_1", now=anchored
     )
-    assert "[User message sent at: 2026-08-22 09:02:03" in submitted["message"]
+    assert submitted["message"].startswith(
+        "[User message sent at: 2026-08-22 09:02:03 +08:00 Asia/Shanghai] "
+    )
