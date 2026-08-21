@@ -546,7 +546,13 @@ async def test_reveal_file_releases_backend_buffer_before_upload_await(
         ):
             del file, folder, filename, content_type, skip_size_limit
             nonlocal released_before_upload_completed
-            gc.collect()
+            # GC 释放 buffer 可能有短暂延迟（线程池/functools.partial 临时引用），
+            # 在上传完成前给 GC 一个有界等待窗口
+            for _ in range(200):
+                gc.collect()
+                if buffer_ref() is None:
+                    break
+                await asyncio.sleep(0.01)
             released_before_upload_completed = buffer_ref() is None
             return SimpleNamespace(
                 key="revealed_files/report.pdf",
