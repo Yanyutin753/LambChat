@@ -43,6 +43,87 @@ test("keeps legacy ask-human GraphInterrupt results pending", () => {
   });
 });
 
+test("keeps cancelled ask-human tool results pending while HITL resumes", () => {
+  const started = processMessageEvent(
+    "tool:start",
+    {
+      tool: "ask_human",
+      tool_call_id: "ask-cancelled",
+      args: { message: "请确认" },
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const interrupted = processMessageEvent(
+    "tool:result",
+    {
+      tool: "ask_human",
+      tool_call_id: "ask-cancelled",
+      success: false,
+      error: "Tool call ask_human was cancelled - another message came in before it could be completed",
+      result: "",
+    },
+    started.parts,
+    "",
+    started.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(interrupted.parts[0]).toMatchObject({
+    type: "tool",
+    name: "ask_human",
+    isPending: true,
+  });
+});
+
+test("does not turn a transient ask-human cancellation error into a failed turn", () => {
+  const started = processMessageEvent(
+    "tool:start",
+    {
+      tool: "ask_human",
+      tool_call_id: "ask-error",
+      args: { message: "请确认" },
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const result = processMessageEvent(
+    "error",
+    {
+      error: "Tool call ask_human with id ask-error was cancelled - another message came in before it could be completed",
+      type: "CancelledError",
+    },
+    started.parts,
+    "",
+    started.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(result.parts[0]).toMatchObject({
+    name: "ask_human",
+    isPending: true,
+  });
+  expect(result.cancelled).toBeUndefined();
+});
+
 test("one thinking event immediately creates a streaming thinking part", () => {
   const result = processMessageEvent(
     "thinking",

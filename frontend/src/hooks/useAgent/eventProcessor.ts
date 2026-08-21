@@ -278,7 +278,8 @@ export function processMessageEvent(
       if (
         toolName === "ask_human" &&
         !isSuccess &&
-        legacyInterruptText.includes("GraphInterrupt")
+        (legacyInterruptText.includes("GraphInterrupt") ||
+          isTransientAskHumanCancellation(legacyInterruptText))
       ) {
         break;
       }
@@ -525,6 +526,10 @@ export function processMessageEvent(
       const errorMsg = data.error
         ? translateBackendError(data.error, i18n.t.bind(i18n))
         : i18n.t("chat.unknownError");
+      if (isTransientAskHumanCancellation(errorMsg)) {
+        result.parts = parts;
+        break;
+      }
       const isCancelled = data.type === "CancelledError";
       result.parts = isStreaming ? clearAllLoadingStates(parts) : parts;
       result.cancelled = isCancelled;
@@ -536,6 +541,15 @@ export function processMessageEvent(
   }
 
   return result;
+}
+
+function isTransientAskHumanCancellation(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return (
+    (normalized.includes("cancelled") || normalized.includes("canceled")) &&
+    (normalized.includes("another message") ||
+      normalized.includes("before it could be completed"))
+  );
 }
 
 // ============================================
