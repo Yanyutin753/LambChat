@@ -130,6 +130,52 @@ test("resolves the exact ask-human tool from a durable approval event", () => {
   expect(resolved.parts[1]).toMatchObject({ id: "ask-2", isPending: true });
 });
 
+test("replayed approval resolution is idempotent", () => {
+  const started = processMessageEvent(
+    "tool:start",
+    { tool: "ask_human", tool_call_id: "ask-1", args: { message: "confirm" } },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  const event = {
+    id: "approval-1",
+    tool_call_id: "ask-1",
+    result: { status: "success", values: { choice: "yes" } },
+    success: true,
+    timestamp: "2026-08-21T00:00:00.000Z",
+  };
+  const first = processMessageEvent(
+    "approval_resolved",
+    event,
+    started.parts,
+    "",
+    started.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  const replayed = processMessageEvent(
+    "approval_resolved",
+    event,
+    first.parts,
+    "",
+    first.toolCalls,
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(replayed.parts).toEqual(first.parts);
+  expect(replayed.parts).toHaveLength(1);
+});
+
 test("does not duplicate a replayed tool start with the same tool call id", () => {
   const started = processMessageEvent(
     "tool:start",

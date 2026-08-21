@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from importlib import import_module
 from typing import Any
 
@@ -8,6 +9,7 @@ from arq import Retry
 
 from src.infra.distributed_validation import validate_distributed_runtime_settings
 from src.infra.logging import get_logger
+from src.infra.storage.redis import get_redis_client
 from src.kernel.config import settings
 
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
@@ -22,6 +24,39 @@ from .manager import get_task_manager
 from .status import TaskStatus
 
 logger = get_logger(__name__)
+
+HITL_RESUME_STARTUP_LOCK_PREFIX = "hitl:resume-starting:"
+HITL_RESUME_STARTUP_LOCK_TTL_SECONDS = 30
+
+
+async def _acquire_hitl_resume_startup_lock(run_id: str) -> str | None:
+    token = uuid.uuid4().hex
+    acquired = await get_redis_client().set(
+        f"{HITL_RESUME_STARTUP_LOCK_PREFIX}{run_id}",
+        token,
+        ex=HITL_RESUME_STARTUP_LOCK_TTL_SECONDS,
+        nx=True,
+    )
+    return token if acquired else None
+
+
+async def _release_hitl_resume_startup_lock(run_id: str, token: str) -> None:
+    lua = """
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+    else
+        return 0
+    end
+    """
+    try:
+        await get_redis_client().eval(
+            lua,
+            1,
+            f"{HITL_RESUME_STARTUP_LOCK_PREFIX}{run_id}",
+            token,
+        )
+    except Exception as e:
+        logger.warning("Failed to release HITL resume startup lock for %s: %s", run_id, e)
 
 
 async def worker_startup(ctx: dict[str, Any]) -> None:
@@ -95,20 +130,35 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     task_manager = get_task_manager()
     task_executor = task_manager._ensure_executor()
 
-    if payload.get("hitl_resume") and not await wait_for_hitl_source_release(
-        run_id, payload.get("user_id")
-    ):
-        raise Retry(defer=1)
+    hitl_slot_acquired = False
     if payload.get("hitl_resume"):
-        limiter = get_concurrency_limiter()
-        if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
+        startup_token = await _acquire_hitl_resume_startup_lock(run_id)
+        if startup_token is None:
             raise Retry(defer=1)
-        await task_executor._update_session_status(
-            payload["session_id"], TaskStatus.PENDING, run_id=run_id
-        )
+        try:
+            if not await wait_for_hitl_source_release(run_id, payload.get("user_id")):
+                raise Retry(defer=1)
+            limiter = get_concurrency_limiter()
+            if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
+                raise Retry(defer=1)
+            hitl_slot_acquired = True
+            try:
+                await task_executor._update_session_status(
+                    payload["session_id"], TaskStatus.PENDING, run_id=run_id
+                )
+            except BaseException:
+                await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
+                raise
+        finally:
+            await _release_hitl_resume_startup_lock(run_id, startup_token)
 
     executor_key = str(payload["executor_key"])
-    executor_fn = _resolve_executor(executor_key)
+    try:
+        executor_fn = _resolve_executor(executor_key)
+    except BaseException:
+        if hitl_slot_acquired:
+            await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
+        raise
     if executor_fn is None:
         error_message = f"No executor registered for key '{executor_key}'"
         logger.error("%s: run_id=%s", error_message, run_id)

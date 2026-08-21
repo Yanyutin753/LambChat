@@ -236,8 +236,7 @@ async def wait_for_hitl_source_release(
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while loop.time() < deadline:
-        if await redis.get(key) is not None:
-            await redis.delete(key)
+        if await redis.getdel(key) is not None:
             return True
         await asyncio.sleep(0.02)
 

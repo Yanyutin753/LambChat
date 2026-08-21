@@ -172,6 +172,39 @@ class _CorruptQueueRedis:
         self.active.update(values)
 
 
+class _ResumeSlotRedis:
+    def __init__(self, active: set[str]) -> None:
+        self.active = set(active)
+
+    async def zscore(self, _key: str, run_id: str):
+        return 1.0 if run_id in self.active else None
+
+    async def zadd(self, _key: str, values: dict[str, float]):
+        self.active.update(values)
+
+
+class _ResumeSlotLimiter(UserConcurrencyLimiter):
+    def __init__(self, active: set[str], limit: int | None) -> None:
+        super().__init__()
+        self._redis = _ResumeSlotRedis(active)
+        self.limit = limit
+
+    async def _acquire_user_lock(self, _user_id: str):
+        return "lock", "token"
+
+    async def _release_user_lock(self, _lock_key: str, _token: str):
+        return None
+
+    async def get_user_limits_from_cache(self, _user_id: str):
+        return self.limit, 10
+
+    async def _cleanup_stale_active(self, _user_id: str):
+        return None
+
+    async def _get_active_count(self, _user_id: str):
+        return len(self._redis.active)
+
+
 @pytest.mark.asyncio
 async def test_get_queue_position_scans_queue_in_pages() -> None:
     entries = [
@@ -188,6 +221,30 @@ async def test_get_queue_position_scans_queue_in_pages() -> None:
     assert redis.lrange_calls == [
         ("chat:queue:user-1", 0, 99),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("active", "limit", "expected", "expected_active"),
+    [
+        ({"run-1"}, 1, True, {"run-1"}),
+        ({"other-run"}, 1, False, {"other-run"}),
+        (set(), 1, True, {"run-1"}),
+        ({"other-run"}, None, True, {"other-run"}),
+    ],
+)
+async def test_resume_slot_reacquire_is_idempotent_and_respects_capacity(
+    active: set[str],
+    limit: int | None,
+    expected: bool,
+    expected_active: set[str],
+) -> None:
+    limiter = _ResumeSlotLimiter(active, limit)
+
+    acquired = await limiter.try_acquire_run_slot("user-1", "run-1")
+
+    assert acquired is expected
+    assert limiter._redis.active == expected_active
 
 
 @pytest.mark.asyncio

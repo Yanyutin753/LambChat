@@ -287,6 +287,78 @@ async def test_arq_interrupt_prepares_before_atomic_response_and_activates(
 
 
 @pytest.mark.asyncio
+async def test_concurrent_arq_responses_activate_only_the_atomic_winner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeApproval:
+        id = "approval-1"
+        status = "pending"
+        session_id = "session-1"
+        metadata = {"mode": "interrupt", "run_id": "run-1", "trace_id": "trace-1"}
+
+    class _FakeApprovalStorage:
+        def __init__(self) -> None:
+            self.claimed = False
+            self.lock = asyncio.Lock()
+
+        async def get(self, _approval_id: str):
+            return _FakeApproval()
+
+        async def respond_if_pending_with_metadata(
+            self, _approval_id, _status, _response, _metadata_updates
+        ):
+            async with self.lock:
+                if self.claimed:
+                    return None
+                self.claimed = True
+                return _FakeApproval()
+
+        async def expire_after(self, _approval_id: str):
+            return True
+
+    prepare_count = 0
+    both_prepared = asyncio.Event()
+    activated: list[str] = []
+
+    async def fake_prepare(_approval, _resume_value, **kwargs):
+        nonlocal prepare_count
+        prepare_count += 1
+        if prepare_count == 2:
+            both_prepared.set()
+        await both_prepared.wait()
+        return {
+            "submitted": True,
+            "run_id": "run-1",
+            "message": "ok",
+            "resume_attempt_id": kwargs["resume_attempt_id"],
+        }
+
+    async def fake_activate(_approval_id: str, attempt_id: str):
+        activated.append(attempt_id)
+
+    monkeypatch.setattr(human, "_approval_storage", _FakeApprovalStorage())
+    monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_prepare)
+    monkeypatch.setattr(
+        "src.infra.task.hitl.activate_hitl_resume_attempt", fake_activate
+    )
+    monkeypatch.setattr("src.infra.task.hitl.settings.TASK_BACKEND", "arq")
+
+    results = await asyncio.gather(
+        human.respond_to_approval("approval-1", approved=True, response='{"choice":"a"}'),
+        human.respond_to_approval("approval-1", approved=False, response="{}"),
+        return_exceptions=True,
+    )
+
+    successes = [result for result in results if isinstance(result, dict)]
+    conflicts = [result for result in results if isinstance(result, HTTPException)]
+    assert len(successes) == 1
+    assert len(conflicts) == 1
+    assert conflicts[0].status_code == 400
+    assert prepare_count == 2
+    assert len(activated) == 1
+
+
+@pytest.mark.asyncio
 async def test_create_approval_bounded_local_event_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

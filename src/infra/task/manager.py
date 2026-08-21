@@ -315,6 +315,10 @@ class BackgroundTaskManager:
         trace_id = trace_id or ""
 
         async with self._lock:
+            existing_task = self._tasks.get(run_id)
+            if existing_task is not None and not existing_task.done():
+                raise RuntimeError(f"run_id={run_id} is already running")
+
             # 确保 session 记录存在
             try:
                 await task_executor.ensure_session(

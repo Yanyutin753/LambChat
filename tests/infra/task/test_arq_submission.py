@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -86,6 +87,18 @@ class _FakeExecutor:
         self.run_calls.append({"args": args, **kwargs})
 
 
+class _BlockingExecutor(_FakeExecutor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def run_task(self, *args, **kwargs) -> None:
+        self.run_calls.append({"args": args, **kwargs})
+        self.started.set()
+        await self.release.wait()
+
+
 class _FakePresenter:
     calls: list[object] = []
 
@@ -129,6 +142,43 @@ class _FileRecords:
 class _FailingSetupExecutor(_FakeExecutor):
     async def ensure_session(self, *args, **kwargs) -> None:
         raise RuntimeError("session setup failed")
+
+
+@pytest.mark.asyncio
+async def test_submit_rejects_duplicate_live_run_without_overwriting_task() -> None:
+    manager = BackgroundTaskManager()
+    fake_executor = _BlockingExecutor()
+    manager._executor = fake_executor  # type: ignore[assignment]
+    manager._release_concurrency = AsyncMock()  # type: ignore[method-assign]
+
+    await manager.submit(
+        session_id="session-1",
+        agent_id="search",
+        message="",
+        user_id="user-1",
+        executor=cast(Any, object()),
+        run_id="run-1",
+    )
+    await fake_executor.started.wait()
+    first_task = manager._tasks["run-1"]
+
+    with pytest.raises(RuntimeError, match="run-1.*already running"):
+        await manager.submit(
+            session_id="session-1",
+            agent_id="search",
+            message="",
+            user_id="user-1",
+            executor=cast(Any, object()),
+            run_id="run-1",
+        )
+
+    assert manager._tasks["run-1"] is first_task
+    assert len(fake_executor.run_calls) == 1
+
+    fake_executor.release.set()
+    await first_task
+    await asyncio.sleep(0)
+    await manager._drain_release_tasks()
 
 
 @pytest.mark.asyncio

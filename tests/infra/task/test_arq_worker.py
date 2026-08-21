@@ -50,6 +50,12 @@ class _FakeTaskExecutor:
         self.status_calls.append((args, kwargs))
 
 
+class _StatusFailingTaskExecutor(_FakeTaskExecutor):
+    async def _update_session_status(self, *args, **kwargs) -> None:
+        self.status_calls.append((args, kwargs))
+        raise RuntimeError("mongo unavailable")
+
+
 class _SuspendedTaskExecutor(_FakeTaskExecutor):
     async def run_task(self, **kwargs) -> bool:
         self.run_calls.append(kwargs)
@@ -81,6 +87,30 @@ class _GenericFailingTaskExecutor:
     async def run_task(self, **kwargs) -> None:
         self.run_calls.append(kwargs)
         raise RuntimeError("boom")
+
+
+class _ResumeStartupRedis:
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+
+    async def set(self, key: str, value: str, *, ex: int, nx: bool = False):
+        if nx and key in self.values:
+            return None
+        self.values[key] = value
+        return True
+
+    async def eval(self, _script: str, _numkeys: int, key: str, token: str) -> int:
+        if self.values.get(key) != token:
+            return 0
+        del self.values[key]
+        return 1
+
+
+@pytest.fixture(autouse=True)
+def fake_resume_startup_redis(monkeypatch: pytest.MonkeyPatch) -> _ResumeStartupRedis:
+    redis = _ResumeStartupRedis()
+    monkeypatch.setattr(arq_worker, "get_redis_client", lambda: redis)
+    return redis
 
 
 class _FakeStorage:
@@ -242,7 +272,11 @@ async def test_run_agent_task_uses_dispatch_key_but_executes_logical_run(
         "user_id": "user-1",
         "executor_key": "agent_stream",
         "user_message_written": True,
-        "hitl_resume": {"approval_id": "approval-1", "resume_value": {"approved": True}},
+        "hitl_resume": {
+            "approval_id": "approval-1",
+            "resume_attempt_id": dispatch_id,
+            "resume_value": {"approved": True},
+        },
     }
     payload_store = _FakePayloadStore(payload, key=dispatch_id)
     task_executor = _FakeTaskExecutor()
@@ -254,6 +288,8 @@ async def test_run_agent_task_uses_dispatch_key_but_executes_logical_run(
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(arq_worker, "get_registered_executor", lambda _key: _executor_fn)
+    activation = AsyncMock(return_value=True)
+    monkeypatch.setattr(arq_worker, "wait_for_hitl_resume_activation", activation)
     limiter = _FakeLimiter()
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
     release_checks: list[str] = []
@@ -272,6 +308,74 @@ async def test_run_agent_task_uses_dispatch_key_but_executes_logical_run(
     assert payload_store.deleted == [dispatch_id]
     assert release_checks == ["run-1:user-1"]
     assert limiter.acquire_calls == [("user-1", "run-1")]
+    activation.assert_awaited_once_with("approval-1", dispatch_id)
+
+
+@pytest.mark.asyncio
+async def test_parallel_resume_worker_retries_during_same_run_source_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def payload(approval_id: str) -> dict:
+        return {
+            "session_id": "session-1",
+            "run_id": "run-1",
+            "trace_id": "trace-1",
+            "agent_id": "search",
+            "message": "",
+            "user_id": "user-1",
+            "executor_key": "agent_stream",
+            "hitl_resume": {
+                "approval_id": approval_id,
+                "resume_value": {"approved": True},
+            },
+        }
+
+    task_executor = _FakeTaskExecutor()
+    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    limiter = _FakeLimiter()
+    redis = _ResumeStartupRedis()
+    first_waiting = asyncio.Event()
+    release_first = asyncio.Event()
+    wait_calls = 0
+
+    async def wait_for_release(_run_id: str, _user_id: str | None) -> bool:
+        nonlocal wait_calls
+        wait_calls += 1
+        if wait_calls == 1:
+            first_waiting.set()
+            await release_first.wait()
+        return True
+
+    async def executor_fn(*_args, **_kwargs):
+        if False:
+            yield None
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda _key: executor_fn)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(arq_worker, "wait_for_hitl_source_release", wait_for_release)
+    monkeypatch.setattr(arq_worker, "get_redis_client", lambda: redis, raising=False)
+
+    first = asyncio.create_task(
+        arq_worker.run_agent_task(
+            {"payload_store": _FakePayloadStore(payload("approval-1"), key="dispatch-1")},
+            "dispatch-1",
+        )
+    )
+    await first_waiting.wait()
+
+    with pytest.raises(Retry):
+        await arq_worker.run_agent_task(
+            {"payload_store": _FakePayloadStore(payload("approval-2"), key="dispatch-2")},
+            "dispatch-2",
+        )
+
+    assert wait_calls == 1
+    assert task_executor.run_calls == []
+
+    release_first.set()
+    await first
+    assert len(task_executor.run_calls) == 1
 
 
 @pytest.mark.asyncio
@@ -305,6 +409,115 @@ async def test_hitl_resume_retries_without_running_when_concurrency_slot_is_busy
         await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
 
     assert limiter.acquire_calls == [("user-1", "run-1")]
+    assert task_executor.run_calls == []
+    assert payload_store.deleted == []
+
+
+@pytest.mark.asyncio
+async def test_hitl_resume_releases_slot_when_pending_status_update_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch_id = "hitl-resume:approval-1:status-failure"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "hitl_resume": {"approval_id": "approval-1", "resume_value": {"approved": True}},
+    }
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    task_executor = _StatusFailingTaskExecutor()
+    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    limiter = _FakeLimiter()
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(
+        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True)
+    )
+
+    with pytest.raises(RuntimeError, match="mongo unavailable"):
+        await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert limiter.acquire_calls == [("user-1", "run-1")]
+    assert limiter.release_calls == [("user-1", "run-1", False)]
+    assert task_executor.run_calls == []
+    assert payload_store.deleted == []
+
+
+@pytest.mark.asyncio
+async def test_hitl_resume_releases_slot_when_executor_resolution_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch_id = "hitl-resume:approval-1:executor-import-failure"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "hitl_resume": {"approval_id": "approval-1", "resume_value": {"approved": True}},
+    }
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    task_executor = _FakeTaskExecutor()
+    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    limiter = _FakeLimiter()
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(
+        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(
+        arq_worker,
+        "_resolve_executor",
+        lambda _key: (_ for _ in ()).throw(RuntimeError("executor import failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="executor import failed"):
+        await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert limiter.release_calls == [("user-1", "run-1", False)]
+    assert task_executor.run_calls == []
+    assert payload_store.deleted == []
+
+
+@pytest.mark.asyncio
+async def test_hitl_resume_retries_without_claiming_capacity_while_source_is_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dispatch_id = "hitl-resume:approval-1:source-active"
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "search",
+        "message": "",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "hitl_resume": {"approval_id": "approval-1", "resume_value": {"approved": True}},
+    }
+    payload_store = _FakePayloadStore(payload, key=dispatch_id)
+    task_executor = _FakeTaskExecutor()
+    task_manager = SimpleNamespace(_run_info={}, _ensure_executor=lambda: task_executor)
+    limiter = _FakeLimiter()
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    monkeypatch.setattr(
+        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=False)
+    )
+
+    with pytest.raises(Retry):
+        await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
+
+    assert limiter.acquire_calls == []
+    assert task_executor.status_calls == []
     assert task_executor.run_calls == []
     assert payload_store.deleted == []
 

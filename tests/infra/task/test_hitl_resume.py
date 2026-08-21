@@ -1,6 +1,8 @@
 """HITL interrupt 模式恢复服务测试（issue #218）。"""
 
+import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -47,6 +49,31 @@ def _maybe_await(value):
     fut = asyncio.get_event_loop().create_future()
     fut.set_result(value)
     return fut
+
+
+class _RacyReleaseRedis:
+    """让两个 GET 都读到 marker，暴露非原子 GET+DELETE 竞态。"""
+
+    def __init__(self) -> None:
+        self.value: str | None = "1"
+        self.get_calls = 0
+        self.both_getting = asyncio.Event()
+
+    async def get(self, _key: str):
+        captured = self.value
+        self.get_calls += 1
+        if self.get_calls >= 2:
+            self.both_getting.set()
+        await self.both_getting.wait()
+        return captured
+
+    async def getdel(self, _key: str):
+        value = self.value
+        self.value = None
+        return value
+
+    async def delete(self, _key: str):
+        self.value = None
 
 
 @pytest.fixture
@@ -106,6 +133,86 @@ def test_extract_ask_human_interrupts_keeps_interrupt_ids() -> None:
 
 
 @pytest.mark.asyncio
+async def test_source_release_marker_has_only_one_concurrent_consumer(monkeypatch) -> None:
+    """两个恢复 worker 抢同一 source marker 时只能有一个立即进入。"""
+    redis = _RacyReleaseRedis()
+    monkeypatch.setattr(hitl_mod, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.check_exists",
+        AsyncMock(return_value=True),
+    )
+
+    results = await asyncio.gather(
+        hitl_mod.wait_for_hitl_source_release("run-1", "user-1", timeout=0.01),
+        hitl_mod.wait_for_hitl_source_release("run-1", "user-1", timeout=0.01),
+    )
+
+    assert sorted(results) == [False, True]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("heartbeat_exists", "slot_active", "expected"),
+    [
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+    ],
+)
+async def test_source_release_crash_fallback_requires_no_heartbeat_and_no_slot(
+    monkeypatch,
+    heartbeat_exists: bool,
+    slot_active: bool,
+    expected: bool,
+) -> None:
+    monkeypatch.setattr(
+        "src.infra.task.heartbeat.TaskHeartbeat.check_exists",
+        AsyncMock(return_value=heartbeat_exists),
+    )
+    limiter = SimpleNamespace(is_active_run=AsyncMock(return_value=slot_active))
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter
+    )
+
+    result = await hitl_mod.wait_for_hitl_source_release(
+        "run-crashed", "user-1", timeout=0
+    )
+
+    assert result is expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "stored_attempt", "expected"),
+    [
+        ("approved", "attempt-1", True),
+        ("pending", "attempt-1", False),
+        ("approved", "attempt-other", False),
+    ],
+)
+async def test_resume_activation_mongo_fallback_requires_exact_terminal_attempt(
+    monkeypatch,
+    status: str,
+    stored_attempt: str,
+    expected: bool,
+) -> None:
+    approval = SimpleNamespace(
+        status=status,
+        metadata={"resume_attempt_id": stored_attempt},
+    )
+    storage = SimpleNamespace(get=AsyncMock(return_value=approval))
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_approval_storage", lambda: storage
+    )
+
+    result = await hitl_mod.wait_for_hitl_resume_activation(
+        "approval-1", "attempt-1", timeout=0
+    )
+
+    assert result is expected
+
+
+@pytest.mark.asyncio
 async def test_submit_resume_skips_when_not_waiting_human(fake_redis, monkeypatch):
     monkeypatch.setattr(hitl_mod.settings, "HITL_MODE", "interrupt", raising=False)
 
@@ -121,6 +228,78 @@ async def test_submit_resume_skips_when_not_waiting_human(fake_redis, monkeypatc
     result = await submit_hitl_resume_run(_approval(), {"approved": True, "values": {}})
     assert result["submitted"] is False
     assert "等待" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_submit_resume_rejects_approval_from_stale_run(fake_redis, monkeypatch):
+    class _Storage:
+        async def get_by_session_id(self, _session_id):
+            return SimpleNamespace(
+                user_id="user-1",
+                metadata={
+                    "task_status": "waiting_human",
+                    "current_run_id": "run-new",
+                },
+            )
+
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _Storage)
+
+    result = await submit_hitl_resume_run(
+        _approval(metadata={"mode": "interrupt", "run_id": "run-old"}),
+        {"approved": True, "values": {}},
+    )
+
+    assert result["submitted"] is False
+    assert "已不是当前运行" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_local_resume_stays_retryable_when_concurrency_is_full(
+    fake_redis, monkeypatch
+):
+    monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "local", raising=False)
+
+    class _Storage:
+        async def get_by_session_id(self, _session_id):
+            return SimpleNamespace(
+                user_id="user-1",
+                name="session",
+                metadata={
+                    "task_status": "waiting_human",
+                    "current_run_id": "run-1",
+                    "executor_key": "agent_stream",
+                    "agent_id": "search",
+                },
+            )
+
+    async def fake_executor():
+        yield
+
+    manager = SimpleNamespace(
+        wait_for_task_completion=AsyncMock(),
+        submit=AsyncMock(side_effect=AssertionError("full capacity must not submit")),
+    )
+    limiter = SimpleNamespace(try_acquire_run_slot=AsyncMock(return_value=False))
+    monkeypatch.setattr("src.infra.session.storage.SessionStorage", _Storage)
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor", lambda _key: fake_executor
+    )
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter
+    )
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: manager)
+
+    result = await submit_hitl_resume_run(
+        _approval(), {"approved": True, "values": {}}
+    )
+
+    assert result == {
+        "submitted": False,
+        "run_id": None,
+        "message": "当前并发任务已满，请稍后重试恢复",
+    }
+    manager.wait_for_task_completion.assert_awaited_once_with("run-1")
+    manager.submit.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -340,8 +340,11 @@ async def test_same_message_interrupts_materialize_as_distinct_approvals(
     assert {item["metadata"]["trace_id"] for item in recorder.created} == {"trace-1"}
 
 
-async def test_parallel_ask_human_interrupts_resume_by_id(
-    interrupt_mode: None, recorder: ApprovalRecorder
+@pytest.mark.parametrize("answer_order", [(0, 1), (1, 0)])
+async def test_parallel_ask_human_interrupts_resume_by_id_in_either_order(
+    interrupt_mode: None,
+    recorder: ApprovalRecorder,
+    answer_order: tuple[int, int],
 ) -> None:
     model = ScriptedModel(
         messages=iter(
@@ -390,16 +393,29 @@ async def test_parallel_ask_human_interrupts_resume_by_id(
 
         first_id = interrupts[0]["interrupt_id"]
         second_id = interrupts[1]["interrupt_id"]
+        answers = {
+            first_id: {"approved": True, "values": {"choice": "a"}},
+            second_id: {"approved": True, "values": {"choice": "y"}},
+        }
+        ordered_ids = [first_id, second_id]
         await _run(
             graph,
-            Command(resume={first_id: {"approved": True, "values": {"choice": "a"}}}),
+            Command(
+                resume={
+                    ordered_ids[answer_order[0]]: answers[ordered_ids[answer_order[0]]]
+                }
+            ),
             config,
         )
         after_first = await graph.aget_state(config)
         assert after_first.next, "另一个 interrupt 未回答时图必须继续挂起"
 
         final_state = await graph.ainvoke(
-            Command(resume={second_id: {"approved": True, "values": {"choice": "y"}}}),
+            Command(
+                resume={
+                    ordered_ids[answer_order[1]]: answers[ordered_ids[answer_order[1]]]
+                }
+            ),
             config,
         )
     finally:

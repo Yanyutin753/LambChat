@@ -79,6 +79,69 @@ test("reconstructs one resolved ask-human item from same-run history", () => {
   expect(tools[0]).toMatchObject({ id: "call-1", isPending: false, success: true });
 });
 
+test("keeps resolved ask-human attached before a delivered steer in the same run", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-hitl-steer",
+        timestamp: "2026-08-21T00:00:00.000Z",
+        data: { content: "开始", message_id: "run-hitl-steer:user" },
+      },
+      {
+        event_type: "tool:start",
+        run_id: "run-hitl-steer",
+        timestamp: "2026-08-21T00:00:01.000Z",
+        data: {
+          tool: "ask_human",
+          tool_call_id: "call-confirm",
+          args: { message: "确认" },
+        },
+      },
+      {
+        event_type: "approval_resolved",
+        run_id: "run-hitl-steer",
+        timestamp: "2026-08-21T00:00:02.000Z",
+        data: {
+          id: "approval-1",
+          tool_call_id: "call-confirm",
+          success: true,
+          result: { status: "success", values: { choice: "yes" } },
+        },
+      },
+      {
+        event_type: "steer:message",
+        run_id: "run-hitl-steer",
+        timestamp: "2026-08-21T00:00:03.000Z",
+        data: { content: "继续时换个方向", message_id: "steer-after-hitl" },
+      },
+      {
+        event_type: "message:chunk",
+        run_id: "run-hitl-steer",
+        timestamp: "2026-08-21T00:00:04.000Z",
+        data: { content: "已按新方向继续" },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const steerIndex = messages.findIndex((message) => message.id === "steer-after-hitl");
+  const beforeSteer = messages[steerIndex - 1];
+  const askHuman = beforeSteer.parts?.find(
+    (part) => part.type === "tool" && part.id === "call-confirm",
+  );
+  expect(askHuman).toMatchObject({ isPending: false, success: true });
+  expect(messages[steerIndex]).toMatchObject({
+    role: "user",
+    metadata: { steer: true },
+  });
+  expect(messages[steerIndex + 1]).toMatchObject({
+    role: "assistant",
+    content: "已按新方向继续",
+  });
+});
+
 test("reconstructs the same message from raw and compacted text chunks", () => {
   const rawChunks = Array.from({ length: 15_000 }, (_, index) => ({
     event_type: "message:chunk" as const,
