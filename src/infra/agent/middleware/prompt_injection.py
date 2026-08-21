@@ -165,8 +165,7 @@ class EnvVarPromptMiddleware(AgentMiddleware):
     prefix is invalidated only when the user's env vars actually change —
     and the system prompt stays fully static. The description is rebuilt
     from the base tool on every request, so key changes never accumulate.
-    Falls back to a system-prompt tail block when the env_var_list tool is
-    not part of the request.
+    Deferred env_var_list is described by ToolSearchMiddleware instead.
 
     Only key names are included. Values are never read as plaintext here.
     """
@@ -210,9 +209,6 @@ class EnvVarPromptMiddleware(AgentMiddleware):
                 update={"description": self._framed_description(target, framed)}
             )
             request = request.override(tools=tools)
-        else:
-            system_message = _append_system_text_block(request.system_message, framed)
-            request = request.override(system_message=system_message)
         return await handler(request)
 
     @classmethod

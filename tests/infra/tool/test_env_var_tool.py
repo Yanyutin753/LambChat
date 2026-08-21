@@ -286,7 +286,7 @@ async def test_env_var_prompt_rebuilds_tool_description_each_request(
 
 
 @pytest.mark.asyncio
-async def test_env_var_prompt_falls_back_to_system_tail_without_tool(
+async def test_env_var_prompt_does_not_enter_system_prompt_without_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.infra.agent import middleware
@@ -315,10 +315,7 @@ async def test_env_var_prompt_falls_back_to_system_tail_without_tool(
 
     assert result == "ok"
     assert captured[0].tools == []
-    fallback_text = "\n\n".join(block["text"] for block in captured[0].system_message.content)
-    assert "base" in fallback_text
-    assert "<env_var_keys_context>" in fallback_text
-    assert "- `FIRECRAWL_API_KEY`" in fallback_text
+    assert captured[0].system_message.content == "base"
 
 
 @pytest.mark.asyncio

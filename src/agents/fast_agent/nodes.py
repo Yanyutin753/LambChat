@@ -224,6 +224,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
                 ToolSearchMiddleware(
                     deferred_manager=subagent_deferred_manager,
                     search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
+                    user_id=context.user_id,
                 )
             )
         return mw
@@ -291,6 +292,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             ToolSearchMiddleware(
                 deferred_manager=context.deferred_manager,
                 search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
+                user_id=context.user_id,
             )
         )
 

@@ -468,6 +468,57 @@ async def test_tool_search_middleware_appends_one_complete_deferred_prompt_block
     )
 
 
+async def test_tool_search_middleware_puts_env_keys_under_deferred_env_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import env_var_prompt
+
+    async def fake_build_env_var_prompt(user_id: str) -> str:
+        assert user_id == "user-1"
+        return "## Available Environment Variables\n\n- `FIRECRAWL_API_KEY`"
+
+    monkeypatch.setattr(env_var_prompt, "build_env_var_prompt", fake_build_env_var_prompt)
+    manager = DeferredToolManager(
+        all_deferred_tools=[],
+        deferred_system_tools=[
+            _FakeTool(
+                name="env_var_list",
+                description="List the current user's saved environment variable keys.",
+            ),
+            _FakeTool(name="env_var_set", description="Set an environment variable."),
+        ],
+        session_id="session-1",
+    )
+    middleware = ToolSearchMiddleware(
+        deferred_manager=manager,
+        search_limit=5,
+        user_id="user-1",
+    )
+
+    class _Request:
+        def __init__(self) -> None:
+            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
+            self.tools = []
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            clone.tools = kwargs.get("tools", self.tools)
+            return clone
+
+    async def _handler(request):
+        return request
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+    search_tool = next(tool for tool in result.tools if tool.name == "search_tools")
+
+    assert "## System Tools (Deferred)" in search_tool.description
+    assert "- env_var_list: List the current user's saved environment variable keys." in search_tool.description
+    assert "## Available Environment Variables" in search_tool.description
+    assert "- `FIRECRAWL_API_KEY`" in search_tool.description
+    assert result.system_message.content == [{"type": "text", "text": "base"}]
+
+
 def test_deferred_prompt_string_is_stably_sorted() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[

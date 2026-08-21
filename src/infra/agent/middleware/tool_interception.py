@@ -527,10 +527,12 @@ class ToolSearchMiddleware(AgentMiddleware):
         *,
         deferred_manager: "DeferredToolManager",
         search_limit: int = 10,
+        user_id: str | None = None,
     ) -> None:
         super().__init__()
         self._deferred_manager = deferred_manager
         self._search_limit = search_limit
+        self._user_id = user_id
 
         # Lazy init for search_tools (avoid importing potentially missing modules in __init__)
         self._search_tool: "BaseTool | None" = None
@@ -593,6 +595,17 @@ class ToolSearchMiddleware(AgentMiddleware):
 
         # 2. Enrich the search_tools description with the deferred-tool stubs.
         stubs = _normalize_prompt_text(self._deferred_manager.get_deferred_stubs_string())
+        if stubs and self._user_id:
+            from src.infra.tool.env_var_prompt import build_env_var_prompt
+
+            env_prompt = _normalize_prompt_text(await build_env_var_prompt(self._user_id))
+            env_marker = "- env_var_list:"
+            if env_prompt and env_marker in stubs:
+                line_end = stubs.find("\n", stubs.find(env_marker))
+                if line_end == -1:
+                    line_end = len(stubs)
+                indented_prompt = "\n".join(f"  {line}" for line in env_prompt.splitlines())
+                stubs = f"{stubs[:line_end]}\n{indented_prompt}{stubs[line_end:]}"
         if stubs:
             tools = list(request.tools)
             search_index = next(
