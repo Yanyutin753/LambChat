@@ -3,7 +3,8 @@ from typing import Any
 
 import pytest
 from langchain_core.messages import ToolMessage
-from langgraph.types import Command
+from langgraph.errors import GraphInterrupt
+from langgraph.types import Command, Interrupt
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.events.buffers import TextChunkBuffer
@@ -886,6 +887,54 @@ async def test_tool_error_does_not_emit_duplicate_start_after_start_event() -> N
     assert [event["event"] for event in presenter.emitted] == ["tool:start", "tool:result"]
     assert presenter.emitted[1]["data"]["success"] is False
     assert presenter.emitted[1]["data"]["tool_call_id"] == "tool-run-1"
+
+
+@pytest.mark.asyncio
+async def test_ask_human_stream_events_are_not_rendered_as_generic_tool_events() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "ask_human",
+            "run_id": "tool-run-1",
+            "data": {"input": {"question": "continue?"}},
+            "metadata": {},
+        }
+    )
+    await processor.process_event(
+        {
+            "event": "on_tool_error",
+            "name": "ask_human",
+            "run_id": "tool-run-1",
+            "data": {
+                "input": {"question": "continue?"},
+                "error": GraphInterrupt((Interrupt(value={"kind": "ask_human"}),)),
+            },
+            "metadata": {},
+        }
+    )
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "ask_human",
+            "run_id": "tool-run-2",
+            "data": {"input": {"question": "continue?"}},
+            "metadata": {},
+        }
+    )
+    await processor.process_event(
+        {
+            "event": "on_tool_end",
+            "name": "ask_human",
+            "run_id": "tool-run-2",
+            "data": {"output": '{"status":"success"}'},
+            "metadata": {},
+        }
+    )
+
+    assert presenter.emitted == []
 
 
 @pytest.mark.asyncio

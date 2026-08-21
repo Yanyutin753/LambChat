@@ -7,6 +7,7 @@ import uuid
 from typing import Any
 
 import orjson
+from langgraph.errors import GraphInterrupt
 
 from src.infra.agent.events.binary_uploads import upload_binary_blocks
 from src.infra.agent.events.tool_outputs import (
@@ -187,6 +188,9 @@ class ToolEventMixin:
         current_depth: int,
     ) -> None:
         data = event.get("data", {})
+        if isinstance(data.get("error"), GraphInterrupt):
+            return
+
         inp: dict[str, Any] = data.get("input", {})
         tool_call_id = self._get_tool_call_id(event)
 

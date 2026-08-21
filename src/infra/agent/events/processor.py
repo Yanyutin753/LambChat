@@ -231,6 +231,16 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         tool_name = event_name
 
+        # ask_human is rendered from durable approval events. LangGraph also
+        # replays its tool lifecycle around an interrupt; exposing those
+        # generic callbacks creates a second, unrelated tool card.
+        if tool_name == "ask_human" and evt_type in {
+            "on_tool_start",
+            "on_tool_end",
+            "on_tool_error",
+        }:
+            return
+
         if tool_name == TOOL_TASK:
             match evt_type:
                 case "on_tool_start":
