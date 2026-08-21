@@ -66,7 +66,8 @@ test("keeps cancelled ask-human tool results pending while HITL resumes", () => 
       tool: "ask_human",
       tool_call_id: "ask-cancelled",
       success: false,
-      error: "Tool call ask_human was cancelled - another message came in before it could be completed",
+      error:
+        "Tool call ask_human was cancelled - another message came in before it could be completed",
       result: "",
     },
     started.parts,
@@ -114,7 +115,11 @@ test("resolves the exact ask-human tool from a durable approval event", () => {
     {
       id: "approval-1",
       tool_call_id: "ask-1",
-      result: { status: "success", message: "用户已响应", values: { choice: "a" } },
+      result: {
+        status: "success",
+        message: "用户已响应",
+        values: { choice: "a" },
+      },
       success: true,
     },
     second.parts,
@@ -126,7 +131,11 @@ test("resolves the exact ask-human tool from a durable approval event", () => {
     "message-1",
   );
 
-  expect(resolved.parts[0]).toMatchObject({ id: "ask-1", isPending: false, success: true });
+  expect(resolved.parts[0]).toMatchObject({
+    id: "ask-1",
+    isPending: false,
+    success: true,
+  });
   expect(resolved.parts[1]).toMatchObject({ id: "ask-2", isPending: true });
 });
 
@@ -224,7 +233,8 @@ test("does not turn a transient ask-human cancellation error into a failed turn"
   const result = processMessageEvent(
     "error",
     {
-      error: "Tool call ask_human with id ask-error was cancelled - another message came in before it could be completed",
+      error:
+        "Tool call ask_human with id ask-error was cancelled - another message came in before it could be completed",
       type: "CancelledError",
     },
     started.parts,

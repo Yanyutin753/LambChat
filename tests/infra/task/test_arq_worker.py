@@ -401,9 +401,7 @@ async def test_hitl_resume_retries_without_running_when_concurrency_slot_is_busy
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
-    monkeypatch.setattr(
-        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True)
-    )
+    monkeypatch.setattr(arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True))
 
     with pytest.raises(Retry):
         await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
@@ -435,9 +433,7 @@ async def test_hitl_resume_releases_slot_when_pending_status_update_fails(
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
-    monkeypatch.setattr(
-        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True)
-    )
+    monkeypatch.setattr(arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True))
 
     with pytest.raises(RuntimeError, match="mongo unavailable"):
         await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)
@@ -470,9 +466,7 @@ async def test_hitl_resume_releases_slot_when_executor_resolution_raises(
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
-    monkeypatch.setattr(
-        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True)
-    )
+    monkeypatch.setattr(arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=True))
     monkeypatch.setattr(
         arq_worker,
         "_resolve_executor",
@@ -509,9 +503,7 @@ async def test_hitl_resume_retries_without_claiming_capacity_while_source_is_act
 
     monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
     monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
-    monkeypatch.setattr(
-        arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=False)
-    )
+    monkeypatch.setattr(arq_worker, "wait_for_hitl_source_release", AsyncMock(return_value=False))
 
     with pytest.raises(Retry):
         await arq_worker.run_agent_task({"payload_store": payload_store}, dispatch_id)

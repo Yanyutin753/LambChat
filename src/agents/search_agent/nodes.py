@@ -495,7 +495,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     if (
         recommendation_input
         and settings.ENABLE_RECOMMEND_QUESTIONS
-        and not presenter.hitl_suspended
+        and not getattr(presenter, "hitl_suspended", False)
     ):
         try:
             from src.agents.core.recommendations import schedule_recommend_questions_from_state

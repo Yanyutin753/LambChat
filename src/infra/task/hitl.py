@@ -82,12 +82,8 @@ async def _send_approval_sse(
                 "message": approval.message,
                 "type": approval.type,
                 "fields": fields,
-                "tool_call_id": (getattr(approval, "metadata", None) or {}).get(
-                    "tool_call_id"
-                ),
-                "interrupt_id": (getattr(approval, "metadata", None) or {}).get(
-                    "interrupt_id"
-                ),
+                "tool_call_id": (getattr(approval, "metadata", None) or {}).get("tool_call_id"),
+                "interrupt_id": (getattr(approval, "metadata", None) or {}).get("interrupt_id"),
             },
             run_id=run_id,
         )
@@ -263,9 +259,7 @@ async def activate_hitl_resume_attempt(approval_id: str, attempt_id: str) -> Non
     except Exception as e:
         # Mongo 中的 terminal approval + exact attempt_id 是持久化激活凭据；
         # Redis 仅用于快速唤醒，失败时 worker 会走一次 Mongo 点查。
-        logger.warning(
-            "Failed to publish HITL resume activation for %s: %s", approval_id, e
-        )
+        logger.warning("Failed to publish HITL resume activation for %s: %s", approval_id, e)
 
 
 async def wait_for_hitl_resume_activation(
@@ -396,7 +390,7 @@ async def submit_hitl_resume_run(
             },
         }
         manager = get_task_manager()
-        common_kwargs = {
+        common_kwargs: dict[str, Any] = {
             "disabled_tools": metadata.get("disabled_tools") or None,
             "agent_options": metadata.get("agent_options") or None,
             "disabled_skills": metadata.get("disabled_skills") or None,
@@ -435,9 +429,7 @@ async def submit_hitl_resume_run(
 
             resume_user_id = str(session.user_id)
             limiter = get_concurrency_limiter()
-            resume_slot_acquired = await limiter.try_acquire_run_slot(
-                resume_user_id, source_run_id
-            )
+            resume_slot_acquired = await limiter.try_acquire_run_slot(resume_user_id, source_run_id)
             if not resume_slot_acquired:
                 return {
                     "submitted": False,
@@ -476,9 +468,10 @@ async def submit_hitl_resume_run(
         try:
             approval_metadata = getattr(approval, "metadata", None) or {}
             restore_metadata: dict[str, Any] = {"task_status": TaskStatus.WAITING_HUMAN.value}
-            source_run_id = approval_metadata.get("run_id")
-            if source_run_id:
-                restore_metadata["current_run_id"] = source_run_id
+            restore_run_id = str(approval_metadata.get("run_id") or "")
+            if restore_run_id:
+                source_run_id = restore_run_id
+                restore_metadata["current_run_id"] = restore_run_id
             if session_storage is not None:
                 await session_storage.update_metadata_only(session_id, restore_metadata)
         except Exception as restore_error:

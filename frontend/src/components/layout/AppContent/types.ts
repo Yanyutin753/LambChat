@@ -16,3 +16,14 @@ export type TabType =
   | "team"
   | "scheduled-tasks"
   | "usage";
+
+export interface ChatAppContentProps {
+  showProfileModal: boolean;
+  onCloseProfileModal: () => void;
+  versionInfo: import("../../../types").VersionInfo | null;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+  onShowProfile: () => void;
+}

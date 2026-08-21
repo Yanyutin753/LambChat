@@ -43,8 +43,11 @@ export function useAgentList(hasActiveMessages: () => boolean) {
   const fetchAgents = useCallback(async () => {
     setAgentsLoading(true);
     try {
-      const { agents: availableAgents, allowedModelIds: modelIds, defaultAgent } =
-        await fetchAgentsData();
+      const {
+        agents: availableAgents,
+        allowedModelIds: modelIds,
+        defaultAgent,
+      } = await fetchAgentsData();
       setAgents(availableAgents);
       setAllowedModelIds(modelIds);
       const nextAgentId = resolveAvailableAgentId(
@@ -88,8 +91,11 @@ export function useAgentList(hasActiveMessages: () => boolean) {
       // Fetch fresh agents data
       setAgentsLoading(true);
       try {
-        const { agents: availableAgents, allowedModelIds: modelIds, defaultAgent } =
-          await fetchAgentsData();
+        const {
+          agents: availableAgents,
+          allowedModelIds: modelIds,
+          defaultAgent,
+        } = await fetchAgentsData();
 
         // Update agents list
         setAgents(availableAgents);

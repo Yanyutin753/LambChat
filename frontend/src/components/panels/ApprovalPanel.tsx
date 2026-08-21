@@ -545,8 +545,7 @@ export function ApprovalPanel({
   const askHumanKeyboardField = askHumanChoiceFields[0];
   const askHumanQuestion = approvalSummary;
   const isSubmitDisabled =
-    isLoading ||
-    !isFormFieldsValid(currentApproval.fields, currentFormValues);
+    isLoading || !isFormFieldsValid(currentApproval.fields, currentFormValues);
 
   return (
     <div
@@ -866,9 +865,7 @@ export function ApprovalPanel({
                     className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Send size={14} />
-                    <span>
-                      {t("approvals.submit")}
-                    </span>
+                    <span>{t("approvals.submit")}</span>
                   </button>
                   <button
                     onClick={handleCancel}

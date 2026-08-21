@@ -325,16 +325,13 @@ async def respond_to_approval(
     # 审批 metadata 是该请求实际运行模式的权威来源；部署配置变更后，
     # 已挂起的 interrupt 仍必须沿原 checkpoint 恢复。
     interrupt_approval = is_interrupt_approval(approval)
-    respond_with_metadata = getattr(
-        _approval_storage, "respond_if_pending_with_metadata", None
-    )
+    respond_with_metadata = getattr(_approval_storage, "respond_if_pending_with_metadata", None)
     distributed_prepare = (
-        interrupt_approval
-        and settings.TASK_BACKEND == "arq"
-        and callable(respond_with_metadata)
+        interrupt_approval and settings.TASK_BACKEND == "arq" and callable(respond_with_metadata)
     )
 
     if distributed_prepare:
+        assert callable(respond_with_metadata)
         resume_attempt_id = f"hitl-resume:{approval_id}:{uuid.uuid4().hex}"
         resume_result = await submit_hitl_resume_run(
             approval,

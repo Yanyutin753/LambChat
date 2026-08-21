@@ -26,7 +26,9 @@ export function toggleMultiSelectValue(
   current: unknown,
   option: string,
 ): string[] {
-  const list = Array.isArray(current) ? current.filter((v) => typeof v === "string") : [];
+  const list = Array.isArray(current)
+    ? current.filter((v) => typeof v === "string")
+    : [];
   return list.includes(option)
     ? list.filter((v) => v !== option)
     : [...list, option];

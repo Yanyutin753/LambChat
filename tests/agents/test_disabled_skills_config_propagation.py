@@ -111,9 +111,10 @@ def _patch_tool_search_middleware(monkeypatch: pytest.MonkeyPatch) -> list[objec
     captured_managers: list[object] = []
 
     class _FakeToolSearchMiddleware:
-        def __init__(self, *, deferred_manager, search_limit) -> None:
+        def __init__(self, *, deferred_manager, search_limit, user_id=None) -> None:
             captured_managers.append(deferred_manager)
             self.search_limit = search_limit
+            self.user_id = user_id
 
     monkeypatch.setattr(middleware_pkg, "ToolSearchMiddleware", _FakeToolSearchMiddleware)
     return captured_managers

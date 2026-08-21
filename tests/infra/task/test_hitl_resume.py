@@ -170,13 +170,9 @@ async def test_source_release_crash_fallback_requires_no_heartbeat_and_no_slot(
         AsyncMock(return_value=heartbeat_exists),
     )
     limiter = SimpleNamespace(is_active_run=AsyncMock(return_value=slot_active))
-    monkeypatch.setattr(
-        "src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter
-    )
+    monkeypatch.setattr("src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter)
 
-    result = await hitl_mod.wait_for_hitl_source_release(
-        "run-crashed", "user-1", timeout=0
-    )
+    result = await hitl_mod.wait_for_hitl_source_release("run-crashed", "user-1", timeout=0)
 
     assert result is expected
 
@@ -201,13 +197,9 @@ async def test_resume_activation_mongo_fallback_requires_exact_terminal_attempt(
         metadata={"resume_attempt_id": stored_attempt},
     )
     storage = SimpleNamespace(get=AsyncMock(return_value=approval))
-    monkeypatch.setattr(
-        "src.infra.storage.mongodb.get_approval_storage", lambda: storage
-    )
+    monkeypatch.setattr("src.infra.storage.mongodb.get_approval_storage", lambda: storage)
 
-    result = await hitl_mod.wait_for_hitl_resume_activation(
-        "approval-1", "attempt-1", timeout=0
-    )
+    result = await hitl_mod.wait_for_hitl_resume_activation("approval-1", "attempt-1", timeout=0)
 
     assert result is expected
 
@@ -254,9 +246,7 @@ async def test_submit_resume_rejects_approval_from_stale_run(fake_redis, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_local_resume_stays_retryable_when_concurrency_is_full(
-    fake_redis, monkeypatch
-):
+async def test_local_resume_stays_retryable_when_concurrency_is_full(fake_redis, monkeypatch):
     monkeypatch.setattr(hitl_mod.settings, "TASK_BACKEND", "local", raising=False)
 
     class _Storage:
@@ -284,14 +274,10 @@ async def test_local_resume_stays_retryable_when_concurrency_is_full(
     monkeypatch.setattr(
         "src.infra.task.concurrency.get_registered_executor", lambda _key: fake_executor
     )
-    monkeypatch.setattr(
-        "src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter
-    )
+    monkeypatch.setattr("src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter)
     monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: manager)
 
-    result = await submit_hitl_resume_run(
-        _approval(), {"approved": True, "values": {}}
-    )
+    result = await submit_hitl_resume_run(_approval(), {"approved": True, "values": {}})
 
     assert result == {
         "submitted": False,
@@ -351,9 +337,7 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
         async def release(self, user_id, run_id):
             submitted["released_slot"] = (user_id, run_id)
 
-    monkeypatch.setattr(
-        "src.infra.task.concurrency.get_concurrency_limiter", lambda: _Limiter()
-    )
+    monkeypatch.setattr("src.infra.task.concurrency.get_concurrency_limiter", lambda: _Limiter())
 
     class _FakeManager:
         async def wait_for_task_completion(self, run_id):
@@ -401,12 +385,8 @@ async def test_submit_resume_submits_run_with_hitl_payload(fake_redis, monkeypat
     assert submitted["kwargs"]["active_goal"] == {"id": "goal-1"}
     assert submitted["kwargs"]["recommendation_input"] == "原始问题"
     assert submitted["kwargs"]["hitl_resume"]["approval_id"] == "approval-1"
-    assert submitted["kwargs"]["hitl_resume"]["goal_started_at"] == (
-        "2026-08-21T10:00:00+00:00"
-    )
-    assert submitted["kwargs"]["hitl_resume"]["resume_value"] == {
-        "interrupt-a": resume_value
-    }
+    assert submitted["kwargs"]["hitl_resume"]["goal_started_at"] == ("2026-08-21T10:00:00+00:00")
+    assert submitted["kwargs"]["hitl_resume"]["resume_value"] == {"interrupt-a": resume_value}
     assert submitted["kwargs"]["hitl_resume"]["approval_resolved"] == {
         "id": "approval-1",
         "tool_call_id": None,

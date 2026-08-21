@@ -191,9 +191,7 @@ async def test_queued_steer_survives_hitl_pause_and_uses_same_resumed_run() -> N
         async def save_event(self, event):
             saved.append(event)
 
-    middleware = SteerMiddleware(
-        session_id="session-hitl", presenter=_ResumedPresenter()
-    )
+    middleware = SteerMiddleware(session_id="session-hitl", presenter=_ResumedPresenter())
     seen: list[_Request] = []
 
     async def handler(req):

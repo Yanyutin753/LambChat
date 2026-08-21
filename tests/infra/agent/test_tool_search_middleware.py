@@ -513,7 +513,10 @@ async def test_tool_search_middleware_puts_env_keys_under_deferred_env_tool(
     search_tool = next(tool for tool in result.tools if tool.name == "search_tools")
 
     assert "## System Tools (Deferred)" in search_tool.description
-    assert "- env_var_list: List the current user's saved environment variable keys." in search_tool.description
+    assert (
+        "- env_var_list: List the current user's saved environment variable keys."
+        in search_tool.description
+    )
     assert "## Available Environment Variables" in search_tool.description
     assert "- `FIRECRAWL_API_KEY`" in search_tool.description
     assert result.system_message.content == [{"type": "text", "text": "base"}]

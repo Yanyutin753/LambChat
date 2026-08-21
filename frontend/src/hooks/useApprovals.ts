@@ -12,7 +12,10 @@ interface UseApprovalsOptions {
   onInterruptResume?: () => void;
 }
 
-export function useApprovals({ sessionId, onInterruptResume }: UseApprovalsOptions) {
+export function useApprovals({
+  sessionId,
+  onInterruptResume,
+}: UseApprovalsOptions) {
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const hasApprovalsRef = useRef(false);

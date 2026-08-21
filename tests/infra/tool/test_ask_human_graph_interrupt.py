@@ -400,22 +400,14 @@ async def test_parallel_ask_human_interrupts_resume_by_id_in_either_order(
         ordered_ids = [first_id, second_id]
         await _run(
             graph,
-            Command(
-                resume={
-                    ordered_ids[answer_order[0]]: answers[ordered_ids[answer_order[0]]]
-                }
-            ),
+            Command(resume={ordered_ids[answer_order[0]]: answers[ordered_ids[answer_order[0]]]}),
             config,
         )
         after_first = await graph.aget_state(config)
         assert after_first.next, "另一个 interrupt 未回答时图必须继续挂起"
 
         final_state = await graph.ainvoke(
-            Command(
-                resume={
-                    ordered_ids[answer_order[1]]: answers[ordered_ids[answer_order[1]]]
-                }
-            ),
+            Command(resume={ordered_ids[answer_order[1]]: answers[ordered_ids[answer_order[1]]]}),
             config,
         )
     finally:

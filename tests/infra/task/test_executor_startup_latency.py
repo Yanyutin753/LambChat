@@ -57,6 +57,7 @@ def _executor(monkeypatch: pytest.MonkeyPatch, heartbeat=None) -> TaskExecutor:
 
     _FakePresenter.instances.clear()
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
+
     class _Writer:
         async def flush_mongo_buffer(self, **_kwargs) -> None:
             return None

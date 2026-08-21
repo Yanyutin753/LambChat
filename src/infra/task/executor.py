@@ -169,9 +169,7 @@ class TaskExecutor:
             if hitl_resume is not None:
                 resolved = hitl_resume.get("approval_resolved")
                 if isinstance(resolved, dict):
-                    await presenter.save_event(
-                        {"event": "approval_resolved", "data": resolved}
-                    )
+                    await presenter.save_event({"event": "approval_resolved", "data": resolved})
                 await presenter.save_event(
                     {
                         "event": "human_resume_started",
@@ -253,6 +251,7 @@ class TaskExecutor:
 
         except Exception as e:
             await self._handle_generic_error(session_id, run_id, user_id, e, dual_writer, presenter)
+            return None
 
         finally:
             # 无论成功、取消还是失败，都停止心跳并清除中断信号

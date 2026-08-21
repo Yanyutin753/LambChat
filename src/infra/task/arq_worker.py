@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import uuid
 from importlib import import_module
 from typing import Any
@@ -49,12 +50,14 @@ async def _release_hitl_resume_startup_lock(run_id: str, token: str) -> None:
     end
     """
     try:
-        await get_redis_client().eval(
+        result = get_redis_client().eval(
             lua,
             1,
             f"{HITL_RESUME_STARTUP_LOCK_PREFIX}{run_id}",
             token,
         )
+        if inspect.isawaitable(result):
+            await result
     except Exception as e:
         logger.warning("Failed to release HITL resume startup lock for %s: %s", run_id, e)
 

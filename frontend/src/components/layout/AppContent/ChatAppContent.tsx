@@ -42,18 +42,9 @@ import { ChatView } from "./ChatView";
 import { filterApprovalsBySession } from "../../../utils/approvals";
 import { shouldShowMessageOutline } from "./messageOutline";
 import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
+import type { ChatAppContentProps } from "./types";
 const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
-export interface ChatAppContentProps {
-  showProfileModal: boolean;
-  onCloseProfileModal: () => void;
-  versionInfo: import("../../../types").VersionInfo | null;
-  sidebarCollapsed: boolean;
-  setSidebarCollapsed: (collapsed: boolean) => void;
-  mobileSidebarOpen: boolean;
-  setMobileSidebarOpen: (open: boolean) => void;
-  onShowProfile: () => void;
-}
 export function ChatAppContent({
   showProfileModal,
   onCloseProfileModal,

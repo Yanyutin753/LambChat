@@ -55,7 +55,11 @@ test("reconstructs one resolved ask-human item from same-run history", () => {
           id: "approval-1",
           tool_call_id: "call-1",
           success: true,
-          result: { status: "success", message: "用户已响应", values: { choice: "a" } },
+          result: {
+            status: "success",
+            message: "用户已响应",
+            values: { choice: "a" },
+          },
         },
       },
       {
@@ -76,7 +80,11 @@ test("reconstructs one resolved ask-human item from same-run history", () => {
   const assistant = messages.find((message) => message.role === "assistant");
   const tools = assistant?.parts?.filter((part) => part.type === "tool") ?? [];
   expect(tools).toHaveLength(1);
-  expect(tools[0]).toMatchObject({ id: "call-1", isPending: false, success: true });
+  expect(tools[0]).toMatchObject({
+    id: "call-1",
+    isPending: false,
+    success: true,
+  });
 });
 
 test("keeps resolved ask-human attached before a delivered steer in the same run", () => {
@@ -126,7 +134,9 @@ test("keeps resolved ask-human attached before a delivered steer in the same run
     { activeSubagentStack: [] },
   );
 
-  const steerIndex = messages.findIndex((message) => message.id === "steer-after-hitl");
+  const steerIndex = messages.findIndex(
+    (message) => message.id === "steer-after-hitl",
+  );
   const beforeSteer = messages[steerIndex - 1];
   const askHuman = beforeSteer.parts?.find(
     (part) => part.type === "tool" && part.id === "call-confirm",

@@ -252,9 +252,7 @@ async def test_arq_interrupt_prepares_before_atomic_response_and_activates(
             self, _approval_id, _status, _response, metadata_updates
         ):
             order.append("claim")
-            assert metadata_updates["resume_attempt_id"].startswith(
-                "hitl-resume:approval-1:"
-            )
+            assert metadata_updates["resume_attempt_id"].startswith("hitl-resume:approval-1:")
             return _FakeApproval()
 
         async def expire_after(self, _approval_id: str):
@@ -338,9 +336,7 @@ async def test_concurrent_arq_responses_activate_only_the_atomic_winner(
 
     monkeypatch.setattr(human, "_approval_storage", _FakeApprovalStorage())
     monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_prepare)
-    monkeypatch.setattr(
-        "src.infra.task.hitl.activate_hitl_resume_attempt", fake_activate
-    )
+    monkeypatch.setattr("src.infra.task.hitl.activate_hitl_resume_attempt", fake_activate)
     monkeypatch.setattr("src.infra.task.hitl.settings.TASK_BACKEND", "arq")
 
     results = await asyncio.gather(

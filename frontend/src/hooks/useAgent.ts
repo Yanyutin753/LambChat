@@ -6,11 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
-import type {
-  Message,
-  ConnectionStatus,
-  MessageAttachment,
-} from "../types";
+import type { Message, ConnectionStatus, MessageAttachment } from "../types";
 import { sessionApi, type BackendSession } from "../services/api";
 import { feedbackApi } from "../services/api/feedback";
 import { useAuth } from "../hooks/useAuth";
