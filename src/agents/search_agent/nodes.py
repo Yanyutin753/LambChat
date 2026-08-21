@@ -8,7 +8,7 @@ LangGraph 节点函数，使用 deep agent 执行任务。
 import inspect
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
@@ -361,13 +361,24 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 只需传入新消息，避免与 checkpoint 中的历史消息重复。
     user_input = state.get("input", "")
     recommendation_input = configurable.get("recommendation_input") or user_input
-    if supports_vision:
-        attachments = await inline_image_attachments_as_data_urls(
-            attachments,
-            base_url=configurable.get("base_url", ""),
-            force_data_url=image_url_to_base64,
+    # HITL 恢复运行（issue #218）：以 Command(resume=...) 从挂起断点继续，
+    # 不注入新的用户消息。
+    hitl_resume = configurable.get("hitl_resume")
+    if hitl_resume is not None:
+        from langgraph.types import Command
+
+        graph_input: Any = Command(resume=hitl_resume.get("resume_value"))
+    else:
+        if supports_vision:
+            attachments = await inline_image_attachments_as_data_urls(
+                attachments,
+                base_url=configurable.get("base_url", ""),
+                force_data_url=image_url_to_base64,
+            )
+        new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
+        graph_input = build_goal_input(
+            new_message, active_goal, rubric_middleware=rubric_middleware
         )
-    new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
 
     # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
     logger.info("[SearchAgent] Creating AgentEventProcessor")
@@ -394,7 +405,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             token_supported = hitl_interrupt_supported.set(interrupt_supported)
             try:
                 async for event in inner_graph.astream_events(  # type: ignore[call-overload]
-                    build_goal_input(new_message, active_goal, rubric_middleware=rubric_middleware),
+                    graph_input,
                     inner_config,
                     version="v2",
                 ):
@@ -412,7 +423,35 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         )
     logger.info("[SearchAgent] astream_events completed")
 
-    if settings.ENABLE_MEMORY and context.user_id:
+    # 检测 interrupt 挂起（issue #218）：图存在待恢复任务时标记 WAITING_HUMAN，
+    # 并将 ask_human interrupt payload 物化为审批记录 + SSE 通知
+    # （工具内零副作用，对齐 deepagents 官方 HITL，重放不会重复创建）
+    if interrupt_supported:
+        try:
+            snapshot = await inner_graph.aget_state(inner_config)  # type: ignore[attr-defined]
+            if isinstance(inner_config, dict):
+                cast(dict[str, Any], inner_config)["_recommendation_state_snapshot"] = snapshot
+            if snapshot is not None and snapshot.next:
+                presenter.hitl_suspended = True
+                logger.info(
+                    "[SearchAgent] Graph suspended by interrupt: session=%s run_id=%s",
+                    state.get("session_id"),
+                    getattr(presenter, "run_id", None),
+                )
+                from src.infra.logging.context import TraceContext
+                from src.infra.task.hitl import materialize_ask_human_approvals
+
+                ctx = TraceContext.get_request_context()
+                await materialize_ask_human_approvals(
+                    snapshot,
+                    session_id=state.get("session_id"),
+                    run_id=getattr(presenter, "run_id", None) or ctx.run_id,
+                    user_id=context.user_id or ctx.user_id,
+                )
+        except Exception as e:
+            logger.warning("[SearchAgent] Failed to inspect graph state after run: %s", e)
+
+    if settings.ENABLE_MEMORY and context.user_id and hitl_resume is None:
         from src.infra.logging.context import TraceContext
         from src.infra.memory.tools import schedule_auto_memory_capture
         from src.kernel.schemas.conversation_history import ConversationSourceRef
@@ -446,7 +485,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     output_text = event_processor.output_text
     event_processor.clear()
 
-    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS:
+    if recommendation_input and settings.ENABLE_RECOMMEND_QUESTIONS and hitl_resume is None:
         try:
             from src.agents.core.recommendations import schedule_recommend_questions_from_state
 
