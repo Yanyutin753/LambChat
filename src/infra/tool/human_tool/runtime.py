@@ -15,20 +15,13 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import Any
 
-# 当前图执行是否支持 interrupt 模式（由各 agent 节点在持久
+# 当前图执行是否支持 interrupt 模式（由各 agent 节点在
 # checkpointer 可用时设置）
 hitl_interrupt_supported: ContextVar[bool] = ContextVar("hitl_interrupt_supported", default=False)
 
 
 def interrupt_supported_for_checkpointer(checkpointer: Any) -> bool:
-    """interrupt 模式仅在 HITL_MODE=interrupt 且 checkpointer 为持久
-    （非 None、非 MemorySaver）实现时可用。"""
-    from langgraph.checkpoint.memory import MemorySaver
-
+    """interrupt 模式在任意 checkpointer（包括进程内 MemorySaver）可用。"""
     from src.kernel.config import settings
 
-    return (
-        getattr(settings, "HITL_MODE", "interrupt") == "interrupt"
-        and checkpointer is not None
-        and not isinstance(checkpointer, MemorySaver)
-    )
+    return getattr(settings, "HITL_MODE", "interrupt") == "interrupt" and checkpointer is not None

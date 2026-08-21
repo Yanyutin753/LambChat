@@ -302,6 +302,17 @@ class ApprovalStorage:
         doc.pop("_id", None)
         return PendingApproval(**doc)
 
+    async def restore_pending_if_status(self, approval_id: str, status: str) -> bool:
+        """Restore a claimed interrupt approval when resume submission fails."""
+        doc = await self.collection.find_one_and_update(
+            {"_id": approval_id, "status": status},
+            {
+                "$set": {"status": "pending"},
+                "$unset": {"response": "", "updated_at": ""},
+            },
+        )
+        return doc is not None
+
     async def expire_after(self, approval_id: str, seconds: int = 3600) -> bool:
         """响应/取消后设置 GC 过期时间（interrupt 审批创建时不过期）。"""
         result = await self.collection.update_one(

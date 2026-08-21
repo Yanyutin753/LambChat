@@ -1,5 +1,8 @@
 import type { PendingApproval } from "../../types";
-import { filterApprovalsBySession } from "../approvals";
+import {
+  filterApprovalsBySession,
+  isApprovalResponseAccepted,
+} from "../approvals";
 import { buildSteerUserMessage } from "../steerMessages";
 
 function approval(overrides: Partial<PendingApproval>): PendingApproval {
@@ -43,6 +46,30 @@ describe("filterApprovalsBySession", () => {
     expect(filterApprovalsBySession(approvals, null).map((a) => a.id)).toEqual([
       "global",
     ]);
+  });
+});
+
+describe("isApprovalResponseAccepted", () => {
+  test("accepts the backend success contract", () => {
+    expect(
+      isApprovalResponseAccepted({
+        status: "success",
+        approval_id: "a-1",
+        approved: true,
+        hitl_resume: { submitted: true, run_id: "run-2", message: "ok" },
+      }),
+    ).toBe(true);
+  });
+
+  test("keeps the approval visible when interrupt resume was not submitted", () => {
+    expect(
+      isApprovalResponseAccepted({
+        status: "success",
+        approval_id: "a-1",
+        approved: true,
+        hitl_resume: { submitted: false, run_id: null, message: "failed" },
+      }),
+    ).toBe(false);
   });
 });
 

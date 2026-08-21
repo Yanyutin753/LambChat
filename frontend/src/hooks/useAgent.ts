@@ -302,7 +302,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         : Promise.resolve(null);
 
       // Clear approvals before loading new session
-      options?.onClearApprovals?.();
+      options?.onClearApprovals?.(targetSessionId);
 
       try {
         const [sessionData, eventsData] = await Promise.all([

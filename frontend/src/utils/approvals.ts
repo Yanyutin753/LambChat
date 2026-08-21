@@ -1,5 +1,24 @@
 import type { PendingApproval } from "../types";
 
+export interface ApprovalRespondResult {
+  status: string;
+  approval_id: string;
+  approved: boolean;
+  hitl_resume?: {
+    submitted: boolean;
+    run_id: string | null;
+    message: string;
+  } | null;
+}
+
+export function isApprovalResponseAccepted(
+  result: ApprovalRespondResult | null,
+): boolean {
+  return (
+    result?.status === "success" && result.hitl_resume?.submitted !== false
+  );
+}
+
 /**
  * 按当前会话过滤审批列表。
  *

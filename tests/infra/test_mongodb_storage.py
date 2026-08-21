@@ -195,6 +195,22 @@ async def test_respond_if_pending_returns_none_when_already_handled_or_expired()
     assert {"expires_at": None} in filter_doc["$or"]
 
 
+@pytest.mark.asyncio
+async def test_restore_pending_if_status_removes_failed_response() -> None:
+    storage = ApprovalStorage()
+    collection = _RespondCollection(return_doc={"id": "approval-1"})
+    storage._collection = collection
+    storage._indexes_created = True
+
+    restored = await storage.restore_pending_if_status("approval-1", "approved")
+
+    assert restored is True
+    filter_doc, update_doc, _projection, _return_document = collection.calls[0]
+    assert filter_doc == {"_id": "approval-1", "status": "approved"}
+    assert update_doc["$set"]["status"] == "pending"
+    assert update_doc["$unset"] == {"response": "", "updated_at": ""}
+
+
 def test_close_approval_storage_releases_cached_singleton() -> None:
     storage = mongodb.get_approval_storage()
 

@@ -69,7 +69,10 @@ class ApprovalRecorder:
         monkeypatch.setattr("src.infra.storage.mongodb.get_approval_storage", lambda: fake_storage)
 
     async def _list_pending(self, session_id=None, user_id=None, limit=100):
-        return [SimpleNamespace(message=kw["message"]) for kw in self.created]
+        return [
+            SimpleNamespace(message=kw["message"], metadata=kw.get("metadata"))
+            for kw in self.created
+        ]
 
 
 @pytest.fixture
@@ -281,3 +284,105 @@ async def test_new_ask_after_resume_suspends_again(
         if m.type == "tool" and m.content.strip().startswith("{")
     ]
     assert [r["status"] for r in results if "status" in r] == ["success", "rejected"]
+
+
+async def test_same_message_interrupts_materialize_as_distinct_approvals(
+    interrupt_mode: None, recorder: ApprovalRecorder
+) -> None:
+    snapshot = SimpleNamespace(
+        tasks=(
+            SimpleNamespace(
+                interrupts=(
+                    SimpleNamespace(
+                        id="interrupt-a",
+                        value={"kind": "ask_human", "message": "same", "fields": []},
+                    ),
+                )
+            ),
+            SimpleNamespace(
+                interrupts=(
+                    SimpleNamespace(
+                        id="interrupt-b",
+                        value={"kind": "ask_human", "message": "same", "fields": []},
+                    ),
+                )
+            ),
+        )
+    )
+
+    created = await materialize_ask_human_approvals(
+        snapshot,
+        session_id="session-1",
+        run_id="run-1",
+        user_id="user-1",
+    )
+
+    assert created == 2
+    assert [item["metadata"]["interrupt_id"] for item in recorder.created] == [
+        "interrupt-a",
+        "interrupt-b",
+    ]
+
+
+async def test_parallel_ask_human_interrupts_resume_by_id(
+    interrupt_mode: None, recorder: ApprovalRecorder
+) -> None:
+    model = ScriptedModel(
+        messages=iter(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "ask_human",
+                            "args": {"message": "same", "choices": ["a", "b"]},
+                            "id": "call-a",
+                            "type": "tool_call",
+                        },
+                        {
+                            "name": "ask_human",
+                            "args": {"message": "same", "choices": ["x", "y"]},
+                            "id": "call-b",
+                            "type": "tool_call",
+                        },
+                    ],
+                ),
+                AIMessage(content="两个回答都已收到"),
+            ]
+        )
+    )
+    graph = create_deep_agent(
+        model=model,
+        tools=[_ask_tool()],
+        checkpointer=InMemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "t-parallel"}}
+
+    token_supported = hitl_interrupt_supported.set(True)
+    try:
+        await _run(graph, {"messages": [HumanMessage("并行问两个问题")]}, config)
+        snapshot = await graph.aget_state(config)
+        interrupts = hitl_mod.extract_ask_human_interrupts(snapshot)
+        assert len(interrupts) == 2
+
+        await _materialize(graph, config, recorder)
+        assert len(recorder.created) == 2
+
+        first_id = interrupts[0]["interrupt_id"]
+        second_id = interrupts[1]["interrupt_id"]
+        await _run(
+            graph,
+            Command(resume={first_id: {"approved": True, "values": {"choice": "a"}}}),
+            config,
+        )
+        after_first = await graph.aget_state(config)
+        assert after_first.next, "另一个 interrupt 未回答时图必须继续挂起"
+
+        final_state = await graph.ainvoke(
+            Command(resume={second_id: {"approved": True, "values": {"choice": "y"}}}),
+            config,
+        )
+    finally:
+        hitl_interrupt_supported.reset(token_supported)
+
+    assert "两个回答都已收到" in final_state["messages"][-1].text

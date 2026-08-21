@@ -177,6 +177,27 @@ test("ignores a delivered steer from a stale run", () => {
   expect(ctx.messages()).toEqual([]);
 });
 
+test("clears approvals only for the session whose stream failed", () => {
+  const cleared: Array<string | null | undefined> = [];
+  const ctx = createContext([], null);
+  ctx.options = {
+    onClearApprovals: (sessionId) => cleared.push(sessionId),
+  };
+
+  handleStreamEvent(
+    {
+      event: "error",
+      data: JSON.stringify({ error: "failed" }),
+    },
+    "assistant-1",
+    "error-event",
+    undefined,
+    ctx,
+  );
+
+  expect(cleared).toEqual(["session-1"]);
+});
+
 test("keeps post-steer tool and assistant output after the steer message", () => {
   const ctx = createContext(
     [

@@ -467,7 +467,7 @@ export function handleStreamEvent(
   if (eventType === "error") {
     ctx.setConnectionStatus("disconnected");
     ctx.setIsInitializingSandbox(false);
-    ctx.options?.onClearApprovals?.();
+    ctx.options?.onClearApprovals?.(ctx.sessionIdRef.current);
   }
 }
 
@@ -633,7 +633,7 @@ function handleError(
     ctx.setConnectionStatus("disconnected");
     ctx.setIsInitializingSandbox(false);
   }
-  ctx.options?.onClearApprovals?.();
+  ctx.options?.onClearApprovals?.(ctx.sessionIdRef.current);
 }
 
 function appendCancelledPart(parts: MessagePart[]): MessagePart[] {

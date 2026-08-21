@@ -111,7 +111,7 @@ async def test_resume_value_defaults_when_missing(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_interrupt_mode_rejects_graph_without_persistent_checkpoint(monkeypatch):
-    """无持久 checkpointer 时必须明确失败，不能静默回退 blocking。"""
+    """无 checkpointer 时必须明确失败，不能静默回退 blocking。"""
     _setup_interrupt_mode(monkeypatch, resume_value=None)
     created = []
 

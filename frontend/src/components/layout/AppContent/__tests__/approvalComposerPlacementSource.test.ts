@@ -13,6 +13,10 @@ const approvalStyles = readFileSync(
   resolve(process.cwd(), "src/styles/approval.css"),
   "utf8",
 );
+const chatAppSource = readFileSync(
+  resolve(process.cwd(), "src/components/layout/AppContent/ChatAppContent.tsx"),
+  "utf8",
+);
 
 test("places approvals directly above the composer", () => {
   expect(chatViewSource).toMatch(
@@ -48,5 +52,11 @@ test("approval scrolling keeps the composer centered", () => {
 test("interrupt approvals never derive a visible deadline", () => {
   expect(approvalSource).toMatch(
     /a\.metadata\?\.mode === "interrupt"[\s\S]*continue/,
+  );
+});
+
+test("forwards session-scoped approval clearing from useAgent", () => {
+  expect(chatAppSource).toMatch(
+    /onClearApprovals:\s*\(approvalSessionId\)\s*=>\s*\{\s*clearApprovals\(approvalSessionId\)/,
   );
 });

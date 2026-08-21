@@ -392,8 +392,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     logger.info("[SearchAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
-    # interrupt 模式仅在持久 checkpointer（非 MemorySaver）可用时启用，
-    # 否则 ask_human 自动回退阻塞模式。
+    # interrupt 模式在任意 checkpointer（包括进程内 MemorySaver）可用。
     from src.infra.tool.human_tool.runtime import (
         hitl_interrupt_supported,
         interrupt_supported_for_checkpointer,

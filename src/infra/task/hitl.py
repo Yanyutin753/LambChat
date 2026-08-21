@@ -51,7 +51,11 @@ def extract_ask_human_interrupts(snapshot: Any) -> List[Dict[str, Any]]:
         for intr in getattr(task, "interrupts", None) or ():
             value = getattr(intr, "value", None)
             if isinstance(value, dict) and value.get("kind") == "ask_human":
-                payloads.append(value)
+                payload = dict(value)
+                interrupt_id = getattr(intr, "id", None)
+                if interrupt_id:
+                    payload["interrupt_id"] = str(interrupt_id)
+                payloads.append(payload)
     return payloads
 
 
@@ -105,13 +109,20 @@ async def materialize_ask_human_approvals(
     from src.api.routes.human import create_approval
     from src.infra.storage.mongodb import get_approval_storage
 
-    existing: List[str] = []
+    existing_interrupt_ids: set[str] = set()
+    legacy_messages: dict[str, int] = {}
     if session_id:
         try:
-            existing = [
-                a.message
-                for a in await get_approval_storage().list_pending(session_id=session_id, limit=100)
-            ]
+            for approval in await get_approval_storage().list_pending(
+                session_id=session_id, limit=100
+            ):
+                metadata = getattr(approval, "metadata", None) or {}
+                interrupt_id = metadata.get("interrupt_id")
+                if interrupt_id:
+                    existing_interrupt_ids.add(str(interrupt_id))
+                else:
+                    message = str(getattr(approval, "message", ""))
+                    legacy_messages[message] = legacy_messages.get(message, 0) + 1
         except Exception as e:
             logger.warning("[HITL] Failed to list pending approvals: %s", e)
 
@@ -119,22 +130,30 @@ async def materialize_ask_human_approvals(
     for payload in payloads:
         message = str(payload.get("message", ""))
         fields = payload.get("fields") or []
-        if message and message in existing:
+        interrupt_id = str(payload.get("interrupt_id") or "")
+        if interrupt_id and interrupt_id in existing_interrupt_ids:
             continue
+        if message and legacy_messages.get(message, 0) > 0:
+            legacy_messages[message] -= 1
+            continue
+        metadata = {
+            "mode": "interrupt",
+            "run_id": run_id,
+            "thread_id": session_id,
+        }
+        if interrupt_id:
+            metadata["interrupt_id"] = interrupt_id
         approval = await create_approval(
             message=message,
             approval_type="form",
             fields=fields,
             session_id=session_id,
             user_id=user_id,
-            metadata={
-                "mode": "interrupt",
-                "run_id": run_id,
-                "thread_id": session_id,
-            },
+            metadata=metadata,
             ttl=None,  # 无超时：审批不过期，响应后再 GC
         )
-        existing.append(message)
+        if interrupt_id:
+            existing_interrupt_ids.add(interrupt_id)
         created += 1
         if session_id:
             await _send_approval_sse(approval, fields, session_id, run_id)
@@ -195,10 +214,12 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
     if token is None:
         return {"submitted": False, "run_id": None, "message": "恢复已在其他实例中启动"}
 
+    session_storage: Any = None
     try:
         from src.infra.session.storage import SessionStorage
 
-        session = await SessionStorage().get_by_session_id(session_id)
+        session_storage = SessionStorage()
+        session = await session_storage.get_by_session_id(session_id)
         if session is None:
             return {"submitted": False, "run_id": None, "message": "会话不存在"}
         if not getattr(session, "user_id", None):
@@ -229,6 +250,10 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
 
         from .manager import get_task_manager
 
+        approval_metadata = getattr(approval, "metadata", None) or {}
+        interrupt_id = approval_metadata.get("interrupt_id")
+        command_resume = {str(interrupt_id): resume_value} if interrupt_id else resume_value
+
         run_id, _ = await get_task_manager().submit(
             session_id,
             str(metadata.get("agent_id") or "fast"),
@@ -249,7 +274,7 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
             user_message_written=True,
             hitl_resume={
                 "approval_id": approval.id,
-                "resume_value": resume_value,
+                "resume_value": command_resume,
             },
         )
         logger.info(
@@ -266,6 +291,20 @@ async def submit_hitl_resume_run(approval: Any, resume_value: Dict[str, Any]) ->
             e,
             exc_info=True,
         )
+        try:
+            approval_metadata = getattr(approval, "metadata", None) or {}
+            restore_metadata: dict[str, Any] = {"task_status": TaskStatus.WAITING_HUMAN.value}
+            source_run_id = approval_metadata.get("run_id")
+            if source_run_id:
+                restore_metadata["current_run_id"] = source_run_id
+            if session_storage is not None:
+                await session_storage.update_metadata_only(session_id, restore_metadata)
+        except Exception as restore_error:
+            logger.warning(
+                "[HITL] approval_id=%s Failed to restore waiting session state: %s",
+                approval.id,
+                restore_error,
+            )
         return {"submitted": False, "run_id": None, "message": f"恢复任务失败: {e}"}
     finally:
         if token is not None:

@@ -2,6 +2,10 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { PendingApproval } from "../types";
 import { authFetch } from "../services/api/fetch";
 import { API_BASE } from "../services/api/config";
+import {
+  isApprovalResponseAccepted,
+  type ApprovalRespondResult,
+} from "../utils/approvals";
 
 interface UseApprovalsOptions {
   sessionId: string | null;
@@ -42,10 +46,12 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
   // 清除 approvals（用于对话失败时）；传入 sessionId 时只清除该会话的，
   // 避免误清其他会话（如后台等待审批的会话）的待处理审批
   const clearApprovals = useCallback((sessionId?: string | null) => {
-    setApprovals((prev) =>
-      sessionId == null ? [] : prev.filter((a) => a.session_id !== sessionId),
-    );
-    hasApprovalsRef.current = false;
+    setApprovals((prev) => {
+      const next =
+        sessionId == null ? [] : prev.filter((a) => a.session_id !== sessionId);
+      hasApprovalsRef.current = next.length > 0;
+      return next;
+    });
   }, []);
 
   const respondToApproval = useCallback(
@@ -62,14 +68,14 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
           approved: String(approved),
           response: responseJson,
         });
-        const res = await authFetch<{ success: boolean }>(
+        const res = await authFetch<ApprovalRespondResult>(
           `${API_BASE}/human/${approvalId}/respond?${params}`,
           {
             method: "POST",
           },
         );
 
-        if (res) {
+        if (isApprovalResponseAccepted(res)) {
           setApprovals((prev) => prev.filter((a) => a.id !== approvalId));
           return true;
         }

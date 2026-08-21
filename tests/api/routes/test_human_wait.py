@@ -152,6 +152,87 @@ async def test_respond_to_approval_uses_atomic_pending_update(
 
 
 @pytest.mark.asyncio
+async def test_interrupt_resume_failure_restores_pending_approval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    restored: list[tuple[str, str]] = []
+
+    class _FakeApproval:
+        id = "approval-1"
+        status = "pending"
+        session_id = "session-1"
+        metadata = {"mode": "interrupt", "interrupt_id": "interrupt-a"}
+
+    class _FakeApprovalStorage:
+        async def get(self, approval_id: str):
+            assert approval_id == "approval-1"
+            return _FakeApproval()
+
+        async def respond_if_pending(self, approval_id, status, approval_response):
+            return _FakeApproval()
+
+        async def restore_pending_if_status(self, approval_id: str, status: str):
+            restored.append((approval_id, status))
+            return True
+
+    async def fake_submit(_approval, _resume_value):
+        return {"submitted": False, "run_id": None, "message": "checkpoint unavailable"}
+
+    async def fake_notify(_approval_id, _approval_response):
+        return None
+
+    monkeypatch.setattr(human, "_approval_storage", _FakeApprovalStorage())
+    monkeypatch.setattr(human, "notify_approval_response", fake_notify)
+    monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_submit)
+
+    with pytest.raises(HTTPException) as exc:
+        await human.respond_to_approval("approval-1", approved=True, response="{}")
+
+    assert exc.value.status_code == 503
+    assert restored == [("approval-1", "approved")]
+
+
+@pytest.mark.asyncio
+async def test_interrupt_resume_success_skips_blocking_waiter_notification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    notified = False
+
+    class _FakeApproval:
+        id = "approval-1"
+        status = "pending"
+        session_id = "session-1"
+        metadata = {"mode": "interrupt", "interrupt_id": "interrupt-a"}
+
+    class _FakeApprovalStorage:
+        async def get(self, _approval_id: str):
+            return _FakeApproval()
+
+        async def respond_if_pending(self, _approval_id, _status, _response):
+            return _FakeApproval()
+
+        async def expire_after(self, _approval_id: str):
+            return True
+
+    async def fake_submit(_approval, _resume_value):
+        return {"submitted": True, "run_id": "run-2", "message": "ok"}
+
+    async def fake_notify(_approval_id, _approval_response):
+        nonlocal notified
+        notified = True
+
+    monkeypatch.setattr(human, "_approval_storage", _FakeApprovalStorage())
+    monkeypatch.setattr(human, "notify_approval_response", fake_notify)
+    monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_submit)
+    monkeypatch.setattr("src.infra.task.hitl.settings.HITL_MODE", "blocking")
+
+    result = await human.respond_to_approval("approval-1", approved=True, response="{}")
+
+    assert result["hitl_resume"]["submitted"] is True
+    assert notified is False
+
+
+@pytest.mark.asyncio
 async def test_create_approval_bounded_local_event_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

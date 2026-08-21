@@ -322,7 +322,32 @@ async def respond_to_approval(
     else:
         await _approval_storage.update_status(approval_id, status, approval_response)
 
-    # interrupt 审批创建时不过期（无超时），响应后设置 GC 过期时间
+    # interrupt 模式（issue #218）：提交恢复运行，从 checkpoint 断点继续。
+    # 只有恢复任务被接受后才最终确认审批；失败时回滚为 pending，允许重试。
+    resume_result: dict | None = None
+    from src.infra.task.hitl import (
+        is_interrupt_approval,
+        submit_hitl_resume_run,
+    )
+
+    # 审批 metadata 是该请求实际运行模式的权威来源；部署配置变更后，
+    # 已挂起的 interrupt 仍必须沿原 checkpoint 恢复。
+    interrupt_approval = is_interrupt_approval(approval)
+    if interrupt_approval:
+        resume_result = await submit_hitl_resume_run(
+            approval,
+            {"approved": approved, "values": response_data},
+        )
+        if not resume_result.get("submitted"):
+            restore_pending = getattr(_approval_storage, "restore_pending_if_status", None)
+            if callable(restore_pending):
+                await restore_pending(approval_id, status)
+            raise HTTPException(
+                status_code=503,
+                detail=resume_result.get("message") or "恢复任务提交失败，请重试",
+            )
+
+    # interrupt 审批创建时不过期（无超时），响应成功后设置 GC 过期时间
     expire_after = getattr(_approval_storage, "expire_after", None)
     if callable(expire_after):
         await expire_after(approval_id)
@@ -332,28 +357,12 @@ async def respond_to_approval(
         approval_id,
     )
 
-    # 通知等待的 Agent（分布式支持）
-    # 1. 通过 Redis Pub/Sub 通知跨进程的 Agent
-    await notify_approval_response(approval_id, approval_response)
-
-    # 2. 触发本地 Event（单进程内快速响应）
-    entry = _touch_local_event(approval_id)
-    if entry:
-        entry[0].set()
-
-    # 3. interrupt 模式（issue #218）：提交恢复运行，从 checkpoint 断点继续
-    resume_result: dict | None = None
-    from src.infra.task.hitl import (
-        hitl_interrupt_mode_enabled,
-        is_interrupt_approval,
-        submit_hitl_resume_run,
-    )
-
-    if hitl_interrupt_mode_enabled() and is_interrupt_approval(approval):
-        resume_result = await submit_hitl_resume_run(
-            approval,
-            {"approved": approved, "values": response_data},
-        )
+    # 通知阻塞模式的等待者（interrupt 模式已通过新运行恢复）
+    if not interrupt_approval:
+        await notify_approval_response(approval_id, approval_response)
+        entry = _touch_local_event(approval_id)
+        if entry:
+            entry[0].set()
 
     result = {"status": "success", "approval_id": approval_id, "approved": approved}
     if resume_result is not None:

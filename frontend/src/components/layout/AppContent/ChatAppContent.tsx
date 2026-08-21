@@ -210,8 +210,8 @@ export function ChatAppContent({
         metadata: approval.metadata,
       });
     },
-    onClearApprovals: () => {
-      clearApprovals();
+    onClearApprovals: (approvalSessionId) => {
+      clearApprovals(approvalSessionId);
     },
     getEnabledTools: getDisabledToolNames,
     getDisabledSkills: () => sessionConfigRef.current.disabledSkills,
