@@ -217,9 +217,7 @@ async def test_send_approval_event_passes_trace_id_to_dual_writer(
         return True
 
     fake_dual_writer = SimpleNamespace(write_event=fake_write_event)
-    monkeypatch.setattr(
-        "src.infra.session.dual_writer.get_dual_writer", lambda: fake_dual_writer
-    )
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: fake_dual_writer)
 
     approval = SimpleNamespace(
         id="approval-1",
@@ -258,9 +256,7 @@ async def test_ask_human_forwards_request_trace_id_to_approval_event(
         return SimpleNamespace(approved=True, response={"choice": "yes"})
 
     async def fake_send_approval_event(self, approval, session_id, run_id, fields, trace_id=None):
-        captured.append(
-            {"session_id": session_id, "run_id": run_id, "trace_id": trace_id}
-        )
+        captured.append({"session_id": session_id, "run_id": run_id, "trace_id": trace_id})
 
     monkeypatch.setattr(human_tool, "create_approval", fake_create_approval)
     monkeypatch.setattr(human_tool, "wait_for_response", fake_wait_for_response)
@@ -274,6 +270,4 @@ async def test_ask_human_forwards_request_trace_id_to_approval_event(
     finally:
         TraceContext.clear_request_context()
 
-    assert captured == [
-        {"session_id": "session-ctx", "run_id": "run-ctx", "trace_id": "trace-ctx"}
-    ]
+    assert captured == [{"session_id": "session-ctx", "run_id": "run-ctx", "trace_id": "trace-ctx"}]

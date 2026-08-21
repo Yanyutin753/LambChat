@@ -460,6 +460,7 @@ async def test_get_session_events_uses_server_side_limit_when_max_events_is_set(
             "event_type": "user:message",
             "data": {"content": "hello"},
             "timestamp": "2026-04-25T00:00:00Z",
+            "seq": 1,
         },
         {
             "trace_id": "trace-1",
@@ -467,6 +468,7 @@ async def test_get_session_events_uses_server_side_limit_when_max_events_is_set(
             "event_type": "done",
             "data": {},
             "timestamp": "2026-04-25T00:00:01Z",
+            "seq": 2,
         },
     ]
     assert collection.aggregate_calls == []

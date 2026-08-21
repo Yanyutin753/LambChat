@@ -675,9 +675,7 @@ export function ChatView({
               </button>
             </div>
             {approvals.length > 0 && (
-              <div
-                className="approval-panel-scroll-region flex min-h-0 w-full shrink-0 flex-col overflow-hidden"
-              >
+              <div className="approval-panel-scroll-region flex min-h-0 w-full shrink-0 flex-col overflow-hidden">
                 <ApprovalPanel
                   approvals={approvals}
                   onRespond={onRespondApproval}

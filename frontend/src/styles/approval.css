@@ -245,7 +245,8 @@
   flex: 0 0 1.65rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--approval-border) 75%, var(--approval-text-dim));
+  border: 1px solid
+    color-mix(in srgb, var(--approval-border) 75%, var(--approval-text-dim));
   border-radius: 999px;
   color: var(--approval-text-dim);
   font-size: 0.78rem;
@@ -265,7 +266,11 @@
     var(--approval-accent) 42%,
     var(--approval-border)
   );
-  background: color-mix(in srgb, var(--approval-accent-light) 12%, var(--approval-bg));
+  background: color-mix(
+    in srgb,
+    var(--approval-accent-light) 12%,
+    var(--approval-bg)
+  );
   color: var(--approval-text);
 }
 
@@ -294,15 +299,22 @@
     var(--approval-accent) 66%,
     var(--approval-border)
   );
-  background: color-mix(in srgb, var(--approval-accent-light) 18%, var(--approval-bg));
+  background: color-mix(
+    in srgb,
+    var(--approval-accent-light) 18%,
+    var(--approval-bg)
+  );
   color: var(--approval-text);
   font-weight: 500;
-  box-shadow: 0 3px 12px -9px
-    color-mix(in srgb, var(--approval-accent) 70%, transparent);
+  box-shadow: 0 3px 12px -9px color-mix(in srgb, var(--approval-accent) 70%, transparent);
 }
 
 .approval-ask-human-option--selected:hover {
-  background: color-mix(in srgb, var(--approval-accent-light) 32%, var(--approval-bg));
+  background: color-mix(
+    in srgb,
+    var(--approval-accent-light) 32%,
+    var(--approval-bg)
+  );
 }
 
 .approval-ask-human-option--selected .approval-ask-human-option-indicator {
@@ -343,8 +355,13 @@
   align-items: center;
   justify-content: flex-end;
   gap: 1rem;
-  border-top: 1px solid color-mix(in srgb, var(--approval-border) 55%, transparent);
-  background: color-mix(in srgb, var(--approval-bg) 96%, var(--approval-accent-light));
+  border-top: 1px solid
+    color-mix(in srgb, var(--approval-border) 55%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--approval-bg) 96%,
+    var(--approval-accent-light)
+  );
   padding: 0.7rem var(--approval-section-x) 0.8rem;
 }
 

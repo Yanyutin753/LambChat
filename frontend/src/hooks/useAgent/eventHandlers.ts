@@ -713,7 +713,6 @@ function handleApprovalRequired(
     fields: data.fields || [],
     expires_at: data.expires_at || null,
     metadata:
-      data.metadata ||
-      (data.interrupt_id ? { mode: "interrupt" } : undefined),
+      data.metadata || (data.interrupt_id ? { mode: "interrupt" } : undefined),
   });
 }

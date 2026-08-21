@@ -232,16 +232,22 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
         "&": {
           height: "100%",
           fontSize,
-          backgroundColor: `${isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"} !important`,
+          backgroundColor: `${
+            isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"
+          } !important`,
         },
         ".cm-editor": {
           height: "100%",
-          backgroundColor: `${isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"} !important`,
+          backgroundColor: `${
+            isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"
+          } !important`,
         },
         ".cm-scroller": {
           height: "100%",
           overflow: "auto",
-          backgroundColor: `${isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"} !important`,
+          backgroundColor: `${
+            isDark ? "#282c34" : "var(--theme-bg-code, #ffffff)"
+          } !important`,
           ...(maxHeight ? { maxHeight } : {}),
         },
         ".cm-content": {
@@ -266,7 +272,9 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
         },
         ".cm-gutters, .cm-gutter": {
           minHeight: "100% !important",
-          backgroundColor: `${isDark ? "#282c34" : "var(--theme-bg-code-gutter, #fafafa)"} !important`,
+          backgroundColor: `${
+            isDark ? "#282c34" : "var(--theme-bg-code-gutter, #fafafa)"
+          } !important`,
           borderRight: isDark ? "1px solid #333" : "1px solid #e7e5e4",
         },
         ".cm-lineNumbers .cm-gutterElement": {

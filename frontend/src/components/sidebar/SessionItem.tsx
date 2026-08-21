@@ -360,11 +360,7 @@ function SessionItemComponent({
             className="shrink-0 inline-flex items-center justify-center gap-1 text-xs text-amber-500 dark:text-amber-400"
           >
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
-            {isTouched && (
-              <span>
-                {taskStatusLabel}
-              </span>
-            )}
+            {isTouched && <span>{taskStatusLabel}</span>}
           </span>
         )}
 

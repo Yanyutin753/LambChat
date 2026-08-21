@@ -47,7 +47,9 @@ async def test_confirm_scheduled_task_creation_proceeds_in_interactive_session(
     monkeypatch.setattr(
         TraceContext,
         "get_request_context",
-        lambda: SimpleNamespace(session_id="interactive-1", run_id="r1", user_id="u1", trace_id=None),
+        lambda: SimpleNamespace(
+            session_id="interactive-1", run_id="r1", user_id="u1", trace_id=None
+        ),
     )
     monkeypatch.setattr(approval, "_format_approval_message", lambda _preview: "msg")
 
@@ -94,9 +96,7 @@ async def test_scheduled_task_approval_event_passes_trace_id(
         return True
 
     fake_dual_writer = SimpleNamespace(write_event=fake_write_event)
-    monkeypatch.setattr(
-        "src.infra.session.dual_writer.get_dual_writer", lambda: fake_dual_writer
-    )
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: fake_dual_writer)
 
     await approval._send_scheduled_task_approval_event(
         approval_id="ap-1",

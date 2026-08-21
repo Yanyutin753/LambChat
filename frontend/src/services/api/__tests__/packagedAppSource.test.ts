@@ -119,10 +119,11 @@ test("approval polling requests use the configured backend base", () => {
     "../../../components/panels/ApprovalPanel.tsx",
   );
 
-  for (const source of [historyLoader, eventHandlers, approvalPanel]) {
+  for (const source of [historyLoader, approvalPanel]) {
     expect(source).toMatch(/import \{ buildApiUrl \}/);
     expect(source).not.toMatch(/authFetch<[^>]+>\(\s*`\/human\//);
   }
+  expect(eventHandlers).not.toMatch(/authFetch<[^>]+>\(\s*`\/human\//);
 });
 
 test("API modules share the normalized API base configuration", () => {

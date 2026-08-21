@@ -84,12 +84,14 @@ test("lets the ChatView parent own the bounded vertical scroll area", () => {
   expect(chatViewSource).toMatch(
     /className="approval-panel-scroll-region flex min-h-0 w-full shrink-0 flex-col overflow-hidden"/,
   );
-  expect(approvalSource).toMatch(/approval-scroll-container[^\"]*overflow-visible/);
-  expect(approvalCss).toMatch(
-    /\.approval-panel-scroll-region\s*\{[\s\S]*?height:\s*clamp\(/,
+  expect(approvalSource).toMatch(
+    /approval-scroll-container[^\"]*overflow-visible/,
   );
   expect(approvalCss).toMatch(
-    /\.approval-panel-scroll-region\s*\{[\s\S]*?flex:\s*0 0 clamp\(/,
+    /\.approval-panel-scroll-region\s*\{[\s\S]*?height:\s*auto;/,
+  );
+  expect(approvalCss).toMatch(
+    /\.approval-panel-scroll-region\s*\{[\s\S]*?max-height:\s*31rem;/,
   );
   expect(approvalCss).toMatch(
     /\.approval-card\.approval-card--composer\s*\{[\s\S]*?max-height:\s*100%;/,

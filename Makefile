@@ -71,7 +71,7 @@ dev-all:
 	@echo "🚀 启动前后端开发服务器..."
 	@echo "🌐 前端开发地址: http://127.0.0.1:3001"
 	@echo "🌐 后端开发地址: http://127.0.0.1:8000"
-	@FRONTEND_DEV_URL=http://127.0.0.1:3001 make -j2 dev frontend-dev
+	@FRONTEND_DEV_URL=http://127.0.0.1:3001 UVICORN_RELOAD=false make -j2 dev frontend-dev
 
 # 构建
 build:

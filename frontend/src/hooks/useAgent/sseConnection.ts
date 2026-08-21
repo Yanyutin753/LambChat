@@ -401,20 +401,23 @@ export function useSSEReconnect(
     setConnectionStatus,
   } = opts;
 
-  const handleReconnectSSE = useCallback(async (runId?: string | null) => {
-    const ctx = {
-      ...createSSEContext(),
+  const handleReconnectSSE = useCallback(
+    async (runId?: string | null) => {
+      const ctx = {
+        ...createSSEContext(),
+        sessionIdRef,
+        currentRunIdRef,
+        isReconnectFromHistoryRef,
+      };
+      await reconnectSSE(ctx, runId);
+    },
+    [
+      createSSEContext,
       sessionIdRef,
       currentRunIdRef,
       isReconnectFromHistoryRef,
-    };
-    await reconnectSSE(ctx, runId);
-  }, [
-    createSSEContext,
-    sessionIdRef,
-    currentRunIdRef,
-    isReconnectFromHistoryRef,
-  ]);
+    ],
+  );
 
   // Handle visibility change — reconnect when tab becomes visible
   useEffect(() => {

@@ -287,7 +287,10 @@ function AskHumanChoiceList({
                 onSelect(option, index);
               }}
             >
-              <span className="approval-ask-human-option-indicator" aria-hidden="true">
+              <span
+                className="approval-ask-human-option-indicator"
+                aria-hidden="true"
+              >
                 {selected ? "✓" : index + 1}
               </span>
               <span className="min-w-0 flex-1 text-left">{option}</span>
@@ -706,140 +709,88 @@ export function ApprovalPanel({
           {(isExpanded || isAskHuman) && (
             <div id={`approval-details-${currentApproval.id}`}>
               <div className="approval-details-scroll">
-              {/* Message */}
-              {!isAskHuman && (
-                <div className="approval-message">
-                  <div
-                    className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-0.5 prose-headings:my-1"
-                    style={{ color: "var(--theme-text)" }}
-                  >
-                    {currentApproval.metadata?.approval_type ===
-                      "scheduled_task_create" &&
-                    currentApproval.metadata.preview ? (
-                      <ScheduledTaskApprovalContent
-                        preview={
-                          currentApproval.metadata.preview as {
-                            name: string;
-                            agent_id: string;
-                            schedule: string;
-                            run_on_start: boolean;
-                            timeout_seconds: number;
-                            message: string;
+                {/* Message */}
+                {!isAskHuman && (
+                  <div className="approval-message">
+                    <div
+                      className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-0.5 prose-headings:my-1"
+                      style={{ color: "var(--theme-text)" }}
+                    >
+                      {currentApproval.metadata?.approval_type ===
+                        "scheduled_task_create" &&
+                      currentApproval.metadata.preview ? (
+                        <ScheduledTaskApprovalContent
+                          preview={
+                            currentApproval.metadata.preview as {
+                              name: string;
+                              agent_id: string;
+                              schedule: string;
+                              run_on_start: boolean;
+                              timeout_seconds: number;
+                              message: string;
+                            }
                           }
-                        }
-                      />
-                    ) : (
-                      <ReactMarkdown
-                        remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks]}
-                      >
-                        {currentApproval.message}
-                      </ReactMarkdown>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {isAskHuman && (
-                <div className="approval-form approval-form--ask-human">
-                  {askHumanDisplayFields.map((field) => {
-                    const isChoice = askHumanChoiceFields.includes(field);
-                    return (
-                      <div key={field.name} className="space-y-1">
-                        <label
-                          className="block text-xs font-medium"
-                          style={{ color: "var(--theme-text-secondary)" }}
+                        />
+                      ) : (
+                        <ReactMarkdown
+                          remarkPlugins={[...cjkGfmRemarkPlugins, remarkBreaks]}
                         >
-                          {field.label}
-                          {field.required && (
-                            <span
-                              className="ml-0.5"
-                              style={{ color: "#ef4444" }}
-                            >
-                              *
-                            </span>
-                          )}
-                        </label>
-                        {isChoice ? (
-                          <AskHumanChoiceList
-                            field={field}
-                            value={currentFormValues[field.name]}
-                            disabled={isLoading}
-                            selectedIndex={
-                              field === askHumanKeyboardField
-                                ? askHumanSelectedIndex
-                                : -1
-                            }
-                            onInteract={handleInteract(currentApproval.id)}
-                            onSelect={(option, index) => {
-                              if (field === askHumanKeyboardField) {
-                                setAskHumanSelectedIndex(index);
-                              }
-                              handleFieldChange(
-                                field.name,
-                                field.type === "multi_select"
-                                  ? toggleMultiSelectValue(
-                                      currentFormValues[field.name],
-                                      option,
-                                    )
-                                  : option,
-                              );
-                            }}
-                          />
-                        ) : (
-                          <FormFieldRenderer
-                            field={field}
-                            value={currentFormValues[field.name]}
-                            onChange={(value) =>
-                              handleFieldChange(field.name, value)
-                            }
-                            disabled={isLoading}
-                            onInteract={handleInteract(currentApproval.id)}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                          {currentApproval.message}
+                        </ReactMarkdown>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-              {/* Form fields */}
-              {!isAskHuman && currentApproval.fields.length > 0 && (
-                <>
-                  <div className="approval-divider" />
-                  <div className="approval-form space-y-3">
-                    {currentApproval.fields
-                      .filter((field) => !askHumanChoiceFields.includes(field))
-                      .map((field) => {
-                        const isOther = field.name === "_other";
-                        const displayField = isOther
-                          ? {
-                              ...field,
-                              label: t("chat.message.askHumanOtherLabel"),
-                              placeholder:
-                                field.placeholder ||
-                                t("chat.message.askHumanOtherPlaceholder"),
-                            }
-                          : field;
-                        return (
-                          <div key={field.name} className="space-y-1">
-                            {displayField.type !== "checkbox" && (
-                              <label
-                                className="block text-xs font-medium"
-                                style={{ color: "var(--theme-text-secondary)" }}
+                {isAskHuman && (
+                  <div className="approval-form approval-form--ask-human">
+                    {askHumanDisplayFields.map((field) => {
+                      const isChoice = askHumanChoiceFields.includes(field);
+                      return (
+                        <div key={field.name} className="space-y-1">
+                          <label
+                            className="block text-xs font-medium"
+                            style={{ color: "var(--theme-text-secondary)" }}
+                          >
+                            {field.label}
+                            {field.required && (
+                              <span
+                                className="ml-0.5"
+                                style={{ color: "#ef4444" }}
                               >
-                                {displayField.label}
-                                {displayField.required && (
-                                  <span
-                                    className="ml-0.5"
-                                    style={{ color: "#ef4444" }}
-                                  >
-                                    *
-                                  </span>
-                                )}
-                              </label>
+                                *
+                              </span>
                             )}
+                          </label>
+                          {isChoice ? (
+                            <AskHumanChoiceList
+                              field={field}
+                              value={currentFormValues[field.name]}
+                              disabled={isLoading}
+                              selectedIndex={
+                                field === askHumanKeyboardField
+                                  ? askHumanSelectedIndex
+                                  : -1
+                              }
+                              onInteract={handleInteract(currentApproval.id)}
+                              onSelect={(option, index) => {
+                                if (field === askHumanKeyboardField) {
+                                  setAskHumanSelectedIndex(index);
+                                }
+                                handleFieldChange(
+                                  field.name,
+                                  field.type === "multi_select"
+                                    ? toggleMultiSelectValue(
+                                        currentFormValues[field.name],
+                                        option,
+                                      )
+                                    : option,
+                                );
+                              }}
+                            />
+                          ) : (
                             <FormFieldRenderer
-                              field={displayField}
+                              field={field}
                               value={currentFormValues[field.name]}
                               onChange={(value) =>
                                 handleFieldChange(field.name, value)
@@ -847,12 +798,68 @@ export function ApprovalPanel({
                               disabled={isLoading}
                               onInteract={handleInteract(currentApproval.id)}
                             />
-                          </div>
-                        );
-                      })}
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                </>
-              )}
+                )}
+
+                {/* Form fields */}
+                {!isAskHuman && currentApproval.fields.length > 0 && (
+                  <>
+                    <div className="approval-divider" />
+                    <div className="approval-form space-y-3">
+                      {currentApproval.fields
+                        .filter(
+                          (field) => !askHumanChoiceFields.includes(field),
+                        )
+                        .map((field) => {
+                          const isOther = field.name === "_other";
+                          const displayField = isOther
+                            ? {
+                                ...field,
+                                label: t("chat.message.askHumanOtherLabel"),
+                                placeholder:
+                                  field.placeholder ||
+                                  t("chat.message.askHumanOtherPlaceholder"),
+                              }
+                            : field;
+                          return (
+                            <div key={field.name} className="space-y-1">
+                              {displayField.type !== "checkbox" && (
+                                <label
+                                  className="block text-xs font-medium"
+                                  style={{
+                                    color: "var(--theme-text-secondary)",
+                                  }}
+                                >
+                                  {displayField.label}
+                                  {displayField.required && (
+                                    <span
+                                      className="ml-0.5"
+                                      style={{ color: "#ef4444" }}
+                                    >
+                                      *
+                                    </span>
+                                  )}
+                                </label>
+                              )}
+                              <FormFieldRenderer
+                                field={displayField}
+                                value={currentFormValues[field.name]}
+                                onChange={(value) =>
+                                  handleFieldChange(field.name, value)
+                                }
+                                disabled={isLoading}
+                                onInteract={handleInteract(currentApproval.id)}
+                              />
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
               </div>
               <div
                 className={`approval-actions ${

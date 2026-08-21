@@ -36,9 +36,7 @@ def _snapshot_with_ask_human(interrupt_id: str = "intr-1") -> SimpleNamespace:
 @pytest.fixture
 def dual_writer(monkeypatch: pytest.MonkeyPatch) -> DualWriterRecorder:
     recorder = DualWriterRecorder()
-    monkeypatch.setattr(
-        "src.infra.session.dual_writer.get_dual_writer", lambda: recorder
-    )
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: recorder)
     return recorder
 
 
@@ -53,9 +51,7 @@ async def test_send_approval_sse_passes_trace_id_to_dual_writer(
         metadata={"tool_call_id": "call-1", "interrupt_id": "intr-1"},
     )
 
-    await _send_approval_sse(
-        approval, [], "session-1", "run-1", trace_id="trace-1"
-    )
+    await _send_approval_sse(approval, [], "session-1", "run-1", trace_id="trace-1")
 
     assert len(dual_writer.events) == 1
     event = dual_writer.events[0]
@@ -80,9 +76,7 @@ async def test_materialize_forwards_trace_id_to_approval_event(
 
     fake_storage = SimpleNamespace(list_pending=_no_pending)
     monkeypatch.setattr("src.api.routes.human.create_approval", fake_create_approval)
-    monkeypatch.setattr(
-        "src.infra.storage.mongodb.get_approval_storage", lambda: fake_storage
-    )
+    monkeypatch.setattr("src.infra.storage.mongodb.get_approval_storage", lambda: fake_storage)
 
     created = await materialize_ask_human_approvals(
         _snapshot_with_ask_human(),

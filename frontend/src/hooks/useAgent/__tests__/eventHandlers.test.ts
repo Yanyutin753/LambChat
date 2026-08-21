@@ -127,7 +127,9 @@ test("renders approval_required from the SSE payload when approval lookup is una
     expect.objectContaining({
       id: "approval-1",
       message: "请回答几个问题",
-      fields: expect.arrayContaining([expect.objectContaining({ name: "topic" })]),
+      fields: expect.arrayContaining([
+        expect.objectContaining({ name: "topic" }),
+      ]),
     }),
   );
   expect(ctx.messages()).toEqual(
