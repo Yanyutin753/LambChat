@@ -69,6 +69,9 @@ export interface EventData {
   approval_id?: string;
   interrupt_id?: string;
   message?: string;
+  fields?: FormField[];
+  expires_at?: string | null;
+  metadata?: Record<string, unknown>;
   choices?: string[];
   default?: string;
   // sandbox event fields
@@ -287,7 +290,7 @@ export interface UseAgentReturn {
     targetSessionId: string,
     targetRunId?: string,
   ) => Promise<SessionConfig | null>;
-  reconnectSSE: () => Promise<void>;
+  reconnectSSE: (runId?: string | null) => Promise<void>;
   setPendingProjectId: (id: string | null) => void;
   autoExpandProjectId: string | null;
   clearAutoExpandProjectId: (id?: string | null) => void;

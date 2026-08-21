@@ -25,55 +25,96 @@
 
 /* Composer placement: compact Codex-style attention bar above the input. */
 .approval-scroll-container {
-  scrollbar-gutter: stable both-edges;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: visible;
 }
 
 /* The ChatView owns this scroll region so the approval card cannot be clipped
  * by the page viewport when a form contains many questions. */
 .approval-panel-scroll-region {
+  flex: 0 1 auto;
+  height: auto;
   min-height: 0;
-  max-height: min(58dvh, 42rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable both-edges;
+  max-height: 31rem;
+  overscroll-behavior: none;
+  background: color-mix(in srgb, var(--theme-bg) 94%, var(--theme-bg-card));
 }
 
 .approval-card.approval-card--composer {
+  box-sizing: border-box;
+  display: flex;
+  min-height: 0;
+  height: auto;
+  max-height: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: clip;
   border-radius: 1.5rem;
   border-color: color-mix(
     in srgb,
-    var(--approval-accent) 34%,
+    var(--approval-accent) 24%,
     var(--approval-border)
   );
-  box-shadow: 0 8px 24px -16px color-mix(in srgb, var(--approval-accent) 45%, transparent);
+  box-shadow:
+    0 12px 28px -20px color-mix(in srgb, var(--approval-accent) 40%, transparent),
+    0 2px 8px -4px rgb(0 0 0 / 0.18);
+}
+
+.approval-card.approval-card--composer > div[id^="approval-details-"] {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.approval-details-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 /* Full-width Codex-style ask-human prompt. */
-.approval-card--ask-human {
+.approval-card.approval-card--composer.approval-card--ask-human {
   --approval-section-x: 1.25rem;
   --approval-section-y: 0.875rem;
+  flex: 0 1 auto;
   border-radius: 1.5rem;
-  background: color-mix(in srgb, var(--theme-bg-card) 96%, white 4%);
-  box-shadow:
-    0 18px 42px -28px rgb(0 0 0 / 0.8),
-    inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+  background: var(--approval-bg);
+  box-shadow: 0 10px 30px -24px rgb(0 0 0 / 0.45);
+}
+
+.approval-card.approval-card--composer.approval-card--ask-human
+  > div[id^="approval-details-"] {
+  flex: 0 1 auto;
 }
 
 .approval-ask-human-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding: 1.15rem 1.35rem 0.9rem;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--approval-border) 45%, transparent);
+  padding: 0.9rem var(--approval-section-x) 0.8rem;
 }
 
 .approval-ask-human-title-row {
   display: flex;
+  width: 100%;
   min-width: 0;
   align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 0.85rem;
-  overflow: hidden;
-  white-space: nowrap;
+  overflow: visible;
+  text-align: left;
+  white-space: normal;
 }
 
 .approval-ask-human-badge {
@@ -92,11 +133,12 @@
 
 .approval-ask-human-question {
   min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--approval-text);
-  font-size: 15px;
+  font-size: 1rem;
   font-weight: 400;
   letter-spacing: 0;
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
 .approval-ask-human-pagination {
@@ -139,50 +181,139 @@
 
 .approval-ask-human-options {
   display: grid;
-  gap: 0.1rem;
-  padding: 0.05rem 1.35rem 0.12rem;
+  row-gap: 0.5rem;
+  column-gap: 0;
+  padding: 0;
+}
+
+.approval-ask-human-choice-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.approval-ask-human-multi-select-hint {
+  display: flex;
+  min-height: 1.25rem;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--approval-text-dim);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  opacity: 0.82;
+}
+
+.approval-ask-human-multi-select-hint::before {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 0.4rem;
+  border-radius: 999px;
+  background: var(--approval-text-dim);
+  box-shadow: none;
+  content: "";
 }
 
 .approval-ask-human-option {
-  display: flex;
-  min-height: 2.35rem;
+  display: grid;
+  grid-template-columns: 1.65rem minmax(0, 1fr);
+  min-height: 2.75rem;
   align-items: center;
-  gap: 0.8rem;
-  border: 1px solid transparent;
-  border-radius: 0.65rem;
-  background: transparent;
-  padding: 0.32rem 0.65rem;
-  color: var(--approval-text-dim);
+  column-gap: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--approval-border) 42%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--approval-bg) 88%, transparent);
+  padding: 0.45rem 0.75rem;
+  color: var(--approval-text);
+  font-size: 1rem;
   font-weight: 400;
+  line-height: 1.5;
   text-align: left;
+  cursor: pointer;
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
-    color 0.15s ease;
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
 }
 
-.approval-ask-human-option:hover,
-.approval-ask-human-option--focused {
+.approval-ask-human-option-indicator {
+  display: inline-flex;
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: 0 0 1.65rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--approval-border) 75%, var(--approval-text-dim));
+  border-radius: 999px;
+  color: var(--approval-text-dim);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.approval-ask-human-option:hover:not(.approval-ask-human-option--selected) {
   border-color: color-mix(
     in srgb,
-    var(--approval-border) 80%,
-    var(--approval-accent)
+    var(--approval-accent) 42%,
+    var(--approval-border)
   );
-  background: color-mix(in srgb, var(--approval-accent-light) 32%, transparent);
+  background: color-mix(in srgb, var(--approval-accent-light) 12%, var(--approval-bg));
   color: var(--approval-text);
-  font-weight: 400;
+}
+
+.approval-ask-human-option--focused:not(.approval-ask-human-option--selected) {
+  border-color: color-mix(
+    in srgb,
+    var(--approval-accent) 58%,
+    var(--approval-border)
+  );
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--approval-accent) 16%, transparent);
+}
+
+.approval-ask-human-option:hover:not(.approval-ask-human-option--selected)
+  .approval-ask-human-option-indicator,
+.approval-ask-human-option--focused:not(.approval-ask-human-option--selected)
+  .approval-ask-human-option-indicator {
+  border-color: var(--approval-accent);
+  background: color-mix(in srgb, var(--approval-accent-light) 28%, transparent);
+  color: var(--approval-accent);
 }
 
 .approval-ask-human-option--selected {
+  border-color: color-mix(
+    in srgb,
+    var(--approval-accent) 66%,
+    var(--approval-border)
+  );
+  background: color-mix(in srgb, var(--approval-accent-light) 18%, var(--approval-bg));
   color: var(--approval-text);
-  font-weight: 400;
+  font-weight: 500;
+  box-shadow: 0 3px 12px -9px
+    color-mix(in srgb, var(--approval-accent) 70%, transparent);
 }
 
-.approval-ask-human-option-index {
-  width: 1.4rem;
-  flex-shrink: 0;
-  color: var(--approval-text-dim);
-  font-variant-numeric: tabular-nums;
+.approval-ask-human-option--selected:hover {
+  background: color-mix(in srgb, var(--approval-accent-light) 32%, var(--approval-bg));
+}
+
+.approval-ask-human-option--selected .approval-ask-human-option-indicator {
+  border-color: var(--approval-accent);
+  background: var(--approval-accent);
+  color: var(--approval-submit-text);
+}
+
+.approval-ask-human-option:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--approval-accent) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .approval-ask-human-text-field {
@@ -193,8 +324,9 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0 1.1rem 0.4rem;
-  font-size: 11px;
-  line-height: 1;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
   color: var(--approval-text-dim, var(--theme-text-secondary));
   user-select: none;
 }
@@ -209,70 +341,99 @@
 .approval-ask-human-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 1rem;
-  border-top: 0;
-  padding: 0.08rem 1.35rem 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--approval-border) 55%, transparent);
+  background: color-mix(in srgb, var(--approval-bg) 96%, var(--approval-accent-light));
+  padding: 0.7rem var(--approval-section-x) 0.8rem;
+}
+
+.approval-ask-human-footer .approval-ask-human-shortcut-hint {
+  margin-right: auto;
+  padding: 0;
+}
+
+.approval-ask-human-footer .flex {
+  display: flex;
+  width: auto;
+  margin-left: auto;
+  gap: 0.5rem;
 }
 
 @media (max-width: 640px) {
+  .approval-scroll-container {
+    padding-right: 0.25rem;
+    padding-left: 0.25rem;
+  }
+
+  .approval-card.approval-card--composer {
+    --approval-section-x: 1rem;
+    border-radius: 1.25rem;
+  }
+
   .approval-ask-human-header {
-    align-items: center;
+    align-items: flex-start;
     flex-direction: row;
-    gap: 0.55rem;
-    padding: 1rem 1rem 0.65rem;
+    gap: 0.6rem;
+    padding: 1rem 1rem 0.75rem;
   }
 
   .approval-ask-human-title-row {
     min-width: 0;
-    flex: 1;
-    gap: 0.5rem;
-    overflow: hidden;
-    white-space: nowrap;
+    width: 100%;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    overflow: visible;
+    text-align: left;
+    white-space: normal;
   }
 
   .approval-ask-human-question {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 
   .approval-ask-human-pagination {
-    align-self: center;
+    align-self: flex-end;
     gap: 0.55rem;
   }
 
   .approval-ask-human-options {
-    padding-right: 1rem;
-    padding-left: 1rem;
+    row-gap: 0.4rem;
+    column-gap: 0;
+    padding: 0.1rem 0 0.25rem;
   }
 
   .approval-ask-human-option {
-    min-height: 2.45rem;
-    padding-right: 0.55rem;
-    padding-left: 0.55rem;
+    min-height: 3rem;
+    column-gap: 0.7rem;
+    padding: 0.6rem 0.7rem;
   }
 
   .approval-ask-human-footer {
-    align-items: flex-end;
+    align-items: center;
+    flex-direction: row;
     gap: 0.6rem;
-    padding: 0.08rem 1rem 0.65rem;
+    padding: 0.2rem var(--approval-section-x) 0.85rem;
   }
 
   .approval-ask-human-footer .flex {
+    width: auto;
     gap: 0.45rem;
   }
 
   .approval-ask-human-footer .flex button {
-    width: 2.5rem;
-    min-width: 2.5rem;
-    flex: 0 0 2.5rem;
-    padding-right: 0;
-    padding-left: 0;
+    min-height: 2.75rem;
+    min-width: 6.5rem;
+    flex: 0 1 auto;
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
   }
 
   .approval-ask-human-footer .flex button span {
-    display: none;
+    display: inline;
   }
 }
 
@@ -486,6 +647,41 @@
   padding: var(--approval-section-y) var(--approval-section-x);
 }
 
+.approval-form--ask-human {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.approval-form--ask-human > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0;
+}
+
+.approval-form--ask-human > div.space-y-1 > * + * {
+  margin-top: 0;
+}
+
+.approval-form--ask-human > div + div {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.approval-form--ask-human > div > label {
+  margin-bottom: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.approval-form--ask-human .approval-input {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
 .approval-form .space-y-3 > div {
   padding: 0;
 }
@@ -498,6 +694,7 @@
 
 /* ── Form inputs ── */
 .approval-input {
+  min-height: 2.75rem;
   background-color: var(--approval-input-bg);
   border: 1px solid var(--approval-border);
   border-radius: 0.5rem;
@@ -751,6 +948,7 @@
 }
 
 .approval-btn-submit {
+  min-height: 2.5rem;
   background-color: var(--approval-submit);
   color: var(--approval-submit-text);
   font-weight: 600;
@@ -764,6 +962,7 @@
 }
 
 .approval-btn-cancel {
+  min-height: 2.5rem;
   background-color: transparent;
   border: 1px solid var(--approval-cancel-border);
   border-radius: 0.625rem;

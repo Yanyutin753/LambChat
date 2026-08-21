@@ -14,6 +14,7 @@ import {
   type RecentChatsPaginationState,
 } from "./recentChatsPagination";
 import { MarkAllReadBadge } from "./MarkAllReadBadge";
+import { AlertCircle } from "lucide-react";
 
 interface RecentChatsDialogProps {
   isOpen: boolean;
@@ -244,40 +245,74 @@ export function RecentChatsDialog({
           </div>
         ) : (
           <>
-            {sessions.map((session) => (
-              <button
-                key={session.id}
-                onClick={() => {
-                  onSelectSession(session.id);
-                  onClose();
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left group ${
-                  session.id === currentSessionId
-                    ? "bg-stone-100 dark:bg-stone-800/60"
-                    : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
-                }`}
-              >
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={`truncate text-[13px] ${
+            {sessions.map((session) => {
+              const taskStatus = session.metadata?.task_status;
+              const isWaitingForHuman = taskStatus === "waiting_human";
+              const isGenerating =
+                taskStatus === "running" || taskStatus === "pending";
+
+              return (
+                  <button
+                    key={session.id}
+                    onClick={() => {
+                      onSelectSession(session.id);
+                      onClose();
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left group ${
                       session.id === currentSessionId
-                        ? "text-stone-800 dark:text-stone-100 font-medium"
-                        : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
+                        ? "bg-stone-100 dark:bg-stone-800/60"
+                        : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
                     }`}
                   >
-                    {getSessionTitle(session, t)}
-                  </div>
-                  <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
-                    {formatDateTime(session.updated_at)}
-                  </div>
-                </div>
-                {session.unread_count != null && session.unread_count > 0 && (
-                  <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
-                    {session.unread_count}
-                  </span>
-                )}
-              </button>
-            ))}
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`truncate text-[13px] ${
+                          session.id === currentSessionId
+                            ? "text-stone-800 dark:text-stone-100 font-medium"
+                            : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
+                        }`}
+                      >
+                        {getSessionTitle(session, t)}
+                      </div>
+                      <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+                        {formatDateTime(session.updated_at)}
+                      </div>
+                    </div>
+                    {isGenerating && (
+                      <span
+                        title={t(
+                          taskStatus === "pending"
+                            ? "sidebar.pendingStatus"
+                            : "sidebar.runningStatus",
+                          taskStatus === "pending" ? "等待中" : "运行中",
+                        )}
+                        aria-label={t(
+                          taskStatus === "pending"
+                            ? "sidebar.pendingStatus"
+                            : "sidebar.runningStatus",
+                          taskStatus === "pending" ? "等待中" : "运行中",
+                        )}
+                        className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin"
+                      />
+                    )}
+                    {isWaitingForHuman && (
+                      <span
+                        data-session-status="ask-human"
+                        title="Ask human · 等待你的回复"
+                        aria-label="Ask human · 等待你的回复"
+                        className="shrink-0 inline-flex items-center justify-center w-4 h-4 text-amber-500 dark:text-amber-400"
+                      >
+                        <AlertCircle size={16} strokeWidth={2.3} />
+                      </span>
+                    )}
+                    {session.unread_count != null && session.unread_count > 0 && (
+                      <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+                        {session.unread_count}
+                      </span>
+                    )}
+                  </button>
+              );
+            })}
             {hasMore && (
               <div ref={loadMoreRef} className="min-h-8">
                 {isLoadingMore && renderLoadingRows(2)}

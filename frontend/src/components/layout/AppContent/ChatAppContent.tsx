@@ -61,7 +61,9 @@ export function ChatAppContent({
   const { enableSkills, availableModels, systemDefaultModelId, defaultModel } =
     useSettingsContext();
   const { hasPermission, isAuthenticated } = useAuth();
-  const ensureResumeStreamRef = useRef<() => void>(() => {});
+  const ensureResumeStreamRef = useRef<(runId?: string | null) => void>(
+    () => {},
+  );
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
     useDragAndDrop();
   const {
@@ -73,7 +75,7 @@ export function ChatAppContent({
     isLoading: approvalLoading,
   } = useApprovals({
     sessionId: null,
-    onInterruptResume: () => ensureResumeStreamRef.current(),
+    onInterruptResume: (runId) => ensureResumeStreamRef.current(runId),
   });
   const {
     tools,
@@ -227,10 +229,8 @@ export function ChatAppContent({
     },
   });
 
-  ensureResumeStreamRef.current = () => {
-    if (connectionStatus !== "connected") {
-      void reconnectSSE();
-    }
+  ensureResumeStreamRef.current = (runId) => {
+    void reconnectSSE(runId);
   };
   useEffect(() => void refreshApprovals(), [sessionId, refreshApprovals]);
 

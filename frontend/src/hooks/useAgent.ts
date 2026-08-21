@@ -190,6 +190,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       activeSubagentStackRef,
       streamVersionRef,
       currentRunIdRef,
+      setCurrentRunId,
       setSessionId,
       setMessages,
       markSteerDelivered,

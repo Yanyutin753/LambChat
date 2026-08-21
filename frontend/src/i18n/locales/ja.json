@@ -265,6 +265,7 @@
     "selectOption": "オプションを選択",
     "send": "送信",
     "submit": "確定",
+    "multiSelectHint": "複数選択できます · クリックで選択/解除",
     "shortcutHint": "↑↓ 移動 · Enter 決定 · 1-9 選択"
   },
   "auth": {

@@ -277,6 +277,7 @@ export async function reconnectSSE(
     currentRunIdRef: React.MutableRefObject<string | null>;
     isReconnectFromHistoryRef: React.MutableRefObject<boolean>;
   },
+  runIdOverride?: string | null,
 ): Promise<void> {
   const {
     sessionIdRef,
@@ -292,8 +293,20 @@ export async function reconnectSSE(
   } = ctx;
 
   const currentSessId = sessionIdRef.current;
-  const currentRId = currentRunIdRef.current;
-  const currentMsgId = streamingMessageIdRef.current;
+  if (runIdOverride) {
+    currentRunIdRef.current = runIdOverride;
+    ctx.setCurrentRunId?.(runIdOverride);
+  }
+  const currentRId = runIdOverride || currentRunIdRef.current;
+  // A resumed HITL run gets a new run id, while the previous assistant
+  // message may no longer be marked as streaming. Reuse that message so the
+  // resumed events continue in the same conversation bubble.
+  const currentMsgId =
+    streamingMessageIdRef.current ??
+    [...messagesRef.current]
+      .reverse()
+      .find((message) => message.role === "assistant")?.id ??
+    currentRId;
 
   if (!currentSessId || !currentRId) {
     console.log("[SSE] No session/run ID, skipping reconnect");
@@ -377,7 +390,7 @@ export interface SSEReconnectOptions {
  */
 export function useSSEReconnect(
   opts: SSEReconnectOptions,
-): () => Promise<void> {
+): (runId?: string | null) => Promise<void> {
   const {
     createSSEContext,
     sessionIdRef,
@@ -388,14 +401,14 @@ export function useSSEReconnect(
     setConnectionStatus,
   } = opts;
 
-  const handleReconnectSSE = useCallback(async () => {
+  const handleReconnectSSE = useCallback(async (runId?: string | null) => {
     const ctx = {
       ...createSSEContext(),
       sessionIdRef,
       currentRunIdRef,
       isReconnectFromHistoryRef,
     };
-    await reconnectSSE(ctx);
+    await reconnectSSE(ctx, runId);
   }, [
     createSSEContext,
     sessionIdRef,

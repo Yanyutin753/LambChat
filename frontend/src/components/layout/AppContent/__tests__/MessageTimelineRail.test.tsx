@@ -29,7 +29,7 @@ function createOutlineItem(
   } as MessageOutlineItem;
 }
 
-/** 2 user + 2 assistant → 2 turns */
+/** 3 user + 3 assistant → 3 turns */
 function createPairedItems(): MessageOutlineItem[] {
   return [
     createOutlineItem({
@@ -64,7 +64,27 @@ function createPairedItems(): MessageOutlineItem[] {
       messageId: "a2",
       messageIndex: 3,
     }),
+    createOutlineItem({
+      id: "message:u3",
+      anchorId: "chat-outline-message-u3",
+      kind: "user-message",
+      label: "What about deep learning?",
+      messageId: "u3",
+      messageIndex: 4,
+    }),
+    createOutlineItem({
+      id: "assistant:a3",
+      anchorId: "chat-outline-message-a3",
+      kind: "assistant-message",
+      label: "Deep learning uses neural networks.",
+      messageId: "a3",
+      messageIndex: 5,
+    }),
   ];
+}
+
+function createTwoTurnItems(): MessageOutlineItem[] {
+  return createPairedItems().slice(0, 4);
 }
 
 describe("MessageTimelineRail", () => {
@@ -107,15 +127,25 @@ describe("MessageTimelineRail", () => {
     expect(btn.className).toContain("group/timeline");
   });
 
+  test("hides the timeline when there are only 2 turns", () => {
+    const { container } = render(
+      <MessageTimelineRail
+        items={createTwoTurnItems()}
+        onNavigate={onNavigate}
+      />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
   test("button title shows turn count", () => {
     const items = createPairedItems();
     render(<MessageTimelineRail items={items} onNavigate={onNavigate} />);
 
     const btn = screen.getByRole("button", { name: "Timeline" });
-    expect(btn).toHaveAttribute("title", "Timeline · 2");
+    expect(btn).toHaveAttribute("title", "Timeline · 3");
   });
 
-  test("2 turns produce 2 bar elements", () => {
+  test("3 turns produce 3 bar elements", () => {
     const items = createPairedItems();
     const { container } = render(
       <MessageTimelineRail items={items} onNavigate={onNavigate} />,
@@ -125,7 +155,7 @@ describe("MessageTimelineRail", () => {
     const bars = container.querySelectorAll(
       "button > span > span.rounded-full",
     );
-    expect(bars).toHaveLength(2);
+    expect(bars).toHaveLength(3);
   });
 
   test("bar height is 3px and width is 16px", () => {

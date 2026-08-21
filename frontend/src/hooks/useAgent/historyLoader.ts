@@ -20,7 +20,7 @@ import type {
   ActiveGoalSpec,
 } from "./types";
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
-import { clearAllLoadingStates } from "./messageParts";
+import { clearAllLoadingStates, createToolPart } from "./messageParts";
 import { parseDate } from "../../utils/datetime";
 
 function resolveUserMessageId(
@@ -117,10 +117,50 @@ function processHistoryEvent(
   if (eventType === "approval_required") {
     const approvalData = eventData as {
       id?: string;
+      tool_call_id?: string;
       message?: string;
       type?: string;
       fields?: FormField[];
     };
+    if (!currentAssistantMessage) {
+      currentAssistantMessage = {
+        id: messageIdOverride || event.run_id || uuid(),
+        role: "assistant",
+        content: "",
+        timestamp: parseEventTimestamp(event.timestamp, Date.now()),
+        parts: [],
+        isStreaming: false,
+        runId: event.run_id,
+      };
+    }
+    // approval_required.id is the persisted approval id; resolution events
+    // identify the tool part by tool_call_id. Keep the tool part keyed by the
+    // latter so historical approvals resolve exactly like live events.
+    const toolCallId = approvalData.tool_call_id || approvalData.id;
+    if (
+      toolCallId &&
+      !currentAssistantMessage.parts?.some(
+        (part) => part.type === "tool" && part.id === toolCallId,
+      )
+    ) {
+      currentAssistantMessage = {
+        ...currentAssistantMessage,
+        parts: [
+          ...(currentAssistantMessage.parts || []),
+          createToolPart(
+            "ask_human",
+            {
+              message: approvalData.message || "",
+              fields: approvalData.fields || [],
+            },
+            eventData.depth || 0,
+            eventData.agent_id,
+            toolCallId,
+            event.timestamp,
+          ),
+        ],
+      };
+    }
     if (approvalData.id && opts.options?.onApprovalRequired) {
       authFetch<{
         status: string;
@@ -241,13 +281,29 @@ export function reconstructMessagesFromEvents(
     const timeB = parseEventTimestamp(b.timestamp, 0).getTime();
     return timeA - timeB;
   });
+  // Older/synthesized history records (notably recommended questions) may
+  // omit the envelope run_id even though the surrounding trace has one. Keep
+  // those events in the same assistant turn instead of creating an orphan
+  // message with an undefined run id.
+  const normalizedEvents = sortedEvents.map((event, index) => {
+    if (event.run_id) return event;
+    const previousRunId = [...sortedEvents]
+      .slice(0, index)
+      .reverse()
+      .find((candidate) => candidate.run_id)?.run_id;
+    const nextRunId = sortedEvents
+      .slice(index + 1)
+      .find((candidate) => candidate.run_id)?.run_id;
+    const runId = previousRunId || nextRunId;
+    return runId ? { ...event, run_id: runId } : event;
+  });
 
   const reconstructedMessages: Message[] = [];
   let currentAssistantMessage: Message | null = null;
   const seenUserMessageIds = new Set<string>();
   const seenUserMessageRunIds = new Set<string>();
 
-  for (const event of sortedEvents) {
+  for (const event of normalizedEvents) {
     const eventType = event.event_type;
     const eventData = event.data as HistoryEventData;
 

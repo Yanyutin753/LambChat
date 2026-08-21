@@ -265,6 +265,7 @@
     "selectOption": "选择一个选项",
     "send": "发送",
     "submit": "提交",
+    "multiSelectHint": "可多选 · 点击选项进行选择或取消",
     "shortcutHint": "↑↓ 切换 · Enter 确认 · 数字键选择"
   },
   "auth": {

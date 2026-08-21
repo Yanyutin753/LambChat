@@ -7,10 +7,8 @@
  * and React state updates (side effects).
  */
 
-import type { Message, MessagePart, FormField } from "../../types";
+import type { Message, MessagePart } from "../../types";
 import { uuid } from "../../utils/uuid";
-import { authFetch } from "../../services/api/fetch";
-import { buildApiUrl } from "../../services/api/config";
 import { sessionApi } from "../../services/api/session";
 import i18n from "../../i18n";
 import { translateBackendError } from "../../utils/backendErrors";
@@ -21,7 +19,7 @@ import type {
   SubagentStackItem,
   UseAgentOptions,
 } from "./types";
-import { clearAllLoadingStates } from "./messageParts";
+import { clearAllLoadingStates, createToolPart } from "./messageParts";
 import { splitAssistantTurn } from "./steerTurnSplit";
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
@@ -37,6 +35,7 @@ export interface EventHandlerContext {
   activeSubagentStackRef: React.MutableRefObject<SubagentStackItem[]>;
   streamVersionRef: React.MutableRefObject<number>;
   currentRunIdRef?: React.MutableRefObject<string | null>;
+  setCurrentRunId?: (runId: string | null) => void;
   setSessionId: (id: string) => void;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   markSteerDelivered?: (content: string, messageId?: string) => void;
@@ -335,6 +334,7 @@ export function handleStreamEvent(
     }
 
     case "approval_required": {
+      appendAskHumanToolPart(data, messageId, eventTimestamp, ctx);
       handleApprovalRequired(data, ctx);
       return;
     }
@@ -644,36 +644,76 @@ function appendCancelledPart(parts: MessagePart[]): MessagePart[] {
   return [...parts, { type: "cancelled" }];
 }
 
-async function handleApprovalRequired(
+function appendAskHumanToolPart(
+  data: EventData,
+  messageId: string,
+  eventTimestamp: string | undefined,
+  ctx: EventHandlerContext,
+): void {
+  const toolCallId = data.tool_call_id || data.id;
+  const args = {
+    message: data.message || "",
+    fields: data.fields || [],
+  };
+  const toolPart = createToolPart(
+    "ask_human",
+    args,
+    data.depth || 0,
+    data.agent_id,
+    toolCallId,
+    eventTimestamp,
+  );
+
+  ctx.setMessages((prev) => {
+    const existing = prev.find((message) => message.id === messageId);
+    if (existing) {
+      if (
+        existing.parts?.some(
+          (part) =>
+            part.type === "tool" &&
+            part.name === "ask_human" &&
+            part.id === toolCallId,
+        )
+      ) {
+        return prev;
+      }
+      return prev.map((message) =>
+        message.id === messageId
+          ? { ...message, parts: [...(message.parts || []), toolPart] }
+          : message,
+      );
+    }
+    return [
+      ...prev,
+      {
+        id: messageId,
+        role: "assistant",
+        content: "",
+        timestamp: eventTimestamp ? parseDate(eventTimestamp) : new Date(),
+        parts: [toolPart],
+        isStreaming: true,
+      },
+    ];
+  });
+}
+
+function handleApprovalRequired(
   data: EventData,
   ctx: EventHandlerContext,
-): Promise<void> {
-  if (data.id && ctx.options?.onApprovalRequired) {
-    try {
-      const approval = await authFetch<{
-        status: string;
-        message?: string;
-        type?: string;
-        fields?: FormField[];
-        expires_at?: string | null;
-        metadata?: Record<string, unknown>;
-      }>(buildApiUrl(`/human/${data.id}`));
-      if (!approval) return;
-      if (approval && approval.status === "pending") {
-        ctx.options?.onApprovalRequired?.({
-          id: data.id!,
-          message: approval.message || "",
-          type: approval.type || "form",
-          fields: approval.fields || [],
-          expires_at: approval.expires_at || null,
-          timeout: (data as Record<string, unknown>).timeout as
-            | number
-            | undefined,
-          metadata: approval.metadata,
-        });
-      }
-    } catch (err) {
-      console.warn("[SSE] Failed to check approval status:", err);
-    }
-  }
+): void {
+  if (!data.id || !ctx.options?.onApprovalRequired) return;
+
+  // The SSE event is emitted after the approval is created and already carries
+  // the complete form payload. Render it immediately instead of making the UI
+  // depend on a second request which can race storage replication or auth refresh.
+  ctx.options.onApprovalRequired({
+    id: data.id,
+    message: data.message || "",
+    type: data.type || "form",
+    fields: data.fields || [],
+    expires_at: data.expires_at || null,
+    metadata:
+      data.metadata ||
+      (data.interrupt_id ? { mode: "interrupt" } : undefined),
+  });
 }

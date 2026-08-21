@@ -28,6 +28,72 @@ test("reconstructMessagesFromEvents preserves backend user message ids", () => {
   expect(messages[0]?.runId).toBe("run-1");
 });
 
+test("attaches runless recommendation events to the preceding assistant turn", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:00.000Z",
+        data: { content: "hello", message_id: "run-1:user" },
+      },
+      {
+        event_type: "message:chunk",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:01.000Z",
+        data: { content: "answer" },
+      },
+      {
+        event_type: "done",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:02.000Z",
+        data: { status: "completed" },
+      },
+      {
+        event_type: "recommend:questions",
+        timestamp: "2026-08-21T00:00:03.000Z",
+        data: { questions: ["next?"] },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  expect(messages).toHaveLength(2);
+  expect(messages[1]?.role).toBe("assistant");
+  expect(messages[1]?.runId).toBe("run-1");
+  expect(messages[1]?.parts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: "recommend_questions",
+        questions: [{ content: "next?" }],
+      }),
+    ]),
+  );
+});
+
+test("inherits the run id for a synthesized recommendation event", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:00.000Z",
+        data: { content: "hello", message_id: "run-1:user" },
+      },
+      {
+        event_type: "recommend:questions",
+        timestamp: "2026-08-21T00:00:01.000Z",
+        data: { questions: ["next?"] },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  expect(messages.at(-1)?.runId).toBe("run-1");
+});
+
 test("reconstructs one resolved ask-human item from same-run history", () => {
   const messages = reconstructMessagesFromEvents(
     [
@@ -85,6 +151,55 @@ test("reconstructs one resolved ask-human item from same-run history", () => {
     isPending: false,
     success: true,
   });
+});
+
+test("resolves an approval_required history item by tool_call_id", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:00.000Z",
+        data: { content: "ask", message_id: "run-1:user" },
+      },
+      {
+        event_type: "approval_required",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:01.000Z",
+        data: {
+          id: "approval-1",
+          tool_call_id: "call-1",
+          message: "回答问题",
+          type: "form",
+          fields: [],
+        },
+      },
+      {
+        event_type: "approval_resolved",
+        run_id: "run-1",
+        timestamp: "2026-08-21T00:00:02.000Z",
+        data: {
+          id: "approval-1",
+          tool_call_id: "call-1",
+          success: true,
+          result: { status: "success", values: { answer: "ok" } },
+        },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const askHuman = messages[1]?.parts?.find(
+    (part) => part.type === "tool" && part.name === "ask_human",
+  );
+  expect(askHuman).toEqual(
+    expect.objectContaining({
+      id: "call-1",
+      isPending: false,
+      success: true,
+    }),
+  );
 });
 
 test("keeps resolved ask-human attached before a delivered steer in the same run", () => {
@@ -150,6 +265,47 @@ test("keeps resolved ask-human attached before a delivered steer in the same run
     role: "assistant",
     content: "已按新方向继续",
   });
+});
+
+test("reconstructs an ask-human tool card from approval_required history", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-history-hitl",
+        timestamp: "2026-08-21T00:00:00.000Z",
+        data: { content: "ask human", message_id: "run-history-hitl:user" },
+      },
+      {
+        event_type: "approval_required",
+        run_id: "run-history-hitl",
+        timestamp: "2026-08-21T00:00:01.000Z",
+        data: {
+          id: "approval-history-1",
+          message: "请回答",
+          fields: [],
+        },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  expect(messages).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        runId: "run-history-hitl",
+        parts: [
+          expect.objectContaining({
+            type: "tool",
+            name: "ask_human",
+            id: "approval-history-1",
+            isPending: true,
+          }),
+        ],
+      }),
+    ]),
+  );
 });
 
 test("reconstructs the same message from raw and compacted text chunks", () => {

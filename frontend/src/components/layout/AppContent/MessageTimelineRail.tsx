@@ -246,7 +246,7 @@ export function MessageTimelineRail({
     [onNavigate, turns],
   );
 
-  if (turns.length === 0) return null;
+  if (turns.length <= 2) return null;
 
   const count = turns.length;
 

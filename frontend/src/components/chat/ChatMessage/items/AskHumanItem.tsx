@@ -28,7 +28,6 @@ import type { FormField } from "../../../../types";
 interface AskHumanArgs {
   message: string;
   fields: FormField[];
-  timeout?: number;
   allow_other?: boolean;
 }
 
@@ -42,7 +41,6 @@ function parseArgs(args: Record<string, unknown>): AskHumanArgs {
   return {
     message: (args.message as string) || "",
     fields: Array.isArray(args.fields) ? (args.fields as FormField[]) : [],
-    timeout: (args.timeout as number) || undefined,
     allow_other: (args.allow_other as boolean) ?? true,
   };
 }
@@ -292,7 +290,7 @@ const AskHumanItem = memo(function AskHumanItem({
   const parsed = useMemo(() => parseArgs(args), [args]);
   const parsedResult = useMemo(() => parseResult(result), [result]);
 
-  const { message, fields, timeout } = parsed;
+  const { message, fields } = parsed;
 
   // Supplement _other field when backend didn't include it
   // (e.g. cached events before the backend fix, or non-standard flows).
@@ -456,16 +454,6 @@ const AskHumanItem = memo(function AskHumanItem({
             </>
           )}
       </div>
-
-      {/* Timeout badge */}
-      {timeout && (
-        <div className="flex items-center gap-1.5 px-1 text-[11px] text-theme-text-tertiary">
-          <Timer size={10} />
-          <span>
-            {t("chat.message.askHumanTimeoutHint", { seconds: timeout })}
-          </span>
-        </div>
-      )}
 
       {/* Raw result fallback (when no structured result) */}
       {result && !parsedResult && (

@@ -250,6 +250,14 @@ function SessionItemComponent({
   const taskStatus = session.metadata?.task_status;
   const isWaitingForHuman = taskStatus === "waiting_human";
   const isGenerating = taskStatus === "running" || taskStatus === "pending";
+  const taskStatusLabel = isGenerating
+    ? t(
+        taskStatus === "pending"
+          ? "sidebar.pendingStatus"
+          : "sidebar.runningStatus",
+        taskStatus === "pending" ? "等待中" : "运行中",
+      )
+    : null;
 
   return (
     <>
@@ -346,16 +354,15 @@ function SessionItemComponent({
 
         {/* Task running indicator - same position/size as unread badge */}
         {isGenerating && (
-          <span className="shrink-0 inline-flex items-center justify-center gap-1 text-xs text-amber-500 dark:text-amber-400">
+          <span
+            title={taskStatusLabel ?? undefined}
+            aria-label={taskStatusLabel ?? undefined}
+            className="shrink-0 inline-flex items-center justify-center gap-1 text-xs text-amber-500 dark:text-amber-400"
+          >
             <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-500/25 border-t-amber-500 dark:border-t-amber-400 animate-spin" />
             {isTouched && (
               <span>
-                {t(
-                  taskStatus === "pending"
-                    ? "sidebar.pendingStatus"
-                    : "sidebar.runningStatus",
-                  taskStatus === "pending" ? "等待中" : "运行中",
-                )}
+                {taskStatusLabel}
               </span>
             )}
           </span>

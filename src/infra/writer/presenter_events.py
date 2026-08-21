@@ -411,6 +411,8 @@ class EventPresenterMixin:
         question_type: str = "text",
         choices: Optional[List[str]] = None,
         default: Optional[str] = None,
+        tool_call_id: Optional[str] = None,
+        interrupt_id: Optional[str] = None,
         depth: int = 0,
         agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -427,16 +429,21 @@ class EventPresenterMixin:
             depth: 层级深度（0=主代理，1+=子代理）
             agent_id: 代理ID（用于子代理事件）
         """
+        data = {
+            "id": approval_id,
+            "message": question,
+            "type": question_type,
+            "choices": choices or [],
+            "default": default,
+            "timestamp": utc_now_iso(),
+        }
+        if tool_call_id:
+            data["tool_call_id"] = tool_call_id
+        if interrupt_id:
+            data["interrupt_id"] = interrupt_id
         return self._build_event(
             "approval_required",
-            {
-                "id": approval_id,
-                "message": question,
-                "type": question_type,
-                "choices": choices or [],
-                "default": default,
-                "timestamp": utc_now_iso(),
-            },
+            data,
             depth=depth,
             agent_id=agent_id,
         )

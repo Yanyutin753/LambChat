@@ -221,7 +221,12 @@ async def test_send_approval_event_passes_trace_id_to_dual_writer(
         "src.infra.session.dual_writer.get_dual_writer", lambda: fake_dual_writer
     )
 
-    approval = SimpleNamespace(id="approval-1", message="需要确认", type="form")
+    approval = SimpleNamespace(
+        id="approval-1",
+        message="需要确认",
+        type="form",
+        metadata={"tool_call_id": "call-1"},
+    )
     fields = [FormField(name="choice", label="请选择", type="radio", required=True)]
 
     await human_tool.AskHumanTool()._send_approval_event(
@@ -233,6 +238,7 @@ async def test_send_approval_event_passes_trace_id_to_dual_writer(
     assert write_calls[0]["session_id"] == "session-1"
     assert write_calls[0]["run_id"] == "run-1"
     assert write_calls[0]["trace_id"] == "trace-1"
+    assert write_calls[0]["data"]["tool_call_id"] == "call-1"
     assert TraceContext.get_request_context() is not None
 
 

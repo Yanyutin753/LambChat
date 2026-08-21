@@ -141,6 +141,11 @@ class AskHumanTool(BaseTool):
             fields=field_dicts,
             session_id=session_id or None,
             user_id=user_id,
+            metadata={
+                "tool_call_id": tool_call_id,
+                "run_id": run_id,
+                "trace_id": trace_id,
+            },
         )
 
         # 通过 SSE 流发送 approval_required 事件
@@ -428,6 +433,10 @@ class AskHumanTool(BaseTool):
                 "type": approval.type,
                 "fields": [f.model_dump() for f in fields],
             }
+            approval_metadata = getattr(approval, "metadata", None) or {}
+            for key in ("tool_call_id", "interrupt_id"):
+                if approval_metadata.get(key):
+                    event_data[key] = str(approval_metadata[key])
 
             await dual_writer.write_event(
                 session_id=session_id,

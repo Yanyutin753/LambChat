@@ -101,6 +101,8 @@ async def test_session_event_read_synthesizes_legacy_recommend_event_from_run_fi
 
     assert [event["event_type"] for event in events] == ["done", "recommend:questions"]
     assert events[-1]["run_id"] == "run-1"
+    assert events[-1]["trace_id"] == "trace-1"
+    assert events[-1]["seq"] == 2
     assert events[-1]["data"] == {"questions": ["问题一？", "问题二？"]}
     assert collection.projection is not None
     assert collection.projection["recommend_questions"] == 1

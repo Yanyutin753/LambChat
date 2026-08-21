@@ -265,6 +265,7 @@
     "selectOption": "Select an option",
     "send": "Send",
     "submit": "Submit",
+    "multiSelectHint": "Multiple selections allowed · Click an option to select or clear",
     "shortcutHint": "↑↓ navigate · Enter confirm · 1-9 select"
   },
   "auth": {

@@ -674,13 +674,17 @@ export function ChatView({
                 </svg>
               </button>
             </div>
-            <div className="approval-panel-scroll-region">
-              <ApprovalPanel
-                approvals={approvals}
-                onRespond={onRespondApproval}
-                isLoading={approvalLoading}
-              />
-            </div>
+            {approvals.length > 0 && (
+              <div
+                className="approval-panel-scroll-region flex min-h-0 w-full shrink-0 flex-col overflow-hidden"
+              >
+                <ApprovalPanel
+                  approvals={approvals}
+                  onRespond={onRespondApproval}
+                  isLoading={approvalLoading}
+                />
+              </div>
+            )}
             {!hasPendingAskHumanApproval && (
               <ChatInput
                 {...chatInputProps}

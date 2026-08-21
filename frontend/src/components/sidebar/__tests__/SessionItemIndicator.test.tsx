@@ -26,7 +26,9 @@ describe("SessionItem task running indicator", () => {
         onSessionUpdate={vi.fn()}
       />,
     );
-    expect(document.querySelector(".animate-spin")).toBeInTheDocument();
+    const indicator = document.querySelector(".animate-spin")?.parentElement;
+    expect(indicator).toHaveAttribute("title", "运行中");
+    expect(indicator).toHaveAttribute("aria-label", "运行中");
     fireEvent.touchStart(view.container.firstElementChild!, {
       touches: [{ clientX: 10, clientY: 10 }],
     });
@@ -44,7 +46,9 @@ describe("SessionItem task running indicator", () => {
         onSessionUpdate={vi.fn()}
       />,
     );
-    expect(document.querySelector(".animate-spin")).toBeInTheDocument();
+    const indicator = document.querySelector(".animate-spin")?.parentElement;
+    expect(indicator).toHaveAttribute("title", "等待中");
+    expect(indicator).toHaveAttribute("aria-label", "等待中");
   });
   it("shows only a running-indicator-sized icon while waiting for a reply", () => {
     render(

@@ -36,6 +36,21 @@ def test_present_recommend_questions_builds_frontend_event() -> None:
     ]
 
 
+def test_present_approval_required_keeps_tool_identity() -> None:
+    presenter = create_presenter(session_id="session-1", agent_id="search", agent_name="Search")
+
+    event = presenter.present_ask_human(
+        approval_id="approval-1",
+        question="需要确认",
+        tool_call_id="call-1",
+        interrupt_id="interrupt-1",
+    )
+
+    assert event["data"]["id"] == "approval-1"
+    assert event["data"]["tool_call_id"] == "call-1"
+    assert event["data"]["interrupt_id"] == "interrupt-1"
+
+
 def test_present_user_message_bounds_persisted_attachments() -> None:
     presenter = create_presenter(session_id="session-1", agent_id="search", agent_name="Search")
 

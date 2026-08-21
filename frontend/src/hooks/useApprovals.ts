@@ -9,7 +9,7 @@ import {
 
 interface UseApprovalsOptions {
   sessionId: string | null;
-  onInterruptResume?: () => void;
+  onInterruptResume?: (runId?: string | null) => void;
 }
 
 export function useApprovals({
@@ -82,7 +82,7 @@ export function useApprovals({
         if (isApprovalResponseAccepted(res)) {
           setApprovals((prev) => prev.filter((a) => a.id !== approvalId));
           if (res?.hitl_resume?.submitted) {
-            onInterruptResume?.();
+            onInterruptResume?.(res.hitl_resume.run_id);
           }
           return true;
         }

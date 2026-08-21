@@ -248,44 +248,53 @@ function AskHumanChoiceList({
   onSelect: (option: string, index: number) => void;
   onInteract: () => void;
 }) {
+  const { t } = useTranslation();
   const selectedValues = Array.isArray(value) ? (value as string[]) : [];
   const selectedValue = typeof value === "string" ? value : "";
   const isMultiple = field.type === "multi_select";
 
   return (
-    <div
-      className="approval-ask-human-options"
-      role="listbox"
-      aria-label={field.label}
-    >
-      {(field.options ?? []).map((option, index) => {
-        const selected = isMultiple
-          ? selectedValues.includes(option)
-          : selectedValue === option;
-        return (
-          <button
-            key={option}
-            type="button"
-            role="option"
-            aria-selected={selected}
-            disabled={disabled}
-            className={clsx(
-              "approval-ask-human-option",
-              selected && "approval-ask-human-option--selected",
-              selectedIndex === index && "approval-ask-human-option--focused",
-            )}
-            onClick={() => {
-              onInteract();
-              onSelect(option, index);
-            }}
-          >
-            <span className="approval-ask-human-option-index">
-              {index + 1}.
-            </span>
-            <span className="min-w-0 flex-1 text-left">{option}</span>
-          </button>
-        );
-      })}
+    <div className="approval-ask-human-choice-field">
+      {isMultiple && (
+        <div className="approval-ask-human-multi-select-hint" role="note">
+          {t("approvals.multiSelectHint")}
+        </div>
+      )}
+      <div
+        className="approval-ask-human-options"
+        role="listbox"
+        aria-label={field.label}
+        aria-multiselectable={isMultiple}
+      >
+        {(field.options ?? []).map((option, index) => {
+          const selected = isMultiple
+            ? selectedValues.includes(option)
+            : selectedValue === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              disabled={disabled}
+              className={clsx(
+                "approval-ask-human-option",
+                selected && "approval-ask-human-option--selected",
+                selectedIndex === index && "approval-ask-human-option--focused",
+              )}
+              onClick={() => {
+                onInteract();
+                onSelect(option, index);
+              }}
+            >
+              <span className="approval-ask-human-option-indicator" aria-hidden="true">
+                {selected ? "✓" : index + 1}
+              </span>
+              <span className="min-w-0 flex-1 text-left">{option}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -549,10 +558,10 @@ export function ApprovalPanel({
 
   return (
     <div
-      className="approval-scroll-container w-full shrink-0 min-h-0 overflow-visible px-2 py-2 sm:px-8 sm:py-3"
+      className="approval-scroll-container h-full w-full min-h-0 overflow-visible px-2 py-2 sm:px-8 sm:py-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
-      <div className="mx-auto w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl">
+      <div className="approval-panel-content-shell mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col lg:max-w-5xl xl:max-w-6xl">
         {/* Pagination */}
         {approvals.length > 1 && (
           <div className="mb-2 flex items-center justify-between px-1">
@@ -658,7 +667,7 @@ export function ApprovalPanel({
                   {t("approvals.needsConfirmation")}
                 </span>
                 {!isExpanded && (
-                  <span className="approval-summary block truncate">
+                  <span className="approval-summary block">
                     {approvalSummary}
                   </span>
                 )}
@@ -696,6 +705,7 @@ export function ApprovalPanel({
 
           {(isExpanded || isAskHuman) && (
             <div id={`approval-details-${currentApproval.id}`}>
+              <div className="approval-details-scroll">
               {/* Message */}
               {!isAskHuman && (
                 <div className="approval-message">
@@ -730,7 +740,7 @@ export function ApprovalPanel({
               )}
 
               {isAskHuman && (
-                <div className="approval-form space-y-3">
+                <div className="approval-form approval-form--ask-human">
                   {askHumanDisplayFields.map((field) => {
                     const isChoice = askHumanChoiceFields.includes(field);
                     return (
@@ -843,6 +853,7 @@ export function ApprovalPanel({
                   </div>
                 </>
               )}
+              </div>
               <div
                 className={`approval-actions ${
                   isAskHuman ? "approval-ask-human-footer" : ""
@@ -857,16 +868,6 @@ export function ApprovalPanel({
                   </span>
                 )}
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitDisabled}
-                    aria-label={t("approvals.submit")}
-                    title={t("approvals.submit")}
-                    className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Send size={14} />
-                    <span>{t("approvals.submit")}</span>
-                  </button>
                   <button
                     onClick={handleCancel}
                     disabled={isLoading}
@@ -884,6 +885,16 @@ export function ApprovalPanel({
                         ? t("approvals.ignore")
                         : t("approvals.cancel")}
                     </span>
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitDisabled}
+                    aria-label={t("approvals.submit")}
+                    title={t("approvals.submit")}
+                    className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Send size={14} />
+                    <span>{t("approvals.submit")}</span>
                   </button>
                 </div>
               </div>

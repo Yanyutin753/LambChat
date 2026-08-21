@@ -5,6 +5,7 @@ import type { ActiveGoalSpec, StreamEvent } from "../types.ts";
 import { prepareMessagesForRunningRun } from "../historyLoader.ts";
 import { subscribePersonaPresetsChanged } from "../../personaPresetEvents.ts";
 import { subscribeTeamsChanged } from "../../teamEvents.ts";
+import { vi } from "vitest";
 
 function createContext(
   messages: Message[],
@@ -81,6 +82,69 @@ test("skips SSE events older than loaded history", () => {
   handleStreamEvent(event, "assistant-1", "redis-event-1", eventTimestamp, ctx);
 
   expect(ctx.setMessagesCalls()).toBe(0);
+});
+
+test("renders approval_required from the SSE payload when approval lookup is unavailable", async () => {
+  const onApprovalRequired = vi.fn();
+  const ctx = createContext([], null);
+  ctx.options = { onApprovalRequired };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "approval-1", status: "not_found" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ),
+  );
+
+  handleStreamEvent(
+    {
+      event: "approval_required",
+      data: JSON.stringify({
+        id: "approval-1",
+        message: "请回答几个问题",
+        type: "form",
+        fields: [
+          {
+            name: "topic",
+            label: "主题",
+            type: "select",
+            required: true,
+            options: ["兴趣爱好"],
+          },
+        ],
+      }),
+    },
+    "assistant-1",
+    "approval-event-1",
+    undefined,
+    ctx,
+  );
+
+  await vi.waitFor(() => expect(onApprovalRequired).toHaveBeenCalled());
+  expect(onApprovalRequired).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: "approval-1",
+      message: "请回答几个问题",
+      fields: expect.arrayContaining([expect.objectContaining({ name: "topic" })]),
+    }),
+  );
+  expect(ctx.messages()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: "assistant-1",
+        parts: expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool",
+            name: "ask_human",
+            isPending: true,
+          }),
+        ]),
+      }),
+    ]),
+  );
+  vi.unstubAllGlobals();
 });
 
 test("renders a delivered steer event and removes its optimistic duplicate", () => {

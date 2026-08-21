@@ -737,6 +737,15 @@ class TraceStorage(
                 if not trace_id:
                     continue
                 trace_events = list(events_by_trace.get(str(trace_id), []))
+                next_seq = max(
+                    (
+                        int(event["seq"])
+                        for event in trace_events
+                        if event.get("seq") is not None
+                        and str(event.get("seq")).isdigit()
+                    ),
+                    default=0,
+                ) + 1
                 is_active_running = bool(
                     active_run_id
                     and trace.get("run_id") == active_run_id
@@ -783,6 +792,9 @@ class TraceStorage(
                     }
                     if "seq" in event:
                         item["seq"] = event.get("seq")
+                    else:
+                        item["seq"] = next_seq
+                        next_seq += 1
                     events.append(item)
                     if max_events is not None and len(events) >= max_events:
                         logger.debug(
