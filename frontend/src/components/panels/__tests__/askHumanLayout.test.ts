@@ -13,34 +13,33 @@ test("renders ask-human as a full card with numbered choices and footer actions"
   expect(approvalSource).toMatch(/approval-card--ask-human/);
   expect(approvalSource).toMatch(/approval-ask-human-option/);
   expect(approvalSource).toMatch(/approvals\.ignore/);
-  expect(approvalSource).toMatch(/approvals\.continue/);
+  expect(approvalSource).toMatch(/approvals\.submit/);
 });
 
-test("localizes ask-human labels and pagination controls", () => {
+test("localizes ask-human labels and keeps one final submit action", () => {
   expect(approvalSource).toMatch(/approvals\.mainGoal/);
-  expect(approvalSource).toMatch(/approvals\.previous/);
-  expect(approvalSource).toMatch(/approvals\.next/);
-  expect(approvalSource).toMatch(/aria-label=\{t\("approvals\.previous"\)\}/);
-  expect(approvalSource).toMatch(/aria-label=\{t\("approvals\.next"\)\}/);
   expect(approvalSource).not.toMatch(/aria-label="上一项"/);
   expect(approvalSource).not.toMatch(/aria-label="下一项"/);
   expect(approvalSource).not.toMatch(
     /t\("approvals\.(?:mainGoal|continue|ignore)",\s*"/,
   );
+  expect(approvalSource).toMatch(/t\("approvals\.submit"\)/);
+  expect(approvalSource).not.toMatch(/t\("approvals\.continue"\)/);
 });
 
 test("localizes the backend-generated other-opinion field", () => {
-  expect(approvalSource).toMatch(/currentAskHumanField\.name === "_other"/);
+  expect(approvalSource).toMatch(/field\.name === "_other"/);
   expect(approvalSource).toMatch(/chat\.message\.askHumanOtherLabel/);
   expect(approvalSource).toMatch(/chat\.message\.askHumanOtherPlaceholder/);
 });
 
-test("paginates ask-human fields one question at a time", () => {
-  expect(approvalSource).toMatch(/askHumanFieldIndex/);
-  expect(approvalSource).toMatch(/currentAskHumanField/);
+test("renders all ask-human fields in one form and validates them together", () => {
+  expect(approvalSource).toMatch(/askHumanFields\.map/);
   expect(approvalSource).toMatch(
-    /isAskHuman[\s\S]*?currentAskHumanDisplayField\.label/,
+    /isAskHuman\s*&&\s*!isFormFieldsValid\(askHumanFields, currentFormValues\)/,
   );
+  expect(approvalSource).not.toMatch(/askHumanFieldIndex/);
+  expect(approvalSource).not.toMatch(/currentAskHumanField/);
 });
 
 test("hides the composer while an approval is pending", () => {

@@ -299,7 +299,6 @@ export function ApprovalPanel({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isExpanded, setIsExpanded] = useState(false);
   const [askHumanSelectedIndex, setAskHumanSelectedIndex] = useState(0);
-  const [askHumanFieldIndex, setAskHumanFieldIndex] = useState(0);
   const [formValues, setFormValues] = useState<
     Record<string, Record<string, unknown>>
   >({});
@@ -360,7 +359,6 @@ export function ApprovalPanel({
 
   useEffect(() => {
     setAskHumanSelectedIndex(0);
-    setAskHumanFieldIndex(0);
   }, [currentApprovalId]);
 
   // Countdown tick
@@ -516,11 +514,6 @@ export function ApprovalPanel({
   };
 
   const handleSubmit = () => {
-    if (isAskHuman && askHumanFieldIndex < askHumanFields.length - 1) {
-      setAskHumanFieldIndex((index) => index + 1);
-      setAskHumanSelectedIndex(0);
-      return;
-    }
     if (isAskHuman && !isFormFieldsValid(askHumanFields, currentFormValues)) {
       return;
     }
@@ -533,39 +526,27 @@ export function ApprovalPanel({
 
   const isAskHuman = currentApproval.metadata?.mode === "interrupt";
   const askHumanFields = currentApproval.fields;
-  const currentAskHumanField = askHumanFields[askHumanFieldIndex];
-  const currentAskHumanDisplayField = currentAskHumanField
-    ? currentAskHumanField.name === "_other"
+  const askHumanDisplayFields = askHumanFields.map((field) =>
+    field.name === "_other"
       ? {
-          ...currentAskHumanField,
+          ...field,
           label: t("chat.message.askHumanOtherLabel"),
           placeholder:
-            currentAskHumanField.placeholder ||
-            t("chat.message.askHumanOtherPlaceholder"),
+            field.placeholder || t("chat.message.askHumanOtherPlaceholder"),
         }
-      : currentAskHumanField
-    : undefined;
-  const askHumanChoiceField =
-    currentAskHumanDisplayField &&
-    (currentAskHumanDisplayField.type === "radio" ||
-      currentAskHumanDisplayField.type === "multi_select" ||
-      currentAskHumanDisplayField.type === "select")
-      ? currentAskHumanDisplayField
-      : undefined;
-  const askHumanQuestion =
-    currentAskHumanDisplayField?.label || approvalSummary;
-  // 分步表单：最后一步提交时校验所有字段（此前每步只校验当前字段，
-  // 导致跳到最后一步时必填字段仍可留空提交）。
+      : field,
+  );
+  const askHumanChoiceFields = askHumanDisplayFields.filter(
+    (field) =>
+      field.type === "radio" ||
+      field.type === "multi_select" ||
+      field.type === "select",
+  );
+  const askHumanKeyboardField = askHumanChoiceFields[0];
+  const askHumanQuestion = approvalSummary;
   const isSubmitDisabled =
     isLoading ||
-    !isFormFieldsValid(
-      isAskHuman
-        ? askHumanFieldIndex < askHumanFields.length - 1 && currentAskHumanField
-          ? [currentAskHumanField]
-          : askHumanFields
-        : currentApproval.fields,
-      currentFormValues,
-    );
+    !isFormFieldsValid(currentApproval.fields, currentFormValues);
 
   return (
     <div
@@ -614,8 +595,8 @@ export function ApprovalPanel({
           }`}
           key={currentApproval.id}
           onKeyDown={(event) => {
-            if (!isAskHuman || !askHumanChoiceField?.options?.length) return;
-            const count = askHumanChoiceField.options.length;
+            if (!isAskHuman || !askHumanKeyboardField?.options?.length) return;
+            const count = askHumanKeyboardField.options.length;
             if (event.key === "ArrowDown" || event.key === "Tab") {
               event.preventDefault();
               setAskHumanSelectedIndex((index) => (index + 1) % count);
@@ -624,13 +605,14 @@ export function ApprovalPanel({
               setAskHumanSelectedIndex((index) => (index - 1 + count) % count);
             } else if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              const option = askHumanChoiceField.options[askHumanSelectedIndex];
+              const option =
+                askHumanKeyboardField.options[askHumanSelectedIndex];
               if (option) {
                 handleFieldChange(
-                  askHumanChoiceField.name,
-                  askHumanChoiceField.type === "multi_select"
+                  askHumanKeyboardField.name,
+                  askHumanKeyboardField.type === "multi_select"
                     ? toggleMultiSelectValue(
-                        currentFormValues[askHumanChoiceField.name],
+                        currentFormValues[askHumanKeyboardField.name],
                         option,
                       )
                     : option,
@@ -643,14 +625,15 @@ export function ApprovalPanel({
             ) {
               // 数字键快捷选择对应序号的选项
               event.preventDefault();
-              const option = askHumanChoiceField.options[Number(event.key) - 1];
+              const option =
+                askHumanKeyboardField.options[Number(event.key) - 1];
               if (option) {
                 setAskHumanSelectedIndex(Number(event.key) - 1);
                 handleFieldChange(
-                  askHumanChoiceField.name,
-                  askHumanChoiceField.type === "multi_select"
+                  askHumanKeyboardField.name,
+                  askHumanKeyboardField.type === "multi_select"
                     ? toggleMultiSelectValue(
-                        currentFormValues[askHumanChoiceField.name],
+                        currentFormValues[askHumanKeyboardField.name],
                         option,
                       )
                     : option,
@@ -709,35 +692,6 @@ export function ApprovalPanel({
                   {askHumanQuestion}
                 </span>
               </div>
-              {askHumanFields.length > 1 && (
-                <div className="approval-ask-human-pagination">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAskHumanFieldIndex((index) => Math.max(0, index - 1))
-                    }
-                    disabled={askHumanFieldIndex === 0}
-                    aria-label={t("approvals.previous")}
-                  >
-                    ‹
-                  </button>
-                  <span>
-                    {askHumanFieldIndex + 1} / {askHumanFields.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAskHumanFieldIndex((index) =>
-                        Math.min(askHumanFields.length - 1, index + 1),
-                      )
-                    }
-                    disabled={askHumanFieldIndex === askHumanFields.length - 1}
-                    aria-label={t("approvals.next")}
-                  >
-                    ›
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
@@ -776,26 +730,67 @@ export function ApprovalPanel({
                 </div>
               )}
 
-              {isAskHuman && askHumanChoiceField && (
-                <AskHumanChoiceList
-                  field={askHumanChoiceField}
-                  value={currentFormValues[askHumanChoiceField.name]}
-                  disabled={isLoading}
-                  selectedIndex={askHumanSelectedIndex}
-                  onInteract={handleInteract(currentApproval.id)}
-                  onSelect={(option, index) => {
-                    setAskHumanSelectedIndex(index);
-                    handleFieldChange(
-                      askHumanChoiceField.name,
-                      askHumanChoiceField.type === "multi_select"
-                        ? toggleMultiSelectValue(
-                            currentFormValues[askHumanChoiceField.name],
-                            option,
-                          )
-                        : option,
+              {isAskHuman && (
+                <div className="approval-form space-y-3">
+                  {askHumanDisplayFields.map((field) => {
+                    const isChoice = askHumanChoiceFields.includes(field);
+                    return (
+                      <div key={field.name} className="space-y-1">
+                        <label
+                          className="block text-xs font-medium"
+                          style={{ color: "var(--theme-text-secondary)" }}
+                        >
+                          {field.label}
+                          {field.required && (
+                            <span
+                              className="ml-0.5"
+                              style={{ color: "#ef4444" }}
+                            >
+                              *
+                            </span>
+                          )}
+                        </label>
+                        {isChoice ? (
+                          <AskHumanChoiceList
+                            field={field}
+                            value={currentFormValues[field.name]}
+                            disabled={isLoading}
+                            selectedIndex={
+                              field === askHumanKeyboardField
+                                ? askHumanSelectedIndex
+                                : -1
+                            }
+                            onInteract={handleInteract(currentApproval.id)}
+                            onSelect={(option, index) => {
+                              if (field === askHumanKeyboardField) {
+                                setAskHumanSelectedIndex(index);
+                              }
+                              handleFieldChange(
+                                field.name,
+                                field.type === "multi_select"
+                                  ? toggleMultiSelectValue(
+                                      currentFormValues[field.name],
+                                      option,
+                                    )
+                                  : option,
+                              );
+                            }}
+                          />
+                        ) : (
+                          <FormFieldRenderer
+                            field={field}
+                            value={currentFormValues[field.name]}
+                            onChange={(value) =>
+                              handleFieldChange(field.name, value)
+                            }
+                            disabled={isLoading}
+                            onInteract={handleInteract(currentApproval.id)}
+                          />
+                        )}
+                      </div>
                     );
-                  }}
-                />
+                  })}
+                </div>
               )}
 
               {/* Form fields */}
@@ -804,7 +799,7 @@ export function ApprovalPanel({
                   <div className="approval-divider" />
                   <div className="approval-form space-y-3">
                     {currentApproval.fields
-                      .filter((field) => field !== askHumanChoiceField)
+                      .filter((field) => !askHumanChoiceFields.includes(field))
                       .map((field) => {
                         const isOther = field.name === "_other";
                         const displayField = isOther
@@ -849,35 +844,12 @@ export function ApprovalPanel({
                   </div>
                 </>
               )}
-              {isAskHuman &&
-                currentAskHumanDisplayField &&
-                !askHumanChoiceField && (
-                  <div className="approval-ask-human-text-field">
-                    <label className="approval-ask-human-field-label">
-                      {currentAskHumanDisplayField.label}
-                    </label>
-                    <FormFieldRenderer
-                      field={currentAskHumanDisplayField}
-                      value={
-                        currentFormValues[currentAskHumanDisplayField.name]
-                      }
-                      onChange={(value) =>
-                        handleFieldChange(
-                          currentAskHumanDisplayField.name,
-                          value,
-                        )
-                      }
-                      disabled={isLoading}
-                      onInteract={handleInteract(currentApproval.id)}
-                    />
-                  </div>
-                )}
               <div
                 className={`approval-actions ${
                   isAskHuman ? "approval-ask-human-footer" : ""
                 }`}
               >
-                {isAskHuman && askHumanChoiceField && (
+                {isAskHuman && askHumanChoiceFields.length > 0 && (
                   <span
                     className="approval-ask-human-shortcut-hint hidden sm:inline-flex"
                     aria-hidden="true"
@@ -889,24 +861,13 @@ export function ApprovalPanel({
                   <button
                     onClick={handleSubmit}
                     disabled={isSubmitDisabled}
-                    aria-label={
-                      isAskHuman
-                        ? t("approvals.continue")
-                        : t("approvals.submit")
-                    }
-                    title={
-                      isAskHuman
-                        ? t("approvals.continue")
-                        : t("approvals.submit")
-                    }
+                    aria-label={t("approvals.submit")}
+                    title={t("approvals.submit")}
                     className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Send size={14} />
                     <span>
-                      {isAskHuman &&
-                      askHumanFieldIndex < askHumanFields.length - 1
-                        ? t("approvals.continue")
-                        : t("approvals.submit")}
+                      {t("approvals.submit")}
                     </span>
                   </button>
                   <button
