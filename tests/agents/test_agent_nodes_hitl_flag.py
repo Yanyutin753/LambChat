@@ -11,6 +11,12 @@ AGENT_NODES = [
     "agents/team_agent/nodes.py",
 ]
 
+AGENT_GRAPHS = [
+    "agents/fast_agent/graph.py",
+    "agents/search_agent/graph.py",
+    "agents/team_agent/graph.py",
+]
+
 
 def _read(rel: str) -> str:
     return (SRC / rel).read_text(encoding="utf-8")
@@ -33,3 +39,10 @@ def test_agent_nodes_support_hitl_resume() -> None:
         source = _read(rel)
         assert 'configurable.get("hitl_resume")' in source, rel
         assert "Command(resume=" in source, rel
+
+
+def test_agent_graphs_forward_hitl_resume_to_nodes() -> None:
+    for rel in AGENT_GRAPHS:
+        source = _read(rel)
+        assert 'kwargs.get("hitl_resume")' in source, rel
+        assert '"hitl_resume": hitl_resume' in source, rel

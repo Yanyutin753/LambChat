@@ -191,6 +191,8 @@ class TeamAgent(BaseGraphAgent):
             langsmith_context,
         )
 
+        hitl_resume = kwargs.get("hitl_resume")
+
         config: RunnableConfig = {
             "configurable": {
                 "thread_id": session_id,
@@ -206,6 +208,7 @@ class TeamAgent(BaseGraphAgent):
                 "active_goal": kwargs.get("active_goal"),
                 "auto_mode": kwargs.get("auto_mode", False),
                 "recommendation_input": kwargs.get("recommendation_input"),
+                "hitl_resume": hitl_resume,
             },
             "metadata": langsmith_metadata,
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,
