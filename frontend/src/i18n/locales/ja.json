@@ -264,7 +264,8 @@
     },
     "selectOption": "オプションを選択",
     "send": "送信",
-    "submit": "確定"
+    "submit": "確定",
+    "shortcutHint": "↑↓ 移動 · Enter 決定 · 1-9 選択"
   },
   "auth": {
     "account": "アカウント",

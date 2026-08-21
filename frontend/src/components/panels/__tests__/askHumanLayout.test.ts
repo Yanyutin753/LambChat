@@ -58,3 +58,14 @@ test("keeps approval scrolling on the ChatView parent region", () => {
     /approval-scroll-container[^"]*overflow-visible/,
   );
 });
+
+test("shows desktop-only keyboard shortcut hint for ask-human choices", () => {
+  // 快捷键提示仅在桌面端显示（手机端无键盘，隐藏提示文字）
+  expect(approvalSource).toMatch(/approvals\.shortcutHint/);
+  expect(approvalSource).toMatch(/approval-ask-human-shortcut-hint/);
+  expect(approvalSource).toMatch(/hidden sm:inline-flex/);
+});
+
+test("supports number-key selection for ask-human choices", () => {
+  expect(approvalSource).toMatch(/event\.key >= "1"/);
+});

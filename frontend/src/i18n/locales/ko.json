@@ -264,7 +264,8 @@
     },
     "selectOption": "옵션을 선택하세요",
     "send": "전송",
-    "submit": "확인"
+    "submit": "확인",
+    "shortcutHint": "↑↓ 이동 · Enter 확인 · 1-9 선택"
   },
   "auth": {
     "account": "계정",

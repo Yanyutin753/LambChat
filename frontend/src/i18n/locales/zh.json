@@ -264,7 +264,8 @@
     },
     "selectOption": "选择一个选项",
     "send": "发送",
-    "submit": "提交"
+    "submit": "提交",
+    "shortcutHint": "↑↓ 切换 · Enter 确认 · 数字键选择"
   },
   "auth": {
     "account": "账号",

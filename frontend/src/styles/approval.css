@@ -189,6 +189,16 @@
   padding: 0.65rem 1.1rem 1rem;
 }
 
+.approval-ask-human-shortcut-hint {
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 1.1rem 0.4rem;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--approval-text-dim, var(--theme-text-secondary));
+  user-select: none;
+}
+
 .approval-ask-human-field-label {
   display: block;
   margin-bottom: 0.5rem;
@@ -203,12 +213,6 @@
   gap: 1rem;
   border-top: 0;
   padding: 0.08rem 1.35rem 0.5rem;
-}
-
-.approval-ask-human-footer::before {
-  content: "ⓘ  使用 Tab / 上下键选择，回车或空格选中";
-  color: var(--approval-text-dim);
-  font-size: 15px;
 }
 
 @media (max-width: 640px) {
@@ -253,11 +257,6 @@
     align-items: flex-end;
     gap: 0.6rem;
     padding: 0.08rem 1rem 0.65rem;
-  }
-
-  .approval-ask-human-footer::before {
-    flex: 1;
-    line-height: 1.45;
   }
 
   .approval-ask-human-footer .flex {

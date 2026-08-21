@@ -264,7 +264,8 @@
     },
     "selectOption": "Select an option",
     "send": "Send",
-    "submit": "Submit"
+    "submit": "Submit",
+    "shortcutHint": "↑↓ navigate · Enter confirm · 1-9 select"
   },
   "auth": {
     "account": "Account",

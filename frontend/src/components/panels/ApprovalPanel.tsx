@@ -24,6 +24,10 @@ import { cjkGfmRemarkPlugins } from "../common/markdownRemarkPlugins";
 import { authFetch } from "../../services/api/fetch";
 import { buildApiUrl } from "../../services/api/config";
 import { parseDate } from "../../utils/datetime";
+import {
+  isFormFieldsValid,
+  toggleMultiSelectValue,
+} from "./approvalFormValidation";
 
 interface ApprovalPanelProps {
   approvals: PendingApproval[];
@@ -517,6 +521,9 @@ export function ApprovalPanel({
       setAskHumanSelectedIndex(0);
       return;
     }
+    if (isAskHuman && !isFormFieldsValid(askHumanFields, currentFormValues)) {
+      return;
+    }
     onRespond(currentApproval.id, currentFormValues, true);
   };
 
@@ -547,28 +554,18 @@ export function ApprovalPanel({
       : undefined;
   const askHumanQuestion =
     currentAskHumanDisplayField?.label || approvalSummary;
+  // 分步表单：最后一步提交时校验所有字段（此前每步只校验当前字段，
+  // 导致跳到最后一步时必填字段仍可留空提交）。
   const isSubmitDisabled =
     isLoading ||
-    !isFormValid(
-      isAskHuman && currentAskHumanField
-        ? [currentAskHumanField]
+    !isFormFieldsValid(
+      isAskHuman
+        ? askHumanFieldIndex < askHumanFields.length - 1 && currentAskHumanField
+          ? [currentAskHumanField]
+          : askHumanFields
         : currentApproval.fields,
       currentFormValues,
     );
-
-  function isFormValid(
-    fields: FormField[],
-    values: Record<string, unknown>,
-  ): boolean {
-    return fields.every((field) => {
-      if (!field.required) return true;
-      const value = values[field.name];
-      if (value === undefined || value === null) return false;
-      if (typeof value === "string" && value.trim() === "") return false;
-      if (Array.isArray(value) && value.length === 0) return false;
-      return true;
-    });
-  }
 
   return (
     <div
@@ -632,7 +629,30 @@ export function ApprovalPanel({
                 handleFieldChange(
                   askHumanChoiceField.name,
                   askHumanChoiceField.type === "multi_select"
-                    ? [option]
+                    ? toggleMultiSelectValue(
+                        currentFormValues[askHumanChoiceField.name],
+                        option,
+                      )
+                    : option,
+                );
+              }
+            } else if (
+              event.key >= "1" &&
+              event.key <= "9" &&
+              Number(event.key) <= count
+            ) {
+              // 数字键快捷选择对应序号的选项
+              event.preventDefault();
+              const option = askHumanChoiceField.options[Number(event.key) - 1];
+              if (option) {
+                setAskHumanSelectedIndex(Number(event.key) - 1);
+                handleFieldChange(
+                  askHumanChoiceField.name,
+                  askHumanChoiceField.type === "multi_select"
+                    ? toggleMultiSelectValue(
+                        currentFormValues[askHumanChoiceField.name],
+                        option,
+                      )
                     : option,
                 );
               }
@@ -768,7 +788,10 @@ export function ApprovalPanel({
                     handleFieldChange(
                       askHumanChoiceField.name,
                       askHumanChoiceField.type === "multi_select"
-                        ? [option]
+                        ? toggleMultiSelectValue(
+                            currentFormValues[askHumanChoiceField.name],
+                            option,
+                          )
                         : option,
                     );
                   }}
@@ -854,6 +877,14 @@ export function ApprovalPanel({
                   isAskHuman ? "approval-ask-human-footer" : ""
                 }`}
               >
+                {isAskHuman && askHumanChoiceField && (
+                  <span
+                    className="approval-ask-human-shortcut-hint hidden sm:inline-flex"
+                    aria-hidden="true"
+                  >
+                    {t("approvals.shortcutHint")}
+                  </span>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={handleSubmit}
