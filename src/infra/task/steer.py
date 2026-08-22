@@ -328,6 +328,33 @@ class SteerQueue:
                 if not self._redis_disabled:
                     raise
 
+    async def clear_session(self, session_id: str) -> None:
+        """清空该会话全部插话状态（pending / inflight / lease）。
+
+        新 run 提交时调用：旧 run 结束后残留的插话已由前端补发为普通
+        消息，若不清理，新 run 的首次模型调用会把同一条插话再次注入
+        （重复投递）。Redis 路径单次 DEL 三个键，多 worker 共享状态下
+        原子生效；正被某次模型调用持有（inflight）的项被清后，该调用
+        结束时的 ack/requeue 会因 lease 不匹配而自然空转，无副作用。
+        """
+        redis = await self._redis_or_none()
+        if redis is not None:
+            try:
+                await redis.delete(
+                    self._key(session_id),
+                    self._inflight_key(session_id),
+                    self._lease_key(session_id),
+                )
+                self._lease_tokens.pop(session_id, None)
+                return
+            except Exception:
+                logger.warning("[Steer] Redis clear failed", exc_info=True)
+                if not self._redis_disabled:
+                    raise
+        async with self._lock:
+            self._pending.pop(session_id, None)
+            self._lease_tokens.pop(session_id, None)
+
     def pending_count(self, session_id: str) -> int:
         """该会话当前排队数（只读，用于观测）。"""
         return len(self._pending.get(session_id, []))
@@ -388,6 +415,22 @@ class SteerQueue:
 
 
 _steer_queue: SteerQueue | None = None
+
+
+async def purge_stale_steers(session_id: str) -> None:
+    """新 run 开始前清空该会话残留的插话队列（尽力而为，失败只记日志）。
+
+    旧 run 结束后未被注入的插话已由前端补发为普通消息；若不清理，
+    新 run 的首次模型调用会把同一条插话再次注入（重复投递）。
+    """
+    try:
+        await get_steer_queue().clear_session(session_id)
+    except Exception:
+        logger.warning(
+            "[Steer] session=%s failed to purge stale steers before new run",
+            session_id,
+            exc_info=True,
+        )
 
 
 def get_steer_queue() -> SteerQueue:

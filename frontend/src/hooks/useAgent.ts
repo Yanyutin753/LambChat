@@ -36,7 +36,11 @@ import {
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
-import { selectSteersForFollowUp, useSteerQueue } from "./useAgent/steerQueue";
+import {
+  promoteSteerFollowUps,
+  selectSteersForFollowUp,
+  useSteerQueue,
+} from "./useAgent/steerQueue";
 import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
 import { planGoalSubmission } from "./useAgent/goalCommands";
@@ -798,14 +802,20 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       followUpSteerIdsRef.current.add(item.id);
     }
     let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      for (const item of followUps) {
-        if (cancelled || cancelledSteerIdsRef.current.has(item.id)) continue;
-        clearSteer(item.content, item.id);
-        // Preserve FIFO and wait for each normal turn to settle; firing all
-        // at once would make useAgent's single-run guard drop later items.
-        await sendMessageRef.current?.(item.content, item.attachments);
-      }
+    const timer = window.setTimeout(() => {
+      // 先取消后端队列中的残留项再补发，否则新 run 的首次模型调用会把
+      // 同一条插话再次注入（同内容投递两次）。FIFO 逐条等待补发，避免
+      // 单 run 守卫丢弃后续条目。
+      void promoteSteerFollowUps(followUps, {
+        sessionId: sessionIdRef.current,
+        cancelSteer: (sessionId, content, messageId) =>
+          sessionApi.cancelSteer(sessionId, content, messageId),
+        sendMessage: async (content, attachments) => {
+          await sendMessageRef.current?.(content, attachments);
+        },
+        isCancelled: (id) => cancelled || cancelledSteerIdsRef.current.has(id),
+        clearSteer,
+      });
     }, 0);
     return () => {
       cancelled = true;

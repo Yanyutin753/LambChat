@@ -197,3 +197,40 @@ async def test_steer_rejects_empty_message(monkeypatch) -> None:
     with pytest.raises(HTTPException) as exc_info:
         await steer_running_agent("session-1", SteerRequest(message="   "), user=_user())
     assert exc_info.value.status_code == 422
+
+
+async def test_new_chat_submit_purges_stale_pending_steers(queue) -> None:
+    """新 run 提交时清空残留插话：旧插话已被前端补发为普通消息，不能再次注入。"""
+    await queue.enqueue("session-1", "残留插话")
+
+    from src.infra.task.steer import purge_stale_steers
+
+    await purge_stale_steers("session-1")
+
+    assert await queue.list_items("session-1") == []
+
+
+async def test_purge_failure_does_not_break_submit(monkeypatch) -> None:
+    """清队列失败只记日志，不能让正常提交失败。"""
+    import src.infra.task.steer as steer
+
+    class _BrokenQueue:
+        async def clear_session(self, session_id):
+            raise RuntimeError("redis down")
+
+    monkeypatch.setattr(steer, "_steer_queue", _BrokenQueue())
+
+    from src.infra.task.steer import purge_stale_steers
+
+    await purge_stale_steers("session-1")  # 不抛错即通过
+
+
+def test_chat_stream_wires_steer_purge() -> None:
+    """chat_stream 必须在生成 run_id 后调用清理，防止残留插话注入新 run。"""
+    import inspect
+
+    from src.api.routes import chat as chat_module
+
+    source = inspect.getsource(chat_module.chat_stream)
+    assert "purge_stale_steers(" in source
+    assert "_generate_run_id()" in source
