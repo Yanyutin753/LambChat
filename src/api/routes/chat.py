@@ -6,7 +6,6 @@
 """
 
 import asyncio
-import json
 import uuid
 from datetime import datetime, timezone
 
@@ -18,6 +17,10 @@ from src.agents.core import resolve_agent_name
 from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
+from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测试导入
+    CHAT_SSE_DATA_MAX_BYTES,
+    _format_sse_event,
+)
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
@@ -42,8 +45,6 @@ from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
 logger = get_logger(__name__)
-
-CHAT_SSE_DATA_MAX_BYTES = 256 * 1024
 
 
 def append_required_skills_prompt(message: str, enabled_skills: list[str] | None) -> str:
@@ -77,59 +78,6 @@ def _model_profile_dict(model: ModelConfig) -> dict | None:
 
 def _safe_model_config_dict(model: ModelConfig) -> dict:
     return model.model_copy(update={"api_key": None}).model_dump(mode="json")
-
-
-def _estimated_json_data_bytes(data: object) -> int:
-    if data is None or isinstance(data, (bool, int, float)):
-        return len(json.dumps(data, default=str).encode("utf-8"))
-    if isinstance(data, str):
-        return len(data.encode("utf-8")) + 2
-    if isinstance(data, dict):
-        total = 2
-        for index, (key, value) in enumerate(data.items()):
-            if index:
-                total += 1
-            total += len(str(key).encode("utf-8")) + 3
-            total += _estimated_json_data_bytes(value)
-        return total
-    if isinstance(data, (list, tuple)):
-        total = 2
-        for index, item in enumerate(data):
-            if index:
-                total += 1
-            total += _estimated_json_data_bytes(item)
-        return total
-    return len(str(data).encode("utf-8")) + 2
-
-
-def _chat_sse_payload_too_large_event(event_id: object | None) -> str:
-    id_line = f"id: {event_id}\n" if event_id is not None else ""
-    return f'event: error\ndata: {{"error":"event_payload_too_large"}}\n{id_line}\n'
-
-
-def _json_dumps_chat_sse_data_limited(data: object) -> str | None:
-    if _estimated_json_data_bytes(data) > CHAT_SSE_DATA_MAX_BYTES:
-        return None
-
-    encoder = json.JSONEncoder(ensure_ascii=False, default=str)
-    chunks: list[str] = []
-    total = 0
-    for chunk in encoder.iterencode(data):
-        total += len(chunk.encode("utf-8"))
-        if total > CHAT_SSE_DATA_MAX_BYTES:
-            return None
-        chunks.append(chunk)
-    return "".join(chunks)
-
-
-def _format_sse_event(event: dict) -> str:
-    event_data = event["data"]
-    if isinstance(event_data, dict) and event.get("timestamp"):
-        event_data = {**event_data, "_timestamp": event["timestamp"]}
-    data_str = _json_dumps_chat_sse_data_limited(event_data)
-    if data_str is None:
-        return _chat_sse_payload_too_large_event(event.get("id"))
-    return f"event: {event['event_type']}\ndata: {data_str}\nid: {event['id']}\n\n"
 
 
 async def _attach_resolved_model_options(agent_options: dict, model: ModelConfig) -> None:
@@ -483,6 +431,12 @@ async def chat_stream(
 
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
+
+    # 残留插话随旧 run 结束已失效（前端会补发为普通消息），清空后端
+    # 队列避免新 run 首次模型调用重复注入；HITL 恢复不经过这里
+    from src.infra.task.steer import purge_stale_steers
+
+    await purge_stale_steers(session_id)
 
     # Prepare attachments (needed for both queued and direct paths)
     attachments_data = (

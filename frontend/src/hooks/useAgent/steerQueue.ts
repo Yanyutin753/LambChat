@@ -36,6 +36,40 @@ export function selectSteersForFollowUp(items: SteerItem[]): SteerItem[] {
   return items.filter((item) => item.queued && item.status !== "failed");
 }
 
+export interface PromoteSteerFollowUpsDeps {
+  sessionId: string | null;
+  cancelSteer: (sessionId: string, content: string, messageId: string) => Promise<unknown>;
+  sendMessage: (content: string, attachments?: MessageAttachment[]) => Promise<unknown>;
+  isCancelled?: (messageId: string) => boolean;
+  clearSteer?: (content: string, messageId: string) => void;
+}
+
+/**
+ * 把未送达插话补发为普通消息。
+ *
+ * 必须先清本地状态、再取消后端队列中的同一条，最后作为普通消息发送：
+ * 后端队列按会话共享，若只补发不取消，新 run 的首次模型调用会把同
+ * 一条插话再次注入（同内容投递两次）。取消失败不阻塞补发——后端在
+ * 新 run 提交时也会兜底清空残留队列。
+ */
+export async function promoteSteerFollowUps(
+  items: SteerItem[],
+  deps: PromoteSteerFollowUpsDeps,
+): Promise<void> {
+  const { sessionId } = deps;
+  if (!sessionId) return;
+  for (const item of items) {
+    if (deps.isCancelled?.(item.id)) continue;
+    deps.clearSteer?.(item.content, item.id);
+    try {
+      await deps.cancelSteer(sessionId, item.content, item.id);
+    } catch {
+      // 取消失败继续补发；新 run 提交时的后端兜底清理会移除残留项
+    }
+    await deps.sendMessage(item.content, item.attachments);
+  }
+}
+
 export interface PendingSteerSnapshot {
   message_id: string;
   content: string;

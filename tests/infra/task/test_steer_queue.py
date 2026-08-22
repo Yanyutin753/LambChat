@@ -109,3 +109,47 @@ async def test_queue_preserves_attachments_with_steer_item() -> None:
 
     drained = await queue.drain_items("session-attachments")
     assert drained[0].attachments == attachments
+
+
+async def test_clear_session_empties_pending_queue() -> None:
+    """run 结束后残留的插话不应被注入下一个无关的 run。"""
+    queue = SteerQueue(redis=None)
+    await queue.enqueue("session-clear", "残留插话一")
+    await queue.enqueue("session-clear", "残留插话二")
+
+    await queue.clear_session("session-clear")
+
+    assert await queue.list_items("session-clear") == []
+    assert await queue.drain_items("session-clear") == []
+
+
+async def test_clear_session_is_idempotent_for_unknown_session() -> None:
+    queue = SteerQueue(redis=None)
+    await queue.clear_session("never-existed")
+
+    assert await queue.drain_items("never-existed") == []
+
+
+async def test_clear_session_redis_deletes_pending_inflight_and_lease_keys() -> None:
+    """Redis 路径必须同时清 pending/inflight/lease 三个键（多 worker 共享状态）。"""
+    deleted: list[str] = []
+
+    class _FakeRedis:
+        async def ping(self):
+            return True
+
+        async def delete(self, *keys):
+            deleted.extend(keys)
+            return len(keys)
+
+    queue = SteerQueue(redis=_FakeRedis())  # type: ignore[arg-type]
+
+    await queue.clear_session("session-redis")
+
+    assert sorted(deleted) == sorted(
+        [
+            "lambchat:steer:session-redis",
+            "lambchat:steer:session-redis:inflight",
+            "lambchat:steer:session-redis:lease",
+        ]
+    )
