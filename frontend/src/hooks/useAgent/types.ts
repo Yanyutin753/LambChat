@@ -102,6 +102,8 @@ export interface EventData {
   // user:cancel event fields
   user_id?: string;
   run_id?: string;
+  // steer:message 事件字段：用户发送时刻
+  created_at?: string;
   // skills:changed event fields
   action?: string;
   skill_name?: string;
@@ -227,6 +229,8 @@ export interface HistoryEventData {
   }>;
   message_id?: string;
   enabled_skills?: string[];
+  // steer:message 事件字段：用户发送时刻（区别于事件信封的注入时刻）
+  created_at?: string;
 }
 
 // History event from backend

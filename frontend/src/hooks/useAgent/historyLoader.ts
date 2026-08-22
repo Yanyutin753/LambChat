@@ -78,6 +78,55 @@ function canAttachToPreviousAssistant(
   );
 }
 
+const STEER_REPLY_TEXT_EVENTS = new Set(["thinking", "message:chunk"]);
+
+/**
+ * 旧版后端把 steer:message 事件写在模型调用成功之后，事件落在 run 尾部
+ * 且不带 created_at，直接按序重建会把插话渲染在它自己的回答之后。
+ * 重建前把这类事件（组）移回其回答文本轮次之前：向前跳过同 run 的连续
+ * 文本事件（thinking / message:chunk），插到该文本块开始处。带
+ * created_at 的新版事件按注入时刻写入，位置天然正确，直接跳过。
+ */
+function anchorLegacySteerMessageEvents(events: HistoryEvent[]): HistoryEvent[] {
+  const anchored = [...events];
+  for (let i = 0; i < anchored.length; i += 1) {
+    const event = anchored[i];
+    if (event.event_type !== "steer:message") continue;
+    const data = event.data as HistoryEventData | null | undefined;
+    if (data && typeof data.created_at === "string") continue;
+
+    // 连续多条插话一起移动，保持相对顺序
+    let groupEnd = i;
+    while (
+      groupEnd + 1 < anchored.length &&
+      anchored[groupEnd + 1].event_type === "steer:message" &&
+      anchored[groupEnd + 1].run_id === event.run_id
+    ) {
+      groupEnd += 1;
+    }
+
+    let anchor = i;
+    while (
+      anchor - 1 >= 0 &&
+      anchored[anchor - 1].run_id === event.run_id &&
+      STEER_REPLY_TEXT_EVENTS.has(anchored[anchor - 1].event_type)
+    ) {
+      anchor -= 1;
+      // thinking 通常开启一次模型调用：把插话放到回答轮次的 thinking
+      // 之前即停止，不越过轮次边界吞并上一轮的纯文本
+      if (anchored[anchor].event_type === "thinking") {
+        break;
+      }
+    }
+    if (anchor === i) continue;
+
+    const group = anchored.splice(i, groupEnd - i + 1);
+    anchored.splice(anchor, 0, ...group);
+    i = anchor + group.length - 1;
+  }
+  return anchored;
+}
+
 /**
  * Process a single history event and update message state.
  * Returns updated currentAssistantMessage or new message.
@@ -298,12 +347,15 @@ export function reconstructMessagesFromEvents(
     return runId ? { ...event, run_id: runId } : event;
   });
 
+  const anchoredEvents = anchorLegacySteerMessageEvents(normalizedEvents);
+
   const reconstructedMessages: Message[] = [];
   let currentAssistantMessage: Message | null = null;
   const seenUserMessageIds = new Set<string>();
   const seenUserMessageRunIds = new Set<string>();
+  const seenSteerMessageIds = new Set<string>();
 
-  for (const event of normalizedEvents) {
+  for (const event of anchoredEvents) {
     const eventType = event.event_type;
     const eventData = event.data as HistoryEventData;
 
@@ -321,12 +373,25 @@ export function reconstructMessagesFromEvents(
         typeof steerData.message_id === "string" && steerData.message_id.trim()
           ? steerData.message_id
           : `steer-h-${sortedEvents.indexOf(event)}`;
+      // 模型调用失败后消息原 ID 回队，重试送达会再次写出同
+      // message_id 事件；按 ID 去重只渲染第一次（即用户发送位置）
+      if (
+        typeof steerData.message_id === "string" &&
+        steerData.message_id.trim() &&
+        seenSteerMessageIds.has(steerId)
+      ) {
+        continue;
+      }
+      seenSteerMessageIds.add(steerId);
       reconstructedMessages.push({
         id: steerId,
         role: "user",
         content: steerData.content || "",
         attachments: convertAttachments(steerData.attachments),
-        timestamp: parseEventTimestamp(event.timestamp, Date.now()),
+        timestamp:
+          typeof steerData.created_at === "string"
+            ? parseEventTimestamp(steerData.created_at, Date.now())
+            : parseEventTimestamp(event.timestamp, Date.now()),
         runId: event.run_id,
         metadata: { steer: true },
       });

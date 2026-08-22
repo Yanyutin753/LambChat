@@ -203,6 +203,30 @@ test("renders a delivered steer event and removes its optimistic duplicate", () 
   expect(marked).toEqual(["继续做这个"]);
 });
 
+test("uses the steer created_at send time for the delivered message timestamp", () => {
+  const ctx = createContext([], null);
+
+  handleStreamEvent(
+    {
+      event: "steer:message",
+      data: JSON.stringify({
+        content: "中途插话",
+        message_id: "steer-ts",
+        created_at: "2026-08-22T15:14:55.000Z",
+      }),
+    },
+    "assistant-1",
+    "steer-ts-event",
+    "2026-08-22T15:14:56.100Z",
+    ctx,
+  );
+
+  const delivered = ctx
+    .messages()
+    .find((message) => message.id === "steer-ts");
+  expect(delivered?.timestamp?.toISOString()).toBe("2026-08-22T15:14:55.000Z");
+});
+
 test("keeps distinct steer events with the same content when IDs differ", () => {
   const ctx = createContext([], null);
   const first = {
