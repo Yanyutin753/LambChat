@@ -229,7 +229,9 @@ class ScheduledTaskRunner:
                     },
                 )
                 try:
-                    result = await self._execute_agent(task, run_id, session_id, trigger_type)
+                    result = await self._execute_agent(
+                        task, run_id, session_id, trigger_type, now=started_at
+                    )
                     final_attempt = self._classify_attempt_result(result)
                 except Exception as exc:
                     final_attempt = _AttemptResult(
@@ -355,8 +357,13 @@ class ScheduledTaskRunner:
         run_id: str,
         session_id: str,
         trigger_type: str | None = None,
+        now: datetime | None = None,
     ) -> dict:
-        """Execute the agent via BackgroundTaskManager in a dedicated session."""
+        """Execute the agent via BackgroundTaskManager in a dedicated session.
+
+        ``now`` anchors the injected user-message timestamp to the run start so
+        retries of the same run resend a byte-identical message (KV-cache
+        stability, issue #212)."""
         from src.infra.session.manager import SessionManager
         from src.infra.task.concurrency import get_registered_executor
         from src.infra.task.manager import get_task_manager
@@ -378,6 +385,7 @@ class ScheduledTaskRunner:
         message = format_user_message_with_timestamp(
             display_message,
             user_timezone if isinstance(user_timezone, str) else None,
+            now=now,
         )
         agent_options = task.input_payload.get("agent_options")
         if isinstance(agent_options, dict):
