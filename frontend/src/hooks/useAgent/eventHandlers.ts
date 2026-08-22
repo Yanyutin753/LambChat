@@ -270,7 +270,13 @@ export function handleStreamEvent(
           role: "user" as const,
           content: steerContent,
           attachments: steerAttachments,
-          timestamp: eventTimestamp ? parseDate(eventTimestamp) : new Date(),
+          // created_at 是用户发送时刻；事件信封时间（注入时刻）只作回退
+          timestamp:
+            typeof data.created_at === "string"
+              ? parseDate(data.created_at)
+              : eventTimestamp
+                ? parseDate(eventTimestamp)
+                : new Date(),
           runId: data.run_id,
           metadata: { steer: true, queued: false },
         };

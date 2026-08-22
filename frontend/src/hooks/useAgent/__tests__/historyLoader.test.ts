@@ -1018,7 +1018,11 @@ test("reconstructs steer:message events as standalone steer items between turns"
         event_type: "steer:message",
         run_id: "run-s",
         timestamp: "2026-08-20T10:00:30.000Z",
-        data: { content: "插话", message_id: "steer-abc" },
+        data: {
+          content: "插话",
+          message_id: "steer-abc",
+          created_at: "2026-08-20T10:00:20.000Z",
+        },
       } satisfies HistoryEvent,
       {
         event_type: "message:chunk",
@@ -1044,4 +1048,241 @@ test("reconstructs steer:message events as standalone steer items between turns"
     "steer-abc",
     "run-s#t1",
   ]);
+});
+
+test("uses the steer created_at send time as the message timestamp", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-ts",
+        timestamp: "2026-08-22T15:14:35.000Z",
+        data: { content: "任务", message_id: "run-ts:user", attachments: [] },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: "run-ts",
+        timestamp: "2026-08-22T15:14:50.000Z",
+        data: { content: "第一轮" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "steer:message",
+        run_id: "run-ts",
+        // 事件信封时间是注入时刻，created_at 才是用户真正发送的时刻
+        timestamp: "2026-08-22T15:14:56.100Z",
+        data: {
+          content: "插话",
+          message_id: "steer-ts",
+          created_at: "2026-08-22T15:14:55.000Z",
+        },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: "run-ts",
+        timestamp: "2026-08-22T15:14:57.000Z",
+        data: { content: "回复插话" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const steer = messages.find((m) => m.id === "steer-ts");
+  expect(steer?.timestamp?.toISOString()).toBe("2026-08-22T15:14:55.000Z");
+});
+
+test("renders a retried steer:message only once by message_id", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-retry",
+        timestamp: "2026-08-22T15:00:00.000Z",
+        data: { content: "任务", message_id: "run-retry:user", attachments: [] },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: "run-retry",
+        timestamp: "2026-08-22T15:00:05.000Z",
+        data: { content: "第一轮" },
+      } satisfies HistoryEvent,
+      {
+        // 首次注入写出的事件（该次模型调用失败，消息回队）
+        event_type: "steer:message",
+        run_id: "run-retry",
+        timestamp: "2026-08-22T15:00:10.000Z",
+        data: {
+          content: "插话",
+          message_id: "steer-retry",
+          created_at: "2026-08-22T15:00:08.000Z",
+        },
+      } satisfies HistoryEvent,
+      {
+        // 重试送达时再次写出同 message_id 事件
+        event_type: "steer:message",
+        run_id: "run-retry",
+        timestamp: "2026-08-22T15:00:20.000Z",
+        data: {
+          content: "插话",
+          message_id: "steer-retry",
+          created_at: "2026-08-22T15:00:08.000Z",
+        },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: "run-retry",
+        timestamp: "2026-08-22T15:00:25.000Z",
+        data: { content: "回复插话" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const steerMessages = messages.filter((m) => m.id === "steer-retry");
+  expect(steerMessages).toHaveLength(1);
+  expect(steerMessages[0]?.timestamp?.toISOString()).toBe(
+    "2026-08-22T15:00:08.000Z",
+  );
+});
+
+test("places a legacy tail steer:message before the reply turn it answers", () => {
+  // 旧版后端在模型调用成功后才写出 steer:message，事件落在 run 尾部
+  // 且不带 created_at；重建时应移回其回答文本轮次之前
+  const runId = "run-legacy";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-08-22T15:14:35.186Z",
+        data: { content: "搜索 今日新闻", message_id: `${runId}:user`, attachments: [] },
+      } satisfies HistoryEvent,
+      {
+        event_type: "thinking",
+        run_id: runId,
+        timestamp: "2026-08-22T15:14:41.375Z",
+        data: { content: "User wants today's news." },
+      } satisfies HistoryEvent,
+      {
+        event_type: "tool:start",
+        run_id: runId,
+        timestamp: "2026-08-22T15:14:41.476Z",
+        data: { tool: "web-search", args: { query: "今日新闻" }, tool_call_id: "t1" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "tool:result",
+        run_id: runId,
+        timestamp: "2026-08-22T15:14:42.100Z",
+        data: { tool: "web-search", result: "结果", tool_call_id: "t1", success: true },
+      } satisfies HistoryEvent,
+      {
+        event_type: "thinking",
+        run_id: runId,
+        timestamp: "2026-08-22T15:14:56.228Z",
+        data: { content: "User asks what else I can do." },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-08-22T15:14:56.500Z",
+        data: { content: "我主要还能做这些" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "steer:message",
+        run_id: runId,
+        timestamp: "2026-08-22T15:15:03.800Z",
+        data: { content: "你还能干啥", message_id: "steer-legacy" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "token:usage",
+        run_id: runId,
+        timestamp: "2026-08-22T15:15:03.846Z",
+        data: { input_tokens: 1 },
+      } satisfies HistoryEvent,
+      {
+        event_type: "done",
+        run_id: runId,
+        timestamp: "2026-08-22T15:15:03.864Z",
+        data: { status: "completed" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const steerIndex = messages.findIndex((m) => m.id === "steer-legacy");
+  expect(steerIndex).toBeGreaterThan(-1);
+  // 插话位于第一轮（搜索）之后、针对插话的回答轮次之前
+  const firstTurnIndex = messages.findIndex((m) => m.id === runId);
+  const replyIndex = messages.findIndex((m) => m.id === `${runId}#t1`);
+  expect(firstTurnIndex).toBeGreaterThan(-1);
+  expect(replyIndex).toBeGreaterThan(-1);
+  expect(steerIndex).toBeGreaterThan(firstTurnIndex);
+  expect(steerIndex).toBeLessThan(replyIndex);
+  // 回答轮次的内容是"针对插话的回答"而不是搜索结果
+  const reply = messages[replyIndex];
+  expect(reply?.content).toContain("我主要还能做这些");
+});
+
+test("keeps legacy adjacent steer groups in order when repositioning", () => {
+  const runId = "run-legacy-group";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-08-22T15:00:00.000Z",
+        data: { content: "任务", message_id: `${runId}:user`, attachments: [] },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-08-22T15:00:05.000Z",
+        data: { content: "回答前半" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "thinking",
+        run_id: runId,
+        timestamp: "2026-08-22T15:00:20.000Z",
+        data: { content: "回复两条插话" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-08-22T15:00:21.000Z",
+        data: { content: "回答后半" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "steer:message",
+        run_id: runId,
+        timestamp: "2026-08-22T15:00:30.000Z",
+        data: { content: "插话一", message_id: "steer-g1" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "steer:message",
+        run_id: runId,
+        timestamp: "2026-08-22T15:00:30.100Z",
+        data: { content: "插话二", message_id: "steer-g2" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "done",
+        run_id: runId,
+        timestamp: "2026-08-22T15:00:31.000Z",
+        data: { status: "completed" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const ids = messages.map((m) => m.id);
+  // 两条插话一起移到回答（thinking + 回答后半）之前，且保持先后顺序
+  expect(ids.indexOf("steer-g1")).toBeGreaterThan(-1);
+  expect(ids.indexOf("steer-g2")).toBeGreaterThan(ids.indexOf("steer-g1"));
+  // 回答前半属于插话之前的轮次
+  const firstTurnIndex = ids.indexOf(runId);
+  expect(ids.indexOf("steer-g1")).toBeGreaterThan(firstTurnIndex);
+  const replyIndex = ids.indexOf(`${runId}#t1`);
+  expect(ids.indexOf("steer-g2")).toBeLessThan(replyIndex);
 });

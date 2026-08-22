@@ -125,6 +125,96 @@ async def test_failed_model_call_requeues_messages() -> None:
     assert await get_steer_queue().drain("session-fail") == ["重要插话"]
 
 
+async def test_steer_event_persisted_before_model_call_runs() -> None:
+    """steer:message 事件在模型调用开始前写出。
+
+    事件必须先于本次调用的输出事件进入 Redis/MongoDB，实时 SSE 与
+    历史回放中插话才会排在回答之前（而不是落在 run 尾部）。
+    """
+    from src.infra.task.steer import get_steer_queue
+
+    await get_steer_queue().enqueue("session-order", "插话")
+
+    saved: list[dict] = []
+
+    class _FakePresenter:
+        async def save_event(self, event):
+            saved.append(event)
+
+    middleware = SteerMiddleware(session_id="session-order", presenter=_FakePresenter())
+    observed_save_counts: list[int] = []
+
+    async def handler(_req):
+        observed_save_counts.append(len(saved))
+        return _Response()
+
+    await middleware.awrap_model_call(_Request(), handler)
+
+    assert observed_save_counts == [1]
+    assert saved[0]["event"] == "steer:message"
+    assert saved[0]["data"]["content"] == "插话"
+
+
+async def test_steer_event_carries_created_at_send_time() -> None:
+    """事件附带 created_at（用户发送时刻），前端用它作为消息时间戳。"""
+    from datetime import datetime, timezone
+
+    from src.infra.task.steer import SteerItem, get_steer_queue
+
+    sent_at = datetime(2026, 8, 22, 15, 14, 55, tzinfo=timezone.utc)
+    await get_steer_queue().enqueue_item(
+        "session-created-at",
+        SteerItem(id="steer-ts", content="插话", created_at=sent_at),
+    )
+
+    saved: list[dict] = []
+
+    class _FakePresenter:
+        async def save_event(self, event):
+            saved.append(event)
+
+    middleware = SteerMiddleware(
+        session_id="session-created-at", presenter=_FakePresenter()
+    )
+
+    async def handler(_req):
+        return _Response()
+
+    await middleware.awrap_model_call(_Request(), handler)
+
+    assert saved[0]["data"]["created_at"] == "2026-08-22T15:14:55+00:00"
+
+
+async def test_failed_model_call_keeps_injected_event_and_requeues() -> None:
+    """调用失败时注入事件已按注入时刻写出（消息确已发送）；消息原 ID 回队重试。"""
+    from src.infra.task.steer import SteerItem, get_steer_queue
+
+    await get_steer_queue().enqueue_item(
+        "session-fail-order",
+        SteerItem(id="steer-retry-me", content="重要插话"),
+    )
+
+    saved: list[dict] = []
+
+    class _FakePresenter:
+        async def save_event(self, event):
+            saved.append(event)
+
+    middleware = SteerMiddleware(
+        session_id="session-fail-order", presenter=_FakePresenter()
+    )
+
+    async def handler(_req):
+        raise RuntimeError("model down")
+
+    with pytest.raises(RuntimeError):
+        await middleware.awrap_model_call(_Request(), handler)
+
+    assert [event["data"]["message_id"] for event in saved] == ["steer-retry-me"]
+    requeued = await get_steer_queue().drain("session-fail-order")
+    assert requeued == ["重要插话"]
+
+
 async def test_successful_injection_persists_via_presenter(monkeypatch) -> None:
     """注入成功后经 presenter.save_event 写独立 steer:message 事件（归属当前 run 的 trace）。"""
     from src.infra.task.steer import get_steer_queue
@@ -176,11 +266,17 @@ async def test_successful_injection_preserves_client_message_id() -> None:
 
 async def test_queued_steer_survives_hitl_pause_and_uses_same_resumed_run() -> None:
     """挂起前已接收的 steer 在同 Run 恢复后仍只注入、持久化一次。"""
+    from datetime import datetime, timezone
+
     from src.infra.task.steer import SteerItem, get_steer_queue
 
     queue = get_steer_queue()
+    sent_at = datetime(2026, 8, 22, 15, 0, 0, tzinfo=timezone.utc)
     await queue.enqueue_item(
-        "session-hitl", SteerItem(id="steer-before-pause", content="继续时按这个方向")
+        "session-hitl",
+        SteerItem(
+            id="steer-before-pause", content="继续时按这个方向", created_at=sent_at
+        ),
     )
 
     saved: list[dict] = []
@@ -211,6 +307,7 @@ async def test_queued_steer_survives_hitl_pause_and_uses_same_resumed_run() -> N
                 "content": "继续时按这个方向",
                 "message_id": "steer-before-pause",
                 "attachments": [],
+                "created_at": "2026-08-22T15:00:00+00:00",
                 "run_id": "run-same",
             },
         }
