@@ -21,6 +21,7 @@ from src.agents.core.node_utils import (
     emit_token_usage,
     inline_image_attachments_as_data_urls,
     isolated_nested_graph_run,
+    resolve_auto_memory_capture_text,
     resolve_fallback_model,
     resolve_model_image_url_to_base64,
     resolve_model_supports_vision,
@@ -458,23 +459,31 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         except Exception as e:
             logger.warning("[SearchAgent] Failed to inspect graph state after run: %s", e)
 
-    if settings.ENABLE_MEMORY and context.user_id and hitl_resume is None:
-        from src.infra.logging.context import TraceContext
-        from src.infra.memory.tools import schedule_auto_memory_capture
-        from src.kernel.schemas.conversation_history import ConversationSourceRef
-
-        request_context = TraceContext.get_request_context()
-        source_refs = (
-            [
-                ConversationSourceRef(
-                    session_id=request_context.session_id,
-                    run_id=request_context.run_id,
-                )
-            ]
-            if request_context.session_id and request_context.run_id
-            else None
+    if settings.ENABLE_MEMORY and context.user_id:
+        memory_text = resolve_auto_memory_capture_text(
+            hitl_suspended=getattr(presenter, "hitl_suspended", False),
+            user_input=user_input,
+            recommendation_input=recommendation_input,
         )
-        schedule_auto_memory_capture(context.user_id, user_input, source_refs=source_refs)
+        if memory_text:
+            from src.infra.logging.context import TraceContext
+            from src.infra.memory.tools import schedule_auto_memory_capture
+            from src.kernel.schemas.conversation_history import ConversationSourceRef
+
+            request_context = TraceContext.get_request_context()
+            source_refs = (
+                [
+                    ConversationSourceRef(
+                        session_id=request_context.session_id,
+                        run_id=request_context.run_id,
+                    )
+                ]
+                if request_context.session_id and request_context.run_id
+                else None
+            )
+            schedule_auto_memory_capture(
+                context.user_id, memory_text, source_refs=source_refs
+            )
 
     # 持久化已发现的延迟工具名（跨 turn 恢复，分布式安全）
     session_id = state.get("session_id", "")
