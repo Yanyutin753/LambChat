@@ -85,8 +85,9 @@ function CapturingHarness({
     };
   }, [isLoadingHistory, manualDetachFromStreamRef]);
 
-  // ChatView memoizes components on [showStreamingFooterSkeleton] — constant
-  // while streaming without a lost connection, so identity stays stable here.
+  // ChatView keeps the Scroller component identity stable for the list's
+  // lifetime (only the Footer may be recreated), so identity stays stable here
+  // across skeleton toggles too.
   const virtuosoComponents = useMemo(
     () => ({
       Scroller: (
