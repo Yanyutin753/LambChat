@@ -423,7 +423,12 @@ class StoragePresenterMixin:
         if not self.config.session_id:
             return
 
-        await self.save_event(self.present_token_usage())  # type: ignore[attr-defined]
+        await self.save_event(
+            self.present_token_usage(  # type: ignore[attr-defined]
+                model_id=self.config.model_id,
+                model=self.config.model,
+            )
+        )
 
     async def complete(self, status: str = "completed") -> None:
         """

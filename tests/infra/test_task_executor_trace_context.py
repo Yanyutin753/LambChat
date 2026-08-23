@@ -169,6 +169,55 @@ async def test_task_executor_passes_resolved_agent_name_to_presenter(
 
 
 @pytest.mark.asyncio
+async def test_task_executor_passes_model_options_to_presenter_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakePresenter.emitted_user_messages = []
+    executor = TaskExecutor(
+        storage=SimpleNamespace(),
+        run_info={},
+        heartbeat_manager=_FakeHeartbeat(),
+    )
+
+    async def _no_op(*args, **kwargs) -> None:
+        return None
+
+    captured = {}
+
+    async def fake_agent_executor(*args, **kwargs):
+        captured["config"] = kwargs["presenter"].config
+        if False:
+            yield None
+
+    monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
+    monkeypatch.setattr(
+        "src.infra.writer.present.PresenterConfig",
+        lambda **kwargs: SimpleNamespace(**kwargs),
+    )
+    monkeypatch.setattr(executor, "_update_session_status", _no_op)
+    monkeypatch.setattr(executor, "_send_task_notification", _no_op)
+    monkeypatch.setattr("src.infra.task.executor.get_dual_writer", lambda: SimpleNamespace())
+    monkeypatch.setattr(
+        "src.infra.task.cancellation.TaskCancellation.clear_interrupt",
+        _no_op,
+    )
+
+    await executor.run_task(
+        session_id="session-1",
+        run_id="run-1",
+        agent_id="search",
+        message="hello",
+        user_id="user-1",
+        executor=fake_agent_executor,
+        existing_trace_id="trace-run-level",
+        agent_options={"model": "glm-5.3", "model_id": "m-1"},
+    )
+
+    assert captured["config"].model == "glm-5.3"
+    assert captured["config"].model_id == "m-1"
+
+
+@pytest.mark.asyncio
 async def test_task_executor_passes_auto_mode_to_agent_executor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

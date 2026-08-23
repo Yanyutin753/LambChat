@@ -70,3 +70,5 @@ class PresenterConfig:
     chunk_delay: float = 0.0  # 流式输出延迟 (秒)
     max_result_length: int = 100000  # 结果最大长度
     enable_storage: bool = True  # 是否启用事件存储
+    model_id: Optional[str] = None  # 本次运行使用的模型配置 ID（失败时 usage 日志仍可归属模型）
+    model: Optional[str] = None  # 本次运行使用的模型值

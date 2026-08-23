@@ -112,6 +112,28 @@ async def test_complete_writes_zero_token_usage_when_missing(monkeypatch) -> Non
     assert usage_events[0]["data"]["total_tokens"] == 0
 
 
+async def test_complete_writes_zero_token_usage_with_configured_model(monkeypatch) -> None:
+    writer = _FakeDualWriter()
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+        model_id="m-1",
+        model="glm-5.3",
+    )
+
+    await presenter.complete("error")
+
+    usage_events = [event for event in writer.events if event["event_type"] == "token:usage"]
+    assert len(usage_events) == 1
+    assert usage_events[0]["data"]["input_tokens"] == 0
+    assert usage_events[0]["data"]["model_id"] == "m-1"
+    assert usage_events[0]["data"]["model"] == "glm-5.3"
+
+
 async def test_emit_recommend_questions_is_idempotent(monkeypatch) -> None:
     writer = _FakeDualWriter()
     monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)

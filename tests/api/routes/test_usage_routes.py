@@ -29,6 +29,8 @@ class _FakeUsageStorage:
                     "started_at": datetime(2026, 6, 14, tzinfo=timezone.utc),
                     "completed_at": None,
                     "status": "completed",
+                    "error_message": "Error code: 429 - rate limit exceeded",
+                    "error_type": "RateLimitError",
                 }
             ],
             1,
@@ -133,6 +135,8 @@ async def test_list_usage_logs_restricts_non_admin_to_current_user(monkeypatch) 
     )
 
     assert response.total == 1
+    assert response.items[0].error_message == "Error code: 429 - rate limit exceeded"
+    assert response.items[0].error_type == "RateLimitError"
     assert storage.calls == [
         {
             "user_id": "user-1",

@@ -36,6 +36,8 @@ class UsageLog(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     status: str = "unknown"
+    error_message: str = ""
+    error_type: str = ""
 
     model_config = ConfigDict(from_attributes=True)
 
