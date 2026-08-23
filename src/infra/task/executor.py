@@ -100,6 +100,7 @@ class TaskExecutor:
             trace_precreated = bool(existing_trace_id and already_written)
 
             # 创建 Presenter 并传递给 agent
+            agent_options = agent_options or {}
             presenter = Presenter(
                 PresenterConfig(
                     session_id=session_id,
@@ -109,6 +110,8 @@ class TaskExecutor:
                     run_id=run_id,  # 传递 run_id
                     trace_id=existing_trace_id,  # reuse trace from queued path
                     enable_storage=True,
+                    model_id=agent_options.get("model_id"),
+                    model=agent_options.get("model"),
                 )
             )
 

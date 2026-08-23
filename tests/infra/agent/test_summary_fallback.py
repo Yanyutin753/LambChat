@@ -127,10 +127,80 @@ def test_patch_window_wraps_deepagents_summarization_factory(monkeypatch) -> Non
     assert getattr(built_after._acreate_summary, "_lambchat_summary_fallback", False) is False
 
 
-def test_patch_window_noop_without_fallback_model() -> None:
+def test_patch_window_without_fallback_model_injects_counter_only() -> None:
+    """无兜底模型：工厂仍被替换（注入计数器），但不加摘要兜底保护。"""
     import deepagents.graph as deepagents_graph
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 
     original = deepagents_graph.create_summarization_middleware
+    model = GenericFakeChatModel(messages=iter([AIMessage("ok")] * 10))
 
     with summarization_fallback_patch(None):
-        assert deepagents_graph.create_summarization_middleware is original
+        assert deepagents_graph.create_summarization_middleware is not original
+        built = deepagents_graph.create_summarization_middleware(model, object())
+        assert getattr(built._acreate_summary, "_lambchat_summary_fallback", False) is False
+
+    assert deepagents_graph.create_summarization_middleware is original
+
+
+def test_image_aware_counter_charges_realistic_image_cost() -> None:
+    """图片按真实成本计价（对齐 codex 的 7373 字节 ≈ 1844 token/张），不再按 85 低估。"""
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+
+    from src.infra.agent.middleware.summary_fallback import _image_aware_counter_for
+
+    model = GenericFakeChatModel(messages=iter([AIMessage("ok")] * 10))
+    counter = _image_aware_counter_for(model)
+
+    text_only = HumanMessage(content="same text")
+    with_image = HumanMessage(
+        content=[
+            {"type": "text", "text": "same text"},
+            {"type": "image_url", "image_url": {"url": "https://x/img.png"}},
+        ]
+    )
+
+    assert counter([with_image]) - counter([text_only]) >= 1844
+
+
+def test_patch_injects_image_aware_counter_even_without_fallback(monkeypatch) -> None:
+    """无兜底模型时也要注入图片感知计数器（否则图片对压缩触发器不可见）。"""
+    import deepagents.graph as deepagents_graph
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+
+    model = GenericFakeChatModel(messages=iter([AIMessage("ok")] * 10))
+    original = deepagents_graph.create_summarization_middleware
+    captured: dict = {}
+
+    def fake_original(model, backend, **kwargs):
+        captured.update(kwargs)
+        return original(model, backend, **kwargs)
+
+    monkeypatch.setattr(deepagents_graph, "create_summarization_middleware", fake_original)
+
+    with summarization_fallback_patch(None):
+        deepagents_graph.create_summarization_middleware(model, object())
+
+    assert "token_counter" in captured
+    assert captured["token_counter"] is not None
+
+
+def test_patch_does_not_override_explicit_token_counter(monkeypatch) -> None:
+    import deepagents.graph as deepagents_graph
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+
+    model = GenericFakeChatModel(messages=iter([AIMessage("ok")] * 10))
+    original = deepagents_graph.create_summarization_middleware
+    captured: dict = {}
+
+    def fake_original(model, backend, **kwargs):
+        captured.update(kwargs)
+        return original(model, backend, **kwargs)
+
+    monkeypatch.setattr(deepagents_graph, "create_summarization_middleware", fake_original)
+    explicit = lambda messages: 0  # noqa: E731
+
+    with summarization_fallback_patch(None):
+        deepagents_graph.create_summarization_middleware(model, object(), token_counter=explicit)
+
+    assert captured["token_counter"] is explicit

@@ -4,11 +4,12 @@ import { formatDateTimeShort } from "../../../utils/datetime";
 import type { UsageLog } from "../../../types/usage";
 import { fmt, fmtDur } from "./formatters";
 
-function StatusPill({ status }: { status: string }) {
+function StatusPill({ status, title }: { status: string; title?: string }) {
   const { t } = useTranslation();
   const ok = status === "completed";
   return (
     <span
+      title={title}
       className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${
         ok
           ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
@@ -195,7 +196,7 @@ function DesktopTable({
                     {fmtDur(log.duration)}
                   </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-center">
-                    <StatusPill status={log.status} />
+                    <StatusPill status={log.status} title={log.error_message} />
                   </div>
                 </div>
               );
@@ -223,7 +224,7 @@ function TabletRow({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
             <code className="min-w-0 truncate text-[12px] font-semibold text-theme-text tabular-nums">
               {log.model || "-"}
             </code>
-            <StatusPill status={log.status} />
+            <StatusPill status={log.status} title={log.error_message} />
           </div>
           <p className="mt-1 truncate text-[11px] font-medium text-theme-text-secondary">
             {log.agent_name || "-"}
@@ -231,6 +232,14 @@ function TabletRow({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
           <p className="mt-0.5 truncate text-[10px] text-theme-text-tertiary">
             {personaOrTeam || "-"}
           </p>
+          {log.status !== "completed" && log.error_message && (
+            <p
+              className="mt-1 truncate text-[10px] text-red-500 dark:text-red-400"
+              title={log.error_message}
+            >
+              {log.error_message}
+            </p>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <p className="text-[12px] font-medium tabular-nums text-theme-text-secondary">
@@ -311,9 +320,17 @@ function MobileCard({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
                   </span>
                 )}
               </div>
+              {log.status !== "completed" && log.error_message && (
+                <p
+                  className="mt-2 truncate text-[10px] text-red-500 dark:text-red-400"
+                  title={log.error_message}
+                >
+                  {log.error_message}
+                </p>
+              )}
             </div>
           </div>
-          <StatusPill status={log.status} />
+          <StatusPill status={log.status} title={log.error_message} />
         </div>
 
         {/* Token metrics — segmented bar */}

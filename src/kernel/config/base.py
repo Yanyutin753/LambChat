@@ -112,6 +112,9 @@ class Settings(BaseSettings):
         False  # True=禁用旧 SHA256 密钥回退解密；迁移完成后由管理员手动开启
     )
     DEEPAGENT_DEFAULT_MAX_INPUT_TOKENS: int = 64000
+    # 历史图片治理（KV 缓存友好的迟滞淘汰）：超过 hard 才淘汰到 keep，区间内不动
+    HISTORY_IMAGE_HARD_LIMIT: int = 40
+    HISTORY_IMAGE_KEEP_LIMIT: int = 20
 
     # Session Settings
     SESSION_MAX_RUNS_PER_SESSION: int = 100

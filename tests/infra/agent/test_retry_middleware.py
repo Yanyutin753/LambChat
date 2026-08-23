@@ -112,6 +112,8 @@ def test_retry_stack_does_not_bound_the_complete_streaming_call(monkeypatch) -> 
     middleware = create_retry_middleware()
 
     assert [type(item).__name__ for item in middleware] == [
+        "DeadAttachmentFilterMiddleware",
+        "HistoricalImageCapMiddleware",
         "ModelRetryMiddleware",
         "EmptyContentRetryMiddleware",
     ]
@@ -124,7 +126,7 @@ async def test_official_model_retry_middleware_retries_first_event_timeout(
 
     monkeypatch.setattr("src.kernel.config.settings.LLM_MAX_RETRIES", 3)
     monkeypatch.setattr("src.kernel.config.settings.LLM_RETRY_DELAY", 0)
-    retry = create_retry_middleware()[0]
+    retry = create_retry_middleware()[2]
     calls = 0
 
     async def handler(_request):
@@ -138,3 +140,13 @@ async def test_official_model_retry_middleware_retries_first_event_timeout(
 
     assert result.content == "ok"
     assert calls == 4
+
+
+def test_retry_stack_leads_with_dead_attachment_filter() -> None:
+    """Dead attachment filtering must wrap every model call (outermost layer)."""
+    from src.infra.agent.middleware.dead_attachment import DeadAttachmentFilterMiddleware
+    from src.infra.agent.middleware.retry import create_retry_middleware
+
+    stack = create_retry_middleware(fallback_model="glm-5.3")
+
+    assert isinstance(stack[0], DeadAttachmentFilterMiddleware)

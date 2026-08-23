@@ -243,6 +243,65 @@ async def test_upsert_usage_log_from_trace_metadata_uses_provided_usage_data() -
 
 
 @pytest.mark.asyncio
+async def test_upsert_usage_log_from_trace_metadata_records_error_summary() -> None:
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+
+    inserted = await storage.upsert_usage_log_from_trace_metadata(
+        {
+            "trace_id": "trace-err",
+            "session_id": "session-1",
+            "run_id": "run-1",
+            "user_id": "user-1",
+            "agent_id": "search",
+            "started_at": "2026-06-14T00:00:00+00:00",
+            "status": "error",
+            "metadata": {"username": "Ada", "agent_name": "Search Agent"},
+        },
+        {},
+        error_data={
+            "error": "Error code: 429 - rate limit exceeded",
+            "type": "RateLimitError",
+            "run_id": "run-1",
+        },
+    )
+
+    assert inserted is True
+    doc = collection.update_calls[0][1]["$set"]
+    assert doc["model"] == ""
+    assert doc["error_message"].startswith("Error code: 429")
+    assert doc["error_type"] == "RateLimitError"
+
+
+@pytest.mark.asyncio
+async def test_upsert_usage_log_from_trace_metadata_keeps_error_blank_without_error_data() -> None:
+    collection = _FakeCollection()
+    storage = UsageStorage()
+    storage._collection = collection
+
+    inserted = await storage.upsert_usage_log_from_trace_metadata(
+        {
+            "trace_id": "trace-ok",
+            "session_id": "session-1",
+            "run_id": "run-1",
+            "user_id": "user-1",
+            "agent_id": "search",
+            "started_at": "2026-06-14T00:00:00+00:00",
+            "status": "completed",
+            "metadata": {"username": "Ada", "agent_name": "Search Agent"},
+        },
+        {"model": "glm-5.3", "input_tokens": 10, "output_tokens": 5},
+    )
+
+    assert inserted is True
+    doc = collection.update_calls[0][1]["$set"]
+    assert doc["model"] == "glm-5.3"
+    assert doc["error_message"] == ""
+    assert doc["error_type"] == ""
+
+
+@pytest.mark.asyncio
 async def test_list_usage_logs_builds_bounded_query_and_stats() -> None:
     collection = _FakeCollection()
     storage = UsageStorage()

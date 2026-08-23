@@ -167,17 +167,24 @@ class UsageStorage:
 
         # 从 events 中找到最后一个 token:usage 事件
         usage_event = None
+        error_event = None
         for event in reversed(trace_doc.get("events", [])):
-            if event.get("event_type") == "token:usage":
-                usage_event = event.get("data", {})
+            if usage_event is not None and error_event is not None:
                 break
+            if event.get("event_type") == "token:usage" and usage_event is None:
+                usage_event = event.get("data", {})
+            elif event.get("event_type") == "error" and error_event is None:
+                error_event = event.get("data", {})
 
-        return await self.upsert_usage_log_from_trace_metadata(trace_doc, usage_event)
+        return await self.upsert_usage_log_from_trace_metadata(
+            trace_doc, usage_event, error_data=error_event
+        )
 
     async def upsert_usage_log_from_trace_metadata(
         self,
         trace_doc: Dict[str, Any],
         usage_data: Optional[Dict[str, Any]],
+        error_data: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         使用 trace 元数据和已解析的 token:usage 数据写入 usage_logs。
@@ -185,6 +192,7 @@ class UsageStorage:
         Args:
             trace_doc: trace 元数据（不需要包含完整 events）
             usage_data: 最后一条 token:usage 事件的 data；缺失时按 0 处理
+            error_data: 最后一条 error 事件的 data；失败任务记录原因
 
         Returns:
             是否写入成功
@@ -206,6 +214,10 @@ class UsageStorage:
         team_name = _merge_metadata_value(
             metadata, session_metadata, "team_name"
         ) or await self._resolve_team_name(team_id)
+
+        error_data = error_data or {}
+        error_message = _as_str(error_data.get("error"))[:300]
+        error_type = _as_str(error_data.get("type"))
 
         doc = {
             "trace_id": trace_id,
@@ -244,6 +256,8 @@ class UsageStorage:
             "started_at": _as_datetime(trace_doc.get("started_at")),
             "completed_at": _as_datetime(trace_doc.get("completed_at")),
             "status": trace_doc.get("status", "unknown"),
+            "error_message": error_message,
+            "error_type": error_type,
             "step_count": _as_int(metadata.get("step_count", 0)),
             "tool_calls": _as_int(metadata.get("tool_calls", 0)),
         }

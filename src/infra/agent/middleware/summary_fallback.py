@@ -26,9 +26,37 @@ logger = logging.getLogger(__name__)
 
 _FALLBACK_MARKER = "_lambchat_summary_fallback"
 
+# 图片的真实上下文成本估算（对齐 codex RESIZED_IMAGE_BYTES_ESTIMATE=7373 字节 ÷ 4
+# 字节/token ≈ 1844）。langchain 默认按 85 token/张计，图片再多也推不动压缩触发器。
+_IMAGE_TOKEN_ESTIMATE = 1844
+
 # 从 lc SummarizationMiddleware 实例上拷贝到兜底 helper 的配置项，
 # 保证兜底摘要使用与主摘要一致的提示词与裁剪预算。
 _HELPER_SETTINGS = ("summary_prompt", "trim_tokens_to_summarize", "token_counter", "keep")
+
+
+def _image_aware_counter_for(model: Any):
+    """返回按真实成本计价的 token 计数器（保留 langchain 的模型调参与用量校准）。
+
+    等价于 langchain 的 ``_get_approximate_token_counter``，但把每张图片按
+    ``_IMAGE_TOKEN_ESTIMATE`` 计价，使带图会话能正确触发自动摘要压缩。
+    """
+    from functools import partial
+
+    from langchain_core.messages.utils import count_tokens_approximately
+
+    if str(getattr(model, "_llm_type", "")).startswith("anthropic-chat"):
+        return partial(
+            count_tokens_approximately,
+            use_usage_metadata_scaling=True,
+            chars_per_token=3.3,
+            tokens_per_image=_IMAGE_TOKEN_ESTIMATE,
+        )
+    return partial(
+        count_tokens_approximately,
+        use_usage_metadata_scaling=True,
+        tokens_per_image=_IMAGE_TOKEN_ESTIMATE,
+    )
 
 
 async def _summarize_with_fallback(
@@ -105,22 +133,24 @@ def summarization_fallback_patch(
     fallback_model: str | None,
     thinking: dict | None = None,
 ) -> Iterator[None]:
-    """在窗口内让 ``create_deep_agent`` 内部创建的所有摘要中间件带兜底保护。
+    """在窗口内增强 ``create_deep_agent`` 内部创建的所有摘要中间件。
+
+    无论是否配置兜底模型，都注入图片感知 token 计数器（图片按真实成本计价，
+    否则带图会话永远达不到压缩触发线）；配置了兜底模型时额外给摘要调用加
+    "换模型重做"保护。
 
     ``create_deep_agent`` 是同步函数且在事件循环线程上执行，窗口内不存在
-    await 点，因此临时替换模块属性不会与其他协程交错。未配置兜底模型时
-    直接透传。
+    await 点，因此临时替换模块属性不会与其他协程交错。
     """
-    if not fallback_model:
-        yield
-        return
-
     import deepagents.graph as deepagents_graph
 
     original = deepagents_graph.create_summarization_middleware
 
     def patched(model: Any, backend: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("token_counter", _image_aware_counter_for(model))
         middleware = original(model, backend, **kwargs)
+        if not fallback_model:
+            return middleware
         try:
             return protect_summarization_middleware(
                 middleware, fallback_model=fallback_model, thinking=thinking

@@ -342,6 +342,8 @@ def create_presenter(
     run_id: Optional[str] = None,
     trace_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    model_id: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Presenter:
     """创建 Presenter 实例"""
     config = PresenterConfig(
@@ -351,5 +353,7 @@ def create_presenter(
         run_id=run_id,
         trace_id=trace_id,
         user_id=user_id,
+        model_id=model_id,
+        model=model,
     )
     return Presenter(config)

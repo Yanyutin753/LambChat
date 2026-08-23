@@ -26,6 +26,8 @@ export interface UsageLog {
   started_at: string | null;
   completed_at: string | null;
   status: string;
+  error_message?: string;
+  error_type?: string;
   step_count?: number;
   tool_calls?: number;
 }

@@ -56,6 +56,11 @@ test("usage table keeps admin-only user column and aligned numeric columns", () 
   );
 });
 
+test("usage table surfaces failure reason for error rows", () => {
+  expect(usageTableSource).toMatch(/log\.error_message/);
+  expect(usageTableSource).toMatch(/title=\{log\.error_message\}/);
+});
+
 test("usage visual accents use theme colors instead of hard-coded chart palette", () => {
   expect(insightSource).not.toMatch(/border-l-(blue|violet|cyan|rose)-500/);
   expect(insightSource).not.toMatch(
