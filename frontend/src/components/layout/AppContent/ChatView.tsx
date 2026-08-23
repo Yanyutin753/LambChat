@@ -184,7 +184,7 @@ export function ChatView({
   const {
     messagesContainerRef,
     virtuosoRef,
-    virtuosoScrollerRef,
+    handleVirtuosoScrollerElementChange,
     messagesEndRef,
     isNearBottom,
     isNearTop,
@@ -379,7 +379,7 @@ export function ChatView({
             {...props}
             className={`chat-message-scroller ${props.className ?? ""}`}
             ref={(el: HTMLDivElement | null) => {
-              virtuosoScrollerRef.current = el;
+              handleVirtuosoScrollerElementChange(el);
               if (typeof vRef === "function") vRef(el);
               else if (vRef)
                 (

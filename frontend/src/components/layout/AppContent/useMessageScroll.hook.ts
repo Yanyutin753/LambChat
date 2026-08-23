@@ -39,6 +39,10 @@ interface UseMessageScrollReturn {
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
   virtuosoRef: React.RefObject<VirtuosoHandle | null>;
   virtuosoScrollerRef: React.RefObject<HTMLDivElement | null>;
+  /** Feed this from the Virtuoso Scroller ref callback. The scroller element is
+   *  tracked in state so wheel/touch/scroll listeners re-bind when the list
+   *  remounts (e.g. the session key swap after switching into a conversation). */
+  handleVirtuosoScrollerElementChange: (element: HTMLDivElement | null) => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   isNearBottom: boolean;
   isNearTop: boolean;
@@ -75,6 +79,20 @@ export function useMessageScroll(
 
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [isNearTop, setIsNearTop] = useState(true);
+  // The scroller DOM element is tracked in state (not just a ref) because the
+  // Virtuoso list remounts on session-key swaps while messages.length may stay
+  // constant; listeners bound by an effect keyed on messages.length would stay
+  // attached to the detached element and the user could never detach from the
+  // stream-follow auto scroll.
+  const [virtuosoScrollerElement, setVirtuosoScrollerElement] =
+    useState<HTMLDivElement | null>(null);
+  const handleVirtuosoScrollerElementChange = useCallback(
+    (element: HTMLDivElement | null) => {
+      virtuosoScrollerRef.current = element;
+      setVirtuosoScrollerElement(element);
+    },
+    [],
+  );
   const rafRef = useRef<number>(0);
   const viewportResizeRafRef = useRef<number>(0);
   const scrollCleanupRef = useRef<(() => void) | null>(null);
@@ -281,7 +299,7 @@ export function useMessageScroll(
   }, []);
 
   useEffect(() => {
-    const scroller = virtuosoScrollerRef.current;
+    const scroller = virtuosoScrollerElement;
     if (!scroller) return;
 
     const lastScrollTop = { value: 0 };
@@ -456,7 +474,7 @@ export function useMessageScroll(
       scroller.removeEventListener("touchend", resetTouchTracking);
       scroller.removeEventListener("touchcancel", resetTouchTracking);
     };
-  }, [awayFromBottomThresholdPx, isMobileViewport, messages.length]);
+  }, [awayFromBottomThresholdPx, isMobileViewport, messages.length, virtuosoScrollerElement]);
 
   useEffect(() => {
     if (!isMobileViewport || typeof window === "undefined") {
@@ -751,6 +769,7 @@ export function useMessageScroll(
     messagesContainerRef,
     virtuosoRef,
     virtuosoScrollerRef,
+    handleVirtuosoScrollerElementChange,
     messagesEndRef,
     isNearBottom,
     isNearTop,
