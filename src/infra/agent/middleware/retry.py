@@ -18,6 +18,10 @@ from langchain.agents.middleware.types import (
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 
+from src.infra.agent.middleware.dead_attachment import (
+    DeadAttachmentFilterMiddleware,
+    HistoricalImageCapMiddleware,
+)
 from src.infra.llm.retry import is_retryable_model_error
 from src.kernel.config import settings
 
@@ -222,13 +226,19 @@ def create_retry_middleware(
 ) -> list[AgentMiddleware[Any, Any, Any]]:
     """Create the retry middleware stack for deep agents.
 
-    Returns [ModelFallbackMiddleware?, ModelRetryMiddleware,
-    EmptyContentRetryMiddleware]:
-    - Outer layer (optional): falls back to an alternate model when primary fails
+    Returns [DeadAttachmentFilterMiddleware, HistoricalImageCapMiddleware,
+    ModelFallbackMiddleware?, ModelRetryMiddleware, EmptyContentRetryMiddleware]:
+    - Outermost layer: drops image blocks whose uploaded file was deleted
+      (dead URLs make upstream token counting fail the whole request)
+    - Cap layer: replaces overly numerous historical images with URL placeholders
+    - Fallback layer (optional): falls back to an alternate model when primary fails
     - Middle layer: retries on 429/5xx/timeout with exponential backoff
     - Inner layer: retries on empty content responses
     """
-    stack: list[AgentMiddleware[Any, Any, Any]] = []
+    stack: list[AgentMiddleware[Any, Any, Any]] = [
+        DeadAttachmentFilterMiddleware(),
+        HistoricalImageCapMiddleware(),
+    ]
 
     if fallback_model:
         stack.append(ModelFallbackMiddleware(fallback_model=fallback_model, thinking=thinking))
