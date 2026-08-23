@@ -365,48 +365,64 @@ export function ChatView({
     [isLoadingHistory, manualDetachFromStreamRef],
   );
 
+  // The Scroller identity must stay stable for the lifetime of the list:
+  // react-virtuoso remounts the whole scroller subtree (resetting scroll to
+  // the first message) whenever components.Scroller changes identity. The
+  // completion commit — streaming stops + connectionStatus flips to
+  // "disconnected" while isLoading is still true until sendMessage's finally
+  // runs — toggles the skeleton flag, which must never reach the Scroller.
+  // Only the Footer may be recreated; its remount cannot move scroll position.
+  const virtuosoScrollerComponent = useCallback(
+    (
+      scrollerProps: React.HTMLAttributes<HTMLDivElement> & {
+        children?: React.ReactNode;
+        ref?: React.Ref<HTMLDivElement>;
+      },
+    ) => {
+      const { children, ref: vRef, ...props } = scrollerProps;
+      return (
+        <div
+          {...props}
+          className={`chat-message-scroller ${props.className ?? ""}`}
+          ref={(el: HTMLDivElement | null) => {
+            handleVirtuosoScrollerElementChange(el);
+            if (typeof vRef === "function") vRef(el);
+            else if (vRef)
+              (
+                vRef as React.MutableRefObject<HTMLDivElement | null>
+              ).current = el;
+          }}
+        >
+          {children}
+        </div>
+      );
+    },
+    [handleVirtuosoScrollerElementChange],
+  );
+
+  const virtuosoFooterComponent = useCallback(
+    () => (
+      <>
+        {showStreamingFooterSkeleton && (
+          <div className="pb-4">
+            <ChatSkeletonMessagesOnly count={3} />
+          </div>
+        )}
+        <div
+          ref={messagesEndRef}
+          className={getMessageListFooterSpacerClass(isMobileViewport)}
+        />
+      </>
+    ),
+    [showStreamingFooterSkeleton, isMobileViewport, messagesEndRef],
+  );
+
   const virtuosoComponents = useMemo(
     () => ({
-      Scroller: (
-        scrollerProps: React.HTMLAttributes<HTMLDivElement> & {
-          children?: React.ReactNode;
-          ref?: React.Ref<HTMLDivElement>;
-        },
-      ) => {
-        const { children, ref: vRef, ...props } = scrollerProps;
-        return (
-          <div
-            {...props}
-            className={`chat-message-scroller ${props.className ?? ""}`}
-            ref={(el: HTMLDivElement | null) => {
-              handleVirtuosoScrollerElementChange(el);
-              if (typeof vRef === "function") vRef(el);
-              else if (vRef)
-                (
-                  vRef as React.MutableRefObject<HTMLDivElement | null>
-                ).current = el;
-            }}
-          >
-            {children}
-          </div>
-        );
-      },
-      Footer: () => (
-        <>
-          {showStreamingFooterSkeleton && (
-            <div className="pb-4">
-              <ChatSkeletonMessagesOnly count={3} />
-            </div>
-          )}
-          <div
-            ref={messagesEndRef}
-            className={getMessageListFooterSpacerClass(isMobileViewport)}
-          />
-        </>
-      ),
+      Scroller: virtuosoScrollerComponent,
+      Footer: virtuosoFooterComponent,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [showStreamingFooterSkeleton],
+    [virtuosoScrollerComponent, virtuosoFooterComponent],
   );
 
   // Pending steer items belong to the composer queue, not the conversation
