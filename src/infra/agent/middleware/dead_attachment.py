@@ -173,9 +173,7 @@ class DeadAttachmentFilterMiddleware(AgentMiddleware):
             if filtered_content is content:
                 filtered_messages.append(message)
             elif hasattr(message, "model_copy"):
-                filtered_messages.append(
-                    message.model_copy(update={"content": filtered_content})
-                )
+                filtered_messages.append(message.model_copy(update={"content": filtered_content}))
             else:
                 clone = message.copy()
                 clone.content = filtered_content
