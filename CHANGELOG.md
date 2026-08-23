@@ -1,5 +1,49 @@
 # Changelog
 
+## v2.6.0 (2026-08-23)
+
+### ✨ New Features
+
+- Add Codex-style mid-run steering: queued bubbles in the chat flow, reworked queue chip interactions, persisted injection messages, and a fully decoupled steer event pipeline with idempotent delivery and cancellation.
+- Add same-run HITL resume: ask_human interrupt mode with LangGraph suspend/breakpoint recovery, concurrency control, and full interrupt parity for Search and Team agents.
+- Add session pin-to-top: pin toggle API and storage, pinned-first session ordering, right-click context menu on session items, and a task running indicator badge with WebSocket real-time status updates.
+- Add message image gallery with adaptive grouped layout, markdown image sizing with zoom cursor, and shimmer animation for in-progress image generation frames.
+- Add sepia eye-care theme alongside light/dark modes, accepted in profile metadata.
+- Add LLM model adapters with streaming timeouts and retry logic, a global LLM_FALLBACK_MODEL fallback for stream-timeout failures, and alternate-model fallback when auto-summarization fails.
+- Add message timeline rail with touch interaction, plus copy-feedback and chat layout polish.
+- Add rich composer attachment handling: asynchronous image processing and upload stages with per-owner scoping.
+
+### 🐛 Bug Fixes
+
+- Fix attachment lifecycle end to end: claim attachments before persistence, harden rollback boundaries, guard upload tombstone dedupe races, preserve key collision objects and rejected drafts, isolate submitted drafts and upload aborts, and restore file paste uploads.
+- Fix chat submit flush race by avoiding delayed flush waits, and dismiss the slash menu on outside press while keeping it closed.
+- Fix steer reliability: write steer:message events at injection time for correct ordering, cancel stale queued steers before follow-up resend to stop double delivery, and stop run-level user:message dedup from dropping same-run steer messages.
+- Fix approval handling: persist approval_required events to MongoDB via trace_id for history replay, support session-specific approval clearing, validate ask-human forms across steps, and stop rendering ask_human events as generic tool events.
+- Fix model selection: preserve the chosen model across refresh, encode selection priority, expose system default model identity, and guard model restoration side effects.
+- Fix scheduled tasks by anchoring message timestamps to run start for cache stability.
+- Fix PWA to auto-activate a waiting service worker on page load.
+- Fix LLM thinking-parameter handling by passing off/none explicitly with per-family gating (#211).
+- Fix memory indexing scoring to include source type and stabilize message reference handling.
+
+### ♻️ Refactors
+
+- Delegate prompt caching to official provider/DeepAgents layers: remove cache-oriented prompt shaping and custom cache controls, adopt Codex-style context layering for cache-continuous prefixes.
+- Move memory, skills, deferred-tool, and env-var key metadata out of the system prompt onto tool descriptions.
+- Split oversized frontend hooks (steerMessage, draft submission, external navigation) to keep useAgent under 1000 lines, and restore backend module budgets.
+
+### 🚀 Performance
+
+- Improve provider prompt-cache hit rate (#214), stabilize cache prefixes across turns and restarts, and freeze the deferred-tool stub list at session scope.
+- Cut chat latency: overlap task preflight, prepare agent dependencies concurrently, compact full history hydration, reduce session read round trips, and defer user message search indexing.
+- Refresh stale MCP catalogs in the background and warm recent MCP users after startup; avoid re-renders on scroll range changes.
+
+### 🧪 Tests & Infrastructure
+
+- Add dated Docker image tags (main-YYYYMMDD plus build time) for image rollback.
+- Make tests hermetic without Redis, stabilize timing-sensitive suites, and extend coverage for HITL, steer, pinning, and the image gallery.
+
+---
+
 ## v2.5.6 (2026-08-09)
 
 ### ✨ New Features
