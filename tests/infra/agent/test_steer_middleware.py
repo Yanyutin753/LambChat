@@ -173,9 +173,7 @@ async def test_steer_event_carries_created_at_send_time() -> None:
         async def save_event(self, event):
             saved.append(event)
 
-    middleware = SteerMiddleware(
-        session_id="session-created-at", presenter=_FakePresenter()
-    )
+    middleware = SteerMiddleware(session_id="session-created-at", presenter=_FakePresenter())
 
     async def handler(_req):
         return _Response()
@@ -200,9 +198,7 @@ async def test_failed_model_call_keeps_injected_event_and_requeues() -> None:
         async def save_event(self, event):
             saved.append(event)
 
-    middleware = SteerMiddleware(
-        session_id="session-fail-order", presenter=_FakePresenter()
-    )
+    middleware = SteerMiddleware(session_id="session-fail-order", presenter=_FakePresenter())
 
     async def handler(_req):
         raise RuntimeError("model down")
@@ -274,9 +270,7 @@ async def test_queued_steer_survives_hitl_pause_and_uses_same_resumed_run() -> N
     sent_at = datetime(2026, 8, 22, 15, 0, 0, tzinfo=timezone.utc)
     await queue.enqueue_item(
         "session-hitl",
-        SteerItem(
-            id="steer-before-pause", content="继续时按这个方向", created_at=sent_at
-        ),
+        SteerItem(id="steer-before-pause", content="继续时按这个方向", created_at=sent_at),
     )
 
     saved: list[dict] = []

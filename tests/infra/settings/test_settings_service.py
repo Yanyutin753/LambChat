@@ -25,6 +25,43 @@ class _ClosableSettingsStorage:
         self.closed = True
 
 
+class _MissingTimeoutSettingsStorage:
+    def __init__(self) -> None:
+        self.values: dict[str, Any] = {}
+
+    async def get(self, key: str):
+        return self.values.get(key)
+
+    async def set(self, key: str, value: Any, user_id: str):
+        self.values[key] = SettingItem(
+            key=key,
+            value=value,
+            type=SettingType.NUMBER,
+            category=SettingCategory.LLM,
+            updated_by=user_id,
+        )
+        return self.values[key]
+
+
+@pytest.mark.asyncio
+async def test_init_from_env_imports_both_llm_timeout_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _MissingTimeoutSettingsStorage()
+    service = settings_service.SettingsService()
+    service._storage = storage  # type: ignore[assignment]
+    monkeypatch.setenv("LLM_REQUEST_TIMEOUT", "45")
+    monkeypatch.setenv("LLM_FIRST_EVENT_TIMEOUT", "15")
+    monkeypatch.setattr("src.kernel.config.refresh_settings", AsyncMock())
+    monkeypatch.setattr(service, "_publish_change", AsyncMock())
+
+    imported = await service.init_from_env()
+
+    assert imported >= 2
+    assert storage.values["LLM_REQUEST_TIMEOUT"].value == 45
+    assert storage.values["LLM_FIRST_EVENT_TIMEOUT"].value == 15
+
+
 @pytest.mark.asyncio
 async def test_get_offloads_json_env_value_parsing(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []

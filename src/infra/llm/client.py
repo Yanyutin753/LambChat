@@ -96,6 +96,10 @@ def _parse_provider(model: str) -> tuple[str, str]:
     return "openai", model
 
 
+def _effective_timeout(timeout: float) -> float | None:
+    return timeout if timeout > 0 else None
+
+
 def _make_cache_key(
     provider: str,
     model_name: str,
@@ -119,7 +123,8 @@ def _make_cache_key(
         thinking_key,
         profile_key,
         max_retries,
-        settings.LLM_REQUEST_TIMEOUT,
+        _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
+        _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
     )
 
 
@@ -413,8 +418,8 @@ class LLMClient:
                 "base_url": api_base or None,
                 "max_retries": 0,
                 "timeout": None,
-                "first_event_timeout": settings.LLM_REQUEST_TIMEOUT,
-                "non_streaming_timeout": settings.LLM_REQUEST_TIMEOUT,
+                "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
+                "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
             }
             if api_key:
                 anthropic_kwargs["api_key"] = SecretStr(api_key)
@@ -435,8 +440,8 @@ class LLMClient:
                 # google-genai treats 1 as one initial request with no SDK retry.
                 "max_retries": 1,
                 "timeout": None,
-                "first_event_timeout": settings.LLM_REQUEST_TIMEOUT,
-                "non_streaming_timeout": settings.LLM_REQUEST_TIMEOUT,
+                "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
+                "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
             }
             if api_key:
                 google_kwargs["google_api_key"] = SecretStr(api_key)
@@ -452,8 +457,9 @@ class LLMClient:
             "base_url": api_base or None,
             "max_retries": 0,
             "timeout": None,
-            "first_event_timeout": settings.LLM_REQUEST_TIMEOUT,
-            "non_streaming_timeout": settings.LLM_REQUEST_TIMEOUT,
+            "stream_chunk_timeout": None,
+            "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
+            "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
         }
         # OpenAI 协议：按 provider/模型家族门控思考参数（issue #211）
         # - openai/xai 推理模型收到 reasoning_effort（off 映射到该模型最低

@@ -949,9 +949,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 if request_context.session_id and request_context.run_id
                 else None
             )
-            schedule_auto_memory_capture(
-                context.user_id, memory_text, source_refs=source_refs
-            )
+            schedule_auto_memory_capture(context.user_id, memory_text, source_refs=source_refs)
 
     session_id = state.get("session_id")
     if (

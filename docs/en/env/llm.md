@@ -25,7 +25,8 @@ LambChat supports multi-model management through the UI. The env vars above set 
 | `DEFAULT_MODEL_ID` | _(empty)_ | Admin model configuration ID used as the default for new sessions and background jobs. Empty = first enabled model. |
 | `LLM_MAX_RETRIES` | `3` | Retries after the initial call for timeout, network, rate-limit, and 5xx failures. `3` means up to 4 attempts. |
 | `LLM_RETRY_DELAY` | `1.0` | Initial retry delay in seconds (exponential backoff). |
-| `LLM_REQUEST_TIMEOUT` | `120` | Seconds allowed for the first streaming event or a complete non-streaming response. Streaming has no total duration limit after its first event. |
+| `LLM_REQUEST_TIMEOUT` | `0` | Total seconds allowed for a complete non-streaming response. `0` or a negative value disables LambChat's non-streaming total timeout, so non-streaming waits indefinitely by default. |
+| `LLM_FIRST_EVENT_TIMEOUT` | `30` | Seconds allowed for the first provider event of a streaming response. `0` or a negative value disables this deadline. After the first event, LambChat applies no total duration limit or chunk idle timeout. |
 | `LLM_MODEL_CACHE_SIZE` | `50` | Model instance cache size. Prevents memory leaks from repeated instantiation. |
 | `LLM_MAX_INPUT_TOKENS` | _(none)_ | Optional: context window size for DeepAgent auto-summarization. |
 | `LLM_TEMPERATURE` | _(none)_ | Optional: default temperature for LLM calls. |
@@ -46,6 +47,7 @@ LLM_API_BASE=https://api.openai.com/v1
 LLM_MODEL=gpt-4o
 LLM_MAX_RETRIES=3
 LLM_RETRY_DELAY=1.0
-LLM_REQUEST_TIMEOUT=120
+LLM_REQUEST_TIMEOUT=0
+LLM_FIRST_EVENT_TIMEOUT=30
 LLM_MODEL_CACHE_SIZE=50
 ```

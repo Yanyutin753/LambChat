@@ -481,9 +481,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 if request_context.session_id and request_context.run_id
                 else None
             )
-            schedule_auto_memory_capture(
-                context.user_id, memory_text, source_refs=source_refs
-            )
+            schedule_auto_memory_capture(context.user_id, memory_text, source_refs=source_refs)
 
     # 持久化已发现的延迟工具名（跨 turn 恢复，分布式安全）
     session_id = state.get("session_id", "")
