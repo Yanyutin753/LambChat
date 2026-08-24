@@ -151,6 +151,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "LLM_MAX_RETRIES",
         "LLM_RETRY_DELAY",
         "LLM_REQUEST_TIMEOUT",
+        "LLM_FIRST_EVENT_TIMEOUT",
         "LLM_FALLBACK_MODEL",
     }
 

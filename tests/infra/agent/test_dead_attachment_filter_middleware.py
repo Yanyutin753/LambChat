@@ -236,7 +236,9 @@ async def test_default_checker_uses_file_records_collection(monkeypatch):
 
     monkeypatch.setattr(dead_attachment, "FileRecordStorage", lambda: _FakeStorage())
 
-    alive = await dead_attachment._default_exists_checker(["image/u1/alive.png", "image/u1/dead.png"])
+    alive = await dead_attachment._default_exists_checker(
+        ["image/u1/alive.png", "image/u1/dead.png"]
+    )
 
     assert alive == {"image/u1/alive.png"}
     assert queried["query"] == {"key": {"$in": ["image/u1/alive.png", "image/u1/dead.png"]}}

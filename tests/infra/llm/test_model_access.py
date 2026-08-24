@@ -5,8 +5,9 @@ import warnings
 
 import pytest
 
-from src.infra.llm.client import LLMClient
+from src.infra.llm.client import LLMClient, _make_cache_key
 from src.infra.llm.models_service import clear_api_key_cache, set_cached_api_key
+from src.kernel.config import settings
 from src.kernel.exceptions import AuthorizationError
 from src.kernel.schemas.model import ModelConfig
 
@@ -20,6 +21,68 @@ class _ModelStorage:
 
     async def get_by_value(self, value: str) -> ModelConfig | None:
         return self.model if self.model and self.model.value == value else None
+
+
+def _cache_key() -> tuple:
+    return _make_cache_key(
+        "openai",
+        "gpt-test",
+        0.7,
+        None,
+        "sk-test",
+        None,
+        None,
+        None,
+        3,
+    )
+
+
+def test_model_cache_key_includes_both_effective_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "LLM_REQUEST_TIMEOUT", 45.0)
+    monkeypatch.setattr(settings, "LLM_FIRST_EVENT_TIMEOUT", 15.0)
+
+    key = _cache_key()
+
+    assert key[-2:] == (45.0, 15.0)
+
+
+def test_model_cache_key_normalizes_disabled_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "LLM_REQUEST_TIMEOUT", 0.0)
+    monkeypatch.setattr(settings, "LLM_FIRST_EVENT_TIMEOUT", -1.0)
+
+    key = _cache_key()
+
+    assert key[-2:] == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [(45.0, 45.0), (0.0, None), (-1.0, None)],
+)
+def test_create_model_normalizes_non_positive_request_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    configured: float,
+    expected: float | None,
+) -> None:
+    captured: dict = {}
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr("src.infra.llm.client.ChatOpenAI", FakeChatOpenAI)
+    monkeypatch.setattr(settings, "LLM_REQUEST_TIMEOUT", configured)
+    monkeypatch.setattr(settings, "LLM_FIRST_EVENT_TIMEOUT", 30.0)
+
+    LLMClient._create_model("openai", "gpt-test", temperature=0.7, api_key="sk-test")
+
+    assert captured["non_streaming_timeout"] == expected
+    assert captured["first_event_timeout"] == 30.0
+    assert captured["stream_chunk_timeout"] is None
 
 
 @pytest.mark.asyncio
@@ -216,8 +279,8 @@ async def test_get_model_uses_cached_key_for_sanitized_google_model_config(
     assert captured["base_url"] == "https://example.test"
     assert captured["max_retries"] == 1
     assert captured["timeout"] is None
-    assert captured["first_event_timeout"] == 120.0
-    assert captured["non_streaming_timeout"] == 120.0
+    assert captured["first_event_timeout"] == 30.0
+    assert captured["non_streaming_timeout"] is None
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()
@@ -271,8 +334,8 @@ async def test_get_model_rehydrates_key_for_sanitized_anthropic_model_config(
     assert captured["base_url"] == "https://example.test"
     assert captured["max_retries"] == 0
     assert captured["timeout"] is None
-    assert captured["first_event_timeout"] == 120.0
-    assert captured["non_streaming_timeout"] == 120.0
+    assert captured["first_event_timeout"] == 30.0
+    assert captured["non_streaming_timeout"] is None
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()
@@ -372,8 +435,8 @@ async def test_get_model_uses_inferred_provider_for_known_unprefixed_model(
     assert captured["model"] == "deepseek-v4-flash"
     assert captured["max_retries"] == 0
     assert captured["timeout"] is None
-    assert captured["first_event_timeout"] == 120.0
-    assert captured["non_streaming_timeout"] == 120.0
+    assert captured["first_event_timeout"] == 30.0
+    assert captured["non_streaming_timeout"] is None
     assert "lambchat_provider" not in (captured.get("metadata") or {})
     assert "prompt_cache_key" not in captured.get("model_kwargs", {})
     assert "prompt_cache_retention" not in captured.get("model_kwargs", {})

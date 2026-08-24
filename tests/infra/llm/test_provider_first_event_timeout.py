@@ -126,3 +126,41 @@ async def test_provider_non_streaming_calls_have_a_completion_deadline(
 
     with pytest.raises(asyncio.TimeoutError):
         await model._agenerate([])
+
+
+@pytest.mark.parametrize(
+    ("model", "base_class"),
+    [
+        (
+            LambChatOpenAIChatModel(
+                model="gpt-test",
+                api_key="test-key",
+                timeout=None,
+                non_streaming_timeout=None,
+            ),
+            ChatOpenAI,
+        ),
+        (
+            LambChatAnthropicChatModel(
+                model="claude-test",
+                api_key="test-key",
+                timeout=None,
+                non_streaming_timeout=None,
+            ),
+            ChatAnthropic,
+        ),
+    ],
+)
+async def test_provider_non_streaming_calls_can_wait_without_a_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    model,
+    base_class,
+) -> None:
+    async def fake_agenerate(self, *args, **kwargs):
+        del self, args, kwargs
+        await asyncio.sleep(0)
+        return "complete"
+
+    monkeypatch.setattr(base_class, "_agenerate", fake_agenerate)
+
+    assert await model._agenerate([]) == "complete"

@@ -64,3 +64,18 @@ async def test_google_non_streaming_call_keeps_response_timeout(monkeypatch) -> 
 
     assert result == "complete"
     assert captured["timeout"] == 0.02
+
+
+async def test_google_non_streaming_call_can_wait_without_a_deadline(monkeypatch) -> None:
+    captured: dict = {}
+
+    async def fake_agenerate(self, messages, **kwargs):
+        del self, messages
+        captured.update(kwargs)
+        return "complete"
+
+    monkeypatch.setattr(ChatGoogleGenerativeAI, "_agenerate", fake_agenerate)
+    model = _model(first_event_timeout=0.01, non_streaming_timeout=None)
+
+    assert await model._agenerate([]) == "complete"
+    assert captured["timeout"] is None

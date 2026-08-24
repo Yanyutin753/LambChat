@@ -117,9 +117,7 @@ async def test_last_human_message_images_are_never_touched():
     await _middleware(hard=10, keep=5).awrap_model_call(_Request(messages), handler)
 
     out = seen["request"].messages
-    current_blocks = [
-        b for b in out[-1].content if b.get("type") == "image_url"
-    ]
+    current_blocks = [b for b in out[-1].content if b.get("type") == "image_url"]
     assert len(current_blocks) == 3  # 当前轮 3 张全保留
     # 历史只保留最新 keep=5 张（old7..old11）
     history_image_urls = [
