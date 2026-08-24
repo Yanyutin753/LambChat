@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -195,3 +196,27 @@ async def test_set_and_reset_invalidate_get_all_snapshot(
     await service.reset()
     assert (await service.get_all())["frontend"][0].value == "default"
     assert storage.get_all_calls == 3
+
+
+@pytest.mark.asyncio
+async def test_refresh_applies_empty_llm_fallback_model_without_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """设置面板「无兜底模型」下发空串后应即时生效，而不是等重启。"""
+
+    class _RawStorage:
+        async def get_raw(self, key: str):
+            assert key == "LLM_FALLBACK_MODEL"
+            return SimpleNamespace(value="")
+
+    import src.kernel.config.service as config_service
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(
+        config_service, "_settings_service", SimpleNamespace(_storage=_RawStorage())
+    )
+    monkeypatch.setattr(settings, "LLM_FALLBACK_MODEL", "old-fallback")
+
+    await config_service.refresh_settings("LLM_FALLBACK_MODEL")
+
+    assert settings.LLM_FALLBACK_MODEL == ""

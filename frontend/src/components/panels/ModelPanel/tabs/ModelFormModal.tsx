@@ -121,7 +121,7 @@ export const ModelFormModal = ({
             ? { api_key: formApiKey.trim() }
             : {}),
           api_base: formApiBase.trim() || undefined,
-          api_format: formApiFormat || undefined,
+          api_format: formApiFormat || "",
           temperature,
           max_tokens: maxTokens,
           profile,

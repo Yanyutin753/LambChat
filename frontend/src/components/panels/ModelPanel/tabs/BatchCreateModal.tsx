@@ -311,6 +311,9 @@ export const BatchCreateModal = ({
                       { value: "responses", label: "Responses" },
                     ]}
                   />
+                  <p className="es-hint">
+                    {t("agentConfig.modelApiFormatHint")}
+                  </p>
                 </div>
                 <div className="es-field">
                   <label className="es-label">

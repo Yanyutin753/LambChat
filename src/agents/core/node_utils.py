@@ -171,8 +171,8 @@ async def _resolve_fallback_reference(reference: str, log_prefix: str = "") -> s
     try:
         db_model = await get_model_storage().get(reference)
     except Exception as e:
-        # 旧配置存的是模型 value（非 ObjectId），查询抛错时保持原样
-        logger.debug("%s Fallback reference %r is not a stored model id: %s", log_prefix, reference, e)
+        # 查询失败（如存储不可用）时保守地按原始字符串处理
+        logger.debug("%s Fallback reference lookup failed: %s", log_prefix, e)
         return reference
     return db_model.value if db_model else reference
 

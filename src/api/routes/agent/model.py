@@ -225,6 +225,9 @@ async def update_model(
     # Allow clearing api_key by sending empty string ""
     if "api_key" in update_data and update_data["api_key"] == "":
         update_data["api_key"] = None
+    # Allow clearing api_format back to "follow default" by sending empty string ""
+    if "api_format" in update_data and update_data["api_format"] == "":
+        update_data["api_format"] = None
     # 校验 fallback_model
     if "fallback_model" in update_data and update_data["fallback_model"] is not None:
         if update_data["fallback_model"] == model_id:

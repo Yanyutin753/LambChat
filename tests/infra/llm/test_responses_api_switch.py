@@ -10,8 +10,15 @@ import pytest
 
 from src.infra.llm.client import LLMClient
 from src.kernel.config import settings
+from src.kernel.schemas.model import ModelConfigUpdate
 
 ENABLED = {"type": "enabled", "level": "high", "budget_tokens": 8192}
+
+
+def test_update_schema_accepts_empty_api_format_to_revert_to_default() -> None:
+    """「跟随默认」空选项以 "" 下发，需能通过校验并由路由映射为 None。"""
+    update = ModelConfigUpdate(api_format="")
+    assert update.api_format == ""
 
 
 def _openai_model(

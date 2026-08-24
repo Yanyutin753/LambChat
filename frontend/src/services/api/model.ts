@@ -132,7 +132,8 @@ export interface ModelConfigUpdate {
   description?: string;
   api_key?: string;
   api_base?: string;
-  api_format?: ApiFormat;
+  /** "" clears the override back to the global default */
+  api_format?: ApiFormat | "";
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;

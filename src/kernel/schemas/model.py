@@ -58,8 +58,8 @@ class ModelConfig(BaseModel):
     )
     enabled: bool = Field(True, description="Whether this model is enabled")
     order: int = Field(0, description="Display order")
-    created_at: Optional[datetime] = Field(None, description="Creation time")
-    updated_at: Optional[datetime] = Field(None, description="Last update time")
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
 
 
 class ModelConfigCreate(BaseModel):
@@ -101,7 +101,8 @@ class ModelConfigUpdate(BaseModel):
     description: Optional[str] = Field(None, description="Model description")
     api_key: Optional[str] = Field(None, description="Per-model API key override")
     api_base: Optional[str] = Field(None, description="Per-model API base URL override")
-    api_format: Optional[ApiFormat] = Field(
+    # "" 表示清除覆盖、恢复「跟随默认」（与 api_key 的清空语义一致，路由会映射为 None）
+    api_format: Optional[Literal["chat_completions", "responses", ""]] = Field(
         None,
         description="Wire format for OpenAI-protocol providers (chat_completions | responses)",
     )
