@@ -153,6 +153,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "LLM_REQUEST_TIMEOUT",
         "LLM_FIRST_EVENT_TIMEOUT",
         "LLM_FALLBACK_MODEL",
+        "LLM_OPENAI_API_FORMAT",
     }
 
     # Settings that require memory backend reinitialization

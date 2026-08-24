@@ -70,6 +70,7 @@
     "agentsSection": "Assistants",
     "allModelsAvailable": "All models selected",
     "apiConfiguration": "API Configuration",
+    "apiFormatFollowDefault": "Follow default setting",
     "apiKeyEditHint": "Leave empty to keep the existing key. Enter a new key to replace it.",
     "apiKeyHint": "Leave empty to skip (not recommended)",
     "apiKeyPlaceholder": "Custom API key for this model",
@@ -143,6 +144,8 @@
     "maxTokens": "Max Tokens",
     "modelApiBase": "API Base URL",
     "modelApiBasePlaceholder": "e.g., https://api.anthropic.com",
+    "modelApiFormat": "API Format",
+    "modelApiFormatHint": "Wire format for OpenAI-compatible endpoints: Chat Completions (/chat/completions) or Responses (/responses). Only applies to OpenAI-protocol providers; ignored for Claude/Gemini protocols.",
     "modelApiKey": "API Key",
     "modelConfigDescription": "Add, edit, or remove models from the model library. Each model can have custom API settings.",
     "modelConfigTab": "Model Config",
@@ -2426,7 +2429,11 @@
     "WELCOME_SUGGESTION_ICON": "Icon",
     "WELCOME_SUGGESTION_ITEM": "Suggestion",
     "WELCOME_SUGGESTION_LANG": "Language",
-    "WELCOME_SUGGESTION_TEXT": "Text"
+    "WELCOME_SUGGESTION_TEXT": "Text",
+    "LLM_OPENAI_API_FORMAT": "Default wire format for OpenAI-compatible endpoints: chat_completions (/v1/chat/completions) or responses (/v1/responses). Only switch to responses when the upstream supports it; the per-model API format overrides this default.",
+    "DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO": "Context usage ratio (0-1) that triggers automatic summarization. When the conversation context exceeds this ratio, history gets compacted.",
+    "DEEPAGENT_SUMMARIZATION_KEEP_RATIO": "Context ratio (0-1) kept after summarization compaction. Higher values keep more history.",
+    "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "When the number of skills is at or below this value, each skill's description is included in the prompt; beyond it only skill names are listed to save tokens."
   },
   "settings": {
     "defaultModel": "Default Model",
@@ -2441,6 +2448,7 @@
     "legacyModelValue": "Legacy value",
     "loading": "Loading settings...",
     "modelConfigDescription": "Manage application settings",
+    "noFallbackModel": "No fallback",
     "noMatch": "No settings match your search",
     "noSettings": "No settings in this category",
     "readOnlyNotice": "Read-only: You need SETTINGS_MANAGE permission to edit settings.",

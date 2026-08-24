@@ -213,6 +213,15 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LLM_FALLBACK_MODEL",
         "default": None,
     },
+    "LLM_OPENAI_API_FORMAT": {
+        "type": SettingType.SELECT,
+        "category": SettingCategory.LLM,
+        "subcategory": "model",
+        "description": "settingDesc.LLM_OPENAI_API_FORMAT",
+        "default": "chat_completions",
+        "options": ["chat_completions", "responses"],
+        "frontend_visible": True,
+    },
     "LLM_MODEL_CACHE_SIZE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,

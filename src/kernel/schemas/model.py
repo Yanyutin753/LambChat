@@ -1,9 +1,14 @@
 """Model-related schemas."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+# Wire format for OpenAI-protocol providers: classic /chat/completions or the
+# newer /responses endpoint. Per-model override; falls back to the
+# LLM_OPENAI_API_FORMAT global setting.
+ApiFormat = Literal["chat_completions", "responses"]
 
 
 class ModelProfile(BaseModel):
@@ -41,6 +46,10 @@ class ModelConfig(BaseModel):
     description: Optional[str] = Field(None, description="Model description")
     api_key: Optional[str] = Field(None, description="Per-model API key override")
     api_base: Optional[str] = Field(None, description="Per-model API base URL override")
+    api_format: Optional[ApiFormat] = Field(
+        None,
+        description="Wire format for OpenAI-protocol providers (chat_completions | responses)",
+    )
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
@@ -49,8 +58,8 @@ class ModelConfig(BaseModel):
     )
     enabled: bool = Field(True, description="Whether this model is enabled")
     order: int = Field(0, description="Display order")
-    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    created_at: Optional[datetime] = Field(None, description="Creation time")
+    updated_at: Optional[datetime] = Field(None, description="Last update time")
 
 
 class ModelConfigCreate(BaseModel):
@@ -69,6 +78,10 @@ class ModelConfigCreate(BaseModel):
     description: Optional[str] = Field(None, description="Model description")
     api_key: Optional[str] = Field(None, description="Per-model API key override")
     api_base: Optional[str] = Field(None, description="Per-model API base URL override")
+    api_format: Optional[ApiFormat] = Field(
+        None,
+        description="Wire format for OpenAI-protocol providers (chat_completions | responses)",
+    )
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
@@ -88,6 +101,10 @@ class ModelConfigUpdate(BaseModel):
     description: Optional[str] = Field(None, description="Model description")
     api_key: Optional[str] = Field(None, description="Per-model API key override")
     api_base: Optional[str] = Field(None, description="Per-model API base URL override")
+    api_format: Optional[ApiFormat] = Field(
+        None,
+        description="Wire format for OpenAI-protocol providers (chat_completions | responses)",
+    )
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")

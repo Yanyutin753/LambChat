@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     LLM_REQUEST_TIMEOUT: float = 0.0  # 非流式完整响应总超时（秒；<=0 禁用）
     LLM_FIRST_EVENT_TIMEOUT: float = 30.0  # 流式首事件超时（秒；<=0 禁用）
     LLM_FALLBACK_MODEL: str | None = None  # 全局兜底模型（DB 未配置 fallback_model 时使用）
+    LLM_OPENAI_API_FORMAT: str = "chat_completions"  # OpenAI 协议线格式默认值（chat_completions | responses）
     LLM_MODEL_CACHE_SIZE: int = 50  # 模型实例缓存大小，防止内存泄漏
     DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO: float = 0.70  # 触发摘要的上下文占比（原 0.85）
     DEEPAGENT_SUMMARIZATION_KEEP_RATIO: float = 0.15  # 摘要后保留的上下文占比（原 0.10）

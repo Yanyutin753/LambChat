@@ -70,6 +70,7 @@
     "agentsSection": "Ассистенты",
     "allModelsAvailable": "Выбраны все модели",
     "apiConfiguration": "Конфигурация API",
+    "apiFormatFollowDefault": "По умолчанию",
     "apiKeyEditHint": "Оставьте пустым, чтобы сохранить текущий ключ. Введите новый ключ для замены.",
     "apiKeyHint": "Оставьте пустым, чтобы пропустить (не рекомендуется)",
     "apiKeyPlaceholder": "Пользовательский API-ключ для этой модели",
@@ -143,6 +144,8 @@
     "maxTokens": "Макс. токенов",
     "modelApiBase": "Базовый URL API",
     "modelApiBasePlaceholder": "напр. https://api.anthropic.com",
+    "modelApiFormat": "Формат API",
+    "modelApiFormatHint": "Формат обмена для OpenAI-совместимых endpoints: Chat Completions (/chat/completions) или Responses (/responses). Применяется только к провайдерам с протоколом OpenAI; для протоколов Claude/Gemini игнорируется.",
     "modelApiKey": "API-ключ",
     "modelConfigDescription": "Добавляйте, редактируйте или удаляйте модели из библиотеки. Для каждой модели можно настроить параметры API.",
     "modelConfigTab": "Конфигурация моделей",
@@ -2426,7 +2429,11 @@
     "WELCOME_SUGGESTION_ICON": "Иконка",
     "WELCOME_SUGGESTION_ITEM": "Предложение",
     "WELCOME_SUGGESTION_LANG": "Язык",
-    "WELCOME_SUGGESTION_TEXT": "Текст"
+    "WELCOME_SUGGESTION_TEXT": "Текст",
+    "LLM_OPENAI_API_FORMAT": "Формат обмена по умолчанию для OpenAI-совместимых endpoints: chat_completions (/v1/chat/completions) или responses (/v1/responses). Переключайтесь на responses, только если апстрим его поддерживает; настройка формата API на уровне модели имеет приоритет.",
+    "DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO": "Доля использования контекста (0-1), при которой запускается автоматическая суммаризация. Когда контекст превышает эту долю, история сжимается.",
+    "DEEPAGENT_SUMMARIZATION_KEEP_RATIO": "Доля контекста (0-1), сохраняемая после сжатия при суммаризации. Чем больше значение, тем больше истории сохраняется.",
+    "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "Если число навыков не превышает это значение, в промпт включаются описания навыков; иначе перечисляются только имена для экономии токенов."
   },
   "settings": {
     "defaultModel": "Модель по умолчанию",
@@ -2441,6 +2448,7 @@
     "legacyModelValue": "Устаревшее значение",
     "loading": "Загрузка настроек...",
     "modelConfigDescription": "Управление настройками приложения",
+    "noFallbackModel": "Без резервной модели",
     "noMatch": "Нет настроек, соответствующих вашему запросу",
     "noSettings": "Нет настроек в этой категории",
     "readOnlyNotice": "Только чтение: вам нужно право SETTINGS_MANAGE для редактирования настроек.",

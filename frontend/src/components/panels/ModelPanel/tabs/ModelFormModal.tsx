@@ -14,6 +14,7 @@ import {
 import { ProviderSelect } from "../../AgentPanel/shared";
 import { modelApi } from "../../../../services/api/model";
 import type {
+  ApiFormat,
   ModelConfig,
   ModelConfigCreate,
   ModelConfigUpdate,
@@ -45,6 +46,9 @@ export const ModelFormModal = ({
   );
   const [formApiKey, setFormApiKey] = useState("");
   const [formApiBase, setFormApiBase] = useState(model?.api_base || "");
+  const [formApiFormat, setFormApiFormat] = useState<ApiFormat | "">(
+    model?.api_format || "",
+  );
   const [formTemperature, setFormTemperature] = useState(
     model?.temperature?.toString() || "",
   );
@@ -117,6 +121,7 @@ export const ModelFormModal = ({
             ? { api_key: formApiKey.trim() }
             : {}),
           api_base: formApiBase.trim() || undefined,
+          api_format: formApiFormat || undefined,
           temperature,
           max_tokens: maxTokens,
           profile,
@@ -133,6 +138,7 @@ export const ModelFormModal = ({
           description: formDescription.trim() || undefined,
           api_key: formApiKey.trim() || undefined,
           api_base: formApiBase.trim() || undefined,
+          api_format: formApiFormat || undefined,
           temperature,
           max_tokens: maxTokens,
           profile,
@@ -154,6 +160,7 @@ export const ModelFormModal = ({
     formDescription,
     formApiKey,
     formApiBase,
+    formApiFormat,
     formTemperature,
     formMaxTokens,
     formMaxInputTokens,
@@ -328,6 +335,23 @@ export const ModelFormModal = ({
                 placeholder={t("agentConfig.modelApiBasePlaceholder")}
                 className="es-input"
               />
+            </div>
+            <div className="es-field">
+              <label className="es-label">
+                {t("agentConfig.modelApiFormat")}
+              </label>
+              <Select
+                value={formApiFormat}
+                onChange={(v) => setFormApiFormat(v as ApiFormat | "")}
+                options={[
+                  { value: "", label: t("agentConfig.apiFormatFollowDefault") },
+                  { value: "chat_completions", label: "Chat Completions" },
+                  { value: "responses", label: "Responses" },
+                ]}
+              />
+              <p className="es-hint">
+                {t("agentConfig.modelApiFormatHint")}
+              </p>
             </div>
             <div className="es-row es-row-3">
               <div className="es-field">

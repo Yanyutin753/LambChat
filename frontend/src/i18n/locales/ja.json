@@ -70,6 +70,7 @@
     "agentsSection": "アシスタント",
     "allModelsAvailable": "すべてのモデルが選択されています",
     "apiConfiguration": "API 設定",
+    "apiFormatFollowDefault": "デフォルト設定に従う",
     "apiKeyEditHint": "空欄で既存のキーを維持します。新しいキーを入力して置き換えます。",
     "apiKeyHint": "空欄の場合はスキップします（推奨されません）",
     "apiKeyPlaceholder": "このモデルのカスタムAPIキー",
@@ -143,6 +144,8 @@
     "maxTokens": "最大トークン",
     "modelApiBase": "API ベース URL",
     "modelApiBasePlaceholder": "例：https://api.anthropic.com",
+    "modelApiFormat": "API フォーマット",
+    "modelApiFormatHint": "OpenAI 互換エンドポイントの通信形式：Chat Completions（/chat/completions）または Responses（/responses）。OpenAI プロトコルのプロバイダーのみ有効で、Claude/Gemini プロトコルでは無視されます。",
     "modelApiKey": "API キー",
     "modelConfigDescription": "モデルライブラリの追加、編集、削除を行います。各モデルにカスタムAPI設定を構成できます。",
     "modelConfigTab": "モデル設定",
@@ -2426,7 +2429,11 @@
     "WELCOME_SUGGESTION_ICON": "アイコン",
     "WELCOME_SUGGESTION_ITEM": "候補",
     "WELCOME_SUGGESTION_LANG": "言語",
-    "WELCOME_SUGGESTION_TEXT": "テキスト"
+    "WELCOME_SUGGESTION_TEXT": "テキスト",
+    "LLM_OPENAI_API_FORMAT": "OpenAI 互換エンドポイントのデフォルト通信形式：chat_completions（/v1/chat/completions）または responses（/v1/responses）。上流が /v1/responses をサポートする場合のみ切り替えてください。モデルごとの「API フォーマット」設定が優先されます。",
+    "DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO": "コンテキスト要約を発動する使用率（0-1）。会話コンテキストがこの割合を超えると履歴が自動圧縮されます。",
+    "DEEPAGENT_SUMMARIZATION_KEEP_RATIO": "要約圧縮後に保持するコンテキストの割合（0-1）。大きいほど多くの履歴を保持します。",
+    "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "スキル数がこの値以下の場合はプロンプトに各スキルの説明を含め、超える場合はトークン節約のため名前のみ列挙します。"
   },
   "settings": {
     "defaultModel": "デフォルトモデル",
@@ -2441,6 +2448,7 @@
     "legacyModelValue": "従来の値",
     "loading": "設定を読み込み中...",
     "modelConfigDescription": "アプリケーション設定を管理",
+    "noFallbackModel": "フォールバックなし",
     "noMatch": "検索条件に一致する設定がありません",
     "noSettings": "このカテゴリに設定はありません",
     "readOnlyNotice": "読み取り専用：設定を編集するにはSETTINGS_MANAGE権限が必要です。",

@@ -17,11 +17,13 @@ import {
   IconButton,
   Input,
   PanelFooterActions,
+  Select,
   Textarea,
 } from "../../../common";
 import { ProviderSelect } from "../../AgentPanel/shared";
 import { modelApi } from "../../../../services/api/model";
 import type {
+  ApiFormat,
   ModelConfigCreate,
   ProviderType,
 } from "../../../../services/api/model";
@@ -64,6 +66,7 @@ export const BatchCreateModal = ({
   const [batchActiveTab, setBatchActiveTab] = useState(initialTab);
   const [batchApiKey, setBatchApiKey] = useState("");
   const [batchApiBase, setBatchApiBase] = useState("");
+  const [batchApiFormat, setBatchApiFormat] = useState<ApiFormat | "">("");
   const [showBatchApiKey, setShowBatchApiKey] = useState(false);
   const [batchRows, setBatchRows] = useState<BatchModelRow[]>([
     createEmptyBatchRow(),
@@ -127,6 +130,7 @@ export const BatchCreateModal = ({
           provider: (r.provider || undefined) as ProviderType | undefined,
           api_key: batchApiKey.trim() || undefined,
           api_base: batchApiBase.trim() || undefined,
+          api_format: batchApiFormat || undefined,
           temperature,
           max_tokens: maxTokens,
           profile: maxInputTokens
@@ -145,7 +149,7 @@ export const BatchCreateModal = ({
     } finally {
       setBatchSaving(false);
     }
-  }, [validBatchRows, batchApiKey, batchApiBase, t, onSaved]);
+  }, [validBatchRows, batchApiKey, batchApiBase, batchApiFormat, t, onSaved]);
 
   const importValidation = useMemo(() => {
     if (!importJson.trim()) return { valid: false };
@@ -292,6 +296,20 @@ export const BatchCreateModal = ({
                     onChange={(e) => setBatchApiBase(e.target.value)}
                     placeholder={t("agentConfig.modelApiBasePlaceholder")}
                     className="es-input"
+                  />
+                </div>
+                <div className="es-field">
+                  <label className="es-label">
+                    {t("agentConfig.modelApiFormat")}
+                  </label>
+                  <Select
+                    value={batchApiFormat}
+                    onChange={(v) => setBatchApiFormat(v as ApiFormat | "")}
+                    options={[
+                      { value: "", label: t("agentConfig.apiFormatFollowDefault") },
+                      { value: "chat_completions", label: "Chat Completions" },
+                      { value: "responses", label: "Responses" },
+                    ]}
                   />
                 </div>
                 <div className="es-field">

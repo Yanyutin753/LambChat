@@ -117,7 +117,7 @@ async def resolve_fallback_model(
         return None
 
     if not db_model or not db_model.fallback_model:
-        return _global_fallback_model(selected_model, log_prefix)
+        return await _global_fallback_model(selected_model, log_prefix)
 
     try:
         fallback_db = await storage.get(db_model.fallback_model)
@@ -134,26 +134,47 @@ async def resolve_fallback_model(
         )
         return fallback_db.value
 
-    return _global_fallback_model(selected_model, log_prefix)
+    return await _global_fallback_model(selected_model, log_prefix)
 
 
-def _global_fallback_model(selected_model: str | None, log_prefix: str = "") -> str | None:
-    """全局兜底模型：DB 未配置 fallback_model 时使用 LLM_FALLBACK_MODEL。"""
+async def _global_fallback_model(selected_model: str | None, log_prefix: str = "") -> str | None:
+    """全局兜底模型：DB 未配置 fallback_model 时使用 LLM_FALLBACK_MODEL。
+
+    设置值可以是模型配置 UUID（设置面板下拉保存的 id）或旧的模型 value
+    字符串；UUID 解析成 value，非 UUID / 查询失败按原始字符串处理。
+    """
     from src.kernel.config import settings
 
     fallback = settings.LLM_FALLBACK_MODEL
     if not fallback or not fallback.strip():
         return None
     fallback = fallback.strip()
-    if selected_model and fallback == selected_model:
+
+    resolved = await _resolve_fallback_reference(fallback, log_prefix)
+    if not resolved:
+        return None
+    if selected_model and resolved == selected_model:
         logger.warning(
             "%s Global fallback model equals primary model (%s); skipping self-fallback",
             log_prefix,
-            fallback,
+            resolved,
         )
         return None
-    logger.info("%s Using global fallback model: %s", log_prefix, fallback)
-    return fallback
+    logger.info("%s Using global fallback model: %s", log_prefix, resolved)
+    return resolved
+
+
+async def _resolve_fallback_reference(reference: str, log_prefix: str = "") -> str | None:
+    """把 LLM_FALLBACK_MODEL 引用解析成模型 value（UUID → value，其余原样）。"""
+    from src.infra.agent.model_storage import get_model_storage
+
+    try:
+        db_model = await get_model_storage().get(reference)
+    except Exception as e:
+        # 旧配置存的是模型 value（非 ObjectId），查询抛错时保持原样
+        logger.debug("%s Fallback reference %r is not a stored model id: %s", log_prefix, reference, e)
+        return reference
+    return db_model.value if db_model else reference
 
 
 async def _resolve_model_profile_bool(
