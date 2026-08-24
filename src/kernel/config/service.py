@@ -22,6 +22,7 @@ _settings_cache: dict[str, Any] = {}
 _ALLOW_EMPTY_STRING_SETTINGS = {
     "DEFAULT_MODEL_ID",
     "NATIVE_MEMORY_COMPACTION_MODEL_ID",
+    "LLM_FALLBACK_MODEL",
 }
 
 
@@ -153,6 +154,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "LLM_REQUEST_TIMEOUT",
         "LLM_FIRST_EVENT_TIMEOUT",
         "LLM_FALLBACK_MODEL",
+        "LLM_OPENAI_API_FORMAT",
     }
 
     # Settings that require memory backend reinitialization

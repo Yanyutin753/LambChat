@@ -72,6 +72,19 @@ def _resolve_protocol(provider: str) -> str:
     return entry[0] if entry else "openai"
 
 
+def _resolve_use_responses(protocol: str, api_format: Optional[str]) -> bool:
+    """决定 OpenAI 协议模型是否走 /v1/responses（否则 /v1/chat/completions）。
+
+    仅 OpenAI 协议可切换；优先级：模型级 api_format > 全局
+    LLM_OPENAI_API_FORMAT 设置，未识别的值一律回退 chat_completions。
+    Anthropic/Google 协议没有该概念，恒为 False。
+    """
+    if protocol != "openai":
+        return False
+    fmt = api_format or getattr(settings, "LLM_OPENAI_API_FORMAT", None) or "chat_completions"
+    return fmt == "responses"
+
+
 def _parse_provider(model: str) -> tuple[str, str]:
     """从模型标识解析 provider 和 model_name。
 
@@ -110,6 +123,7 @@ def _make_cache_key(
     thinking: Optional[dict],
     profile: Optional[dict],
     max_retries: int,
+    api_format: Optional[str] = None,
 ) -> tuple:
     thinking_key = tuple(sorted(thinking.items())) if thinking else None
     profile_key = tuple(sorted(profile.items())) if profile else None
@@ -125,6 +139,7 @@ def _make_cache_key(
         max_retries,
         _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
         _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
+        api_format,
     )
 
 
@@ -390,6 +405,7 @@ class LLMClient:
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
         profile: Optional[dict] = None,
+        api_format: Optional[str] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """根据 provider 创建对应的 LangChain 模型。"""
@@ -461,17 +477,23 @@ class LLMClient:
             "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
             "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
         }
+        # /v1/responses 线格式开关（模型级 api_format > 全局默认）。
+        # 显式传 bool：None 会让 langchain-openai 自动探测，不满足确定性。
+        openai_kwargs["use_responses_api"] = _resolve_use_responses(protocol, api_format)
         # OpenAI 协议：按 provider/模型家族门控思考参数（issue #211）
         # - openai/xai 推理模型收到 reasoning_effort（off 映射到该模型最低
-        #   支持档，支持 none 的家族为 "none"）
-        # - zhipu GLM-4.5+/GLM-5 收到 `thinking` 请求体字段（经 model_kwargs）
+        #   支持档，支持 none 的家族为 "none"）；responses 模式下
+        #   langchain-openai 会自动映射为 reasoning.effort
+        # - zhipu GLM-4.5+/GLM-5 收到 `thinking` 请求体字段（经 model_kwargs，
+        #   仅 chat completions 线格式；/v1/responses 不接受该字段）
         # - 其他 OpenAI 兼容提供商 (DeepSeek、Qwen 等) 有各自的推理机制，
         #   发送 reasoning_effort 会触发不兼容的"思考模式"导致 API 报错
         reasoning_effort: Optional[str] = None
         zhipu_thinking_body: Optional[dict[str, Any]] = None
         if thinking:
             reasoning_effort = _resolve_reasoning_effort(provider, model_name, thinking)
-            zhipu_thinking_body = _resolve_zhipu_thinking_body(provider, model_name, thinking)
+            if not openai_kwargs["use_responses_api"]:
+                zhipu_thinking_body = _resolve_zhipu_thinking_body(provider, model_name, thinking)
             if reasoning_effort is None and zhipu_thinking_body is None:
                 logger.debug(
                     "Thinking requested but no thinking parameter is supported "
@@ -501,6 +523,7 @@ class LLMClient:
         profile: Optional[dict] = None,
         model_config: Optional[dict[str, Any] | ModelConfig] = None,
         use_model_config: bool = True,
+        api_format: Optional[str] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """获取 LangChain 聊天模型（带 LRU 缓存）。
@@ -522,6 +545,8 @@ class LLMClient:
             profile: Per-model configuration (e.g., max_input_tokens).
             use_model_config: If True, look up model config from endpoint/static list
                 and apply per-model overrides. Default True.
+            api_format: Wire format for OpenAI-protocol providers
+                ("chat_completions" | "responses"). Overridden by model config.
         """
         # ── 已解析配置优先：聊天入口已做权限校验和 DB 查询，避免重复查库 ──
         explicit_provider: Optional[str] = None
@@ -556,6 +581,8 @@ class LLMClient:
                     )
             if not api_base and db_model.api_base:
                 api_base = db_model.api_base
+            if not api_format and db_model.api_format:
+                api_format = db_model.api_format
             if db_model.temperature is not None:
                 temperature = db_model.temperature
             if max_tokens is None and db_model.max_tokens is not None:
@@ -583,6 +610,8 @@ class LLMClient:
                     set_cached_api_key(stored_model.value, stored_model.api_key)
                 if not api_base and stored_model.api_base:
                     api_base = stored_model.api_base
+                if not api_format and stored_model.api_format:
+                    api_format = stored_model.api_format
                 if stored_model.temperature is not None:
                     temperature = stored_model.temperature
                 if max_tokens is None and stored_model.max_tokens is not None:
@@ -644,6 +673,8 @@ class LLMClient:
                     provider = explicit_provider
                 if not api_base and model_cfg.get("api_base"):
                     api_base = model_cfg["api_base"]
+                if not api_format and model_cfg.get("api_format"):
+                    api_format = model_cfg["api_format"]
                 if model_cfg.get("temperature") is not None:
                     temperature = model_cfg["temperature"]
                 if max_tokens is None and model_cfg.get("max_tokens") is not None:
@@ -682,6 +713,7 @@ class LLMClient:
             thinking,
             profile,
             settings.LLM_MAX_RETRIES,
+            api_format,
         )
 
         # LRU cache hit — move to end (most recently used)
@@ -709,6 +741,7 @@ class LLMClient:
             api_base=api_base,
             thinking=thinking,
             profile=profile,
+            api_format=api_format,
             **kwargs,
         )
         LLMClient._model_cache[cache_key] = instance

@@ -70,6 +70,7 @@
     "agentsSection": "어시스턴트",
     "allModelsAvailable": "모든 모델이 선택됨",
     "apiConfiguration": "API 설정",
+    "apiFormatFollowDefault": "기본 설정 따르기",
     "apiKeyEditHint": "비워두면 기존 키가 유지됩니다. 새 키를 입력하여 교체하세요.",
     "apiKeyHint": "비워두면 건너뜁니다 (권장하지 않음)",
     "apiKeyPlaceholder": "이 모델의 사용자 정의 API 키",
@@ -143,6 +144,8 @@
     "maxTokens": "최대 토큰",
     "modelApiBase": "API 기본 URL",
     "modelApiBasePlaceholder": "예: https://api.anthropic.com",
+    "modelApiFormat": "API 형식",
+    "modelApiFormatHint": "OpenAI 호환 엔드포인트의 통신 형식: Chat Completions(/chat/completions) 또는 Responses(/responses). OpenAI 프로토콜 공급자에만 적용되며 Claude/Gemini 프로토콜에서는 무시됩니다.",
     "modelApiKey": "API 키",
     "modelConfigDescription": "모델 라이브러리에서 모델을 추가, 편집 또는 삭제합니다. 각 모델에 사용자 정의 API 설정을 구성할 수 있습니다.",
     "modelConfigTab": "모델 설정",
@@ -2426,7 +2429,11 @@
     "WELCOME_SUGGESTION_ICON": "아이콘",
     "WELCOME_SUGGESTION_ITEM": "제안",
     "WELCOME_SUGGESTION_LANG": "언어",
-    "WELCOME_SUGGESTION_TEXT": "텍스트"
+    "WELCOME_SUGGESTION_TEXT": "텍스트",
+    "LLM_OPENAI_API_FORMAT": "OpenAI 호환 엔드포인트의 기본 통신 형식: chat_completions(/v1/chat/completions) 또는 responses(/v1/responses). 업스트림이 /v1/responses를 지원할 때만 전환하세요. 모델별 'API 형식' 설정이 이 기본값보다 우선합니다.",
+    "DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO": "컨텍스트 요약을 트리거하는 사용률(0-1). 대화 컨텍스트가 이 비율을 초과하면 기록이 자동 압축됩니다.",
+    "DEEPAGENT_SUMMARIZATION_KEEP_RATIO": "요약 압축 후 유지되는 컨텍스트 비율(0-1). 클수록 더 많은 기록을 유지합니다.",
+    "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "스킬 수가 이 값 이하면 프롬프트에 각 스킬 설명을 포함하고, 초과하면 토큰 절약을 위해 이름만 나열합니다."
   },
   "settings": {
     "defaultModel": "기본 모델",
@@ -2441,6 +2448,7 @@
     "legacyModelValue": "레거시 값",
     "loading": "설정 로딩 중...",
     "modelConfigDescription": "애플리케이션 설정 관리",
+    "noFallbackModel": "폴백 없음",
     "noMatch": "검색과 일치하는 설정이 없습니다",
     "noSettings": "이 카테고리에 설정이 없습니다",
     "readOnlyNotice": "읽기 전용: 설정을 편집하려면 SETTINGS_MANAGE 권한이 필요합니다.",

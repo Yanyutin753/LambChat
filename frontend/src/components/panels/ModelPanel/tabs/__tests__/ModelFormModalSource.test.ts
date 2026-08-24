@@ -23,3 +23,9 @@ test("model form persists an explicit model icon selection", () => {
   expect(source).toMatch(/icon:\s*formIcon\s*\|\|\s*undefined/);
   expect(source).toMatch(/<ModelIconSelect/);
 });
+
+test("model form persists the OpenAI wire format selection", () => {
+  expect(source).toMatch(/formApiFormat/);
+  expect(source).toMatch(/model\?\.api_format/);
+  expect(source).toMatch(/api_format:\s*formApiFormat\s*\|\|\s*undefined/);
+});

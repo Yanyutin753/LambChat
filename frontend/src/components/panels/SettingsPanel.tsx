@@ -779,10 +779,16 @@ export function SettingsPanel() {
                                                       "settings.firstEnabledModel",
                                                       "First enabled model",
                                                     )
-                                                  : t(
-                                                      "settings.defaultModel",
-                                                      "Default model",
-                                                    ),
+                                                  : setting.key ===
+                                                      "LLM_FALLBACK_MODEL"
+                                                    ? t(
+                                                        "settings.noFallbackModel",
+                                                        "No fallback",
+                                                      )
+                                                    : t(
+                                                        "settings.defaultModel",
+                                                        "Default model",
+                                                      ),
                                             },
                                             ...legacyModelOption,
                                             ...availableModels.map((model) => ({

@@ -74,6 +74,9 @@ export interface ModelProfile {
 /** LLM API provider type (dynamic, from backend PROVIDER_REGISTRY) */
 export type ProviderType = string;
 
+/** Wire format for OpenAI-protocol providers */
+export type ApiFormat = "chat_completions" | "responses";
+
 /** Shared model option used in selectors and role config */
 export interface ModelOption {
   id: string;
@@ -94,6 +97,7 @@ export interface ModelConfig {
   description?: string;
   api_key?: string;
   api_base?: string;
+  api_format?: ApiFormat | null;
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
@@ -112,6 +116,7 @@ export interface ModelConfigCreate {
   description?: string;
   api_key?: string;
   api_base?: string;
+  api_format?: ApiFormat;
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
@@ -127,6 +132,8 @@ export interface ModelConfigUpdate {
   description?: string;
   api_key?: string;
   api_base?: string;
+  /** "" clears the override back to the global default */
+  api_format?: ApiFormat | "";
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;

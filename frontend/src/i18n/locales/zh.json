@@ -70,6 +70,7 @@
     "agentsSection": "助手",
     "allModelsAvailable": "已选择全部模型",
     "apiConfiguration": "API 配置",
+    "apiFormatFollowDefault": "跟随默认设置",
     "apiKeyEditHint": "留空保持原有密钥不变。输入新密钥以替换。",
     "apiKeyHint": "留空表示不设置（不推荐）",
     "apiKeyPlaceholder": "自定义 API Key",
@@ -143,6 +144,8 @@
     "maxTokens": "最大 Tokens",
     "modelApiBase": "API 基础 URL",
     "modelApiBasePlaceholder": "例如，https://api.anthropic.com",
+    "modelApiFormat": "API 格式",
+    "modelApiFormatHint": "OpenAI 兼容接口的线格式：Chat Completions（/chat/completions）或 Responses（/responses）。仅对 OpenAI 协议的接口类型生效，Claude/Gemini 协议忽略此项。",
     "modelApiKey": "API Key",
     "modelConfigDescription": "添加、编辑或删除模型库中的模型。每个模型可以配置自定义 API 设置。",
     "modelConfigTab": "模型配置",
@@ -2426,7 +2429,11 @@
     "WELCOME_SUGGESTION_ICON": "图标",
     "WELCOME_SUGGESTION_ITEM": "建议项",
     "WELCOME_SUGGESTION_LANG": "语言",
-    "WELCOME_SUGGESTION_TEXT": "文本"
+    "WELCOME_SUGGESTION_TEXT": "文本",
+    "LLM_OPENAI_API_FORMAT": "OpenAI 兼容接口的默认线格式：chat_completions（/v1/chat/completions）或 responses（/v1/responses）。仅在上游支持 /v1/responses 时才切换；模型级「API 格式」配置优先于此设置。",
+    "DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO": "触发上下文摘要的占比（0-1）。对话上下文占用超过该比例时自动压缩历史。",
+    "DEEPAGENT_SUMMARIZATION_KEEP_RATIO": "摘要压缩后保留的上下文占比（0-1）。数值越大保留的历史越多。",
+    "SKILL_PROMPT_DESCRIPTION_THRESHOLD": "技能数量不超过该值时，提示词中附带每个技能的描述；超过后仅列出技能名以节省 token。"
   },
   "settings": {
     "defaultModel": "默认模型",
@@ -2441,6 +2448,7 @@
     "legacyModelValue": "旧模型值",
     "loading": "加载设置中...",
     "modelConfigDescription": "管理应用设置",
+    "noFallbackModel": "无兜底模型",
     "noMatch": "没有匹配的设置项",
     "noSettings": "此分类没有设置项",
     "readOnlyNotice": "只读：您需要 SETTINGS_MANAGE 权限才能编辑设置。",
