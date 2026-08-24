@@ -149,8 +149,29 @@ class TaskRecoveryService:
             )
             traces = await cursor.to_list(length=1)
             if traces:
+                trace_id = traces[0]["trace_id"]
+                # 终态只写 metadata 不写事件时，前端渲染不到失败原因；
+                # 与 executor 失败路径一致，先补一条 error 事件再终结 trace。
+                try:
+                    from src.infra.session.dual_writer import get_dual_writer
+
+                    dual_writer = get_dual_writer()
+                    await dual_writer.write_event(
+                        session_id=session.id,
+                        event_type="error",
+                        data={"error": reason, "error_code": "server_restart", "run_id": run_id},
+                        trace_id=trace_id,
+                        run_id=run_id,
+                    )
+                    await dual_writer.flush_mongo_buffer()
+                except Exception as event_error:
+                    logger.warning(
+                        "Failed to persist interruption error event for run %s: %s",
+                        run_id,
+                        event_error,
+                    )
                 await trace_storage.complete_trace(
-                    traces[0]["trace_id"],
+                    trace_id,
                     status="error",
                     metadata={"error": reason, "error_code": "server_restart"},
                 )
