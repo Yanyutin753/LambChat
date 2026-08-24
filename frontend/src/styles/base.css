@@ -141,7 +141,7 @@ body,
   padding: 0;
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: pan-y;
+  touch-action: manipulation;
 }
 
 html {
