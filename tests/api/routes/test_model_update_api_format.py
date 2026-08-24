@@ -34,14 +34,10 @@ def _admin_token() -> TokenPayload:
 async def test_update_model_maps_empty_api_format_to_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    model = ModelConfig(
-        id="m1", value="openai/gpt-5.2", label="GPT", api_format="responses"
-    )
+    model = ModelConfig(id="m1", value="openai/gpt-5.2", label="GPT", api_format="responses")
     storage = _FakeModelStorage(model)
     monkeypatch.setattr(model_routes, "get_model_storage", lambda: storage)
-    monkeypatch.setattr(
-        "src.infra.llm.models_service.invalidate_cache", _noop_invalidate
-    )
+    monkeypatch.setattr("src.infra.llm.models_service.invalidate_cache", _noop_invalidate)
 
     await model_routes.update_model("m1", ModelConfigUpdate(api_format=""), _admin_token())
 
@@ -56,13 +52,9 @@ async def test_update_model_keeps_explicit_api_format(
     model = ModelConfig(id="m1", value="openai/gpt-5.2", label="GPT")
     storage = _FakeModelStorage(model)
     monkeypatch.setattr(model_routes, "get_model_storage", lambda: storage)
-    monkeypatch.setattr(
-        "src.infra.llm.models_service.invalidate_cache", _noop_invalidate
-    )
+    monkeypatch.setattr("src.infra.llm.models_service.invalidate_cache", _noop_invalidate)
 
-    await model_routes.update_model(
-        "m1", ModelConfigUpdate(api_format="responses"), _admin_token()
-    )
+    await model_routes.update_model("m1", ModelConfigUpdate(api_format="responses"), _admin_token())
 
     _, update = storage.updates[0]
     assert update["api_format"] == "responses"
