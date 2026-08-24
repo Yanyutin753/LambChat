@@ -27,6 +27,7 @@ from .pubsub import TaskPubSub
 from .recovery import TaskRecoveryService
 from .run_ids import generate_run_id
 from .startup_cleanup import TaskStartupCleanupService, _gather_limited
+from .state_machine import TaskStateMachine
 from .status import TaskStatus
 from .status_queries import TaskStatusQueries
 
@@ -70,6 +71,7 @@ class BackgroundTaskManager:
         self._heartbeat = TaskHeartbeat()
         self._cancellation = TaskCancellation(self._lock, self._tasks)
         self._pubsub = TaskPubSub(self._lock, self._tasks)
+        self._state_machine = TaskStateMachine()
         self._executor: Optional[TaskExecutor] = None  # Lazy init in submit
         self._arq_pool: Any | None = None
         self._release_tasks: set[asyncio.Task[None]] = set()
@@ -648,6 +650,17 @@ class BackgroundTaskManager:
             if session and session.metadata:
                 run_id = session.metadata.get("current_run_id")
                 if run_id:
+                    # current_run_id 在 run 结束后仍保留；任务已终态时取消是
+                    # 迟到的停止请求，不得把已完成的 trace 改写成 error，
+                    # 也不得污染会话的 task_error_code 元数据。
+                    task_status = session.metadata.get("task_status")
+                    if self._state_machine.is_terminal(task_status):
+                        return {
+                            "success": False,
+                            "cancelled_locally": False,
+                            "run_id": None,
+                            "message": "没有正在运行的任务",
+                        }
                     run_info = await self._build_run_info_from_session(
                         session,
                         session_id=session_id,

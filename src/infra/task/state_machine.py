@@ -93,7 +93,7 @@ class TaskStateMachine:
                 f"Invalid task transition: {current_status!s} -> {target_status!s}"
             )
 
-    def is_terminal(self, status: TaskStatus | str) -> bool:
+    def is_terminal(self, status: TaskStatus | str | None) -> bool:
         return self._coerce_status(status) in self._terminal_statuses
 
     def build_metadata(

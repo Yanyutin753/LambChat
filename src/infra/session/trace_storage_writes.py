@@ -13,6 +13,18 @@ _USAGE_LOGS_ENABLED = True  # 是否在 trace 完成时写入 usage_logs 集合
 _ATTACHMENT_CHUNK_WRITE_FIELD = "attachment_chunk_write_operation"
 _TRACE_EVENT_REVISION_FIELD = "event_revision"
 
+# 终态保护：complete_trace 只允许终结未定稿的 trace（running 或缺失 status）。
+# 迟到的取消信号 / 恢复流程不得把已完成或已失败的 trace 改写成另一种终态。
+_TRACE_FINALIZABLE_STATUSES = ["running", None]
+
+
+def _finalizable_trace_filter(trace_id: str) -> Dict[str, Any]:
+    return {
+        "trace_id": trace_id,
+        "status": {"$in": _TRACE_FINALIZABLE_STATUSES},
+        _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
+    }
+
 
 class TraceStorageWriteMixin:
     """Write-side behavior composed into the public TraceStorage class."""
@@ -361,10 +373,7 @@ class TraceStorageWriteMixin:
             if ensure_token_usage:
                 await self._ensure_token_usage_event(trace_id)
             result = await self.collection.update_one(
-                {
-                    "trace_id": trace_id,
-                    _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-                },
+                _finalizable_trace_filter(trace_id),
                 update,
             )
             if result.modified_count == 0:
@@ -415,10 +424,7 @@ class TraceStorageWriteMixin:
             marker = (marker_doc or {}).get(_ATTACHMENT_CHUNK_WRITE_FIELD)
             if not isinstance(marker, dict):
                 result = await self.collection.update_one(
-                    {
-                        "trace_id": trace_id,
-                        _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-                    },
+                    _finalizable_trace_filter(trace_id),
                     update,
                 )
                 if result.modified_count > 0:
@@ -437,10 +443,7 @@ class TraceStorageWriteMixin:
                         },
                     )
                     result = await self.collection.update_one(
-                        {
-                            "trace_id": trace_id,
-                            _ATTACHMENT_CHUNK_WRITE_FIELD: {"$exists": False},
-                        },
+                        _finalizable_trace_filter(trace_id),
                         update,
                     )
                     if result.modified_count > 0:

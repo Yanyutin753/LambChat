@@ -321,6 +321,7 @@ async def test_complete_trace_does_not_duplicate_existing_token_usage() -> None:
     assert _usage_event_from_pipeline(usage_update)["event_type"] == "token:usage"
     assert storage.collection.calls[1][0] == {
         "trace_id": "trace-1",
+        "status": {"$in": ["running", None]},
         "attachment_chunk_write_operation": {"$exists": False},
     }
     assert storage.collection.calls[1][1]["$inc"] == {"event_revision": 1}
@@ -336,6 +337,7 @@ async def test_complete_trace_can_skip_zero_token_usage_placeholder() -> None:
     assert len(storage.collection.calls) == 1
     assert storage.collection.calls[0][0] == {
         "trace_id": "trace-1",
+        "status": {"$in": ["running", None]},
         "attachment_chunk_write_operation": {"$exists": False},
     }
     assert storage.collection.calls[0][1]["$inc"] == {"event_revision": 1}
