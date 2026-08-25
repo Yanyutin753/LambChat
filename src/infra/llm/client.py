@@ -5,7 +5,9 @@ LLM 客户端
 """
 
 import asyncio
+import json
 import os
+import platform
 import re
 from collections import OrderedDict
 from functools import lru_cache
@@ -113,6 +115,68 @@ def _effective_timeout(timeout: float) -> float | None:
     return timeout if timeout > 0 else None
 
 
+# ── Anti-fingerprint default request headers ──
+# 第三方中转常通过 User-Agent/x-app 指纹识别官方客户端并限制其他流量
+# （如 Anthropic 封锁非 Claude Code 客户端）。按协议伪装成官方客户端，
+# 与 opencode 等工具的做法一致；可用 LLM_REQUEST_HEADERS 设置覆盖。
+_ANTHROPIC_DEFAULT_HEADERS: dict[str, str] = {
+    "User-Agent": "claude-cli/2.1.5 (external, cli)",
+    "x-app": "cli",
+}
+_OPENCODE_UA_VERSION = "1.0.260"
+
+
+def _default_request_headers(protocol: str) -> dict[str, str]:
+    """内置防封请求头；Google 协议的 langchain 封装不支持 default_headers，跳过。"""
+    if protocol == "anthropic":
+        return dict(_ANTHROPIC_DEFAULT_HEADERS)
+    if protocol == "openai":
+        return {
+            "User-Agent": (
+                f"opencode/{_OPENCODE_UA_VERSION} "
+                f"({platform.system()} {platform.release()}; {platform.machine()})"
+            )
+        }
+    return {}
+
+
+def _settings_header_overrides() -> dict[str, str]:
+    """解析可选的 LLM_REQUEST_HEADERS JSON 覆盖设置。"""
+    raw = getattr(settings, "LLM_REQUEST_HEADERS", None)
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        logger.warning("LLM_REQUEST_HEADERS is not valid JSON; ignoring")
+        return {}
+    if not isinstance(parsed, dict):
+        logger.warning("LLM_REQUEST_HEADERS must be a JSON object; ignoring")
+        return {}
+    return {str(key): str(value) for key, value in parsed.items()}
+
+
+def _merged_request_headers(
+    protocol: str,
+    kwargs: dict[str, Any],
+    model_headers: Optional[dict[str, str]] = None,
+) -> Optional[dict[str, Any]]:
+    """合并防封默认头 + 设置覆盖 + 模型级覆盖 + 调用方 default_headers。
+
+    优先级：调用方 kwargs > 模型级 request_headers > 设置覆盖 > 内置默认
+    （调用方的 Omit 等哨兵值原样保留）。无可注入头时（Google 协议且调用方
+    未传）返回 None，保持原有行为。
+    """
+    headers: dict[str, Any] = _default_request_headers(protocol)
+    headers.update(_settings_header_overrides())
+    if model_headers:
+        headers.update(model_headers)
+    caller = kwargs.get("default_headers")
+    if isinstance(caller, dict):
+        headers.update(caller)
+    return headers or None
+
+
 def _make_cache_key(
     provider: str,
     model_name: str,
@@ -124,6 +188,7 @@ def _make_cache_key(
     profile: Optional[dict],
     max_retries: int,
     api_format: Optional[str] = None,
+    header_overrides: Optional[tuple] = None,
 ) -> tuple:
     thinking_key = tuple(sorted(thinking.items())) if thinking else None
     profile_key = tuple(sorted(profile.items())) if profile else None
@@ -140,6 +205,7 @@ def _make_cache_key(
         _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
         _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
         api_format,
+        header_overrides,
     )
 
 
@@ -406,6 +472,7 @@ class LLMClient:
         thinking: Optional[dict] = None,
         profile: Optional[dict] = None,
         api_format: Optional[str] = None,
+        request_headers: Optional[dict[str, str]] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """根据 provider 创建对应的 LangChain 模型。"""
@@ -414,6 +481,11 @@ class LLMClient:
         profile = _langchain_profile(profile)
 
         protocol = _resolve_protocol(provider)
+
+        # 防封请求头注入（OpenAI/Anthropic 协议；Google 封装不支持，跳过）
+        request_headers = _merged_request_headers(protocol, kwargs, request_headers)
+        if request_headers is not None:
+            kwargs["default_headers"] = request_headers
 
         if protocol == "anthropic":
             # 按 Claude 家族分代门控（issue #211）：manual 时代（3.7~4.5）传
@@ -550,6 +622,7 @@ class LLMClient:
         """
         # ── 已解析配置优先：聊天入口已做权限校验和 DB 查询，避免重复查库 ──
         explicit_provider: Optional[str] = None
+        model_request_headers: Optional[dict[str, str]] = None
         if model_config is not None:
             db_model = (
                 model_config
@@ -583,6 +656,8 @@ class LLMClient:
                 api_base = db_model.api_base
             if not api_format and db_model.api_format:
                 api_format = db_model.api_format
+            if db_model.request_headers:
+                model_request_headers = db_model.request_headers
             if db_model.temperature is not None:
                 temperature = db_model.temperature
             if max_tokens is None and db_model.max_tokens is not None:
@@ -612,6 +687,8 @@ class LLMClient:
                     api_base = stored_model.api_base
                 if not api_format and stored_model.api_format:
                     api_format = stored_model.api_format
+                if stored_model.request_headers:
+                    model_request_headers = stored_model.request_headers
                 if stored_model.temperature is not None:
                     temperature = stored_model.temperature
                 if max_tokens is None and stored_model.max_tokens is not None:
@@ -675,6 +752,8 @@ class LLMClient:
                     api_base = model_cfg["api_base"]
                 if not api_format and model_cfg.get("api_format"):
                     api_format = model_cfg["api_format"]
+                if not model_request_headers and model_cfg.get("request_headers"):
+                    model_request_headers = model_cfg["request_headers"]
                 if model_cfg.get("temperature") is not None:
                     temperature = model_cfg["temperature"]
                 if max_tokens is None and model_cfg.get("max_tokens") is not None:
@@ -714,6 +793,11 @@ class LLMClient:
             profile,
             settings.LLM_MAX_RETRIES,
             api_format,
+            # 请求头覆盖参与缓存键：全局/模型级覆盖变化后重建模型实例
+            (
+                tuple(sorted(_settings_header_overrides().items())) or None,
+                tuple(sorted(model_request_headers.items())) if model_request_headers else None,
+            ),
         )
 
         # LRU cache hit — move to end (most recently used)
@@ -742,6 +826,7 @@ class LLMClient:
             thinking=thinking,
             profile=profile,
             api_format=api_format,
+            request_headers=model_request_headers,
             **kwargs,
         )
         LLMClient._model_cache[cache_key] = instance

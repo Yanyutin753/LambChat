@@ -91,6 +91,7 @@ class Settings(BaseSettings):
         "chat_completions"  # OpenAI 协议线格式默认值（chat_completions | responses）
     )
     LLM_MODEL_CACHE_SIZE: int = 50  # 模型实例缓存大小，防止内存泄漏
+    LLM_REQUEST_HEADERS: str = ""  # JSON 对象，覆盖模型请求的防封默认头（如 User-Agent）
     DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO: float = 0.70  # 触发摘要的上下文占比（原 0.85）
     DEEPAGENT_SUMMARIZATION_KEEP_RATIO: float = 0.15  # 摘要后保留的上下文占比（原 0.10）
 

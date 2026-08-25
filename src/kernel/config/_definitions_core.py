@@ -229,6 +229,14 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LLM_MODEL_CACHE_SIZE",
         "default": 50,
     },
+    "LLM_REQUEST_HEADERS": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.LLM,
+        "subcategory": "model",
+        "description": "settingDesc.LLM_REQUEST_HEADERS",
+        "default": "",
+        "frontend_visible": True,
+    },
     "DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
