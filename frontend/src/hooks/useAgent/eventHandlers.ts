@@ -515,10 +515,18 @@ function handleUserMessage(
             (runId != null && candidate.runId === runId)),
       );
       if (existingUserIndex === -1) {
-        existingUserIndex = prev.findIndex(
-          (candidate) =>
-            candidate.role === "user" && candidate.content === userContent,
-        );
+        // 乐观用户消息总在列表尾部；从头扫描会在重发相同内容时
+        // 误命中上一轮的同内容消息，把流式助手插到旧消息下面。
+        for (let index = prev.length - 1; index >= 0; index -= 1) {
+          const candidate = prev[index];
+          if (
+            candidate?.role === "user" &&
+            candidate.content === userContent
+          ) {
+            existingUserIndex = index;
+            break;
+          }
+        }
       }
 
       const optimisticContent = extractOptimisticContent(userContent);
