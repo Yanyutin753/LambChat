@@ -229,6 +229,15 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LLM_MODEL_CACHE_SIZE",
         "default": 50,
     },
+    "LLM_REQUEST_HEADERS": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.LLM,
+        "subcategory": "model",
+        "description": "settingDesc.LLM_REQUEST_HEADERS",
+        "default": "",
+        # 可能携带中转凭据（Authorization 等），不暴露给普通用户并在响应中打码
+        "is_sensitive": True,
+    },
     "DEEPAGENT_SUMMARIZATION_TRIGGER_RATIO": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,

@@ -50,6 +50,10 @@ class ModelConfig(BaseModel):
         None,
         description="Wire format for OpenAI-protocol providers (chat_completions | responses)",
     )
+    request_headers: Optional[dict[str, str]] = Field(
+        None,
+        description="Per-model HTTP header overrides merged over the anti-ban defaults",
+    )
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
@@ -82,6 +86,10 @@ class ModelConfigCreate(BaseModel):
         None,
         description="Wire format for OpenAI-protocol providers (chat_completions | responses)",
     )
+    request_headers: Optional[dict[str, str]] = Field(
+        None,
+        description="Per-model HTTP header overrides merged over the anti-ban defaults",
+    )
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
@@ -105,6 +113,11 @@ class ModelConfigUpdate(BaseModel):
     api_format: Optional[Literal["chat_completions", "responses", ""]] = Field(
         None,
         description="Wire format for OpenAI-protocol providers (chat_completions | responses)",
+    )
+    # null / {} 表示清除覆盖、回落全局设置与内置防封默认头
+    request_headers: Optional[dict[str, str]] = Field(
+        None,
+        description="Per-model HTTP header overrides merged over the anti-ban defaults",
     )
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")

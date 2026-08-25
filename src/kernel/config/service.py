@@ -23,6 +23,7 @@ _ALLOW_EMPTY_STRING_SETTINGS = {
     "DEFAULT_MODEL_ID",
     "NATIVE_MEMORY_COMPACTION_MODEL_ID",
     "LLM_FALLBACK_MODEL",
+    "LLM_REQUEST_HEADERS",
 }
 
 
@@ -155,6 +156,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "LLM_FIRST_EVENT_TIMEOUT",
         "LLM_FALLBACK_MODEL",
         "LLM_OPENAI_API_FORMAT",
+        "LLM_REQUEST_HEADERS",
     }
 
     # Settings that require memory backend reinitialization

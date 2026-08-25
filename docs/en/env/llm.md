@@ -28,6 +28,7 @@ LambChat supports multi-model management through the UI. The env vars above set 
 | `LLM_REQUEST_TIMEOUT` | `0` | Total seconds allowed for a complete non-streaming response. `0` or a negative value disables LambChat's non-streaming total timeout, so non-streaming waits indefinitely by default. |
 | `LLM_FIRST_EVENT_TIMEOUT` | `30` | Seconds allowed for the first provider event of a streaming response. `0` or a negative value disables this deadline. After the first event, LambChat applies no total duration limit or chunk idle timeout. |
 | `LLM_MODEL_CACHE_SIZE` | `50` | Model instance cache size. Prevents memory leaks from repeated instantiation. |
+| `LLM_REQUEST_HEADERS` | _(empty)_ | JSON object of request headers merged over the built-in anti-ban defaults (Claude Code style `User-Agent`/`x-app` for Anthropic protocol, opencode style `User-Agent` for OpenAI-compatible). Example: `{"User-Agent": "my-agent/1.0"}`. Per-model header overrides take precedence; Google protocol is not supported. |
 | `LLM_MAX_INPUT_TOKENS` | _(none)_ | Optional: context window size for DeepAgent auto-summarization. |
 | `LLM_TEMPERATURE` | _(none)_ | Optional: default temperature for LLM calls. |
 | `LLM_MAX_TOKENS` | _(none)_ | Optional: max output tokens for LLM calls. |

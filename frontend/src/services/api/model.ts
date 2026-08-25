@@ -98,6 +98,7 @@ export interface ModelConfig {
   api_key?: string;
   api_base?: string;
   api_format?: ApiFormat | null;
+  request_headers?: Record<string, string> | null;
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
@@ -117,6 +118,7 @@ export interface ModelConfigCreate {
   api_key?: string;
   api_base?: string;
   api_format?: ApiFormat;
+  request_headers?: Record<string, string>;
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
@@ -134,6 +136,8 @@ export interface ModelConfigUpdate {
   api_base?: string;
   /** "" clears the override back to the global default */
   api_format?: ApiFormat | "";
+  /** {} clears the override back to the global/anti-ban defaults */
+  request_headers?: Record<string, string>;
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;

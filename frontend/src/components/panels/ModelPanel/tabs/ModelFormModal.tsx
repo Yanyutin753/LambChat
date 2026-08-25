@@ -10,6 +10,7 @@ import {
   Input,
   PanelFooterActions,
   Select,
+  Textarea,
 } from "../../../common";
 import { ProviderSelect } from "../../AgentPanel/shared";
 import { modelApi } from "../../../../services/api/model";
@@ -22,6 +23,10 @@ import type {
   ProviderType,
 } from "../../../../services/api/model";
 import { ModelIconSelect } from "./ModelIconSelect";
+import {
+  formatRequestHeaders,
+  parseRequestHeadersInput,
+} from "./requestHeadersInput";
 
 interface ModelFormModalProps {
   model: ModelConfig | null; // null = creating, non-null = editing
@@ -48,6 +53,9 @@ export const ModelFormModal = ({
   const [formApiBase, setFormApiBase] = useState(model?.api_base || "");
   const [formApiFormat, setFormApiFormat] = useState<ApiFormat | "">(
     model?.api_format || "",
+  );
+  const [formRequestHeaders, setFormRequestHeaders] = useState(
+    formatRequestHeaders(model?.request_headers),
   );
   const [formTemperature, setFormTemperature] = useState(
     model?.temperature?.toString() || "",
@@ -83,6 +91,15 @@ export const ModelFormModal = ({
     const temperature = formTemperature
       ? parseFloat(formTemperature)
       : undefined;
+    const parsedHeaders = parseRequestHeadersInput(formRequestHeaders);
+    if (!parsedHeaders.ok) {
+      toast.error(
+        parsedHeaders.error === "invalidJson"
+          ? t("agentConfig.requestHeadersInvalidJson")
+          : t("agentConfig.requestHeadersNotObject"),
+      );
+      return;
+    }
     const maxTokens = formMaxTokens ? parseInt(formMaxTokens, 10) : undefined;
     const maxInputTokens = formMaxInputTokens
       ? parseInt(formMaxInputTokens, 10)
@@ -122,6 +139,7 @@ export const ModelFormModal = ({
             : {}),
           api_base: formApiBase.trim() || undefined,
           api_format: formApiFormat || "",
+          request_headers: parsedHeaders.headers ?? {},
           temperature,
           max_tokens: maxTokens,
           profile,
@@ -139,6 +157,7 @@ export const ModelFormModal = ({
           api_key: formApiKey.trim() || undefined,
           api_base: formApiBase.trim() || undefined,
           api_format: formApiFormat || undefined,
+          request_headers: parsedHeaders.headers,
           temperature,
           max_tokens: maxTokens,
           profile,
@@ -161,6 +180,7 @@ export const ModelFormModal = ({
     formApiKey,
     formApiBase,
     formApiFormat,
+    formRequestHeaders,
     formTemperature,
     formMaxTokens,
     formMaxInputTokens,
@@ -351,6 +371,22 @@ export const ModelFormModal = ({
               />
               <p className="es-hint">
                 {t("agentConfig.modelApiFormatHint")}
+              </p>
+            </div>
+            <div className="es-field">
+              <label className="es-label">
+                {t("agentConfig.modelRequestHeaders")}
+              </label>
+              <Textarea
+                value={formRequestHeaders}
+                onChange={(e) => setFormRequestHeaders(e.target.value)}
+                placeholder={t("agentConfig.modelRequestHeadersPlaceholder")}
+                className="es-input font-mono text-xs"
+                rows={3}
+                spellCheck={false}
+              />
+              <p className="es-hint">
+                {t("agentConfig.modelRequestHeadersHint")}
               </p>
             </div>
             <div className="es-row es-row-3">

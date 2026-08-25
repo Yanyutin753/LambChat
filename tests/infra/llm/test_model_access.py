@@ -45,7 +45,7 @@ def test_model_cache_key_includes_both_effective_timeouts(
 
     key = _cache_key()
 
-    assert key[-3:] == (45.0, 15.0, None)
+    assert key[-4:-1] == (45.0, 15.0, None)
 
 
 def test_model_cache_key_normalizes_disabled_timeouts(
@@ -56,7 +56,7 @@ def test_model_cache_key_normalizes_disabled_timeouts(
 
     key = _cache_key()
 
-    assert key[-3:] == (None, None, None)
+    assert key[-4:-1] == (None, None, None)
 
 
 @pytest.mark.parametrize(
