@@ -241,13 +241,9 @@ class UniqueResponseIdMiddleware(AgentMiddleware):
         response = await handler(request)
 
         state_messages = (request.state or {}).get("messages", [])
-        existing_ids = {
-            message.id for message in state_messages if getattr(message, "id", None)
-        }
+        existing_ids = {message.id for message in state_messages if getattr(message, "id", None)}
         answered_call_ids = {
-            message.tool_call_id
-            for message in state_messages
-            if isinstance(message, ToolMessage)
+            message.tool_call_id for message in state_messages if isinstance(message, ToolMessage)
         }
 
         for message in _extract_messages(response):
