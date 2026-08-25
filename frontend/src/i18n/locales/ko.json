@@ -148,7 +148,7 @@
     "modelApiFormatHint": "OpenAI 호환 엔드포인트의 통신 형식: Chat Completions(/chat/completions) 또는 Responses(/responses). OpenAI 프로토콜 공급자에만 적용되며 Claude/Gemini 프로토콜에서는 무시됩니다.",
     "modelRequestHeaders": "요청 헤더 재정의",
     "modelRequestHeadersPlaceholder": "{\"User-Agent\": \"my-agent/1.0\"}",
-    "modelRequestHeadersHint": "내장 방지 기본 헤더(예: User-Agent)에 병합되는 JSON 객체입니다. 비워 두면 전역 설정과 기본값을 따릅니다.",
+    "modelRequestHeadersHint": "내장 방지 기본 헤더(예: User-Agent)에 병합되는 JSON 객체입니다. 비워 두면 전역 설정과 기본값을 따릅니다. (Gemini 프로토콜은 헤더 재정의를 지원하지 않습니다)",
     "requestHeadersInvalidJson": "요청 헤더 재정의가 유효한 JSON이 아닙니다",
     "requestHeadersNotObject": "요청 헤더 재정의는 JSON 객체(키-값 쌍)여야 합니다",
     "modelApiKey": "API 키",

@@ -1,6 +1,29 @@
 import { describe, expect, test } from "vitest";
 
-import { parseRequestHeadersInput } from "../requestHeadersInput";
+import {
+  formatRequestHeaders,
+  parseRequestHeadersInput,
+} from "../requestHeadersInput";
+
+describe("formatRequestHeaders", () => {
+  test("formats stored headers as pretty JSON", () => {
+    expect(formatRequestHeaders({ "x-app": "cli" })).toBe('{\n  "x-app": "cli"\n}');
+  });
+
+  test("empty or missing headers render as empty string", () => {
+    expect(formatRequestHeaders(undefined)).toBe("");
+    expect(formatRequestHeaders(null)).toBe("");
+    expect(formatRequestHeaders({})).toBe("");
+  });
+
+  test("round-trips through the parser", () => {
+    const headers = { "User-Agent": "relay/1", "X-Extra": "2" };
+    expect(parseRequestHeadersInput(formatRequestHeaders(headers))).toEqual({
+      ok: true,
+      headers,
+    });
+  });
+});
 
 describe("parseRequestHeadersInput", () => {
   test("empty input clears the override", () => {

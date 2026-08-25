@@ -148,7 +148,7 @@
     "modelApiFormatHint": "OpenAI 兼容接口的线格式：Chat Completions（/chat/completions）或 Responses（/responses）。仅对 OpenAI 协议的接口类型生效，Claude/Gemini 协议忽略此项。",
     "modelRequestHeaders": "请求头覆盖",
     "modelRequestHeadersPlaceholder": "{\"User-Agent\": \"my-agent/1.0\"}",
-    "modelRequestHeadersHint": "JSON 对象，按请求头合并进内置防封默认（如 User-Agent）。留空则跟随全局设置与内置默认。",
+    "modelRequestHeadersHint": "JSON 对象，按请求头合并进内置防封默认（如 User-Agent）。留空则跟随全局设置与内置默认。（Gemini 协议暂不支持请求头覆盖）",
     "requestHeadersInvalidJson": "请求头覆盖不是合法的 JSON",
     "requestHeadersNotObject": "请求头覆盖必须是 JSON 对象（键值对）",
     "modelApiKey": "API Key",

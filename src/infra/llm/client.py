@@ -119,6 +119,9 @@ def _effective_timeout(timeout: float) -> float | None:
 # 第三方中转常通过 User-Agent/x-app 指纹识别官方客户端并限制其他流量
 # （如 Anthropic 封锁非 Claude Code 客户端）。按协议伪装成官方客户端，
 # 与 opencode 等工具的做法一致；可用 LLM_REQUEST_HEADERS 设置覆盖。
+# 版本号为硬编码的近似值（会过时），且未模拟 anthropic-beta/x-stainless-*
+# 等全套指纹——属 best-effort 伪装，严格的指纹校验仍可能识别；需要更强
+# 伪装时用模型级/全局请求头覆盖补齐。
 _ANTHROPIC_DEFAULT_HEADERS: dict[str, str] = {
     "User-Agent": "claude-cli/2.1.5 (external, cli)",
     "x-app": "cli",
@@ -190,6 +193,8 @@ def _make_cache_key(
     api_format: Optional[str] = None,
     header_overrides: Optional[tuple] = None,
 ) -> tuple:
+    # 注意：header_overrides 只含全局/模型级覆盖；调用方 kwargs（含
+    # default_headers）历来不参与 key——当前无调用方按次传 headers。
     thinking_key = tuple(sorted(thinking.items())) if thinking else None
     profile_key = tuple(sorted(profile.items())) if profile else None
     return (

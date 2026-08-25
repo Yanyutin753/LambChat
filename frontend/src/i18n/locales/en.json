@@ -148,7 +148,7 @@
     "modelApiFormatHint": "Wire format for OpenAI-compatible endpoints: Chat Completions (/chat/completions) or Responses (/responses). Only applies to OpenAI-protocol providers; ignored for Claude/Gemini protocols.",
     "modelRequestHeaders": "Request Header Overrides",
     "modelRequestHeadersPlaceholder": "{\"User-Agent\": \"my-agent/1.0\"}",
-    "modelRequestHeadersHint": "JSON object merged over the built-in anti-ban defaults (e.g. User-Agent). Leave empty to follow the global setting and built-in defaults.",
+    "modelRequestHeadersHint": "JSON object merged over the built-in anti-ban defaults (e.g. User-Agent). Leave empty to follow the global setting and built-in defaults. (Google/Gemini protocol does not support header overrides)",
     "requestHeadersInvalidJson": "Request header overrides are not valid JSON",
     "requestHeadersNotObject": "Request header overrides must be a JSON object (key-value pairs)",
     "modelApiKey": "API Key",

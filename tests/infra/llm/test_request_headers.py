@@ -14,10 +14,13 @@ import pytest
 from src.infra.llm.client import (
     LLMClient,
     _default_request_headers,
+    _make_cache_key,
     _merged_request_headers,
     _settings_header_overrides,
 )
 from src.kernel.config import settings
+from src.kernel.config.definitions import SETTING_DEFINITIONS
+from src.kernel.config.service import _ALLOW_EMPTY_STRING_SETTINGS
 
 
 @pytest.fixture(autouse=True)
@@ -154,5 +157,66 @@ async def test_get_model_applies_model_config_request_headers() -> None:
             )
         )
         assert model.default_headers["User-Agent"] == "relay-friendly/3"
+    finally:
+        LLMClient._model_cache.clear()
+
+
+# ── settings plumbing ─────────────────────────────────────────────────────
+
+
+def test_llm_request_headers_setting_is_not_frontend_visible() -> None:
+    """Headers may carry relay credentials — must not leak to non-admin users."""
+    definition = SETTING_DEFINITIONS["LLM_REQUEST_HEADERS"]
+    assert not definition.get("frontend_visible")
+    assert definition.get("is_sensitive") is True
+
+
+def test_llm_request_headers_allows_clearing_back_to_empty() -> None:
+    """Default is ""; clearing the setting at runtime must not be a silent no-op."""
+    assert "LLM_REQUEST_HEADERS" in _ALLOW_EMPTY_STRING_SETTINGS
+
+
+# ── cache-key participation ────────────────────────────────────────────────
+
+
+def test_cache_key_differs_for_different_header_overrides() -> None:
+    base = _make_cache_key("openai", "gpt-test", 0.7, None, "sk", None, None, None, 3)
+    with_a = _make_cache_key(
+        "openai", "gpt-test", 0.7, None, "sk", None, None, None, 3,
+        header_overrides=(None, (("User-Agent", "a/1"),)),
+    )
+    with_b = _make_cache_key(
+        "openai", "gpt-test", 0.7, None, "sk", None, None, None, 3,
+        header_overrides=(None, (("User-Agent", "b/1"),)),
+    )
+    assert base != with_a
+    assert with_a != with_b
+
+
+@pytest.mark.asyncio
+async def test_get_model_caches_per_model_headers_separately() -> None:
+    from src.kernel.schemas.model import ModelConfig
+
+    LLMClient._model_cache.clear()
+    try:
+        model_a = await LLMClient.get_model(
+            model_config=ModelConfig(
+                value="anthropic/claude-sonnet-4-5",
+                label="a",
+                api_key="sk-test",
+                request_headers={"User-Agent": "relay-a/1"},
+            )
+        )
+        model_b = await LLMClient.get_model(
+            model_config=ModelConfig(
+                value="anthropic/claude-sonnet-4-5",
+                label="b",
+                api_key="sk-test",
+                request_headers={"User-Agent": "relay-b/1"},
+            )
+        )
+        assert model_a is not model_b
+        assert model_a.default_headers["User-Agent"] == "relay-a/1"
+        assert model_b.default_headers["User-Agent"] == "relay-b/1"
     finally:
         LLMClient._model_cache.clear()

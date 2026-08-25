@@ -148,7 +148,7 @@
     "modelApiFormatHint": "Формат обмена для OpenAI-совместимых endpoints: Chat Completions (/chat/completions) или Responses (/responses). Применяется только к провайдерам с протоколом OpenAI; для протоколов Claude/Gemini игнорируется.",
     "modelRequestHeaders": "Переопределение заголовков запроса",
     "modelRequestHeadersPlaceholder": "{\"User-Agent\": \"my-agent/1.0\"}",
-    "modelRequestHeadersHint": "JSON-объект, объединяемый со встроенными защитными заголовками по умолчанию (например, User-Agent). Оставьте пустым, чтобы использовать глобальную настройку и значения по умолчанию.",
+    "modelRequestHeadersHint": "JSON-объект, объединяемый со встроенными защитными заголовками по умолчанию (например, User-Agent). Оставьте пустым, чтобы использовать глобальную настройку и значения по умолчанию. (протокол Gemini не поддерживает переопределение заголовков)",
     "requestHeadersInvalidJson": "Переопределение заголовков не является корректным JSON",
     "requestHeadersNotObject": "Переопределение заголовков должно быть JSON-объектом (пары ключ-значение)",
     "modelApiKey": "API-ключ",

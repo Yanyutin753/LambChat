@@ -148,7 +148,7 @@
     "modelApiFormatHint": "OpenAI 互換エンドポイントの通信形式：Chat Completions（/chat/completions）または Responses（/responses）。OpenAI プロトコルのプロバイダーのみ有効で、Claude/Gemini プロトコルでは無視されます。",
     "modelRequestHeaders": "リクエストヘッダー上書き",
     "modelRequestHeadersPlaceholder": "{\"User-Agent\": \"my-agent/1.0\"}",
-    "modelRequestHeadersHint": "内蔵の防止用デフォルトヘッダー（User-Agent など）にマージされる JSON オブジェクト。空欄ならグローバル設定とデフォルトに従います。",
+    "modelRequestHeadersHint": "内蔵の防止用デフォルトヘッダー（User-Agent など）にマージされる JSON オブジェクト。空欄ならグローバル設定とデフォルトに従います。（Gemini プロトコルはヘッダー上書きに未対応です）",
     "requestHeadersInvalidJson": "リクエストヘッダー上書きが有効な JSON ではありません",
     "requestHeadersNotObject": "リクエストヘッダー上書きは JSON オブジェクト（キーと値のペア）である必要があります",
     "modelApiKey": "API キー",
