@@ -365,6 +365,7 @@ async def test_maybe_compact_after_write_runs_deepagent_compactor(monkeypatch):
         "HistoricalImageCapMiddleware",
         "ModelRetryMiddleware",
         "EmptyContentRetryMiddleware",
+        "UniqueResponseIdMiddleware",
     ]
     tool_names = {tool.name for tool in created["tools"]}
     assert tool_names == {

@@ -116,6 +116,7 @@ def test_retry_stack_does_not_bound_the_complete_streaming_call(monkeypatch) -> 
         "HistoricalImageCapMiddleware",
         "ModelRetryMiddleware",
         "EmptyContentRetryMiddleware",
+        "UniqueResponseIdMiddleware",
     ]
 
 

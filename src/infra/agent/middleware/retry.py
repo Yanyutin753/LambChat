@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +17,7 @@ from langchain.agents.middleware.types import (
     ResponseT,
 )
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from src.infra.agent.middleware.dead_attachment import (
     DeadAttachmentFilterMiddleware,
@@ -220,6 +221,43 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
         return last_response  # type: ignore[return-value]
 
 
+class UniqueResponseIdMiddleware(AgentMiddleware):
+    """Ensure model response ids stay unique within the conversation.
+
+    部分上游中转（如 ChatGPT 反代）会在同一会话的多次补全里返回重复或恒定的
+    响应 id，甚至原样重放同一条 tool_call。deepagents 的 messages 通道
+    （DeltaChannel reducer）按 id 去重——同 id 的新 AIMessage 会原位替换历史
+    消息；重复的 tool_call id 则会被已有 ToolMessage"回答"。两者都会让
+    model→tools 路由误判"所有 tool_calls 已被回答"，走进 destinations 里不存在
+    的 ``"model"``，整个 run 以 ``KeyError: 'model'`` 崩溃（2026-08-25 生产
+    6 例）。这里在响应进入 state 前改写冲突的响应 id 与 tool_call id。
+    """
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        response = await handler(request)
+
+        state_messages = (request.state or {}).get("messages", [])
+        existing_ids = {message.id for message in state_messages if getattr(message, "id", None)}
+        answered_call_ids = {
+            message.tool_call_id for message in state_messages if isinstance(message, ToolMessage)
+        }
+
+        for message in _extract_messages(response):
+            if not isinstance(message, AIMessage):
+                continue
+            if not message.id or message.id in existing_ids:
+                message.id = str(uuid.uuid4())
+            for tool_call in message.tool_calls:
+                if tool_call["id"] in answered_call_ids:
+                    tool_call["id"] = f"call_{uuid.uuid4().hex[:24]}"
+
+        return response
+
+
 def create_retry_middleware(
     fallback_model: str | None = None,
     thinking: dict | None = None,
@@ -227,13 +265,16 @@ def create_retry_middleware(
     """Create the retry middleware stack for deep agents.
 
     Returns [DeadAttachmentFilterMiddleware, HistoricalImageCapMiddleware,
-    ModelFallbackMiddleware?, ModelRetryMiddleware, EmptyContentRetryMiddleware]:
+    ModelFallbackMiddleware?, ModelRetryMiddleware, EmptyContentRetryMiddleware,
+    UniqueResponseIdMiddleware]:
     - Outermost layer: drops image blocks whose uploaded file was deleted
       (dead URLs make upstream token counting fail the whole request)
     - Cap layer: replaces overly numerous historical images with URL placeholders
     - Fallback layer (optional): falls back to an alternate model when primary fails
     - Middle layer: retries on 429/5xx/timeout with exponential backoff
     - Inner layer: retries on empty content responses
+    - Innermost layer: rewrites replayed/empty response ids so add_messages
+      always appends (prevents KeyError 'model' routing crashes)
     """
     stack: list[AgentMiddleware[Any, Any, Any]] = [
         DeadAttachmentFilterMiddleware(),
@@ -257,6 +298,7 @@ def create_retry_middleware(
             EmptyContentRetryMiddleware(
                 max_retries=settings.LLM_MAX_RETRIES, retry_delay=settings.LLM_RETRY_DELAY
             ),
+            UniqueResponseIdMiddleware(),
         ]
     )
     return stack
