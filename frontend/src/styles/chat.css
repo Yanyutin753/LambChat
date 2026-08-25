@@ -81,6 +81,12 @@
   }
 }
 
+/* The expanded composer renders at body level (outside the AppShell
+   transform container), so it must track the keyboard inset itself. */
+html[data-mobile-keyboard="true"] .chat-input-container[data-composer-expanded] {
+  bottom: var(--app-keyboard-inset, 0px);
+}
+
 /* Chat input textarea placeholder */
 .chat-input-container textarea::placeholder {
   color: var(--theme-text-secondary);

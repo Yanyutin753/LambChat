@@ -70,7 +70,7 @@ test("team selector uses the persona selector interaction surfaces", () => {
   );
   expect(featureMenuSource).toMatch(/onClick=\{\(\) => onOpen\("team"\)\}/);
   expect(teamPickerSource).toMatch(
-    /z-\[250\][\s\S]*sm:max-w-3xl[\s\S]*xl:max-w-6xl/,
+    /z-\[290\][\s\S]*sm:max-w-3xl[\s\S]*xl:max-w-6xl/,
   );
   expect(teamPickerSource).toMatch(/grid auto-grid-cols gap-3/);
   expect(teamPickerSource).toMatch(/pps-card__action/);

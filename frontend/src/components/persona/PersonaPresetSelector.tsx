@@ -141,7 +141,7 @@ export function PersonaPresetSelector({
   const selector = createPortal(
     <div
       data-yields-sidebar
-      className="safe-area-viewport-padding fixed inset-0 z-[250] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
+      className="safe-area-viewport-padding fixed inset-0 z-[290] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
       onClick={() => onOpenChange(false)}
     >
       <div

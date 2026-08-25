@@ -8,13 +8,11 @@ import {
   lazy,
   Suspense,
 } from "react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { Ban, Maximize2, Minimize2 } from "lucide-react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
-import { ImageViewer } from "../common";
-import { ConfirmDialog } from "../common/ConfirmDialog";
-import { ContactAdminDialog } from "../common/ContactAdminDialog";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useMentionState } from "../../hooks/useMentionState";
 import { useMentionSearch } from "../../hooks/useMentionSearch";
@@ -36,6 +34,7 @@ import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
+import { useExpandedComposerHost } from "./chatInputExpandedHost";
 import {
   getMatchingSlashDropdownItems,
   type ChatInputSlashCommand,
@@ -59,6 +58,7 @@ import { getComposerCaretBoundary } from "./chatInputCaret";
 import type { ComposerArrowDirection } from "./richComposer/ArrowKeyPlugin";
 import { selectVisibleDraftAttachments } from "./acceptedDraftCleanup";
 import { ChatInputSteerQueue } from "./ChatInputSteerQueue";
+import { ChatInputDialogLayer } from "./ChatInputDialogLayer";
 import {
   areAttachmentsSendable,
   filterSendableAttachments,
@@ -172,6 +172,9 @@ export const ChatInput = memo(function ChatInput({
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
+  const { host: composerHost, slotRef: composerSlotRef } =
+    useExpandedComposerHost(composerExpanded);
+  const formRef = useRef<HTMLFormElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [mentionPopupPlacement, setMentionPopupPlacement] =
@@ -553,7 +556,10 @@ export const ChatInput = memo(function ChatInput({
             setStopConfirmOpen(true);
           }
         } else {
-          event.currentTarget.closest("form")?.requestSubmit();
+          // The expanded editor renders outside the form (body-level
+          // portal host), so resolve the form via ref instead of DOM
+          // ancestry.
+          formRef.current?.requestSubmit();
         }
         return;
       }
@@ -672,231 +678,241 @@ export const ChatInput = memo(function ChatInput({
       className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-5"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
-      {composerExpanded ? (
-        <div
-          className="fixed inset-0 z-[279] bg-black/45"
-          onClick={() => setComposerExpanded(false)}
-          aria-hidden="true"
-        />
-      ) : null}
+      {composerExpanded
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[279] bg-black/45"
+              onClick={() => setComposerExpanded(false)}
+              aria-hidden="true"
+            />,
+            document.body,
+          )
+        : null}
       <ChatInputSteerQueue items={steerMessages} onCancel={onCancelSteer} />
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}
       >
-        <div
-          ref={containerRef}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`chat-input-container flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300 ${
-            isDraggingOver ? "data-drag-over" : ""
-          }`}
-          data-mention-active={mention.isActive || undefined}
-          data-drag-over={isDraggingOver || undefined}
-          data-composer-expanded={composerExpanded || undefined}
-          style={{
-            backgroundColor: "var(--theme-bg-card)",
-          }}
-        >
-          {isDraggingOver && <ChatInputDragOverlay />}
-          <ActiveGoalBar
-            goal={activeGoal ?? null}
-            label={goalLabel}
-            durationLabel={goalDurationLabel}
-            clearLabel={goalClearLabel}
-            onClear={onClearActiveGoal}
-            disabled={isLoading || !canSend}
-            embedded
-          />
-          {mention.isActive &&
-            !onMentionQueryChange &&
-            mentionMode === "persona" && (
-              <MentionPopup
-                presets={mentionSearch.presets}
-                highlightedIndex={mention.highlightedIndex}
-                selectedPresetId={selectedPersonaPresetId}
-                isLoading={mentionSearch.isLoading}
-                isLoadingMore={mentionSearch.isLoadingMore}
-                hasMore={mentionSearch.hasMore}
-                onSelect={applyMentionSelection}
-                onHover={setMentionHighlight}
-                onClose={dismissMention}
-                onLoadMore={mentionSearch.loadMore}
-                placement={mentionPopupPlacement ?? undefined}
-              />
-            )}
-          {mention.isActive &&
-            !onMentionQueryChange &&
-            mentionMode === "team" && (
-              <TeamMentionPopup
-                teams={teamMentionSearch.teams}
-                highlightedIndex={mention.highlightedIndex}
-                selectedTeamId={selectedTeamId}
-                isLoading={teamMentionSearch.isLoading}
-                onSelect={applyTeamMentionSelection}
-                onHover={setMentionHighlight}
-                onClose={dismissMention}
-                placement={mentionPopupPlacement ?? undefined}
-              />
-            )}
-          <ChatInputAttachments
-            attachments={visibleAttachments}
-            onAttachmentsChange={setAttachments}
-            onCancelUpload={cancelUpload}
-            onImageViewerOpen={(url) => setImageViewerSrc(url)}
-            maxFiles={uploadLimits?.maxFiles}
-            onRestoreLongText={handleRestoreLongTextAttachment}
-            onRemoveReference={(referenceId) => {
-              longTextResourcesRef.current.delete(referenceId);
-              composerRef.current?.removeFileReference(referenceId);
-            }}
-            onRetryUpload={(attachment) => {
-              if (attachment.composerReferenceId) {
-                handleRetryFileReference(attachment.composerReferenceId);
-              }
-            }}
-          />
-          <div className="chat-composer-editor-wrap px-2.5 pt-1">
-            {composerExpanded ? (
-              <div className="flex items-center justify-between border-b px-2 pb-3 pt-1">
-                <div>
-                  <div className="text-sm font-medium text-[var(--theme-text)]">
-                    {t("chat.expandedComposerTitle", "展开编辑")}
-                  </div>
-                  <div className="mt-0.5 text-xs text-[var(--theme-text-secondary)]">
-                    {t(
-                      "chat.expandedComposerHint",
-                      "适合编辑长提示词。Esc 收起，发送快捷键保持不变。",
-                    )}
+        <div ref={composerSlotRef} className="w-full">
+          {composerHost &&
+            createPortal(
+              <div
+                ref={containerRef}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`chat-input-container flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300 ${
+                  isDraggingOver ? "data-drag-over" : ""
+                }`}
+                data-mention-active={mention.isActive || undefined}
+                data-drag-over={isDraggingOver || undefined}
+                data-composer-expanded={composerExpanded || undefined}
+                style={{
+                  backgroundColor: "var(--theme-bg-card)",
+                }}
+              >
+                {isDraggingOver && <ChatInputDragOverlay />}
+                <ActiveGoalBar
+                  goal={activeGoal ?? null}
+                  label={goalLabel}
+                  durationLabel={goalDurationLabel}
+                  clearLabel={goalClearLabel}
+                  onClear={onClearActiveGoal}
+                  disabled={isLoading || !canSend}
+                  embedded
+                />
+                {mention.isActive &&
+                  !onMentionQueryChange &&
+                  mentionMode === "persona" && (
+                    <MentionPopup
+                      presets={mentionSearch.presets}
+                      highlightedIndex={mention.highlightedIndex}
+                      selectedPresetId={selectedPersonaPresetId}
+                      isLoading={mentionSearch.isLoading}
+                      isLoadingMore={mentionSearch.isLoadingMore}
+                      hasMore={mentionSearch.hasMore}
+                      onSelect={applyMentionSelection}
+                      onHover={setMentionHighlight}
+                      onClose={dismissMention}
+                      onLoadMore={mentionSearch.loadMore}
+                      placement={mentionPopupPlacement ?? undefined}
+                    />
+                  )}
+                {mention.isActive &&
+                  !onMentionQueryChange &&
+                  mentionMode === "team" && (
+                    <TeamMentionPopup
+                      teams={teamMentionSearch.teams}
+                      highlightedIndex={mention.highlightedIndex}
+                      selectedTeamId={selectedTeamId}
+                      isLoading={teamMentionSearch.isLoading}
+                      onSelect={applyTeamMentionSelection}
+                      onHover={setMentionHighlight}
+                      onClose={dismissMention}
+                      placement={mentionPopupPlacement ?? undefined}
+                    />
+                  )}
+                <ChatInputAttachments
+                  attachments={visibleAttachments}
+                  onAttachmentsChange={setAttachments}
+                  onCancelUpload={cancelUpload}
+                  onImageViewerOpen={(url) => setImageViewerSrc(url)}
+                  maxFiles={uploadLimits?.maxFiles}
+                  onRestoreLongText={handleRestoreLongTextAttachment}
+                  onRemoveReference={(referenceId) => {
+                    longTextResourcesRef.current.delete(referenceId);
+                    composerRef.current?.removeFileReference(referenceId);
+                  }}
+                  onRetryUpload={(attachment) => {
+                    if (attachment.composerReferenceId) {
+                      handleRetryFileReference(attachment.composerReferenceId);
+                    }
+                  }}
+                />
+                <div className="chat-composer-editor-wrap px-2.5 pt-1">
+                  {composerExpanded ? (
+                    <div className="flex items-center justify-between border-b px-2 pb-3 pt-1">
+                      <div>
+                        <div className="text-sm font-medium text-[var(--theme-text)]">
+                          {t("chat.expandedComposerTitle", "展开编辑")}
+                        </div>
+                        <div className="mt-0.5 text-xs text-[var(--theme-text-secondary)]">
+                          {t(
+                            "chat.expandedComposerHint",
+                            "适合编辑长提示词。Esc 收起，发送快捷键保持不变。",
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setComposerExpanded(false)}
+                        className="inline-flex size-8 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--theme-text)_8%,transparent)]"
+                        style={{ color: "var(--theme-text-secondary)" }}
+                        title={t("chat.collapseComposer", "收起")}
+                        aria-label={t("chat.collapseComposer", "收起")}
+                      >
+                        <Minimize2 size={16} />
+                      </button>
+                    </div>
+                  ) : null}
+                  <div className="relative min-h-0 flex-1">
+                    <Suspense
+                      fallback={
+                        <div
+                          className="rich-chat-composer__editor"
+                          aria-hidden="true"
+                        />
+                      }
+                    >
+                      <RichChatComposer
+                        ref={composerRef}
+                        ariaLabel={t("chat.messageInput", "Message")}
+                        initialPlainText={input}
+                        placeholder={composerPlaceholder}
+                        availableSkills={availableRunSkills}
+                        onApplySlashCommand={applySlashCommand}
+                        onChange={handleComposerChange}
+                        filePaste={{
+                          validateCount,
+                          onFiles: uploadFiles,
+                          onInvalidImage: () =>
+                            toast.error(
+                              t(
+                                "fileUpload.clipboardImageUnavailable",
+                                "无法读取剪贴板图片，请重新复制或保存后上传",
+                              ),
+                            ),
+                        }}
+                        longTextPaste={{
+                          enabled: !composerExpanded,
+                          validateCount,
+                          onCreate: handleLongTextCreate,
+                        }}
+                        onRetryFileReference={handleRetryFileReference}
+                        onKeyDown={handleComposerKeyDown}
+                        onArrowKey={handleComposerArrowKey}
+                        disabled={disabled || !canSend}
+                      />
+                    </Suspense>
+                    {!composerExpanded && showExpandButton ? (
+                      <button
+                        type="button"
+                        onClick={() => setComposerExpanded(true)}
+                        className="absolute right-1 top-2 inline-flex size-6 items-center justify-center rounded-md opacity-60 transition hover:opacity-100"
+                        style={{ color: "var(--theme-text-secondary)" }}
+                        title={t("chat.expandComposer", "展开编辑")}
+                        aria-label={t("chat.expandComposer", "展开编辑")}
+                        disabled={disabled || !canSend}
+                      >
+                        <Maximize2 size={14} />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setComposerExpanded(false)}
-                  className="inline-flex size-8 items-center justify-center rounded-lg transition hover:bg-[color-mix(in_srgb,var(--theme-text)_8%,transparent)]"
-                  style={{ color: "var(--theme-text-secondary)" }}
-                  title={t("chat.collapseComposer", "收起")}
-                  aria-label={t("chat.collapseComposer", "收起")}
-                >
-                  <Minimize2 size={16} />
-                </button>
-              </div>
-            ) : null}
-            <div className="relative min-h-0 flex-1">
-              <Suspense
-                fallback={
-                  <div
-                    className="rich-chat-composer__editor"
-                    aria-hidden="true"
-                  />
-                }
-              >
-                <RichChatComposer
-                  ref={composerRef}
-                  ariaLabel={t("chat.messageInput", "Message")}
-                  initialPlainText={input}
-                  placeholder={composerPlaceholder}
-                  availableSkills={availableRunSkills}
-                  onApplySlashCommand={applySlashCommand}
-                  onChange={handleComposerChange}
-                  filePaste={{
-                    validateCount,
-                    onFiles: uploadFiles,
-                    onInvalidImage: () =>
-                      toast.error(
-                        t(
-                          "fileUpload.clipboardImageUnavailable",
-                          "无法读取剪贴板图片，请重新复制或保存后上传",
-                        ),
-                      ),
-                  }}
-                  longTextPaste={{
-                    enabled: !composerExpanded,
-                    validateCount,
-                    onCreate: handleLongTextCreate,
-                  }}
-                  onRetryFileReference={handleRetryFileReference}
-                  onKeyDown={handleComposerKeyDown}
-                  onArrowKey={handleComposerArrowKey}
-                  disabled={disabled || !canSend}
+      
+                <ChatInputToolbar
+                  activePanel={activePanel}
+                  onActivePanelChange={setActivePanel}
+                  canSend={canSend}
+                  sendBlocked={sendBlocked}
+                  isLoading={isLoading}
+                  hasDraft={!!input.trim() || visibleAttachments.length > 0}
+                  onSteer={
+                    onSteer &&
+                    (() => {
+                      onSteer(input, filterSendableAttachments(visibleAttachments));
+                      clearSteerDraft();
+                    })
+                  }
+                  canSubmit={canSubmit}
+                  hasUploadingAttachment={hasUploadingAttachment}
+                  hasFailedAttachment={hasFailedAttachment}
+                  hasInvalidAttachment={hasInvalidAttachment}
+                  enabledToolsCount={enabledToolsCount}
+                  totalToolsCount={totalToolsCount}
+                  enabledSkillsCount={enabledSkillsCount}
+                  totalSkillsCount={totalSkillsCount}
+                  hasPersonaSelector={!!onUsePersonaPreset}
+                  personaName={selectedPersonaName}
+                  hasAgentSelector={agents.length > 1 && !!onSelectAgent}
+                  agentName={(() => {
+                    const agent = agents.find((a) => a.id === currentAgent);
+                    return agent
+                      ? resolveAgentDisplayName(agent, i18n.language, t)
+                      : undefined;
+                  })()}
+                  agentIcon={agents.find((a) => a.id === currentAgent)?.icon}
+                  hasThinkingOption={
+                    !!(
+                      agentOptions &&
+                      onToggleAgentOption &&
+                      Object.keys(agentOptions).length > 0
+                    )
+                  }
+                  thinkingLabel={thinkingLabel}
+                  thinkingLevel={thinkingLevel}
+                  uploadCategories={uploadCategories}
+                  uploadFiles={uploadFiles}
+                  selectedPersonaName={selectedPersonaName}
+                  personaAvatar={personaAvatar}
+                  onClearPersonaPreset={onClearPersonaPreset}
+                  currentAgent={currentAgent}
+                  selectedTeamId={selectedTeamId}
+                  onSelectTeam={onSelectTeam}
+                  agentOptions={agentOptions}
+                  agentOptionValues={agentOptionValues}
+                  onToggleAgentOption={onToggleAgentOption}
+                  onStopClick={() => setStopConfirmOpen(true)}
+                  onNoPermissionClick={() => setContactAdminOpen(true)}
+                  autoModeEnabled={autoModeEnabled}
+                  goalModeEnabled={goalModeEnabled}
+                  onToggleAutoMode={onToggleAutoMode}
+                  onToggleGoalMode={onToggleGoalMode}
                 />
-              </Suspense>
-              {!composerExpanded && showExpandButton ? (
-                <button
-                  type="button"
-                  onClick={() => setComposerExpanded(true)}
-                  className="absolute right-1 top-2 inline-flex size-6 items-center justify-center rounded-md opacity-60 transition hover:opacity-100"
-                  style={{ color: "var(--theme-text-secondary)" }}
-                  title={t("chat.expandComposer", "展开编辑")}
-                  aria-label={t("chat.expandComposer", "展开编辑")}
-                  disabled={disabled || !canSend}
-                >
-                  <Maximize2 size={14} />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          <ChatInputToolbar
-            activePanel={activePanel}
-            onActivePanelChange={setActivePanel}
-            canSend={canSend}
-            sendBlocked={sendBlocked}
-            isLoading={isLoading}
-            hasDraft={!!input.trim() || visibleAttachments.length > 0}
-            onSteer={
-              onSteer &&
-              (() => {
-                onSteer(input, filterSendableAttachments(visibleAttachments));
-                clearSteerDraft();
-              })
-            }
-            canSubmit={canSubmit}
-            hasUploadingAttachment={hasUploadingAttachment}
-            hasFailedAttachment={hasFailedAttachment}
-            hasInvalidAttachment={hasInvalidAttachment}
-            enabledToolsCount={enabledToolsCount}
-            totalToolsCount={totalToolsCount}
-            enabledSkillsCount={enabledSkillsCount}
-            totalSkillsCount={totalSkillsCount}
-            hasPersonaSelector={!!onUsePersonaPreset}
-            personaName={selectedPersonaName}
-            hasAgentSelector={agents.length > 1 && !!onSelectAgent}
-            agentName={(() => {
-              const agent = agents.find((a) => a.id === currentAgent);
-              return agent
-                ? resolveAgentDisplayName(agent, i18n.language, t)
-                : undefined;
-            })()}
-            agentIcon={agents.find((a) => a.id === currentAgent)?.icon}
-            hasThinkingOption={
-              !!(
-                agentOptions &&
-                onToggleAgentOption &&
-                Object.keys(agentOptions).length > 0
-              )
-            }
-            thinkingLabel={thinkingLabel}
-            thinkingLevel={thinkingLevel}
-            uploadCategories={uploadCategories}
-            uploadFiles={uploadFiles}
-            selectedPersonaName={selectedPersonaName}
-            personaAvatar={personaAvatar}
-            onClearPersonaPreset={onClearPersonaPreset}
-            currentAgent={currentAgent}
-            selectedTeamId={selectedTeamId}
-            onSelectTeam={onSelectTeam}
-            agentOptions={agentOptions}
-            agentOptionValues={agentOptionValues}
-            onToggleAgentOption={onToggleAgentOption}
-            onStopClick={() => setStopConfirmOpen(true)}
-            onNoPermissionClick={() => setContactAdminOpen(true)}
-            autoModeEnabled={autoModeEnabled}
-            goalModeEnabled={goalModeEnabled}
-            onToggleAutoMode={onToggleAutoMode}
-            onToggleGoalMode={onToggleGoalMode}
-          />
+              </div>,
+              composerHost,
+            )}
         </div>
       </form>
 
@@ -946,47 +962,17 @@ export const ChatInput = memo(function ChatInput({
 
       {showHelpMenu && <ChatInputHelpMenu className={helpMenuClassName} />}
 
-      {imageViewerSrc && (
-        <ImageViewer
-          src={imageViewerSrc}
-          isOpen={!!imageViewerSrc}
-          onClose={() => setImageViewerSrc(null)}
-        />
-      )}
-
-      <ConfirmDialog
-        isOpen={stopConfirmOpen}
-        title={t("chat.stopConfirmTitle")}
-        message={t("chat.stopConfirmMessage")}
-        confirmText={t("chat.stop")}
-        cancelText={t("common.cancel")}
-        variant="warning"
-        onConfirm={() => {
+      <ChatInputDialogLayer
+        stopConfirmOpen={stopConfirmOpen}
+        onConfirmStop={() => {
           setStopConfirmOpen(false);
           onStop();
-          toast.custom(() => (
-            <div
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
-              style={{
-                background:
-                  "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
-                border:
-                  "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
-                color: "var(--theme-primary)",
-              }}
-            >
-              <Ban size={16} className="shrink-0" />
-              <span>{t("chat.status.cancelled")}</span>
-            </div>
-          ));
         }}
-        onCancel={() => setStopConfirmOpen(false)}
-      />
-
-      <ContactAdminDialog
-        isOpen={contactAdminOpen}
-        onClose={() => setContactAdminOpen(false)}
-        reason="noPermission"
+        onCancelStop={() => setStopConfirmOpen(false)}
+        contactAdminOpen={contactAdminOpen}
+        onCloseContactAdmin={() => setContactAdminOpen(false)}
+        imageViewerSrc={imageViewerSrc}
+        onCloseImageViewer={() => setImageViewerSrc(null)}
       />
     </div>
   );
