@@ -817,6 +817,7 @@
     "stopConfirmTitle": "Остановить генерацию",
     "subagentStatus": "Статус субагента: {{status}}",
     "teamPlaceholder": "Введите сообщение, @ — выбрать команду…",
+    "runningPlaceholder": "Продолжайте вводить — правки встанут в очередь по порядку…",
     "teamSelected": "Команда выбрана",
     "textAutoUploaded": "Длинный текст автоматически загружен как файл",
     "thinkingIntensity": "Интенсивность мышления",

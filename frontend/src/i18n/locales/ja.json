@@ -817,6 +817,7 @@
     "stopConfirmTitle": "生成を停止",
     "subagentStatus": "サブエージェントステータス: {{status}}",
     "teamPlaceholder": "メッセージを入力して会話を開始、@ でチームを切替…",
+    "runningPlaceholder": "入力を続けると修正が順番にキューされます…",
     "teamSelected": "チーム選択済み",
     "textAutoUploaded": "長いテキストがファイルとして自動アップロードされました",
     "thinkingIntensity": "思考強度",
