@@ -93,6 +93,47 @@ def is_retryable_model_error(exc: BaseException) -> bool:
     return False
 
 
+def _is_provider_auth_error(exc: BaseException) -> bool:
+    for module_name in ("anthropic", "openai"):
+        try:
+            module = __import__(
+                module_name,
+                fromlist=["AuthenticationError", "PermissionDeniedError", "APIStatusError"],
+            )
+            if isinstance(exc, (module.AuthenticationError, module.PermissionDeniedError)):
+                return True
+            if isinstance(exc, module.APIStatusError) and exc.status_code in (401, 403):
+                return True
+        except (ImportError, AttributeError):
+            continue
+
+    try:
+        from google.genai import errors as google_errors
+
+        if isinstance(exc, google_errors.ClientError) and getattr(exc, "code", None) in (401, 403):
+            return True
+    except (ImportError, AttributeError):
+        pass
+    return False
+
+
+def is_auth_model_error(exc: BaseException) -> bool:
+    """Return whether an LLM failure is an auth failure (HTTP 401/403).
+
+    Auth failures are never transient for the same credential: retrying the
+    same model is pointless, but switching to another model (a different key)
+    can still succeed. Callers use this to trigger model fallback directly
+    instead of surfacing the raw 401/403 to the user.
+    """
+    for current in _exception_chain(exc):
+        if _is_provider_auth_error(current):
+            return True
+        # 部分中转/包装层把上游鉴权失败重写成普通异常，仅保留 SDK 文案
+        if "Error code: 401 -" in str(current) or "Error code: 403 -" in str(current):
+            return True
+    return False
+
+
 async def ainvoke_with_retry(
     model: Any,
     prompt: Any,

@@ -29,6 +29,32 @@ async def test_fallback_runs_when_primary_raises_non_retryable_error() -> None:
     assert result.content == "fallback answer"
 
 
+async def test_fallback_runs_when_primary_raises_authentication_error() -> None:
+    """回归守卫：上游 401（oaifree Invalid token）必须换兜底模型重放，
+    绝不让裸 401 冒泡成用户可见错误（2026-08-26 生产事故场景）。"""
+    import httpx
+    import openai
+
+    primary_model = object()
+    fallback_model = object()
+    middleware = ModelFallbackMiddleware(fallback_model="openai/fallback-model")
+    middleware._fallback_llm = fallback_model
+
+    response = httpx.Response(status_code=401, request=httpx.Request("POST", "http://test/v1/chat"))
+    body = {"error": {"code": "", "message": "Invalid token", "type": "new_api_error"}}
+
+    async def handler(request):
+        if request.model is primary_model:
+            raise openai.AuthenticationError(
+                "Error code: 401 - Invalid token", response=response, body=body
+            )
+        return AIMessage(content="fallback answer")
+
+    result = await middleware.awrap_model_call(_Request(primary_model), handler)
+
+    assert result.content == "fallback answer"
+
+
 async def test_fallback_runs_when_primary_returns_empty_content() -> None:
     primary_model = object()
     fallback_model = object()

@@ -7,7 +7,8 @@ deepagents 的 SummarizationMiddleware 在自己的 ``awrap_model_call`` 里直�
 没有换模型的机会，最终把整个 agent 任务打挂。
 
 本模块在 ``create_deep_agent`` 调用窗口内包装 deepagents 工厂产出的摘要
-中间件：摘要失败且属于可重试错误时，用兜底模型重建摘要一次。
+中间件：摘要失败且属于可重试错误或鉴权失败（401/403，同 key 重试无意义、
+换模型才可能恢复）时，用兜底模型重建摘要一次。
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from collections.abc import Awaitable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
-from src.infra.llm.retry import is_retryable_model_error
+from src.infra.llm.retry import is_auth_model_error, is_retryable_model_error
 
 if TYPE_CHECKING:
     from langchain_core.messages import AnyMessage
@@ -102,7 +103,9 @@ def protect_summarization_middleware(
         try:
             return await original(messages_to_summarize)
         except Exception as exc:
-            if not is_retryable_model_error(exc):
+            # 鉴权失败（401/403）对同一把 key 永不瞬态，但换模型（不同 key）仍可能成功，
+            # 与瞬态错误同样走兜底重做，避免裸 401 直接打挂整个 agent 任务
+            if not (is_retryable_model_error(exc) or is_auth_model_error(exc)):
                 raise
             logger.warning(
                 "[SummaryFallback] Summary model failed: %s — retrying summary with %s",
