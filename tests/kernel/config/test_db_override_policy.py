@@ -78,6 +78,7 @@ async def test_initialize_skips_override_for_restart_required_keys(
         [
             ("MONGODB_URL", "mongodb://from-db:27017"),
             ("POSTGRES_DB", "lamb-agent"),
+            ("POSTGRES_POOL_MIN_SIZE", 20),
             ("S3_ENABLED", True),
             ("EVENT_MERGE_INTERVAL", 90),
         ],
@@ -86,6 +87,7 @@ async def test_initialize_skips_override_for_restart_required_keys(
     # 连接类配置保持 env 值（含扩展名单里的 POSTGRES_* / S3_*）
     assert config_service.settings.MONGODB_URL == "mongodb://env:27018"
     assert config_service.settings.POSTGRES_DB == "lamb-agent-test"
+    assert config_service.settings.POSTGRES_POOL_MIN_SIZE == 2
     assert config_service.settings.S3_ENABLED is False
     # 行为类配置照常从数据库加载
     assert config_service.settings.EVENT_MERGE_INTERVAL == 90
@@ -126,6 +128,24 @@ async def test_initialize_no_warning_when_db_matches_effective(
         await _run_initialize(monkeypatch, [("MONGODB_URL", "mongodb://env:27018")])
 
     assert not [r for r in caplog.records if "env-authoritative" in r.message]
+
+
+@pytest.mark.asyncio
+async def test_env_authoritative_warning_masks_sensitive_values(
+    monkeypatch: pytest.MonkeyPatch, _isolated_config_globals, caplog
+) -> None:
+    """克隆库场景 DB 里的连接串/密码可能是生产凭据，告警不得把明文写进日志。"""
+    monkeypatch.setattr(config_service.settings, "MONGODB_PASSWORD", "")
+
+    with caplog.at_level("WARNING"):
+        await _run_initialize(monkeypatch, [("MONGODB_PASSWORD", "prod-secret-pass")])
+
+    warnings = [r for r in caplog.records if "env-authoritative" in r.message]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert "prod-secret-pass" not in message
+    assert "set (16 chars)" in message
+    assert "empty" in message
 
 
 @pytest.mark.asyncio

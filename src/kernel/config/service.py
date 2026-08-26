@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from src.infra.logging import get_logger
 
 from .base import settings
-from .constants import RESTART_REQUIRED_SETTINGS
+from .constants import RESTART_REQUIRED_SETTINGS, SENSITIVE_SETTINGS
 
 if TYPE_CHECKING:
     from src.infra.settings.service import SettingsService
@@ -54,6 +54,17 @@ def _skip_db_override(key: str) -> bool:
     return key in RESTART_REQUIRED_SETTINGS
 
 
+def _describe_setting_value(key: str, value: Any) -> str:
+    """敏感值只报状态与长度：克隆库场景下 DB 值可能是生产凭据，不能进日志。"""
+    if key not in SENSITIVE_SETTINGS:
+        return repr(value)
+    if value is None:
+        return "unset"
+    if value == "":
+        return "empty"
+    return f"set ({len(str(value))} chars)"
+
+
 async def initialize_settings() -> None:
     """Initialize settings from database, importing from .env if needed.
 
@@ -93,10 +104,10 @@ async def initialize_settings() -> None:
                             "[Settings] Ignoring database value for %s: connection-class "
                             "settings are env-authoritative on startup. If the database "
                             "value is intended, move it to env/compose and restart "
-                            "(db=%r, effective=%r).",
+                            "(db=%s, effective=%s).",
                             item.key,
-                            item.value,
-                            effective,
+                            _describe_setting_value(item.key, item.value),
+                            _describe_setting_value(item.key, effective),
                         )
                     continue
                 normalized_value = _normalize_runtime_setting(item.key, item.value)

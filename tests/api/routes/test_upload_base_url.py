@@ -15,8 +15,14 @@ from src.api.routes.upload import _get_base_url
 from src.kernel.config import settings
 
 
-def _request(base_url: str, headers: dict[str, str] | None = None) -> SimpleNamespace:
-    return SimpleNamespace(base_url=base_url, headers=headers or {})
+def _request(
+    base_url: str, headers: dict[str, str] | None = None, url_scheme: str = "http"
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        base_url=base_url,
+        headers=headers or {},
+        url=SimpleNamespace(scheme=url_scheme),
+    )
 
 
 def test_request_entry_takes_priority_over_app_base_url(
@@ -26,7 +32,8 @@ def test_request_entry_takes_priority_over_app_base_url(
 
     result = _get_base_url(_request("http://internal:8000/", {"host": "test.lambchat.com"}))
 
-    assert result == "https://test.lambchat.com"
+    # 无转发头视为直连，scheme 跟随连接（http），入口 host 覆盖 APP_BASE_URL
+    assert result == "http://test.lambchat.com"
 
 
 def test_forwarded_proto_upgrades_http_scheme(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,6 +89,44 @@ def test_plain_direct_connection_keeps_request_scheme(
     result = _get_base_url(_request("http://127.0.0.1:8010/", {"host": "127.0.0.1:8010"}))
 
     assert result == "http://127.0.0.1:8010"
+
+
+def test_plain_http_lan_direct_connection_keeps_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """局域网/自签部署以 http 直连非环回地址时，不得误判成 https。"""
+    monkeypatch.setattr(settings, "APP_BASE_URL", "")
+
+    result = _get_base_url(_request("http://192.168.1.10:8000/", {"host": "192.168.1.10:8000"}))
+
+    assert result == "http://192.168.1.10:8000"
+
+
+def test_direct_https_connection_keeps_https(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "APP_BASE_URL", "")
+
+    result = _get_base_url(
+        _request(
+            "https://192.168.1.10:8000/",
+            {"host": "192.168.1.10:8000"},
+            url_scheme="https",
+        )
+    )
+
+    assert result == "https://192.168.1.10:8000"
+
+
+def test_ipv6_loopback_direct_connection_keeps_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """IPv6 环回直连不属于 localhost/127.0.0.1 字面匹配，同样按实际 scheme。"""
+    monkeypatch.setattr(settings, "APP_BASE_URL", "")
+
+    result = _get_base_url(_request("http://[::1]:8010/", {"host": "[::1]:8010"}))
+
+    assert result == "http://[::1]:8010"
 
 
 def test_app_base_url_used_as_fallback_when_host_missing(

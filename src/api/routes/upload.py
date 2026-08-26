@@ -127,10 +127,16 @@ def _get_base_url(request: Request) -> str:
     host = (forwarded_host or request.headers.get("host") or "").split(",")[0].strip()
     if host:
         forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
-        # 与 auth/_get_frontend_url 先例一致的缺省：本地/环回按 http，其余按 https
-        scheme = forwarded_proto or (
-            "http" if "localhost" in host or "127.0.0.1" in host else "https"
-        )
+        if forwarded_proto:
+            scheme = forwarded_proto
+        elif forwarded_host:
+            # 显式配置了 X-Forwarded-Host 却没透传 proto：视为经代理，TLS 通常
+            # 终结在代理层，对齐 auth/_get_frontend_url 先例按 https 猜（本地除外）
+            scheme = "http" if "localhost" in host or "127.0.0.1" in host else "https"
+        else:
+            # 无任何转发头视为直连：按连接实际 scheme，局域网/自签 http 直连
+            # 不被误判成 https（官方 nginx 模板必传 X-Forwarded-Proto）
+            scheme = request.url.scheme
         return f"{scheme}://{host}"
     app_base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
     if app_base_url:
