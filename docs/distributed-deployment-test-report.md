@@ -121,7 +121,41 @@ LambChat 启动时从 Mongo `system_settings` 加载运行时配置并**覆盖�
 
 在 2 副本对称拓扑（内嵌 arq worker）下，LambChat 的多实例协同核心路径——**负载均衡、认证互通、会话/上下文共享、任务队列竞争消费、SSE/WebSocket 跨实例投递、配置缓存失效广播、并发控制、故障转移与自愈**——全部实测通过。状态完全外置于 Redis/Mongo/PG/对象存储，无进程本地状态依赖，**满足水平扩展（对称扩容）部署要求**。
 
-唯一的功能性缺口为 §4.1（执行中任务不跨副本接管），属于故障恢复增强项，不阻塞日常多副本运行。
+## 6. 第二轮：分布式缺陷专项排查（bug 清单）
+
+### 6.1 新增实测通过项
+
+| # | 测试项 | 方法 | 结果 |
+|---|--------|------|------|
+| T-H | 跨副本取消 | 任务在 8001 执行中，从 8002 发 cancel | ✅ `cancelled_locally:false` 走 `task:cancel` pubsub；执行副本中断；SSE 收到 `user:cancel → error → done`；终态 cancelled |
+| T-I | 同 session 并发 run 完整性 | 复查 T10 两并发 run 的 trace | ✅ 各自独立 trace、均 completed（ev=5），无历史丢失/交叉污染 |
+| T-J | 系统设置热更新广播 | 8001 PUT `EVENT_MERGE_INTERVAL` | ✅ 8002 SettingsPubSub 秒级收到并刷新本地配置 |
+| T-K | SIGKILL 自愈 | kill -9 副本 1 | ✅ `restart: unless-stopped` 自动拉起；被杀 run 最终有 error 终态（非永久 running 悬挂） |
+
+代码级确认（无缺陷）：并发槽心跳自愈（sorted set + 60s 超时清理，worker crash 后额度自动回收，实测旁证 kill 后新任务正常）；取消路径双重释放幂等（两侧均 `zrem`）；memory compaction 分布式锁与冷却（`memory/distributed.py`）；定时任务执行锁（`scheduler:task_lock` + Lua 原子释放）；ws 路由 TTL 兜底。
+
+### 6.2 缺陷与适配清单（按优先级）
+
+**P1 — 运行中任务不跨副本接管**
+执行副本死亡时其上运行中的 arq job 中断（trace 标 error），另一副本不重新认领。用户需重发。
+适配方向：`run_agent_task` 幂等恢复——副本启动时扫描 `running` 状态超时（> 心跳 60s）的 run 重新入队；或 arq `retry` + run 级幂等键。注意与"用户主动 cancel 标记 error"区分。
+
+**P2 — system_settings 运行时配置与 env 双源冲突**
+连接类配置（`MONGODB_URL/MONGODB_DB/REDIS_URL/POSTGRES_DB/CHECKPOINT_PG_DB/S3_*`）启动时从 Mongo `system_settings` 读取并**覆盖环境变量**。克隆/多环境部署时极易"配了 env 不生效"（本次实测：副本实际连回生产库）。另发现 `S3_ENABLED` 运行时改为 false 后，已初始化的 storage 单例行为不完全跟随（GET 仍 302 至 presign）。
+适配方向：连接类配置收敛为 env 单一来源（system_settings 仅存行为开关）；storage 服务在 config 变化时完整重建。
+
+**P2 — 上传 URL 域名不随入口变化**
+上传响应的 `url` 使用固定配置域名（实测克隆环境返回生产 `lambchat.com`）。多域名入口部署（如 `lambchat.com` + `api.lambchat.com`）时，文件 URL 可能指向另一入口。
+适配方向：优先 `request.base_url` 或按 Host 动态生成，配置值仅作 fallback。
+
+**P3 — SIGKILL 窗口期一次 ws 投递丢失**
+实例被强杀后，其 Redis 路由注册在 TTL 过期前仍被视为有效，向该实例频道的投递会计入 delivered 但无人接收。TTL 兜底 + 客户端重连可恢复，低影响。
+
+**P3 — 运维适配点（非代码缺陷，克隆环境必踩）**
+- 生产 compose 硬编码 `JWT_SECRET_KEY`/`MCP_ENCRYPTION_SALT`/`HUMAN_APPROVAL_TOOLS`，不随 `.env` 复制，克隆环境需显式补齐（否则加密数据无法解密、登录不互通、HITL 不触发）。
+- Redis `PUBLISH/SUBSCRIBE` 不按 db 隔离，多环境必须独立实例。
+- 1Panel WAF 拦截未注册域名（面板建站或关闭 `unknownWebsite` 后需重启 openresty）。
+- 无服务端 token 撤销（无状态 JWT）——单/多副本行为一致，属安全增强项而非分布式回归。
 
 ## 附录：测试环境搭建要点
 
