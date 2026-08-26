@@ -158,6 +158,12 @@ def start_memory_compaction_agent() -> None:
     start_memory_compaction_agent()
 
 
+def register_orphan_recovery_job() -> None:
+    from src.infra.task.orphan_recovery import register_orphan_recovery_job
+
+    register_orphan_recovery_job()
+
+
 def register_scheduled_task_reconcile_job(
     scheduled_task_service: ScheduledTaskService,
 ) -> None:
@@ -209,6 +215,8 @@ async def start_runtime_services() -> None:
 
     if settings.ENABLE_MEMORY:
         start_memory_compaction_agent()
+
+    register_orphan_recovery_job()
 
     if settings.ENABLE_SCHEDULED_TASK:
         # Load dynamically-created scheduled tasks from DB only when the feature is enabled.

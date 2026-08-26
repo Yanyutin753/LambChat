@@ -183,7 +183,7 @@ def _merged_request_headers(
 def _make_cache_key(
     provider: str,
     model_name: str,
-    temperature: float,
+    temperature: Optional[float],
     max_tokens: Optional[int],
     api_key: Optional[str],
     api_base: Optional[str],
@@ -470,7 +470,7 @@ class LLMClient:
         provider: str,
         model_name: str,
         *,
-        temperature: float,
+        temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
@@ -480,7 +480,11 @@ class LLMClient:
         request_headers: Optional[dict[str, str]] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
-        """根据 provider 创建对应的 LangChain 模型。"""
+        """根据 provider 创建对应的 LangChain 模型。
+
+        temperature=None 表示不发送该参数（三家客户端字段均为 float | None
+        = None，None 不会进入请求 payload），由 provider 默认值接管。
+        """
 
         kwargs.pop("max_retries", None)
         profile = _langchain_profile(profile)
@@ -592,7 +596,7 @@ class LLMClient:
     async def get_model(
         model: Optional[str] = None,
         model_id: Optional[str] = None,
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
@@ -610,8 +614,9 @@ class LLMClient:
             model_id: Model config ID (UUID). When provided, looks up the model
                 config directly by ID, which resolves to a specific channel/provider.
                 This takes priority over the `model` parameter.
-            temperature: Sampling temperature. If use_model_config=True and model config
-                has temperature set, this parameter is ignored.
+            temperature: Sampling temperature. None (default) omits the parameter
+                on the wire so the provider default applies. If use_model_config=True
+                and model config has temperature set, this parameter is ignored.
             max_tokens: Maximum tokens to generate. If use_model_config=True and model config
                 has max_tokens set, this parameter is ignored.
             api_key: API key for the provider. If use_model_config=True and model config

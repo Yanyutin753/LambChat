@@ -185,7 +185,7 @@ class LLMClientProtocol(Protocol):
     async def complete(
         self,
         messages: List[Dict[str, Any]],
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
         max_tokens: int = 4096,
     ) -> str:
         """非流式完成"""
@@ -194,7 +194,7 @@ class LLMClientProtocol(Protocol):
     async def stream_complete(
         self,
         messages: List[Dict[str, Any]],
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
         max_tokens: int = 4096,
     ) -> AsyncGenerator[str, None]:
         """流式完成"""
