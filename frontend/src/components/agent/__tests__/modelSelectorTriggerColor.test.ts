@@ -9,7 +9,7 @@ test("model selector trigger matches the sidebar collapse icon color", () => {
     /className="flex items-center gap-1\.5 text-stone-600 hover:opacity-70 dark:text-stone-300 transition-opacity"/,
   );
   expect(source).toMatch(
-    /className="text-base font-semibold max-w-\[200px\] truncate"/,
+    /className="text-base font-semibold font-serif max-w-\[200px\] truncate"/,
   );
   expect(source).toMatch(/className=\{`transition-transform duration-200 \$\{/);
   expect(source).not.toMatch(/text-\[var\(--theme-text-secondary\)\]/);

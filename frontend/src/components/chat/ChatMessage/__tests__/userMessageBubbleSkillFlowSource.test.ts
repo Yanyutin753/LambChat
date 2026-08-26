@@ -27,8 +27,9 @@ test("user message skill chips and text share the same inline flow", () => {
   expect(chatCss).toMatch(
     /\.skill-chip-node-name\s*\{[^}]*font-size:\s*inherit/s,
   );
-  expect(skillChipSource).not.toMatch(/font-serif/);
-  expect(fileReferenceSource).not.toMatch(/font-serif/);
+  // 名称节点随全局 serif 特性使用 font-serif；字号/字重仍由 CSS inherit 保持内联一致
+  expect(skillChipSource).toMatch(/skill-chip-node-name[^"]*font-serif/);
+  expect(fileReferenceSource).toMatch(/skill-chip-node-name[^"]*font-serif/);
   expect(skillChipSource).not.toMatch(/font-semibold/);
   expect(fileReferenceSource).not.toMatch(/font-semibold/);
   expect(chatCss).toMatch(
@@ -47,6 +48,6 @@ test("user message skill chips and text share the same inline flow", () => {
     /\.user-message-inline-markdown \.markdown-preview > p:first-child\s*\{[^}]*line-height:\s*inherit[^}]*color:\s*inherit/s,
   );
   expect(chatCss).toMatch(
-    /\.skill-chip-node-name\s*\{[^}]*font-size:\s*inherit[^}]**font-weight:\s*inherit[^}]*line-height:\s*inherit/s,
+    /\.skill-chip-node-name\s*\{[^}]*font-size:\s*inherit[^}]*font-weight:\s*inherit[^}]*line-height:\s*inherit/s,
   );
 });
