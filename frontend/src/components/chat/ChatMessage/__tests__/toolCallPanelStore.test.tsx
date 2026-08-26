@@ -187,3 +187,36 @@ test("clears cached tool data at the conversation lifecycle boundary", () => {
   expect(notifications).toEqual(["changed"]);
   unsubscribe();
 });
+
+test("syncToolCallPanelStore parses partial args once per unchanged tool part", () => {
+  let partialReads = 0;
+  const argsWithCountingPartial = {
+    get partial() {
+      partialReads += 1;
+      return JSON.stringify({ command: "ls" });
+    },
+  };
+
+  const message = assistantMessage([
+    {
+      type: "tool",
+      id: "tool-memo",
+      name: "shell",
+      args: argsWithCountingPartial as unknown as Record<string, unknown>,
+      result: "ok",
+      success: true,
+    },
+  ]);
+
+  toolPanelModule.syncToolCallPanelStore([message]);
+  const baselineReads = partialReads;
+  expect(baselineReads).toBeGreaterThan(0);
+
+  // 消息数组变化（如流式更新替换最后一条消息）后，未变 tool part 不应重新 JSON.parse
+  const streaming = assistantMessage([]);
+  toolPanelModule.syncToolCallPanelStore([message, streaming]);
+
+  expect(partialReads).toBe(baselineReads);
+
+  toolCallPanelStore.delete("tool-memo");
+});

@@ -260,3 +260,32 @@ test("session image count includes reveal_file cards but not the RevealArtifacts
   expect(revealSummarySource).not.toMatch(/SessionImageGalleryProvider/);
   expect(revealSummarySource).not.toMatch(/sessionImageGallery/);
 });
+
+test("collectSessionImageGalleryItems skips reparsing unchanged messages", () => {
+  let stableReads = 0;
+  const stable = {
+    id: "m-stable",
+    role: "assistant",
+    runId: "r1",
+    get content() {
+      stableReads += 1;
+      return "![stable](/img/stable.png)";
+    },
+  } as unknown as Message;
+
+  collectSessionImageGalleryItems([stable]);
+  expect(stableReads).toBe(1);
+
+  // 流式更新只替换最后一条消息，前面的消息对象引用保持不变
+  const streaming = createMessage({
+    id: "m-streaming",
+    role: "assistant",
+    runId: "r1",
+    content: "![streaming](/img/streaming.png)",
+  });
+  const second = collectSessionImageGalleryItems([stable, streaming]);
+
+  expect(stableReads).toBe(1);
+  expect(second.map((item) => item.src)).toContain("/img/stable.png");
+  expect(second.map((item) => item.src)).toContain("/img/streaming.png");
+});

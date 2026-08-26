@@ -107,8 +107,15 @@ function normalizeToolArgs(
   }
 }
 
+// tool part 不可变替换：未变 part 保持引用，按引用缓存避免每次
+// messages 变化都重跑 normalizeToolArgs 的 JSON.parse
+const toolPanelDataCache = new WeakMap<ToolPart, ToolCallPanelData>();
+
 function toToolCallPanelData(part: ToolPart): ToolCallPanelData | null {
   if (!part.id) return null;
+  const cached = toolPanelDataCache.get(part);
+  if (cached) return cached;
+
   const colonIndex = part.name.indexOf(":");
   const toolName =
     colonIndex > 0 ? part.name.substring(colonIndex + 1) : part.name;
@@ -117,7 +124,7 @@ function toToolCallPanelData(part: ToolPart): ToolCallPanelData | null {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
 
-  return {
+  const data: ToolCallPanelData = {
     toolCallId: part.id,
     toolName,
     formattedToolName,
@@ -130,6 +137,8 @@ function toToolCallPanelData(part: ToolPart): ToolCallPanelData | null {
     completedAt: part.completedAt,
     status: deriveToolStatus(part),
   };
+  toolPanelDataCache.set(part, data);
+  return data;
 }
 
 function syncToolParts(parts: readonly MessagePart[]): void {
