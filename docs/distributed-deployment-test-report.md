@@ -136,9 +136,10 @@ LambChat 启动时从 Mongo `system_settings` 加载运行时配置并**覆盖�
 
 ### 6.2 缺陷与适配清单（按优先级）
 
-**P1 — 运行中任务不跨副本接管**
+**P1 — 运行中任务不跨副本接管【已修复：PR #249，2026-08-26 部署验收通过】**
 执行副本死亡时其上运行中的 arq job 中断（trace 标 error），另一副本不重新认领。用户需重发。
-适配方向：`run_agent_task` 幂等恢复——副本启动时扫描 `running` 状态超时（> 心跳 60s）的 run 重新入队；或 arq `retry` + run 级幂等键。注意与"用户主动 cancel 标记 error"区分。
+修复：新增 `task.orphan_recovery` 周期调度（默认 120s，`TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS<=0` 可关），复用 startup_cleanup 的租约互斥与心跳判定接管孤儿任务；`cleanup_stale_tasks(running_only=True)` 保守模式——周期调度仅处理 RUNNING，PENDING/QUEUED 重放与 FAILED 恢复仍仅启动时执行。
+部署验收（测试环境 main-20260826-072807 镜像）：提交长任务 → SIGKILL 执行副本并阻止自动重启 → **存活副本约 2.5 分钟后自动接管**（`Recovered stale RUNNING task`）→ 恢复的新 run 完整执行、会话终态 completed → 集群恢复后全部 healthy。
 
 **P2 — system_settings 运行时配置与 env 双源冲突**
 连接类配置（`MONGODB_URL/MONGODB_DB/REDIS_URL/POSTGRES_DB/CHECKPOINT_PG_DB/S3_*`）启动时从 Mongo `system_settings` 读取并**覆盖环境变量**。克隆/多环境部署时极易"配了 env 不生效"（本次实测：副本实际连回生产库）。另发现 `S3_ENABLED` 运行时改为 false 后，已初始化的 storage 单例行为不完全跟随（GET 仍 302 至 presign）。
