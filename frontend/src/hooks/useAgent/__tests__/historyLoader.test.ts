@@ -1,4 +1,5 @@
 import {
+  normalizeEventRunIds,
   prepareMessagesForRunningRun,
   reconstructMessagesFromEvents,
 } from "../historyLoader.ts";
@@ -1285,4 +1286,143 @@ test("keeps legacy adjacent steer groups in order when repositioning", () => {
   expect(ids.indexOf("steer-g1")).toBeGreaterThan(firstTurnIndex);
   const replyIndex = ids.indexOf(`${runId}#t1`);
   expect(ids.indexOf("steer-g2")).toBeLessThan(replyIndex);
+});
+
+test("normalizeEventRunIds backfills missing run_id preferring previous neighbor", () => {
+  const events = [
+    {
+      event_type: "message",
+      run_id: "run-a",
+      timestamp: "2026-08-26T00:00:01.000Z",
+      data: { content: "answer" },
+    },
+    {
+      event_type: "recommend:questions",
+      timestamp: "2026-08-26T00:00:02.000Z",
+      data: { questions: ["next?"] },
+    },
+    {
+      event_type: "recommend:questions",
+      timestamp: "2026-08-26T00:00:03.000Z",
+      data: { questions: ["more?"] },
+    },
+    {
+      event_type: "message",
+      run_id: "run-b",
+      timestamp: "2026-08-26T00:00:04.000Z",
+      data: { content: "answer b" },
+    },
+  ] satisfies HistoryEvent[];
+
+  const normalized = normalizeEventRunIds(events);
+
+  expect(normalized[1]?.run_id).toBe("run-a");
+  expect(normalized[2]?.run_id).toBe("run-a");
+  expect(normalized[3]?.run_id).toBe("run-b");
+});
+
+test("normalizeEventRunIds falls back to next neighbor when no previous run exists", () => {
+  const events = [
+    {
+      event_type: "recommend:questions",
+      timestamp: "2026-08-26T00:00:00.000Z",
+      data: { questions: ["hi?"] },
+    },
+    {
+      event_type: "message",
+      run_id: "run-a",
+      timestamp: "2026-08-26T00:00:01.000Z",
+      data: { content: "answer" },
+    },
+  ] satisfies HistoryEvent[];
+
+  const normalized = normalizeEventRunIds(events);
+
+  expect(normalized[0]?.run_id).toBe("run-a");
+});
+
+test("normalizeEventRunIds keeps events without any neighboring run_id untouched", () => {
+  const events = [
+    {
+      event_type: "recommend:questions",
+      timestamp: "2026-08-26T00:00:00.000Z",
+      data: { questions: ["hi?"] },
+    },
+  ] satisfies HistoryEvent[];
+
+  const normalized = normalizeEventRunIds(events);
+
+  expect(normalized[0]?.run_id).toBeUndefined();
+});
+
+test("normalizeEventRunIds stays linear on large runless inputs", () => {
+  const events = Array.from({ length: 20000 }, (_, index) => ({
+    event_type: "recommend:questions",
+    timestamp: new Date(index * 1000).toISOString(),
+    data: { questions: ["next?"] },
+  })) as HistoryEvent[];
+
+  const start = performance.now();
+  const normalized = normalizeEventRunIds(events);
+  const elapsed = performance.now() - start;
+
+  expect(normalized).toHaveLength(20000);
+  // 旧的逐事件 slice+reverse+find 实现在 2 万条无 run_id 事件上远超 1s
+  expect(elapsed).toBeLessThan(1000);
+});
+
+test("multi-turn run ids keep incrementing suffixes per completed assistant turn", () => {
+  const runId = "run-mt";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-08-26T10:00:00.000Z",
+        data: { content: "q1", message_id: `${runId}:u1` },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-08-26T10:00:01.000Z",
+        data: { content: "a1" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "done",
+        run_id: runId,
+        timestamp: "2026-08-26T10:00:02.000Z",
+        data: { status: "completed" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "steer:message",
+        run_id: runId,
+        timestamp: "2026-08-26T10:00:03.000Z",
+        data: { content: "插话", message_id: "steer-mt1" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "thinking",
+        run_id: runId,
+        timestamp: "2026-08-26T10:00:04.000Z",
+        data: { content: "thinking after steer" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-08-26T10:00:05.000Z",
+        data: { content: "a2" },
+      } satisfies HistoryEvent,
+      {
+        event_type: "done",
+        run_id: runId,
+        timestamp: "2026-08-26T10:00:06.000Z",
+        data: { status: "completed" },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const ids = messages.map((m) => m.id);
+  expect(ids).toContain(runId);
+  expect(ids).toContain(`${runId}#t1`);
 });
