@@ -3,7 +3,7 @@
 - 日期：2026-08-26
 - 测试环境：yang 服务器 `/data/lambchat-test/`（https://test.lambchat.com）
 - 镜像：`ghcr.io/yanyutin753/lambchat:main-20260825-171824`（与当日生产一致）
-- 结论：**核心分布式能力全部验证通过**；发现 1 个已知限制（运行中任务不跨副本接管）与 2 个环境级注意事项。
+- 结论：**核心分布式能力全部验证通过**；测试中发现的 1 个关键限制（运行中任务不跨副本接管）**已由 PR #249 修复并通过部署验收**（见 §6.2 P1），其余为环境级注意事项与运维适配点（见 §4.2–§4.4、§6.2 P2/P3）。
 
 ## 1. 测试环境拓扑
 
@@ -27,7 +27,7 @@
 | 任务执行 | arq 队列（Redis），每副本内嵌 worker | 任意副本提交，任意 worker 竞争消费 |
 | SSE 流 | 事件写 Redis Stream，订阅端任意副本读 | 订阅副本 ≠ 执行副本 |
 | WebSocket | Redis 路由集合 + `ws:deliver:<instance_id>` 频道 | 连接副本 ≠ 事件产生副本 |
-| 配置热更新 | `settings/model_config/channel` 等 pubsub 频道 | 一副本变更，全体失效本地缓存 |
+| 配置热更新 | `settings:changed` / `model_config:changed` 等 pubsub 频道 | 一副本变更，全体失效本地缓存 |
 | 会话状态 | LangGraph checkpointer → 共享 PG | 任意副本可恢复任意会话 |
 | 调度去重 | `scheduler:task_lock:{task_id}`（SET NX EX 600 + Lua 释放/续期） | 同一任务单实例执行 |
 
@@ -94,12 +94,16 @@ WS_RECEIVED: {"type": "dist-test-broadcast", "from": "replica-2-process", ...}
 
 ## 4. 发现的问题与已知限制
 
-### 4.1 【已知限制】执行副本死亡时，运行中任务中断且不自动接管
+### 4.1 执行副本死亡时，运行中任务中断且不自动接管【已由 PR #249 修复】
 
 T11 中被 `docker stop` 的副本上正在执行的任务（`run_20260826053224`）随进程死亡，另一副本**未重新认领**该 arq job，任务中断（无完成/失败事件）。arq worker 的 job 重试未覆盖「执行中进程死亡」场景。
 
 影响：副本崩溃时其上运行中的对话轮需要用户重发。
 建议：后续可在 `run_agent_task` 层引入幂等恢复（启动时扫描 running 状态超时 run 重新入队），或配置 arq `retry` + 业务幂等键。**不阻塞多副本部署**（新请求不受影响）。
+
+> **状态更新（2026-08-26）**：本限制已由 PR #249 修复——新增 `task.orphan_recovery` 周期调度（存活副本自动接管孤儿 RUNNING 任务），并已在测试环境完成部署验收，详见 §6.2 P1。上述建议仅作历史记录。
+
+（与 §6.1 T-K 观察到的「error 终态」不同：T11 为第一轮测试，该 run 无任何完成/失败事件；T-K 场景下副本被 `restart: unless-stopped` 自动拉起后，被杀 run 最终进入 error 终态，非永久悬挂。）
 
 ### 4.2 【机制确认，未端到端实测】定时任务执行锁
 
@@ -109,7 +113,7 @@ T11 中被 `docker stop` 的副本上正在执行的任务（`run_20260826053224
 
 LambChat 启动时从 Mongo `system_settings` 加载运行时配置并**覆盖进程环境变量**（连接串、S3 开关等均在其中）。克隆环境时若不修正，副本会按种子里的生产连接配置运行（本次测试已修正为测试值）。同理：
 
-- 生产 `docker-compose.yml` 中硬编码的 `JWT_SECRET_KEY` / `MCP_ENCRYPTION_SALT` / `HUMAN_APPROVAL_TOOLS` 不会随 `.env` 复制，克隆环境需显式补齐（JWT/SALT 缺失会导致加密数据无法解密、登录态不互通）。
+- 生产 compose（指服务器上的生产 compose 文件，非仓库内 `deploy/docker-compose.yml`）硬编码的 `JWT_SECRET_KEY` / `MCP_ENCRYPTION_SALT` / `HUMAN_APPROVAL_TOOLS` 不会随 `.env` 复制，克隆环境需显式补齐（JWT/SALT 缺失会导致加密数据无法解密、登录态不互通）。
 - 上传存储：生产为阿里云 OSS（共享对象存储，天然多副本兼容，已实测跨副本上传/读取）。克隆环境建议关闭 S3 走本地共享卷，或显式指向独立桶。本次实测本地模式未完全生效（`LOCAL_STORAGE_PATH` 默认 `./uploads` 但文件未落共享目录，GET 返回 302），生产不受影响，留待环境侧跟进。
 - 分布式校验开关 `LAMBCHAT_REPLICA_COUNT>1` 要求 S3 共享存储（`distributed_validation.py`）；同机多副本共享卷场景未开启该开关，功能不受影响。
 
@@ -153,7 +157,7 @@ LambChat 启动时从 Mongo `system_settings` 加载运行时配置并**覆盖�
 实例被强杀后，其 Redis 路由注册在 TTL 过期前仍被视为有效，向该实例频道的投递会计入 delivered 但无人接收。TTL 兜底 + 客户端重连可恢复，低影响。
 
 **P3 — 运维适配点（非代码缺陷，克隆环境必踩）**
-- 生产 compose 硬编码 `JWT_SECRET_KEY`/`MCP_ENCRYPTION_SALT`/`HUMAN_APPROVAL_TOOLS`，不随 `.env` 复制，克隆环境需显式补齐（否则加密数据无法解密、登录不互通、HITL 不触发）。
+- 生产 compose（服务器上的生产 compose，非仓库内 `deploy/docker-compose.yml`）硬编码 `JWT_SECRET_KEY`/`MCP_ENCRYPTION_SALT`/`HUMAN_APPROVAL_TOOLS`，不随 `.env` 复制，克隆环境需显式补齐（否则加密数据无法解密、登录不互通、HITL 不触发）。
 - Redis `PUBLISH/SUBSCRIBE` 不按 db 隔离，多环境必须独立实例。
 - 1Panel WAF 拦截未注册域名（面板建站或关闭 `unknownWebsite` 后需重启 openresty）。
 - 无服务端 token 撤销（无状态 JWT）——单/多副本行为一致，属安全增强项而非分布式回归。
