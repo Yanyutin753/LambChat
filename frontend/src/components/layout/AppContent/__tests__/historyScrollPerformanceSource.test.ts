@@ -28,7 +28,7 @@ test("does not replay assistant entrance animation for remounted history message
 
 test("derives last-message state from the rendered list including steer items", () => {
   expect(chatViewSource).toMatch(
-    /isLastMessage=\{index === renderItems\.length - 1\}/,
+    /isLastMessage=\{\s*toDataIndex\(index, firstItemIndexRef\.current\) === renderItems\.length - 1\s*\}/,
   );
   expect(chatViewSource.indexOf("const renderItems = useMemo")).toBeLessThan(
     chatViewSource.indexOf("const virtuosoItemContent = useCallback"),

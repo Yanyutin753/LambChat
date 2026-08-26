@@ -116,7 +116,7 @@ export function AgentModeSelector({
               </div>
               <div className="flex-1 min-w-0">
                 <span
-                  className={`text-[13px] sm:text-sm font-medium truncate block ${
+                  className={`text-[13px] sm:text-sm font-medium font-serif truncate block ${
                     isActive
                       ? "text-amber-700 dark:text-amber-400"
                       : "text-stone-700 dark:text-stone-200"

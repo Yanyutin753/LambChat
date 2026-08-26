@@ -6,7 +6,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
-import type { Message, ConnectionStatus, MessageAttachment } from "../types";
+import type {
+  Message,
+  ConnectionStatus,
+  MessageAttachment,
+  Feedback,
+} from "../types";
 import { sessionApi, type BackendSession } from "../services/api";
 import { feedbackApi } from "../services/api/feedback";
 import { useAuth } from "../hooks/useAuth";
@@ -55,6 +60,12 @@ import {
   applyFeedbackToMessages,
   resolveHistoryStreamRunId,
 } from "./useAgent/historyLoadState";
+import {
+  HISTORY_TRACE_PAGE_SIZE,
+  canLoadOlderHistory,
+  mergeOlderHistoryEvents,
+  resolveHistoryTraceWindow,
+} from "./useAgent/historyPagination";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
@@ -69,6 +80,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyLoadGeneration, setHistoryLoadGeneration] = useState(0);
+  const [hasMoreHistoryTraces, setHasMoreHistoryTraces] = useState(false);
+  const [isLoadingOlderHistory, setIsLoadingOlderHistory] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +135,16 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   // Track last event timestamp from history
   const lastHistoryTimestampRef = useRef<Date | null>(null);
+
+  // History trace-window pagination state (older pages prepend on scroll)
+  const historyEventsRef = useRef<HistoryEvent[]>([]);
+  const historyTraceWindowRef = useRef<{
+    oldest_trace_started_at: string;
+    oldest_trace_id: string;
+  } | null>(null);
+  const historyFeedbackRef = useRef<Feedback[]>([]);
+  const hasMoreHistoryTracesRef = useRef(false);
+  const isLoadingOlderHistoryRef = useRef(false);
 
   // Subagent tracking stack
   const activeSubagentStackRef = useRef<SubagentStackItem[]>([]);
@@ -292,6 +315,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
+      historyEventsRef.current = [];
+      historyTraceWindowRef.current = null;
+      historyFeedbackRef.current = [];
+      hasMoreHistoryTracesRef.current = false;
+      setHasMoreHistoryTraces(false);
       void sessionApi.markRead(targetSessionId).catch(() => {});
       const feedbackPromise = canReadFeedback
         ? feedbackApi
@@ -311,6 +339,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           sessionApi.getEvents(targetSessionId, {
             include_active_user_message: true,
             compact_message_chunks: true,
+            // 首屏只取最近一页轮次，更早的在向上滚动时按游标分页加载
+            trace_limit: HISTORY_TRACE_PAGE_SIZE,
             signal,
           }),
         ]);
@@ -375,6 +405,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           setGoalModeEnabled(false);
 
           const historyEvents = (eventsData.events || []) as HistoryEvent[];
+          historyEventsRef.current = historyEvents;
+          const firstWindowState = resolveHistoryTraceWindow(eventsData);
+          historyTraceWindowRef.current = firstWindowState.traceWindow;
+          hasMoreHistoryTracesRef.current = firstWindowState.hasMore;
+          setHasMoreHistoryTraces(firstWindowState.hasMore);
           let reconstructedMessages = reconstructMessagesFromEvents(
             historyEvents,
             processedEventIdsRef.current,
@@ -409,6 +444,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
           void feedbackPromise.then((feedbackList) => {
             if (!feedbackList || isStaleHistoryLoad()) return;
+            historyFeedbackRef.current = feedbackList.items;
             setMessages((previous) =>
               applyFeedbackToMessages(previous, feedbackList.items),
             );
@@ -465,6 +501,95 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       hydrateSteers,
     ],
   );
+
+  // Load one more page of older runs and prepend the rebuilt messages.
+  // Runs mid-stream are tolerated: the streaming run's assistant message is
+  // re-marked streaming after the rebuild so SSE updates keep applying.
+  const loadOlderHistory = useCallback(async () => {
+    const traceWindow = historyTraceWindowRef.current;
+    if (!traceWindow || !sessionIdRef.current) return;
+    const targetSessionId = sessionIdRef.current;
+    if (
+      !canLoadOlderHistory({
+        sessionId: targetSessionId,
+        traceWindow,
+        hasMore: hasMoreHistoryTracesRef.current,
+        isLoading:
+          isLoadingOlderHistoryRef.current || isLoadingHistoryRef.current,
+      })
+    ) {
+      return;
+    }
+    isLoadingOlderHistoryRef.current = true;
+    setIsLoadingOlderHistory(true);
+    try {
+      const olderData = await sessionApi.getEvents(targetSessionId, {
+        // 与首屏一致：带上活动 run 语义，避免深页因 status 过滤
+        // 丢掉写入方已死（stale running）的历史轮次
+        include_active_user_message: true,
+        compact_message_chunks: true,
+        trace_limit: HISTORY_TRACE_PAGE_SIZE,
+        before_trace_started_at: traceWindow.oldest_trace_started_at,
+        before_trace_id: traceWindow.oldest_trace_id,
+      });
+      if (sessionIdRef.current !== targetSessionId) return;
+
+      const olderEvents = (olderData.events || []) as HistoryEvent[];
+      if (olderEvents.length === 0) {
+        hasMoreHistoryTracesRef.current = false;
+        setHasMoreHistoryTraces(false);
+        return;
+      }
+
+      const mergedEvents = mergeOlderHistoryEvents(
+        olderEvents,
+        historyEventsRef.current,
+      );
+      historyEventsRef.current = mergedEvents;
+      const windowState = resolveHistoryTraceWindow(olderData);
+      historyTraceWindowRef.current = windowState.traceWindow;
+      hasMoreHistoryTracesRef.current = windowState.hasMore;
+      setHasMoreHistoryTraces(windowState.hasMore);
+
+      // 全量重建（而非仅重建旧页）：同一 run 可能跨多条 trace（重试回放），
+      // 按页独立重建会产生重复消息 id。重建使用全新的 subagent 栈。
+      let reconstructedMessages = reconstructMessagesFromEvents(
+        mergedEvents,
+        processedEventIdsRef.current,
+        { options, activeSubagentStack: [] },
+      );
+      const streamingRunId =
+        messagesRef.current.find(
+          (message) =>
+            message.role === "assistant" &&
+            message.isStreaming &&
+            message.runId,
+        )?.runId ?? null;
+      if (streamingRunId) {
+        const prepared = prepareMessagesForRunningRun(
+          reconstructedMessages,
+          streamingRunId,
+          undefined,
+          messagesRef.current,
+        );
+        reconstructedMessages = prepared.messages;
+        streamingMessageIdRef.current = prepared.streamingMessageId;
+      }
+      if (historyFeedbackRef.current.length > 0) {
+        reconstructedMessages = applyFeedbackToMessages(
+          reconstructedMessages,
+          historyFeedbackRef.current,
+        );
+      }
+      setGoalsByRunId(extractGoalsByRunFromEvents(mergedEvents));
+      setMessages(reconstructedMessages);
+    } catch (err) {
+      console.warn("[loadOlderHistory] Failed to load older history:", err);
+    } finally {
+      isLoadingOlderHistoryRef.current = false;
+      setIsLoadingOlderHistory(false);
+    }
+  }, [options]);
 
   // Send message
   const sendMessage = useCallback(
@@ -873,6 +998,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setConnectionStatus("disconnected");
     processedEventIdsRef.current.clear();
     lastHistoryTimestampRef.current = null;
+    historyEventsRef.current = [];
+    historyTraceWindowRef.current = null;
+    historyFeedbackRef.current = [];
+    hasMoreHistoryTracesRef.current = false;
+    setHasMoreHistoryTraces(false);
+    isLoadingOlderHistoryRef.current = false;
+    setIsLoadingOlderHistory(false);
     streamingMessageIdRef.current = null;
     sessionIdRef.current = null;
     currentRunIdRef.current = null;
@@ -938,6 +1070,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isLoading,
     isLoadingHistory,
     historyLoadGeneration,
+    hasMoreHistoryTraces,
+    isLoadingOlderHistory,
     error,
     sessionId,
     currentRunId,
@@ -968,6 +1102,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setAutoModeEnabled,
     refreshAgents: fetchAgents,
     loadHistory,
+    loadOlderHistory,
     reconnectSSE: handleReconnectSSE,
     setPendingProjectId: (id: string | null) => {
       pendingProjectIdRef.current = id;

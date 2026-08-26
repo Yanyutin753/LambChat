@@ -500,6 +500,9 @@ async def test_get_session_events_opt_in_returns_race_safe_snapshot_metadata(
             "completed_only": True,
             "max_events": None,
             "active_run_id": "run-active",
+            "trace_limit": None,
+            "before_trace_started_at": None,
+            "before_trace_id": None,
         }
     ]
 

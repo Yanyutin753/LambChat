@@ -228,7 +228,7 @@ export function UsagePanel() {
   if (isInitialLoading) return <UsagePanelSkeleton />;
 
   return (
-    <div className="glass-shell usage-panel flex h-full min-h-0 flex-col overflow-y-auto">
+    <div className="glass-shell usage-panel font-serif flex h-full min-h-0 flex-col overflow-y-auto">
       <PanelHeader
         title={t("usage.title")}
         subtitle={t("usage.subtitle")}

@@ -39,9 +39,16 @@ export function isMarkdownText(text: string): boolean {
   return false;
 }
 
-// 去除 cat -n 格式的行号前缀 (如 "  201\tcontent"、"201→content"、continuation markers "  201.1\t...")
+// 去除 cat -n 格式的行号前缀。deepagents 0.7.5+ 用「行号 + 两个空格」作分隔符
+// （防止与源码中的 tab 混淆），旧版用 tab 或 "→"，三种都需兼容。
+// continuation markers "  201.1" 遵循相同分隔符规则。
 export function stripLineNumbers(text: string): string {
-  return text.replace(/^\s*\d+(?:\.\d+)?[→\t]/gm, "");
+  return text.replace(/^\s*\d+(?:\.\d+)?(?:\t|→| {2})/gm, "");
+}
+
+// deepagents read_file 的 offset 是 0 起始行号，首个真实行号 = offset + 1
+export function readFileStartLine(offset: number | undefined): number {
+  return Math.max(1, (offset ?? 0) + 1);
 }
 
 // 从工具结果中提取纯文本（兼容 LangChain 原生格式）

@@ -708,7 +708,7 @@ export function RolesPanel() {
                 </div>
 
                 {/* Title & description */}
-                <h4 className="truncate text-base font-semibold text-[var(--theme-text)]">
+                <h4 className="truncate text-base font-semibold font-serif  text-[var(--theme-text)]">
                   {role.name}
                 </h4>
                 {role.description && (

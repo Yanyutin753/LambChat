@@ -46,6 +46,11 @@ export interface SessionEventsQuery {
   exclude_run_id?: string;
   include_active_user_message?: boolean;
   compact_message_chunks?: boolean;
+  /** 按 trace(run) 窗口读取：只取最新 N 轮（历史分页首屏） */
+  trace_limit?: number;
+  /** 游标：只返回该 (started_at, trace_id) 之前的 traces（翻更早页） */
+  before_trace_started_at?: string;
+  before_trace_id?: string;
 }
 
 export interface RunGoalSpec {
@@ -171,6 +176,18 @@ export function buildSessionEventsUrl(
   }
   if (options?.compact_message_chunks) {
     searchParams.set("compact_message_chunks", "true");
+  }
+  if (options?.trace_limit) {
+    searchParams.set("trace_limit", String(options.trace_limit));
+  }
+  if (options?.before_trace_started_at) {
+    searchParams.set(
+      "before_trace_started_at",
+      options.before_trace_started_at,
+    );
+  }
+  if (options?.before_trace_id) {
+    searchParams.set("before_trace_id", options.before_trace_id);
   }
 
   const queryString = searchParams.toString();

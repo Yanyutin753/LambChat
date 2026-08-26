@@ -6,6 +6,7 @@ import {
   useCallback,
   type RefObject,
   type PointerEvent,
+  type MouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
@@ -68,11 +69,32 @@ function groupIntoTurns(items: MessageOutlineItem[]): Turn[] {
   return turns;
 }
 
+/** Whether any message of the turn falls inside the visible list range. */
+function isTurnInRange(turn: Turn, range: ListRange): boolean {
+  if (
+    turn.user.messageIndex >= range.startIndex &&
+    turn.user.messageIndex <= range.endIndex
+  ) {
+    return true;
+  }
+  return turn.responses.some(
+    (r) =>
+      r.messageIndex >= range.startIndex && r.messageIndex <= range.endIndex,
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  TimelinePreviewCard — hover popup showing turn content            */
 /* ------------------------------------------------------------------ */
 
 const CARD_WIDTH = 260;
+
+/** Pointer travel (px) below which a touch gesture counts as a tap. */
+const TAP_SLOP_PX = 8;
+/** Fling velocity clamp (px/frame) applied on release. */
+const FLING_MAX_VELOCITY = 60;
+const FLING_DECAY = 0.95;
+const FLING_STOP_VELOCITY = 0.5;
 
 function TimelinePreviewCard({
   turn,
@@ -171,22 +193,78 @@ export function MessageTimelineRail({
   const [touchTurnIndex, setTouchTurnIndex] = useState<number | null>(null);
   const hoveredBarRef = useRef<HTMLSpanElement | null>(null);
   const barRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const railScrollRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const touchTurnRef = useRef<number | null>(null);
+  // Bar viewport centers captured once per drag; moves resolve the nearest
+  // bar arithmetically to avoid layout thrashing (rect reads after scrollTop
+  // writes force synchronous layout on every pointermove).
+  const dragCentersRef = useRef<number[]>([]);
+  const touchScrollStartRef = useRef<{
+    y: number;
+    scrollTop: number;
+    prevY: number;
+    moved: boolean;
+  } | null>(null);
+  const lastDragDeltaRef = useRef(0);
+  const flingFrameRef = useRef<number | null>(null);
+  // 触摸手势结束时指针捕获会把合成 click 重定向到 button；由手势路径
+  // 导航后置位，让 button 的 click 兜底跳过这一次，避免双跳。
+  const suppressNextClickRef = useRef(false);
+
+  const stopFling = useCallback(() => {
+    if (flingFrameRef.current !== null) {
+      cancelAnimationFrame(flingFrameRef.current);
+      flingFrameRef.current = null;
+    }
+  }, []);
+
+  // Inertia: keep gliding after the finger lifts, with exponential decay.
+  const startFling = useCallback(
+    (velocity: number) => {
+      stopFling();
+      let v = Math.max(
+        -FLING_MAX_VELOCITY,
+        Math.min(FLING_MAX_VELOCITY, velocity),
+      );
+      if (Math.abs(v) < FLING_STOP_VELOCITY) return;
+      const step = () => {
+        flingFrameRef.current = null;
+        const rail = railScrollRef.current;
+        if (!rail || Math.abs(v) < FLING_STOP_VELOCITY) return;
+        const before = rail.scrollTop;
+        rail.scrollTop = before + v;
+        if (rail.scrollTop === before) return; // reached an edge
+        v *= FLING_DECAY;
+        flingFrameRef.current = requestAnimationFrame(step);
+      };
+      flingFrameRef.current = requestAnimationFrame(step);
+    },
+    [stopFling],
+  );
+
+  useEffect(() => stopFling, [stopFling]);
 
   const handleRailMouseLeave = useCallback(() => {
     setHoveredTurnIndex(null);
     hoveredBarRef.current = null;
   }, []);
 
-  const findTurnAtY = useCallback((clientY: number) => {
+  const captureDragCenters = useCallback(() => {
+    dragCentersRef.current = barRefs.current.map((bar) => {
+      const rect = bar?.getBoundingClientRect();
+      return rect ? rect.top + rect.height / 2 : Number.NaN;
+    });
+  }, []);
+
+  /** Nearest turn to a viewport Y, from cached centers. `scrollShift` is the
+   * distance the rail has scrolled since the drag started (bars move up). */
+  const findTurnAtY = useCallback((clientY: number, scrollShift = 0) => {
     let nearestIndex: number | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
-    barRefs.current.forEach((bar, index) => {
-      if (!bar) return;
-      const rect = bar.getBoundingClientRect();
-      const center = rect.top + rect.height / 2;
-      const distance = Math.abs(clientY - center);
+    dragCentersRef.current.forEach((center, index) => {
+      if (Number.isNaN(center)) return;
+      const distance = Math.abs(clientY - (center - scrollShift));
       if (distance < nearestDistance) {
         nearestDistance = distance;
         nearestIndex = index;
@@ -197,24 +275,60 @@ export function MessageTimelineRail({
 
   const handleTouchStart = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
+      suppressNextClickRef.current = false;
+      // 任何指针按下都停住滑行（含鼠标：否则滑行中点击，目标会在
+      // mousedown 与 mouseup 之间挪位，click 落空）。
+      stopFling();
       if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
       draggingRef.current = true;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      captureDragCenters();
+
+      // Vertical drags scroll the rail when it overflows (touch-action: none
+      // blocks native scrolling); below the tap slop the gesture is a tap and
+      // navigates. Swipes never navigate.
+      const rail = railScrollRef.current;
+      touchScrollStartRef.current = {
+        y: event.clientY,
+        scrollTop: rail?.scrollTop ?? 0,
+        prevY: event.clientY,
+        moved: false,
+      };
+
       const index = findTurnAtY(event.clientY);
       touchTurnRef.current = index;
       setTouchTurnIndex(index);
-      event.currentTarget.setPointerCapture?.(event.pointerId);
     },
-    [findTurnAtY],
+    [captureDragCenters, findTurnAtY, stopFling],
   );
 
   const handleTouchMove = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
       if (!draggingRef.current) return;
       event.preventDefault();
-      const index = findTurnAtY(event.clientY);
-      if (index === null || index === touchTurnRef.current) return;
-      touchTurnRef.current = index;
-      setTouchTurnIndex(index);
+
+      const scrollStart = touchScrollStartRef.current;
+      if (!scrollStart) return;
+
+      const dy = scrollStart.y - event.clientY;
+      const rail = railScrollRef.current;
+      const railScrolls =
+        rail !== null && rail.scrollHeight > rail.clientHeight + 1;
+      if (rail !== null && railScrolls) {
+        rail.scrollTop = scrollStart.scrollTop + dy;
+      }
+      if (Math.abs(dy) > TAP_SLOP_PX) {
+        scrollStart.moved = true;
+        lastDragDeltaRef.current = event.clientY - scrollStart.prevY;
+      }
+      scrollStart.prevY = event.clientY;
+
+      // Wave feedback follows the finger while scrolling.
+      const index = findTurnAtY(event.clientY, railScrolls ? dy : 0);
+      if (index !== touchTurnRef.current) {
+        touchTurnRef.current = index;
+        setTouchTurnIndex(index);
+      }
     },
     [findTurnAtY],
   );
@@ -232,26 +346,96 @@ export function MessageTimelineRail({
   const turns = useMemo(() => groupIntoTurns(messageItems), [messageItems]);
 
   const handleTouchEnd = useCallback(
-    (event: PointerEvent<HTMLButtonElement>) => {
+    (event: PointerEvent<HTMLButtonElement>, isCancel = false) => {
       if (!draggingRef.current) return;
       draggingRef.current = false;
       event.currentTarget.releasePointerCapture?.(event.pointerId);
-      const index = touchTurnRef.current;
-      touchTurnRef.current = null;
-      setTouchTurnIndex(null);
+      // 指针捕获会把随后的合成 click 重定向到 button；手势路径已处理
+      // 本次交互，置位让 button 的 click 兜底跳过它。
+      suppressNextClickRef.current = true;
+
+      const scrollStart = touchScrollStartRef.current;
+      if (scrollStart) {
+        touchScrollStartRef.current = null;
+        const tappedIndex = touchTurnRef.current;
+        touchTurnRef.current = null;
+        setTouchTurnIndex(null);
+
+        if (!scrollStart.moved) {
+          // A tap (below slop travel) navigates — the pointer capture makes
+          // the span's onClick unreachable on touch.
+          if (
+            !isCancel &&
+            tappedIndex !== null &&
+            turns[tappedIndex] !== undefined
+          ) {
+            onNavigate(
+              turns[tappedIndex].user.anchorId,
+              turns[tappedIndex].user.messageIndex,
+            );
+          }
+          return;
+        }
+
+        // Fling in the direction of the last drag delta.
+        startFling(-lastDragDeltaRef.current);
+      }
+    },
+    [onNavigate, startFling, turns],
+  );
+
+  // Clicks landing on the button itself (the 8px gap rows between 3px bars,
+  // or a bar that shifted mid-click) still navigate to the nearest turn —
+  // the whole rail is an effective click target.
+  const findNearestTurnByViewportY = useCallback((clientY: number) => {
+    let nearestIndex: number | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    barRefs.current.forEach((bar, index) => {
+      if (!bar) return;
+      const rect = bar.getBoundingClientRect();
+      const distance = Math.abs(clientY - (rect.top + rect.height / 2));
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    return nearestIndex;
+  }, []);
+
+  const handleRailClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        return;
+      }
+      const index = findNearestTurnByViewportY(event.clientY);
       if (index !== null && turns[index]) {
         onNavigate(turns[index].user.anchorId, turns[index].user.messageIndex);
       }
     },
-    [onNavigate, turns],
+    [findNearestTurnByViewportY, onNavigate, turns],
   );
+
+  // Keep the active turn's bar visible inside the scrollable rail.
+  const activeTurnIndex =
+    visibleRange === null
+      ? null
+      : turns.findIndex((turn) => isTurnInRange(turn, visibleRange));
+
+  useEffect(() => {
+    if (activeTurnIndex === null || activeTurnIndex === -1) return;
+    barRefs.current[activeTurnIndex]?.scrollIntoView?.({ block: "nearest" });
+  }, [activeTurnIndex]);
 
   if (turns.length <= 2) return null;
 
   const count = turns.length;
 
   return (
-    <div className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 z-20">
+    <div
+      ref={railScrollRef}
+      className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 z-20 max-h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       <button
         type="button"
         className="group/timeline pointer-events-auto flex flex-col items-end px-4 py-3 pr-1 transition-all duration-150"
@@ -259,25 +443,15 @@ export function MessageTimelineRail({
         title={`${t("chat.timeline", "Timeline")} · ${count}`}
         style={{ gap: 8, touchAction: "none" }}
         onMouseLeave={handleRailMouseLeave}
+        onClick={handleRailClick}
         onPointerDown={handleTouchStart}
         onPointerMove={handleTouchMove}
         onPointerUp={handleTouchEnd}
-        onPointerCancel={handleTouchEnd}
+        onPointerCancel={(e) => handleTouchEnd(e, true)}
       >
         {turns.map((turn, index) => {
           const isActive =
-            visibleRange !== null &&
-            turn.responses.some(
-              (r) =>
-                r.messageIndex >= visibleRange.startIndex &&
-                r.messageIndex <= visibleRange.endIndex,
-            );
-
-          // Also mark active if the user message itself is in range.
-          const userActive =
-            visibleRange !== null &&
-            turn.user.messageIndex >= visibleRange.startIndex &&
-            turn.user.messageIndex <= visibleRange.endIndex;
+            visibleRange !== null && isTurnInRange(turn, visibleRange);
 
           const isHovered =
             hoveredTurnIndex === index || touchTurnIndex === index;
@@ -308,7 +482,7 @@ export function MessageTimelineRail({
               <span
                 className={clsx(
                   "h-[3px] rounded-full transition-[width,background-color] duration-200 ease-out",
-                  isActive || userActive
+                  isActive
                     ? "bg-[var(--theme-primary)]"
                     : isHovered
                       ? "bg-[color-mix(in_srgb,var(--theme-primary)_40%,transparent)]"

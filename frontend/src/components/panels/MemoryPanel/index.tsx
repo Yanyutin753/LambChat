@@ -376,7 +376,7 @@ export function MemoryPanel() {
                       </span>
                     </div>
 
-                    <h4 className="truncate text-base font-semibold text-[var(--theme-text)] pr-8">
+                    <h4 className="truncate text-base font-semibold font-serif  text-[var(--theme-text)] pr-8">
                       {memory.title}
                     </h4>
 

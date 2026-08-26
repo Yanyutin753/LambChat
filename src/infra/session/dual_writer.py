@@ -15,6 +15,7 @@ import asyncio
 import json
 import time
 from collections import OrderedDict
+from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from pymongo.errors import BulkWriteError
@@ -803,6 +804,9 @@ class DualEventWriter:
         run_ids: Optional[List[str]] = None,
         max_events: Optional[int] = None,
         active_run_id: Optional[str] = None,
+        trace_limit: Optional[int] = None,
+        before_trace_started_at: Optional[datetime] = None,
+        before_trace_id: Optional[str] = None,
     ) -> SessionEventsSnapshot:
         """Read a race-safe history snapshot for initial UI hydration."""
         return await self.trace.get_session_events_snapshot(
@@ -814,6 +818,9 @@ class DualEventWriter:
             run_ids=run_ids,
             max_events=max_events,
             active_run_id=active_run_id,
+            trace_limit=trace_limit,
+            before_trace_started_at=before_trace_started_at,
+            before_trace_id=before_trace_id,
         )
 
     async def get_stream_length(self, session_id: str, run_id: Optional[str] = None) -> int:

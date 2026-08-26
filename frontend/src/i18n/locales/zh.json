@@ -600,6 +600,8 @@
     "goodEvening": "晚上好，{{name}}",
     "goodMorning": "早上好，{{name}}",
     "helpDocs": "帮助文档",
+    "historyLoadOlder": "加载更早的消息",
+    "historyLoadingOlder": "正在加载更早的消息…",
     "keyboardShortcuts": "键盘快捷键",
     "mentionNoResults": "没有匹配的角色",
     "mermaid": "Mermaid",

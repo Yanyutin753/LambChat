@@ -83,7 +83,8 @@
 
 /* The expanded composer renders at body level (outside the AppShell
    transform container), so it must track the keyboard inset itself. */
-html[data-mobile-keyboard="true"] .chat-input-container[data-composer-expanded] {
+html[data-mobile-keyboard="true"]
+  .chat-input-container[data-composer-expanded] {
   bottom: var(--app-keyboard-inset, 0px);
 }
 
@@ -189,7 +190,6 @@ html[data-mobile-keyboard="true"] .chat-input-container[data-composer-expanded] 
 
 .skill-chip-node-name {
   font-size: inherit;
-  font-family: inherit;
   font-weight: inherit;
   color: rgb(37 99 235);
   line-height: inherit;

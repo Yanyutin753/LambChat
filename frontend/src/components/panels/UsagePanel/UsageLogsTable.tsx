@@ -221,7 +221,7 @@ function TabletRow({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <code className="min-w-0 truncate text-[12px] font-semibold text-theme-text tabular-nums">
+            <code className="min-w-0 truncate font-serif text-[12px] font-semibold text-theme-text tabular-nums">
               {log.model || "-"}
             </code>
             <StatusPill status={log.status} title={log.error_message} />
@@ -307,7 +307,7 @@ function MobileCard({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
               <Bot size={16} strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
-              <code className="block truncate text-[13px] font-bold text-theme-text tabular-nums">
+              <code className="block truncate font-serif text-[13px] font-bold text-theme-text tabular-nums">
                 {log.model || "-"}
               </code>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">

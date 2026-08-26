@@ -6,6 +6,7 @@
 """
 
 import asyncio
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -19,6 +20,7 @@ from src.infra.logging import get_logger
 from src.infra.session.favorites import is_session_favorite, normalize_session_metadata
 from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
+from src.infra.utils.datetime import parse_iso, to_iso
 from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, SessionError
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
@@ -33,6 +35,8 @@ SESSION_EVENT_TYPE_FILTER_LIMIT = 100
 SESSION_EVENT_RESPONSE_LIMIT_MAX = 10000
 SESSION_RAW_TRACE_RESPONSE_LIMIT_MAX = 20
 SESSION_RAW_TRACE_EVENTS_LIMIT_MAX = 200
+# 按 trace(run) 窗口分页读取历史事件：单页最多返回的轮次数
+SESSION_TRACE_WINDOW_LIMIT_MAX = 200
 
 
 class MessageCheckpointCreatePayload(BaseModel):
@@ -294,6 +298,19 @@ async def get_session_events(
         False,
         description="包含活动 run 的用户消息，并返回是否需要继续 SSE 回放",
     ),
+    trace_limit: Optional[int] = Query(
+        None,
+        ge=1,
+        le=SESSION_TRACE_WINDOW_LIMIT_MAX,
+        description="按 trace(run) 窗口读取：只返回最新的 N 轮，长会话首屏分页加载",
+    ),
+    before_trace_started_at: Optional[str] = Query(
+        None,
+        description="游标：只返回该时间之前的 traces（配合 before_trace_id 翻更早的页）",
+    ),
+    before_trace_id: Optional[str] = Query(
+        None, description="游标决胜键：started_at 相同时按 trace_id 比较"
+    ),
     compact_message_chunks: bool = False,
     user: TokenPayload = Depends(get_current_user_required),
 ):
@@ -307,6 +324,8 @@ async def get_session_events(
         event_types: 可选的事件类型过滤（逗号分隔）
         run_id: 可选的运行 ID 过滤（用于隔离多轮对话）
         exclude_run_id: 可选的运行 ID 排除（用于排除正在运行的 run）
+        trace_limit: 可选的按 trace(run) 窗口读取最新 N 轮，
+            响应携带 has_more_traces 与 trace_window 游标供向上翻页
     """
     from src.infra.session.dual_writer import get_dual_writer
 
@@ -323,12 +342,31 @@ async def get_session_events(
     # 解析事件类型过滤
     types_list = _parse_event_types_filter(event_types)
 
+    # 直接调用（绕过 FastAPI 依赖解析）时 Query 默认对象会原样传入，
+    # 按类型收窄为真实值
+    trace_limit_value = trace_limit if isinstance(trace_limit, int) else None
+    before_trace_started_at_param = (
+        before_trace_started_at if isinstance(before_trace_started_at, str) else None
+    )
+    before_trace_id_param = before_trace_id if isinstance(before_trace_id, str) else None
+
+    before_trace_started_at_dt: Optional[datetime] = None
+    if before_trace_started_at_param:
+        try:
+            before_trace_started_at_dt = parse_iso(before_trace_started_at_param)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="无效的 before_trace_started_at")
+
     current_run_id = session.metadata.get("current_run_id") if session.metadata else None
     events_probe_limit = (limit + 1) if limit is not None else None
+    trace_window_requested = trace_limit_value is not None or before_trace_started_at_dt is not None
     history_mode = None
     stream_run_id = None
+    has_more_traces = False
+    oldest_trace_started_at: Optional[datetime] = None
+    oldest_trace_id: Optional[str] = None
     async with timed_server_phase("history"):
-        if include_active_user_message:
+        if include_active_user_message or trace_window_requested:
             snapshot = await dual_writer.read_session_events_snapshot(
                 session_id,
                 types_list,
@@ -336,11 +374,19 @@ async def get_session_events(
                 exclude_run_id=exclude_run_id,
                 completed_only=True,
                 max_events=events_probe_limit,
-                active_run_id=current_run_id,
+                active_run_id=current_run_id if include_active_user_message else None,
+                trace_limit=trace_limit_value,
+                before_trace_started_at=before_trace_started_at_dt,
+                before_trace_id=before_trace_id_param,
             )
             events = snapshot.events
-            history_mode = snapshot.history_mode
-            stream_run_id = snapshot.stream_run_id
+            if include_active_user_message:
+                history_mode = snapshot.history_mode
+                stream_run_id = snapshot.stream_run_id
+            if trace_window_requested:
+                has_more_traces = snapshot.has_more_traces
+                oldest_trace_started_at = snapshot.oldest_trace_started_at
+                oldest_trace_id = snapshot.oldest_trace_id
         else:
             # 兼容旧调用方：活动 trace 继续由 stream 单独读取，避免重复事件。
             events = await dual_writer.read_session_events(
@@ -369,6 +415,16 @@ async def get_session_events(
     if include_active_user_message:
         response["history_mode"] = history_mode
         response["stream_run_id"] = stream_run_id
+    if trace_window_requested:
+        response["has_more_traces"] = has_more_traces
+        response["trace_window"] = (
+            {
+                "oldest_trace_started_at": to_iso(oldest_trace_started_at),
+                "oldest_trace_id": oldest_trace_id,
+            }
+            if oldest_trace_started_at and oldest_trace_id
+            else None
+        )
     return response
 
 

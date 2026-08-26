@@ -891,7 +891,7 @@ export function SessionListContent({
             )}
           </div>
           <div className="flex-1 text-left min-w-0">
-            <div className="text-sm font-medium text-stone-800 dark:text-stone-100 truncate">
+            <div className="text-sm font-medium font-serif text-stone-800 dark:text-stone-100 truncate">
               {user?.username || t("common.user")}
             </div>
             <div className="text-xs text-stone-400 dark:text-stone-500 whitespace-nowrap font-serif">

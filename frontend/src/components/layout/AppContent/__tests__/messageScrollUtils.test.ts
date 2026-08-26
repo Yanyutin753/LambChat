@@ -14,6 +14,8 @@ import {
   shouldAutoScrollForMessageUpdate,
   shouldAutoScrollAfterViewportChange,
   startVirtuosoScrollToBottom,
+  createInitialStartReachedSkipper,
+  shouldPreloadOlderHistory,
 } from "../messageScrollUtils.ts";
 import { afterEach, beforeEach, vi } from "vitest";
 
@@ -961,6 +963,34 @@ test("does not treat assistant-only streaming updates or bulk history loads as l
   ).toBe(false);
 });
 
+test("prepended older history messages are not mistaken for a newly sent message", () => {
+  // 加载更早消息时在列表头部插入旧轮次，即使恰好只插入一两条、
+  // 且旧首条是用户消息，也不应触发滚动到底部
+  expect(
+    hasNewOutgoingMessage(
+      [
+        { id: "m2", role: "user" },
+        { id: "m3", role: "assistant" },
+      ],
+      [
+        { id: "m1", role: "assistant" },
+        { id: "m2", role: "user" },
+        { id: "m3", role: "assistant" },
+      ],
+    ),
+  ).toBe(false);
+
+  expect(
+    hasNewOutgoingMessage(
+      [{ id: "m2", role: "user" }],
+      [
+        { id: "m1", role: "assistant" },
+        { id: "m2", role: "user" },
+      ],
+    ),
+  ).toBe(false);
+});
+
 test("does not auto-scroll while history loading is still in progress", () => {
   expect(
     shouldAutoScrollForMessageUpdate({
@@ -1258,6 +1288,106 @@ test("does not resume auto-scroll after stream lock is released when the view is
       autoScrollActive: false,
       isNearBottom: false,
       shouldMaintainStreamLock: false,
+    }),
+  ).toBe(false);
+});
+
+/* ---- Initial startReached misfire guard (reverse infinite scroll) ---- */
+
+test("skips the first startReached after each Virtuoso remount", () => {
+  const skipper = createInitialStartReachedSkipper();
+  // Virtuoso mounts with the list at the top (before the auto scroll to
+  // bottom), which fires one spurious startReached.
+  expect(skipper.shouldSkip()).toBe(true);
+  // Genuine arrivals at the top afterwards are handled.
+  expect(skipper.shouldSkip()).toBe(false);
+  expect(skipper.shouldSkip()).toBe(false);
+});
+
+test("reset restores the skip for the next remount", () => {
+  const skipper = createInitialStartReachedSkipper();
+  expect(skipper.shouldSkip()).toBe(true);
+  skipper.reset();
+  expect(skipper.shouldSkip()).toBe(true);
+  expect(skipper.shouldSkip()).toBe(false);
+});
+
+/* ---- Near-top older-history preloading (boundless scroll) ---- */
+
+test("does not preload on the first range report after mount", () => {
+  expect(
+    shouldPreloadOlderHistory({
+      startIndex: 0,
+      previousStartIndex: null,
+      isLoading: false,
+      isLoadingOlder: false,
+      hasMore: true,
+    }),
+  ).toBe(false);
+});
+
+test("preloads when the user scrolls upward into the near-top threshold", () => {
+  expect(
+    shouldPreloadOlderHistory({
+      startIndex: 4,
+      previousStartIndex: 40,
+      isLoading: false,
+      isLoadingOlder: false,
+      hasMore: true,
+      threshold: 10,
+    }),
+  ).toBe(true);
+});
+
+test("does not preload when scrolling downward or idling above threshold", () => {
+  expect(
+    shouldPreloadOlderHistory({
+      startIndex: 40,
+      previousStartIndex: 4,
+      isLoading: false,
+      isLoadingOlder: false,
+      hasMore: true,
+      threshold: 10,
+    }),
+  ).toBe(false);
+  expect(
+    shouldPreloadOlderHistory({
+      startIndex: 30,
+      previousStartIndex: 29,
+      isLoading: false,
+      isLoadingOlder: false,
+      hasMore: true,
+      threshold: 10,
+    }),
+  ).toBe(false);
+});
+
+test("does not preload while loading or when no more history exists", () => {
+  expect(
+    shouldPreloadOlderHistory({
+      startIndex: 2,
+      previousStartIndex: 20,
+      isLoading: true,
+      isLoadingOlder: false,
+      hasMore: true,
+    }),
+  ).toBe(false);
+  expect(
+    shouldPreloadOlderHistory({
+      startIndex: 2,
+      previousStartIndex: 20,
+      isLoading: false,
+      isLoadingOlder: true,
+      hasMore: true,
+    }),
+  ).toBe(false);
+  expect(
+    shouldPreloadOlderHistory({
+      startIndex: 2,
+      previousStartIndex: 20,
+      isLoading: false,
+      isLoadingOlder: false,
+      hasMore: false,
     }),
   ).toBe(false);
 });

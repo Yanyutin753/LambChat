@@ -137,6 +137,15 @@ export function hasNewOutgoingMessage(
     return false;
   }
 
+  // 头部插入的旧历史消息（加载更早一页）不是新发出的消息；
+  // 只有尾部追加（首条消息不变）才可能是本地发送
+  if (
+    previousMessages.length > 0 &&
+    previousMessages[0].id !== nextMessages[0]?.id
+  ) {
+    return false;
+  }
+
   const appendedMessages = nextMessages.slice(previousMessages.length);
   return appendedMessages[0]?.role === "user";
 }
@@ -629,4 +638,52 @@ export function startVirtuosoScrollToBottom({
   return () => {
     finish("aborted");
   };
+}
+
+/**
+ * 反向无限滚动的 startReached 误触发守卫：Virtuoso 挂载时列表初始位于
+ * 顶部（自动滚到底部之前），会立即上报一次 startReached；若不忽略，
+ * 打开会话就会多发一次 before_trace 翻页请求。每次列表 remount 后
+ * 调用 reset()，之后的 startReached 才代表用户真正滚到了顶部。
+ */
+export function createInitialStartReachedSkipper() {
+  let skip = true;
+  return {
+    reset: () => {
+      skip = true;
+    },
+    shouldSkip: () => {
+      if (!skip) return false;
+      skip = false;
+      return true;
+    },
+  };
+}
+
+/**
+ * 近顶预加载（无边滑动）：用户向上滚动且可视区起始索引进入距顶阈值
+ * 内时加载更早一页。previousStartIndex 为 null 表示挂载首报——此时
+ * 列表初始位于顶部，不是用户滚动，不得触发（否则打开会话就会多发
+ * 一次分页请求）；startIndex 相比上次上升说明在向下滚/前插定位，也
+ * 不触发。
+ */
+export function shouldPreloadOlderHistory({
+  startIndex,
+  previousStartIndex,
+  isLoading,
+  isLoadingOlder,
+  hasMore,
+  threshold = 10,
+}: {
+  startIndex: number;
+  previousStartIndex: number | null;
+  isLoading: boolean;
+  isLoadingOlder: boolean;
+  hasMore: boolean;
+  threshold?: number;
+}): boolean {
+  if (isLoading || isLoadingOlder || !hasMore) return false;
+  if (previousStartIndex === null) return false;
+  if (startIndex > threshold) return false;
+  return startIndex < previousStartIndex;
 }

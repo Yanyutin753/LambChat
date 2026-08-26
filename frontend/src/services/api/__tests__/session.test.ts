@@ -39,6 +39,31 @@ test("builds compact chat history event urls only when requested", () => {
   );
 });
 
+test("builds trace-window history event urls for paginated first loads", () => {
+  expect(
+    buildSessionEventsUrl("session-1", {
+      include_active_user_message: true,
+      compact_message_chunks: true,
+      trace_limit: 20,
+    }),
+  ).toBe(
+    "/api/sessions/session-1/events?include_active_user_message=true&compact_message_chunks=true&trace_limit=20",
+  );
+});
+
+test("includes the trace cursor when paging back to older history", () => {
+  expect(
+    buildSessionEventsUrl("session-1", {
+      compact_message_chunks: true,
+      trace_limit: 20,
+      before_trace_started_at: "2026-08-01T00:10:00Z",
+      before_trace_id: "trace-4",
+    }),
+  ).toBe(
+    "/api/sessions/session-1/events?compact_message_chunks=true&trace_limit=20&before_trace_started_at=2026-08-01T00%3A10%3A00Z&before_trace_id=trace-4",
+  );
+});
+
 test("includes user_timezone in the submit chat body when available", () => {
   expect(
     buildSubmitChatBody({

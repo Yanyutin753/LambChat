@@ -453,7 +453,7 @@ const ModelSelector = memo(function ModelSelector({
         onClick={toggleSelector}
         className="flex items-center gap-1.5 text-stone-600 hover:opacity-70 dark:text-stone-300 transition-opacity"
       >
-        <span className="text-base font-semibold max-w-[200px] truncate">
+        <span className="text-base font-semibold font-serif max-w-[200px] truncate">
           {currentModelInfo?.label || currentModelId}
         </span>
         <ChevronDown

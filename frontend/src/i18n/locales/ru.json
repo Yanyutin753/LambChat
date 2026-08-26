@@ -600,6 +600,8 @@
     "goodEvening": "Добрый вечер, {{name}}",
     "goodMorning": "Доброе утро, {{name}}",
     "helpDocs": "Справка",
+    "historyLoadOlder": "Загрузить более ранние сообщения",
+    "historyLoadingOlder": "Загрузка более ранних сообщений…",
     "keyboardShortcuts": "Горячие клавиши",
     "mentionNoResults": "Нет подходящих персон",
     "mermaid": "Mermaid",

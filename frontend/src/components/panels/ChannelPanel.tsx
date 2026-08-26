@@ -284,7 +284,7 @@ export function ChannelPanel({
             className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5"
           >
             <div>
-              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
+              <span className="text-sm font-medium font-serif text-stone-700 dark:text-stone-200">
                 {field.title}
               </span>
               {field.description && (
@@ -313,7 +313,7 @@ export function ChannelPanel({
       case "select":
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
+            <label className="mb-1 block text-sm font-medium font-serif text-stone-700 dark:text-stone-200">
               {field.title}
             </label>
             <Select
@@ -330,7 +330,7 @@ export function ChannelPanel({
       case "password":
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
+            <label className="mb-1 block text-sm font-medium font-serif text-stone-700 dark:text-stone-200">
               {field.title}{" "}
               {field.required && !hasExistingConfig && (
                 <span className="text-red-500">*</span>
@@ -357,7 +357,7 @@ export function ChannelPanel({
       default:
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
+            <label className="mb-1 block text-sm font-medium font-serif text-stone-700 dark:text-stone-200">
               {field.title}
               {field.required && (!hasExistingConfig || !field.sensitive) && (
                 <span className="text-red-500"> *</span>
@@ -467,7 +467,7 @@ export function ChannelPanel({
           {/* Instance Name - only show for new instances */}
           {isNewInstance && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
+              <label className="mb-1 block text-sm font-medium font-serif text-stone-700 dark:text-stone-200">
                 {t("channel.instanceName", "Instance Name")}{" "}
                 <span className="text-red-500">*</span>
               </label>
@@ -487,7 +487,7 @@ export function ChannelPanel({
           {/* Instance Name Display - show for existing instances */}
           {!isNewInstance && hasExistingConfig && (
             <div className="rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
-              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
+              <span className="text-sm font-medium font-serif text-stone-700 dark:text-stone-200">
                 {t("channel.instanceName", "Instance Name")}
               </span>
               <p className="text-sm text-stone-900 dark:text-stone-100">
@@ -499,7 +499,7 @@ export function ChannelPanel({
           {/* Enable Toggle */}
           <div className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
             <div>
-              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
+              <span className="text-sm font-medium font-serif text-stone-700 dark:text-stone-200">
                 {t("channel.enabled", "Enable Channel")}
               </span>
               <p className="text-xs text-stone-500 dark:text-stone-400">

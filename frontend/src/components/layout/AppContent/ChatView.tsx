@@ -1,5 +1,6 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
@@ -10,7 +11,7 @@ import { SessionImageGalleryProvider } from "../../chat/ChatMessage/sessionImage
 import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
-import { Virtuoso, type ListRange } from "react-virtuoso";
+import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { setSteerCancelHandler } from "../../chat/steerCancelStore";
 import { SessionScheduledTasksButton } from "../../panels/ScheduledTaskPanel";
@@ -20,18 +21,26 @@ import {
 } from "../../skeletons/ChatSkeletons";
 import { useMessageScroll } from "./useMessageScroll";
 import {
+  createInitialStartReachedSkipper,
   getAtBottomThresholdPx,
   getMessageListFooterSpacerClass,
+  shouldPreloadOlderHistory,
 } from "./messageScrollUtils";
 import { getNextMessageListSessionKey } from "./useMessageScroll";
+import {
+  toDataIndex,
+  translateVirtuosoRange,
+  wrapVirtuosoHandleForDataIndices,
+} from "./virtuosoIndexOffset";
 import {
   isSessionRunning,
   shouldShowStreamingFooterSkeleton,
 } from "./sessionState";
-import type { MessageAttachment } from "../../../types";
+import type { Message, MessageAttachment } from "../../../types";
 import type { ChatViewProps } from "./ChatViewProps";
 import { useCurrentTeam, resolveChatAssistantIdentity } from "./ChatViewProps";
 import { useChatOutline } from "./useChatOutline";
+import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import { shouldShowMessageOutline } from "./messageOutline";
 import {
   MessageTimelineRail,
@@ -51,6 +60,9 @@ import {
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 
 const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
+// Virtuoso 反向无限滚动的起始索引：前插旧消息时递减 firstItemIndex，
+// Virtuoso 会保持可视区滚动位置不跳动
+const HISTORY_FIRST_ITEM_INDEX = 1_000_000;
 
 export function ChatView({
   messages,
@@ -59,6 +71,9 @@ export function ChatView({
   isLoading,
   isLoadingHistory,
   historyLoadGeneration,
+  hasMoreHistoryTraces = false,
+  isLoadingOlderHistory = false,
+  onLoadOlderHistory,
   connectionStatus,
   canSendMessage,
   tools,
@@ -181,6 +196,33 @@ export function ChatView({
     sessionId ?? "__new_session__",
   );
 
+  // --- Older-history pagination (reverse infinite scroll) ---
+  // Virtuoso 的 firstItemIndex 反向无限滚动：前插旧消息时递减 firstItemIndex，
+  // Virtuoso 保持可视区滚动位置不跳动。Virtuoso 对外的索引是绝对索引，
+  // 与数据索引的换算集中在 virtuosoIndexOffset。
+  const [firstItemIndex, setFirstItemIndex] = useState(
+    HISTORY_FIRST_ITEM_INDEX,
+  );
+  const firstItemIndexRef = useRef(firstItemIndex);
+  useEffect(() => {
+    firstItemIndexRef.current = firstItemIndex;
+  }, [firstItemIndex]);
+  const prevRenderItemsRef = useRef<Message[]>([]);
+  useEffect(() => {
+    const prev = prevRenderItemsRef.current;
+    prevRenderItemsRef.current = messages;
+    if (!messages.length || !prev.length) return;
+    // 首条消息未变说明只是尾部追加/更新，无需前移锚点
+    if (messages[0].id === prev[0].id) return;
+    // 找到上一帧首条消息在新列表中的位置：前插了多少条就前移多少
+    const prependCount = messages.findIndex(
+      (message) => message.id === prev[0].id,
+    );
+    if (prependCount > 0) {
+      setFirstItemIndex((current) => Math.max(0, current - prependCount));
+    }
+  }, [messages]);
+
   const {
     messagesContainerRef,
     virtuosoRef,
@@ -205,6 +247,18 @@ export function ChatView({
     null,
   );
 
+  // 大纲/时间轴按数据索引调用 scrollToIndex；该 API 原生就期望数据索引
+  // （与 rangeChanged 上报的绝对索引不对称），适配器只做语义透传
+  const dataIndexVirtuosoRef = useMemo<React.RefObject<VirtuosoHandle | null>>(
+    () => ({
+      get current() {
+        const handle = virtuosoRef.current;
+        return handle ? wrapVirtuosoHandleForDataIndices(handle) : null;
+      },
+    }),
+    [virtuosoRef],
+  );
+
   useEffect(() => {
     const previousSessionId = previousSessionIdRef.current;
     previousSessionIdRef.current = sessionId;
@@ -219,12 +273,43 @@ export function ChatView({
     });
   }, [messages.length, sessionId]);
 
+  // Virtuoso 挂载时列表初始位于顶部（自动滚到底部之前），startReached 会
+  // 误触发一次；loading 标志此刻已清空，拦不住，须按 remount 粒度忽略。
+  const startReachedSkipperRef = useRef(createInitialStartReachedSkipper());
+  const prevVisibleStartIndexRef = useRef<number | null>(null);
+  const prevMessageListSessionKeyRef = useRef(messageListSessionKey);
+  if (prevMessageListSessionKeyRef.current !== messageListSessionKey) {
+    prevMessageListSessionKeyRef.current = messageListSessionKey;
+    // 在渲染阶段恢复跳过（而非 effect），确保先于新列表挂载期间
+    // Virtuoso 上报的那次 startReached；近顶预加载的首报基准一并重置。
+    startReachedSkipperRef.current.reset();
+    prevVisibleStartIndexRef.current = null;
+  }
+
+  const handleVirtuosoStartReached = useCallback(() => {
+    if (startReachedSkipperRef.current.shouldSkip()) return;
+    // 历史整页加载期间列表也可能短暂处于顶部，此时不自动翻页
+    if (isLoadingHistory || isLoadingOlderHistory || !hasMoreHistoryTraces) {
+      return;
+    }
+    onLoadOlderHistory?.();
+  }, [
+    hasMoreHistoryTraces,
+    isLoadingHistory,
+    isLoadingOlderHistory,
+    onLoadOlderHistory,
+  ]);
+
   // --- Assistant identity ---
   const currentPersonaAvatar = useMemo(() => {
     const preset = personaPresets.find((p) => p.id === selectedPersonaPresetId);
     return preset?.avatar ?? null;
   }, [personaPresets, selectedPersonaPresetId]);
   const currentTeam = useCurrentTeam(currentAgent, selectedTeamId);
+  const currentAgentInfo = agents.find((a) => a.id === currentAgent);
+  const currentAgentDisplayName = currentAgentInfo
+    ? resolveAgentDisplayName(currentAgentInfo, i18n.language, t)
+    : null;
   const assistantIdentity = useMemo(
     () =>
       resolveChatAssistantIdentity({
@@ -232,15 +317,22 @@ export function ChatView({
         currentPersonaAvatar,
         currentTeam,
         selectedPersonaName,
+        agentDisplayName: currentAgentDisplayName,
       }),
-    [currentAgent, currentPersonaAvatar, currentTeam, selectedPersonaName],
+    [
+      currentAgent,
+      currentPersonaAvatar,
+      currentTeam,
+      selectedPersonaName,
+      currentAgentDisplayName,
+    ],
   );
 
   // --- Outline panel (side effects managed by hook) ---
   const { outlineItems, handleVisibleRangeChange: handleOutlineRangeChange } =
     useChatOutline(
       messages,
-      virtuosoRef,
+      dataIndexVirtuosoRef,
       assistantIdentity.avatar,
       outlineToggleRef,
       t,
@@ -251,23 +343,49 @@ export function ChatView({
 
   const handleVisibleRangeChange = useCallback(
     (range: ListRange) => {
-      handleOutlineRangeChange(range);
-      updateTimelineRange(range);
+      const dataRange = translateVirtuosoRange(
+        range,
+        firstItemIndexRef.current,
+      );
+      handleOutlineRangeChange(dataRange);
+      updateTimelineRange(dataRange);
+      // 近顶自动预加载更早一页（无边滑动）：用户上滑进入距顶阈值即触发，
+      // 通常无需看到「加载更早的消息」按钮；挂载/换会话首报不触发。
+      if (
+        shouldPreloadOlderHistory({
+          startIndex: dataRange.startIndex,
+          previousStartIndex: prevVisibleStartIndexRef.current,
+          isLoading: isLoadingHistory,
+          isLoadingOlder: isLoadingOlderHistory,
+          hasMore: hasMoreHistoryTraces,
+        })
+      ) {
+        onLoadOlderHistory?.();
+      }
+      prevVisibleStartIndexRef.current = dataRange.startIndex;
     },
-    [handleOutlineRangeChange],
+    [
+      handleOutlineRangeChange,
+      hasMoreHistoryTraces,
+      isLoadingHistory,
+      isLoadingOlderHistory,
+      onLoadOlderHistory,
+    ],
   );
 
   const handleTimelineNavigate = useCallback(
     (anchorId: string, messageIndex: number) => {
-      virtuosoRef.current?.scrollToIndex({
+      // 瞬时跳转：smooth 在长虚拟列表上是「估算→滚动→测量→修正」多段
+      // 迭代，表现为长时间停顿后缓慢爬行；小地图点击应立即到位。
+      dataIndexVirtuosoRef.current?.scrollToIndex({
         index: messageIndex,
-        behavior: "smooth",
+        behavior: "auto",
         align: "start",
       });
       requestAnimationFrame(() => {
         const el = document.getElementById(anchorId);
         if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          el.scrollIntoView({ behavior: "auto", block: "start" });
           el.setAttribute("data-external-navigation-highlighted", "true");
           setTimeout(() => {
             el.removeAttribute("data-external-navigation-highlighted");
@@ -275,7 +393,7 @@ export function ChatView({
         }
       });
     },
-    [virtuosoRef],
+    [dataIndexVirtuosoRef],
   );
 
   // --- Reveal preview ---
@@ -388,9 +506,8 @@ export function ChatView({
             handleVirtuosoScrollerElementChange(el);
             if (typeof vRef === "function") vRef(el);
             else if (vRef)
-              (
-                vRef as React.MutableRefObject<HTMLDivElement | null>
-              ).current = el;
+              (vRef as React.MutableRefObject<HTMLDivElement | null>).current =
+                el;
           }}
         >
           {children}
@@ -417,12 +534,38 @@ export function ChatView({
     [showStreamingFooterSkeleton, isMobileViewport, messagesEndRef],
   );
 
+  const virtuosoHeaderComponent = useCallback(() => {
+    if (!hasMoreHistoryTraces && !isLoadingOlderHistory) return null;
+    return (
+      <div className="flex justify-center py-3">
+        {isLoadingOlderHistory ? (
+          <span className="text-xs text-[var(--theme-text-tertiary)]">
+            {t("chat.historyLoadingOlder", "正在加载更早的消息…")}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void onLoadOlderHistory?.()}
+            className="rounded-full border border-[var(--theme-border)] px-4 py-1.5 text-xs text-[var(--theme-text-secondary)] transition-colors hover:bg-[var(--glass-bg-subtle)]"
+          >
+            {t("chat.historyLoadOlder", "加载更早的消息")}
+          </button>
+        )}
+      </div>
+    );
+  }, [hasMoreHistoryTraces, isLoadingOlderHistory, onLoadOlderHistory, t]);
+
   const virtuosoComponents = useMemo(
     () => ({
       Scroller: virtuosoScrollerComponent,
+      Header: virtuosoHeaderComponent,
       Footer: virtuosoFooterComponent,
     }),
-    [virtuosoScrollerComponent, virtuosoFooterComponent],
+    [
+      virtuosoScrollerComponent,
+      virtuosoHeaderComponent,
+      virtuosoFooterComponent,
+    ],
   );
 
   // Pending steer items belong to the composer queue, not the conversation
@@ -435,7 +578,10 @@ export function ChatView({
         message={message}
         sessionId={sessionId ?? undefined}
         runId={currentRunId ?? undefined}
-        isLastMessage={index === renderItems.length - 1}
+        isLastMessage={
+          toDataIndex(index, firstItemIndexRef.current) ===
+          renderItems.length - 1
+        }
         personaAvatar={assistantIdentity.avatar}
         personaName={assistantIdentity.name}
         activePreview={activePreview}
@@ -447,7 +593,7 @@ export function ChatView({
         activeGoal={
           getGoalForMessage(goalsByRunId, message) ?? visibleActiveGoal
         }
-        isFirst={index === 0}
+        isFirst={toDataIndex(index, firstItemIndexRef.current) === 0}
       />
     ),
     [
@@ -607,6 +753,8 @@ export function ChatView({
               style={undefined}
               data={renderItems}
               computeItemKey={(_, message) => message.id}
+              firstItemIndex={firstItemIndex}
+              startReached={handleVirtuosoStartReached}
               atBottomStateChange={handleVirtuosoAtBottomChange}
               atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
               followOutput={handleVirtuosoFollowOutput}

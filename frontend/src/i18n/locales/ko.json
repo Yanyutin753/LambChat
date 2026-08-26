@@ -600,6 +600,8 @@
     "goodEvening": "좋은 저녁이에요, {{name}}",
     "goodMorning": "좋은 아침이에요, {{name}}",
     "helpDocs": "도움말 문서",
+    "historyLoadOlder": "이전 메시지 더 불러오기",
+    "historyLoadingOlder": "이전 메시지를 불러오는 중…",
     "keyboardShortcuts": "키보드 단축키",
     "mentionNoResults": "일치하는 페르소나가 없습니다",
     "mermaid": "Mermaid",

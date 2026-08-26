@@ -55,7 +55,7 @@ export function FileReferenceChip({
       }
     >
       <Paperclip className="composer-reference-chip__icon" size="1em" />
-      <span className="skill-chip-node-name composer-reference-chip__label">
+      <span className="skill-chip-node-name composer-reference-chip__label font-serif">
         {displayLabel}
       </span>
       {!readOnly && StatusIcon ? (

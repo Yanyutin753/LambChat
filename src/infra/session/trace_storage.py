@@ -49,6 +49,8 @@ from src.infra.session._trace_storage_support import (
     _event_seq,
     _get_session_event_read_default_limit,
     _normalize_recommend_questions,
+    apply_trace_window_to_traces,
+    build_trace_window_find_query,
 )
 from src.infra.session._trace_storage_support import (
     _event_chunk_index as _event_chunk_index,
@@ -82,6 +84,10 @@ class SessionEventsSnapshot:
     events: List[Dict[str, Any]]
     history_mode: Literal["complete", "active_user_only"] = "complete"
     stream_run_id: Optional[str] = None
+    # 按 trace(run) 窗口分页：窗口内最旧一条 trace 的游标与是否还有更早的轮次
+    has_more_traces: bool = False
+    oldest_trace_started_at: Optional[datetime] = None
+    oldest_trace_id: Optional[str] = None
 
 
 async def _write_usage_log(trace_id: str) -> None:
@@ -604,6 +610,9 @@ class TraceStorage(
         run_ids: Optional[List[str]] = None,
         max_events: Optional[int] = None,
         active_run_id: Optional[str] = None,
+        trace_limit: Optional[int] = None,
+        before_trace_started_at: Optional[datetime] = None,
+        before_trace_id: Optional[str] = None,
     ) -> SessionEventsSnapshot:
         """
         获取会话的所有事件（跨 traces 聚合）
@@ -618,9 +627,10 @@ class TraceStorage(
             completed_only: 是否只返回成功完成的 trace 中的事件（默认 True）
             run_ids: 可选的运行 ID 列表过滤（用于部分分享等场景）
             max_events: 可选的最大返回事件数
+            trace_limit: 可选的按 trace(run) 窗口读取最新 N 轮；before_trace_* 为上一页游标
 
         Returns:
-            事件列表，按 run 顺序合并
+            事件列表按 run 顺序合并
         """
         try:
             event_types = _bounded_unique_strings(event_types, SESSION_EVENT_FILTER_LIST_LIMIT)
@@ -692,8 +702,17 @@ class TraceStorage(
                     ]
                 }
 
-            cursor = self.collection.find(
-                match_query,
+            # 按 trace 窗口读取：从新到旧取最近 N 轮，游标排除已读轮次
+            trace_window_active = trace_limit is not None or before_trace_started_at is not None
+            find_query: Dict[str, Any] = match_query
+            if trace_window_active and before_trace_started_at is not None:
+                find_query = build_trace_window_find_query(
+                    match_query, before_trace_started_at, before_trace_id
+                )
+            trace_probe_limit = (trace_limit + 1) if trace_limit is not None else None
+
+            find_cursor = self.collection.find(
+                find_query,
                 {
                     "_id": 0,
                     "trace_id": 1,
@@ -705,7 +724,13 @@ class TraceStorage(
                     "recommend_questions": 1,
                     "recommend_questions_updated_at": 1,
                 },
-            ).sort("started_at", 1)
+            )
+            if trace_window_active:
+                cursor = find_cursor.sort([("started_at", -1), ("trace_id", -1)])
+            else:
+                cursor = find_cursor.sort("started_at", 1)  # 保持旧调用形态
+            if trace_probe_limit is not None:
+                cursor = cursor.limit(trace_probe_limit)
 
             traces: List[Dict[str, Any]] = []
             async for trace in cursor:
@@ -715,6 +740,11 @@ class TraceStorage(
                     elif not active_run_id or trace.get("run_id") != active_run_id:
                         continue
                 traces.append(trace)
+
+            # 窗口模式：裁掉探测项并反转回时间升序，游标指向窗口内最旧 trace
+            traces, has_more_traces, oldest_trace_started_at, oldest_trace_id = (
+                apply_trace_window_to_traces(traces, trace_limit, trace_window_active)
+            )
 
             active_user_only_trace_ids = {
                 str(trace.get("trace_id"))
@@ -813,6 +843,9 @@ class TraceStorage(
                             events=events,
                             history_mode=history_mode,
                             stream_run_id=stream_run_id,
+                            has_more_traces=has_more_traces,
+                            oldest_trace_started_at=oldest_trace_started_at,
+                            oldest_trace_id=oldest_trace_id,
                         )
 
             logger.debug(
@@ -822,6 +855,9 @@ class TraceStorage(
                 events=events,
                 history_mode=history_mode,
                 stream_run_id=stream_run_id,
+                has_more_traces=has_more_traces,
+                oldest_trace_started_at=oldest_trace_started_at,
+                oldest_trace_id=oldest_trace_id,
             )
         except Exception as e:
             logger.error(f"Failed to get session events: {e}")
@@ -837,6 +873,9 @@ class TraceStorage(
         run_ids: Optional[List[str]] = None,
         max_events: Optional[int] = None,
         active_run_id: Optional[str] = None,
+        trace_limit: Optional[int] = None,
+        before_trace_started_at: Optional[datetime] = None,
+        before_trace_id: Optional[str] = None,
     ) -> SessionEventsSnapshot:
         """Read history and classify whether the active run still needs SSE replay."""
         return await self._assemble_session_events_snapshot(
@@ -848,6 +887,9 @@ class TraceStorage(
             run_ids=run_ids,
             max_events=max_events,
             active_run_id=active_run_id,
+            trace_limit=trace_limit,
+            before_trace_started_at=before_trace_started_at,
+            before_trace_id=before_trace_id,
         )
 
     async def get_session_events(

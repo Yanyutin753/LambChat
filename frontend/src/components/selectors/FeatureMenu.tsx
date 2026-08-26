@@ -99,7 +99,9 @@ function MenuItem({
     >
       <span className="feature-menu-item-icon">{icon}</span>
       <span className="flex-1 text-left truncate">{label}</span>
-      {badge && <span className="feature-menu-item-badge">{badge}</span>}
+      {badge && (
+        <span className="feature-menu-item-badge font-serif">{badge}</span>
+      )}
     </button>
   );
 }

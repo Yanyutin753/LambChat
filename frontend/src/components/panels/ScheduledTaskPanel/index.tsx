@@ -429,7 +429,7 @@ export function ScheduledTaskPanel({
                     >
                       {/* Title row */}
                       <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                        <h4 className="truncate text-base font-semibold text-[var(--theme-text)]">
+                        <h4 className="truncate text-base font-semibold font-serif  text-[var(--theme-text)]">
                           {task.name}
                         </h4>
                         <StatusBadge status={task.status} />

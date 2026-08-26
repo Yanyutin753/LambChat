@@ -1,7 +1,9 @@
 """Shared limits and normalization helpers for trace storage."""
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from src.infra.utils.datetime import ensure_utc, parse_iso
 from src.kernel.config import settings
 
 SESSION_EVENT_FILTER_LIST_LIMIT = 100
@@ -108,3 +110,64 @@ def _normalize_recommend_questions(value: Any) -> List[str]:
         if len(questions) >= _RECOMMEND_QUESTIONS_LIMIT:
             break
     return questions
+
+
+def build_trace_window_find_query(
+    match_query: Dict[str, Any],
+    before_trace_started_at: "datetime",
+    before_trace_id: Optional[str],
+) -> Dict[str, Any]:
+    """游标边界：(started_at, trace_id) 严格元组比较，只保留更早的 traces。"""
+    boundary: Dict[str, Any] = {"started_at": {"$lt": before_trace_started_at}}
+    if before_trace_id:
+        boundary = {
+            "$or": [
+                boundary,
+                {
+                    "started_at": before_trace_started_at,
+                    "trace_id": {"$lt": before_trace_id},
+                },
+            ]
+        }
+    return {"$and": [match_query, boundary]} if match_query else boundary
+
+
+def apply_trace_window_to_traces(
+    traces: List[Dict[str, Any]],
+    trace_limit: Optional[int],
+    window_active: bool,
+) -> tuple[
+    List[Dict[str, Any]],
+    bool,
+    Optional["datetime"],
+    Optional[str],
+]:
+    """裁掉窗口探测项并反转为时间升序，返回 (traces, has_more, 游标)。
+
+    窗口模式按 (started_at, trace_id) 倒序取回且多取一条探测 has_more；
+    游标取窗口内最旧一条 trace，供下一页继续向前翻。
+    """
+    has_more_traces = False
+    if trace_limit is not None:
+        has_more_traces = len(traces) > trace_limit
+        if has_more_traces:
+            traces = traces[:trace_limit]
+        traces.reverse()
+    oldest_trace_started_at: Optional[datetime] = None
+    oldest_trace_id: Optional[str] = None
+    if window_active and traces:
+        oldest_trace_started_at = coerce_trace_started_at(traces[0].get("started_at"))
+        oldest_trace_id = traces[0].get("trace_id")
+    return traces, has_more_traces, oldest_trace_started_at, oldest_trace_id
+
+
+def coerce_trace_started_at(value: Any) -> Optional["datetime"]:
+    """把 trace 的 started_at 规整为带时区的 datetime（兼容字符串存量）。"""
+    if isinstance(value, datetime):
+        return ensure_utc(value)
+    if isinstance(value, str):
+        try:
+            return parse_iso(value)
+        except (TypeError, ValueError):
+            return None
+    return None

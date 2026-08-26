@@ -2,12 +2,14 @@ import {
   useRef,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useState,
   useCallback,
 } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import type { Message } from "../../../types";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
+import { wrapVirtuosoHandleForDataIndices } from "./virtuosoIndexOffset";
 import {
   forceVirtuosoToBottom,
   getScrollToBottomTimingOptions,
@@ -79,6 +81,18 @@ export function useMessageScroll(
 
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [isNearTop, setIsNearTop] = useState(true);
+
+  // 外部导航按数据索引调用 scrollToIndex；scrollToIndex 原生就期望数据
+  // 索引（与 rangeChanged 的绝对索引不对称），适配器只做语义透传
+  const dataIndexVirtuosoRef = useMemo<React.RefObject<VirtuosoHandle | null>>(
+    () => ({
+      get current() {
+        const handle = virtuosoRef.current;
+        return handle ? wrapVirtuosoHandleForDataIndices(handle) : null;
+      },
+    }),
+    [virtuosoRef],
+  );
   // The scroller DOM element is tracked in state (not just a ref) because the
   // Virtuoso list remounts on session-key swaps while messages.length may stay
   // constant; listeners bound by an effect keyed on messages.length would stay
@@ -474,7 +488,12 @@ export function useMessageScroll(
       scroller.removeEventListener("touchend", resetTouchTracking);
       scroller.removeEventListener("touchcancel", resetTouchTracking);
     };
-  }, [awayFromBottomThresholdPx, isMobileViewport, messages.length, virtuosoScrollerElement]);
+  }, [
+    awayFromBottomThresholdPx,
+    isMobileViewport,
+    messages.length,
+    virtuosoScrollerElement,
+  ]);
 
   useEffect(() => {
     if (!isMobileViewport || typeof window === "undefined") {
@@ -738,7 +757,7 @@ export function useMessageScroll(
     externalNavigationTargetRunId,
     externalNavigationTargetRunPending,
     externalScrollToBottom,
-    virtuosoRef,
+    virtuosoRef: dataIndexVirtuosoRef,
     virtuosoScrollerRef,
     pendingExternalNavigationRef,
     userScrolledUpRef,

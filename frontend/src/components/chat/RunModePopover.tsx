@@ -216,7 +216,7 @@ export function RunModePopover({
                   <span className="flex-1 text-left truncate">
                     {t("agent.selectMode", "Agent Mode")}
                   </span>
-                  <span className="feature-menu-item-badge">
+                  <span className="feature-menu-item-badge font-serif">
                     {agentName || ""}
                   </span>
                   <ChevronRight size={14} className="feature-menu-chevron" />
@@ -241,7 +241,7 @@ export function RunModePopover({
                   </span>
                   {thinkingLabel && (
                     <span
-                      className="feature-menu-item-badge"
+                      className="feature-menu-item-badge font-serif"
                       style={
                         THINKING_LEVEL_COLOR[thinkingLevel ?? ""]
                           ? {

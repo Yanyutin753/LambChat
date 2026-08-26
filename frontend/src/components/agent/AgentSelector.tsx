@@ -42,7 +42,7 @@ const AgentItem = memo(function AgentItem({
           />
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <div className="text-sm font-medium text-stone-700 dark:text-stone-200 font-serif">
+          <div className="text-sm font-medium font-serif text-stone-700 dark:text-stone-200 font-serif">
             {displayName}
           </div>
           <div className="text-xs text-stone-400 dark:text-stone-500 truncate">

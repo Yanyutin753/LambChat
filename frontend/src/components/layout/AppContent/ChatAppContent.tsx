@@ -17,8 +17,6 @@ import { appNotificationService } from "../../../services/notifications/appNotif
 import { useSessionConfig } from "../../../hooks/useSessionConfig";
 import {
   Permission,
-  type ToolCategory,
-  type SkillSource,
   type PersonaPreset,
   type PersonaPresetSnapshot,
 } from "../../../types";
@@ -42,6 +40,7 @@ import { ChatView } from "./ChatView";
 import { filterApprovalsBySession } from "../../../utils/approvals";
 import { shouldShowMessageOutline } from "./messageOutline";
 import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
+import { useSessionToggleCallbacks } from "./sessionToggleCallbacks";
 import type { ChatAppContentProps } from "./types";
 const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
@@ -160,6 +159,9 @@ export function ChatAppContent({
     isLoading,
     isLoadingHistory,
     historyLoadGeneration,
+    hasMoreHistoryTraces,
+    isLoadingOlderHistory,
+    loadOlderHistory,
     agents,
     currentAgent,
     allowedModelIds: agentAllowedModelIds,
@@ -515,102 +517,21 @@ export function ChatAppContent({
     [effectiveSkills],
   );
 
-  const effectiveToggleTool = useCallback(
-    (toolName: string) => {
-      const tool = tools.find((t) => t.name === toolName);
-      if (!tool) return;
-
-      if (tool.category === "mcp") {
-        toggleSessionMcpTool(toolName);
-      }
-    },
-    [tools, toggleSessionMcpTool],
-  );
-
-  const effectiveToggleCategory = useCallback(
-    (category: ToolCategory, enabled: boolean) => {
-      if (category === "mcp") {
-        tools
-          .filter((t) => t.category === "mcp" && !t.system_disabled)
-          .forEach((t) => {
-            const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(
-              t.name,
-            );
-            if (enabled && isInSessionDisabled) {
-              toggleSessionMcpTool(t.name);
-            } else if (!enabled && !isInSessionDisabled) {
-              toggleSessionMcpTool(t.name);
-            }
-          });
-      }
-    },
-    [tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
-  );
-
-  const effectiveToggleAll = useCallback(
-    (enabled: boolean) => {
-      tools
-        .filter((t) => t.category === "mcp" && !t.system_disabled)
-        .forEach((t) => {
-          const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(
-            t.name,
-          );
-          if (enabled && isInSessionDisabled) {
-            toggleSessionMcpTool(t.name);
-          } else if (!enabled && !isInSessionDisabled) {
-            toggleSessionMcpTool(t.name);
-          }
-        });
-    },
-    [tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
-  );
-
-  const effectiveToggleSkill = useCallback(
-    async (name: string): Promise<boolean> => {
-      toggleSessionSkill(name);
-      return true;
-    },
-    [toggleSessionSkill],
-  );
-
-  const effectiveToggleSkillCategory = useCallback(
-    async (category: SkillSource, enabled: boolean): Promise<boolean> => {
-      skills
-        .filter((s) => s.enabled && s.source === category)
-        .forEach((s) => {
-          const isInSessionDisabled = sessionConfig.disabledSkills.includes(
-            s.name,
-          );
-          if (enabled && isInSessionDisabled) {
-            toggleSessionSkill(s.name);
-          } else if (!enabled && !isInSessionDisabled) {
-            toggleSessionSkill(s.name);
-          }
-        });
-      return true;
-    },
-    [skills, sessionConfig.disabledSkills, toggleSessionSkill],
-  );
-
-  const effectiveToggleAllSkills = useCallback(
-    async (enabled: boolean): Promise<boolean> => {
-      skills
-        .filter((s) => s.enabled)
-        .forEach((s) => {
-          const isInSessionDisabled = sessionConfig.disabledSkills.includes(
-            s.name,
-          );
-          if (enabled && isInSessionDisabled) {
-            toggleSessionSkill(s.name);
-          } else if (!enabled && !isInSessionDisabled) {
-            toggleSessionSkill(s.name);
-          }
-        });
-      return true;
-    },
-    [skills, sessionConfig.disabledSkills, toggleSessionSkill],
-  );
-
+  const {
+    effectiveToggleTool,
+    effectiveToggleCategory,
+    effectiveToggleAll,
+    effectiveToggleSkill,
+    effectiveToggleSkillCategory,
+    effectiveToggleAllSkills,
+  } = useSessionToggleCallbacks({
+    tools,
+    skills,
+    disabledMcpTools: sessionConfig.disabledMcpTools,
+    disabledSkills: sessionConfig.disabledSkills,
+    toggleSessionMcpTool,
+    toggleSessionSkill,
+  });
   const effectiveEnabledToolsCount = useMemo(
     () => effectiveTools.filter((t) => t.enabled).length,
     [effectiveTools],
@@ -873,6 +794,9 @@ export function ChatAppContent({
           isLoading={isLoading}
           isLoadingHistory={isLoadingHistory}
           historyLoadGeneration={historyLoadGeneration}
+          hasMoreHistoryTraces={hasMoreHistoryTraces}
+          isLoadingOlderHistory={isLoadingOlderHistory}
+          onLoadOlderHistory={loadOlderHistory}
           connectionStatus={connectionStatus}
           canSendMessage={canSendMessage}
           tools={effectiveTools}

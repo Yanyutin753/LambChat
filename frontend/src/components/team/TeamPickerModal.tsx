@@ -265,7 +265,7 @@ export function TeamPickerModal({
                           iconSize={20}
                         />
                         <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-base font-semibold text-[var(--theme-text)] leading-tight">
+                          <h3 className="truncate text-base font-semibold font-serif  text-[var(--theme-text)] leading-tight">
                             {team.name}
                           </h3>
                           <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">

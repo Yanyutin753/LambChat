@@ -600,6 +600,8 @@
     "goodEvening": "こんばんは、{{name}}",
     "goodMorning": "おはようございます、{{name}}",
     "helpDocs": "ヘルプドキュメント",
+    "historyLoadOlder": "過去のメッセージを読み込む",
+    "historyLoadingOlder": "過去のメッセージを読み込み中…",
     "keyboardShortcuts": "キーボードショートカット",
     "mentionNoResults": "一致するペルソナがありません",
     "mermaid": "Mermaid",

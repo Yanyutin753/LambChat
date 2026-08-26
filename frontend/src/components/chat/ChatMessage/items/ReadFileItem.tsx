@@ -5,6 +5,7 @@ import { CollapsiblePill } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import {
   stripLineNumbers,
+  readFileStartLine,
   extractText,
   type McpMultiModalResult,
   type McpContentBlock,
@@ -41,6 +42,8 @@ const ReadFileItem = memo(function ReadFileItem({
   const fileName = filePath.split("/").pop() || filePath;
   const offset = args.offset as number | undefined;
   const limit = args.limit as number | undefined;
+  const startLine = readFileStartLine(offset);
+  const endLine = limit ? startLine + limit - 1 : undefined;
 
   const displayContent = useMemo(() => {
     const raw = extractText(result);
@@ -87,8 +90,8 @@ const ReadFileItem = memo(function ReadFileItem({
         <span className="truncate">{filePath}</span>
         {(offset !== undefined || limit !== undefined) && (
           <span className="shrink-0 text-theme-text-tertiary">
-            :L{offset ?? 1}
-            {limit ? `-${(offset ?? 1) + limit}` : ""}
+            :L{startLine}
+            {endLine ? `-${endLine}` : ""}
           </span>
         )}
       </ToolArgsBlock>
@@ -106,13 +109,10 @@ const ReadFileItem = memo(function ReadFileItem({
             filePath={filePath}
             lineNumbers={true}
             fontSize="0.8rem"
-            startLine={Math.max(1, offset ?? 1)}
+            startLine={startLine}
             highlightLineRange={
               offset !== undefined || limit !== undefined
-                ? {
-                    from: Math.max(1, offset ?? 1),
-                    to: Math.max(1, offset ?? 1) + (limit ?? 0),
-                  }
+                ? { from: startLine, to: endLine ?? startLine }
                 : undefined
             }
           />
@@ -155,8 +155,8 @@ const ReadFileItem = memo(function ReadFileItem({
                 <span className="truncate">{filePath}</span>
                 {(offset !== undefined || limit !== undefined) && (
                   <span className="shrink-0 text-theme-text-tertiary">
-                    :L{offset ?? 1}
-                    {limit ? `-${(offset ?? 1) + limit}` : ""}
+                    :L{startLine}
+                    {endLine ? `-${endLine}` : ""}
                   </span>
                 )}
               </ToolArgsBlock>
@@ -175,10 +175,10 @@ const ReadFileItem = memo(function ReadFileItem({
                   filePath={filePath}
                   lineNumbers={true}
                   fontSize="0.75rem"
-                  startLine={offset ?? 1}
+                  startLine={startLine}
                   highlightLineRange={
                     offset !== undefined || limit !== undefined
-                      ? { from: offset ?? 1, to: (offset ?? 1) + (limit ?? 0) }
+                      ? { from: startLine, to: endLine ?? startLine }
                       : undefined
                   }
                 />

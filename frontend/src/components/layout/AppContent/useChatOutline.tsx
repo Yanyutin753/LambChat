@@ -57,16 +57,17 @@ export function useChatOutline(
 
   const handleOutlineNavigate = useCallback(
     (anchorId: string, messageIndex: number) => {
+      // 瞬时跳转，与时间轴一致（smooth 在长虚拟列表上会缓慢爬行）
       virtuosoRef.current?.scrollToIndex({
         index: messageIndex,
-        behavior: "smooth",
+        behavior: "auto",
         align: "start",
       });
       // After Virtuoso renders the message, scroll to the specific heading anchor
       requestAnimationFrame(() => {
         const el = document.getElementById(anchorId);
         if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          el.scrollIntoView({ behavior: "auto", block: "start" });
         }
       });
       requestAnimationFrame(() => {

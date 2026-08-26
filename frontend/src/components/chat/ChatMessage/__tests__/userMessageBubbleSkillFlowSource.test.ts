@@ -47,6 +47,6 @@ test("user message skill chips and text share the same inline flow", () => {
     /\.user-message-inline-markdown \.markdown-preview > p:first-child\s*\{[^}]*line-height:\s*inherit[^}]*color:\s*inherit/s,
   );
   expect(chatCss).toMatch(
-    /\.skill-chip-node-name\s*\{[^}]*font-size:\s*inherit[^}]*font-family:\s*inherit[^}]*font-weight:\s*inherit[^}]*line-height:\s*inherit/s,
+    /\.skill-chip-node-name\s*\{[^}]*font-size:\s*inherit[^}]**font-weight:\s*inherit[^}]*line-height:\s*inherit/s,
   );
 });

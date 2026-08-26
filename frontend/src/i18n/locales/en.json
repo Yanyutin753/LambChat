@@ -600,6 +600,8 @@
     "goodEvening": "Good evening, {{name}}",
     "goodMorning": "Good morning, {{name}}",
     "helpDocs": "Help Docs",
+    "historyLoadOlder": "Load earlier messages",
+    "historyLoadingOlder": "Loading earlier messages…",
     "keyboardShortcuts": "Keyboard Shortcuts",
     "mentionNoResults": "No matching personas",
     "mermaid": "Mermaid",

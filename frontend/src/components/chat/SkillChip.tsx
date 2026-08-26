@@ -42,7 +42,7 @@ export const SkillChip = memo(function SkillChip({
       >
         <Icon size="0.82em" className="text-white" strokeWidth={2.5} />
       </span>
-      <span className="skill-chip-node-name">{name}</span>
+      <span className="skill-chip-node-name font-serif">{name}</span>
     </span>
   );
 });

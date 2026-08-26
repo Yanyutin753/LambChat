@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { MessageOutlineItem } from "../messageOutline";
 import {
   MessageTimelineRail,
@@ -340,6 +340,504 @@ describe("MessageTimelineRail", () => {
     expect(wrapper.className).toContain("right-0");
     expect(wrapper.className).toContain("top-1/2");
     expect(wrapper.className).toContain("-translate-y-1/2");
+  });
+
+  /* ---- Overflow scrolling (rail taller than chat area) ---- */
+
+  test("rail wrapper is height-constrained and scrollable when turns overflow", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain("max-h-full");
+    expect(wrapper.className).toContain("overflow-y-auto");
+    // Scrollbar is hidden (wheel/trackpad + drag still scroll)
+    expect(wrapper.className).toContain("[scrollbar-width:none]");
+    expect(wrapper.className).toContain("[&::-webkit-scrollbar]:hidden");
+  });
+
+  test("touch drag scrolls the rail vertically when content overflows", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+    let scrollTop = 0;
+    Object.defineProperty(wrapper, "scrollTop", {
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value;
+      },
+      configurable: true,
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 3,
+      pointerType: "touch",
+      clientY: 300,
+    });
+    fireEvent.pointerMove(btn, {
+      pointerId: 3,
+      pointerType: "touch",
+      clientY: 250,
+    });
+
+    // Finger moved up by 50px → rail scrolls down by 50px
+    expect(scrollTop).toBe(50);
+  });
+
+  test("touch drag that scrolls the rail does not navigate on release", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 4,
+      pointerType: "touch",
+      clientY: 300,
+    });
+    fireEvent.pointerMove(btn, {
+      pointerId: 4,
+      pointerType: "touch",
+      clientY: 250,
+    });
+    fireEvent.pointerUp(btn, {
+      pointerId: 4,
+      pointerType: "touch",
+      clientY: 250,
+    });
+
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  test("swipe release on non-overflowing rail does not navigate", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+    // jsdom: no overflow mocked → rail does not scroll
+    const targets = container.querySelectorAll("button > span.cursor-pointer");
+    vi.spyOn(targets[1]!, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      bottom: 56,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 16,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 12,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    // Swipe well past the tap slop, ending near the top bar
+    fireEvent.pointerMove(btn, {
+      pointerId: 12,
+      pointerType: "touch",
+      clientY: 10,
+    });
+    fireEvent.pointerUp(btn, {
+      pointerId: 12,
+      pointerType: "touch",
+      clientY: 10,
+    });
+
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  test("tap without movement on overflowing rail navigates to nearest turn", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+    const targets = container.querySelectorAll("button > span.cursor-pointer");
+    vi.spyOn(targets[1]!, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      bottom: 56,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 16,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 5,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    fireEvent.pointerUp(btn, {
+      pointerId: 5,
+      pointerType: "touch",
+      clientY: 48,
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("chat-outline-message-u2", 2);
+  });
+
+  test("drag within tap slop on overflowing rail still navigates", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+    const targets = container.querySelectorAll("button > span.cursor-pointer");
+    vi.spyOn(targets[1]!, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      bottom: 56,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 16,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 6,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    // 3px jitter is below the tap slop threshold
+    fireEvent.pointerMove(btn, {
+      pointerId: 6,
+      pointerType: "touch",
+      clientY: 45,
+    });
+    fireEvent.pointerUp(btn, {
+      pointerId: 6,
+      pointerType: "touch",
+      clientY: 45,
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("chat-outline-message-u2", 2);
+  });
+
+  test("pointercancel on overflowing rail does not navigate", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 7,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    fireEvent.pointerCancel(btn, {
+      pointerId: 7,
+      pointerType: "touch",
+      clientY: 48,
+    });
+
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  test("pressing overflowing rail shows wave feedback on nearest bar", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 8,
+      pointerType: "touch",
+      clientY: 300,
+    });
+
+    const bars = container.querySelectorAll(
+      "button > span > span.rounded-full",
+    );
+    // All jsdom rects are zero → nearest bar is index 0
+    expect((bars[0] as HTMLElement).style.width).toBe("24px");
+
+    fireEvent.pointerUp(btn, {
+      pointerId: 8,
+      pointerType: "touch",
+      clientY: 300,
+    });
+    expect((bars[0] as HTMLElement).style.width).toBe("16px");
+  });
+
+  test("touch drag does not re-read bar geometry during moves", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 11,
+      pointerType: "touch",
+      clientY: 300,
+    });
+
+    // Geometry (bar centers) is captured once at drag start; moves must not
+    // force layout by calling getBoundingClientRect again.
+    const rectSpy = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue({
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect);
+    try {
+      fireEvent.pointerMove(btn, {
+        pointerId: 11,
+        pointerType: "touch",
+        clientY: 280,
+      });
+      fireEvent.pointerMove(btn, {
+        pointerId: 11,
+        pointerType: "touch",
+        clientY: 260,
+      });
+      fireEvent.pointerMove(btn, {
+        pointerId: 11,
+        pointerType: "touch",
+        clientY: 240,
+      });
+      expect(rectSpy).not.toHaveBeenCalled();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  test("clicking the gap between bars (button fallback) navigates to nearest turn", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+    const targets = container.querySelectorAll("button > span.cursor-pointer");
+    vi.spyOn(targets[1]!, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      bottom: 56,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 16,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
+
+    // Click lands on the button itself (gap row), not on any bar span
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.click(btn, { clientY: 48 });
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(onNavigate).toHaveBeenCalledWith("chat-outline-message-u2", 2);
+  });
+
+  test("synthetic click after a touch tap does not navigate twice", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+    const targets = container.querySelectorAll("button > span.cursor-pointer");
+    vi.spyOn(targets[1]!, "getBoundingClientRect").mockReturnValue({
+      top: 40,
+      bottom: 56,
+      left: 0,
+      right: 40,
+      width: 40,
+      height: 16,
+      x: 0,
+      y: 40,
+      toJSON: () => ({}),
+    });
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    fireEvent.pointerDown(btn, {
+      pointerId: 13,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    fireEvent.pointerUp(btn, {
+      pointerId: 13,
+      pointerType: "touch",
+      clientY: 48,
+    });
+    // Pointer capture retargets the synthetic click to the button
+    fireEvent.click(btn, { clientY: 48 });
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  test("fling continues scrolling with decaying velocity after release", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const wrapper = container.firstElementChild as HTMLElement;
+    Object.defineProperty(wrapper, "scrollHeight", {
+      value: 2000,
+      configurable: true,
+    });
+    Object.defineProperty(wrapper, "clientHeight", {
+      value: 100,
+      configurable: true,
+    });
+    let scrollTop = 0;
+    Object.defineProperty(wrapper, "scrollTop", {
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value;
+      },
+      configurable: true,
+    });
+
+    const frames: FrameRequestCallback[] = [];
+    const rafSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => {
+        frames.push(cb);
+        return frames.length;
+      });
+    try {
+      const btn = screen.getByRole("button", { name: "Timeline" });
+      fireEvent.pointerDown(btn, {
+        pointerId: 9,
+        pointerType: "touch",
+        clientY: 300,
+      });
+      // Finger flick: 20px upwards in one move → scrollTop ends at 20
+      fireEvent.pointerMove(btn, {
+        pointerId: 9,
+        pointerType: "touch",
+        clientY: 280,
+      });
+      expect(scrollTop).toBe(20);
+
+      fireEvent.pointerUp(btn, {
+        pointerId: 9,
+        pointerType: "touch",
+        clientY: 280,
+      });
+
+      // Fling scheduled: first frame adds full velocity (20)…
+      expect(frames.length).toBeGreaterThan(0);
+      frames.splice(0).forEach((cb) => cb(0));
+      expect(scrollTop).toBe(40);
+
+      // …next frame adds decayed velocity (20 × 0.95 = 19)
+      frames.splice(0).forEach((cb) => cb(0));
+      expect(scrollTop).toBe(59);
+    } finally {
+      rafSpy.mockRestore();
+    }
+  });
+
+  test("active turn bar scrolls into view when visible range changes", () => {
+    const scrollIntoView = vi.fn();
+    // jsdom does not implement scrollIntoView
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      const items = createPairedItems();
+      render(<MessageTimelineRail items={items} onNavigate={onNavigate} />);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      act(() => {
+        updateTimelineRange({ startIndex: 2, endIndex: 3 });
+      });
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    }
   });
 
   /* ---- Hover preview card ---- */
