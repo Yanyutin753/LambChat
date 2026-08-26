@@ -89,11 +89,13 @@ server {
 }
 ```
 
-使用反向代理时，设置 `APP_BASE_URL`：
+请求内生成的文件 URL 会自动跟随访问入口（`X-Forwarded-Host`/`Host` + `X-Forwarded-Proto`），多域名入口部署无需额外配置。`APP_BASE_URL` 仅在无请求上下文时兜底，**后台任务生成文件 URL 的场景（定时任务附件、消息拦截落盘等）建议配置**：
 
 ```bash
 APP_BASE_URL=https://lambchat.example.com
 ```
+
+> **升级说明（连接类配置迁移 env）**：数据库连接（`MONGODB_*`/`POSTGRES_*`/`REDIS_*`/`CHECKPOINT_PG_*`）、对象存储（`S3_*`）与 `ENABLE_POSTGRES_STORAGE` 等连接类配置现在**启动时以环境变量为唯一权威**——此前通过设置面板修改过这些配置的部署，升级后需将面板值迁移到 env/compose 并重启，否则启动日志会出现 `env-authoritative` 告警且面板值不生效。设置面板中的行为类配置（超时、开关等）不受影响。
 
 ## 管理服务栈
 

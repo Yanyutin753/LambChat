@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from src.infra.logging import get_logger
 
 from .base import settings
+from .constants import RESTART_REQUIRED_SETTINGS, SENSITIVE_SETTINGS
 
 if TYPE_CHECKING:
     from src.infra.settings.service import SettingsService
@@ -43,11 +44,34 @@ def _mark_runtime_secret_as_explicit(key: str) -> None:
         settings._vapid_keys_generated = False
 
 
+def _skip_db_override(key: str) -> bool:
+    """启动加载时连接类配置（RESTART_REQUIRED_SETTINGS）以 env 为唯一权威。
+
+    克隆/多环境部署会把生产的 system_settings 连接值一并复制过来，启动时
+    若用 DB 值覆盖 env，副本会连错实例（分布式部署测试报告 P2-1）。运行时
+    面板主动修改（refresh_settings）不受此限制。
+    """
+    return key in RESTART_REQUIRED_SETTINGS
+
+
+def _describe_setting_value(key: str, value: Any) -> str:
+    """敏感值只报状态与长度：克隆库场景下 DB 值可能是生产凭据，不能进日志。"""
+    if key not in SENSITIVE_SETTINGS:
+        return repr(value)
+    if value is None:
+        return "unset"
+    if value == "":
+        return "empty"
+    return f"set ({len(str(value))} chars)"
+
+
 async def initialize_settings() -> None:
     """Initialize settings from database, importing from .env if needed.
 
     After calling this function, the global `settings` object will have its
-    attributes overridden by values from the database (database > env > default).
+    attributes overridden by values from the database (database > env > default),
+    except connection-class settings (RESTART_REQUIRED_SETTINGS) which stay
+    env/default-authoritative on startup — see `_skip_db_override`.
     """
     global _settings_service, _settings_cache
 
@@ -73,6 +97,19 @@ async def initialize_settings() -> None:
                 and item.value is not None
                 and (item.value != "" or item.key in _ALLOW_EMPTY_STRING_SETTINGS)
             ):
+                if _skip_db_override(item.key):
+                    effective = getattr(settings, item.key, None)
+                    if effective is not None and str(effective) != str(item.value):
+                        logger.warning(
+                            "[Settings] Ignoring database value for %s: connection-class "
+                            "settings are env-authoritative on startup. If the database "
+                            "value is intended, move it to env/compose and restart "
+                            "(db=%s, effective=%s).",
+                            item.key,
+                            _describe_setting_value(item.key, item.value),
+                            _describe_setting_value(item.key, effective),
+                        )
+                    continue
                 normalized_value = _normalize_runtime_setting(item.key, item.value)
                 _settings_cache[item.key] = normalized_value
                 # Only update if the field exists in Settings class
@@ -174,6 +211,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
             and setting.value is not None
             and (setting.value != "" or key in _ALLOW_EMPTY_STRING_SETTINGS)
         ):
+            # 运行时刷新（面板主动修改）保持覆盖；启动加载（initialize）才
+            # 对连接类配置跳过，防止克隆环境按种子数据连错实例。
             normalized_value = _normalize_runtime_setting(key, setting.value)
             _settings_cache[key] = normalized_value
             setattr(settings, key, normalized_value)
@@ -204,6 +243,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
                     and item.value is not None
                     and (item.value != "" or item.key in _ALLOW_EMPTY_STRING_SETTINGS)
                 ):
+                    # 运行时刷新（面板主动修改）保持覆盖；启动加载（initialize）
+                    # 才对连接类配置跳过，防止克隆环境按种子数据连错实例。
                     normalized_value = _normalize_runtime_setting(item.key, item.value)
                     _settings_cache[item.key] = normalized_value
                     setattr(settings, item.key, normalized_value)

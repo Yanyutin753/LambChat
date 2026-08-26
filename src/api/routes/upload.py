@@ -120,14 +120,29 @@ async def _get_live_record_by_hash(
 
 
 def _get_base_url(request: Request) -> str:
-    """获取 base_url，优先 APP_BASE_URL 环境变量，fallback 到 request.base_url"""
+    """获取 base_url：优先当前请求入口（X-Forwarded-Host/Host + X-Forwarded-Proto，
+    多入口与重写 Host 的代理下 URL 跟随实际访问域名）；Host 不可用时回退
+    APP_BASE_URL（后台任务生成 URL 的场景建议配置）。"""
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = (forwarded_host or request.headers.get("host") or "").split(",")[0].strip()
+    if host:
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+        if forwarded_proto:
+            scheme = forwarded_proto
+        elif forwarded_host:
+            # 显式配置了 X-Forwarded-Host 却没透传 proto：视为经代理，TLS 通常
+            # 终结在代理层，对齐 auth/_get_frontend_url 先例按 https 猜（本地除外）
+            scheme = "http" if "localhost" in host or "127.0.0.1" in host else "https"
+        else:
+            # 无任何转发头视为直连：按连接实际 scheme，局域网/自签 http 直连
+            # 不被误判成 https（官方 nginx 模板必传 X-Forwarded-Proto）
+            scheme = request.url.scheme
+        return f"{scheme}://{host}"
     app_base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
     if app_base_url:
         return app_base_url
     base_url = str(request.base_url).rstrip("/")
-    if base_url == "http://None":
-        return ""
-    return base_url
+    return "" if base_url == "http://None" else base_url
 
 
 def _build_upload_response(
