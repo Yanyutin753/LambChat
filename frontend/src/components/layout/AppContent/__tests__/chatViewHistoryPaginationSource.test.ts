@@ -45,15 +45,23 @@ test("ChatAppContent passes the older-history pagination props to ChatView", () 
 
 test("useAgent loads the first history page bounded and pages older runs by cursor", () => {
   const source = readSource("../../../../hooks/useAgent.ts");
+  const paginationSource = readSource(
+    "../../../../hooks/useAgent/historyTracePagination.ts",
+  );
 
   // 首屏只取最近一页（按 trace 窗口）
   expect(source).toMatch(/trace_limit: HISTORY_TRACE_PAGE_SIZE/);
+  expect(source).toMatch(/useHistoryTracePagination/);
 
   // 翻页走游标，并在完成后全量重建消息
-  expect(source).toMatch(
+  expect(paginationSource).toMatch(
     /before_trace_started_at: traceWindow\.oldest_trace_started_at/,
   );
-  expect(source).toMatch(/before_trace_id: traceWindow\.oldest_trace_id/);
-  expect(source).toMatch(/mergeOlderHistoryEvents/);
-  expect(source).toMatch(/reconstructMessagesFromEvents\(\s*mergedEvents/);
+  expect(paginationSource).toMatch(
+    /before_trace_id: traceWindow\.oldest_trace_id/,
+  );
+  expect(paginationSource).toMatch(/mergeOlderHistoryEvents/);
+  expect(paginationSource).toMatch(
+    /reconstructMessagesFromEvents\(\s*mergedEvents/,
+  );
 });
