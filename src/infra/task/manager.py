@@ -836,8 +836,8 @@ class BackgroundTaskManager:
         """
         await self._pubsub.stop_listener()
 
-    async def cleanup_stale_tasks(self) -> None:
-        await self._startup_cleanup_service().cleanup_stale_tasks()
+    async def cleanup_stale_tasks(self, *, running_only: bool = False) -> None:
+        await self._startup_cleanup_service().cleanup_stale_tasks(running_only=running_only)
 
     async def _cleanup_stale_queues(self) -> None:
         await TaskStartupCleanupService(

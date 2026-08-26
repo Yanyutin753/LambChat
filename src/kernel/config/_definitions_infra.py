@@ -137,6 +137,15 @@ INFRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": {"key": "TASK_BACKEND", "value": "arq"},
         "frontend_visible": False,
     },
+    "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.REDIS,
+        "subcategory": "task",
+        "description": "settingDesc.TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS",
+        "default": 120,
+        "depends_on": {"key": "TASK_BACKEND", "value": "arq"},
+        "frontend_visible": False,
+    },
     # ============================================
     # LangSmith Tracing Settings
     # ============================================
