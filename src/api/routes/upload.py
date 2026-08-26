@@ -125,9 +125,7 @@ def _get_base_url(request: Request) -> str:
     X-Forwarded-Proto 修正 scheme。"""
     base_url = str(request.base_url).rstrip("/")
     if base_url and base_url != "http://None":
-        forwarded_proto = (
-            request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
-        )
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
         if forwarded_proto == "https" and base_url.startswith("http://"):
             base_url = "https://" + base_url[len("http://") :]
         return base_url
