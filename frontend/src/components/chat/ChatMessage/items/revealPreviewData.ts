@@ -201,7 +201,7 @@ async function mapWithConcurrency<T, R>(
   const results = new Array<R>(items.length);
   let nextIndex = 0;
   const runners = Array.from(
-    { length: Math.min(limit, items.length) },
+    { length: Math.min(Math.max(1, limit), items.length) },
     async () => {
       while (nextIndex < items.length) {
         const index = nextIndex;
@@ -330,7 +330,7 @@ export async function loadProjectRevealFilesCached(input: {
   project: Extract<ParsedProjectRevealData, { version: 2 }>;
 }): Promise<LoadedProjectRevealFiles> {
   const { previewKey, project } = input;
-  const cached = loadedProjectRevealFilesCache.get(previewKey);
+  const cached = getCachedProjectRevealFiles(previewKey);
   if (cached) {
     return cached;
   }

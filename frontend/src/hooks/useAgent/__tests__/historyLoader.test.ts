@@ -1426,3 +1426,38 @@ test("multi-turn run ids keep incrementing suffixes per completed assistant turn
   expect(ids).toContain(runId);
   expect(ids).toContain(`${runId}#t1`);
 });
+
+test("normalizeEventRunIds treats empty-string run_id as missing", () => {
+  const events = [
+    {
+      event_type: "message",
+      run_id: "run-a",
+      timestamp: "2026-08-26T00:00:01.000Z",
+      data: { content: "a" },
+    },
+    {
+      event_type: "thinking",
+      run_id: "",
+      timestamp: "2026-08-26T00:00:02.000Z",
+      data: { content: "legacy empty" },
+    },
+    {
+      event_type: "recommend:questions",
+      timestamp: "2026-08-26T00:00:03.000Z",
+      data: { questions: ["next?"] },
+    },
+    {
+      event_type: "message",
+      run_id: "run-b",
+      timestamp: "2026-08-26T00:00:04.000Z",
+      data: { content: "b" },
+    },
+  ] satisfies HistoryEvent[];
+
+  const normalized = normalizeEventRunIds(events);
+
+  // 空字符串 run_id 视为缺失：自身被回填，也不会作为邻居传播
+  expect(normalized[1]?.run_id).toBe("run-a");
+  expect(normalized[2]?.run_id).toBe("run-a");
+  expect(normalized[3]?.run_id).toBe("run-b");
+});
