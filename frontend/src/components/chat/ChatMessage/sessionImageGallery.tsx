@@ -192,38 +192,56 @@ function dedupeSessionImageGalleryItems(
   });
 }
 
+function collectMessageGalleryItems(
+  message: Message,
+): SessionImageGalleryItem[] {
+  const attachmentItems = (message.attachments || []).flatMap(
+    (attachment): SessionImageGalleryItem[] => {
+      const isImage =
+        attachment.type === "image" ||
+        attachment.mimeType?.startsWith("image/");
+      const src = resolveImageSrc(attachment.url);
+      if (!isImage || !src) return [];
+      return [
+        {
+          id: `${message.id}:attachment:${attachment.id}`,
+          src,
+          alt: attachment.name,
+          group: "conversation",
+        },
+      ];
+    },
+  );
+
+  const contentItems = collectMarkdownImages(
+    message.content,
+    `${message.id}:content`,
+  );
+  const partItems = (message.parts || []).flatMap((part, index) =>
+    collectPartImages(part, `${message.id}:part:${index}`),
+  );
+
+  return [...attachmentItems, ...contentItems, ...partItems];
+}
+
+// 消息对象不可变替换：未变消息保持引用，按引用缓存可跳过对历史消息的
+// markdown 图片正则与工具结果 JSON.parse 重扫（流式期间每次 chunk 都会重算）
+const messageGalleryItemsCache = new WeakMap<
+  Message,
+  SessionImageGalleryItem[]
+>();
+
 // eslint-disable-next-line react-refresh/only-export-components
 export function collectSessionImageGalleryItems(
   messages: Message[],
 ): SessionImageGalleryItem[] {
   const items = messages.flatMap((message) => {
-    const attachmentItems = (message.attachments || []).flatMap(
-      (attachment): SessionImageGalleryItem[] => {
-        const isImage =
-          attachment.type === "image" ||
-          attachment.mimeType?.startsWith("image/");
-        const src = resolveImageSrc(attachment.url);
-        if (!isImage || !src) return [];
-        return [
-          {
-            id: `${message.id}:attachment:${attachment.id}`,
-            src,
-            alt: attachment.name,
-            group: "conversation",
-          },
-        ];
-      },
-    );
-
-    const contentItems = collectMarkdownImages(
-      message.content,
-      `${message.id}:content`,
-    );
-    const partItems = (message.parts || []).flatMap((part, index) =>
-      collectPartImages(part, `${message.id}:part:${index}`),
-    );
-
-    return [...attachmentItems, ...contentItems, ...partItems];
+    let cached = messageGalleryItemsCache.get(message);
+    if (!cached) {
+      cached = collectMessageGalleryItems(message);
+      messageGalleryItemsCache.set(message, cached);
+    }
+    return cached;
   });
 
   return dedupeSessionImageGalleryItems(items);

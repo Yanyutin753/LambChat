@@ -317,6 +317,39 @@ function processHistoryEvent(
 }
 
 /**
+ * 为缺失 run_id 的历史事件回填就近 run_id。
+ * 旧记录（如推荐问题）可能缺少 run_id 信封；按时间序取前向最近的
+ * run_id，无前向时回退到后向第一个 run_id，保持与逐事件反向查找一致的语义。
+ */
+export function normalizeEventRunIds(events: HistoryEvent[]): HistoryEvent[] {
+  const prevRunIdByIndex: Array<string | undefined> = new Array(
+    events.length,
+  );
+  let lastSeenRunId: string | undefined;
+  for (let index = 0; index < events.length; index++) {
+    prevRunIdByIndex[index] = lastSeenRunId;
+    const runId = events[index].run_id;
+    if (runId) lastSeenRunId = runId;
+  }
+
+  const nextRunIdByIndex: Array<string | undefined> = new Array(
+    events.length,
+  );
+  let nextSeenRunId: string | undefined;
+  for (let index = events.length - 1; index >= 0; index--) {
+    nextRunIdByIndex[index] = nextSeenRunId;
+    const runId = events[index].run_id;
+    if (runId) nextSeenRunId = runId;
+  }
+
+  return events.map((event, index) => {
+    if (event.run_id) return event;
+    const runId = prevRunIdByIndex[index] || nextRunIdByIndex[index];
+    return runId ? { ...event, run_id: runId } : event;
+  });
+}
+
+/**
  * Reconstruct messages from history events.
  */
 export function reconstructMessagesFromEvents(
@@ -334,22 +367,23 @@ export function reconstructMessagesFromEvents(
   // omit the envelope run_id even though the surrounding trace has one. Keep
   // those events in the same assistant turn instead of creating an orphan
   // message with an undefined run id.
-  const normalizedEvents = sortedEvents.map((event, index) => {
-    if (event.run_id) return event;
-    const previousRunId = [...sortedEvents]
-      .slice(0, index)
-      .reverse()
-      .find((candidate) => candidate.run_id)?.run_id;
-    const nextRunId = sortedEvents
-      .slice(index + 1)
-      .find((candidate) => candidate.run_id)?.run_id;
-    const runId = previousRunId || nextRunId;
-    return runId ? { ...event, run_id: runId } : event;
-  });
+  const normalizedEvents = normalizeEventRunIds(sortedEvents);
 
   const anchoredEvents = anchorLegacySteerMessageEvents(normalizedEvents);
 
   const reconstructedMessages: Message[] = [];
+  // run 内每完成一个 assistant 轮次（入列）计数一次，替代循环内对
+  // reconstructedMessages 的全量 filter（长会话 O(n²) 热点）
+  const assistantTurnCountsByRunId = new Map<string, number>();
+  const pushMessage = (message: Message) => {
+    reconstructedMessages.push(message);
+    if (message.role === "assistant" && message.runId) {
+      assistantTurnCountsByRunId.set(
+        message.runId,
+        (assistantTurnCountsByRunId.get(message.runId) || 0) + 1,
+      );
+    }
+  };
   let currentAssistantMessage: Message | null = null;
   const seenUserMessageIds = new Set<string>();
   const seenUserMessageRunIds = new Set<string>();
@@ -362,7 +396,7 @@ export function reconstructMessagesFromEvents(
     // Handle steer message separately（独立事件，不参与用户消息去重）
     if (eventType === "steer:message") {
       if (currentAssistantMessage) {
-        reconstructedMessages.push(currentAssistantMessage);
+        pushMessage(currentAssistantMessage);
         currentAssistantMessage = null;
       }
       const steerData = eventData as HistoryEventData & {
@@ -383,7 +417,7 @@ export function reconstructMessagesFromEvents(
         continue;
       }
       seenSteerMessageIds.add(steerId);
-      reconstructedMessages.push({
+      pushMessage({
         id: steerId,
         role: "user",
         content: steerData.content || "",
@@ -423,14 +457,14 @@ export function reconstructMessagesFromEvents(
       }
 
       if (currentAssistantMessage) {
-        reconstructedMessages.push(currentAssistantMessage);
+        pushMessage(currentAssistantMessage);
         currentAssistantMessage = null;
       }
       const userAttachments = convertAttachments(eventData.attachments);
       const enabledSkills = Array.isArray(eventData.enabled_skills)
         ? eventData.enabled_skills
         : undefined;
-      reconstructedMessages.push({
+      pushMessage({
         id: userMessageId,
         role: "user",
         content: eventData.content || "",
@@ -465,9 +499,9 @@ export function reconstructMessagesFromEvents(
           cancelled: true,
           parts: [...updatedParts, { type: "cancelled" as const }],
         };
-        reconstructedMessages.push(updatedMessage);
+        pushMessage(updatedMessage);
       } else {
-        reconstructedMessages.push({
+        pushMessage({
           id: uuid(),
           role: "assistant",
           content: "",
@@ -508,10 +542,8 @@ export function reconstructMessagesFromEvents(
       opts,
       !currentAssistantMessage && event.run_id
         ? (() => {
-            const priorAssistantTurns = reconstructedMessages.filter(
-              (message) =>
-                message.role === "assistant" && message.runId === event.run_id,
-            ).length;
+            const priorAssistantTurns =
+              assistantTurnCountsByRunId.get(event.run_id as string) || 0;
             return priorAssistantTurns === 0
               ? event.run_id
               : `${event.run_id}#t${priorAssistantTurns}`;
@@ -521,7 +553,7 @@ export function reconstructMessagesFromEvents(
   }
 
   if (currentAssistantMessage) {
-    reconstructedMessages.push(currentAssistantMessage);
+    pushMessage(currentAssistantMessage);
   }
 
   // Some runs emit lifecycle events (for example `agent:start`) without ever

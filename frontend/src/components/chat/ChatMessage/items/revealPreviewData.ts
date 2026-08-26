@@ -186,6 +186,34 @@ export function parseProjectRevealSummary(input: {
   };
 }
 
+// 项目文件全量预取的并发上限：无上限的 Promise.all 会瞬间打满浏览器
+// 连接池并触发大量同时解析，长项目会话打开时直接卡死页面
+const PROJECT_REVEAL_FETCH_CONCURRENCY = 6;
+// 已加载项目文件内容的内存缓存上限：每个项目可能持有数 MB 文本，
+// 反复切换会话若无淘汰会持续累积（历史上从不清空）
+const PROJECT_REVEAL_FILES_CACHE_MAX_ENTRIES = 4;
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const runners = Array.from(
+    { length: Math.min(Math.max(1, limit), items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await worker(items[index]);
+      }
+    },
+  );
+  await Promise.all(runners);
+  return results;
+}
+
 export async function loadProjectRevealFiles(
   project: Extract<ParsedProjectRevealData, { version: 2 }>,
 ): Promise<{
@@ -204,8 +232,10 @@ export async function loadProjectRevealFiles(
     }
   }
 
-  const entries = await Promise.all(
-    textEntries.map(async ([path, entry]): Promise<[string, string] | null> => {
+  const entries = await mapWithConcurrency(
+    textEntries,
+    PROJECT_REVEAL_FETCH_CONCURRENCY,
+    async ([path, entry]): Promise<[string, string] | null> => {
       try {
         const fullUrl = getFullUrl(entry.url) || entry.url;
         const readUrl = buildUploadProxyUrl(entry.url) || fullUrl;
@@ -222,7 +252,7 @@ export async function loadProjectRevealFiles(
         console.warn(`[reveal_project] Error fetching ${path}:`, error);
         return null;
       }
-    }),
+    },
   );
 
   const rawFiles: Record<string, string> = {};
@@ -275,7 +305,24 @@ export function getCachedProjectRevealFiles(
   previewKey: string | null | undefined,
 ): LoadedProjectRevealFiles | null {
   if (!previewKey) return null;
-  return loadedProjectRevealFilesCache.get(previewKey) || null;
+  const cached = loadedProjectRevealFilesCache.get(previewKey);
+  if (!cached) return null;
+  // Map 按插入序维护 LRU：命中后重新插入刷新新鲜度
+  loadedProjectRevealFilesCache.delete(previewKey);
+  loadedProjectRevealFilesCache.set(previewKey, cached);
+  return cached;
+}
+
+function rememberProjectRevealFiles(
+  previewKey: string,
+  result: LoadedProjectRevealFiles,
+): void {
+  loadedProjectRevealFilesCache.set(previewKey, result);
+  while (loadedProjectRevealFilesCache.size > PROJECT_REVEAL_FILES_CACHE_MAX_ENTRIES) {
+    const oldestKey = loadedProjectRevealFilesCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    loadedProjectRevealFilesCache.delete(oldestKey);
+  }
 }
 
 export async function loadProjectRevealFilesCached(input: {
@@ -283,7 +330,7 @@ export async function loadProjectRevealFilesCached(input: {
   project: Extract<ParsedProjectRevealData, { version: 2 }>;
 }): Promise<LoadedProjectRevealFiles> {
   const { previewKey, project } = input;
-  const cached = loadedProjectRevealFilesCache.get(previewKey);
+  const cached = getCachedProjectRevealFiles(previewKey);
   if (cached) {
     return cached;
   }
@@ -295,7 +342,7 @@ export async function loadProjectRevealFilesCached(input: {
 
   const request = loadProjectRevealFiles(project)
     .then((result) => {
-      loadedProjectRevealFilesCache.set(previewKey, result);
+      rememberProjectRevealFiles(previewKey, result);
       inflightProjectRevealFilesCache.delete(previewKey);
       return result;
     })
