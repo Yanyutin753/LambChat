@@ -259,7 +259,10 @@ async def test_local_file_proxy_checks_file_existence_in_blocking_executor(
 
     response = await upload_route.get_file_proxy(
         "docs/report.txt",
-        request=SimpleNamespace(base_url="https://app.example.com/"),
+        request=SimpleNamespace(
+            base_url="https://app.example.com/",
+            headers={},
+        ),
     )
 
     assert response.path == str(file_path)
@@ -300,7 +303,10 @@ async def test_s3_file_proxy_can_stream_through_app_for_preview_fetches(
 
     response = await upload_route.get_file_proxy(
         "docs/report.txt",
-        request=SimpleNamespace(base_url="https://app.example.com/"),
+        request=SimpleNamespace(
+            base_url="https://app.example.com/",
+            headers={},
+        ),
         proxy=True,
     )
 

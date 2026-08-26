@@ -120,14 +120,21 @@ async def _get_live_record_by_hash(
 
 
 def _get_base_url(request: Request) -> str:
-    """获取 base_url，优先 APP_BASE_URL 环境变量，fallback 到 request.base_url"""
+    """获取 base_url：优先当前请求入口（多入口部署下 URL 跟随访问域名），
+    APP_BASE_URL 仅在无请求上下文时兜底。TLS 终结在反代后时按
+    X-Forwarded-Proto 修正 scheme。"""
+    base_url = str(request.base_url).rstrip("/")
+    if base_url and base_url != "http://None":
+        forwarded_proto = (
+            request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+        )
+        if forwarded_proto == "https" and base_url.startswith("http://"):
+            base_url = "https://" + base_url[len("http://") :]
+        return base_url
     app_base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
     if app_base_url:
         return app_base_url
-    base_url = str(request.base_url).rstrip("/")
-    if base_url == "http://None":
-        return ""
-    return base_url
+    return ""
 
 
 def _build_upload_response(

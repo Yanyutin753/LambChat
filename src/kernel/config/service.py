@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from src.infra.logging import get_logger
 
 from .base import settings
+from .constants import RESTART_REQUIRED_SETTINGS
 
 if TYPE_CHECKING:
     from src.infra.settings.service import SettingsService
@@ -43,6 +44,16 @@ def _mark_runtime_secret_as_explicit(key: str) -> None:
         settings._vapid_keys_generated = False
 
 
+def _skip_db_override(key: str) -> bool:
+    """启动加载时连接类配置（RESTART_REQUIRED_SETTINGS）以 env 为唯一权威。
+
+    克隆/多环境部署会把生产的 system_settings 连接值一并复制过来，启动时
+    若用 DB 值覆盖 env，副本会连错实例（分布式部署测试报告 P2-1）。运行时
+    面板主动修改（refresh_settings）不受此限制。
+    """
+    return key in RESTART_REQUIRED_SETTINGS
+
+
 async def initialize_settings() -> None:
     """Initialize settings from database, importing from .env if needed.
 
@@ -73,6 +84,8 @@ async def initialize_settings() -> None:
                 and item.value is not None
                 and (item.value != "" or item.key in _ALLOW_EMPTY_STRING_SETTINGS)
             ):
+                if _skip_db_override(item.key):
+                    continue
                 normalized_value = _normalize_runtime_setting(item.key, item.value)
                 _settings_cache[item.key] = normalized_value
                 # Only update if the field exists in Settings class
@@ -174,6 +187,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
             and setting.value is not None
             and (setting.value != "" or key in _ALLOW_EMPTY_STRING_SETTINGS)
         ):
+            # 运行时刷新（面板主动修改）保持覆盖；启动加载（initialize）才
+            # 对连接类配置跳过，防止克隆环境按种子数据连错实例。
             normalized_value = _normalize_runtime_setting(key, setting.value)
             _settings_cache[key] = normalized_value
             setattr(settings, key, normalized_value)
@@ -204,6 +219,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
                     and item.value is not None
                     and (item.value != "" or item.key in _ALLOW_EMPTY_STRING_SETTINGS)
                 ):
+                    # 运行时刷新（面板主动修改）保持覆盖；启动加载（initialize）
+                    # 才对连接类配置跳过，防止克隆环境按种子数据连错实例。
                     normalized_value = _normalize_runtime_setting(item.key, item.value)
                     _settings_cache[item.key] = normalized_value
                     setattr(settings, item.key, normalized_value)
