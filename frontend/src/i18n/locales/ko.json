@@ -817,6 +817,7 @@
     "stopConfirmTitle": "생성 중단",
     "subagentStatus": "서브에이전트 상태: {{status}}",
     "teamPlaceholder": "메시지를 입력하여 대화를 시작, @ 로 팀 전환…",
+    "runningPlaceholder": "계속 입력하면 수정이 순서대로 대기열에 추가됩니다…",
     "teamSelected": "팀 선택됨",
     "textAutoUploaded": "긴 텍스트가 파일로 자동 업로드되었습니다",
     "thinkingIntensity": "사고 강도",

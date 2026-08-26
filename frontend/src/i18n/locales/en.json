@@ -817,6 +817,7 @@
     "stopConfirmTitle": "Stop generating",
     "subagentStatus": "Subagent status: {{status}}",
     "teamPlaceholder": "Type a message to start, @ to switch team…",
+    "runningPlaceholder": "Keep typing to queue ordered edits…",
     "teamSelected": "Team selected",
     "textAutoUploaded": "Long text automatically converted to file upload",
     "thinkingIntensity": "Thinking Intensity",

@@ -817,6 +817,7 @@
     "stopConfirmTitle": "停止生成",
     "subagentStatus": "子代理状态: {{status}}",
     "teamPlaceholder": "输入消息开始对话，@ 可切换团队…",
+    "runningPlaceholder": "继续输入以排队有序修改…",
     "teamSelected": "已选择团队",
     "textAutoUploaded": "长文本已自动转为文件上传",
     "thinkingIntensity": "思考强度",

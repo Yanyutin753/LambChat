@@ -17,6 +17,7 @@ import { useFileUpload } from "../../hooks/useFileUpload";
 import { useMentionState } from "../../hooks/useMentionState";
 import { useMentionSearch } from "../../hooks/useMentionSearch";
 import { resolveAgentDisplayName } from "../agent/agentCatalog";
+import { resolveComposerPlaceholder } from "./composerPlaceholder";
 import { useTeamMentionSearch } from "../../hooks/useTeamMentionSearch";
 import { useInputHistory } from "../../hooks/useInputHistory";
 import { useLongTextConversion } from "../../hooks/useLongTextConversion";
@@ -650,11 +651,9 @@ export const ChatInput = memo(function ChatInput({
     setAttachments,
     setComposerExpanded,
   });
-  const composerPlaceholder = !canSend
-    ? t("chat.noPermission")
-    : mentionMode === "team"
-      ? t("chat.teamPlaceholder")
-      : t("chat.placeholder");
+  const composerPlaceholder = t(
+    resolveComposerPlaceholder({ canSend, mentionMode, isLoading }),
+  );
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(true);
