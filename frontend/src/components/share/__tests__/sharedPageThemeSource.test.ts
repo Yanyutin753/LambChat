@@ -5,6 +5,14 @@ const sharedPageSource = readFileSync(
   join(import.meta.dirname, "../SharedPage.tsx"),
   "utf8",
 );
+const sharedProjectPageSource = readFileSync(
+  join(import.meta.dirname, "../SharedProjectPage.tsx"),
+  "utf8",
+);
+const sharedPageThemeHookSource = readFileSync(
+  join(import.meta.dirname, "../useSharedPageTheme.ts"),
+  "utf8",
+);
 
 test("shared page top-level surfaces use theme tokens for light and dark modes", () => {
   expect(sharedPageSource).toMatch(
@@ -24,4 +32,28 @@ test("shared page top-level surfaces use theme tokens for light and dark modes",
   expect(sharedPageSource).toMatch(/border border-theme-border/);
   expect(sharedPageSource).not.toMatch(/bg-\[#faf9f7\]/);
   expect(sharedPageSource).not.toMatch(/dark:bg-\[#0f0e0d\]/);
+});
+
+test("shared pages route theme switching through the shared hook", () => {
+  for (const source of [sharedPageSource, sharedProjectPageSource]) {
+    expect(source).toMatch(
+      /import \{ useSharedPageTheme \} from "\.\/useSharedPageTheme"/,
+    );
+    expect(source).not.toMatch(/lamb-agent-theme/);
+    expect(source).not.toMatch(/localStorage\.(get|set)Item\("lambchat-theme"/);
+  }
+});
+
+test("shared page theme toggle is a three-state cycle including sepia", () => {
+  for (const source of [sharedPageSource, sharedProjectPageSource]) {
+    expect(source).toMatch(/theme\.switchToSepia/);
+    expect(source).toMatch(/<Coffee/);
+  }
+});
+
+test("shared page theme hook replaces all theme classes via themeDom", () => {
+  expect(sharedPageThemeHookSource).toMatch(/applyThemeToDocument\(theme\)/);
+  expect(sharedPageThemeHookSource).toMatch(/resolveNextTheme/);
+  expect(sharedPageThemeHookSource).toMatch(/getInitialThemePreference/);
+  expect(sharedPageThemeHookSource).toMatch(/THEME_STORAGE_KEY/);
 });
