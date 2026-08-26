@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Sun,
   Moon,
+  Coffee,
   ExternalLink,
   Lock,
   Languages,
@@ -23,6 +24,7 @@ import {
 import { BackIcon } from "../common/BackIcon";
 import { getFullUrl } from "../../services/api";
 import { shareApi } from "../../services/api/share";
+import { useSharedPageTheme } from "./useSharedPageTheme";
 import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
@@ -146,37 +148,6 @@ function SharedPageLanguageToggle() {
   );
 }
 
-// Theme management for shared page (independent of main app context)
-function useSharedPageTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("lambchat-theme");
-      if (stored === "light" || stored === "dark") {
-        return stored;
-      }
-      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        return "dark";
-      }
-    }
-    return "light";
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-    localStorage.setItem("lambchat-theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
-
-  return { theme, toggleTheme };
-}
 
 export function SharedPage({
   initialData,
@@ -603,19 +574,23 @@ export function SharedPage({
             <button
               onClick={toggleTheme}
               className="flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all duration-200 hover:scale-105 active:scale-95"
-              title={
+              title={t(
                 theme === "light"
-                  ? t("theme.switchToDark")
-                  : t("theme.switchToLight")
-              }
+                  ? "theme.switchToDark"
+                  : theme === "dark"
+                    ? "theme.switchToSepia"
+                    : "theme.switchToLight",
+              )}
             >
               {theme === "light" ? (
                 <Moon
                   size={18}
                   className="text-stone-600 dark:text-stone-300"
                 />
+              ) : theme === "dark" ? (
+                <Coffee size={18} className="text-amber-400" />
               ) : (
-                <Sun size={18} className="text-amber-400" />
+                <Sun size={18} className="text-amber-500" />
               )}
             </button>
           </div>

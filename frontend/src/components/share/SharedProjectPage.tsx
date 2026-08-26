@@ -19,12 +19,14 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  Coffee,
   Folder,
   Loader2,
   MessageSquare,
   Moon,
   Sun,
 } from "lucide-react";
+import { useSharedPageTheme } from "./useSharedPageTheme";
 
 import { shareApi } from "../../services/api/share";
 import type {
@@ -45,43 +47,13 @@ const ChatMessage = lazy(() =>
 // 项目分享 manifest 单次分页大小（后端上限 SHARE_PROJECT_SESSIONS_LIMIT = 50）
 const SESSION_PAGE_SIZE = 50;
 
-// Theme management for shared pages (independent of main app context)
-function useSharedPageTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("lamb-agent-theme");
-      if (stored === "light" || stored === "dark") {
-        return stored;
-      }
-      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        return "dark";
-      }
-    }
-    return "light";
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-    localStorage.setItem("lamb-agent-theme", theme);
-  }, [theme]);
-
-  // Enable page-level scrolling (global CSS sets overflow:hidden on html/body/#root),
-  // so expanded sessions can scroll the page.
+// Enable page-level scrolling (global CSS sets overflow:hidden on html/body/#root),
+// so expanded sessions can scroll the page.
+function useAllowScroll() {
   useEffect(() => {
     document.documentElement.classList.add("allow-scroll");
     return () => document.documentElement.classList.remove("allow-scroll");
   }, []);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
-
-  return { theme, toggleTheme };
 }
 
 function isEmojiIcon(icon?: string): boolean {
@@ -98,6 +70,7 @@ export function SharedProjectPage({
   const { shareId } = useParams<{ shareId: string }>();
   const { t } = useTranslation();
   const { theme, toggleTheme } = useSharedPageTheme();
+  useAllowScroll();
 
   const [manifest, setManifest] = useState<SharedProjectContentResponse | null>(
     initialManifest ?? null,
@@ -238,9 +211,21 @@ export function SharedProjectPage({
             type="button"
             onClick={toggleTheme}
             className="p-2 rounded-lg text-theme-text-secondary hover:bg-theme-bg-subtle hover:text-theme-text transition-colors"
-            aria-label="Toggle theme"
+            aria-label={t(
+              theme === "light"
+                ? "theme.switchToDark"
+                : theme === "dark"
+                  ? "theme.switchToSepia"
+                  : "theme.switchToLight",
+            )}
           >
-            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+            {theme === "light" ? (
+              <Moon size={18} />
+            ) : theme === "dark" ? (
+              <Coffee size={18} />
+            ) : (
+              <Sun size={18} />
+            )}
           </button>
         </div>
       </header>
