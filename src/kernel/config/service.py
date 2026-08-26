@@ -58,7 +58,9 @@ async def initialize_settings() -> None:
     """Initialize settings from database, importing from .env if needed.
 
     After calling this function, the global `settings` object will have its
-    attributes overridden by values from the database (database > env > default).
+    attributes overridden by values from the database (database > env > default),
+    except connection-class settings (RESTART_REQUIRED_SETTINGS) which stay
+    env/default-authoritative on startup — see `_skip_db_override`.
     """
     global _settings_service, _settings_cache
 
@@ -85,6 +87,17 @@ async def initialize_settings() -> None:
                 and (item.value != "" or item.key in _ALLOW_EMPTY_STRING_SETTINGS)
             ):
                 if _skip_db_override(item.key):
+                    effective = getattr(settings, item.key, None)
+                    if effective is not None and str(effective) != str(item.value):
+                        logger.warning(
+                            "[Settings] Ignoring database value for %s: connection-class "
+                            "settings are env-authoritative on startup. If the database "
+                            "value is intended, move it to env/compose and restart "
+                            "(db=%r, effective=%r).",
+                            item.key,
+                            item.value,
+                            effective,
+                        )
                     continue
                 normalized_value = _normalize_runtime_setting(item.key, item.value)
                 _settings_cache[item.key] = normalized_value

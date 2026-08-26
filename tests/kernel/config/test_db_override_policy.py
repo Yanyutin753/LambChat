@@ -18,9 +18,7 @@ from src.kernel.schemas.setting import SettingItem
 
 def _make_items(pairs: list[tuple[str, object]]) -> dict[str, list[SettingItem]]:
     return {
-        "redis": [
-            SettingItem(key=k, value=v, type="string", category="redis") for k, v in pairs
-        ]
+        "redis": [SettingItem(key=k, value=v, type="string", category="redis") for k, v in pairs]
     }
 
 
@@ -61,9 +59,7 @@ def _isolated_config_globals(monkeypatch: pytest.MonkeyPatch):
 
 async def _run_initialize(monkeypatch: pytest.MonkeyPatch, pairs: list[tuple[str, object]]):
     _FakeSettingsService.pending = _make_items(pairs)
-    monkeypatch.setattr(
-        "src.infra.settings.service.SettingsService", _FakeSettingsService
-    )
+    monkeypatch.setattr("src.infra.settings.service.SettingsService", _FakeSettingsService)
     await config_service.initialize_settings()
     return config_service._settings_service
 
@@ -93,6 +89,43 @@ async def test_initialize_skips_override_for_restart_required_keys(
     assert config_service.settings.S3_ENABLED is False
     # 行为类配置照常从数据库加载
     assert config_service.settings.EVENT_MERGE_INTERVAL == 90
+
+
+@pytest.mark.asyncio
+async def test_initialize_uses_default_when_env_unset_and_db_has_value(
+    monkeypatch: pytest.MonkeyPatch, _isolated_config_globals, caplog
+) -> None:
+    """升级风险语义：env 未设置（默认值）+ 面板曾设置 DB 值 → 保持默认值，
+    不用 DB 值，且对不一致打告警（如面板开启 S3 而 compose 未配 S3_*）。"""
+    monkeypatch.setattr(config_service.settings, "MONGODB_URL", "mongodb://localhost:27017")
+    monkeypatch.setattr(config_service.settings, "S3_ENABLED", False)
+
+    with caplog.at_level("WARNING"):
+        await _run_initialize(
+            monkeypatch,
+            [
+                ("MONGODB_URL", "mongodb://from-db:27017"),
+                ("S3_ENABLED", True),
+            ],
+        )
+
+    assert config_service.settings.MONGODB_URL == "mongodb://localhost:27017"
+    assert config_service.settings.S3_ENABLED is False
+    warnings = [r for r in caplog.records if "env-authoritative" in r.message]
+    assert len(warnings) == 2
+    assert any(r.args and r.args[0] == "S3_ENABLED" for r in warnings)
+
+
+@pytest.mark.asyncio
+async def test_initialize_no_warning_when_db_matches_effective(
+    monkeypatch: pytest.MonkeyPatch, _isolated_config_globals, caplog
+) -> None:
+    monkeypatch.setattr(config_service.settings, "MONGODB_URL", "mongodb://env:27018")
+
+    with caplog.at_level("WARNING"):
+        await _run_initialize(monkeypatch, [("MONGODB_URL", "mongodb://env:27018")])
+
+    assert not [r for r in caplog.records if "env-authoritative" in r.message]
 
 
 @pytest.mark.asyncio

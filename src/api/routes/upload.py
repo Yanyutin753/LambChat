@@ -120,19 +120,23 @@ async def _get_live_record_by_hash(
 
 
 def _get_base_url(request: Request) -> str:
-    """获取 base_url：优先当前请求入口（多入口部署下 URL 跟随访问域名），
-    APP_BASE_URL 仅在无请求上下文时兜底。TLS 终结在反代后时按
-    X-Forwarded-Proto 修正 scheme。"""
-    base_url = str(request.base_url).rstrip("/")
-    if base_url and base_url != "http://None":
+    """获取 base_url：优先当前请求入口（X-Forwarded-Host/Host + X-Forwarded-Proto，
+    多入口与重写 Host 的代理下 URL 跟随实际访问域名）；Host 不可用时回退
+    APP_BASE_URL（后台任务生成 URL 的场景建议配置）。"""
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = (forwarded_host or request.headers.get("host") or "").split(",")[0].strip()
+    if host:
         forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
-        if forwarded_proto == "https" and base_url.startswith("http://"):
-            base_url = "https://" + base_url[len("http://") :]
-        return base_url
+        # 与 auth/_get_frontend_url 先例一致的缺省：本地/环回按 http，其余按 https
+        scheme = forwarded_proto or (
+            "http" if "localhost" in host or "127.0.0.1" in host else "https"
+        )
+        return f"{scheme}://{host}"
     app_base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
     if app_base_url:
         return app_base_url
-    return ""
+    base_url = str(request.base_url).rstrip("/")
+    return "" if base_url == "http://None" else base_url
 
 
 def _build_upload_response(
