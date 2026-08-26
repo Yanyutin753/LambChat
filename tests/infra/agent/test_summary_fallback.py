@@ -64,6 +64,33 @@ async def test_retryable_summary_failure_switches_to_fallback_model(monkeypatch)
     get_model.assert_awaited_once_with(model="openai/fallback-model", thinking=None)
 
 
+def _openai_authentication_error():
+    import httpx
+    import openai
+
+    response = httpx.Response(status_code=401, request=httpx.Request("POST", "http://test/v1/chat"))
+    body = {"error": {"code": "", "message": "Invalid token", "type": "new_api_error"}}
+    return openai.AuthenticationError(
+        "Error code: 401 - Invalid token", response=response, body=body
+    )
+
+
+async def test_auth_summary_failure_switches_to_fallback_model(monkeypatch) -> None:
+    """401/403 鉴权失败对同一把 key 永不瞬态：摘要调用必须换兜底模型重做，
+    而不是把裸 401 直接抛给用户（2026-08-26 生产 oaifree Invalid token 事故）。"""
+    mw = _stub_middleware(fail_with=_openai_authentication_error())
+    get_model, _ = _fake_fallback_llm(monkeypatch)
+
+    protected = protect_summarization_middleware(
+        mw, fallback_model="openai/fallback-model", thinking=None
+    )
+
+    result = await protected._acreate_summary([HumanMessage(content="history")])
+
+    assert result == "fallback summary"
+    get_model.assert_awaited_once_with(model="openai/fallback-model", thinking=None)
+
+
 async def test_non_retryable_summary_failure_propagates(monkeypatch) -> None:
     mw = _stub_middleware(fail_with=ValueError("bad request payload"))
     get_model, _ = _fake_fallback_llm(monkeypatch)
