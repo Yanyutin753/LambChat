@@ -24,3 +24,12 @@ def test_memory_embedding_dimensions_default_matches_definition() -> None:
 
     assert Settings(_env_file=None).NATIVE_MEMORY_EMBEDDING_DIMENSIONS == 1536
     assert definition["default"] == 1536
+
+
+def test_memory_query_context_defaults_match_definitions() -> None:
+    assert Settings(_env_file=None).NATIVE_MEMORY_QUERY_CONTEXT_ENABLED is False
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_ENABLED"]["default"] is False
+    assert Settings(_env_file=None).NATIVE_MEMORY_QUERY_CONTEXT_TOP_K == 3
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_TOP_K"]["default"] == 3
+    assert Settings(_env_file=None).NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS == 1200
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS"]["default"] == 1200
