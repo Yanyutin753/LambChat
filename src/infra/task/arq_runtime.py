@@ -17,16 +17,26 @@ logger = get_logger(__name__)
 
 
 class EmbeddedArqRuntime:
-    """Own the lifecycle of an arq worker embedded in the FastAPI process."""
+    """Own the lifecycle of an arq worker embedded in the FastAPI process.
 
-    def __init__(self, worker_factory: Callable[..., Any] = Worker) -> None:
+    Worker 以监督任务运行：异常退出或静默返回都会记录日志并自动重建，
+    避免副本 API 正常但永远不再消费队列（2026-08-27 生产事故根因）。
+    """
+
+    def __init__(
+        self,
+        worker_factory: Callable[..., Any] = Worker,
+        restart_delay_seconds: float = 5.0,
+    ) -> None:
         self._worker_factory = worker_factory
+        self._restart_delay = restart_delay_seconds
         self._worker: Any | None = None
-        self._task: asyncio.Future | None = None
+        self._supervisor: asyncio.Future | None = None
+        self._stopping = False
 
     @property
     def is_running(self) -> bool:
-        return self._task is not None and not self._task.done()
+        return self._supervisor is not None and not self._supervisor.done()
 
     async def start(self) -> None:
         if self.is_running:
@@ -36,7 +46,13 @@ class EmbeddedArqRuntime:
         if not getattr(settings, "ARQ_EMBEDDED_WORKER", True):
             return
 
-        self._worker = self._worker_factory(
+        self._stopping = False
+        self._worker = self._create_worker()
+        self._supervisor = asyncio.ensure_future(self._supervise())
+        logger.info("Embedded arq worker started")
+
+    def _create_worker(self) -> Any:
+        return self._worker_factory(
             [run_agent_task, update_user_message_search_index],
             queue_name=settings.ARQ_QUEUE_NAME,
             redis_settings=build_arq_redis_settings(settings),
@@ -49,26 +65,62 @@ class EmbeddedArqRuntime:
             },
             allow_abort_jobs=True,
         )
-        self._task = asyncio.ensure_future(self._worker.async_run())
-        logger.info("Embedded arq worker started")
 
-    async def stop(self) -> None:
-        if self._worker is not None:
-            close = getattr(self._worker, "close", None)
-            if close is not None:
-                result = close()
+    async def _close_worker_quietly(self, worker: Any) -> None:
+        close = getattr(worker, "close", None)
+        if close is None:
+            return
+        try:
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            logger.warning("Failed to close dead arq worker", exc_info=True)
+
+    async def _supervise(self) -> None:
+        while not self._stopping:
+            worker = self._worker
+            try:
+                result = worker.async_run()
                 if inspect.isawaitable(result):
                     await result
+                if self._stopping:
+                    return
+                logger.warning(
+                    "Embedded arq worker exited silently; restarting in %.1fs",
+                    self._restart_delay,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                if self._stopping:
+                    return
+                logger.exception(
+                    "Embedded arq worker crashed; restarting in %.1fs",
+                    self._restart_delay,
+                )
+            await self._close_worker_quietly(worker)
+            if self._stopping:
+                return
+            await asyncio.sleep(self._restart_delay)
+            if self._stopping:
+                return
+            self._worker = self._create_worker()
 
-        if self._task is not None and not self._task.done():
-            self._task.cancel()
+    async def stop(self) -> None:
+        self._stopping = True
+        if self._worker is not None:
+            await self._close_worker_quietly(self._worker)
+
+        if self._supervisor is not None and not self._supervisor.done():
+            self._supervisor.cancel()
             try:
-                await self._task
+                await self._supervisor
             except asyncio.CancelledError:
                 pass
 
         self._worker = None
-        self._task = None
+        self._supervisor = None
 
 
 _runtime: EmbeddedArqRuntime | None = None
