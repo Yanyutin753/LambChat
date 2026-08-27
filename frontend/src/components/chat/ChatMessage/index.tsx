@@ -22,7 +22,7 @@ import {
 } from "./revealFileImageUtils";
 import { MessageImageGallery } from "./MessageImageGallery";
 import { RevealArtifactsSummary } from "./RevealArtifactsSummary";
-import { RunStepsCollapse } from "./RunStepsCollapse";
+import { RunStepsCollapse } from "./RunStepsCollapse.tsx";
 import {
   countRunSteps,
   getRunElapsedMs,
