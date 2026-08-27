@@ -179,7 +179,13 @@ async def test_append_is_deterministic(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(memory_context, "_recall_memories_raw", fake_recall)
 
-    first = await append_memory_context("消息", "u1")
-    second = await append_memory_context("消息", "u1")
+    first = await append_memory_context("这是一条足够长的消息", "u1")
+    second = await append_memory_context("这是一条足够长的消息", "u1")
 
     assert first == second  # 同输入同结果——写时注入的确定性（前缀字节稳定前提）
+    assert "<memory_context>" in first  # 确定性不是靠短路：块真的生成了
+
+
+def test_block_empty_when_budget_below_min_viable():
+    # 预算连框架+一条短行都放不下时返回空串（放弃注入），而不是超预算硬塞
+    assert build_memory_context_block([_memory()], max_chars=100) == ""

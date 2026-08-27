@@ -351,12 +351,11 @@ async def _execute_agent_stream(
 register_executor("agent_stream", _execute_agent_stream)
 
 
-@router.post("/stream")
 async def build_model_facing_message(
     raw_message: str,
     user_timezone: str | None,
     enabled_skills: list[str] | None,
-    active_goal,
+    active_goal: GoalSpec | None,
     auto_mode: bool,
     user_id: str,
 ) -> str:
@@ -373,6 +372,7 @@ async def build_model_facing_message(
     return formatted
 
 
+@router.post("/stream")
 async def chat_stream(
     request: AgentRequest,
     http_request: Request,

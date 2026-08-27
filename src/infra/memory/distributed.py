@@ -190,8 +190,10 @@ async def check_auto_retain_daily_limit(user_id: str) -> str:
         date_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
         key = AUTO_RETAIN_DAILY_COUNT_KEY.format(user_id=user_id, date=date_tag)
         count = int(await redis_client.incr(key))
-        if count == 1:
-            await redis_client.expire(key, 86400)
+        # 无条件续期：只在 count==1 时设置的话，INCR 成功而 EXPIRE 失败会让键
+        # 永不过期，用户从此被静默限死。多续的 TTL 最多让键多活一天，无碍正确性
+        # （日期在键名里，跨日即换键）。
+        await redis_client.expire(key, 86400)
         return "allowed" if count <= limit else "exceeded"
     except Exception as e:
         logger.debug("[Memory] Failed to check auto-retain daily limit: %s", e)

@@ -44,7 +44,11 @@ def build_memory_context_block(memories: list[dict[str, Any]], max_chars: int) -
     """渲染 top-k 记忆为 untrusted 块；空列表返回空串，总长受 max_chars 预算约束。"""
     if not memories:
         return ""
-    max_chars = max(int(max_chars or 0), 200)
+    # 预算低于可渲染最小值（框架 + 闭合标签 + 一条短行）时整个放弃，尊重配置
+    min_viable = len(_HEADER) + len("\n</memory_context>") + len("- [u|0000-00-00] x")
+    max_chars = int(max_chars or 0)
+    if max_chars < min_viable:
+        return ""
 
     def _render(lines: list[str]) -> str:
         return f"{_HEADER}\n" + "\n".join(lines) + "\n</memory_context>"
