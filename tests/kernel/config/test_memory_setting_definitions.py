@@ -12,9 +12,15 @@ def test_memory_auto_capture_task_limit_default_matches_definition() -> None:
     assert definition.get("frontend_visible", False) is False
 
 
-def test_memory_consolidation_input_limit_default_matches_definition() -> None:
-    definition = SETTING_DEFINITIONS["NATIVE_MEMORY_CONSOLIDATION_INPUT_MAX_CHARS"]
+def test_memory_index_cache_ttl_defaults_aligned() -> None:
+    definition = SETTING_DEFINITIONS["NATIVE_MEMORY_INDEX_CACHE_TTL"]
 
-    assert Settings(_env_file=None).NATIVE_MEMORY_CONSOLIDATION_INPUT_MAX_CHARS == 4000
-    assert definition["default"] == 4000
-    assert definition.get("frontend_visible", False) is False
+    assert Settings(_env_file=None).NATIVE_MEMORY_INDEX_CACHE_TTL == 300
+    assert definition["default"] == 300
+
+
+def test_memory_embedding_dimensions_default_matches_definition() -> None:
+    definition = SETTING_DEFINITIONS["NATIVE_MEMORY_EMBEDDING_DIMENSIONS"]
+
+    assert Settings(_env_file=None).NATIVE_MEMORY_EMBEDDING_DIMENSIONS == 1536
+    assert definition["default"] == 1536

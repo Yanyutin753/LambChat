@@ -168,6 +168,15 @@ async def initialize_settings() -> None:
             logger.warning("[Settings] Failed to persist auto-generated VAPID keys: %s", exc)
 
 
+# 更改这些设置后必须重建 memory backend 单例（embed client / 开关随 backend 持有）
+MEMORY_AFFECTED_SETTINGS = {
+    "ENABLE_MEMORY",
+    "NATIVE_MEMORY_EMBEDDING_API_BASE",
+    "NATIVE_MEMORY_EMBEDDING_API_KEY",
+    "NATIVE_MEMORY_EMBEDDING_MODEL",
+}
+
+
 async def refresh_settings(key: Optional[str] = None) -> None:
     """Refresh settings from database.
 
@@ -197,11 +206,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
     }
 
     # Settings that require memory backend reinitialization
-    memory_affected_settings = {
-        "ENABLE_MEMORY",
-        "NATIVE_MEMORY_EMBEDDING_API_BASE",
-        "NATIVE_MEMORY_EMBEDDING_API_KEY",
-    }
+    memory_affected_settings = MEMORY_AFFECTED_SETTINGS
 
     if key:
         # Refresh single setting

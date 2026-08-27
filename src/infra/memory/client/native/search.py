@@ -28,21 +28,10 @@ logger = get_logger(__name__)
 
 
 def _clip_recall_query(query: str) -> str:
-    max_chars = max(
-        int(
-            getattr(
-                settings,
-                "NATIVE_MEMORY_RECALL_QUERY_MAX_CHARS",
-                NATIVE_MEMORY_RECALL_QUERY_MAX_CHARS,
-            )
-            or 0
-        ),
-        1,
-    )
     normalized = str(query or "").strip()
-    if len(normalized) <= max_chars:
+    if len(normalized) <= NATIVE_MEMORY_RECALL_QUERY_MAX_CHARS:
         return normalized
-    return normalized[:max_chars].rstrip()
+    return normalized[:NATIVE_MEMORY_RECALL_QUERY_MAX_CHARS].rstrip()
 
 
 async def _hydrate_memories_limited(

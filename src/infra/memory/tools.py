@@ -480,6 +480,13 @@ async def _close_and_reset_backend() -> None:
             logger.warning(f"[Memory] Error closing backend during reset: {e}")
     if settings.ENABLE_MEMORY:
         start_memory_compaction_agent()
+        # 运行时开启记忆时补启动失效广播（boot 时才会随 runtime_services 启动）
+        try:
+            from src.infra.memory.distributed import get_memory_pubsub
+
+            await get_memory_pubsub().start_listener()
+        except Exception as e:
+            logger.warning(f"[Memory] PubSub listener start after reset failed: {e}")
     logger.info("[Memory] Backend reset (will be recreated on next use)")
 
 

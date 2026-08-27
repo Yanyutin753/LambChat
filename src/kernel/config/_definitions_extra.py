@@ -615,6 +615,14 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "text-embedding-3-small",
         "depends_on": "ENABLE_MEMORY",
     },
+    "NATIVE_MEMORY_EMBEDDING_DIMENSIONS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_EMBEDDING,
+        "subcategory": "api",
+        "description": "settingDesc.NATIVE_MEMORY_EMBEDDING_DIMENSIONS",
+        "default": 1536,
+        "depends_on": "ENABLE_MEMORY",
+    },
     # ============================================
     # Memory Search & Index Settings
     # ============================================
@@ -701,15 +709,6 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 4000,
         "depends_on": "ENABLE_MEMORY",
     },
-    "NATIVE_MEMORY_CONSOLIDATION_INPUT_MAX_CHARS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "limits",
-        "description": "settingDesc.NATIVE_MEMORY_CONSOLIDATION_INPUT_MAX_CHARS",
-        "default": 4000,
-        "depends_on": "ENABLE_MEMORY",
-        "frontend_visible": False,
-    },
     # ============================================
     # Memory Storage & Policy Settings
     # ============================================
@@ -783,14 +782,6 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.MEMORY_STORAGE,
         "subcategory": "policy",
         "description": "settingDesc.NATIVE_MEMORY_HYDRATE_CONCURRENCY",
-        "default": 4,
-        "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_CONSOLIDATION_ENRICH_CONCURRENCY": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_STORAGE,
-        "subcategory": "policy",
-        "description": "settingDesc.NATIVE_MEMORY_CONSOLIDATION_ENRICH_CONCURRENCY",
         "default": 4,
         "depends_on": "ENABLE_MEMORY",
     },
