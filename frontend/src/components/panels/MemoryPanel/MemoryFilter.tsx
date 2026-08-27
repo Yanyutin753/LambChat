@@ -13,11 +13,15 @@ export function MemoryFilter({
   typeOnChange,
   sourceValue,
   sourceOnChange,
+  contextValue,
+  contextOnChange,
 }: {
   typeValue: string;
   typeOnChange: (v: string) => void;
   sourceValue: string;
   sourceOnChange: (v: string) => void;
+  contextValue: string;
+  contextOnChange: (v: string) => void;
 }) {
   const { t } = useTranslation();
   const typeOptions = TYPE_OPTIONS.map((opt) => {
@@ -60,6 +64,13 @@ export function MemoryFilter({
         value={sourceValue}
         onChange={sourceOnChange}
         options={sourceOptions}
+      />
+      <input
+        value={contextValue}
+        onChange={(e) => contextOnChange(e.target.value)}
+        placeholder={t("memory.contextFilterPlaceholder")}
+        className="h-9 w-36 rounded-lg border border-border bg-input px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        aria-label={t("memory.contextFilterPlaceholder")}
       />
     </div>
   );

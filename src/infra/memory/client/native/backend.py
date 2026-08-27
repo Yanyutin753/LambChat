@@ -16,9 +16,6 @@ from src.infra.memory.client.native.classification import (
     find_existing_memory_match,
     is_manual_memory_worthy,
 )
-from src.infra.memory.client.native.consolidation import (
-    consolidate_memories as run_consolidation,
-)
 from src.infra.memory.client.native.content import (
     build_content_fields,
     delete_memory_content,
@@ -101,6 +98,7 @@ class NativeMemoryBackend(MemoryBackend):
         await run_blocking_io(self._ensure_collection)
         await self._create_indexes()
         self._setup_embedding_fn()
+        await self._maybe_create_vector_index()
         await self._prune_legacy_session_summaries()
 
     async def close(self) -> None:
@@ -338,8 +336,11 @@ class NativeMemoryBackend(MemoryBackend):
         query: str,
         max_results: int = 5,
         memory_types: Optional[list[str]] = None,
+        context_filter: Optional[str] = None,
     ) -> dict[str, Any]:
-        return await recall_memories(self, user_id, query, max_results, memory_types)
+        return await recall_memories(
+            self, user_id, query, max_results, memory_types, context_filter=context_filter
+        )
 
     async def delete(
         self,
@@ -357,23 +358,6 @@ class NativeMemoryBackend(MemoryBackend):
             await self._invalidate_cache(user_id)
             return {"success": True, "message": f"Memory {memory_id} deleted"}
         return {"success": False, "error": "Memory not found"}
-
-    # ------------------------------------------------------------------
-    # Memory consolidation (internal helper retained for native backend compatibility)
-    # ------------------------------------------------------------------
-
-    async def consolidate_memories(self, user_id: str) -> dict[str, Any]:
-        from src.infra.memory.distributed import (
-            acquire_consolidation_lock,
-            release_consolidation_lock,
-        )
-
-        return await run_consolidation(
-            self,
-            user_id,
-            acquire_lock=acquire_consolidation_lock,
-            release_lock=release_consolidation_lock,
-        )
 
     async def auto_retain_from_text(
         self,
@@ -405,12 +389,15 @@ class NativeMemoryBackend(MemoryBackend):
                     SystemMessage(
                         content=(
                             "You are a background memory-retention evaluator.\n"
-                            "You receive one user message after the main assistant response has already finished.\n"
+                            "You receive the latest exchange: the user's message followed by the "
+                            "assistant's final reply.\n"
                             "You may see similar existing memories.\n"
-                            "If the message contains durable cross-session memory, call memory_retain.\n"
+                            "If the exchange contains durable cross-session memory, call memory_retain.\n"
                             "If it does not, do not call any tool.\n"
-                            "Only retain user identity, preferences with reasons, durable project context, "
-                            "explicit feedback, or lasting references. Never retain code, file paths, "
+                            "Only retain durable facts about the user revealed in either message: "
+                            "user identity, preferences with reasons, durable project context, "
+                            "explicit feedback, or lasting references. Never retain the assistant's "
+                            "generic answer content, code, file paths, "
                             "temporary worklogs, greetings, or transient status updates.\n"
                             "When calling memory_retain, ALWAYS provide title, summary, and tags "
                             "— this avoids a second LLM call. Keep title under 25 chars, summary under 80 chars, "
@@ -423,7 +410,7 @@ class NativeMemoryBackend(MemoryBackend):
                     ),
                     HumanMessage(
                         content=(
-                            f"User message:\n{text}\n\n"
+                            f"Latest exchange:\n{text}\n\n"
                             f"Similar existing memories:\n{candidates_text or '(none)'}"
                         )
                     ),
@@ -565,6 +552,47 @@ class NativeMemoryBackend(MemoryBackend):
             )
         except Exception as e:
             logger.warning(f"[NativeMemory] Session context index creation skipped: {e}")
+
+    async def _maybe_create_vector_index(self) -> None:
+        """Best-effort 创建 vectorSearch 索引（MongoDB 8.2+ 社区版内置）。
+
+        未配置 embedding 或服务器无 mongot 时静默跳过——检索侧已有
+        Python 余弦兜底（search.vector_search fallback）。
+        """
+        if self._embedding_fn is None:
+            return
+        try:
+            sync_col = get_mongo_client().delegate[settings.MONGODB_DB][COLLECTION_NAME]
+            await run_blocking_io(self._create_vector_index_sync, sync_col)
+        except Exception as e:
+            logger.warning(f"[NativeMemory] Vector index setup skipped: {e}")
+
+    @staticmethod
+    def _create_vector_index_sync(col: Any) -> None:
+        existing = [ix.get("name") for ix in col.list_search_indexes()]
+        if "native_mem_vector_idx" in existing:
+            return
+        dimensions = int(getattr(settings, "NATIVE_MEMORY_EMBEDDING_DIMENSIONS", 1536))
+        col.create_search_index(
+            {
+                "name": "native_mem_vector_idx",
+                "type": "vectorSearch",
+                "definition": {
+                    "fields": [
+                        {
+                            "type": "vector",
+                            "path": "embedding",
+                            "numDimensions": dimensions,
+                            "similarity": "cosine",
+                        }
+                    ]
+                },
+            }
+        )
+        logger.info(
+            "[NativeMemory] Vector index creation requested (native_mem_vector_idx, %d dims)",
+            dimensions,
+        )
 
     def _setup_embedding_fn(self) -> None:
         """Set up optional embedding function from config."""

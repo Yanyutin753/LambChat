@@ -24,6 +24,7 @@ from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
+from src.infra.chat.memory_context import append_memory_context
 from src.infra.chat.turn_context import append_turn_context_prompt
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.goal import GoalSpec, coerce_goal_spec
@@ -350,6 +351,27 @@ async def _execute_agent_stream(
 register_executor("agent_stream", _execute_agent_stream)
 
 
+async def build_model_facing_message(
+    raw_message: str,
+    user_timezone: str | None,
+    enabled_skills: list[str] | None,
+    active_goal: GoalSpec | None,
+    auto_mode: bool,
+    user_id: str,
+) -> str:
+    """装配模型侧用户消息（时间戳 → 技能 → 轮次上下文 → 相关记忆块）。
+
+    所有按轮变化的动态内容都在这里（消息创建时）一次性写入并随状态持久化，
+    使持久化历史与发送给模型的字节逐字一致，provider prompt-cache 前缀跨轮
+    连续；前端展示用原始 raw_message，不受影响。
+    """
+    formatted = format_user_message_with_timestamp(raw_message, user_timezone)
+    formatted = append_required_skills_prompt(formatted, enabled_skills)
+    formatted = append_turn_context_prompt(formatted, active_goal, auto_mode)
+    formatted = await append_memory_context(formatted, user_id, raw_query=raw_message)
+    return formatted
+
+
 @router.post("/stream")
 async def chat_stream(
     request: AgentRequest,
@@ -412,21 +434,13 @@ async def chat_stream(
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
 
-    formatted_message = format_user_message_with_timestamp(
+    formatted_message = await build_model_facing_message(
         agent_message,
         request.user_timezone,
-    )
-    formatted_message = append_required_skills_prompt(
-        formatted_message,
         request.enabled_skills,
-    )
-    # Per-turn context (goal / auto mode) is persisted into the user message,
-    # keeping the sent prompt byte-identical to the stored history so the
-    # provider prompt-cache prefix stays continuous across turns.
-    formatted_message = append_turn_context_prompt(
-        formatted_message,
         active_goal,
         request.auto_mode,
+        user.sub,
     )
 
     # 生成 run_id（不管是否排队都需要唯一 ID）

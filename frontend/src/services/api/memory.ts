@@ -86,6 +86,7 @@ export const memoryApi = {
     memory_type?: string;
     source?: string;
     search?: string;
+    context?: string;
     limit?: number;
     offset?: number;
   }): Promise<MemoryListResponse> {
@@ -93,6 +94,7 @@ export const memoryApi = {
     if (params?.memory_type) query.set("memory_type", params.memory_type);
     if (params?.source) query.set("source", params.source);
     if (params?.search) query.set("search", params.search);
+    if (params?.context) query.set("context", params.context);
     if (params?.limit !== undefined) query.set("limit", String(params.limit));
     if (params?.offset !== undefined)
       query.set("offset", String(params.offset));

@@ -29,3 +29,25 @@ def test_owned_prompt_blocks_save_twenty_percent_of_full_baseline() -> None:
 
     # Pre-change owned sample: 8,274. Required saving: 2,232 characters.
     assert sum(len(block) for block in blocks) <= 6_042
+
+
+def test_vfs_memory_guide_variant_stays_within_budget() -> None:
+    from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE_VFS
+
+    skills = [
+        {"name": "agentic", "description": "Conversational agent workflows."},
+        {"name": "ant", "description": "Enterprise interface design."},
+        {"name": "publisher", "description": "Publish social content."},
+    ]
+    blocks = (
+        SANDBOX_STORAGE_POLICY,
+        SANDBOX_RUNTIME_POLICY.format(work_dir="/home/user/sessions/example"),
+        WORKFLOW_POLICY,
+        SUBAGENT_DISPATCH_POLICY,
+        build_persona_prompt_section(None),
+        format_skills_prompt(skills),
+        NATIVE_MEMORY_GUIDE_VFS,
+        DEFERRED_TOOL_SEARCH_GUIDE,
+    )
+
+    assert sum(len(block) for block in blocks) <= 6_042

@@ -29,6 +29,12 @@ Work autonomously with reasonable assumptions; `ask_human` is unavailable. Prese
 
 
 def get_memory_guide() -> str:
+    from src.kernel.config import settings
+
+    if getattr(settings, "ENABLE_MEMORY_VFS", False):
+        from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE_VFS
+
+        return NATIVE_MEMORY_GUIDE_VFS
     from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
 
     return NATIVE_MEMORY_GUIDE

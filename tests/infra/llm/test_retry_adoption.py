@@ -11,7 +11,6 @@ import pytest
         "src/infra/agent/middleware/main_agent_context.py",
         "src/infra/agent/middleware/subagent_activity.py",
         "src/infra/memory/client/native/backend.py",
-        "src/infra/memory/client/native/consolidation.py",
         "src/infra/memory/client/native/summaries.py",
     ],
 )

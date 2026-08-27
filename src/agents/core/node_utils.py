@@ -72,8 +72,13 @@ def resolve_auto_memory_capture_text(
     hitl_suspended: bool,
     user_input: str,
     recommendation_input: str | None = None,
+    assistant_text: str | None = None,
 ) -> str | None:
-    """解析本轮应捕获记忆的用户文本；无需捕获时返回 None。
+    """解析本轮应捕获记忆的交换文本；无需捕获时返回 None。
+
+    输入是最近一轮完整交换：用户消息（或恢复轮透传的 recommendation_input）
+    + 助手最终回复——用户可能只在对话中透露偏好，也可能由助手在回复中提炼
+    出值得记住的结论。
 
     ask_human 挂起的 run（waiting_human）还没有最终回答，记忆捕获必须推迟到
     run 最终 finished 的那一轮，否则挂起瞬间会白发起一次记忆评估 LLM 调用，
@@ -82,8 +87,13 @@ def resolve_auto_memory_capture_text(
     """
     if hitl_suspended:
         return None
-    text = (user_input or "").strip() or (recommendation_input or "").strip()
-    return text or None
+    user = (user_input or "").strip() or (recommendation_input or "").strip()
+    assistant = (assistant_text or "").strip()
+    if not user and not assistant:
+        return None
+    if user and assistant:
+        return f"User:\n{user}\n\nAssistant:\n{assistant}"
+    return user or assistant
 
 
 async def resolve_fallback_model(

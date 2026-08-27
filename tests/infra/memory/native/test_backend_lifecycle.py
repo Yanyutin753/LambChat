@@ -161,3 +161,110 @@ async def test_get_memory_model_uses_default_model_when_native_model_empty(
             "max_tokens": 2000,
         }
     ]
+
+
+class _FakeVectorCollection:
+    def __init__(self, existing_names, fail_create=False):
+        self._existing_names = existing_names
+        self._fail_create = fail_create
+        self.create_calls: list[dict] = []
+
+    def list_search_indexes(self):
+        return iter({"name": name} for name in self._existing_names)
+
+    def create_search_index(self, definition):
+        self.create_calls.append(definition)
+        if self._fail_create:
+            raise RuntimeError("mongot unavailable")
+
+
+def _fake_mongo_delegate(col):
+    class _Db(dict):
+        def __getitem__(self, name):
+            return col
+
+    class _Delegate:
+        def __getitem__(self, name):
+            return _Db()
+
+    class _Client:
+        delegate = _Delegate()
+
+    return _Client()
+
+
+@pytest.mark.asyncio
+async def test_vector_index_created_when_embedding_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    col = _FakeVectorCollection(existing_names=[])
+    backend = NativeMemoryBackend()
+    backend._embedding_fn = lambda _text: [0.0]
+    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+    monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_EMBEDDING_DIMENSIONS", 1536)
+
+    async def direct(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(backend_module, "run_blocking_io", direct)
+
+    await backend._maybe_create_vector_index()
+
+    assert len(col.create_calls) == 1
+    definition = col.create_calls[0]
+    assert definition["name"] == "native_mem_vector_idx"
+    assert definition["type"] == "vectorSearch"
+    field = definition["definition"]["fields"][0]
+    assert field["path"] == "embedding"
+    assert field["numDimensions"] == 1536
+    assert field["similarity"] == "cosine"
+
+
+@pytest.mark.asyncio
+async def test_vector_index_skipped_when_already_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    col = _FakeVectorCollection(existing_names=["native_mem_vector_idx"])
+    backend = NativeMemoryBackend()
+    backend._embedding_fn = lambda _text: [0.0]
+    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+
+    async def direct(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(backend_module, "run_blocking_io", direct)
+
+    await backend._maybe_create_vector_index()
+
+    assert col.create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_vector_index_skipped_without_embedding_fn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    col = _FakeVectorCollection(existing_names=[])
+    backend = NativeMemoryBackend()
+    backend._embedding_fn = None
+    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+
+    await backend._maybe_create_vector_index()
+
+    assert col.create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_vector_index_failure_is_non_fatal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    col = _FakeVectorCollection(existing_names=[], fail_create=True)
+    backend = NativeMemoryBackend()
+    backend._embedding_fn = lambda _text: [0.0]
+    monkeypatch.setattr(backend_module, "get_mongo_client", lambda: _fake_mongo_delegate(col))
+
+    async def direct(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(backend_module, "run_blocking_io", direct)
+
+    await backend._maybe_create_vector_index()  # 不抛异常即通过

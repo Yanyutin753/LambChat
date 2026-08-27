@@ -57,3 +57,50 @@ def test_blank_inputs_capture_nothing() -> None:
         )
         is None
     )
+
+
+def test_finished_run_captures_full_exchange_with_assistant_reply() -> None:
+    assert (
+        resolve_auto_memory_capture_text(
+            hitl_suspended=False,
+            user_input="我们项目用 pnpm 不要用 npm",
+            assistant_text="好的，已了解：包管理器统一用 pnpm。",
+        )
+        == "User:\n我们项目用 pnpm 不要用 npm\n\nAssistant:\n好的，已了解：包管理器统一用 pnpm。"
+    )
+
+
+def test_resume_round_combines_recommendation_with_assistant_reply() -> None:
+    assert (
+        resolve_auto_memory_capture_text(
+            hitl_suspended=False,
+            user_input="",
+            recommendation_input="帮我部署到生产环境",
+            assistant_text="部署完成，注意防火墙规则已更新。",
+        )
+        == "User:\n帮我部署到生产环境\n\nAssistant:\n部署完成，注意防火墙规则已更新。"
+    )
+
+
+def test_assistant_only_input_is_captured_without_user_prefix() -> None:
+    assert (
+        resolve_auto_memory_capture_text(
+            hitl_suspended=False,
+            user_input="",
+            recommendation_input=None,
+            assistant_text="用户此前的偏好已确认。",
+        )
+        == "用户此前的偏好已确认。"
+    )
+
+
+def test_blank_exchange_captures_nothing() -> None:
+    assert (
+        resolve_auto_memory_capture_text(
+            hitl_suspended=False,
+            user_input="  ",
+            recommendation_input=None,
+            assistant_text="   ",
+        )
+        is None
+    )

@@ -587,6 +587,14 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": False,
         "frontend_visible": True,
     },
+    "ENABLE_MEMORY_VFS": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.MEMORY,
+        "subcategory": "vfs",
+        "description": "settingDesc.ENABLE_MEMORY_VFS",
+        "default": False,
+        "depends_on": "ENABLE_MEMORY",
+    },
     # ============================================
     # Memory Embedding Settings
     # ============================================
@@ -615,6 +623,14 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "text-embedding-3-small",
         "depends_on": "ENABLE_MEMORY",
     },
+    "NATIVE_MEMORY_EMBEDDING_DIMENSIONS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_EMBEDDING,
+        "subcategory": "api",
+        "description": "settingDesc.NATIVE_MEMORY_EMBEDDING_DIMENSIONS",
+        "default": 1536,
+        "depends_on": "ENABLE_MEMORY",
+    },
     # ============================================
     # Memory Search & Index Settings
     # ============================================
@@ -626,6 +642,30 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": True,
         "depends_on": "ENABLE_MEMORY",
         "frontend_visible": True,
+    },
+    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.MEMORY_SEARCH,
+        "subcategory": "query_context",
+        "description": "settingDesc.NATIVE_MEMORY_QUERY_CONTEXT_ENABLED",
+        "default": False,
+        "depends_on": "ENABLE_MEMORY",
+    },
+    "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_SEARCH,
+        "subcategory": "query_context",
+        "description": "settingDesc.NATIVE_MEMORY_QUERY_CONTEXT_TOP_K",
+        "default": 3,
+        "depends_on": "ENABLE_MEMORY",
+    },
+    "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_SEARCH,
+        "subcategory": "query_context",
+        "description": "settingDesc.NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS",
+        "default": 1200,
+        "depends_on": "ENABLE_MEMORY",
     },
     "NATIVE_MEMORY_INDEX_CACHE_TTL": {
         "type": SettingType.NUMBER,
@@ -700,15 +740,6 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.NATIVE_MEMORY_COMPACTION_CONTENT_MAX_CHARS",
         "default": 4000,
         "depends_on": "ENABLE_MEMORY",
-    },
-    "NATIVE_MEMORY_CONSOLIDATION_INPUT_MAX_CHARS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_SEARCH,
-        "subcategory": "limits",
-        "description": "settingDesc.NATIVE_MEMORY_CONSOLIDATION_INPUT_MAX_CHARS",
-        "default": 4000,
-        "depends_on": "ENABLE_MEMORY",
-        "frontend_visible": False,
     },
     # ============================================
     # Memory Storage & Policy Settings
@@ -786,14 +817,6 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 4,
         "depends_on": "ENABLE_MEMORY",
     },
-    "NATIVE_MEMORY_CONSOLIDATION_ENRICH_CONCURRENCY": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY_STORAGE,
-        "subcategory": "policy",
-        "description": "settingDesc.NATIVE_MEMORY_CONSOLIDATION_ENRICH_CONCURRENCY",
-        "default": 4,
-        "depends_on": "ENABLE_MEMORY",
-    },
     "NATIVE_MEMORY_CONTENT_DELETE_CONCURRENCY": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.MEMORY_STORAGE,
@@ -848,6 +871,14 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "subcategory": "policy",
         "description": "settingDesc.NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS",
         "default": 8,
+        "depends_on": "ENABLE_MEMORY",
+    },
+    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_STORAGE,
+        "subcategory": "policy",
+        "description": "settingDesc.NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY",
+        "default": 20,
         "depends_on": "ENABLE_MEMORY",
     },
 }
