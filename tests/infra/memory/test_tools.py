@@ -71,7 +71,7 @@ async def test_memory_recall_offloads_result_json(monkeypatch):
     calls: list[object] = []
 
     class FakeBackend:
-        async def recall(self, user_id: str, query: str, max_results: int, memory_types):
+        async def recall(self, user_id: str, query: str, max_results: int, memory_types, context_filter=None):
             assert user_id == "u1"
             assert query == "project"
             assert max_results == 5
@@ -188,6 +188,9 @@ async def test_auto_memory_capture_forwards_current_source_refs(monkeypatch):
     )
 
     refs = [{"session_id": "session-1", "run_id": "run-1"}]
+    monkeypatch.setattr(
+        memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0
+    )
     await memory_tools._auto_retain_user_memory("u1", "hello", source_refs=refs)
 
     assert seen["call"] == ("u1", "hello", refs)
@@ -223,6 +226,9 @@ async def test_auto_memory_capture_serializes_per_user(monkeypatch):
     monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
     monkeypatch.setattr(
         memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
+    monkeypatch.setattr(
+        memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0
     )
 
     t1 = asyncio.create_task(memory_tools._auto_retain_user_memory("u1", "first"))
@@ -267,6 +273,9 @@ async def test_auto_memory_capture_uses_distributed_lock(monkeypatch):
         memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
     )
 
+    monkeypatch.setattr(
+        memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0
+    )
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1"), ("retain", "u1"), ("release", "u1")]
@@ -312,6 +321,9 @@ async def test_auto_memory_capture_notifies_compaction_agent_after_store(monkeyp
         raising=False,
     )
 
+    monkeypatch.setattr(
+        memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0
+    )
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1"), ("retain", "u1"), ("compact", "u1"), ("release", "u1")]
@@ -462,6 +474,9 @@ async def test_auto_memory_capture_skips_compaction_when_nothing_stored(monkeypa
         raising=False,
     )
 
+    monkeypatch.setattr(
+        memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0
+    )
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1"), ("retain", "u1"), ("release", "u1")]
@@ -494,6 +509,9 @@ async def test_auto_memory_capture_skips_when_distributed_lock_not_acquired(monk
         memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
     )
 
+    monkeypatch.setattr(
+        memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0
+    )
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1")]

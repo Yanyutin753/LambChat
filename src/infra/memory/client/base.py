@@ -142,6 +142,7 @@ class MemoryBackend(ABC):
         query: str,
         max_results: int = 5,
         memory_types: Optional[list[str]] = None,
+        context_filter: Optional[str] = None,
     ) -> dict[str, Any]:
         """Recall memories matching the query."""
         ...

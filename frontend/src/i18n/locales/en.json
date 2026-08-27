@@ -1601,6 +1601,7 @@
     "batchDeleted": "Deleted {{count}} memories",
     "clearSelection": "Clear selection",
     "contentLabel": "Content",
+    "contextFilterPlaceholder": "Scope, e.g. project_constraint",
     "contentPlaceholder": "Enter memory content (at least 5 characters)...",
     "contentRequired": "Memory content must be at least 5 characters",
     "createBtn": "Add Memory",

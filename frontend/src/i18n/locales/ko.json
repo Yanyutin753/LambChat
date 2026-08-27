@@ -1601,6 +1601,7 @@
     "batchDeleted": "{{count}}개의 메모리가 삭제되었습니다",
     "clearSelection": "선택 해제",
     "contentLabel": "내용",
+    "contextFilterPlaceholder": "스코프 (예: project_constraint)",
     "contentPlaceholder": "메모리 내용을 입력하세요 (5자 이상)...",
     "contentRequired": "메모리 내용은 5자 이상이어야 합니다",
     "createBtn": "메모리 추가",

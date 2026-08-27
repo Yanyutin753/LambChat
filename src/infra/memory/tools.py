@@ -223,6 +223,10 @@ async def memory_recall(
         Optional[list[str]],
         "Filter by memory types (backend-specific), or None for all types",
     ] = None,
+    context: Annotated[
+        Optional[str],
+        "Optional exact-match context scope filter (e.g. 'project_constraint'), or None for all scopes",
+    ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
@@ -244,7 +248,7 @@ async def memory_recall(
         return await _json_dumps_result({"success": False, "error": "Memory service not available"})
 
     try:
-        result = await backend.recall(user_id, query, max_results, memory_types)
+        result = await backend.recall(user_id, query, max_results, memory_types, context)
         return await _json_dumps_result(result)
     except Exception as e:
         logger.error(f"[Memory] Failed to recall memories: {e}")

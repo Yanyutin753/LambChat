@@ -1601,6 +1601,7 @@
     "batchDeleted": "Удалено {{count}} воспоминаний",
     "clearSelection": "Снять выделение",
     "contentLabel": "Содержание",
+    "contextFilterPlaceholder": "Область, напр. project_constraint",
     "contentPlaceholder": "Введите содержание (минимум 5 символов)...",
     "contentRequired": "Содержание должно содержать не менее 5 символов",
     "createBtn": "Добавить",

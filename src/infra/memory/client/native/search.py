@@ -153,11 +153,17 @@ def is_context_overview_query(query: str) -> bool:
 
 
 async def recent_context_fallback(
-    collection, user_id: str, limit: int, memory_types: Optional[list[str]]
+    collection,
+    user_id: str,
+    limit: int,
+    memory_types: Optional[list[str]],
+    context_filter: Optional[str] = None,
 ) -> list[dict]:
     base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
+    if context_filter:
+        base["context"] = context_filter
     cursor = (
         collection.find(
             base,
@@ -184,11 +190,19 @@ async def recent_context_fallback(
 
 
 async def text_search(
-    collection, logger, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]
+    collection,
+    logger,
+    user_id: str,
+    query: str,
+    limit: int,
+    memory_types: Optional[list[str]],
+    context_filter: Optional[str] = None,
 ) -> list[dict]:
     base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
+    if context_filter:
+        base["context"] = context_filter
     base["$text"] = {"$search": query}
 
     try:
@@ -200,16 +214,21 @@ async def text_search(
         docs = await cursor.to_list(length=limit)
     except Exception:
         logger.debug("[NativeMemory] Text search failed, falling back to keyword match")
-        docs = await keyword_fallback(collection, user_id, query, limit, memory_types)
+        docs = await keyword_fallback(collection, user_id, query, limit, memory_types, context_filter)
     else:
         if not docs:
-            docs = await keyword_fallback(collection, user_id, query, limit, memory_types)
+            docs = await keyword_fallback(collection, user_id, query, limit, memory_types, context_filter)
 
     return [format_memory(doc, doc.get("score", 0)) for doc in docs]
 
 
 async def keyword_fallback(
-    collection, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]
+    collection,
+    user_id: str,
+    query: str,
+    limit: int,
+    memory_types: Optional[list[str]],
+    context_filter: Optional[str] = None,
 ) -> list[dict]:
     clauses = build_keyword_clauses(query)
     if not clauses:
@@ -222,6 +241,8 @@ async def keyword_fallback(
     }
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
+    if context_filter:
+        base["context"] = context_filter
 
     _projection = {
         "memory_id": 1,
@@ -246,7 +267,12 @@ async def keyword_fallback(
 
 
 async def vector_search(
-    backend, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]
+    backend,
+    user_id: str,
+    query: str,
+    limit: int,
+    memory_types: Optional[list[str]],
+    context_filter: Optional[str] = None,
 ) -> list[dict]:
     query_vec = await backend._maybe_embed(query)
     if not query_vec:
@@ -259,6 +285,8 @@ async def vector_search(
     }
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
+    if context_filter:
+        base["context"] = context_filter
 
     try:
         pipeline = [
@@ -498,17 +526,24 @@ async def recall_memories(
     memory_types: Optional[list[str]] = None,
     touch_access: bool = True,
     enable_rerank: bool = True,
+    context_filter: Optional[str] = None,
 ) -> dict[str, Any]:
     max_results = max(1, min(int(max_results or 1), NATIVE_MEMORY_RECALL_MAX_RESULTS))
     query = _clip_recall_query(query)
     text_coro = text_search(
-        backend._collection, backend._logger, user_id, query, max_results * 2, memory_types
+        backend._collection,
+        backend._logger,
+        user_id,
+        query,
+        max_results * 2,
+        memory_types,
+        context_filter,
     )
 
     if backend._embedding_fn:
         text_results, vector_results = await asyncio.gather(
             text_coro,
-            vector_search(backend, user_id, query, max_results * 2, memory_types),
+            vector_search(backend, user_id, query, max_results * 2, memory_types, context_filter),
         )
     else:
         text_results = await text_coro
@@ -518,7 +553,7 @@ async def recall_memories(
 
     if not memories and is_context_overview_query(query):
         memories = await recent_context_fallback(
-            backend._collection, user_id, max_results * 2, memory_types
+            backend._collection, user_id, max_results * 2, memory_types, context_filter
         )
 
     if enable_rerank and memories and len(memories) > max_results:

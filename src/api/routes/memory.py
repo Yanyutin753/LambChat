@@ -173,6 +173,7 @@ def _json_iterencode_chunks(encoder: json.JSONEncoder, value: Any) -> list[str]:
 async def list_memories(
     memory_type: Optional[str] = Query(None, description="Filter by memory type"),
     search: Optional[str] = Query(None, description="Search query (matches title, summary, tags)"),
+    context: Optional[str] = Query(None, description="Filter by exact context scope"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     user: TokenPayload = Depends(get_current_user_required),
@@ -191,6 +192,8 @@ async def list_memories(
     query_filter: dict = {"user_id": user.sub}
     if memory_type:
         query_filter["memory_type"] = memory_type
+    if context:
+        query_filter["context"] = context
 
     if search:
         search_regex = {"$regex": re.escape(search), "$options": "i"}

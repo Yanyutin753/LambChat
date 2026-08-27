@@ -242,7 +242,7 @@ async def test_recall_memories_caps_requested_max_results(monkeypatch):
 
     seen: dict[str, int] = {}
 
-    async def fake_text_search(_collection, _logger, _user_id, _query, limit, _memory_types):
+    async def fake_text_search(_collection, _logger, _user_id, _query, limit, _memory_types, context_filter=None):
         seen["text_limit"] = limit
         return [
             {
@@ -290,11 +290,11 @@ async def test_recall_memories_clips_oversized_query_before_search(monkeypatch):
 
     seen: dict[str, str] = {}
 
-    async def fake_text_search(_collection, _logger, _user_id, query, _limit, _memory_types):
+    async def fake_text_search(_collection, _logger, _user_id, query, _limit, _memory_types, context_filter=None):
         seen["text_query"] = query
         return []
 
-    async def fake_vector_search(_backend, _user_id, query, _limit, _memory_types):
+    async def fake_vector_search(_backend, _user_id, query, _limit, _memory_types, context_filter=None):
         seen["vector_query"] = query
         return []
 

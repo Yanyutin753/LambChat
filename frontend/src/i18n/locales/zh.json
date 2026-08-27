@@ -1601,6 +1601,7 @@
     "batchDeleted": "已删除 {{count}} 条记忆",
     "clearSelection": "取消选择",
     "contentLabel": "内容",
+    "contextFilterPlaceholder": "作用域，如 project_constraint",
     "contentPlaceholder": "输入记忆内容（至少5个字符）...",
     "contentRequired": "记忆内容至少需要5个字符",
     "createBtn": "添加记忆",

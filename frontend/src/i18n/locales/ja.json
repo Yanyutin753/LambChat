@@ -1601,6 +1601,7 @@
     "batchDeleted": "{{count}}件の記憶を削除しました",
     "clearSelection": "選択を解除",
     "contentLabel": "内容",
+    "contextFilterPlaceholder": "スコープ（例: project_constraint）",
     "contentPlaceholder": "記憶の内容を入力（5文字以上）...",
     "contentRequired": "記憶の内容は5文字以上必要です",
     "createBtn": "記憶を追加",

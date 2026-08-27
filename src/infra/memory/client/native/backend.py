@@ -336,8 +336,11 @@ class NativeMemoryBackend(MemoryBackend):
         query: str,
         max_results: int = 5,
         memory_types: Optional[list[str]] = None,
+        context_filter: Optional[str] = None,
     ) -> dict[str, Any]:
-        return await recall_memories(self, user_id, query, max_results, memory_types)
+        return await recall_memories(
+            self, user_id, query, max_results, memory_types, context_filter=context_filter
+        )
 
     async def delete(
         self,

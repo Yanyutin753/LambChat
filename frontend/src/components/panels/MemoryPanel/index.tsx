@@ -47,6 +47,7 @@ export function MemoryPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterSource, setFilterSource] = useState("");
+  const [filterContext, setFilterContext] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<MemoryItem | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -75,6 +76,23 @@ export function MemoryPanel() {
     setPage(1);
     setFilterSource(source);
   }, []);
+  const [debouncedContext, setDebouncedContext] = useState("");
+  const contextTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const handleFilterContextChange = useCallback((context: string) => {
+    setPage(1);
+    setFilterContext(context);
+  }, []);
+
+  useEffect(() => {
+    if (contextTimer.current) clearTimeout(contextTimer.current);
+    contextTimer.current = setTimeout(
+      () => setDebouncedContext(filterContext.trim()),
+      300,
+    );
+    return () => {
+      if (contextTimer.current) clearTimeout(contextTimer.current);
+    };
+  }, [filterContext]);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -89,7 +107,7 @@ export function MemoryPanel() {
 
   useEffect(() => {
     setCheckedIds(new Set());
-  }, [filterType, filterSource, debouncedSearch, page]);
+  }, [filterType, filterSource, debouncedSearch, debouncedContext, page]);
 
   const fetchMemories = useCallback(async () => {
     setIsLoading(true);
@@ -98,6 +116,7 @@ export function MemoryPanel() {
         memory_type: filterType || undefined,
         source: filterSource || undefined,
         search: debouncedSearch || undefined,
+        context: debouncedContext || undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
@@ -108,7 +127,7 @@ export function MemoryPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterType, filterSource, debouncedSearch, page, t]);
+  }, [filterType, filterSource, debouncedSearch, debouncedContext, page, t]);
 
   useEffect(() => {
     fetchMemories();
@@ -239,6 +258,8 @@ export function MemoryPanel() {
             typeOnChange={handleFilterTypeChange}
             sourceValue={filterSource}
             sourceOnChange={handleFilterSourceChange}
+            contextValue={filterContext}
+            contextOnChange={handleFilterContextChange}
           />
         }
         actions={
