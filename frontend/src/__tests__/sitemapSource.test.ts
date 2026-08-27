@@ -10,6 +10,7 @@ test("sitemap exposes real public routes for search indexing", () => {
   for (const url of [
     "https://lambchat.com/",
     "https://lambchat.com/features",
+    "https://lambchat.com/zh/features",
     "https://lambchat.com/docs/en/",
     "https://lambchat.com/docs/zh/",
   ]) {

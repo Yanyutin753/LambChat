@@ -1,36 +1,36 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LambChat Features — Open-Source AI Agent Platform</title>
+    <title>LambChat 功能 — 开源 AI Agent 平台</title>
     <meta
       name="description"
-      content="LambChat is an open-source AI Agent platform: agent runtime with sub-agents and human approval, MCP tools with sandboxed execution, cross-session memory, GitHub-synced skills, and multi-model support for Claude, GPT, and Gemini."
+      content="LambChat 是开源 AI Agent 平台：支持子代理与人工审批的 Agent 运行时、沙箱化执行的 MCP 工具、跨会话记忆、GitHub 同步技能，以及 Claude、GPT、Gemini 多模型支持。"
     />
-    <link rel="canonical" href="https://lambchat.com/features" />
+    <link rel="canonical" href="https://lambchat.com/zh/features" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="alternate" hreflang="en" href="https://lambchat.com/features" />
     <link rel="alternate" hreflang="zh" href="https://lambchat.com/zh/features" />
     <link rel="alternate" hreflang="x-default" href="https://lambchat.com/features" />
-    <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
 
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="LambChat Features — Open-Source AI Agent Platform" />
-    <meta property="og:url" content="https://lambchat.com/features" />
+    <meta property="og:title" content="LambChat 功能 — 开源 AI Agent 平台" />
+    <meta property="og:url" content="https://lambchat.com/zh/features" />
     <meta property="og:site_name" content="LambChat" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:locale:alternate" content="zh_CN" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
     <meta
       property="og:description"
-      content="Agent runtime with sub-agents and human approval, MCP tools with sandboxing, cross-session memory, GitHub-synced skills, and multi-model support for Claude, GPT, and Gemini."
+      content="Agent 运行时（子代理+人工审批）、沙箱化 MCP 工具、跨会话记忆、GitHub 同步技能、Claude/GPT/Gemini 多模型支持。"
     />
     <meta property="og:image" content="https://lambchat.com/icons/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="LambChat — Open-Source AI Agent Platform" />
+    <meta name="twitter:title" content="LambChat — 开源 AI Agent 平台" />
     <meta
       name="twitter:description"
-      content="Build, run, and share agents that actually finish work. Open source, multi-model, MCP + Skills."
+      content="构建、运行并分享真正能干完活的 AI Agent。开源、多模型、MCP + 技能引擎。"
     />
     <meta name="twitter:image" content="https://lambchat.com/icons/og-image.png" />
 
@@ -40,11 +40,11 @@
         "@type": "SoftwareApplication",
         "name": "LambChat",
         "url": "https://lambchat.com",
-        "description": "Open-source AI Agent platform with agent runtime, MCP tools, skills, memory, and multi-model chat.",
+        "description": "开源 AI Agent 平台：Agent 运行时、MCP 工具、技能引擎、持久记忆与多模型对话。",
         "applicationCategory": "ChatApplication",
         "operatingSystem": "Web, iOS, Android, Desktop",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "inLanguage": ["en", "zh"]
+        "inLanguage": ["zh", "en"]
       }
     </script>
 
@@ -81,14 +81,14 @@
           -apple-system,
           "Segoe UI",
           Roboto,
-          "Helvetica Neue",
-          Arial,
           "PingFang SC",
           "Microsoft YaHei",
+          "Helvetica Neue",
+          Arial,
           sans-serif;
         background: var(--bg);
         color: var(--text);
-        line-height: 1.65;
+        line-height: 1.75;
       }
       a {
         color: var(--accent-strong);
@@ -124,7 +124,7 @@
       }
       .hero h1 {
         font-size: clamp(1.9rem, 4.5vw, 3rem);
-        line-height: 1.2;
+        line-height: 1.25;
         margin: 0 0 16px;
         letter-spacing: -0.02em;
       }
@@ -210,10 +210,6 @@
         padding: 28px 0 48px;
         color: var(--muted);
         font-size: 0.9rem;
-        display: flex;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 12px;
       }
     </style>
   </head>
@@ -222,9 +218,9 @@
       <div class="container nav">
         <a class="brand" href="/">🐑 LambChat</a>
         <nav class="nav-links">
-          <a href="/features">Features</a>
-          <a href="/docs/en/">Docs</a>
-          <a href="/zh/features">中文</a>
+          <a href="/zh/features">功能</a>
+          <a href="/docs/zh/">文档</a>
+          <a href="/features">English</a>
           <a href="https://github.com/Yanyutin753/LambChat">GitHub</a>
         </nav>
       </div>
@@ -232,95 +228,88 @@
 
     <main>
       <div class="container hero">
-        <h1>Build, run, and share AI agents that actually finish work</h1>
+        <h1>构建、运行并分享真正能干完活的 AI Agent</h1>
         <p class="sub">
-          LambChat is an open-source AI Agent platform: multi-model chat,
-          MCP tools, a skills engine, persistent memory, and
-          production-ready deployment — in one self-hostable stack.
+          LambChat 是开源 AI Agent 平台：多模型对话、MCP 工具、技能引擎、
+          持久记忆与生产级部署——一套可自托管的全栈方案。
         </p>
         <div class="cta-row">
-          <a class="btn btn-primary" href="/">Open LambChat</a>
-          <a class="btn btn-ghost" href="/docs/en/getting-started">Get Started</a>
-          <a class="btn btn-ghost" href="https://github.com/Yanyutin753/LambChat">Star on GitHub</a>
+          <a class="btn btn-primary" href="/">打开 LambChat</a>
+          <a class="btn btn-ghost" href="/docs/zh/getting-started">快速开始</a>
+          <a class="btn btn-ghost" href="https://github.com/Yanyutin753/LambChat">GitHub 加星</a>
         </div>
         <img
           src="/features/hero.webp"
           width="920"
-          alt="LambChat web interface showing an AI agent conversation with streaming output, tool calls, and skill panels"
+          alt="LambChat 网页界面：AI Agent 流式对话、工具调用与技能面板"
         />
       </div>
 
       <div class="container">
         <section id="features">
-          <h2>What LambChat can do</h2>
+          <h2>LambChat 能做什么</h2>
           <div class="grid">
             <div class="card">
-              <h3>🤖 Agent Runtime</h3>
+              <h3>🤖 Agent 运行时</h3>
               <p>
-                Deep agent graphs with sub-agents, thinking mode, streaming
-                output, and human approval for risky actions.
+                深度代理图与子代理、思考模式、流式输出，高危操作需人工审批。
               </p>
             </div>
             <div class="card">
-              <h3>🔧 MCP &amp; Tools</h3>
+              <h3>🔧 MCP 与工具</h3>
               <p>
-                System-level and per-user MCP servers, encrypted secrets, and
-                sandboxed code execution on Daytona, E2B, or CubeSandbox.
+                系统级与用户级 MCP 服务器、密钥加密存储，支持
+                Daytona、E2B、CubeSandbox 沙箱代码执行。
               </p>
             </div>
             <div class="card">
-              <h3>🧠 Memory &amp; Skills</h3>
+              <h3>🧠 记忆与技能</h3>
               <p>
-                Cross-session memory, a skill marketplace, GitHub-synced
-                skills, and reusable persona presets.
+                跨会话记忆、技能市场、GitHub 同步技能、可复用的人设预设。
               </p>
             </div>
             <div class="card">
-              <h3>💬 Multi-Model Chat</h3>
+              <h3>💬 多模型对话</h3>
               <p>
-                Bring your own keys for Claude, GPT, Gemini, and more — with
-                SSE streaming, multimodal input, and document processing.
+                自带密钥接入 Claude、GPT、Gemini
+                等——SSE 流式输出、多模态输入与文档处理。
               </p>
             </div>
             <div class="card">
-              <h3>📱 Full-Stack Client</h3>
+              <h3>📱 全栈客户端</h3>
               <p>
-                React 19 web app, Capacitor mobile apps, Tauri desktop app,
-                and installable PWA — one backend for all of them.
+                React 19 网页端、Capacitor 移动端、Tauri
+                桌面端、可安装 PWA——全部共用同一后端。
               </p>
             </div>
             <div class="card">
-              <h3>🚀 Production Ready</h3>
+              <h3>🚀 生产就绪</h3>
               <p>
-                JWT auth with RBAC, realtime sync, scheduled tasks, usage
-                tracking, and Docker / Kubernetes deployment recipes.
+                JWT 认证 + RBAC、实时同步、定时任务、用量统计，提供
+                Docker / Kubernetes 部署方案。
               </p>
             </div>
           </div>
         </section>
 
         <section id="why">
-          <h2>Why LambChat</h2>
+          <h2>为什么是 LambChat</h2>
           <p class="why">
-            Most agent products stop at “chat with tools.” LambChat is
-            designed for the longer path: configure models, connect tools
-            safely, let agents create artifacts, persist useful context,
-            share results, approve risky actions, and deploy the whole system
-            for real users — self-hosted, open source (MIT), and bilingual
-            documentation included.
+            大多数 Agent 产品止步于「带工具的聊天」。LambChat
+            为更长的路径而设计：配置模型、安全地连接工具、让 Agent
+            产出工件、沉淀有用的上下文、分享结果、审批高危操作，并把整套系统交付给真实用户——自托管、开源（MIT）、附中英双语文档。
           </p>
         </section>
 
         <section id="stack">
-          <h2>Under the hood</h2>
+          <h2>技术栈</h2>
           <p class="stack">
             <code>Python 3.12</code> + <code>FastAPI</code> +
             <code>LangGraph / deepagents</code> · <code>MongoDB</code> +
             <code>Redis</code> + <code>arq</code> ·
             <code>React 19</code> + <code>TypeScript</code> +
-            <code>Vite</code> · Deploy with <code>Docker</code> or
-            <code>Kubernetes</code>. English, 中文, 日本語, 한국어, and
-            Русский interfaces.
+            <code>Vite</code> · <code>Docker</code> /
+            <code>Kubernetes</code> 部署。界面支持中文、English、日本語、한국어、Русский。
           </p>
         </section>
       </div>
@@ -328,10 +317,10 @@
 
     <footer>
       <div class="container" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px">
-        <span>🐑 LambChat — open-source AI Agent platform (MIT)</span>
+        <span>🐑 LambChat — 开源 AI Agent 平台（MIT）</span>
         <span>
-          <a href="/docs/en/">Docs</a> ·
-          <a href="/docs/zh/">中文文档</a> ·
+          <a href="/docs/zh/">文档</a> ·
+          <a href="/features">English</a> ·
           <a href="https://github.com/Yanyutin753/LambChat">GitHub</a>
         </span>
       </div>
