@@ -6,18 +6,22 @@ const sitemap = readFileSync(
   "utf8",
 );
 
-test("sitemap exposes public landing section routes for search sitelinks", () => {
-  for (const path of [
-    "/",
-    "/features",
-    "/architecture",
-    "/dashboard",
-    "/responsive",
-    "/github",
+test("sitemap exposes real public routes for search indexing", () => {
+  for (const url of [
+    "https://lambchat.com/",
+    "https://lambchat.com/features",
+    "https://lambchat.com/docs/en/",
+    "https://lambchat.com/docs/zh/",
   ]) {
-    const url =
-      path === "/" ? "https://lambchat.com/" : `https://lambchat.com${path}`;
     expect(sitemap).toMatch(new RegExp(`<loc>${url}</loc>`));
+  }
+});
+
+test("sitemap omits routes that do not exist in the SPA router", () => {
+  for (const path of ["/architecture", "/dashboard", "/responsive"]) {
+    expect(sitemap).not.toMatch(
+      new RegExp(`<loc>https://lambchat\\.com${path}</loc>`),
+    );
   }
 });
 
