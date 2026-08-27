@@ -121,6 +121,10 @@ async def _build_memory_index_for_user(user_id: str, *, session_id: str | None =
     captured during the session only surface in later sessions, keeping the
     tools prefix byte-stable across the turns of one conversation.
     """
+    from src.infra.memory.user_pref import user_memory_enabled
+
+    if not await user_memory_enabled(user_id):
+        return ""
     import time as _time
 
     cache_key = user_id

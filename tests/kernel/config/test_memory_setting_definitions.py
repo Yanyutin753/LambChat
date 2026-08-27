@@ -48,3 +48,12 @@ def test_memory_vfs_setting_default_matches_definition() -> None:
     assert Settings(_env_file=None).ENABLE_MEMORY_VFS is False
     assert definition["default"] is False
     assert definition["depends_on"] == "ENABLE_MEMORY"
+
+
+def test_memory_vector_backend_defaults_match_definitions() -> None:
+    assert Settings(_env_file=None).NATIVE_MEMORY_VECTOR_BACKEND == "mongo"
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_VECTOR_BACKEND"]["default"] == "mongo"
+    assert Settings(_env_file=None).NATIVE_MEMORY_QDRANT_URL == "http://127.0.0.1:6333"
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_QDRANT_URL"]["default"] == "http://127.0.0.1:6333"
+    assert Settings(_env_file=None).NATIVE_MEMORY_QDRANT_API_KEY == ""
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_QDRANT_API_KEY"]["default"] == ""

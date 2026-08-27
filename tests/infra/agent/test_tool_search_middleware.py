@@ -788,3 +788,20 @@ async def test_memory_index_snapshotted_per_user_with_ttl(monkeypatch) -> None:
     assert calls["n"] == 2
 
     prompt_injection._MEMORY_INDEX_SNAPSHOTS.clear()
+
+
+@pytest.mark.asyncio
+async def test_memory_index_skipped_when_user_disabled(monkeypatch):
+    """用户关闭记忆 → 索引中间件不注入（返回空），请求零改动。"""
+    from src.infra.agent.middleware.prompt_injection import (
+        _build_memory_index_for_user,
+    )
+    from src.infra.memory import user_pref as user_pref_module
+
+    async def _disabled(_uid):
+        return False
+
+    monkeypatch.setattr(user_pref_module, "user_memory_enabled", _disabled)
+
+    result = await _build_memory_index_for_user("u1")
+    assert result == ""

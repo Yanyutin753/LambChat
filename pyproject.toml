@@ -60,6 +60,7 @@ dependencies = [
     "langchain-quickjs>=0.1.0",
     "arq>=0.28.0",
     "pywebpush>=2.0.0",
+    "qdrant-client>=1.14",
 ]
 
 [dependency-groups]

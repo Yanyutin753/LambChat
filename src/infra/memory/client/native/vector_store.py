@@ -1,0 +1,294 @@
+"""Qdrant 向量索引层——Mongo 之外的可选 ANN 索引视图。
+
+设计约束：
+- Mongo（native_memories）是唯一事实源；Qdrant 只存 point id + 向量 + 过滤 payload，
+  可随时删库重建（backfill_from_mongo）。
+- 一切故障静默降级：search 返回 None、upsert/delete 返回 False，调用方回退既有
+  $vectorSearch/余弦链路，绝不阻塞主流程。
+- user_id 是必带过滤条件（多租户隔离）。
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from dataclasses import dataclass
+from typing import Optional
+
+from src.kernel.config import settings
+
+logger = logging.getLogger(__name__)
+
+COLLECTION = "native_memories"
+
+
+@dataclass(frozen=True)
+class VectorHit:
+    memory_id: str
+    score: float
+
+
+class QdrantVectorIndex:
+    """AsyncQdrantClient 的薄封装。location=":memory:" 供测试/嵌入模式。"""
+
+    def __init__(self, location: Optional[str] = None, dims: Optional[int] = None):
+        from qdrant_client import AsyncQdrantClient
+
+        self._location = location or getattr(
+            settings, "NATIVE_MEMORY_QDRANT_URL", "http://127.0.0.1:6333"
+        )
+        api_key = getattr(settings, "NATIVE_MEMORY_QDRANT_API_KEY", "") or None
+        if location == ":memory:" or self._location == ":memory:":
+            api_key = None
+        self._dims = int(
+            dims or getattr(settings, "NATIVE_MEMORY_EMBEDDING_DIMENSIONS", 1536) or 1536
+        )
+        self._client = AsyncQdrantClient(location=self._location, api_key=api_key, timeout=10)
+        self._ensured = False
+
+    async def _ensure_ready(self) -> None:
+        """惰性建库（一次）；失败抛异常由调用方的降级分支接住。"""
+        if not self._ensured:
+            await self.ensure_collection()
+            self._ensured = True
+
+    async def ensure_collection(self) -> None:
+        from qdrant_client.models import Distance, VectorParams
+
+        if not await self._client.collection_exists(COLLECTION):
+            await self._client.create_collection(
+                collection_name=COLLECTION,
+                vectors_config=VectorParams(size=self._dims, distance=Distance.COSINE),
+            )
+            logger.info(
+                "[MemoryVector] Qdrant collection created: %s (%d dims, cosine)",
+                COLLECTION,
+                self._dims,
+            )
+
+    async def upsert(
+        self,
+        *,
+        memory_id: str,
+        user_id: str,
+        vector: list[float],
+        memory_type: str,
+        context: Optional[str],
+        updated_at: int,
+    ) -> bool:
+        from qdrant_client.models import PointStruct
+
+        try:
+            await self._ensure_ready()
+            await self._client.upsert(
+                collection_name=COLLECTION,
+                points=[
+                    PointStruct(
+                        id=uuid.UUID(hex=memory_id),
+                        vector=vector,
+                        payload={
+                            "user_id": user_id,
+                            "memory_type": memory_type,
+                            "context": context,
+                            "updated_at": updated_at,
+                        },
+                    )
+                ],
+                wait=True,
+            )
+            return True
+        except Exception as e:
+            logger.warning("[MemoryVector] Qdrant upsert failed (fallback to mongo-only): %s", e)
+            return False
+
+    async def delete(self, *, memory_id: str, user_id: str) -> bool:
+        """point id 即 memory_id（UUID hex），按 id 删除；user_id 仅作日志校验位。"""
+        try:
+            await self._ensure_ready()
+            await self._client.delete(
+                collection_name=COLLECTION,
+                points_selector=[uuid.UUID(hex=memory_id)],
+                wait=True,
+            )
+            return True
+        except Exception as e:
+            logger.warning("[MemoryVector] Qdrant delete failed: %s", e)
+            return False
+
+    async def search(
+        self,
+        *,
+        vector: list[float],
+        user_id: str,
+        limit: int,
+        memory_types: Optional[list[str]] = None,
+        context_filter: Optional[str] = None,
+    ) -> Optional[list[VectorHit]]:
+        from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
+
+        must = [FieldCondition(key="user_id", match=MatchValue(value=user_id))]
+        if memory_types:
+            must.append(FieldCondition(key="memory_type", match=MatchAny(any=memory_types)))
+        if context_filter:
+            must.append(FieldCondition(key="context", match=MatchValue(value=context_filter)))
+        try:
+            if not await self._client.collection_exists(COLLECTION):
+                return []
+            result = await self._client.query_points(
+                collection_name=COLLECTION,
+                query=vector,
+                query_filter=Filter(must=must),
+                limit=limit,
+                with_payload=False,
+            )
+            # Qdrant 返回带连号的 UUID；Mongo 侧 memory_id 是无连号 hex，统一规范化
+            return [
+                VectorHit(memory_id=str(p.id).replace("-", ""), score=p.score)
+                for p in result.points
+            ]
+        except Exception as e:
+            logger.warning("[MemoryVector] Qdrant search failed (fallback): %s", e)
+            return None
+
+    async def close(self) -> None:
+        try:
+            await self._client.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# 惰性单例（随 MEMORY_AFFECTED 设置热重建，与 backend 同生命周期）
+# ---------------------------------------------------------------------------
+
+_vector_index: Optional[QdrantVectorIndex] = None
+
+
+def vector_backend_enabled() -> bool:
+    return getattr(settings, "NATIVE_MEMORY_VECTOR_BACKEND", "mongo") == "qdrant"
+
+
+async def get_vector_index() -> Optional[QdrantVectorIndex]:
+    """单例；未启用返回 None。collection 惰性确保（首用时建）。"""
+    global _vector_index
+    if not vector_backend_enabled():
+        return None
+    if _vector_index is None:
+        candidate = QdrantVectorIndex()
+        try:
+            await candidate.ensure_collection()
+        except Exception as e:
+            logger.warning("[MemoryVector] Qdrant unavailable, vector backend degraded: %s", e)
+            await candidate.close()
+            return None
+        _vector_index = candidate
+    return _vector_index
+
+
+async def reset_vector_index() -> None:
+    global _vector_index
+    if _vector_index is not None:
+        await _vector_index.close()
+    _vector_index = None
+
+
+# ---------------------------------------------------------------------------
+# None-safe 模块助手（backend/search 接线用；未启用或故障时静默降级）
+# ---------------------------------------------------------------------------
+
+
+async def index_write_through(
+    *,
+    user_id: str,
+    memory_id: str,
+    embedding: Optional[list[float]],
+    memory_type: str,
+    context: Optional[str],
+    updated_at_ts: int,
+) -> bool:
+    idx = await get_vector_index()
+    if idx is None or not embedding:
+        return False
+    return await idx.upsert(
+        memory_id=memory_id,
+        user_id=user_id,
+        vector=embedding,
+        memory_type=memory_type,
+        context=context,
+        updated_at=updated_at_ts,
+    )
+
+
+async def index_delete(user_id: str, memory_id: str) -> bool:
+    idx = await get_vector_index()
+    if idx is None:
+        return False
+    return await idx.delete(memory_id=memory_id, user_id=user_id)
+
+
+async def index_search(
+    *,
+    vector: list[float],
+    user_id: str,
+    limit: int,
+    memory_types: Optional[list[str]] = None,
+    context_filter: Optional[str] = None,
+) -> Optional[list[VectorHit]]:
+    """None = 未启用/故障 → 调用方走既有 $vectorSearch/余弦链路；list = 权威结果。"""
+    idx = await get_vector_index()
+    if idx is None:
+        return None
+    return await idx.search(
+        vector=vector,
+        user_id=user_id,
+        limit=limit,
+        memory_types=memory_types,
+        context_filter=context_filter,
+    )
+
+
+async def backfill_from_mongo(collection, batch_size: int = 100) -> dict:
+    """把 Mongo 存量 embedding 幂等灌入 Qdrant（未启用时返回 skipped）。"""
+    idx = await get_vector_index()
+    if idx is None:
+        return {"skipped": True}
+    from qdrant_client.models import PointStruct
+
+    total = 0
+    cursor = collection.find(
+        {"embedding": {"$ne": None}, "source": {"$ne": "session_summary"}},
+        {
+            "memory_id": 1,
+            "user_id": 1,
+            "embedding": 1,
+            "memory_type": 1,
+            "context": 1,
+            "updated_at": 1,
+        },
+    )
+    batch: list[PointStruct] = []
+    async for doc in cursor:
+        batch.append(
+            PointStruct(
+                id=uuid.UUID(hex=doc["memory_id"]),
+                vector=doc["embedding"],
+                payload={
+                    "user_id": doc["user_id"],
+                    "memory_type": doc.get("memory_type", "user"),
+                    "context": doc.get("context"),
+                    "updated_at": int(
+                        doc["updated_at"].timestamp()
+                        if hasattr(doc.get("updated_at"), "timestamp")
+                        else (doc.get("updated_at") or 0)
+                    ),
+                },
+            )
+        )
+        if len(batch) >= batch_size:
+            await idx._client.upsert(collection_name=COLLECTION, points=batch, wait=True)
+            total += len(batch)
+            batch = []
+    if batch:
+        await idx._client.upsert(collection_name=COLLECTION, points=batch, wait=True)
+        total += len(batch)
+    return {"upserted": total}
