@@ -88,6 +88,32 @@ describe("RunStepsCollapse", () => {
     }
   });
 
+  test("keeps the live timer ahead of a static elapsed estimate while active", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-26T10:00:45Z"));
+    try {
+      render(
+        <RunStepsCollapse
+          active
+          steps={1}
+          durationMs={30000}
+          startedAtMs={Date.now() - 45000}
+          renderExpanded={() => <div>step-details</div>}
+        />,
+      );
+      const row = ExpandedSummaryRow();
+      expect(row.textContent).toContain("45s");
+      expect(row.textContent).not.toContain("30s");
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(ExpandedSummaryRow().textContent).toContain("46s");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("collapses automatically once the run finishes", () => {
     const { rerender } = render(
       <RunStepsCollapse

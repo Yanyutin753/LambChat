@@ -46,12 +46,15 @@ export function RunStepsCollapse({
 
   const settledDurationMs =
     durationMs !== null && durationMs > 0 ? durationMs : null;
-  const liveDurationMs =
-    active && startedAtMs !== null ? Math.max(0, nowMs - startedAtMs) : null;
-  const durationLabel = settledDurationMs
-    ? formatElapsed(settledDurationMs)
-    : liveDurationMs !== null
-      ? formatElapsed(liveDurationMs)
+  // 流式中优先实时走秒；已完成工具推算出的静态 elapsed 不能盖过 live 计时
+  const showLive = active && startedAtMs !== null;
+  const liveDurationMs = showLive
+    ? Math.max(0, nowMs - (startedAtMs as number))
+    : null;
+  const durationLabel = showLive
+    ? formatElapsed(liveDurationMs as number)
+    : settledDurationMs
+      ? formatElapsed(settledDurationMs)
       : null;
 
   return (
@@ -73,7 +76,12 @@ export function RunStepsCollapse({
             "color-mix(in srgb, var(--theme-border) 55%, transparent)",
         }}
       >
-        <span className="min-w-0 truncate text-[0.9375rem] leading-6 text-theme-text-tertiary transition-colors duration-200 group-hover/steps:text-theme-text-secondary">
+        <span
+          className={clsx(
+            "min-w-0 truncate text-[0.9375rem] leading-6 transition-colors duration-200 group-hover/steps:text-theme-text-secondary",
+            active ? "text-theme-text-secondary" : "text-theme-text-tertiary",
+          )}
+        >
           {active
             ? durationLabel
               ? t("chat.message.runStepsWorking", { duration: durationLabel })
