@@ -166,6 +166,9 @@ class SettingsService:
             Updated setting item
         """
         result = await self._storage.set(key, value, user_id)
+        if result is None:
+            # 未注册 key：storage 未持久化，跳过缓存刷新与跨实例广播
+            return None
         self.invalidate_get_all_cache()
 
         # Refresh the global settings object to reflect the change

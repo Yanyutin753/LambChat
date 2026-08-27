@@ -199,6 +199,28 @@ async def test_set_and_reset_invalidate_get_all_snapshot(
 
 
 @pytest.mark.asyncio
+async def test_set_unknown_key_skips_refresh_and_broadcast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Storage:
+        async def set(self, _key, _value, _user_id):
+            return None  # 未注册 key：storage 未持久化任何内容
+
+    service = settings_service.SettingsService()
+    service._storage = _Storage()  # type: ignore[assignment]
+    publish = AsyncMock()
+    refresh = AsyncMock()
+    monkeypatch.setattr(service, "_publish_change", publish)
+    monkeypatch.setattr("src.kernel.config.refresh_settings", refresh)
+
+    result = await service.set("NOT_A_REGISTERED_SETTING", "x", "user-1")
+
+    assert result is None
+    publish.assert_not_awaited()
+    refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_refresh_applies_empty_llm_fallback_model_without_restart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
