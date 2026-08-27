@@ -1,4 +1,4 @@
-.PHONY: help install install-pnpm dev build clean docker-up docker-down docker-logs docker-build test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-install frontend-test
+.PHONY: help install install-pnpm install-all dev dev-all build build-all clean clean-all docker-up docker-down docker-logs docker-build docker-restart test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-install frontend-test
 
 # 默认目标
 help:

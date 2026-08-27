@@ -102,9 +102,9 @@ Create fake async collections following `tests/infra/skill/test_legacy_migration
 ```python
 def test_rewrite_inserts_transfer_instructions_once():
     migrated = rewrite_skill_instructions(LEGACY_COMMAND)
-    assert 'transfer_path' in migrated
-    assert '/skills/docx/' in migrated
-    assert '<transferred-docx-skill-dir>/scripts/office/validate.py' in migrated
+    assert "transfer_path" in migrated
+    assert "/skills/docx/" in migrated
+    assert "<transferred-docx-skill-dir>/scripts/office/validate.py" in migrated
     assert rewrite_skill_instructions(migrated) == migrated
 ```
 

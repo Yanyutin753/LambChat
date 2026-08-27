@@ -371,7 +371,7 @@ Use:
 intro_lines = [
     "## Available Environment Variables",
     "",
-    "Names only; values are secret. Reference `$KEY` or `os.environ.get(\"KEY\")`; never print or reveal values.",
+    'Names only; values are secret. Reference `$KEY` or `os.environ.get("KEY")`; never print or reveal values.',
 ]
 ```
 

@@ -101,14 +101,10 @@ async def test_mark_run_failed_writes_error_event_before_completing_trace(monkey
     trace_storage = _FakeTraceStorage("trace-1")
     dual_writer = _FakeDualWriter()
     monkeypatch.setattr(recovery_module, "get_trace_storage", lambda: trace_storage)
-    monkeypatch.setattr(
-        "src.infra.session.dual_writer.get_dual_writer", lambda: dual_writer
-    )
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: dual_writer)
     service = _make_service(storage, executor, trace_storage)
 
-    await service.mark_run_failed(
-        "run-1", "Task interrupted (instance unavailable)", session
-    )
+    await service.mark_run_failed("run-1", "Task interrupted (instance unavailable)", session)
 
     assert len(dual_writer.events) == 1
     event = dual_writer.events[0]

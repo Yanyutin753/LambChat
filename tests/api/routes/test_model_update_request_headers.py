@@ -44,9 +44,7 @@ async def test_update_model_maps_empty_request_headers_to_none(
     monkeypatch.setattr(model_routes, "get_model_storage", lambda: storage)
     monkeypatch.setattr("src.infra.llm.models_service.invalidate_cache", _noop_invalidate)
 
-    await model_routes.update_model(
-        "m1", ModelConfigUpdate(request_headers={}), _admin_token()
-    )
+    await model_routes.update_model("m1", ModelConfigUpdate(request_headers={}), _admin_token())
 
     _, update = storage.updates[0]
     assert update["request_headers"] is None

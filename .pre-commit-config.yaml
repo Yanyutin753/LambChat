@@ -1,9 +1,9 @@
 repos:
   # Python formatting and linting with ruff
-  # Keep this rev in sync with the `ruff` version in pyproject.toml so local
+  # Keep this rev in sync with the `ruff` version resolved by uv.lock so local
   # pre-commit, .venv, and CI (uv run ruff) all enforce identical rules.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.16
+    rev: v0.16.2
     hooks:
       - id: ruff
         args: [--fix, --config, pyproject.toml]

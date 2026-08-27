@@ -82,7 +82,11 @@ async def toggle_pin(self, session_id: str, user_id: str) -> dict:
         {"$set": {"metadata.is_pinned": new_value, "updated_at": datetime.utcnow()}},
         return_document=ReturnDocument.AFTER,
     )
-    return {"status": "pinned" if new_value else "unpinned", "is_pinned": new_value, "session": self._to_model_dict(updated)}
+    return {
+        "status": "pinned" if new_value else "unpinned",
+        "is_pinned": new_value,
+        "session": self._to_model_dict(updated),
+    }
 ```
 
 ### Sort Change

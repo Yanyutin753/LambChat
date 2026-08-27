@@ -25,9 +25,7 @@ def _patch_static_frontend(monkeypatch: pytest.MonkeyPatch, static_dir: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_head_root_serves_spa_shell(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+async def test_head_root_serves_spa_shell(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """HEAD / 应返回 200——爬虫与可用性探测工具普遍使用 HEAD 探测首页。"""
     static_dir = _make_static_dist(tmp_path)
     _patch_static_frontend(monkeypatch, static_dir)

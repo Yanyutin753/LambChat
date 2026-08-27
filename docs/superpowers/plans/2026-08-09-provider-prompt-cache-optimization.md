@@ -80,11 +80,14 @@ def test_openai_gpt_56_uses_explicit_cache_mode() -> None:
     assert "prompt_cache_retention" not in model.model_kwargs
 
 
-@pytest.mark.parametrize("provider,model_name", [
-    ("deepseek", "deepseek-chat"),
-    ("qwen", "qwen-max"),
-    ("moonshot", "moonshot-v1"),
-])
+@pytest.mark.parametrize(
+    "provider,model_name",
+    [
+        ("deepseek", "deepseek-chat"),
+        ("qwen", "qwen-max"),
+        ("moonshot", "moonshot-v1"),
+    ],
+)
 def test_openai_compatible_providers_do_not_receive_openai_cache_extensions(
     provider: str, model_name: str
 ) -> None:
@@ -116,9 +119,7 @@ Add family helpers near `_prompt_cache_key`:
 ```python
 import re
 
-_OPENAI_EXTENDED_CACHE_FAMILIES = (
-    "gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.1", "gpt-5", "gpt-4.1"
-)
+_OPENAI_EXTENDED_CACHE_FAMILIES = ("gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.1", "gpt-5", "gpt-4.1")
 
 
 def _is_gpt_56_or_later(model_name: str) -> bool:
@@ -130,7 +131,10 @@ def _is_gpt_56_or_later(model_name: str) -> bool:
 
 def _supports_openai_extended_cache(model_name: str) -> bool:
     name = model_name.lower()
-    return any(name == family or name.startswith(f"{family}-") for family in _OPENAI_EXTENDED_CACHE_FAMILIES)
+    return any(
+        name == family or name.startswith(f"{family}-")
+        for family in _OPENAI_EXTENDED_CACHE_FAMILIES
+    )
 
 
 def _merge_runtime_metadata(kwargs: dict[str, Any], provider: str) -> None:
@@ -251,9 +255,17 @@ Use a helper whose fake model exposes `metadata={"lambchat_provider": provider}`
 def test_retag_tools_keeps_stable_prefix_before_sorted_volatile_tail() -> None:
     tools = [
         _FakeTool(name="write_file", description="stable"),
-        _FakeTool(name="zeta:list", description="dynamic", extras={"_lambchat_prompt_cache_volatile": True}),
+        _FakeTool(
+            name="zeta:list",
+            description="dynamic",
+            extras={"_lambchat_prompt_cache_volatile": True},
+        ),
         _FakeTool(name="read_file", description="stable"),
-        _FakeTool(name="alpha:get", description="dynamic", extras={"_lambchat_prompt_cache_volatile": True}),
+        _FakeTool(
+            name="alpha:get",
+            description="dynamic",
+            extras={"_lambchat_prompt_cache_volatile": True},
+        ),
     ]
     retagged = PromptCachingMiddleware._retag_tools(tools, {"type": "ephemeral"})
     assert [tool.name for tool in retagged] == ["write_file", "read_file", "alpha:get", "zeta:list"]
@@ -268,7 +280,9 @@ async def test_direct_anthropic_uses_automatic_and_three_explicit_breakpoints() 
 
 
 async def test_minimax_uses_four_explicit_breakpoints_without_top_level_automatic() -> None:
-    result = await _run_cache_middleware(provider="minimax", with_volatile_tool=True, with_message=True)
+    result = await _run_cache_middleware(
+        provider="minimax", with_volatile_tool=True, with_message=True
+    )
     assert "cache_control" not in result.model_settings
     assert _explicit_breakpoint_count(result) == 4
     assert _latest_message_has_cache_control(result.messages)
@@ -333,9 +347,9 @@ In `ToolSearchMiddleware.awrap_model_call`, leave `search_tools` stable, clone e
 
 ```python
 discovered_tools = [
-    tool.model_copy(update={
-        "extras": {**(tool.extras or {}), _PROMPT_CACHE_VOLATILE_TOOL_EXTRA: True}
-    })
+    tool.model_copy(
+        update={"extras": {**(tool.extras or {}), _PROMPT_CACHE_VOLATILE_TOOL_EXTRA: True}}
+    )
     for tool in discovered
     if tool.name not in existing_names
 ]
@@ -423,15 +437,22 @@ async def test_volatile_section_middleware_appends_goal_and_auto_after_stable_se
     middleware = VolatileSectionPromptMiddleware(
         sections=["## Active Goal\nObjective: ship", "### Auto Mode (Autonomous Execution)"]
     )
-    request = _PromptRequest(SystemMessage(content=[
-        {"type": "text", "text": "base"},
-        {"type": "text", "text": "## Sandbox Runtime\nwork_dir: /workspace"},
-        {"type": "text", "text": "## Available Environment Variables\n- TOKEN"},
-    ]))
+    request = _PromptRequest(
+        SystemMessage(
+            content=[
+                {"type": "text", "text": "base"},
+                {"type": "text", "text": "## Sandbox Runtime\nwork_dir: /workspace"},
+                {"type": "text", "text": "## Available Environment Variables\n- TOKEN"},
+            ]
+        )
+    )
     result = await middleware.awrap_model_call(request, _return_system_message)
     assert [block["text"].splitlines()[0] for block in result.content] == [
-        "base", "## Sandbox Runtime", "## Available Environment Variables",
-        "## Active Goal", "### Auto Mode (Autonomous Execution)",
+        "base",
+        "## Sandbox Runtime",
+        "## Available Environment Variables",
+        "## Active Goal",
+        "### Auto Mode (Autonomous Execution)",
     ]
 ```
 
@@ -525,14 +546,14 @@ git commit -m "refactor(agent): place volatile prompt sections last"
 Extend `_Response` to accept `metadata`, then add:
 
 ```python
-@pytest.mark.parametrize("field", [
-    "prompt_cache_hit_tokens", "cached_content_token_count", "total_cached_tokens"
-])
+@pytest.mark.parametrize(
+    "field", ["prompt_cache_hit_tokens", "cached_content_token_count", "total_cached_tokens"]
+)
 def test_token_usage_reads_provider_cache_hit_aliases(field: str) -> None:
     processor = _processor()
-    response = _Response(usage_metadata={"input_tokens": 2000}, response_metadata={
-        "usage": {field: 1536}
-    })
+    response = _Response(
+        usage_metadata={"input_tokens": 2000}, response_metadata={"usage": {field: 1536}}
+    )
     processor._handle_token_usage({"data": {"output": response}})
     assert processor.total_input_tokens == 2000
     assert processor.total_cache_read_tokens == 1536
@@ -540,9 +561,10 @@ def test_token_usage_reads_provider_cache_hit_aliases(field: str) -> None:
 
 def test_token_usage_reads_openai_cache_write_tokens() -> None:
     processor = _processor()
-    response = _Response(usage_metadata={"input_tokens": 2000}, response_metadata={
-        "usage": {"cache_write_tokens": 1024}
-    })
+    response = _Response(
+        usage_metadata={"input_tokens": 2000},
+        response_metadata={"usage": {"cache_write_tokens": 1024}},
+    )
     processor._handle_token_usage({"data": {"output": response}})
     assert processor.total_cache_creation_tokens == 1024
 
@@ -584,11 +606,17 @@ Add a helper that returns the first valid integer across nested and root aliases
 
 ```python
 cache_read_aliases = (
-    "cache_read", "cached_tokens", "cache_read_input_tokens",
-    "prompt_cache_hit_tokens", "cached_content_token_count", "total_cached_tokens",
+    "cache_read",
+    "cached_tokens",
+    "cache_read_input_tokens",
+    "prompt_cache_hit_tokens",
+    "cached_content_token_count",
+    "total_cached_tokens",
 )
 cache_creation_aliases = (
-    "cache_creation", "cache_creation_input_tokens", "cache_write_tokens",
+    "cache_creation",
+    "cache_creation_input_tokens",
+    "cache_write_tokens",
 )
 ```
 
@@ -665,14 +693,16 @@ Expected: FAIL because model facets currently aggregate only request/token/durat
 Extend `_ranking_pipeline` with `include_cache_metrics: bool = False`. When true, update its group:
 
 ```python
-group.update({
-    "input_tokens": {"$sum": "$input_tokens"},
-    "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
-    "cache_read_tokens": {"$sum": "$cache_read_tokens"},
-    "zero_cache_requests": {
-        "$sum": {"$cond": [{"$lte": [{"$ifNull": ["$cache_read_tokens", 0]}, 0]}, 1, 0]}
-    },
-})
+group.update(
+    {
+        "input_tokens": {"$sum": "$input_tokens"},
+        "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
+        "cache_read_tokens": {"$sum": "$cache_read_tokens"},
+        "zero_cache_requests": {
+            "$sum": {"$cond": [{"$lte": [{"$ifNull": ["$cache_read_tokens", 0]}, 0]}, 1, 0]}
+        },
+    }
+)
 ```
 
 Call `self._ranking_pipeline("model", include_cache_metrics=True)` only for the models facet. Do not expand other Mongo facets.

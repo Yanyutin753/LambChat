@@ -41,28 +41,23 @@ Use a dedicated MongoDB collection, `assistants`.
 ```python
 {
     "_id": ObjectId,
-    "assistant_id": str,                # stable external id
+    "assistant_id": str,  # stable external id
     "name": str,
     "description": str,
     "system_prompt": str,
-
-    "scope": str,                      # "public" | "private"
-    "created_by": str | None,          # admin id for public, user id for private
+    "scope": str,  # "public" | "private"
+    "created_by": str | None,  # admin id for public, user id for private
     "is_active": bool,
-
     "tags": list[str],
     "avatar_url": str | None,
-
     "cloned_from_assistant_id": str | None,
-    "version": str,                    # default "1.0.0"
-
+    "version": str,  # default "1.0.0"
     # Reserved for future phases
     "bound_skill_names": list[str],
     "default_model": str | None,
     "default_agent_options": dict,
     "default_disabled_tools": list[str],
     "default_disabled_skills": list[str],
-
     "created_at": datetime,
     "updated_at": datetime,
 }

@@ -51,9 +51,7 @@ def _tool_call(call_id: str) -> dict:
 async def test_replayed_response_id_does_not_crash_deepagents_graph() -> None:
     """上游重放同一条响应（同 id 同 tool_call）时 run 必须照常完成。"""
     replayed = AIMessage(id="resp-dup", content="", tool_calls=[_tool_call("call-a")])
-    model = ScriptedModel(
-        messages=iter([replayed, replayed, AIMessage(content="done")])
-    )
+    model = ScriptedModel(messages=iter([replayed, replayed, AIMessage(content="done")]))
     graph = create_deep_agent(
         model=model,
         tools=[noop],
