@@ -115,7 +115,7 @@ export function TeamMemberCard({
 
           <div className="list-item-card__identity">
             <div className="team-member-card__identity-header">
-              <span className="list-item-card__name">
+              <span className="list-item-card__name font-serif">
                 {member.role_name || t("team.unnamedRole")}
               </span>
               {member.role_tags.length > 0 && (

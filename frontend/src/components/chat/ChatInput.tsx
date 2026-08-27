@@ -849,7 +849,7 @@ export const ChatInput = memo(function ChatInput({
                     ) : null}
                   </div>
                 </div>
-      
+
                 <ChatInputToolbar
                   activePanel={activePanel}
                   onActivePanelChange={setActivePanel}
@@ -860,7 +860,10 @@ export const ChatInput = memo(function ChatInput({
                   onSteer={
                     onSteer &&
                     (() => {
-                      onSteer(input, filterSendableAttachments(visibleAttachments));
+                      onSteer(
+                        input,
+                        filterSendableAttachments(visibleAttachments),
+                      );
                       clearSteerDraft();
                     })
                   }
@@ -874,6 +877,7 @@ export const ChatInput = memo(function ChatInput({
                   totalSkillsCount={totalSkillsCount}
                   hasPersonaSelector={!!onUsePersonaPreset}
                   personaName={selectedPersonaName}
+                  totalPersonaCount={personaPresetsTotal}
                   hasAgentSelector={agents.length > 1 && !!onSelectAgent}
                   agentName={(() => {
                     const agent = agents.find((a) => a.id === currentAgent);

@@ -535,7 +535,7 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
   return (
     <>
       <div className="flex flex-col gap-4 h-full">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 font-serif">
           <p className="text-sm text-stone-500 dark:text-stone-400 hidden sm:block">
             {t("agentConfig.modelConfigDescription")}
           </p>

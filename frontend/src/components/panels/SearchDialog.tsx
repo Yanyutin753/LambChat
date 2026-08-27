@@ -273,7 +273,7 @@ export function SearchDialog({
               <X size={12} strokeWidth={2.5} />
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 rounded-md border border-stone-200/80 dark:border-stone-700/60">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 rounded-md border border-stone-200/80 dark:border-stone-700/60">
             ESC
           </kbd>
         </div>

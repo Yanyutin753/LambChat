@@ -46,7 +46,7 @@ export function SessionGroup({
   return (
     <div className="flex flex-col gap-2.5 @md:gap-3">
       {/* Session header */}
-      <div className="flex items-center justify-between gap-2 pt-4 @md:pt-5">
+      <div className="flex items-center justify-between gap-2 pt-4 @md:pt-5 font-serif">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() =>

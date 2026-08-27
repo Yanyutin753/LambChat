@@ -27,12 +27,39 @@ test("ChatView wires reverse infinite scroll for older history pages", () => {
 
 test("ChatView prepend detection anchors on the previous first message id", () => {
   const source = readSource("../ChatView.tsx");
-  const effectMatch = source.match(
-    /useEffect\(\(\) => \{[\s\S]*?prevRenderItemsRef[\s\S]*?\}, \[messages\]\);/,
+  const blockMatch = source.match(
+    /const prependCount =[\s\S]{0,900}?prevRenderItemsRef\.current = messages;/,
   );
-  expect(effectMatch).toBeTruthy();
-  expect(effectMatch![0]).toMatch(/messages\[0\]\.id === prev\[0\]\.id/);
-  expect(effectMatch![0]).toMatch(/findIndex/);
+  expect(blockMatch).toBeTruthy();
+  expect(blockMatch![0]).toMatch(
+    /messages\[0\]\.id !== previousFirstMessageId/,
+  );
+  expect(blockMatch![0]).toMatch(/findIndex/);
+});
+
+test("ChatView moves firstItemIndex in the same render as the prepended data", () => {
+  const source = readSource("../ChatView.tsx");
+  // firstItemIndex 必须与前插数据同一次 commit 生效：若放到事后 effect
+  // 修正，中间帧会被 Virtuoso 当成顶部插入，滚动位置被重置（跳回顶部）
+  expect(source).not.toMatch(
+    /useEffect\(\(\) => \{[\s\S]*?findIndex[\s\S]*?setFirstItemIndex[\s\S]*?\}, \[messages\]\);/,
+  );
+  expect(source).toMatch(
+    /if \(prependCount > 0\) \{[\s\S]{0,500}?setFirstItemIndex/,
+  );
+});
+
+test("ChatView syncs firstItemIndexRef in the same render as the prepend", () => {
+  const source = readSource("../ChatView.tsx");
+  // rangeChanged 的绝对索引换算读 firstItemIndexRef。父组件的 useEffect
+  // 晚于子组件（Virtuoso）的事件发射，若只靠 effect 同步，前插后第一帧
+  // 的换算会用旧基准，dataRange 整体偏移一个分页量——时间轴点击后
+  // 点亮落在目标轮之后且不再自愈。ref 必须在前插的同一渲染帧同步。
+  const block = source.match(
+    /if \(prependCount > 0\) \{[\s\S]*?prevRenderItemsRef\.current = messages;/,
+  );
+  expect(block).toBeTruthy();
+  expect(block![0]).toMatch(/firstItemIndexRef\.current = nextFirstItemIndex/);
 });
 
 test("ChatAppContent passes the older-history pagination props to ChatView", () => {

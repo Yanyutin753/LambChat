@@ -316,7 +316,9 @@ export function useMessageScroll(
     const scroller = virtuosoScrollerElement;
     if (!scroller) return;
 
-    const lastScrollTop = { value: 0 };
+    // 基线取当前真实位置：监听会随 messages.length 重绑（流式追加即重绑），
+    // 归零起算会漏掉重绑后第一次真实上滚的 movedUp 判定
+    const lastScrollTop = { value: scroller.scrollTop };
     const lastScrollTime = { value: 0 };
     let touchStartY: number | null = null;
 
@@ -379,7 +381,8 @@ export function useMessageScroll(
       const upwardScrollPx = Math.max(0, dScroll);
       const programmaticScroll =
         now <= ignoreProgrammaticScrollUntilRef.current;
-      const movedUp = scrollTop < lastScrollTop.value - 2;
+      // 8px 以内的上移视为上方内容回流抖动（折叠区收起、代码块重排），不算用户上滚
+      const movedUp = scrollTop < lastScrollTop.value - 8;
       const isAwayFromBottom =
         scrollTop + scroller.clientHeight <
         scroller.scrollHeight - awayFromBottomThresholdPx;
@@ -455,7 +458,8 @@ export function useMessageScroll(
     };
 
     const handleWheel = (event: WheelEvent) => {
-      if (event.deltaY >= -1) {
+      // 触控板误触/惯性微抖（deltaY 在 -6 以内）不构成上滚意图，不打断跟随
+      if (event.deltaY >= -6) {
         return;
       }
 

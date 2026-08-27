@@ -26,7 +26,7 @@ test("shared page top-level surfaces use theme tokens for light and dark modes",
     /bg-\[color-mix\(in_srgb,var\(--theme-bg-card\)_82%,transparent\)\]/,
   );
   expect(sharedPageSource).toMatch(
-    /max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between/,
+    /max-w-6xl mx-auto px-4 sm:px-10 h-14 flex items-center justify-between/,
   );
   expect(sharedPageSource).toMatch(/bg-theme-bg-card rounded-2xl/);
   expect(sharedPageSource).toMatch(/border border-theme-border/);

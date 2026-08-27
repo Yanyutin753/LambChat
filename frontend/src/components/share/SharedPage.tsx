@@ -148,7 +148,6 @@ function SharedPageLanguageToggle() {
   );
 }
 
-
 export function SharedPage({
   initialData,
 }: {
@@ -547,7 +546,7 @@ export function SharedPage({
           className="absolute bottom-0 left-0 h-[2px] landing-progress-bar"
           style={{ width: `${scrollProgress * 100}%` }}
         />
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-10 h-14 flex items-center justify-between">
           {/* Left: Brand */}
           <Link
             to="/"
@@ -604,7 +603,7 @@ export function SharedPage({
           <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0 animate-in fade-in duration-800">
             {/* Overline label */}
             <div className="text-center mb-5">
-              <span className="inline-block text-[11px] font-semibold tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
+              <span className="inline-block text-[11px] font-semibold font-serif tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
                 {t("share.sharedConversation")}
               </span>
             </div>
@@ -615,7 +614,7 @@ export function SharedPage({
             </h1>
 
             {/* Author + meta strip */}
-            <div className="mt-10 sm:mt-14 flex flex-col items-center gap-4 sm:gap-5">
+            <div className="mt-10 sm:mt-14 flex flex-col items-center gap-4 sm:gap-5 font-serif">
               {/* Author */}
               <div className="flex items-center gap-3">
                 {data.owner.avatar_url ? (
@@ -854,8 +853,8 @@ export function SharedPage({
           </div>
 
           {/* Bottom meta bar */}
-          <div className="pb-6 sm:pb-8 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2 text-[11px] text-stone-300 dark:text-stone-600">
+          <div className="pb-6 sm:pb-8 flex flex-col sm:flex-row items-center justify-between gap-2.5 font-serif">
+            <div className="flex items-center gap-2 text-[11px] text-stone-300 dark:text-stone-600 font-serif">
               {data.session.created_at && (
                 <>
                   <span>{formatDate(data.session.created_at)}</span>

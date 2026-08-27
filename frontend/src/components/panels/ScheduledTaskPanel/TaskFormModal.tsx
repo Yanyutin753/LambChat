@@ -562,7 +562,7 @@ export function TaskFormModal({
           </div>
 
           <div className="scheduled-task-form-field">
-            <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="mb-2 flex items-center justify-between gap-3 font-serif">
               <label className="scheduled-task-label">
                 {t("chat.attachments")}
               </label>

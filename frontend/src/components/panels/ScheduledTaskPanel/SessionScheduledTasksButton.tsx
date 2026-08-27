@@ -125,7 +125,7 @@ function SessionScheduledTaskPanelBody({
               <div className="scheduled-task-mini-card__header">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-[var(--theme-text)]">
+                    <p className="truncate text-sm font-semibold font-serif text-[var(--theme-text)]">
                       {task.name}
                     </p>
                     <StatusBadge status={task.status} />
@@ -172,7 +172,7 @@ function SessionScheduledTaskPanelBody({
                     closePersistentToolPanel();
                     navigate(`/scheduled-tasks/${task.id}`);
                   }}
-                  className="scheduled-task-button scheduled-task-button--secondary"
+                  className="scheduled-task-button scheduled-task-button--secondary font-serif"
                   title={t("scheduledTask.details", "详情")}
                 >
                   <History size={14} />

@@ -95,7 +95,7 @@ export function InsightStrip({
             </span>
           </div>
           <p
-            className={`truncate text-[15px] font-extrabold tabular-nums leading-tight text-theme-text sm:text-base ${
+            className={`truncate text-[15px] font-extrabold font-serif tabular-nums leading-tight text-theme-text sm:text-base ${
               item.tone ?? ""
             }`}
           >

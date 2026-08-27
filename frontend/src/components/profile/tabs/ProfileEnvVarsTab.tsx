@@ -149,7 +149,7 @@ export function ProfileEnvVarsTab() {
       <div className="rounded-2xl bg-stone-50 dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
         <div className="flex items-center gap-2 mb-3">
           <Braces size={15} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
             {t("envVars.title")}
           </h3>
         </div>

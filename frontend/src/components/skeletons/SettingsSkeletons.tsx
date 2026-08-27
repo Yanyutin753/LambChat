@@ -15,7 +15,7 @@ function AgentListSkeletonRows({
       {Array.from({ length: PANEL_ROW_SKELETON_COUNT }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center justify-between gap-3 px-4 py-3.5"
+          className="flex items-center justify-between gap-3 font-serif px-4 py-3.5"
         >
           <div className="flex min-w-0 flex-1 items-center gap-3.5">
             {withCheckbox && (
@@ -125,7 +125,7 @@ export function ModelSectionSkeleton() {
         />
         <div className="skeleton-line h-10 w-full max-w-xs rounded-lg" />
         <div className="agent-config-list overflow-hidden rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] divide-y divide-[var(--glass-border)]">
-          <div className="flex items-center justify-between gap-3 bg-[var(--glass-bg-subtle)] px-3.5 py-2.5 sm:px-4">
+          <div className="flex items-center justify-between gap-3 font-serif bg-[var(--glass-bg-subtle)] px-3.5 py-2.5 sm:px-4">
             <SkeletonLine width="w-36 sm:w-48" className="!h-3" />
             <div className="flex items-center gap-2">
               <SkeletonLine width="w-10" className="!h-3" />
@@ -211,7 +211,7 @@ export function ModelPanelSkeleton() {
       />
       <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5 space-y-3">
         {/* Toolbar — description text + action buttons on right */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 font-serif">
           <SkeletonLine
             width="w-48"
             className="!h-3.5 !opacity-60 hidden sm:block"

@@ -2,7 +2,7 @@ import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { Check, Copy, GitBranch, Info, Sparkles, Target } from "lucide-react";
+import { Check, Copy, GitBranch, Info, Loader2, Target } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
@@ -22,10 +22,16 @@ import {
 } from "./revealFileImageUtils";
 import { MessageImageGallery } from "./MessageImageGallery";
 import { RevealArtifactsSummary } from "./RevealArtifactsSummary";
+import { RunStepsCollapse } from "./RunStepsCollapse";
+import {
+  countRunSteps,
+  getRunElapsedMs,
+  getRunStartedAtMs,
+  splitRunTailGroups,
+} from "./runStepsCollapse";
 import { FeedbackButtons } from "./FeedbackButtons";
 import { AssistantAvatar } from "./AssistantAvatar";
 import { ShareButton } from "./ShareButton";
-import { CollapsiblePill } from "../../common/CollapsiblePill";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAuth } from "../../../hooks/useAuth";
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
@@ -44,36 +50,6 @@ import { copyToClipboard } from "../../../utils/clipboard";
 import { shouldShowGoalDetailsForMessage } from "../goalVisibility";
 import { areChatMessagePropsEqual } from "./messageMemo";
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
-
-// Skeleton-style loading animation component - refined thin lines
-function ThinkingIndicator() {
-  return (
-    <div className="space-y-2.5 py-1 px-1">
-      {/* First line - long bar */}
-      <div className="skeleton-line w-full h-2 rounded-full" />
-
-      {/* Second line - three medium bars */}
-      <div className="flex gap-3">
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-      </div>
-
-      {/* Third line - three medium bars */}
-      <div className="flex gap-3">
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-      </div>
-
-      {/* Fourth line */}
-      <div className="flex gap-3">
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line w-2/5 h-2 rounded-full" />
-      </div>
-    </div>
-  );
-}
 
 interface ChatMessageProps {
   message: Message;
@@ -584,6 +560,45 @@ export const ChatMessage = memo(function ChatMessage({
     return message.content || "";
   };
 
+  // 过程折叠区：流式与完成后，除最后的 output_text（及其后的收尾部分）外，
+  // 中间过程统一收进「已工作 X 分 X 秒 ›」折叠区（流式默认展开、完成自动收起）
+  const runPartGroups = hasParts ? groupPartsForGallery(message.parts!) : [];
+  const { head: runHeadGroups, tail: runTailGroups } = splitRunTailGroups(
+    runPartGroups,
+    { enabled: !isWaitingForHuman },
+  );
+  const renderPartGroups = (groups: Array<(typeof runPartGroups)[number]>) =>
+    groups.map((group) =>
+      group.type === "gallery" ? (
+        <MessageImageGallery
+          key={`gallery-${group.startPartIndex}`}
+          images={group.images}
+        />
+      ) : (
+        <MessagePartRenderer
+          key={group.partIndex}
+          part={group.part}
+          messageId={message.id}
+          partIndex={group.partIndex}
+          isStreaming={message.isStreaming}
+          isLast={group.partIndex === message.parts!.length - 1}
+          activePreview={activePreview}
+          onOpenPreview={onOpenPreview}
+          onRecommendQuestionClick={onRecommendQuestionClick}
+          onRetryCancelled={
+            group.part.type === "cancelled" && onRetryCancelledMessage
+              ? () => void onRetryCancelledMessage(message.id)
+              : undefined
+          }
+          allowAutoPreview={shouldAllowAutoPreviewForPart({
+            messageId: message.id,
+            partIndex: group.partIndex,
+            latestAutoPreview: latestAutoPreview ?? null,
+          })}
+        />
+      ),
+    );
+
   // Assistant message: left layout
   return (
     <div
@@ -598,7 +613,7 @@ export const ChatMessage = memo(function ChatMessage({
         !isFirst && "pt-2",
       )}
     >
-      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-8">
+      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-10">
         {/* Content */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
           {/* Header: Avatar + Role label + Stop button */}
@@ -608,58 +623,41 @@ export const ChatMessage = memo(function ChatMessage({
               personaAvatar={personaAvatar}
             />
             <span
-              className="min-w-0 truncate text-base sm:text-lg font-semibold leading-none tracking-tight font-serif"
+              className="min-w-0 truncate text-base sm:text-lg font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
               {personaName || t("chat.message.assistant")}
             </span>
-            {message.timestamp && (
-              <span
-                className="self-center opacity-0 mt-0.5 sm:mt-1 shrink-0 whitespace-nowrap text-xs text-center leading-none tabular-nums transition-opacity duration-200 group-hover:opacity-100"
-                style={{ color: "var(--theme-text-secondary)" }}
-              >
-                {message.timestamp
-                  ? formatDateTimeShort(message.timestamp)
-                  : ""}
-              </span>
-            )}
           </div>
 
-          {/* Streaming/Thinking indicator */}
-          {isStreaming && !hasParts && <ThinkingIndicator />}
+          {/* Run just started, no parts yet: working row stays, loading icon under the divider */}
+          {isStreaming && !hasParts && (
+            <RunStepsCollapse
+              steps={0}
+              durationMs={null}
+              startedAtMs={getRunStartedAtMs(message)}
+              active
+              renderExpanded={() => (
+                <Loader2
+                  size={16}
+                  className="animate-spin text-theme-text-tertiary"
+                />
+              )}
+            />
+          )}
 
           {hasParts ? (
             <div className="space-y-3 my-2">
-              {groupPartsForGallery(message.parts!).map((group) =>
-                group.type === "gallery" ? (
-                  <MessageImageGallery
-                    key={`gallery-${group.startPartIndex}`}
-                    images={group.images}
-                  />
-                ) : (
-                  <MessagePartRenderer
-                    key={group.partIndex}
-                    part={group.part}
-                    messageId={message.id}
-                    partIndex={group.partIndex}
-                    isStreaming={message.isStreaming}
-                    isLast={group.partIndex === message.parts!.length - 1}
-                    activePreview={activePreview}
-                    onOpenPreview={onOpenPreview}
-                    onRecommendQuestionClick={onRecommendQuestionClick}
-                    onRetryCancelled={
-                      group.part.type === "cancelled" && onRetryCancelledMessage
-                        ? () => void onRetryCancelledMessage(message.id)
-                        : undefined
-                    }
-                    allowAutoPreview={shouldAllowAutoPreviewForPart({
-                      messageId: message.id,
-                      partIndex: group.partIndex,
-                      latestAutoPreview: latestAutoPreview ?? null,
-                    })}
-                  />
-                ),
+              {(runHeadGroups.length > 0 || message.isStreaming) && (
+                <RunStepsCollapse
+                  steps={countRunSteps(message.parts!)}
+                  durationMs={getRunElapsedMs(message)}
+                  startedAtMs={getRunStartedAtMs(message)}
+                  active={message.isStreaming}
+                  renderExpanded={() => renderPartGroups(runHeadGroups)}
+                />
               )}
+              {renderPartGroups(runTailGroups)}
               <RevealArtifactsSummary
                 parts={message.parts}
                 isStreaming={message.isStreaming}
@@ -702,19 +700,7 @@ export const ChatMessage = memo(function ChatMessage({
               )}
             </>
           )}
-          {/* Streaming indicator - bottom of message (when not showing thinking indicator) */}
-          {message.isStreaming && !(isStreaming && !hasParts) && (
-            <div className="mt-3">
-              <CollapsiblePill
-                status="loading"
-                icon={<Sparkles size={12} className="shrink-0 opacity-50" />}
-                label={t("chat.message.generating")}
-                variant="tool"
-                expandable={false}
-                animatedDots
-              />
-            </div>
-          )}
+          {/* Streaming state now lives in the RunStepsCollapse "Working…" row (Codex-style) */}
         </div>
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && !isWaitingForHuman && (

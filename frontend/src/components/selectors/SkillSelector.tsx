@@ -335,7 +335,7 @@ export function SkillSelector({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[13px] sm:text-sm font-semibold text-stone-800 dark:text-stone-100">
+                    <span className="text-[13px] sm:text-sm font-semibold font-serif text-stone-800 dark:text-stone-100">
                       {t(`skillSelector.sources.${cat}`)}
                     </span>
                     <span className="ml-1.5 sm:ml-2 text-xs sm:text-xs text-stone-400 dark:text-stone-500 tabular-nums">

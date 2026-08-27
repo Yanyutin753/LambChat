@@ -894,7 +894,7 @@ test("marks the active mobile stream as manually detached on the first intention
     programmaticScroll: false,
     movedUp: true,
     isAwayFromBottom: false,
-    deltaScrollPx: 12,
+    deltaScrollPx: 32,
     scrollTop: 260,
   });
 
@@ -976,7 +976,7 @@ test("detaches the active desktop stream immediately on an explicit upward wheel
   expect(nextState.manualDetachFromStream).toBe(true);
 });
 
-test("detaches the active desktop stream on the first slight upward scroll", () => {
+test("detaches the active desktop stream on a deliberate upward scroll", () => {
   const nextState = getNextMessageScrollFollowStateForUserScroll({
     state: {
       userScrolledUp: false,
@@ -989,7 +989,7 @@ test("detaches the active desktop stream on the first slight upward scroll", () 
     programmaticScroll: false,
     movedUp: true,
     isAwayFromBottom: false,
-    deltaScrollPx: 12,
+    deltaScrollPx: 32,
     scrollTop: 260,
   });
 
@@ -1012,7 +1012,7 @@ test("does not re-arm streaming follow mode while mobile detach lock is active",
     programmaticScroll: false,
     movedUp: true,
     isAwayFromBottom: false,
-    deltaScrollPx: 12,
+    deltaScrollPx: 32,
     scrollTop: 260,
   });
   const settledState = {

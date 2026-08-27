@@ -285,7 +285,7 @@ export function ShareDialog({
                 size={20}
                 className="text-stone-500 dark:text-stone-400"
               />
-              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+              <h3 className="text-lg font-semibold font-serif text-stone-900 dark:text-stone-100">
                 {t("share.title")}
               </h3>
             </div>
@@ -435,7 +435,7 @@ export function ShareDialog({
                   />
                   <div>
                     <div
-                      className={`text-sm font-medium ${
+                      className={`text-sm font-medium font-serif ${
                         visibility === "public"
                           ? "text-stone-700 dark:text-stone-200"
                           : "text-stone-700 dark:text-stone-300"
@@ -466,7 +466,7 @@ export function ShareDialog({
                   />
                   <div>
                     <div
-                      className={`text-sm font-medium ${
+                      className={`text-sm font-medium font-serif ${
                         visibility === "authenticated"
                           ? "text-stone-700 dark:text-stone-200"
                           : "text-stone-700 dark:text-stone-300"

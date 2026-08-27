@@ -368,7 +368,7 @@ export function SubagentBlock({
             {formattedAgentName}
           </span>
           {input && (
-            <p className="text-[11px] text-theme-text-tertiary truncate mt-px">
+            <p className="text-[11px] text-theme-text-tertiary truncate font-serif mt-px">
               {input}
             </p>
           )}

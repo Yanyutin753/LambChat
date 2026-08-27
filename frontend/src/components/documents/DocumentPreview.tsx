@@ -30,11 +30,11 @@ export default function DocumentPreview(props: DocumentPreviewProps) {
               <span className="font-medium text-[var(--theme-text-secondary)] hidden xs:inline">
                 {state.t("documents.path")}:
               </span>
-              <span className="font-mono text-[var(--theme-text)] truncate text-xs sm:text-xs">
+              <span className="font-serif text-[var(--theme-text)] truncate text-xs sm:text-xs">
                 {state.path}
               </span>
             </div>
-            <div className="flex items-center gap-3 shrink-0 ml-2">
+            <div className="flex items-center gap-3 shrink-0 ml-2 font-serif">
               {state.footer}
               <span className="hidden sm:inline">
                 {state.t("documents.pressEscToClose")}

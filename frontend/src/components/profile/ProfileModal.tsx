@@ -248,7 +248,7 @@ export function ProfileModal({
         {/* Header */}
         <div className="px-5 py-4 flex items-center justify-between border-b border-stone-100 dark:border-stone-700/50">
           <div>
-            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 tracking-tight">
+            <h3 className="text-sm font-semibold font-serif text-stone-900 dark:text-stone-100 tracking-tight">
               {t("profile.title")}
             </h3>
             <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">

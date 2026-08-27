@@ -284,7 +284,7 @@ export function MCPServerToolsSidebar({
                         />
                       )}
                       <div className="list-item-card__identity">
-                        <code className="list-item-card__name">
+                        <code className="list-item-card__name font-serif">
                           {tool.name}
                         </code>
                         {tool.description && (
@@ -313,7 +313,7 @@ export function MCPServerToolsSidebar({
 
                     {canConfigurePolicy && isExpanded && (
                       <div className="list-item-card__instructions">
-                        <div className="mb-3 flex items-center justify-between gap-3 rounded-md bg-[var(--theme-bg-subtle)] px-2 py-2">
+                        <div className="mb-3 flex items-center justify-between gap-3 font-serif rounded-md bg-[var(--theme-bg-subtle)] px-2 py-2">
                           <div className="min-w-0">
                             <div className="text-[10px] font-medium text-[var(--theme-text-tertiary)]">
                               {t("mcp.form.inlineExposure")}

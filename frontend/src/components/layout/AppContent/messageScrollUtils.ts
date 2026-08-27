@@ -262,7 +262,8 @@ export function shouldStopAutoScrollOnUserScroll({
     return true;
   }
 
-  return deltaScrollPx > 6;
+  // 近底时的 ≤24px 上移按内容回流抖动处理，继续跟随；真正的上滚很快超过该窗口
+  return deltaScrollPx > 24;
 }
 
 export function shouldIgnoreUnexpectedTopJumpDuringBottomLock({
