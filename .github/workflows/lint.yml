@@ -2,7 +2,7 @@ name: Lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -16,7 +16,7 @@ on:
       - 'main.py'
       - 'run.py'
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'src/**'
       - 'tests/**'

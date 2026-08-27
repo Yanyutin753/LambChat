@@ -21,6 +21,65 @@ LambChat 是全栈 AI Agent 平台：
 | `deploy/` | Docker, Kubernetes 部署资源 |
 | `docs/` | 项目文档站点 |
 
+## 分支与发布流程
+
+### 分支模型
+
+```
+feat/fix 分支 ──PR──▶ develop ──PR──▶ main ──▶ yang update.sh ──▶ 生产
+                       │
+                 CI 全量检查
+                 出 develop-<时间戳> 镜像
+                       │
+                 update-staging.sh ──▶ staging 验证（yang 8021，仅 SSH 隧道可达）
+```
+
+| 分支 | 用途 | 保护 |
+|------|------|------|
+| `main` | 生产分支，每次合并出 `main-<时间戳>` 镜像 | 必须 PR；Merge Gate 只放行 `develop` 与 `hotfix/*` 来源 |
+| `develop` | 集成分支（默认分支），所有 feature/fix PR 的目标，每次合并出 `develop-<时间戳>` 镜像 | 必须 PR（0 approvals，自合留痕即可） |
+| `feat/*` `fix/*` `perf/*` `docs/*` `chore/*` | 短生命周期工作分支，从 `develop` 拉 | 无 |
+
+### 提交信息规范
+
+Conventional Commits + 中文描述：`类型(范围): 摘要`。
+
+- 类型：`feat` / `fix` / `perf` / `refactor` / `docs` / `chore` / `test` / `ci`
+- 范围可选，用模块名（如 `memory`、`api`、`frontend`）
+- 示例：`fix(chat): 修复 /stream 路由被 helper 劫持`
+
+### PR 规则
+
+- feature/fix 一律 PR 到 `develop`（仓库默认分支）
+- 标题同提交信息规范；关联 issue 用 `Closes #N`
+- CI 绿（ruff / mypy / 前后端测试 / 镜像构建）后才可合并
+
+### 镜像 tag 约定
+
+| tag | 来源 | 用途 |
+|-----|------|------|
+| `develop-YYYYMMDD-HHmmss` | push `develop` | staging 验证 |
+| `main-YYYYMMDD-HHmmss` | push `main` | 生产部署 |
+| `v*` | 发版 tag | 归档 |
+
+### 晋升 checklist（develop → main）
+
+1. develop 上 CI 全绿
+2. staging 验证：yang 上 `/data/lambchat-k8s/update-staging.sh` 滚到目标 tag，本地 `ssh -L 8021:127.0.0.1:8021 yang` 后访问 `http://127.0.0.1:8021` 真实跑一轮对话
+3. 开 PR `develop` → `main`，合并（Merge Gate 会校验来源）
+4. 生产部署：yang 上 `/data/lambchat-k8s/update.sh`（自动取最新 `main-*` tag，滚动失败自动回滚）
+5. 部署后回归：`bash /root/disttest/run-all.sh`
+
+### hotfix 流程
+
+1. 从 `main` 拉 `hotfix/*` 分支修复（不能基于 develop，避免裹挟未验证改动）
+2. PR 到 `main`（Merge Gate 放行 `hotfix/*`）
+3. 生产恢复后，**必须**把同一修复回合（PR）到 `develop`，保持两分支不漂移
+
+### 自动化贡献（巡检等）
+
+自动创建的修复 PR 一律开向 `develop`，走同样的 staging 验证后晋升；禁止直接面向 `main`。生产部署永远人工执行（`update.sh`），自动化不得触碰。
+
 ## 常用命令
 
 ```bash

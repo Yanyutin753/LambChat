@@ -1,0 +1,27 @@
+name: Main Merge Gate
+
+# main 只接受 develop（常规晋升）与 hotfix/*（紧急修复）的 PR，其余来源直接失败。
+# 该检查在 main 分支保护中设为 required status check，配合分支模型使用。
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  main-merge-gate:
+    name: main-merge-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检查 PR 来源分支
+        run: |
+          HEAD="${{ github.head_ref }}"
+          case "$HEAD" in
+            develop|hotfix/*)
+              echo "✅ 允许来源分支: $HEAD"
+              ;;
+            *)
+              echo "❌ main 只接受 develop 或 hotfix/* 的 PR，当前来源: $HEAD"
+              echo "常规改动请先 PR 到 develop，验证稳定后由 develop 晋升；紧急修复从 main 拉 hotfix/* 分支，合入后须回合到 develop。"
+              exit 1
+              ;;
+          esac
