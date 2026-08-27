@@ -36,6 +36,7 @@
 ```python
 def test_index_cache_ttl_defaults_aligned():
     from src.kernel.config import settings
+
     assert settings.NATIVE_MEMORY_INDEX_CACHE_TTL == 300
 ```
 
@@ -55,6 +56,7 @@ def test_index_cache_ttl_defaults_aligned():
 
 ```python
 from src.kernel.config.service import MEMORY_AFFECTED_SETTINGS  # 若为局部变量则改从函数读取
+
 
 def test_embedding_model_triggers_backend_reset():
     assert "NATIVE_MEMORY_EMBEDDING_MODEL" in MEMORY_AFFECTED_SETTINGS
@@ -88,18 +90,24 @@ async def _maybe_create_vector_index(self) -> None:
             "name": "native_mem_vector_idx",
             "type": "vectorSearch",
             "definition": {
-                "fields": [{
-                    "type": "vector",
-                    "path": "embedding",
-                    "numDimensions": int(getattr(settings, "NATIVE_MEMORY_EMBEDDING_DIMENSIONS", 1536)),
-                    "similarity": "cosine",
-                }],
+                "fields": [
+                    {
+                        "type": "vector",
+                        "path": "embedding",
+                        "numDimensions": int(
+                            getattr(settings, "NATIVE_MEMORY_EMBEDDING_DIMENSIONS", 1536)
+                        ),
+                        "similarity": "cosine",
+                    }
+                ],
             },
         }
         await self._collection.create_search_index(definition)
         logger.info("[NativeMemory] vector index creation requested (native_mem_vector_idx)")
     except Exception as exc:  # pymongo 旧版本/社区版无 mongot 均走这里
-        logger.warning("[NativeMemory] vector index auto-create unavailable, cosine fallback remains: %s", exc)
+        logger.warning(
+            "[NativeMemory] vector index auto-create unavailable, cosine fallback remains: %s", exc
+        )
 ```
 
 注意：pymongo 异步 collection 的 `create_search_index` / `list_search_indexes` 在 `AsyncMongoClient` 上可用（pymongo>=4.10；若 AsyncIOMotorCollection 则用同名方法）。`_vector_index_attempted` 实例标志防重试。
@@ -206,12 +214,19 @@ def build_memory_context_block(memories: list[dict], max_chars: int) -> str:
         mtype = m.get("memory_type") or "user"
         title = (m.get("title") or "").strip()
         summary = (m.get("summary") or "").strip()
-        lines.append(f"- [{mtype}|{updated}] {title} — {summary}" if summary else f"- [{mtype}|{updated}] {title}")
+        lines.append(
+            f"- [{mtype}|{updated}] {title} — {summary}"
+            if summary
+            else f"- [{mtype}|{updated}] {title}"
+        )
     block = _HEADER + "\n".join(lines) + "\n</memory_context>"
     if len(block) <= max_chars:
         return block
     # 预算裁剪：从头逐条丢弃直到放得下（至少保留一条）
-    while len(lines) > 1 and len(_HEADER) + len("\n".join(lines)) + len("\n</memory_context>") > max_chars:
+    while (
+        len(lines) > 1
+        and len(_HEADER) + len("\n".join(lines)) + len("\n</memory_context>") > max_chars
+    ):
         lines.pop()
     return _HEADER + "\n".join(lines) + "\n</memory_context>"
 
@@ -241,7 +256,13 @@ async def _recall_and_render(user_id: str, query: str) -> str:
     backend = _get_backend()
     if backend is None:
         return ""
-    result = await backend.recall(user_id=user_id, query=query, max_results=settings.NATIVE_MEMORY_QUERY_CONTEXT_TOP_K, touch_access=False, enable_rerank=False)
+    result = await backend.recall(
+        user_id=user_id,
+        query=query,
+        max_results=settings.NATIVE_MEMORY_QUERY_CONTEXT_TOP_K,
+        touch_access=False,
+        enable_rerank=False,
+    )
     memories = result.get("memories", []) if isinstance(result, dict) else list(result or [])
     return build_memory_context_block(memories, settings.NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS)
 ```

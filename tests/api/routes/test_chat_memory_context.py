@@ -36,9 +36,7 @@ async def test_model_facing_message_matches_legacy_chain_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", False)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
     monkeypatch.setattr(memory_context, "_recall_memories_raw", _no_memories)
 
     message = await build_model_facing_message(
@@ -60,9 +58,7 @@ async def test_memory_block_appended_at_tail_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
     seen = {}
 
     async def fake_recall(user_id: str, query: str) -> list[dict]:
@@ -90,9 +86,7 @@ async def test_memory_block_appended_at_tail_when_enabled(
 @pytest.mark.asyncio
 async def test_goal_and_memory_coexist(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
 
     async def fake_recall(user_id: str, query: str) -> list[dict]:
         return [_memory()]
@@ -115,9 +109,7 @@ async def test_goal_and_memory_coexist(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_recall_failure_leaves_message_intact(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
 
     async def broken_recall(user_id: str, query: str) -> list[dict]:
         raise RuntimeError("backend down")

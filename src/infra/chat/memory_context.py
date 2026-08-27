@@ -87,9 +87,7 @@ async def _recall_memories_raw(user_id: str, query: str) -> list[dict[str, Any]]
     return list(result.get("memories") or [])
 
 
-async def append_memory_context(
-    message: str, user_id: str, raw_query: str | None = None
-) -> str:
+async def append_memory_context(message: str, user_id: str, raw_query: str | None = None) -> str:
     """best-effort：检索与本轮相关的记忆并追加到消息尾部（写时注入）。
 
     关闭/查询过短/超时/异常/无结果 → 原样返回 message。

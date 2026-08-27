@@ -9,6 +9,8 @@ def _global_settings():
     from src.kernel.config import settings
 
     return settings
+
+
 from src.infra.memory.distributed import close_memory_pubsub
 
 

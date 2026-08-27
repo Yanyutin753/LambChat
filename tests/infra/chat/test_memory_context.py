@@ -69,9 +69,7 @@ def test_block_contains_untrusted_framing_and_no_ids():
 @pytest.mark.asyncio
 async def test_append_skipped_when_memory_disabled(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", False)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
     called = []
 
     async def fake_recall(user_id, query):
@@ -89,9 +87,7 @@ async def test_append_skipped_when_memory_disabled(monkeypatch: pytest.MonkeyPat
 @pytest.mark.asyncio
 async def test_append_skipped_when_query_too_short(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
     called = []
 
     async def fake_recall(user_id, query):
@@ -109,9 +105,7 @@ async def test_append_skipped_when_query_too_short(monkeypatch: pytest.MonkeyPat
 @pytest.mark.asyncio
 async def test_append_timeout_returns_original(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
 
     async def slow_recall(user_id, query):
         await asyncio.sleep(5)
@@ -128,9 +122,7 @@ async def test_append_timeout_returns_original(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_append_recall_error_returns_original(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
 
     async def broken_recall(user_id, query):
         raise RuntimeError("backend down")
@@ -145,9 +137,7 @@ async def test_append_recall_error_returns_original(monkeypatch: pytest.MonkeyPa
 @pytest.mark.asyncio
 async def test_append_appends_block_after_message(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
     monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K", 3)
     seen = {}
 
@@ -170,9 +160,7 @@ async def test_append_appends_block_after_message(monkeypatch: pytest.MonkeyPatc
 @pytest.mark.asyncio
 async def test_append_is_deterministic(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(
-        memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True
-    )
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
 
     async def fake_recall(user_id, query):
         return [_memory(), _memory(memory_id="m2", type="feedback", title="不要重排导入")]

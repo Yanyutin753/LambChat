@@ -214,10 +214,14 @@ async def text_search(
         docs = await cursor.to_list(length=limit)
     except Exception:
         logger.debug("[NativeMemory] Text search failed, falling back to keyword match")
-        docs = await keyword_fallback(collection, user_id, query, limit, memory_types, context_filter)
+        docs = await keyword_fallback(
+            collection, user_id, query, limit, memory_types, context_filter
+        )
     else:
         if not docs:
-            docs = await keyword_fallback(collection, user_id, query, limit, memory_types, context_filter)
+            docs = await keyword_fallback(
+                collection, user_id, query, limit, memory_types, context_filter
+            )
 
     return [format_memory(doc, doc.get("score", 0)) for doc in docs]
 
