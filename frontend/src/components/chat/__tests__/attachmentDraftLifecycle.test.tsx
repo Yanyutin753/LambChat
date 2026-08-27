@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
 import type { MessageAttachment, SkillResponse } from "../../../types";
-import { SELECTION_ACTION_EVENT } from "../../common/selectionActionPopover";
+import { SELECTION_ACTION_EVENT } from "../../common/selectionActionPopoverUtils";
 
 vi.mock("../../../hooks/useAuth", () => ({
   useAuth: () => ({ hasPermission: () => true }),

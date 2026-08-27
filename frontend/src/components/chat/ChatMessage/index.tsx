@@ -22,13 +22,13 @@ import {
 } from "./revealFileImageUtils";
 import { MessageImageGallery } from "./MessageImageGallery";
 import { RevealArtifactsSummary } from "./RevealArtifactsSummary";
-import { RunStepsCollapse } from "./RunStepsCollapse.tsx";
+import { RunStepsCollapse } from "./RunStepsCollapse";
 import {
   countRunSteps,
   getRunElapsedMs,
   getRunStartedAtMs,
   splitRunTailGroups,
-} from "./runStepsCollapse";
+} from "./runStepsCollapseUtils";
 import { FeedbackButtons } from "./FeedbackButtons";
 import { AssistantAvatar } from "./AssistantAvatar";
 import { ShareButton } from "./ShareButton";
