@@ -145,6 +145,7 @@ def test_protocol_results_are_upstream_v0_7_types() -> None:
     assert compat.GlobResult is protocol.GlobResult
     assert compat.DeleteResult is protocol.DeleteResult
 
+
 def test_read_result_to_string_returns_raw_content() -> None:
     result = protocol.ReadResult(file_data=create_file_data("alpha\nbeta"))
     assert compat.read_result_to_string(result) == "alpha\nbeta"

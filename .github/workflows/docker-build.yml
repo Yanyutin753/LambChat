@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - main
+      - develop
     tags:
       - 'v*'
   pull_request:
     branches:
       - main
+      - develop
 
 env:
   REGISTRY: ghcr.io
@@ -58,8 +60,9 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=main-{{date 'YYYYMMDD-HHmmss'}},enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=main-{{date 'YYYYMMDD-HHmmss'}},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=develop-{{date 'YYYYMMDD-HHmmss'}},enable=${{ github.ref == 'refs/heads/develop' }}
 
       - name: Build Docker image for pull request (single platform)
         if: steps.image.outputs.publish != 'true'
@@ -118,8 +121,9 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=main-{{date 'YYYYMMDD-HHmmss'}},enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=main-{{date 'YYYYMMDD-HHmmss'}},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=develop-{{date 'YYYYMMDD-HHmmss'}},enable=${{ github.ref == 'refs/heads/develop' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

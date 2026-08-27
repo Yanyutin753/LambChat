@@ -25,9 +25,7 @@ from src.kernel.config.service import _ALLOW_EMPTY_STRING_SETTINGS
 
 @pytest.fixture(autouse=True)
 def _clean_header_setting(monkeypatch):
-    monkeypatch.setattr(
-        settings, "LLM_REQUEST_HEADERS", "", raising=False
-    )
+    monkeypatch.setattr(settings, "LLM_REQUEST_HEADERS", "", raising=False)
     yield
 
 
@@ -47,9 +45,7 @@ def test_google_protocol_has_no_injected_headers() -> None:
 
 
 def test_settings_json_overrides_defaults() -> None:
-    settings.LLM_REQUEST_HEADERS = json.dumps(
-        {"User-Agent": "my-agent/1.0", "X-Extra": "1"}
-    )
+    settings.LLM_REQUEST_HEADERS = json.dumps({"User-Agent": "my-agent/1.0", "X-Extra": "1"})
     headers = _merged_request_headers("anthropic", {})
     assert headers["User-Agent"] == "my-agent/1.0"
     assert headers["X-Extra"] == "1"
@@ -182,11 +178,27 @@ def test_llm_request_headers_allows_clearing_back_to_empty() -> None:
 def test_cache_key_differs_for_different_header_overrides() -> None:
     base = _make_cache_key("openai", "gpt-test", 0.7, None, "sk", None, None, None, 3)
     with_a = _make_cache_key(
-        "openai", "gpt-test", 0.7, None, "sk", None, None, None, 3,
+        "openai",
+        "gpt-test",
+        0.7,
+        None,
+        "sk",
+        None,
+        None,
+        None,
+        3,
         header_overrides=(None, (("User-Agent", "a/1"),)),
     )
     with_b = _make_cache_key(
-        "openai", "gpt-test", 0.7, None, "sk", None, None, None, 3,
+        "openai",
+        "gpt-test",
+        0.7,
+        None,
+        "sk",
+        None,
+        None,
+        None,
+        3,
         header_overrides=(None, (("User-Agent", "b/1"),)),
     )
     assert base != with_a

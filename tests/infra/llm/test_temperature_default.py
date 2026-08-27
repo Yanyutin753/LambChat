@@ -73,9 +73,7 @@ async def test_get_model_configured_temperature_still_applied() -> None:
 
 
 def test_create_model_openai_accepts_none_temperature() -> None:
-    model = LLMClient._create_model(
-        "openai", "gpt-4o", temperature=None, api_key="sk-test"
-    )
+    model = LLMClient._create_model("openai", "gpt-4o", temperature=None, api_key="sk-test")
     assert model.temperature is None
 
 
@@ -87,9 +85,7 @@ def test_create_model_anthropic_accepts_none_temperature() -> None:
 
 
 def test_create_model_google_accepts_none_temperature() -> None:
-    model = LLMClient._create_model(
-        "google", "gemini-2.5-pro", temperature=None, api_key="sk-test"
-    )
+    model = LLMClient._create_model("google", "gemini-2.5-pro", temperature=None, api_key="sk-test")
     assert model.temperature is None
 
 

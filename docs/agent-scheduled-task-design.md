@@ -74,18 +74,19 @@ redis                       # 分布式锁协调（已有依赖，非调度必�
 ```python
 # src/infra/scheduler/runtime.py
 
+
 @dataclass(frozen=True, slots=True)
 class ScheduledJob:
     """A managed interval task."""
 
-    id: str                                    # 任务唯一标识
+    id: str  # 任务唯一标识
     interval_seconds: int | Callable[[], int]  # 间隔秒数，支持动态
-    handler: Callable[[], Awaitable[Any]]      # 异步执行函数
+    handler: Callable[[], Awaitable[Any]]  # 异步执行函数
     enabled: bool | Callable[[], bool] = True  # 开关，支持动态
-    name: str | None = None                    # 显示名称
-    max_instances: int = 1                     # 最大并发实例
-    coalesce: bool = True                      # 错过的执行是否合并
-    run_on_start: bool = False                 # 启动时是否立即执行一次
+    name: str | None = None  # 显示名称
+    max_instances: int = 1  # 最大并发实例
+    coalesce: bool = True  # 错过的执行是否合并
+    run_on_start: bool = False  # 启动时是否立即执行一次
 ```
 
 **设计要点**：
@@ -98,6 +99,7 @@ class ScheduledJob:
 
 ```python
 # src/infra/scheduler/runtime.py
+
 
 class RuntimeScheduler:
     """Small APScheduler facade for LambChat runtime services."""
@@ -169,6 +171,7 @@ def _refresh_interval_if_needed(self, job: ScheduledJob) -> None:
 ```python
 # src/infra/memory/tools.py
 
+
 def start_memory_compaction_agent() -> None:
     if not settings.ENABLE_MEMORY:
         return
@@ -225,11 +228,13 @@ async def run_scheduled_memory_compaction() -> dict:
 ```python
 # src/infra/runtime_services.py
 
+
 async def start_runtime_services():
     ...
-    start_memory_compaction_agent()     # 注册 job
-    get_runtime_scheduler().start()     # 启动调度器
+    start_memory_compaction_agent()  # 注册 job
+    get_runtime_scheduler().start()  # 启动调度器
     ...
+
 
 async def stop_runtime_services():
     ...
@@ -277,7 +282,7 @@ LambChat 可能以多进程方式部署（如 Uvicorn workers）。对于需要�
 @dataclass(frozen=True, slots=True)
 class ScheduledJob:
     id: str
-    trigger: IntervalTrigger | CronTrigger     # 通用触发器
+    trigger: IntervalTrigger | CronTrigger  # 通用触发器
     handler: Callable[[], Awaitable[Any]]
     enabled: bool | Callable[[], bool] = True
     ...
@@ -318,8 +323,8 @@ scheduler = AsyncIOScheduler(
 @dataclass
 class JobExecution:
     job_id: str
-    run_id: str                        # UUID
-    status: str                        # pending / running / success / failed
+    run_id: str  # UUID
+    status: str  # pending / running / success / failed
     started_at: datetime
     finished_at: datetime | None
     result: Any | None
@@ -333,8 +338,8 @@ class JobExecution:
 @dataclass(frozen=True, slots=True)
 class ScheduledJob:
     ...
-    max_retries: int = 0               # 最大重试次数
-    retry_delay_seconds: int = 60      # 重试间隔
+    max_retries: int = 0  # 最大重试次数
+    retry_delay_seconds: int = 60  # 重试间隔
     retryable_exceptions: tuple[type[Exception], ...] | None = None
 ```
 
@@ -539,6 +544,7 @@ src/infra/scheduler/
 
 ```python
 """Scheduled task schemas."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -570,13 +576,16 @@ class RunStatus(str, Enum):
 
 # ── 触发配置 ──────────────────────────────────────
 
+
 class IntervalTriggerConfig(BaseModel):
     """固定间隔触发。"""
+
     seconds: int = Field(..., ge=1, description="间隔秒数")
 
 
 class CronTriggerConfig(BaseModel):
     """Cron 表达式触发，字段含义与标准 cron 一致。"""
+
     year: str | None = Field(None)
     month: str | None = Field(None)
     day: str | None = Field(None)
@@ -589,8 +598,10 @@ class CronTriggerConfig(BaseModel):
 
 # ── 任务模型 ──────────────────────────────────────
 
+
 class ScheduledTaskCreate(BaseModel):
     """创建定时任务请求。"""
+
     name: str = Field(..., min_length=1, max_length=200)
     agent_id: str = Field(..., min_length=1)
     trigger_type: TriggerType
@@ -605,6 +616,7 @@ class ScheduledTaskCreate(BaseModel):
 
 class ScheduledTaskUpdate(BaseModel):
     """更新定时任务请求。"""
+
     name: str | None = Field(None, min_length=1, max_length=200)
     trigger_config: dict | None = None
     input_payload: dict | None = None
@@ -617,6 +629,7 @@ class ScheduledTaskUpdate(BaseModel):
 
 class ScheduledTask(BaseModel):
     """MongoDB 持久化的完整任务文档。"""
+
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(..., alias="_id")
@@ -642,8 +655,10 @@ class ScheduledTask(BaseModel):
 
 # ── 执行记录模型 ──────────────────────────────────
 
+
 class TaskRunRecord(BaseModel):
     """单次执行记录。"""
+
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(..., alias="_id", description="run_id (UUID)")
@@ -662,6 +677,7 @@ class TaskRunRecord(BaseModel):
 
 
 # ── API 响应 ──────────────────────────────────────
+
 
 class ScheduledTaskResponse(BaseModel):
     id: str
@@ -720,6 +736,7 @@ class TaskRunListResponse(BaseModel):
 
 ```python
 """MongoDB storage for scheduled tasks and run records."""
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -793,10 +810,12 @@ class ScheduledTaskStorage:
 
     async def list_active_tasks(self) -> list[ScheduledTask]:
         """获取所有活跃且启用的任务（启动时加载用）。"""
-        cursor = self._get_collection(_COLL_TASKS).find({
-            "status": TaskStatus.ACTIVE,
-            "enabled": True,
-        })
+        cursor = self._get_collection(_COLL_TASKS).find(
+            {
+                "status": TaskStatus.ACTIVE,
+                "enabled": True,
+            }
+        )
         return [ScheduledTask(**doc) async for doc in cursor]
 
     async def update_task(self, task_id: str, updates: dict[str, Any]) -> bool:
@@ -815,9 +834,7 @@ class ScheduledTaskStorage:
         )
         return result.modified_count > 0
 
-    async def update_task_run_stats(
-        self, task_id: str, run_id: str, run_status: RunStatus
-    ) -> None:
+    async def update_task_run_stats(self, task_id: str, run_id: str, run_status: RunStatus) -> None:
         """任务执行完成后更新任务级统计。"""
         now = utc_now()
         await self._get_collection(_COLL_TASKS).update_one(
@@ -906,6 +923,7 @@ def get_scheduled_task_storage() -> ScheduledTaskStorage:
 from apscheduler.triggers.base import BaseTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
+
 
 @dataclass(frozen=True, slots=True)
 class ScheduledJob:
@@ -1058,6 +1076,7 @@ __all__ = ["RuntimeScheduler", "ScheduledJob", "get_runtime_scheduler"]
 ```python
 # src/infra/memory/tools.py — 修改 start_memory_compaction_agent
 
+
 def start_memory_compaction_agent() -> None:
     """Register periodic memory compaction checks."""
     if not settings.ENABLE_MEMORY:
@@ -1091,6 +1110,7 @@ def start_memory_compaction_agent() -> None:
 
 ```python
 """Distributed locks for scheduled task execution."""
+
 from __future__ import annotations
 
 import uuid
@@ -1175,6 +1195,7 @@ async def extend_task_lock(task_id: str, token: str, extra_seconds: int = 300) -
 
 ```python
 """Scheduled task execution engine."""
+
 from __future__ import annotations
 
 import time
@@ -1242,24 +1263,30 @@ class ScheduledTaskRunner:
 
             finished = utc_now()
             duration = int((finished - now).total_seconds() * 1000)
-            await storage.update_run(run_id, {
-                "status": RunStatus.SUCCESS,
-                "output_result": result,
-                "finished_at": finished,
-                "duration_ms": duration,
-            })
+            await storage.update_run(
+                run_id,
+                {
+                    "status": RunStatus.SUCCESS,
+                    "output_result": result,
+                    "finished_at": finished,
+                    "duration_ms": duration,
+                },
+            )
             await storage.update_task_run_stats(task_id, run_id, RunStatus.SUCCESS)
             return {"run_id": run_id, "status": "success", "result": result}
 
         except Exception as exc:
             finished = utc_now()
             duration = int((finished - now).total_seconds() * 1000)
-            await storage.update_run(run_id, {
-                "status": RunStatus.FAILED,
-                "error_message": str(exc),
-                "finished_at": finished,
-                "duration_ms": duration,
-            })
+            await storage.update_run(
+                run_id,
+                {
+                    "status": RunStatus.FAILED,
+                    "error_message": str(exc),
+                    "finished_at": finished,
+                    "duration_ms": duration,
+                },
+            )
             await storage.update_task_run_stats(task_id, run_id, RunStatus.FAILED)
             logger.exception("[Runner] task %s run %s failed", task_id, run_id)
             raise
@@ -1347,6 +1374,7 @@ Service 层负责：校验 → 持久化 → 注册/注销调度器。是 API �
 
 ```python
 """Scheduled task business logic."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -1377,7 +1405,6 @@ logger = get_logger(__name__)
 
 
 class ScheduledTaskService:
-
     # ── CRUD ───────────────────────────────────────
 
     async def create_task(
@@ -1586,6 +1613,7 @@ class ScheduledTaskService:
 
 ```python
 """Scheduled task API routes."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -1776,6 +1804,7 @@ app.include_router(
 from src.infra.scheduler.service import ScheduledTaskService
 from src.infra.scheduler.storage import get_scheduled_task_storage
 
+
 async def start_runtime_services():
     ...
     # 现有代码：注册 memory compaction
@@ -1799,6 +1828,7 @@ async def start_runtime_services():
 ```python
 # 在 lifespan startup 阶段，storage indexes 初始化的位置
 from src.infra.scheduler.storage import get_scheduled_task_storage
+
 await get_scheduled_task_storage().ensure_indexes()
 ```
 
@@ -1824,6 +1854,7 @@ await get_scheduled_task_storage().ensure_indexes()
 
 ```python
 # test_service.py
+
 
 async def test_create_interval_task_registers_to_scheduler():
     """创建 interval 任务后应同时注册到 APScheduler。"""
@@ -1861,6 +1892,7 @@ async def test_cron_trigger_validation():
 
 
 # test_runner.py
+
 
 async def test_runner_acquires_and_releases_lock():
     """执行前后分布式锁正确获取和释放。"""

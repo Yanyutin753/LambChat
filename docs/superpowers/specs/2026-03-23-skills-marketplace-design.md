@@ -170,10 +170,7 @@ async def get_user_active_skills(user_id: str) -> dict[str, dict[str, str]]:
 
     # 2. 批量获取这些 skill 的所有文件
     skill_names = [t["skill_name"] for t in toggles]
-    files = await db.skill_files.find({
-        "user_id": user_id,
-        "skill_name": {"$in": skill_names}
-    })
+    files = await db.skill_files.find({"user_id": user_id, "skill_name": {"$in": skill_names}})
 
     # 3. 组装成 { skill_name: { file_path: content } }
     return group_files_by_skill(files)
@@ -189,33 +186,35 @@ async def install_marketplace_skill(skill_name: str, user_id: str) -> None:
         raise ValueError(f"Marketplace skill '{skill_name}' not found")
 
     # 2. 检查用户是否已安装
-    existing = await db.skill_toggles.find_one({
-        "skill_name": skill_name, "user_id": user_id
-    })
+    existing = await db.skill_toggles.find_one({"skill_name": skill_name, "user_id": user_id})
     if existing:
         raise ValueError(f"Skill '{skill_name}' already installed")
 
     # 3. 批量复制文件到用户目录
     files = await db.skill_marketplace_files.find({"skill_name": skill_name})
     for file in files:
-        await db.skill_files.insert_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-            "file_path": file["file_path"],
-            "content": file["content"],
-            "created_at": now(),
-            "updated_at": now(),
-        })
+        await db.skill_files.insert_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+                "file_path": file["file_path"],
+                "content": file["content"],
+                "created_at": now(),
+                "updated_at": now(),
+            }
+        )
 
     # 4. 创建开关记录
-    await db.skill_toggles.insert_one({
-        "skill_name": skill_name,
-        "user_id": user_id,
-        "enabled": True,
-        "installed_from": "marketplace",
-        "created_at": now(),
-        "updated_at": now(),
-    })
+    await db.skill_toggles.insert_one(
+        {
+            "skill_name": skill_name,
+            "user_id": user_id,
+            "enabled": True,
+            "installed_from": "marketplace",
+            "created_at": now(),
+            "updated_at": now(),
+        }
+    )
 ```
 
 ### 5.3 沙箱写入 Skills（无需注册）
@@ -229,7 +228,7 @@ async def awrite(file_path: str, content: str) -> WriteResult:
     await db.skill_files.update_one(
         {"skill_name": skill_name, "user_id": user_id, "file_path": file_name},
         {"$set": {"content": content, "updated_at": now()}},
-        upsert=True
+        upsert=True,
     )
 
     # 3. 如果 skill_toggles 中没有该 skill，自动创建开关（enabled=True）
@@ -270,26 +269,30 @@ async def migrate_system_skills_to_marketplace():
     # 1. 读取所有 system_skills
     for doc in db.system_skills.find({}):
         # 2. 导入元数据到 skill_marketplace
-        db.skill_marketplace.insert_one({
-            "skill_name": doc["name"],
-            "description": doc.get("description", ""),
-            "tags": [],
-            "version": doc.get("version", "1.0.0"),
-            "created_at": doc.get("created_at"),
-            "updated_at": doc.get("updated_at"),
-            "created_by": doc.get("updated_by", "system"),
-        })
+        db.skill_marketplace.insert_one(
+            {
+                "skill_name": doc["name"],
+                "description": doc.get("description", ""),
+                "tags": [],
+                "version": doc.get("version", "1.0.0"),
+                "created_at": doc.get("created_at"),
+                "updated_at": doc.get("updated_at"),
+                "created_by": doc.get("updated_by", "system"),
+            }
+        )
 
         # 3. 复制文件到 skill_marketplace_files
         files = db.skill_files.find({"skill_name": doc["name"], "user_id": "system"})
         for file in files:
-            db.skill_marketplace_files.insert_one({
-                "skill_name": file["skill_name"],
-                "file_path": file["file_path"],
-                "content": file["content"],
-                "created_at": file.get("created_at"),
-                "updated_at": file.get("updated_at"),
-            })
+            db.skill_marketplace_files.insert_one(
+                {
+                    "skill_name": file["skill_name"],
+                    "file_path": file["file_path"],
+                    "content": file["content"],
+                    "created_at": file.get("created_at"),
+                    "updated_at": file.get("updated_at"),
+                }
+            )
 
     logger.info(f"Migrated {count} system skills to marketplace")
 ```

@@ -306,10 +306,10 @@ release_assets: list[ReleaseAsset] | None = None
 Where `ReleaseAsset` contains:
 ```python
 class ReleaseAsset(BaseModel):
-    name: str           # e.g., "LambChat-v2.6.0-android-signed.apk"
-    url: str            # download URL
-    size: int | None    # file size in bytes
-    content_type: str   # MIME type
+    name: str  # e.g., "LambChat-v2.6.0-android-signed.apk"
+    url: str  # download URL
+    size: int | None  # file size in bytes
+    content_type: str  # MIME type
 ```
 
 This lets the mobile frontend find the correct APK without directly calling the GitHub API.

@@ -212,12 +212,14 @@ async def test_index_trace_materializes_completed_turn(fake_history_service) -> 
     stored = await fake_history_service.index_trace("trace-1")
 
     assert stored is True
-    assert fake_history_service.trace_collection.last_update["$set"][
-        "conversation_search.version"
-    ] == 1
-    assert "parser" in fake_history_service.trace_collection.last_update["$set"][
-        "conversation_search.terms"
-    ]
+    assert (
+        fake_history_service.trace_collection.last_update["$set"]["conversation_search.version"]
+        == 1
+    )
+    assert (
+        "parser"
+        in fake_history_service.trace_collection.last_update["$set"]["conversation_search.terms"]
+    )
 
 
 @pytest.mark.asyncio
@@ -258,9 +260,7 @@ async def test_search_returns_stable_opaque_cursor_and_match_source(fake_history
 @pytest.mark.asyncio
 async def test_get_detail_pages_session_but_exact_run_is_single_turn(fake_history_service) -> None:
     page = await fake_history_service.get_detail("user-1", "session-1", limit=2)
-    exact = await fake_history_service.get_detail(
-        "user-1", "session-1", run_id="run-1", limit=20
-    )
+    exact = await fake_history_service.get_detail("user-1", "session-1", run_id="run-1", limit=20)
 
     assert len(page["turns"]) == 2
     assert page["next_cursor"]
@@ -771,9 +771,7 @@ async def test_export_and_get_return_valid_source_refs(client, seeded_memory) ->
     exported = await client.get("/api/v1/memories/export")
 
     assert detail.json()["source_refs"] == [{"session_id": "s1", "run_id": "r1"}]
-    assert exported.json()["memories"][0]["source_refs"] == [
-        {"session_id": "s1", "run_id": "r1"}
-    ]
+    assert exported.json()["memories"][0]["source_refs"] == [{"session_id": "s1", "run_id": "r1"}]
 ```
 
 Add an import test where one valid and one foreign reference are supplied; only the valid reference may be stored.
