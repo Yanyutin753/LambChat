@@ -1,5 +1,39 @@
 # Changelog
 
+## v2.7.0 (2026-08-28)
+
+### ✨ New Features
+
+- Add a production memory system: auto-capture of full exchanges with a daily cap, query-time relevance injection with write-time persistence (sent bytes == stored bytes), context-field scope filtering across recall/tools/API/panels, an opt-in VFS working-memory layer, embedding model hot-swap, and automatic vector index creation (#264).
+- Fold assistant mid-run process output into a Codex-style status summary line with working/done states and design-aligned default expansion (#267).
+- Add trace window pagination for session events to keep long sessions responsive.
+- Add SEO foundations: a real sitemap, self-hosted fonts, compressed og images, HEAD request support, www 301, and hreflang with real paths (#258, #259, #260).
+- Add Git-flow release infrastructure: a develop integration branch with dated images, a staging environment, and a main merge gate (#263); AGENTS.md becomes the single source of development conventions (#262).
+- Add a running-state composer placeholder hinting that typed follow-ups queue as ordered steers.
+
+### 🐛 Bug Fixes
+
+- Fix previews and exports for networks that cannot reach object storage: every upload-file fetch (document/excalidraw/code previews, project reveal, ZIP export) retries once through the app proxy (`?proxy=true`) when the direct redirect target fails; image previews switch to blobs and video/audio/DXF gain fallback paths (#269).
+- Fix the embedded arq worker silently dropping out of queue consumption after unsupervised future failures — workers are now supervised and restarted (#261).
+- Fix GPT 401s from upstream key exhaustion by routing auth errors into the fallback chain (#252); stop sending the hardcoded 0.7 temperature so unset models use provider defaults (#250); split first-byte and total stream timeouts for unstable relays (#239); deduplicate replayed upstream response ids via UniqueResponseIdMiddleware (#245).
+- Fix assistant-reply misalignment when resending the same user message (#247).
+- Fix long-session open freezes caused by full prefetch and quadratic rebuilds (#248).
+- Fix distributed-runtime configuration: connection settings are env-authoritative with masked alerts, and upload URLs follow the actual entry origin (#249, #253).
+- Fix the /stream route being hijacked by a helper, with route-binding regression tests.
+- Fix settings.set on unregistered keys no longer triggering cross-instance broadcasts.
+- Fix streaming timers frozen behind a static elapsed value and align the collapse summary color with body text (#267).
+- Fix share pages stuck in the sepia theme and add /fonts/ to the anonymous auth whitelist.
+
+### ♻️ Refactors
+
+- Unify scroll behavior and font styles (font-serif) across components; format the whole repository with ruff, docs code blocks included.
+
+### 🧪 Tests & Infrastructure
+
+- Add a production distributed regression suite (load balancing, auth, sessions, arq consumption, SSE/WS delivery, checkpoints, uploads, scheduled tasks); repair the CI reds from an escaped direct push and split oversized frontend hooks (#255, #257).
+
+---
+
 ## v2.6.0 (2026-08-23)
 
 ### ✨ New Features
