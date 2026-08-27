@@ -8,7 +8,7 @@ import {
   getRunStartedAtMs,
   splitRunTailGroups,
   type RunPartGroup,
-} from "../runStepsCollapse";
+} from "../runStepsCollapseUtils";
 
 function text(content: string): MessagePart {
   return { type: "text", content };
