@@ -397,9 +397,18 @@ class S3StorageService:
         """Get public URL for a file"""
         return await self._get_backend().get_url(key)
 
-    async def get_presigned_url(self, key: str, expires: int = 3600) -> str:
-        """Get presigned URL for a file (for private buckets)"""
-        return await self._get_backend().get_presigned_url(key, expires)
+    async def get_presigned_url(
+        self, key: str, expires: int = 3600, process: str | None = None
+    ) -> str:
+        """Get presigned URL for a file (for private buckets).
+
+        `process` requests provider-side processing (e.g. OSS image crop)
+        and is signed into the URL; backends without support raise TypeError.
+        """
+        backend = self._get_backend()
+        if process is None:
+            return await backend.get_presigned_url(key, expires)
+        return await backend.get_presigned_url(key, expires, process=process)
 
     async def list_files(self, folder: str) -> list[str]:
         """List files in a folder"""

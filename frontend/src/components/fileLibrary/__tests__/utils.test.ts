@@ -201,3 +201,20 @@ test("ImageViewer shows a loading affordance while switched images load", () => 
   expect(source).toMatch(/skeleton-line/);
   expect(source).toMatch(/opacity: isImageLoading \? 0\.45 : 1/);
 });
+
+test("builds a video card preview that opts into OSS snapshot covers", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "demo-clip.mp4",
+      file_type: "video",
+      mime_type: "video/mp4",
+      url: "https://b.oss-cn-hongkong.aliyuncs.com/p/demo-clip.mp4",
+    }),
+  );
+
+  expect(preview.kind).toBe("video");
+  expect(preview.badge).toBe("MP4");
+  expect(preview.imageUrl).toBe(
+    "https://b.oss-cn-hongkong.aliyuncs.com/p/demo-clip.mp4",
+  );
+});

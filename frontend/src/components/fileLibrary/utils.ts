@@ -85,6 +85,7 @@ export type FileCardPreviewKind =
   | "code"
   | "markdown"
   | "project"
+  | "video"
   | "document"
   | "fallback";
 
@@ -332,6 +333,18 @@ export function buildFileCardPreview(
       title,
       subtitle: description || label,
       badge: ext || "Image",
+      lines: [],
+      colorName,
+      imageUrl: file.url,
+    };
+  }
+
+  if (file.file_type === "video" && file.url) {
+    return {
+      kind: "video",
+      title,
+      subtitle: description || label,
+      badge: ext || "Video",
       lines: [],
       colorName,
       imageUrl: file.url,

@@ -201,16 +201,17 @@ class AliyunOssBackend(S3StorageBackend):
     async def get_url(self, key: str) -> str:
         return self.config.get_public_url(key)
 
-    async def get_presigned_url(self, key: str, expires: int = 3600) -> str:
+    async def get_presigned_url(
+        self, key: str, expires: int = 3600, process: str | None = None
+    ) -> str:
         bucket = await run_blocking_io(self._get_bucket)
 
         def _get_url():
-            return bucket.sign_url(
-                "GET",
-                key,
-                expires,
-                params={"response-content-disposition": "inline"},
-            )
+            params = {"response-content-disposition": "inline"}
+            if process:
+                # Signed server-side processing (image crop / video snapshot)
+                params["x-oss-process"] = process
+            return bucket.sign_url("GET", key, expires, params=params)
 
         return await run_blocking_io(_get_url)
 

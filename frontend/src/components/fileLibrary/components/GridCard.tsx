@@ -3,7 +3,7 @@ import { MoreHorizontal } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
 import { getFileTypeInfo } from "../../documents/utils";
 import { useContextMenu } from "../hooks/useContextMenu";
-import { buildFileCardPreview, buildMeta } from "../utils";
+import { buildFileCardPreview, buildMeta, getExt } from "../utils";
 import { FileContextMenu } from "./FileContextMenu";
 import { FileCardPreview } from "./FileCardPreview";
 
@@ -68,7 +68,15 @@ export function GridCard({
 
         {/* Preview area */}
         <div className="aspect-[16/9] overflow-hidden relative bg-theme-bg-subtle">
-          <FileCardPreview preview={cardPreview} icon={FileIcon} />
+          <FileCardPreview
+            preview={cardPreview}
+            icon={FileIcon}
+            watermark={
+              isProject
+                ? (file.project_meta?.template || "APP").toUpperCase()
+                : getExt(file.file_name) || undefined
+            }
+          />
         </div>
 
         {/* Meta footer */}
