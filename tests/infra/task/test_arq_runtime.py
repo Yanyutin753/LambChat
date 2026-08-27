@@ -165,3 +165,86 @@ async def test_stop_arq_runtime_does_not_create_singleton_when_unused() -> None:
     await arq_runtime.stop_arq_runtime()
 
     assert arq_runtime._runtime is None
+
+
+def _arq_settings() -> SimpleNamespace:
+    return SimpleNamespace(
+        TASK_BACKEND="arq",
+        ARQ_EMBEDDED_WORKER=True,
+        ARQ_WORKER_MAX_JOBS=128,
+        ARQ_JOB_TIMEOUT_SECONDS=30,
+        ARQ_QUEUE_NAME="lambchat:arq",
+        REDIS_URL="redis://localhost:6379/0",
+        REDIS_PASSWORD=None,
+    )
+
+
+async def _wait_until(predicate, timeout: float = 2.0) -> None:
+    for _ in range(int(timeout / 0.01)):
+        if predicate():
+            return
+        await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_worker_crash_restarts_worker_and_keeps_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """worker 异常退出必须自动重建（2026-08-27 生产事故：裸 future 静默死亡，副本退出消费）。"""
+
+    class _CrashOnceWorker(_FakeWorker):
+        runs = 0
+
+        async def async_run(self) -> None:
+            type(self).runs += 1
+            if type(self).runs == 1:
+                raise RuntimeError("simulated worker crash")
+            await self.closed.wait()
+
+    _FakeWorker.instances.clear()
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+
+    runtime = arq_runtime.EmbeddedArqRuntime(
+        worker_factory=_CrashOnceWorker, restart_delay_seconds=0.01
+    )
+    await runtime.start()
+
+    await _wait_until(lambda: len(_FakeWorker.instances) >= 2)
+
+    assert len(_FakeWorker.instances) == 2
+    assert runtime.is_running is True
+
+    await runtime.stop()
+    assert runtime.is_running is False
+    assert _FakeWorker.instances[1].closed.is_set()
+
+
+@pytest.mark.asyncio
+async def test_worker_silent_exit_restarts_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """worker 无异常但返回（静默退出）同样要重建。"""
+
+    class _ExitOnceWorker(_FakeWorker):
+        runs = 0
+
+        async def async_run(self) -> None:
+            type(self).runs += 1
+            if type(self).runs == 1:
+                return
+            await self.closed.wait()
+
+    _FakeWorker.instances.clear()
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+
+    runtime = arq_runtime.EmbeddedArqRuntime(
+        worker_factory=_ExitOnceWorker, restart_delay_seconds=0.01
+    )
+    await runtime.start()
+
+    await _wait_until(lambda: len(_FakeWorker.instances) >= 2)
+
+    assert len(_FakeWorker.instances) == 2
+    assert runtime.is_running is True
+
+    await runtime.stop()
