@@ -64,9 +64,7 @@ async def test_initialize_settings_does_not_log_redis_url(monkeypatch, caplog):
 
 @pytest.mark.asyncio
 @patch("pywebpush.webpush")
-async def test_send_push_error_log_omits_endpoint_and_exception_text(
-    mock_webpush, caplog
-):
+async def test_send_push_error_log_omits_endpoint_and_exception_text(mock_webpush, caplog):
     endpoint = "https://push.example.test/subscription-secret"
     mock_webpush.side_effect = ConnectionError(f"failed endpoint={endpoint}")
     manager = PushManager()
@@ -93,6 +91,7 @@ Expected: FAIL because startup logs the complete Redis URL and push failures log
 @pytest.mark.asyncio
 async def test_ws_client_disables_sdk_info_connection_url_logs(monkeypatch):
     captured = {}
+
     class FakeClient:
         def __init__(self, app_id, app_secret, **kwargs):
             captured.update(kwargs)
@@ -137,7 +136,7 @@ logger.warning(
 )
 
 # src/infra/channel/feishu/channel.py
-log_level=lark.LogLevel.WARNING
+log_level = lark.LogLevel.WARNING
 logger.warning(
     "Feishu WebSocket error for user %s: error_type=%s",
     self.config.user_id,
@@ -240,7 +239,9 @@ def admin_token():
 @pytest.mark.parametrize("reference", ["model-id", "openai/deleted-model"])
 async def test_delete_model_clears_matching_compaction_reference(monkeypatch, reference):
     settings_service = FakeSettingsService(reference)
-    storage = FakeModelStorage(ModelConfig(id="model-id", value="openai/deleted-model", label="Deleted"))
+    storage = FakeModelStorage(
+        ModelConfig(id="model-id", value="openai/deleted-model", label="Deleted")
+    )
     install_delete_route_fakes(monkeypatch, storage, settings_service)
     await model_routes.delete_model("model-id", admin_token())
     assert settings_service.values["NATIVE_MEMORY_COMPACTION_MODEL_ID"] == ""
@@ -250,7 +251,9 @@ async def test_delete_model_clears_matching_compaction_reference(monkeypatch, re
 @pytest.mark.asyncio
 async def test_delete_model_preserves_unrelated_compaction_reference(monkeypatch):
     settings_service = FakeSettingsService("other-model")
-    storage = FakeModelStorage(ModelConfig(id="model-id", value="openai/deleted-model", label="Deleted"))
+    storage = FakeModelStorage(
+        ModelConfig(id="model-id", value="openai/deleted-model", label="Deleted")
+    )
     install_delete_route_fakes(monkeypatch, storage, settings_service)
     await model_routes.delete_model("model-id", admin_token())
     assert settings_service.values["NATIVE_MEMORY_COMPACTION_MODEL_ID"] == "other-model"
@@ -325,9 +328,7 @@ git commit -m "fix: clear deleted compaction model references"
         "data:image/png;base64,",
     ],
 )
-async def test_image_analyze_rejects_invalid_data_url_without_model_call(
-    monkeypatch, image_ref
-):
+async def test_image_analyze_rejects_invalid_data_url_without_model_call(monkeypatch, image_ref):
     model = ModelConfig(
         id="vision-id",
         value="openai/gpt-4o-mini",
@@ -335,6 +336,7 @@ async def test_image_analyze_rejects_invalid_data_url_without_model_call(
         profile=ModelProfile(supports_vision=True),
     )
     calls = 0
+
     class FailIfInvoked:
         async def ainvoke(self, messages, config=None):
             nonlocal calls
@@ -350,9 +352,11 @@ async def test_image_analyze_rejects_invalid_data_url_without_model_call(
         lambda: _FakeStorage(model),
     )
     monkeypatch.setattr(image_analysis_tool.LLMClient, "get_model", fake_get_model)
-    result = json.loads(await image_analysis_tool.image_analyze.coroutine(
-        image_urls=[image_ref], prompt="Describe", runtime=_Runtime()
-    ))
+    result = json.loads(
+        await image_analysis_tool.image_analyze.coroutine(
+            image_urls=[image_ref], prompt="Describe", runtime=_Runtime()
+        )
+    )
     assert result == {"error": "Invalid image data URL"}
     assert calls == 0
 ```

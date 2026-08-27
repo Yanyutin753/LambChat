@@ -221,8 +221,7 @@ async def resolve_session_prompt_snapshot(
     self,
     session_metadata: Mapping[str, Any],
     assistant_id: str | None,
-) -> tuple[str | None, dict[str, Any]]:
-    ...
+) -> tuple[str | None, dict[str, Any]]: ...
 ```
 
 Return the resolved prompt plus any session metadata fields that should be written back.
@@ -445,9 +444,7 @@ if not assistant_prompt:
 Then build prompt sections in this order:
 
 ```python
-_prompt_sections = [
-    s for s in (assistant_prompt, skills_prompt, memory_guide) if s
-]
+_prompt_sections = [s for s in (assistant_prompt, skills_prompt, memory_guide) if s]
 ```
 
 Do not place the assistant prompt after memory or after prompt caching.

@@ -53,8 +53,10 @@ class ShareScope(str, Enum):
     SESSION = "session"
     PROJECT = "project"
 
+
 class ProjectSnapshot(BaseModel):
     """冻结的项目展示信息，项目改名/删除后仍可稳定渲染。"""
+
     id: str
     name: str
     icon: Optional[str] = None
@@ -64,15 +66,15 @@ class ProjectSnapshot(BaseModel):
 
 ```python
 class ShareCreate(BaseModel):
-    session_id: Optional[str] = None        # 由必填改为可选（scope=session 时必填）
+    session_id: Optional[str] = None  # 由必填改为可选（scope=session 时必填）
     share_type: ShareType = ShareType.FULL
-    run_ids: Optional[list[str]] = None     # scope=session 且 partial 时必填（不变）
+    run_ids: Optional[list[str]] = None  # scope=session 且 partial 时必填（不变）
     visibility: ShareVisibility = ShareVisibility.PUBLIC
 
     # 新增
     share_scope: ShareScope = ShareScope.SESSION
-    project_id: Optional[str] = None            # scope=project 时必填
-    session_ids: Optional[list[str]] = None     # scope=project 且 partial 时必填（快照）
+    project_id: Optional[str] = None  # scope=project 时必填
+    session_ids: Optional[list[str]] = None  # scope=project 且 partial 时必填（快照）
 ```
 
 > `session_id` 由必填改为可选**向后兼容**：现有前端创建会话分享时仍会带上该字段，不受影响。
@@ -82,10 +84,10 @@ class ShareCreate(BaseModel):
 ```python
 class SharedSession(BaseModel):
     # ...现有字段不变...
-    share_scope: ShareScope = ShareScope.SESSION       # 老数据默认 session
+    share_scope: ShareScope = ShareScope.SESSION  # 老数据默认 session
     project_id: Optional[str] = None
-    session_ids: Optional[list[str]] = None            # project partial 快照
-    project_snapshot: Optional[ProjectSnapshot] = None # 冻结的展示信息
+    session_ids: Optional[list[str]] = None  # project partial 快照
+    project_snapshot: Optional[ProjectSnapshot] = None  # 冻结的展示信息
 ```
 
 ### 新增响应模型
@@ -93,12 +95,14 @@ class SharedSession(BaseModel):
 ```python
 class SharedProjectSessionItem(BaseModel):
     """manifest 中的子会话摘要（不含完整事件）。"""
+
     id: str
     name: Optional[str] = None
     agent_name: Optional[str] = None
     model: Optional[str] = None
     updated_at: datetime
     event_count: int = 0
+
 
 class SharedProjectContentResponse(BaseModel):
     share_scope: ShareScope = ShareScope.PROJECT
@@ -107,9 +111,9 @@ class SharedProjectContentResponse(BaseModel):
     sessions: list[SharedProjectSessionItem]
     owner: SharedContentOwner
     visibility: ShareVisibility
-    events_limited: bool = False     # 子会话事件走二级接口，此处恒 False
+    events_limited: bool = False  # 子会话事件走二级接口，此处恒 False
     events_limit: Optional[int] = None
-    sessions_total: int = 0          # live 模式下项目实际成员总数（用于分页）
+    sessions_total: int = 0  # live 模式下项目实际成员总数（用于分页）
 ```
 
 `SharedSessionResponse` / `SharedSessionListItem` 增加 `share_scope`、`project_id` 字段，便于前端区分展示。
@@ -117,7 +121,7 @@ class SharedProjectContentResponse(BaseModel):
 ### 常量
 
 ```python
-SHARE_PROJECT_SESSIONS_LIMIT = 50    # partial 模式单次可选会话数上限
+SHARE_PROJECT_SESSIONS_LIMIT = 50  # partial 模式单次可选会话数上限
 SHARE_PROJECT_MANIFEST_DEFAULT = 50  # manifest 默认返回会话数
 ```
 
@@ -131,14 +135,14 @@ def _validate_share_payload(data: ShareCreate) -> None:
         if not data.session_id:
             raise HTTPException(400, "会话分享需要 session_id")
         if data.share_type == ShareType.PARTIAL:
-            _validate_share_run_ids(data)        # 复用现有逻辑
+            _validate_share_run_ids(data)  # 复用现有逻辑
         return
 
     # scope == PROJECT
     if not data.project_id:
         raise HTTPException(400, "项目分享需要 project_id")
     if data.share_type == ShareType.FULL:
-        return                                   # 实时模式，无需 session_ids
+        return  # 实时模式，无需 session_ids
     # PARTIAL：需要 session_ids 快照
     if not data.session_ids:
         raise HTTPException(400, "部分项目分享需要 session_ids")

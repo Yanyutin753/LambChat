@@ -1,6 +1,8 @@
 # LambChat 开发指南
 
-本文件是 LambChat 项目的开发指南。优先响应当前请求；当请求未提供特殊说明时，遵循以下项目约定。
+本文件是 LambChat 项目唯一的开发规范（single source of truth）。`CLAUDE.md` 等其他 Agent 指引文件只做转发，不要在别处复制维护本文件内容。
+
+优先响应当前请求；当请求未提供特殊说明时，遵循以下项目约定。
 
 ## 项目概览
 
@@ -15,11 +17,86 @@ LambChat 是全栈 AI Agent 平台：
 
 | 目录 | 用途 |
 |------|------|
-| `src/` | 后端代码 (agents, api, infra, kernel, skills) |
+| `src/` | 后端代码 (agents, api, infra, kernel) |
 | `frontend/` | 前端代码 (Web + Mobile + Desktop) |
 | `tests/` | Python 测试 (镜像 src/ 结构) |
-| `deploy/` | Docker, Kubernetes 部署资源 |
-| `docs/` | 项目文档站点 |
+| `deploy/` | docker-compose 单机部署（`deploy.sh` + `docker-compose.yml`） |
+| `k8s/` | Kubernetes/k3s 生产清单 |
+| `docs/` | 项目文档站点 (VitePress) |
+
+## 代码架构
+
+### 后端分层结构
+
+目录以仓库实际内容为准；新增/删除模块时同步更新本节。
+
+```
+src/
+├── agents/            # Agent 图执行层
+│   ├── core/          # BaseGraphAgent 基类、@register_agent 注册、AgentFactory（base.py）
+│   ├── fast_agent/    # 快速 Agent
+│   ├── search_agent/  # 搜索 Agent
+│   └── team_agent/    # 团队 Agent
+├── api/               # FastAPI 层
+│   ├── main.py        # 应用入口（路由注册、生命周期）
+│   ├── routes/        # 路由模块：chat、chat_sse、auth、session、mcp、skill、upload、settings、share、usage 等
+│   ├── middleware/    # 全局中间件
+│   └── deps.py        # 依赖注入
+├── infra/             # 基础设施层：40+ 按业务域命名的包，常用的有
+│   ├── agent/         # Agent 事件处理（events/processor.py）、任务管理
+│   ├── auth/          # 认证授权
+│   ├── chat/          # 会话消息处理
+│   ├── llm/           # LLM 客户端（多 provider、多协议、请求头策略）
+│   ├── mcp/           # MCP 工具管理、配置加密
+│   ├── sandbox/       # 代码沙箱执行
+│   ├── skill/         # 技能加载与市场（内置技能在这里，仓库已无 src/skills/）
+│   ├── storage/       # MongoDB、S3、checkpointer
+│   ├── task/          # arq 后台任务队列
+│   └── …              # session、user、role、upload、search、notification、memory、share 等
+└── kernel/            # 共享内核（不依赖 src/ 其他层）
+    ├── config.py      # 全局配置定义
+    ├── schemas/       # Pydantic 模型
+    ├── types.py       # 类型定义
+    └── exceptions.py  # 统一异常
+```
+
+### 前端结构
+
+```
+frontend/src/
+├── components/        # React 组件（按功能分 20+ 子目录），常用的有
+│   ├── chat/          # 聊天界面、消息渲染、工具面板
+│   ├── panels/        # 侧边面板（MCP、技能、文件等；目录名是复数 panels）
+│   ├── agent/         # Agent 选择器、模型配置
+│   ├── pages/         # 页面组件
+│   ├── sidebar/       # 侧边栏
+│   └── …              # auth、common、persona、team、share、pwa、update 等
+├── services/          # API 客户端（api/）、通知（notifications/）
+├── stores/            # 状态管理
+├── hooks/             # 自定义 Hook（含 useAgent 等）
+├── i18n/              # 国际化文案
+├── utils/             # 工具函数
+├── contexts/          # React Context
+├── constants/         # 常量
+├── types/             # TS 类型
+├── styles/            # 样式
+└── workers/           # Web Worker（图片压缩、hash、剪贴板图片）
+```
+
+### Agent 执行流程
+
+1. **请求接入** → API 路由接收消息，创建 `Presenter`
+2. **Graph 执行** → Agent 通过 `BaseGraphAgent.stream()` 执行 LangGraph
+3. **事件处理** → `AgentEventProcessor` 将 LangGraph 事件转换为 SSE 事件
+4. **实时推送** → 通过 SSE/WebSocket 推送到前端
+5. **状态持久化** → Checkpointer 保存到 MongoDB/PostgreSQL
+
+### 关键设计模式
+
+- **Agent 注册**：使用 `@register_agent("id")` 装饰器注册，通过 `AgentFactory.get()` 获取单例
+- **Presenter 模式**：Agent 节点通过 `config["configurable"]["presenter"]` 输出 SSE 事件
+- **Checkpointer**：LangGraph 状态持久化，支持 MongoDB（默认）和 PostgreSQL
+- **任务队列**：arq 后台任务，支持本地和 Redis 执行
 
 ## 分支与发布流程
 
@@ -88,15 +165,16 @@ make install-all
 
 # 启动开发环境
 make dev-all          # 同时启动前后端
-make dev             # 仅后端
-make frontend-dev    # 仅前端
+make dev              # 仅后端
+make frontend-dev     # 仅前端
 
 # 构建
 make build-all
 make frontend-build
 
 # 质量检查
-make lint             # Ruff 代码检查
+make lint             # Ruff 代码检查（全仓）
+make format           # Ruff 格式化（全仓，含 Markdown 内代码块）
 make typecheck        # Mypy 类型检查
 make test             # 运行所有测试（前端 vitest + 后端 pytest）
 make frontend-test    # 仅运行前端测试
@@ -108,8 +186,8 @@ make check-all        # 运行所有检查
 ```bash
 cd frontend && pnpm run lint
 cd frontend && pnpm run build
-cd frontend && pnpm test           # vitest run（单次运行）
-cd frontend && pnpm run test:watch  # vitest（watch 模式，TDD 开发核心命令）
+cd frontend && pnpm test               # vitest run（单次运行）
+cd frontend && pnpm run test:watch     # vitest（watch 模式，TDD 开发核心命令）
 cd frontend && pnpm run test:coverage  # 带覆盖率报告
 ```
 
@@ -237,12 +315,55 @@ test("works correctly", () => { /* 过于笼统 */ });
 - 编辑前先阅读现有模块，保持当前架构、命名和代码风格。
 - Python 后端使用 `uv`，不要混用 `pip install`。
 - 前端使用 `pnpm`，不要提交 `node_modules/` 或构建产物。
-- Python 代码遵循 `pyproject.toml` 中的 Ruff、Mypy、Pytest 配置。
+- Python 代码遵循 `pyproject.toml` 中的 Ruff、Mypy、Pytest 配置；格式统一交给 `make format`（ruff），不要手工维持另一种风格。
 - TypeScript/React 代码遵循 `frontend/package.json` 和 Vite/ESLint 配置。
 - 面向用户的文案遵循现有的 i18n 结构，不要只更新一个 locale。
 - 对 auth、RBAC、model keys、MCP secrets、文件访问、sandbox 执行等敏感路径，采用保守变更并添加验证。
 - 不要随意重构无关代码，保持变更范围紧凑。
 - 不要覆盖未提交的用户变更。
+
+### Agent 开发
+
+创建新 Agent：
+
+```python
+from src.agents.core import BaseGraphAgent, register_agent
+
+
+@register_agent("my_agent")
+class MyAgent(BaseGraphAgent):
+    _agent_name = "My Agent"
+    _description = "Description"
+    _sort_order = 100
+
+    def build_graph(self, builder):
+        builder.add_node("agent", self.agent_node)
+        builder.set_entry_point("agent")
+        builder.add_edge("agent", END)
+
+    async def agent_node(self, state, config):
+        presenter = config["configurable"]["presenter"]
+        presenter.present_text("Hello")
+        return {"output": "done"}
+```
+
+### 环境配置
+
+**必须配置的密钥（生产环境）：**
+
+```bash
+JWT_SECRET_KEY=              # JWT 签名密钥
+MCP_ENCRYPTION_SALT=         # MCP 配置加密盐
+```
+
+**可选但推荐：**
+
+```bash
+MONGODB_URL=mongodb://localhost:27017
+REDIS_URL=redis://localhost:6379/0
+```
+
+LLM 模型通过 **Model Config UI** 配置，无需在环境变量中设置 API Key（除非需要独立的标题生成模型）。
 
 ## 验证指南
 
@@ -253,7 +374,7 @@ test("works correctly", () => { /* 过于笼统 */ });
 | 前端逻辑 | `cd frontend && pnpm test` |
 | 前端组件 | `cd frontend && pnpm test` + `cd frontend && pnpm run build` |
 | 前端格式/类型 | `cd frontend && pnpm run lint` + `cd frontend && pnpm run build` |
-| 后端逻辑 | `uv run pytest` (相关测试) |
+| 后端逻辑 | `uv run pytest`（相关测试） |
 | 后端格式/类型 | `make lint` + `make typecheck` |
 | 跨栈变更 | `make check-all` |
 | 文档变更 | 确认 Markdown 链接、命令和路径正确 |

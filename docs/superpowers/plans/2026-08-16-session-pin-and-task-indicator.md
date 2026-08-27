@@ -71,9 +71,11 @@ async def test_toggle_pin_initial_pin(storage):
     storage.collection = MagicMock()
     storage.collection.find_one = AsyncMock(return_value=fake_doc)
     storage.collection.find_one_and_update = AsyncMock(return_value=updated_doc)
-    storage._build_session = MagicMock(return_value=MagicMock(
-        metadata={"is_pinned": True},
-    ))
+    storage._build_session = MagicMock(
+        return_value=MagicMock(
+            metadata={"is_pinned": True},
+        )
+    )
 
     with patch("src.infra.session.storage.utc_now", return_value=now_mock):
         result = await storage.toggle_pin(session_id, user_id)
@@ -105,9 +107,11 @@ async def test_toggle_pin_unpin(storage):
     storage.collection = MagicMock()
     storage.collection.find_one = AsyncMock(return_value=fake_doc)
     storage.collection.find_one_and_update = AsyncMock(return_value=updated_doc)
-    storage._build_session = MagicMock(return_value=MagicMock(
-        metadata={"is_pinned": False},
-    ))
+    storage._build_session = MagicMock(
+        return_value=MagicMock(
+            metadata={"is_pinned": False},
+        )
+    )
 
     result = await storage.toggle_pin(session_id, user_id)
 
@@ -245,19 +249,21 @@ async def test_list_sessions_pinned_first(storage):
     storage.collection = MagicMock()
     storage.collection.find = MagicMock(return_value=mock_cursor)
     storage.collection.count_documents = AsyncMock(return_value=2)
-    storage._build_session = MagicMock(side_effect=lambda d, **kw: MagicMock(
-        id=str(d["_id"]),
-        metadata=d.get("metadata", {}),
-    ))
+    storage._build_session = MagicMock(
+        side_effect=lambda d, **kw: MagicMock(
+            id=str(d["_id"]),
+            metadata=d.get("metadata", {}),
+        )
+    )
 
     sessions, total = await storage.list_sessions(
-        user_id=user_id, skip=0, limit=20,
+        user_id=user_id,
+        skip=0,
+        limit=20,
     )
 
     # Verify sort was called with pinned first
-    mock_cursor.sort.assert_called_once_with(
-        [("metadata.is_pinned", -1), ("updated_at", -1)]
-    )
+    mock_cursor.sort.assert_called_once_with([("metadata.is_pinned", -1), ("updated_at", -1)])
     assert total == 2
     assert len(sessions) == 2
 ```
@@ -351,7 +357,12 @@ async def test_toggle_pin_success():
     ):
         # Find the route handler
         for route in router.routes:
-            if hasattr(route, "path") and route.path.endswith("/pin") and hasattr(route, "methods") and "POST" in route.methods:
+            if (
+                hasattr(route, "path")
+                and route.path.endswith("/pin")
+                and hasattr(route, "methods")
+                and "POST" in route.methods
+            ):
                 handler = route.endpoint
                 response = await handler(session_id, user=user)
                 assert response["status"] == "updated"

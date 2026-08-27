@@ -51,9 +51,7 @@ async def test_get_by_ids_uses_one_bounded_query_and_returns_id_map() -> None:
     storage = PersonaPresetStorage()
     storage._collection = _Collection()
 
-    result = await storage.get_by_ids(
-        [str(first), "invalid", str(second), str(first)]
-    )
+    result = await storage.get_by_ids([str(first), "invalid", str(second), str(first)])
 
     assert list(result) == [str(second), str(first)]
     assert result[str(first)]["name"] == "First"
@@ -103,11 +101,7 @@ async def get_by_ids(self, preset_ids: list[str]) -> dict[str, dict[str, Any]]:
 
     cursor = self.collection.find({"_id": {"$in": object_ids}})
     docs = await cursor.to_list(length=len(object_ids))
-    return {
-        str(doc["_id"]): self._to_model_dict(doc)
-        for doc in docs
-        if doc.get("_id") is not None
-    }
+    return {str(doc["_id"]): self._to_model_dict(doc) for doc in docs if doc.get("_id") is not None}
 ```
 
 Do not catch MongoDB errors here; the manager's best-effort display hydration owns that fallback. This keeps storage failures observable and avoids silent empty success at the storage boundary.
@@ -189,9 +183,7 @@ async def test_list_teams_hydrates_all_members_with_one_persona_query(
 
     result = await manager.list_teams(owner_user_id="user-1")
 
-    mock_persona_manager.storage.get_by_ids.assert_awaited_once_with(
-        [first_id, second_id]
-    )
+    mock_persona_manager.storage.get_by_ids.assert_awaited_once_with([first_id, second_id])
     assert [team.id for team in result.teams] == ["team-1", "team-2"]
     assert [member.member_id for member in result.teams[0].members] == ["m-1", "m-2"]
     assert result.teams[1].members[0].role_name == "Researcher"

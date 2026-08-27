@@ -39,10 +39,10 @@
 # src/infra/skill/constants.py
 
 # MongoDB collection names
-SKILL_FILES_COLLECTION = "skill_files"              # 用户文件（保持不变）
+SKILL_FILES_COLLECTION = "skill_files"  # 用户文件（保持不变）
 SKILL_MARKETPLACE_COLLECTION = "skill_marketplace"  # 新增
 SKILL_MARKETPLACE_FILES_COLLECTION = "skill_marketplace_files"  # 新增
-SKILL_TOGGLES_COLLECTION = "skill_toggles"          # 新增
+SKILL_TOGGLES_COLLECTION = "skill_toggles"  # 新增
 
 # Redis cache
 SKILLS_CACHE_KEY_PREFIX = "user_skills:"
@@ -60,12 +60,14 @@ from pydantic import BaseModel, Field
 
 class InstalledFrom(str, Enum):
     """Skill 安装来源"""
+
     MARKETPLACE = "marketplace"
     MANUAL = "manual"
 
 
 class MarketplaceSkill(BaseModel):
     """商城 Skill 元数据"""
+
     skill_name: str = Field(..., description="Skill 名称（唯一标识）")
     description: str = Field("", description="Skill 描述")
     tags: list[str] = Field(default_factory=list, description="标签列表")
@@ -77,6 +79,7 @@ class MarketplaceSkill(BaseModel):
 
 class MarketplaceSkillCreate(BaseModel):
     """创建商城 Skill 请求"""
+
     skill_name: str = Field(..., description="Skill 名称")
     description: str = Field("", description="Skill 描述")
     tags: list[str] = Field(default_factory=list, description="标签列表")
@@ -85,6 +88,7 @@ class MarketplaceSkillCreate(BaseModel):
 
 class MarketplaceSkillUpdate(BaseModel):
     """更新商城 Skill 请求"""
+
     description: Optional[str] = None
     tags: Optional[list[str]] = None
     version: Optional[str] = None
@@ -92,6 +96,7 @@ class MarketplaceSkillUpdate(BaseModel):
 
 class SkillToggle(BaseModel):
     """用户 Skill 开关"""
+
     skill_name: str
     user_id: str
     enabled: bool = True
@@ -102,6 +107,7 @@ class SkillToggle(BaseModel):
 
 class SkillFile(BaseModel):
     """Skill 文件"""
+
     skill_name: str
     user_id: str
     file_path: str
@@ -112,6 +118,7 @@ class SkillFile(BaseModel):
 
 class UserSkill(BaseModel):
     """用户 Skill 响应"""
+
     skill_name: str
     description: str = ""
     files: list[str] = Field(default_factory=list, description="文件路径列表")
@@ -124,6 +131,7 @@ class UserSkill(BaseModel):
 
 class MarketplaceSkillResponse(BaseModel):
     """商城 Skill 响应"""
+
     skill_name: str
     description: str
     tags: list[str]
@@ -193,15 +201,10 @@ class TogglesStorage:
             background=True,
         )
 
-    async def get_toggle(
-        self, skill_name: str, user_id: str
-    ) -> Optional[SkillToggle]:
+    async def get_toggle(self, skill_name: str, user_id: str) -> Optional[SkillToggle]:
         """获取用户的某个 Skill 开关状态"""
         collection = self._get_collection()
-        doc = await collection.find_one({
-            "skill_name": skill_name,
-            "user_id": user_id
-        })
+        doc = await collection.find_one({"skill_name": skill_name, "user_id": user_id})
         if not doc:
             return None
         return SkillToggle(
@@ -218,24 +221,23 @@ class TogglesStorage:
         collection = self._get_collection()
         toggles = []
         async for doc in collection.find({"user_id": user_id}):
-            toggles.append(SkillToggle(
-                skill_name=doc["skill_name"],
-                user_id=doc["user_id"],
-                enabled=doc.get("enabled", True),
-                installed_from=InstalledFrom(doc.get("installed_from", "manual")),
-                created_at=doc.get("created_at"),
-                updated_at=doc.get("updated_at"),
-            ))
+            toggles.append(
+                SkillToggle(
+                    skill_name=doc["skill_name"],
+                    user_id=doc["user_id"],
+                    enabled=doc.get("enabled", True),
+                    installed_from=InstalledFrom(doc.get("installed_from", "manual")),
+                    created_at=doc.get("created_at"),
+                    updated_at=doc.get("updated_at"),
+                )
+            )
         return toggles
 
     async def list_enabled_skills(self, user_id: str) -> list[str]:
         """列出用户所有 enabled=True 的 skill_names"""
         collection = self._get_collection()
         names = []
-        async for doc in collection.find({
-            "user_id": user_id,
-            "enabled": True
-        }):
+        async for doc in collection.find({"user_id": user_id, "enabled": True}):
             names.append(doc["skill_name"])
         return names
 
@@ -278,10 +280,7 @@ class TogglesStorage:
         collection = self._get_collection()
         now = datetime.now(timezone.utc).isoformat()
 
-        existing = await collection.find_one({
-            "skill_name": skill_name,
-            "user_id": user_id
-        })
+        existing = await collection.find_one({"skill_name": skill_name, "user_id": user_id})
 
         update_data = {
             "enabled": enabled,
@@ -292,8 +291,7 @@ class TogglesStorage:
 
         if existing:
             await collection.update_one(
-                {"skill_name": skill_name, "user_id": user_id},
-                {"$set": update_data}
+                {"skill_name": skill_name, "user_id": user_id}, {"$set": update_data}
             )
         else:
             update_data["skill_name"] = skill_name
@@ -322,19 +320,13 @@ class TogglesStorage:
     async def delete_toggle(self, skill_name: str, user_id: str) -> bool:
         """删除开关记录"""
         collection = self._get_collection()
-        result = await collection.delete_one({
-            "skill_name": skill_name,
-            "user_id": user_id
-        })
+        result = await collection.delete_one({"skill_name": skill_name, "user_id": user_id})
         return result.deleted_count > 0
 
     async def delete_user_toggles(self, user_id: str, skill_name: str) -> int:
         """删除用户某个 Skill 的开关记录"""
         collection = self._get_collection()
-        result = await collection.delete_many({
-            "user_id": user_id,
-            "skill_name": skill_name
-        })
+        result = await collection.delete_many({"user_id": user_id, "skill_name": skill_name})
         return result.deleted_count
 
     async def close(self):
@@ -446,19 +438,19 @@ class MarketplaceStorage:
         results = []
         async for doc in collection.find(query):
             # 统计文件数量
-            file_count = await files_collection.count_documents({
-                "skill_name": doc["skill_name"]
-            })
-            results.append(MarketplaceSkillResponse(
-                skill_name=doc["skill_name"],
-                description=doc.get("description", ""),
-                tags=doc.get("tags", []),
-                version=doc.get("version", "1.0.0"),
-                created_at=doc.get("created_at"),
-                updated_at=doc.get("updated_at"),
-                created_by=doc.get("created_by"),
-                file_count=file_count,
-            ))
+            file_count = await files_collection.count_documents({"skill_name": doc["skill_name"]})
+            results.append(
+                MarketplaceSkillResponse(
+                    skill_name=doc["skill_name"],
+                    description=doc.get("description", ""),
+                    tags=doc.get("tags", []),
+                    version=doc.get("version", "1.0.0"),
+                    created_at=doc.get("created_at"),
+                    updated_at=doc.get("updated_at"),
+                    created_by=doc.get("created_by"),
+                    file_count=file_count,
+                )
+            )
         return results
 
     async def get_marketplace_skill(self, skill_name: str) -> Optional[MarketplaceSkill]:
@@ -485,9 +477,7 @@ class MarketplaceStorage:
         if not skill:
             return None
         files_collection = self._get_files_collection()
-        file_count = await files_collection.count_documents({
-            "skill_name": skill_name
-        })
+        file_count = await files_collection.count_documents({"skill_name": skill_name})
         return MarketplaceSkillResponse(
             skill_name=skill.skill_name,
             description=skill.description,
@@ -533,9 +523,7 @@ class MarketplaceStorage:
         if not existing:
             return None
 
-        update_data: dict[str, Any] = {
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
+        update_data: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
         if data.description is not None:
             update_data["description"] = data.description
         if data.tags is not None:
@@ -543,10 +531,7 @@ class MarketplaceStorage:
         if data.version is not None:
             update_data["version"] = data.version
 
-        await collection.update_one(
-            {"skill_name": skill_name},
-            {"$set": update_data}
-        )
+        await collection.update_one({"skill_name": skill_name}, {"$set": update_data})
 
         updated = await collection.find_one({"skill_name": skill_name})
         return MarketplaceSkill(**updated) if updated else None
@@ -568,9 +553,7 @@ class MarketplaceStorage:
     # 文件操作
     # ==========================================
 
-    async def get_marketplace_files(
-        self, skill_name: str
-    ) -> dict[str, str]:
+    async def get_marketplace_files(self, skill_name: str) -> dict[str, str]:
         """获取商城 Skill 所有文件"""
         collection = self._get_files_collection()
         files: dict[str, str] = {}
@@ -578,20 +561,13 @@ class MarketplaceStorage:
             files[doc["file_path"]] = doc["content"]
         return files
 
-    async def get_marketplace_file(
-        self, skill_name: str, file_path: str
-    ) -> Optional[str]:
+    async def get_marketplace_file(self, skill_name: str, file_path: str) -> Optional[str]:
         """获取商城 Skill 单个文件"""
         collection = self._get_files_collection()
-        doc = await collection.find_one({
-            "skill_name": skill_name,
-            "file_path": file_path
-        })
+        doc = await collection.find_one({"skill_name": skill_name, "file_path": file_path})
         return doc["content"] if doc else None
 
-    async def set_marketplace_file(
-        self, skill_name: str, file_path: str, content: str
-    ) -> None:
+    async def set_marketplace_file(self, skill_name: str, file_path: str, content: str) -> None:
         """设置商城 Skill 单个文件"""
         collection = self._get_files_collection()
         now = datetime.now(timezone.utc).isoformat()
@@ -609,9 +585,7 @@ class MarketplaceStorage:
             upsert=True,
         )
 
-    async def sync_marketplace_files(
-        self, skill_name: str, files: dict[str, str]
-    ) -> None:
+    async def sync_marketplace_files(self, skill_name: str, files: dict[str, str]) -> None:
         """批量同步商城 Skill 文件"""
         if not files:
             return
@@ -622,9 +596,7 @@ class MarketplaceStorage:
 
         # 获取现有文件路径
         existing_paths = set()
-        async for doc in collection.find(
-            {"skill_name": skill_name}, {"file_path": 1}
-        ):
+        async for doc in collection.find({"skill_name": skill_name}, {"file_path": 1}):
             existing_paths.add(doc["file_path"])
 
         new_paths = set(files.keys())
@@ -632,9 +604,7 @@ class MarketplaceStorage:
 
         operations = []
         for path in removed_paths:
-            operations.append(
-                DeleteOne({"skill_name": skill_name, "file_path": path})
-            )
+            operations.append(DeleteOne({"skill_name": skill_name, "file_path": path}))
         for file_path, content in files.items():
             operations.append(
                 UpdateOne(
@@ -654,9 +624,7 @@ class MarketplaceStorage:
         """列出商城 Skill 所有文件路径"""
         collection = self._get_files_collection()
         paths = []
-        async for doc in collection.find(
-            {"skill_name": skill_name}, {"file_path": 1}
-        ):
+        async for doc in collection.find({"skill_name": skill_name}, {"file_path": 1}):
             paths.append(doc["file_path"])
         return paths
 
@@ -725,7 +693,7 @@ class MarketplaceStorage:
             ):
                 continue
             if name.startswith(prefix):
-                rel_path = name[len(prefix):]
+                rel_path = name[len(prefix) :]
             else:
                 rel_path = name
             if not rel_path:
@@ -853,28 +821,24 @@ class SkillStorage:
     # 文件操作
     # ==========================================
 
-    async def get_skill_files(
-        self, skill_name: str, user_id: str
-    ) -> dict[str, str]:
+    async def get_skill_files(self, skill_name: str, user_id: str) -> dict[str, str]:
         """获取用户某个 Skill 的所有文件"""
         collection = self._get_files_collection()
         files: dict[str, str] = {}
-        async for doc in collection.find(
-            {"skill_name": skill_name, "user_id": user_id}
-        ):
+        async for doc in collection.find({"skill_name": skill_name, "user_id": user_id}):
             files[doc["file_path"]] = doc["content"]
         return files
 
-    async def get_skill_file(
-        self, skill_name: str, file_path: str, user_id: str
-    ) -> Optional[str]:
+    async def get_skill_file(self, skill_name: str, file_path: str, user_id: str) -> Optional[str]:
         """获取用户某个 Skill 的单个文件"""
         collection = self._get_files_collection()
-        doc = await collection.find_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-            "file_path": file_path,
-        })
+        doc = await collection.find_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+                "file_path": file_path,
+            }
+        )
         return doc["content"] if doc else None
 
     async def set_skill_file(
@@ -892,20 +856,18 @@ class SkillStorage:
             upsert=True,
         )
 
-    async def delete_skill_file(
-        self, skill_name: str, file_path: str, user_id: str
-    ) -> None:
+    async def delete_skill_file(self, skill_name: str, file_path: str, user_id: str) -> None:
         """删除单个文件"""
         collection = self._get_files_collection()
-        await collection.delete_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-            "file_path": file_path,
-        })
+        await collection.delete_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+                "file_path": file_path,
+            }
+        )
 
-    async def sync_skill_files(
-        self, skill_name: str, files: dict[str, str], user_id: str
-    ) -> None:
+    async def sync_skill_files(self, skill_name: str, files: dict[str, str], user_id: str) -> None:
         """批量同步文件（替换所有）"""
         if not files:
             return
@@ -915,8 +877,7 @@ class SkillStorage:
         # 获取现有文件路径
         existing_paths = set()
         async for doc in collection.find(
-            {"skill_name": skill_name, "user_id": user_id},
-            {"file_path": 1}
+            {"skill_name": skill_name, "user_id": user_id}, {"file_path": 1}
         ):
             existing_paths.add(doc["file_path"])
 
@@ -928,11 +889,13 @@ class SkillStorage:
         operations = []
         for path in removed_paths:
             operations.append(
-                DeleteOne({
-                    "skill_name": skill_name,
-                    "user_id": user_id,
-                    "file_path": path,
-                })
+                DeleteOne(
+                    {
+                        "skill_name": skill_name,
+                        "user_id": user_id,
+                        "file_path": path,
+                    }
+                )
             )
         for file_path, content in files.items():
             operations.append(
@@ -952,20 +915,19 @@ class SkillStorage:
     async def delete_skill_files(self, skill_name: str, user_id: str) -> None:
         """删除用户某个 Skill 的所有文件"""
         collection = self._get_files_collection()
-        await collection.delete_many({
-            "skill_name": skill_name,
-            "user_id": user_id,
-        })
+        await collection.delete_many(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+            }
+        )
 
-    async def list_skill_file_paths(
-        self, skill_name: str, user_id: str
-    ) -> list[str]:
+    async def list_skill_file_paths(self, skill_name: str, user_id: str) -> list[str]:
         """列出用户某个 Skill 的所有文件路径"""
         collection = self._get_files_collection()
         paths = []
         async for doc in collection.find(
-            {"skill_name": skill_name, "user_id": user_id},
-            {"file_path": 1}
+            {"skill_name": skill_name, "user_id": user_id}, {"file_path": 1}
         ):
             paths.append(doc["file_path"])
         return paths
@@ -976,9 +938,7 @@ class SkillStorage:
 
         # 获取用户所有 skill_name（去重）
         skill_names: set[str] = set()
-        async for doc in collection.find(
-            {"user_id": user_id}, {"skill_name": 1}
-        ):
+        async for doc in collection.find({"user_id": user_id}, {"skill_name": 1}):
             skill_names.add(doc["skill_name"])
 
         # 获取开关状态
@@ -990,34 +950,38 @@ class SkillStorage:
         # 组装结果
         result = []
         for skill_name in sorted(skill_names):
-            file_count = await collection.count_documents({
-                "skill_name": skill_name,
-                "user_id": user_id,
-            })
+            file_count = await collection.count_documents(
+                {
+                    "skill_name": skill_name,
+                    "user_id": user_id,
+                }
+            )
             # 获取最早创建时间和最新更新时间
             created_at = None
             updated_at = None
-            async for doc in collection.find(
-                {"skill_name": skill_name, "user_id": user_id}
-            ):
+            async for doc in collection.find({"skill_name": skill_name, "user_id": user_id}):
                 if not created_at or doc.get("created_at", "") < created_at:
                     created_at = doc.get("created_at")
                 if not updated_at or doc.get("updated_at", "") > updated_at:
                     updated_at = doc.get("updated_at")
 
-            toggle = await toggles_collection.find_one({
-                "skill_name": skill_name,
-                "user_id": user_id,
-            })
+            toggle = await toggles_collection.find_one(
+                {
+                    "skill_name": skill_name,
+                    "user_id": user_id,
+                }
+            )
 
-            result.append({
-                "skill_name": skill_name,
-                "enabled": toggles.get(skill_name, True),
-                "file_count": file_count,
-                "installed_from": toggle.get("installed_from") if toggle else None,
-                "created_at": created_at,
-                "updated_at": updated_at,
-            })
+            result.append(
+                {
+                    "skill_name": skill_name,
+                    "enabled": toggles.get(skill_name, True),
+                    "file_count": file_count,
+                    "installed_from": toggle.get("installed_from") if toggle else None,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                }
+            )
 
         return result
 
@@ -1052,15 +1016,15 @@ class SkillStorage:
     # 开关操作
     # ==========================================
 
-    async def get_toggle(
-        self, skill_name: str, user_id: str
-    ) -> Optional[SkillToggle]:
+    async def get_toggle(self, skill_name: str, user_id: str) -> Optional[SkillToggle]:
         """获取用户某个 Skill 的开关状态"""
         collection = self._get_toggles_collection()
-        doc = await collection.find_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-        })
+        doc = await collection.find_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+            }
+        )
         if not doc:
             return None
         return SkillToggle(
@@ -1083,10 +1047,12 @@ class SkillStorage:
         collection = self._get_toggles_collection()
         now = datetime.now(timezone.utc).isoformat()
 
-        existing = await collection.find_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-        })
+        existing = await collection.find_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+            }
+        )
 
         update_data = {
             "enabled": enabled,
@@ -1097,16 +1063,17 @@ class SkillStorage:
 
         if existing:
             await collection.update_one(
-                {"skill_name": skill_name, "user_id": user_id},
-                {"$set": update_data}
+                {"skill_name": skill_name, "user_id": user_id}, {"$set": update_data}
             )
         else:
-            update_data.update({
-                "skill_name": skill_name,
-                "user_id": user_id,
-                "installed_from": (installed_from or InstalledFrom.MANUAL).value,
-                "created_at": now,
-            })
+            update_data.update(
+                {
+                    "skill_name": skill_name,
+                    "user_id": user_id,
+                    "installed_from": (installed_from or InstalledFrom.MANUAL).value,
+                    "created_at": now,
+                }
+            )
             await collection.insert_one(update_data)
 
         return SkillToggle(
@@ -1123,17 +1090,17 @@ class SkillStorage:
         toggle = await self.get_toggle(skill_name, user_id)
         if not toggle:
             return None
-        return await self.upsert_toggle(
-            skill_name, user_id, enabled=not toggle.enabled
-        )
+        return await self.upsert_toggle(skill_name, user_id, enabled=not toggle.enabled)
 
     async def delete_toggle(self, skill_name: str, user_id: str) -> bool:
         """删除开关记录"""
         collection = self._get_toggles_collection()
-        result = await collection.delete_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-        })
+        result = await collection.delete_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+            }
+        )
         return result.deleted_count > 0
 
     # ==========================================
@@ -1161,10 +1128,12 @@ class SkillStorage:
         # 尝试从 Redis 缓存获取
         try:
             from src.infra.storage.redis import get_redis_client
+
             redis_client = get_redis_client()
             cached = await redis_client.get(cache_key)
             if cached:
                 import json
+
                 return json.loads(cached)
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis get failed: {e}")
@@ -1190,8 +1159,10 @@ class SkillStorage:
         # 缓存
         try:
             from src.infra.storage.redis import get_redis_client
+
             redis_client = get_redis_client()
             import json
+
             await redis_client.set(cache_key, json.dumps(result), ex=SKILLS_CACHE_TTL)
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis set failed: {e}")
@@ -1202,10 +1173,7 @@ class SkillStorage:
         """获取用户已启用的 skill_names"""
         collection = self._get_toggles_collection()
         names = []
-        async for doc in collection.find({
-            "user_id": user_id,
-            "enabled": True
-        }):
+        async for doc in collection.find({"user_id": user_id, "enabled": True}):
             names.append(doc["skill_name"])
         return names
 
@@ -1216,6 +1184,7 @@ class SkillStorage:
         cache_key = f"{SKILLS_CACHE_KEY_PREFIX}{user_id}"
         try:
             from src.infra.storage.redis import get_redis_client
+
             redis_client = get_redis_client()
             await redis_client.delete(cache_key)
         except Exception as e:
@@ -1386,7 +1355,11 @@ async def toggle_user_skill(
     await storage.invalidate_user_cache(user.sub)
 
     status = "enabled" if toggle.enabled else "disabled"
-    return {"skill_name": name, "enabled": toggle.enabled, "message": f"Skill '{name}' is now {status}"}
+    return {
+        "skill_name": name,
+        "enabled": toggle.enabled,
+        "message": f"Skill '{name}' is now {status}",
+    }
 ```
 
 ---
@@ -1443,9 +1416,7 @@ async def list_marketplace_skills(
 ):
     """列出所有商城 Skills（可选按标签筛选/搜索）"""
     tag_list = tags.split(",") if tags else None
-    skills = await marketplace.list_marketplace_skills(
-        tags=tag_list, search=search
-    )
+    skills = await marketplace.list_marketplace_skills(tags=tag_list, search=search)
     return skills
 
 
@@ -1502,10 +1473,7 @@ async def install_marketplace_skill(
     # 2. 检查用户是否已安装
     existing_toggle = await storage.get_toggle(name, user.sub)
     if existing_toggle:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Skill '{name}' already installed"
-        )
+        raise HTTPException(status_code=400, detail=f"Skill '{name}' already installed")
 
     # 3. 获取商城文件并复制到用户目录
     marketplace_files = await marketplace.get_marketplace_files(name)
@@ -1514,7 +1482,8 @@ async def install_marketplace_skill(
 
     # 4. 创建开关记录
     await storage.upsert_toggle(
-        name, user.sub,
+        name,
+        user.sub,
         enabled=True,
         installed_from=InstalledFrom.MARKETPLACE,
     )
@@ -1546,8 +1515,7 @@ async def update_from_marketplace(
     toggle = await storage.get_toggle(name, user.sub)
     if not toggle:
         raise HTTPException(
-            status_code=400,
-            detail=f"Skill '{name}' not installed. Install it first."
+            status_code=400, detail=f"Skill '{name}' not installed. Install it first."
         )
 
     # 3. 获取商城文件并覆盖用户文件
@@ -1589,7 +1557,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
 from src.api.deps import require_permissions
 from src.infra.skill.marketplace import MarketplaceStorage
-from src.infra.skill.types import MarketplaceSkillCreate, MarketplaceSkillResponse, MarketplaceSkillUpdate
+from src.infra.skill.types import (
+    MarketplaceSkillCreate,
+    MarketplaceSkillResponse,
+    MarketplaceSkillUpdate,
+)
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter(prefix="/admin/marketplace")
@@ -1722,6 +1694,7 @@ async def admin_upload_skill_files(
 # 修改 __init__ 方法（保持原有签名）
 # self._storage 改为 SkillStorage，不再需要 MarketplaceStorage
 
+
 async def _get_storage(self) -> SkillStorage:
     """获取 SkillStorage 实例"""
     if self._storage is None:
@@ -1789,10 +1762,12 @@ async def als_info(self, path: str) -> list[FileInfo]:
 
             entries = []
             for skill_name in skills.keys():
-                entries.append(FileInfo(
-                    path=f"/{skill_name}/",
-                    is_dir=True,
-                ))
+                entries.append(
+                    FileInfo(
+                        path=f"/{skill_name}/",
+                        is_dir=True,
+                    )
+                )
             return entries
 
         # 解析路径
@@ -1811,11 +1786,13 @@ async def als_info(self, path: str) -> list[FileInfo]:
         # 检查文件是否存在
         content = await storage.get_skill_file(skill_name, sub_path, self._user_id)
         if content is not None:
-            return [FileInfo(
-                path=f"/{skill_name}/{sub_path}",
-                is_dir=False,
-                size=len(content),
-            )]
+            return [
+                FileInfo(
+                    path=f"/{skill_name}/{sub_path}",
+                    is_dir=False,
+                    size=len(content),
+                )
+            ]
 
         # 列出目录
         paths = await storage.list_skill_file_paths(skill_name, self._user_id)
@@ -1908,10 +1885,12 @@ async def load_skill_files(user_id: Optional[str]) -> dict[str, Any]:
                 # 兼容：无 files 的情况
                 pass
 
-            result["skills"].append({
-                "name": skill_name,
-                "enabled": skill_data.get("enabled", True),
-            })
+            result["skills"].append(
+                {
+                    "name": skill_name,
+                    "enabled": skill_data.get("enabled", True),
+                }
+            )
 
         logger.info(f"Prepared {len(result['files'])} skill files for prompt")
 
@@ -2082,10 +2061,7 @@ async def migrate():
         )
 
         # 复制文件到 skill_marketplace_files
-        async for file_doc in old_files.find({
-            "skill_name": skill_name,
-            "user_id": "system"
-        }):
+        async for file_doc in old_files.find({"skill_name": skill_name, "user_id": "system"}):
             await new_marketplace_files.update_one(
                 {"skill_name": skill_name, "file_path": file_doc["file_path"]},
                 {
@@ -2181,10 +2157,12 @@ if __name__ == "__main__":
 ```python
 # 用户商城 API
 from src.api.routes.marketplace import router as marketplace_router
+
 api_router.include_router(marketplace_router, prefix="/marketplace", tags=["marketplace"])
 
 # 管理员商城 API
 from src.api.routes.admin.marketplace import router as admin_marketplace_router
+
 api_router.include_router(admin_marketplace_router, prefix="/api", tags=["admin:marketplace"])
 ```
 
@@ -2386,7 +2364,8 @@ async def update_from_marketplace(
 
     # 关键：更新 installed_from 为 MARKETPLACE
     await storage.upsert_toggle(
-        name, user.sub,
+        name,
+        user.sub,
         enabled=True,
         installed_from=InstalledFrom.MARKETPLACE,
     )
@@ -2406,10 +2385,7 @@ async for doc in old_prefs.find({}):
     enabled = doc.get("enabled", True)
 
     # 判断来源：如果 skill_files 中 user_id="system" 则为商城来源
-    has_system_version = await old_files.find_one({
-        "skill_name": skill_name,
-        "user_id": "system"
-    })
+    has_system_version = await old_files.find_one({"skill_name": skill_name, "user_id": "system"})
     installed_from = "marketplace" if has_system_version else "manual"
 
     await new_toggles.update_one(
