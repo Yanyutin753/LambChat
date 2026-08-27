@@ -150,8 +150,9 @@ describe("RunStepsCollapse", () => {
       />,
     );
     let span = SummaryRow().querySelector("span");
-    expect(span?.className).toContain("text-theme-text-secondary");
-    expect(span?.className).not.toContain("text-theme-text-tertiary");
+    expect(span?.className).toContain("text-gray-700");
+    expect(span?.className).toContain("dark:text-gray-300");
+    expect(span?.className).not.toContain("text-theme-text-secondary");
     unmount();
 
     render(
@@ -163,8 +164,9 @@ describe("RunStepsCollapse", () => {
       />,
     );
     span = ExpandedSummaryRow().querySelector("span");
-    expect(span?.className).toContain("text-theme-text-secondary");
-    expect(span?.className).not.toContain("text-theme-text-tertiary");
+    expect(span?.className).toContain("text-gray-700");
+    expect(span?.className).toContain("dark:text-gray-300");
+    expect(span?.className).not.toContain("text-theme-text-secondary");
   });
 
   test("summary row divider uses the full theme border color", () => {

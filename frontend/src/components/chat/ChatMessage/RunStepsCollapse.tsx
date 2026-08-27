@@ -72,7 +72,7 @@ export function RunStepsCollapse({
           active ? "cursor-default" : "cursor-pointer",
         )}
       >
-        <span className="min-w-0 truncate text-[0.9375rem] leading-6 text-theme-text-secondary">
+        <span className="min-w-0 truncate text-[0.9375rem] leading-6 text-gray-700 dark:text-gray-300">
           {active
             ? durationLabel
               ? t("chat.message.runStepsWorking", { duration: durationLabel })
