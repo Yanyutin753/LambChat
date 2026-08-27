@@ -3,6 +3,7 @@ import type { Message, MessagePart } from "../../../../types";
 import {
   countRunSteps,
   formatElapsedCompact,
+  formatElapsedHuman,
   getRunElapsedMs,
   getRunStartedAtMs,
   splitRunTailGroups,
@@ -159,6 +160,17 @@ describe("formatElapsedCompact", () => {
     expect(formatElapsedCompact(95)).toBe("1m 35s");
     expect(formatElapsedCompact(3600)).toBe("1h 00m 00s");
     expect(formatElapsedCompact(3700)).toBe("1h 01m 40s");
+  });
+});
+
+describe("formatElapsedHuman", () => {
+  test("formats natural-language durations", () => {
+    expect(formatElapsedHuman(0)).toBe("0 秒");
+    expect(formatElapsedHuman(42)).toBe("42 秒");
+    expect(formatElapsedHuman(60)).toBe("1 分");
+    expect(formatElapsedHuman(597)).toBe("9 分 57 秒");
+    expect(formatElapsedHuman(3600)).toBe("1 小时");
+    expect(formatElapsedHuman(3723)).toBe("1 小时 2 分 3 秒");
   });
 });
 

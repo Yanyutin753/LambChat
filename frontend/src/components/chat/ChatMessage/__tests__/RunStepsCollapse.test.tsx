@@ -9,10 +9,10 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, opts?: unknown) => {
       const templates: Record<string, string> = {
-        "chat.message.runStepsSummary":
-          "Worked for {{duration}} · {{count}} steps",
+        "chat.message.runStepsSummary": "Worked for {{duration}}",
         "chat.message.runStepsCount": "{{count}} steps",
         "chat.message.runStepsWorking": "Working… {{duration}}",
+        "chat.message.runStepsWorkingNoTimer": "Working…",
       };
       let out = templates[key] ?? key;
       if (opts && typeof opts === "object") {
@@ -22,15 +22,20 @@ vi.mock("react-i18next", () => ({
       }
       return out;
     },
+    i18n: { language: "en" },
   }),
 }));
 
-function ToggleButton() {
-  return screen.getByRole("button");
+function SummaryRow() {
+  return screen.getByRole("button", { expanded: false });
+}
+
+function ExpandedSummaryRow() {
+  return screen.getByRole("button", { expanded: true });
 }
 
 describe("RunStepsCollapse", () => {
-  test("renders step count and compact duration in the summary row", () => {
+  test("renders the duration in the summary row", () => {
     render(
       <RunStepsCollapse
         steps={3}
@@ -38,47 +43,79 @@ describe("RunStepsCollapse", () => {
         renderExpanded={() => <div>step-details</div>}
       />,
     );
-    expect(ToggleButton().textContent).toContain("1m 30s");
-    expect(ToggleButton().textContent).toContain("3");
+    expect(SummaryRow().textContent).toContain("1m 30s");
   });
 
-  test("renders step count alone when duration is unknown", () => {
+  test("falls back to the step count when duration is unknown", () => {
     render(
       <RunStepsCollapse
-        steps={5}
+        steps={2}
         durationMs={null}
         renderExpanded={() => <div>step-details</div>}
       />,
     );
-    expect(ToggleButton().textContent).toContain("5");
+    expect(SummaryRow().textContent).toContain("2");
   });
 
-  test("shows a live working timer while the run is active", () => {
+  test("starts expanded with a live timer while the run is active, without chevron or toggle", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-26T10:00:45Z"));
     try {
+      const renderExpanded = vi.fn(() => <div>step-details</div>);
       render(
         <RunStepsCollapse
           active
-          steps={0}
+          steps={1}
           durationMs={null}
           startedAtMs={Date.now() - 45000}
-          renderExpanded={() => <div>step-details</div>}
+          renderExpanded={renderExpanded}
         />,
       );
-      expect(ToggleButton().textContent).toContain("Working");
-      expect(ToggleButton().textContent).toContain("45s");
+      const row = ExpandedSummaryRow();
+      expect(row.textContent).toContain("Working");
+      expect(row.textContent).toContain("45s");
+      expect(row.querySelector("svg")).toBeNull();
+      expect((row as HTMLButtonElement).disabled).toBe(true);
+      expect(renderExpanded).toHaveBeenCalled();
+      expect(screen.getByText("step-details")).toBeTruthy();
 
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      expect(ToggleButton().textContent).toContain("46s");
+      expect(ExpandedSummaryRow().textContent).toContain("46s");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  test("hides expanded content until toggled and does not render it while collapsed", () => {
+  test("collapses automatically once the run finishes", () => {
+    const { rerender } = render(
+      <RunStepsCollapse
+        active
+        steps={1}
+        durationMs={null}
+        startedAtMs={Date.now() - 1000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    expect(screen.getByText("step-details")).toBeTruthy();
+
+    rerender(
+      <RunStepsCollapse
+        steps={1}
+        durationMs={60000}
+        startedAtMs={null}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    expect(screen.queryByText("step-details")).toBeNull();
+    const row = SummaryRow();
+    expect(row.textContent).toContain("Worked for 1m 00s");
+    expect(row.querySelector("svg")).not.toBeNull();
+    expect((row as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  test("shows the full details directly when toggled open", () => {
     const renderExpanded = vi.fn(() => <div>step-details</div>);
     render(
       <RunStepsCollapse
@@ -90,15 +127,12 @@ describe("RunStepsCollapse", () => {
 
     expect(renderExpanded).not.toHaveBeenCalled();
     expect(screen.queryByText("step-details")).toBeNull();
-    expect(ToggleButton().getAttribute("aria-expanded")).toBe("false");
 
-    fireEvent.click(ToggleButton());
-    expect(renderExpanded).toHaveBeenCalledTimes(1);
+    fireEvent.click(SummaryRow());
+    expect(renderExpanded).toHaveBeenCalled();
     expect(screen.getByText("step-details")).toBeTruthy();
-    expect(ToggleButton().getAttribute("aria-expanded")).toBe("true");
 
-    fireEvent.click(ToggleButton());
+    fireEvent.click(ExpandedSummaryRow());
     expect(screen.queryByText("step-details")).toBeNull();
-    expect(ToggleButton().getAttribute("aria-expanded")).toBe("false");
   });
 });

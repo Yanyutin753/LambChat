@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import clsx from "clsx";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatElapsedCompact } from "./runStepsCollapse";
+import { formatElapsedCompact, formatElapsedHuman } from "./runStepsCollapse";
 
 /**
- * run 过程折叠行，1:1 对齐 Codex 终端：
- * 流式中显示 `✻ Working… 42s`（实时计时），完成后定格为
- * `─ Worked for 1m 30s · 12 steps ─────` 的暗淡分隔线，整行可点击展开。
- * 折叠时不渲染任何过程内容。
+ * run 过程折叠区：状态行「已工作 9 分 57 秒 ›」（右侧 chevron、行下淡分隔线）。
+ * 流式过程中默认展开并实时计时，直接显示完整过程详情；
+ * 完成后自动收起成一行，点击可再展开。
  */
 export function RunStepsCollapse({
   steps,
@@ -24,9 +23,13 @@ export function RunStepsCollapse({
   active?: boolean;
   renderExpanded: () => ReactNode;
 }) {
-  const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const { t, i18n } = useTranslation();
+  const [expanded, setExpanded] = useState(active);
   const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!active) setExpanded(false);
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
@@ -34,70 +37,61 @@ export function RunStepsCollapse({
     return () => window.clearInterval(timer);
   }, [active]);
 
+  const formatElapsed = (ms: number) => {
+    const seconds = Math.round(ms / 1000);
+    return i18n.language?.toLowerCase().startsWith("zh")
+      ? formatElapsedHuman(seconds)
+      : formatElapsedCompact(seconds);
+  };
+
   const settledDurationMs =
     durationMs !== null && durationMs > 0 ? durationMs : null;
   const liveDurationMs =
     active && startedAtMs !== null ? Math.max(0, nowMs - startedAtMs) : null;
   const durationLabel = settledDurationMs
-    ? formatElapsedCompact(Math.round(settledDurationMs / 1000))
+    ? formatElapsed(settledDurationMs)
     : liveDurationMs !== null
-      ? formatElapsedCompact(Math.round(liveDurationMs / 1000))
+      ? formatElapsed(liveDurationMs)
       : null;
 
   return (
-    <div className="run-steps-collapse my-1.5">
+    <div className="run-steps-collapse">
       <button
         type="button"
         aria-expanded={expanded}
         aria-label={t("chat.message.runStepsToggle")}
-        title={t("chat.message.runStepsToggle")}
-        onClick={() => setExpanded((value) => !value)}
-        className="group/steps flex w-full cursor-pointer items-center gap-2.5 rounded-md py-1 text-left"
-      >
-        <span
-          aria-hidden="true"
-          className="h-px w-5 shrink-0 rounded transition-colors duration-200 group-hover/steps:bg-[var(--theme-text-secondary)]/30"
-          style={{ backgroundColor: "var(--theme-border)" }}
-        />
-        {active ? (
-          <Loader2
-            size={14}
-            className="shrink-0 animate-spin text-theme-text-tertiary"
-          />
-        ) : (
-          <ChevronRight
-            size={14}
-            strokeWidth={2.5}
-            className={clsx(
-              "shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/steps:opacity-100",
-              expanded && "rotate-90",
-            )}
-          />
+        onClick={() => {
+          if (!active) setExpanded((value) => !value);
+        }}
+        disabled={active}
+        className={clsx(
+          "group/steps flex w-full items-baseline gap-1.5 border-b pb-1.5 text-left",
+          active ? "cursor-default" : "cursor-pointer",
         )}
-        <span
-          className={clsx(
-            "min-w-0 whitespace-nowrap font-mono leading-none tabular-nums tracking-wide transition-colors duration-200 group-hover/steps:text-theme-text-secondary",
-            active
-              ? "text-[0.9375rem] text-theme-text-secondary"
-              : "text-[0.9375rem] text-theme-text-tertiary",
-          )}
-        >
+        style={{
+          borderColor:
+            "color-mix(in srgb, var(--theme-border) 55%, transparent)",
+        }}
+      >
+        <span className="min-w-0 truncate text-[0.9375rem] leading-6 text-theme-text-tertiary transition-colors duration-200 group-hover/steps:text-theme-text-secondary">
           {active
             ? durationLabel
               ? t("chat.message.runStepsWorking", { duration: durationLabel })
               : t("chat.message.runStepsWorkingNoTimer")
             : durationLabel
-              ? t("chat.message.runStepsSummary", {
-                  count: steps,
-                  duration: durationLabel,
-                })
+              ? t("chat.message.runStepsSummary", { duration: durationLabel })
               : t("chat.message.runStepsCount", { count: steps })}
         </span>
-        <span
-          aria-hidden="true"
-          className="h-px min-w-6 flex-1 rounded transition-colors duration-200 group-hover/steps:bg-[var(--theme-text-secondary)]/30"
-          style={{ backgroundColor: "var(--theme-border)" }}
-        />
+        {!active && (
+          <ChevronRight
+            size={16}
+            strokeWidth={2}
+            className={clsx(
+              "self-center shrink-0 text-theme-text-tertiary opacity-70 transition-transform duration-200 group-hover/steps:opacity-100",
+              expanded && "rotate-90",
+            )}
+          />
+        )}
       </button>
       {expanded && <div className="space-y-3 pt-2">{renderExpanded()}</div>}
     </div>

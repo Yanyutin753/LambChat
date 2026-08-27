@@ -86,6 +86,21 @@ export function formatElapsedCompact(totalSeconds: number): string {
   ).padStart(2, "0")}s`;
 }
 
+/** 中文自然语言时长：42 秒 / 9 分 57 秒 / 1 小时 2 分 3 秒（零值单位省略）。 */
+export function formatElapsedHuman(totalSeconds: number): string {
+  if (totalSeconds < 60) {
+    return `${totalSeconds} 秒`;
+  }
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours} 小时`);
+  if (minutes > 0) parts.push(`${minutes} 分`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds} 秒`);
+  return parts.join(" ");
+}
+
 function toMs(value: string | number | undefined): number | null {
   if (value === undefined) return null;
   const ms = typeof value === "number" ? value : Date.parse(value);

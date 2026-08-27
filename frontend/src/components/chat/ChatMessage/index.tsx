@@ -51,36 +51,6 @@ import { shouldShowGoalDetailsForMessage } from "../goalVisibility";
 import { areChatMessagePropsEqual } from "./messageMemo";
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 
-// Skeleton-style loading animation component - refined thin lines
-function ThinkingIndicator() {
-  return (
-    <div className="space-y-2.5 py-1 px-1">
-      {/* First line - long bar */}
-      <div className="skeleton-line w-full h-2 rounded-full" />
-
-      {/* Second line - three medium bars */}
-      <div className="flex gap-3">
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-      </div>
-
-      {/* Third line - three medium bars */}
-      <div className="flex gap-3">
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-      </div>
-
-      {/* Fourth line */}
-      <div className="flex gap-3">
-        <div className="skeleton-line flex-1 h-2 rounded-full" />
-        <div className="skeleton-line w-2/5 h-2 rounded-full" />
-      </div>
-    </div>
-  );
-}
-
 interface ChatMessageProps {
   message: Message;
   sessionId?: string;
@@ -590,8 +560,8 @@ export const ChatMessage = memo(function ChatMessage({
     return message.content || "";
   };
 
-  // Codex 风格收尾：流式与完成后，除最后的 output_text（及其后的收尾部分）外，
-  // 中间过程统一折叠成一行摘要（Working… 计时 → Worked for 定格）
+  // 过程折叠区：流式与完成后，除最后的 output_text（及其后的收尾部分）外，
+  // 中间过程统一收进「已工作 X 分 X 秒 ›」折叠区（流式默认展开、完成自动收起）
   const runPartGroups = hasParts ? groupPartsForGallery(message.parts!) : [];
   const { head: runHeadGroups, tail: runTailGroups } = splitRunTailGroups(
     runPartGroups,
@@ -670,8 +640,16 @@ export const ChatMessage = memo(function ChatMessage({
             )}
           </div>
 
-          {/* Streaming/Thinking indicator */}
-          {isStreaming && !hasParts && <ThinkingIndicator />}
+          {/* Run just started, no parts yet: still show the working row */}
+          {isStreaming && !hasParts && (
+            <RunStepsCollapse
+              steps={0}
+              durationMs={null}
+              startedAtMs={getRunStartedAtMs(message)}
+              active
+              renderExpanded={() => null}
+            />
+          )}
 
           {hasParts ? (
             <div className="space-y-3 my-2">
