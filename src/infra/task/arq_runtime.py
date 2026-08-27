@@ -80,6 +80,8 @@ class EmbeddedArqRuntime:
     async def _supervise(self) -> None:
         while not self._stopping:
             worker = self._worker
+            if worker is None:  # start() 已保证首个 worker 存在，此处仅类型收窄
+                return
             try:
                 result = worker.async_run()
                 if inspect.isawaitable(result):
