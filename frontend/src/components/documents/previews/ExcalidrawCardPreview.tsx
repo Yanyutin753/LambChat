@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildUploadProxyUrl, getFullUrl } from "../../../services/api/config";
+import { fetchDocumentText } from "../documentFetchCache";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
 
 /**
@@ -18,9 +19,7 @@ export function ExcalidrawCardPreview({ url }: { url: string }) {
 
     const load = async () => {
       try {
-        const res = await fetch(readUrl);
-        if (!res.ok || cancelled) return;
-        const data = await res.text();
+        const data = await fetchDocumentText(readUrl);
         if (cancelled) return;
 
         const parsed = JSON.parse(data);

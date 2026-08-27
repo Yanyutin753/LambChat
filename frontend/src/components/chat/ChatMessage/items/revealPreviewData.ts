@@ -3,6 +3,7 @@ import {
   buildUploadProxyUrl,
   getFullUrl,
 } from "../../../../services/api/config";
+import { fetchDocumentText } from "../../../documents/documentFetchCache";
 import { rewriteProjectTextFiles } from "./projectRevealAssetUtils";
 
 export type ProjectTemplate =
@@ -239,14 +240,7 @@ export async function loadProjectRevealFiles(
       try {
         const fullUrl = getFullUrl(entry.url) || entry.url;
         const readUrl = buildUploadProxyUrl(entry.url) || fullUrl;
-        const resp = await fetch(readUrl);
-        if (!resp.ok) {
-          console.warn(
-            `[reveal_project] Failed to fetch ${path}: ${resp.status}`,
-          );
-          return null;
-        }
-        const text = await resp.text();
+        const text = await fetchDocumentText(readUrl);
         return [path, text];
       } catch (error) {
         console.warn(`[reveal_project] Error fetching ${path}:`, error);
