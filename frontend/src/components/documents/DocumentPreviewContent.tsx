@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ImageViewer } from "../common/ImageViewer";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
+import { mediaProxyFallbackSrc } from "./documentFetchCache";
 import CodeRenderer from "./previews/CodeRenderer";
 import MarkdownRenderer from "./previews/MarkdownRenderer";
 import HtmlPreview from "./previews/HtmlPreview";
@@ -214,6 +215,10 @@ export default function DocumentPreviewContent({
             className="w-full max-h-[65dvh] rounded-xl shadow-2xl ring-1 ring-white/10"
             src={videoUrl}
             style={{ margin: "0 auto", display: "block" }}
+            onError={(e) => {
+              const fallback = mediaProxyFallbackSrc(e.currentTarget);
+              if (fallback) e.currentTarget.src = fallback;
+            }}
           >
             <track kind="captions" />
             {t("documents.videoNotSupported")}
@@ -232,7 +237,15 @@ export default function DocumentPreviewContent({
           >
             <Icon size={36} className={fileInfo.color} />
           </div>
-          <audio controls className="w-full" src={audioUrl}>
+          <audio
+            controls
+            className="w-full"
+            src={audioUrl}
+            onError={(e) => {
+              const fallback = mediaProxyFallbackSrc(e.currentTarget);
+              if (fallback) e.currentTarget.src = fallback;
+            }}
+          >
             {t("documents.audioNotSupported", "您的浏览器不支持音频播放")}
           </audio>
         </div>

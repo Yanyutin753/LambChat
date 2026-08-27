@@ -1,5 +1,6 @@
 import { memo, useEffect, useState, useRef } from "react";
 import { buildUploadProxyUrl, getFullUrl } from "../../services/api/config";
+import { fetchDocumentText } from "../documents/documentFetchCache";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 
 // Types for Excalidraw
@@ -50,9 +51,7 @@ export const ExcalidrawThumbnail = memo(function ExcalidrawThumbnail({
     const load = async () => {
       try {
         // Fetch excalidraw file content
-        const res = await fetch(readUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const raw = await res.text();
+        const raw = await fetchDocumentText(readUrl);
 
         // Parse excalidraw JSON
         const parsed = JSON.parse(raw);

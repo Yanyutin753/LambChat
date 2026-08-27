@@ -21,6 +21,7 @@ import {
 import {
   fetchDocumentArrayBuffer,
   fetchDocumentText,
+  fetchUploadFile,
 } from "./documentFetchCache";
 import {
   getFileExtension,
@@ -331,7 +332,13 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           const readUrl = buildUploadProxyUrl(url) || url;
 
           if (resolvedImageFile) {
-            setImageUrl(url);
+            // 走应用代理兜底取 blob（与下载按钮一致），失败则退回原始 URL 交给 <img>
+            try {
+              const response = await fetchUploadFile(readUrl);
+              setImageUrl(URL.createObjectURL(await response.blob()));
+            } catch {
+              setImageUrl(url);
+            }
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -362,7 +369,9 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           }
 
           if (cadFile) {
-            setCadUrl(readUrl);
+            // dxf-viewer 内部裸 fetch 该 URL——先经代理兜底取 blob，OSS 不可达也能渲染
+            const cadBuffer = await fetchDocumentArrayBuffer(readUrl);
+            setCadUrl(URL.createObjectURL(new Blob([cadBuffer])));
             setCadKind(dxfFile ? "dxf" : "dwg");
             setData({ content: "", path });
             setLoading(false);
@@ -446,8 +455,11 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
       if (pdfUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(pdfUrl);
       }
+      if (imageUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(imageUrl);
+      }
     };
-  }, [cadUrl, htmlUrl, pdfUrl]);
+  }, [cadUrl, htmlUrl, pdfUrl, imageUrl]);
 
   // Action handlers
   const handleCopy = async () => {
@@ -463,7 +475,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
       getFullUrl(signedUrl) || resolvedUrl || getFullUrl(externalImageUrl);
     if (downloadUrl) {
       try {
-        const response = await fetch(
+        const response = await fetchUploadFile(
           buildUploadProxyUrl(downloadUrl) || downloadUrl,
         );
         const blob = await response.blob();

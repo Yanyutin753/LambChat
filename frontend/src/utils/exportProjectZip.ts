@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { buildUploadProxyUrl } from "../services/api/config";
+import { fetchUploadFile } from "../components/documents/documentFetchCache";
 
 export interface ExportProjectZipOptions {
   /** Reject before creating the ZIP if any binary URL cannot be downloaded. */
@@ -135,7 +136,9 @@ export async function exportProjectZip(
           : undefined;
         try {
           const readUrl = buildUploadProxyUrl(sourceUrl) || sourceUrl;
-          const response = await fetch(readUrl, { signal: controller.signal });
+          const response = await fetchUploadFile(readUrl, {
+            signal: controller.signal,
+          });
           if (!response.ok) throw new Error("Binary download failed");
           const remainingBytes = Math.max(maxBytes - downloadedBytes, 0);
           const buffer = await readResponseWithinLimit(
