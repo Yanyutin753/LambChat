@@ -21,7 +21,7 @@ export function StatMetric({
           {label}
         </span>
       </div>
-      <p className="truncate pl-[2.25rem] text-xl font-black leading-none tracking-tight text-theme-text tabular-nums sm:pl-[2.5rem] sm:text-[1.45rem]">
+      <p className="truncate pl-[2.25rem] text-xl font-black font-serif leading-none tracking-tight text-theme-text tabular-nums sm:pl-[2.5rem] sm:text-[1.45rem]">
         {value}
       </p>
       {hint && (

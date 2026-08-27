@@ -462,7 +462,7 @@ export function NotificationPanel() {
             className="text-stone-400 dark:text-stone-500"
           />
         </div>
-        <p className="text-lg font-medium text-stone-700 dark:text-stone-300">
+        <p className="text-lg font-medium font-serif text-stone-700 dark:text-stone-300">
           {t("common.accessDenied")}
         </p>
         <p className="text-sm text-stone-500 dark:text-stone-400">
@@ -498,7 +498,7 @@ export function NotificationPanel() {
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">
               <Bell size={32} className="text-stone-400 dark:text-stone-500" />
             </div>
-            <p className="text-lg font-medium text-stone-700 dark:text-stone-300">
+            <p className="text-lg font-medium font-serif text-stone-700 dark:text-stone-300">
               {t("notification.noNotifications")}
             </p>
           </div>

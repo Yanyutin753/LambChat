@@ -137,7 +137,9 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
             <SecondaryIcon>
               <CircleHelp size={14} className="sm:w-4 sm:h-4" />
             </SecondaryIcon>
-            <span className="flex-1">{t("chat.helpDocs", "帮助文档")}</span>
+            <span className="flex-1 font-serif">
+              {t("chat.helpDocs", "帮助文档")}
+            </span>
             <SecondaryIcon>
               <ExternalLink size={12} style={{ opacity: 0.5 }} />
             </SecondaryIcon>
@@ -152,7 +154,9 @@ export function ChatInputHelpMenu({ className }: { className?: string }) {
             <SecondaryIcon>
               <Keyboard size={14} className="sm:w-4 sm:h-4" />
             </SecondaryIcon>
-            <span>{t("chat.keyboardShortcuts", "键盘快捷键")}</span>
+            <span className="font-serif">
+              {t("chat.keyboardShortcuts", "键盘快捷键")}
+            </span>
           </MenuButtonItem>
         </div>
       )}

@@ -239,7 +239,7 @@ export function MCPToolPolicyEditor({
                   )}
 
                   <div className="mt-2">
-                    <div className="mb-2 flex items-center justify-between gap-3 rounded-md bg-stone-50 px-2 py-1.5 text-[11px] text-stone-500 dark:bg-stone-800/70 dark:text-stone-400">
+                    <div className="mb-2 flex items-center justify-between gap-3 font-serif rounded-md bg-stone-50 px-2 py-1.5 text-[11px] text-stone-500 dark:bg-stone-800/70 dark:text-stone-400">
                       <span>{t("mcp.form.inlineExposure")}</span>
                       <button
                         type="button"

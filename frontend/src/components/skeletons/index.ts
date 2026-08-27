@@ -11,7 +11,11 @@ export {
   ChatSkeletonMessagesOnly,
   WelcomeSkeleton,
 } from "./ChatSkeletons";
-export { FilesContentSkeleton, FilesPageSkeleton } from "./FilesSkeletons";
+export {
+  FilesContentSkeleton,
+  FilesListSkeleton,
+  FilesPageSkeleton,
+} from "./FilesSkeletons";
 export { PersonaPlazaSkeleton, PersonaPageSkeleton } from "./PersonaSkeletons";
 export { PanelHeaderSkeleton } from "./PanelHeaderSkeleton";
 export {

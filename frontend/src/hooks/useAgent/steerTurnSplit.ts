@@ -39,7 +39,8 @@ export function splitAssistantTurn(
     id: assistantId,
     role: "assistant",
     content: "",
-    timestamp: new Date(),
+    // 继承原轮次时间戳（run 起点）：流式计时锚点跨轮次连续，插话不清零
+    timestamp: messages[assistantIndex].timestamp,
     parts: [],
     isStreaming: true,
   };

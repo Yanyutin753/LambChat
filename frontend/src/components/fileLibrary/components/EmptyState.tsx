@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { FolderSearch, Search } from "lucide-react";
-import { FilesContentSkeleton } from "../../skeletons";
+import { FilesListSkeleton } from "../../skeletons";
 
 interface EmptyStateProps {
   isLoading: boolean;
@@ -15,9 +15,9 @@ export function EmptyState({
 }: EmptyStateProps) {
   const { t } = useTranslation();
 
-  /* Loading skeleton */
+  /* Loading skeleton — real Toolbar stays mounted, so only the list is skeletonized */
   if (isLoading) {
-    return <FilesContentSkeleton />;
+    return <FilesListSkeleton />;
   }
 
   /* Empty states */

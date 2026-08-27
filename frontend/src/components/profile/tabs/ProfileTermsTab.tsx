@@ -17,7 +17,7 @@ export function ProfileTermsTab() {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+      <h3 className="text-sm font-semibold font-serif text-stone-800 dark:text-stone-100">
         {t("profile.termsTitle")}
       </h3>
 

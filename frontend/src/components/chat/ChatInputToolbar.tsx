@@ -39,6 +39,7 @@ export interface ChatInputToolbarProps {
   totalSkillsCount: number;
   hasPersonaSelector: boolean;
   personaName?: string | null;
+  totalPersonaCount?: number;
   hasAgentSelector: boolean;
   agentName?: string;
   agentIcon?: string;
@@ -101,6 +102,7 @@ export function ChatInputToolbar({
   totalSkillsCount,
   hasPersonaSelector,
   personaName,
+  totalPersonaCount,
   hasAgentSelector,
   agentName,
   agentIcon,
@@ -229,6 +231,7 @@ export function ChatInputToolbar({
           totalSkillsCount={totalSkillsCount}
           hasPersonaSelector={hasPersonaSelector && currentAgent !== "team"}
           personaName={personaName}
+          totalPersonaCount={totalPersonaCount}
           hasTeamSelector={currentAgent === "team" && !!onSelectTeam}
           totalTeamCount={totalTeamCount}
           uploadCategories={uploadCategories}

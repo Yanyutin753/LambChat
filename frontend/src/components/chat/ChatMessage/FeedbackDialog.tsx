@@ -174,7 +174,7 @@ export function FeedbackDialog({
                   <ThumbsDown size={14} />
                 )}
               </span>
-              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+              <h3 className="text-lg font-semibold font-serif text-stone-900 dark:text-stone-100">
                 {rating === "up"
                   ? t("feedback.positive")
                   : t("feedback.negative")}

@@ -50,7 +50,7 @@ export default function FileFallbackPanel({
           >
             <Icon size={30} className={iconColor} />
           </div>
-          <h3 className="mb-2 text-base font-medium text-[var(--theme-text)]">
+          <h3 className="mb-2 text-base font-medium font-serif text-[var(--theme-text)]">
             {title}
           </h3>
           <p className="mb-5 text-sm text-[var(--theme-text-secondary)]">

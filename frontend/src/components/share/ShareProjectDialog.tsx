@@ -214,7 +214,7 @@ export function ShareProjectDialog({
                 size={20}
                 className="text-stone-500 dark:text-stone-400"
               />
-              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+              <h3 className="text-lg font-semibold font-serif text-stone-900 dark:text-stone-100">
                 {t("sidebar.shareProject")}
               </h3>
             </div>

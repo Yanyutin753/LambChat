@@ -472,7 +472,7 @@ export function FeishuPanelForm({
                       type="button"
                       onClick={() => setReactEmoji(emoji.value)}
                       title={t(emoji.labelKey)}
-                      className={`flex h-9 w-full items-center justify-center rounded-lg text-lg transition-all duration-150 ${
+                      className={`flex h-9 w-full items-center justify-center rounded-lg text-lg font-serif transition-all duration-150 ${
                         isSelected
                           ? "bg-[var(--theme-primary)]/15 ring-1 ring-[var(--theme-primary)]/40"
                           : "hover:bg-[var(--theme-bg-card)]"
@@ -489,7 +489,7 @@ export function FeishuPanelForm({
 
         {/* Streaming */}
         <div className="es-field">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 font-serif">
             <div>
               <label className="es-label">
                 {t("feishu.streamReply", "Streaming Cards")}
@@ -511,7 +511,7 @@ export function FeishuPanelForm({
 
         {/* Audio */}
         <div className="es-field">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 font-serif">
             <div>
               <label className="es-label">
                 {t("feishu.autoTranscribeAudio", "Audio Transcription")}
