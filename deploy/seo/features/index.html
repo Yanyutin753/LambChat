@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LambChat Features — Open-Source AI Agent Platform</title>
+    <meta
+      name="description"
+      content="LambChat is an open-source AI Agent platform: agent runtime with sub-agents and human approval, MCP tools with sandboxed execution, cross-session memory, GitHub-synced skills, and multi-model support for Claude, GPT, and Gemini."
+    />
+    <link rel="canonical" href="https://lambchat.com/features" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="LambChat Features — Open-Source AI Agent Platform" />
+    <meta property="og:url" content="https://lambchat.com/features" />
+    <meta property="og:site_name" content="LambChat" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="zh_CN" />
+    <meta
+      property="og:description"
+      content="Agent runtime with sub-agents and human approval, MCP tools with sandboxing, cross-session memory, GitHub-synced skills, and multi-model support for Claude, GPT, and Gemini."
+    />
+    <meta property="og:image" content="https://lambchat.com/icons/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LambChat — Open-Source AI Agent Platform" />
+    <meta
+      name="twitter:description"
+      content="Build, run, and share agents that actually finish work. Open source, multi-model, MCP + Skills."
+    />
+    <meta name="twitter:image" content="https://lambchat.com/icons/og-image.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "LambChat",
+        "url": "https://lambchat.com",
+        "description": "Open-source AI Agent platform with agent runtime, MCP tools, skills, memory, and multi-model chat.",
+        "applicationCategory": "ChatApplication",
+        "operatingSystem": "Web, iOS, Android, Desktop",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "inLanguage": ["en", "zh"]
+      }
+    </script>
+
+    <style>
+      :root {
+        --bg: #f5f5f4;
+        --card: #ffffff;
+        --text: #1c1917;
+        --muted: #57534e;
+        --accent: #78716c;
+        --accent-strong: #44403c;
+        --border: #e7e5e4;
+        --code-bg: #edeceb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #151210;
+          --card: #1e1a17;
+          --text: #f5f5f4;
+          --muted: #a8a29e;
+          --accent: #a8a29e;
+          --accent-strong: #d6d3d1;
+          --border: #3b3733;
+          --code-bg: #2a2521;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial,
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.65;
+      }
+      a {
+        color: var(--accent-strong);
+      }
+      .container {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 0;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 1.15rem;
+        text-decoration: none;
+        color: var(--text);
+      }
+      .nav-links {
+        display: flex;
+        gap: 22px;
+        font-size: 0.95rem;
+      }
+      .hero {
+        padding: 64px 0 40px;
+        text-align: center;
+      }
+      .hero h1 {
+        font-size: clamp(1.9rem, 4.5vw, 3rem);
+        line-height: 1.2;
+        margin: 0 0 16px;
+        letter-spacing: -0.02em;
+      }
+      .hero p.sub {
+        font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+        color: var(--muted);
+        max-width: 720px;
+        margin: 0 auto 32px;
+      }
+      .cta-row {
+        display: flex;
+        gap: 14px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 44px;
+      }
+      .btn {
+        display: inline-block;
+        padding: 12px 26px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 1rem;
+        border: 1px solid var(--border);
+      }
+      .btn-primary {
+        background: var(--accent-strong);
+        color: var(--bg);
+        border-color: var(--accent-strong);
+      }
+      .btn-ghost {
+        color: var(--text);
+      }
+      .hero img {
+        max-width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+      }
+      section {
+        padding: 48px 0;
+      }
+      h2 {
+        font-size: 1.6rem;
+        margin: 0 0 24px;
+        letter-spacing: -0.01em;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 22px;
+      }
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 1.05rem;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .why {
+        max-width: 780px;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+      .stack {
+        color: var(--muted);
+      }
+      .stack code {
+        background: var(--code-bg);
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 0.9em;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 28px 0 48px;
+        color: var(--muted);
+        font-size: 0.9rem;
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container nav">
+        <a class="brand" href="/">🐑 LambChat</a>
+        <nav class="nav-links">
+          <a href="/features">Features</a>
+          <a href="/docs/en/">Docs</a>
+          <a href="/docs/zh/">中文文档</a>
+          <a href="https://github.com/Yanyutin753/LambChat">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <div class="container hero">
+        <h1>Build, run, and share AI agents that actually finish work</h1>
+        <p class="sub">
+          LambChat is an open-source AI Agent platform: multi-model chat,
+          MCP tools, a skills engine, persistent memory, and
+          production-ready deployment — in one self-hostable stack.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="/">Open LambChat</a>
+          <a class="btn btn-ghost" href="/docs/en/getting-started">Get Started</a>
+          <a class="btn btn-ghost" href="https://github.com/Yanyutin753/LambChat">Star on GitHub</a>
+        </div>
+        <img
+          src="/features/hero.webp"
+          width="920"
+          alt="LambChat web interface showing an AI agent conversation with streaming output, tool calls, and skill panels"
+        />
+      </div>
+
+      <div class="container">
+        <section id="features">
+          <h2>What LambChat can do</h2>
+          <div class="grid">
+            <div class="card">
+              <h3>🤖 Agent Runtime</h3>
+              <p>
+                Deep agent graphs with sub-agents, thinking mode, streaming
+                output, and human approval for risky actions.
+              </p>
+            </div>
+            <div class="card">
+              <h3>🔧 MCP &amp; Tools</h3>
+              <p>
+                System-level and per-user MCP servers, encrypted secrets, and
+                sandboxed code execution on Daytona, E2B, or CubeSandbox.
+              </p>
+            </div>
+            <div class="card">
+              <h3>🧠 Memory &amp; Skills</h3>
+              <p>
+                Cross-session memory, a skill marketplace, GitHub-synced
+                skills, and reusable persona presets.
+              </p>
+            </div>
+            <div class="card">
+              <h3>💬 Multi-Model Chat</h3>
+              <p>
+                Bring your own keys for Claude, GPT, Gemini, and more — with
+                SSE streaming, multimodal input, and document processing.
+              </p>
+            </div>
+            <div class="card">
+              <h3>📱 Full-Stack Client</h3>
+              <p>
+                React 19 web app, Capacitor mobile apps, Tauri desktop app,
+                and installable PWA — one backend for all of them.
+              </p>
+            </div>
+            <div class="card">
+              <h3>🚀 Production Ready</h3>
+              <p>
+                JWT auth with RBAC, realtime sync, scheduled tasks, usage
+                tracking, and Docker / Kubernetes deployment recipes.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="why">
+          <h2>Why LambChat</h2>
+          <p class="why">
+            Most agent products stop at “chat with tools.” LambChat is
+            designed for the longer path: configure models, connect tools
+            safely, let agents create artifacts, persist useful context,
+            share results, approve risky actions, and deploy the whole system
+            for real users — self-hosted, open source (MIT), and bilingual
+            documentation included.
+          </p>
+        </section>
+
+        <section id="stack">
+          <h2>Under the hood</h2>
+          <p class="stack">
+            <code>Python 3.12</code> + <code>FastAPI</code> +
+            <code>LangGraph / deepagents</code> · <code>MongoDB</code> +
+            <code>Redis</code> + <code>arq</code> ·
+            <code>React 19</code> + <code>TypeScript</code> +
+            <code>Vite</code> · Deploy with <code>Docker</code> or
+            <code>Kubernetes</code>. English, 中文, 日本語, 한국어, and
+            Русский interfaces.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <div class="container" style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px">
+        <span>🐑 LambChat — open-source AI Agent platform (MIT)</span>
+        <span>
+          <a href="/docs/en/">Docs</a> ·
+          <a href="/docs/zh/">中文文档</a> ·
+          <a href="https://github.com/Yanyutin753/LambChat">GitHub</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

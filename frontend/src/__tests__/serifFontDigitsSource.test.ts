@@ -28,11 +28,18 @@ test("serif stack falls back to CJK serif fonts before the generic family", () =
   expect(config).toMatch(/,\s*"serif",?\s*\]/);
 });
 
-test("index.html loads Source Serif 4 with an async link and a noscript fallback", () => {
+test("fonts are self-hosted: no Google Fonts origin, local @font-face with swap", () => {
   const html = readRepoFile("index.html");
+  const fontsCss = readRepoFile("src/fonts.css");
+  const main = readRepoFile("src/main.tsx");
 
-  const matches = html.match(/family=Source\+Serif\+4/g) ?? [];
-  expect(matches.length).toBeGreaterThanOrEqual(2);
+  expect(html).not.toMatch(/fonts\.googleapis\.com/);
+  expect(html).not.toMatch(/fonts\.gstatic\.com/);
+  expect(html).toMatch(/\/fonts\/source-sans-3-400-latin\.woff2/);
+  expect(fontsCss).toMatch(/font-family:\s*'Source Serif 4'/);
+  expect(fontsCss).toMatch(/font-family:\s*'Source Sans 3'/);
+  expect(fontsCss).toMatch(/font-display:\s*swap/);
+  expect(main).toMatch(/import\s+"\.\/fonts\.css"/);
 });
 
 test("font-serif utility forces lining numerals so digits share the text baseline", () => {

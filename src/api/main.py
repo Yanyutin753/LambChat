@@ -911,7 +911,7 @@ def create_app() -> FastAPI:
             return HTMLResponse(content=rendered)
 
         # SPA fallback - serve index.html for all unmatched routes
-        @app.get("/{full_path:path}")
+        @app.api_route("/{full_path:path}", methods=["GET", "HEAD"])
         async def serve_spa(full_path: str, request: Request):
             """Serve SPA index.html for client-side routing."""
             # First, check if it's a static file
