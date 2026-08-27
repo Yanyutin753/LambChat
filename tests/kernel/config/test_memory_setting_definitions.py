@@ -57,3 +57,10 @@ def test_memory_vector_backend_defaults_match_definitions() -> None:
     assert SETTING_DEFINITIONS["NATIVE_MEMORY_QDRANT_URL"]["default"] == "http://127.0.0.1:6333"
     assert Settings(_env_file=None).NATIVE_MEMORY_QDRANT_API_KEY == ""
     assert SETTING_DEFINITIONS["NATIVE_MEMORY_QDRANT_API_KEY"]["default"] == ""
+
+
+def test_memory_self_evolve_defaults_match_definitions() -> None:
+    assert Settings(_env_file=None).NATIVE_MEMORY_SELF_EVOLVE_ENABLED is False
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_SELF_EVOLVE_ENABLED"]["default"] is False
+    assert Settings(_env_file=None).NATIVE_MEMORY_SELF_EVOLVE_MAX_PER_NIGHT == 3
+    assert SETTING_DEFINITIONS["NATIVE_MEMORY_SELF_EVOLVE_MAX_PER_NIGHT"]["default"] == 3

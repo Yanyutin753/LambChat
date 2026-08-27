@@ -1641,7 +1641,8 @@
       "auto_retained": "自動保持",
       "consolidated": "統合",
       "imported": "インポート",
-      "manual": "手動"
+      "manual": "手動",
+      "selfEvolved": "自己進化"
     },
     "sourceLabel": "ソース",
     "subtitle": "合計 {{count}} 件の記憶",
@@ -2365,6 +2366,9 @@
     "NATIVE_MEMORY_INDEX_CACHE_TTL": "メモリインデックスキャッシュTTL（秒、ユーザーごと）",
     "NATIVE_MEMORY_INDEX_ENABLED": "コンテキスト認識のためにシステムプロンプトにメモリインデックスを挿入",
     "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "各ターンのメッセージ作成時に関連メモリを自動付与（書き込み時注入、デフォルト無効）",
+    "NATIVE_MEMORY_SELF_EVOLVE_ENABLED": "自己進化メモリ：低評価/失敗会話から夜間に教訓を抽出（デフォルト無効）",
+    "NATIVE_MEMORY_SELF_EVOLVE_MAX_PER_NIGHT": "ユーザーあたり一夜の教訓生成上限（デフォルト 3）",
+    "NATIVE_MEMORY_SELF_EVOLVE_INTERVAL_SECONDS": "自己進化スケジュール間隔（秒、デフォルト 43200=12h）",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "1ターンに注入する関連メモリの上限（デフォルト 3）",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "注入ブロックの文字数予算（デフォルト 1200）",
     "NATIVE_MEMORY_VECTOR_BACKEND": "ベクトル検索バックエンド: mongo（内蔵）または qdrant（専用ベクトルDB、デフォルト mongo）",

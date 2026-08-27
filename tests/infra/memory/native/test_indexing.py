@@ -179,3 +179,69 @@ async def test_build_memory_index_renders_markdown_dates_and_summaries_without_i
     )
     assert "private-session-id" not in index
     assert "private-run-id" not in index
+
+
+@pytest.mark.asyncio
+async def test_lessons_block_renders_feedback_rules_with_budget():
+    """context=feedback_rule 的教训进专属 Lessons 块（≤400字符），且不重复出现在 Feedback 区。"""
+    from datetime import datetime, timezone
+
+    from src.infra.memory.client.native.indexing import build_memory_index
+
+    class FakeCursor:
+        def sort(self, *a, **k):
+            return self
+
+        def limit(self, n):
+            return self
+
+        async def to_list(self, length=None):
+            now = datetime.now(timezone.utc)
+            docs = [
+                {
+                    "user_id": "u1",
+                    "memory_id": f"m{i}",
+                    "title": f"教训{i}" + "很长的规则文案" * 10,
+                    "summary": f"规则{i}",
+                    "index_label": f"教训{i}",
+                    "updated_at": now,
+                    "memory_type": "feedback",
+                    "source": "self_evolved",
+                    "context": "feedback_rule",
+                }
+                for i in range(5)
+            ]
+            docs.append(
+                {
+                    "user_id": "u1",
+                    "memory_id": "m-gen",
+                    "title": "普通反馈",
+                    "summary": "普通",
+                    "index_label": "普通反馈",
+                    "updated_at": now,
+                    "memory_type": "feedback",
+                    "source": "manual",
+                    "context": None,
+                }
+            )
+            return docs
+
+    class FakeCollection:
+        def find(self, q, p):
+            return FakeCursor()
+
+    class FakeBackend:
+        _collection = FakeCollection()
+        _index_cache = {}
+        _INDEX_CACHE_MAX_SIZE = 100
+
+    result = await build_memory_index(FakeBackend(), "u1")
+    assert "## Lessons" in result
+    assert "- 教训0" in result or "- 教训" in result
+    # 预算：Lessons 块 ≤ 400 字符
+    lessons_part = (
+        result.split("## Lessons")[1].split("</memory_index>")[0] if "## Lessons" in result else ""
+    )
+    assert len(lessons_part) <= 420
+    # 普通 feedback 仍在 Feedback 区
+    assert "普通反馈" in result

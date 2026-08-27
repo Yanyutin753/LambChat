@@ -1641,7 +1641,8 @@
       "auto_retained": "Auto Retained",
       "consolidated": "Consolidated",
       "imported": "Imported",
-      "manual": "Manual"
+      "manual": "Manual",
+      "selfEvolved": "Self-evolved"
     },
     "sourceLabel": "Source",
     "subtitle": "{{count}} memories total",
@@ -2365,6 +2366,9 @@
     "NATIVE_MEMORY_INDEX_CACHE_TTL": "Memory index cache TTL in seconds (per-user)",
     "NATIVE_MEMORY_INDEX_ENABLED": "Inject memory index into system prompt for context awareness",
     "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "Append relevant memories to each turn at message creation (write-time injection, off by default)",
+    "NATIVE_MEMORY_SELF_EVOLVE_ENABLED": "Self-evolving memory: distill lessons nightly from down-rated/failed runs (off by default)",
+    "NATIVE_MEMORY_SELF_EVOLVE_MAX_PER_NIGHT": "Max lessons per user per night (default 3)",
+    "NATIVE_MEMORY_SELF_EVOLVE_INTERVAL_SECONDS": "Self-evolution schedule interval in seconds (default 43200 = 12h)",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "Max relevant memories injected per turn (default 3)",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "Injected block char budget (default 1200)",
     "NATIVE_MEMORY_VECTOR_BACKEND": "Vector search backend: mongo (built-in) or qdrant (dedicated vector DB, default mongo)",

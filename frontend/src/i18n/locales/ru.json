@@ -1641,7 +1641,8 @@
       "auto_retained": "Автосохранение",
       "consolidated": "Объединено",
       "imported": "Импорт",
-      "manual": "Вручную"
+      "manual": "Вручную",
+      "selfEvolved": "Самоэволюция"
     },
     "sourceLabel": "Источник",
     "subtitle": "Всего {{count}} воспоминаний",
@@ -2365,6 +2366,9 @@
     "NATIVE_MEMORY_INDEX_CACHE_TTL": "TTL кэша индекса памяти в секундах (на пользователя)",
     "NATIVE_MEMORY_INDEX_ENABLED": "Внедрять индекс памяти в системный промпт для контекстного восприятия",
     "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "Добавлять релевантные воспоминания при создании сообщения (инъекция при записи, по умолчанию выключено)",
+    "NATIVE_MEMORY_SELF_EVOLVE_ENABLED": "Самоэволюция памяти: ночная дистилляция уроков из негативных/failed-запусков (по умолчанию выкл.)",
+    "NATIVE_MEMORY_SELF_EVOLVE_MAX_PER_NIGHT": "Максимум уроков на пользователя за ночь (по умолчанию 3)",
+    "NATIVE_MEMORY_SELF_EVOLVE_INTERVAL_SECONDS": "Интервал самоэволюции в секундах (по умолчанию 43200 = 12ч)",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "Максимум воспоминаний на ход (по умолчанию 3)",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "Бюджет символов блока (по умолчанию 1200)",
     "NATIVE_MEMORY_VECTOR_BACKEND": "Бэкенд векторного поиска: mongo (встроенный) или qdrant (отдельная векторная БД, по умолчанию mongo)",
