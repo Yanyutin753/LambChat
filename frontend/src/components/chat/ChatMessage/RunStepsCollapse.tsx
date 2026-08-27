@@ -68,20 +68,11 @@ export function RunStepsCollapse({
         }}
         disabled={active}
         className={clsx(
-          "group/steps flex w-full items-baseline gap-1.5 border-b pb-1.5 text-left",
+          "group/steps flex w-full items-baseline gap-1.5 border-b border-theme-border pb-1.5 text-left",
           active ? "cursor-default" : "cursor-pointer",
         )}
-        style={{
-          borderColor:
-            "color-mix(in srgb, var(--theme-border) 55%, transparent)",
-        }}
       >
-        <span
-          className={clsx(
-            "min-w-0 truncate text-[0.9375rem] leading-6 transition-colors duration-200 group-hover/steps:text-theme-text-secondary",
-            active ? "text-theme-text-secondary" : "text-theme-text-tertiary",
-          )}
-        >
+        <span className="min-w-0 truncate text-[0.9375rem] leading-6 text-theme-text-secondary">
           {active
             ? durationLabel
               ? t("chat.message.runStepsWorking", { duration: durationLabel })

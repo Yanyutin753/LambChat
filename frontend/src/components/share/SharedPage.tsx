@@ -546,7 +546,7 @@ export function SharedPage({
           className="absolute bottom-0 left-0 h-[2px] landing-progress-bar"
           style={{ width: `${scrollProgress * 100}%` }}
         />
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-10 h-14 flex items-center justify-between">
           {/* Left: Brand */}
           <Link
             to="/"
@@ -853,8 +853,8 @@ export function SharedPage({
           </div>
 
           {/* Bottom meta bar */}
-          <div className="pb-6 sm:pb-8 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2 text-[11px] text-stone-300 dark:text-stone-600">
+          <div className="pb-6 sm:pb-8 flex flex-col sm:flex-row items-center justify-between gap-2.5 font-serif">
+            <div className="flex items-center gap-2 text-[11px] text-stone-300 dark:text-stone-600 font-serif">
               {data.session.created_at && (
                 <>
                   <span>{formatDate(data.session.created_at)}</span>

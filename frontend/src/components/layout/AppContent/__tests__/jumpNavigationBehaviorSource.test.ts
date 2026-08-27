@@ -14,19 +14,23 @@ const outlineSource = readSource(
 // 多段迭代，表现为长时间停顿后缓慢爬行。
 test("timeline and outline navigation jump instantly instead of smooth-scrolling", () => {
   expect(chatViewSource).toMatch(
-    /scrollToIndex\(\{\s*index: messageIndex,\s*behavior: "auto",\s*align: "start",\s*\}\)/,
+    /scrollToIndex\(\{\s*index: messageIndex,\s*behavior: "auto",\s*align: "start",\s*offset: -24,\s*\}\)/,
   );
-  expect(chatViewSource).toMatch(
-    /el\.scrollIntoView\(\{ behavior: "auto", block: "start" \}\)/,
-  );
-  expect(chatViewSource).not.toMatch(
-    /scrollToIndex\(\{\s*index: messageIndex,\s*behavior: "smooth"/,
-  );
-
   expect(outlineSource).toMatch(
     /scrollToIndex\(\{\s*index: messageIndex,\s*behavior: "auto",\s*align: "start",\s*\}\)/,
   );
   expect(outlineSource).not.toMatch(
     /scrollToIndex\(\{\s*index: messageIndex,\s*behavior: "smooth"/,
   );
+});
+
+// 时间轴跳转只允许一次权威滚动：scrollToIndex 自带测量修正与重试，
+// 追加 rAF scrollIntoView 会在远距离条目上按过期布局二次滚动、冲过
+// 目标一轮——表现为「点的是这轮，点亮落在下一轮」。
+test("timeline navigation scrolls once with offset instead of a racing scrollIntoView", () => {
+  const timelineNavigate = chatViewSource.slice(
+    chatViewSource.indexOf("handleTimelineNavigate"),
+  );
+  expect(timelineNavigate).toMatch(/offset: -24/);
+  expect(timelineNavigate).not.toMatch(/\.scrollIntoView\(/);
 });

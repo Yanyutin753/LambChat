@@ -99,7 +99,7 @@ export function TaskSessionList({
             <div className="scheduled-task-empty-state__icon">
               <MessageSquare size={32} />
             </div>
-            <p className="scheduled-task-empty-state__title">
+            <p className="scheduled-task-empty-state__title font-serif">
               {t("scheduledTask.noSessions")}
             </p>
             <p className="scheduled-task-empty-state__body">

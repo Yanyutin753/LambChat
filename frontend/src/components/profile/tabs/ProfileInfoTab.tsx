@@ -266,7 +266,7 @@ export function ProfileInfoTab() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 font-serif">
               <span className="text-sm text-stone-500 dark:text-stone-400 shrink-0">
                 {t("profile.username")}
               </span>

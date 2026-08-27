@@ -205,7 +205,7 @@ export function SharedProjectPage({
     <div className="flex flex-col bg-theme-bg text-theme-text min-h-dvh font-sans">
       {/* Header */}
       <header className="safe-area-top sticky top-0 z-40 border-b border-theme-border bg-[color-mix(in_srgb,var(--theme-bg-card)_82%,transparent)] backdrop-blur">
-        <div className="max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+        <div className="max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3 font-serif">
           <BrandWordmark decorative className="h-7 w-auto text-theme-text" />
           <button
             type="button"

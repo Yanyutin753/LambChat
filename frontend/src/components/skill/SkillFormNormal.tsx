@@ -166,7 +166,7 @@ export function SkillFormNormal(a: SkillFormActions) {
         <div className="skill-form-editor flex flex-col overflow-hidden rounded-3xl shadow-sm">
           <div className="shrink-0 px-3 py-3 sm:px-4">
             <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 font-serif">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]/80">
                   {t("skills.form.files", "Files")}
                 </p>

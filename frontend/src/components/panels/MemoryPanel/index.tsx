@@ -337,7 +337,7 @@ export function MemoryPanel() {
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg)]">
               <Brain size={32} className="text-[var(--theme-text-secondary)]" />
             </div>
-            <p className="text-lg font-medium text-[var(--theme-text)]">
+            <p className="text-lg font-medium font-serif text-[var(--theme-text)]">
               {searchQuery || filterType
                 ? t("memory.noResults")
                 : t("memory.empty")}

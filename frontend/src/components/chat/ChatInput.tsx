@@ -691,7 +691,7 @@ export const ChatInput = memo(function ChatInput({
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className={className ?? "mx-auto max-w-4xl 2xl:max-w-5xl"}
+        className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}
       >
         <div ref={composerSlotRef} className="w-full">
           {composerHost &&
@@ -877,6 +877,7 @@ export const ChatInput = memo(function ChatInput({
                   totalSkillsCount={totalSkillsCount}
                   hasPersonaSelector={!!onUsePersonaPreset}
                   personaName={selectedPersonaName}
+                  totalPersonaCount={personaPresetsTotal}
                   hasAgentSelector={agents.length > 1 && !!onSelectAgent}
                   agentName={(() => {
                     const agent = agents.find((a) => a.id === currentAgent);

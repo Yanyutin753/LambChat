@@ -2,7 +2,7 @@ import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { Check, Copy, GitBranch, Info, Target } from "lucide-react";
+import { Check, Copy, GitBranch, Info, Loader2, Target } from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
@@ -613,7 +613,7 @@ export const ChatMessage = memo(function ChatMessage({
         !isFirst && "pt-2",
       )}
     >
-      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-8">
+      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-10">
         {/* Content */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
           {/* Header: Avatar + Role label + Stop button */}
@@ -623,21 +623,26 @@ export const ChatMessage = memo(function ChatMessage({
               personaAvatar={personaAvatar}
             />
             <span
-              className="min-w-0 truncate text-base sm:text-lg font-semibold leading-none tracking-tight font-serif"
+              className="min-w-0 truncate text-base sm:text-lg font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
               {personaName || t("chat.message.assistant")}
             </span>
           </div>
 
-          {/* Run just started, no parts yet: still show the working row */}
+          {/* Run just started, no parts yet: working row stays, loading icon under the divider */}
           {isStreaming && !hasParts && (
             <RunStepsCollapse
               steps={0}
               durationMs={null}
               startedAtMs={getRunStartedAtMs(message)}
               active
-              renderExpanded={() => null}
+              renderExpanded={() => (
+                <Loader2
+                  size={16}
+                  className="animate-spin text-theme-text-tertiary"
+                />
+              )}
             />
           )}
 

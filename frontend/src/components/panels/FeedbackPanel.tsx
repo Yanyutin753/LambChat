@@ -72,7 +72,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-xl font-bold tabular-nums text-stone-900 dark:text-stone-100 leading-none">
+              <span className="text-xl font-bold font-serif tabular-nums text-stone-900 dark:text-stone-100 leading-none">
                 {upPct.toFixed(0)}
                 <span className="text-xs font-semibold">%</span>
               </span>

@@ -81,7 +81,7 @@ test("tool result header truncates long titles and subtitles on narrow screens",
   );
 
   expect(componentSource).toMatch(
-    /className="tool-console-title-row flex items-end gap-2 min-w-0 flex-1 overflow-hidden"/,
+    /className="tool-console-title-row flex items-end gap-2 min-w-0 flex-1 overflow-hidden font-serif"/,
   );
   expect(componentSource).toMatch(
     /className="tool-console-title min-w-0 max-w-\[40%\] truncate font-medium text-sm text-theme-text"/,

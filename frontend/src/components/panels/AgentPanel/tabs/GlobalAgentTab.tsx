@@ -110,7 +110,7 @@ export function GlobalAgentTab({
               className="group transition-colors duration-150 hover:bg-[var(--glass-bg-hover)]"
               style={{ animationDelay: `${index * 40}ms` }}
             >
-              <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+              <div className="flex items-center justify-between gap-3 font-serif px-4 py-3.5">
                 <button
                   type="button"
                   onClick={() => setEditingAgentId(agent.id)}

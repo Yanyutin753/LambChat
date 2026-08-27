@@ -232,6 +232,17 @@ describe("getRunStartedAtMs", () => {
     expect(getRunStartedAtMs(message)).toBe(Date.parse("2026-08-26T08:59:00Z"));
   });
 
+  test("keeps the earlier message timestamp as the anchor when part timestamps start later", () => {
+    const message = {
+      timestamp: new Date("2026-08-26T08:59:00Z"),
+      parts: [
+        tool("a", "2026-08-26T09:00:10Z", "2026-08-26T09:00:20Z"),
+        thinking(),
+      ],
+    } as unknown as Message;
+    expect(getRunStartedAtMs(message)).toBe(Date.parse("2026-08-26T08:59:00Z"));
+  });
+
   test("returns null when nothing is known", () => {
     expect(getRunStartedAtMs({ parts: [] } as Message)).toBeNull();
   });

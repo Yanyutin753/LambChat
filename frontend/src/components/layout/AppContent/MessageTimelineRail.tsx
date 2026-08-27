@@ -112,7 +112,7 @@ function TimelinePreviewCard({
 
     return {
       position: "fixed",
-      left: rect.right + 8,
+      right: window.innerWidth - rect.left + 8,
       top,
       zIndex: 60,
       width: `${CARD_WIDTH}px`,
@@ -154,13 +154,13 @@ function TimelinePreviewCard({
         </div>
       )}
 
-      {/* Arrow pointing left toward the rail */}
+      {/* Arrow pointing right toward the rail */}
       <div
         className="absolute top-1/2 -translate-y-1/2 h-[7px] w-[7px] rotate-45 border-[var(--theme-border)] bg-[var(--theme-bg-card)]"
         style={{
-          left: "-4px",
+          right: "-4px",
           borderTop: "none",
-          borderRight: "none",
+          borderLeft: "none",
         }}
       />
     </div>,
@@ -169,7 +169,7 @@ function TimelinePreviewCard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  MessageTimelineRail — vertical bar strip on left edge              */
+/*  MessageTimelineRail — vertical bar strip on right edge             */
 /*                                                                      */
 /*  One bar per turn (user + assistant pair). Hover shows a preview    */
 /*  card with the turn's messages. Click navigates to the turn.        */
@@ -191,6 +191,12 @@ export function MessageTimelineRail({
 
   const [hoveredTurnIndex, setHoveredTurnIndex] = useState<number | null>(null);
   const [touchTurnIndex, setTouchTurnIndex] = useState<number | null>(null);
+  // 导航锚定的激活轮：跳转落点顶部留白会露出上一轮消息的尾巴，纯按
+  // 可视区起点解析会把激活算到上一轮；锚定到被点击的轮，直到视口
+  // 真正滚出该轮区间。
+  const [pinnedActiveTurnIndex, setPinnedActiveTurnIndex] = useState<
+    number | null
+  >(null);
   const hoveredBarRef = useRef<HTMLSpanElement | null>(null);
   const barRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const railScrollRef = useRef<HTMLDivElement | null>(null);
@@ -211,6 +217,9 @@ export function MessageTimelineRail({
   // 触摸手势结束时指针捕获会把合成 click 重定向到 button；由手势路径
   // 导航后置位，让 button 的 click 兜底跳过这一次，避免双跳。
   const suppressNextClickRef = useRef(false);
+  // 最近一次真实指针类型：触摸后拦截合成 mouseenter，鼠标 pointermove
+  // 到来后恢复悬停。
+  const lastPointerTypeRef = useRef<"mouse" | "touch" | null>(null);
 
   const stopFling = useCallback(() => {
     if (flingFrameRef.current !== null) {
@@ -281,6 +290,12 @@ export function MessageTimelineRail({
       stopFling();
       if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
       draggingRef.current = true;
+      // 触摸反馈是波动，不是悬停卡片：立刻清掉可能残留的鼠标悬停卡，
+      // 并拦截触摸后浏览器补发的合成 mouseenter（会以过期锚点重开卡片，
+      // 表现为卡片弹在上一条旁边）。真实鼠标 pointermove 才恢复悬停。
+      lastPointerTypeRef.current = "touch";
+      hoveredBarRef.current = null;
+      setHoveredTurnIndex(null);
       event.currentTarget.setPointerCapture?.(event.pointerId);
       captureDragCenters();
 
@@ -302,9 +317,41 @@ export function MessageTimelineRail({
     [captureDragCenters, findTurnAtY, stopFling],
   );
 
+  // Clicks landing on the button itself (the 8px gap rows between 3px bars,
+  // or a bar that shifted mid-click) still navigate to the nearest turn —
+  // the whole rail is an effective click target. Hover resolution shares
+  // the same nearest-center logic so the two can never disagree.
+  const findNearestTurnByViewportY = useCallback((clientY: number) => {
+    let nearestIndex: number | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    barRefs.current.forEach((bar, index) => {
+      if (!bar) return;
+      const rect = bar.getBoundingClientRect();
+      const distance = Math.abs(clientY - (rect.top + rect.height / 2));
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+    return nearestIndex;
+  }, []);
+
   const handleTouchMove = useCallback(
     (event: PointerEvent<HTMLButtonElement>) => {
-      if (!draggingRef.current) return;
+      if (!draggingRef.current) {
+        // 鼠标悬停按指针实际位置就近解析：行高只有 3px、间隔是死区，
+        // 且轨道滚动/条宽变化后浏览器不会补发 mouseenter，仅靠进入
+        // 事件会让亮条/预览卡停在过期的那一行（表现为亮的是上一条）。
+        if (event.pointerType === "mouse") {
+          lastPointerTypeRef.current = "mouse";
+          const hoverIndex = findNearestTurnByViewportY(event.clientY);
+          if (hoverIndex !== null && hoverIndex !== hoveredTurnIndex) {
+            hoveredBarRef.current = barRefs.current[hoverIndex] ?? null;
+            setHoveredTurnIndex(hoverIndex);
+          }
+        }
+        return;
+      }
       event.preventDefault();
 
       const scrollStart = touchScrollStartRef.current;
@@ -323,14 +370,14 @@ export function MessageTimelineRail({
       }
       scrollStart.prevY = event.clientY;
 
-      // The doubled-width highlight follows the finger while scrolling.
+      // The touch wave follows the finger while scrolling.
       const index = findTurnAtY(event.clientY, railScrolls ? dy : 0);
       if (index !== touchTurnRef.current) {
         touchTurnRef.current = index;
         setTouchTurnIndex(index);
       }
     },
-    [findTurnAtY],
+    [findNearestTurnByViewportY, findTurnAtY, hoveredTurnIndex],
   );
 
   // Only user-message and assistant-message items (exclude headings).
@@ -344,6 +391,18 @@ export function MessageTimelineRail({
 
   // Group into turns (user + following assistant responses).
   const turns = useMemo(() => groupIntoTurns(messageItems), [messageItems]);
+
+  // 所有导航路径（刻度点击 / 按钮兜底 / 触摸轻点）统一走这里：置位激活
+  // 锚定，让被点击的轮立即点亮并保持到视口滚出它。
+  const navigateToTurn = useCallback(
+    (index: number) => {
+      const turn = turns[index];
+      if (!turn) return;
+      setPinnedActiveTurnIndex(index);
+      onNavigate(turn.user.anchorId, turn.user.messageIndex);
+    },
+    [onNavigate, turns],
+  );
 
   const handleTouchEnd = useCallback(
     (event: PointerEvent<HTMLButtonElement>, isCancel = false) => {
@@ -369,10 +428,7 @@ export function MessageTimelineRail({
             tappedIndex !== null &&
             turns[tappedIndex] !== undefined
           ) {
-            onNavigate(
-              turns[tappedIndex].user.anchorId,
-              turns[tappedIndex].user.messageIndex,
-            );
+            navigateToTurn(tappedIndex);
           }
           return;
         }
@@ -381,26 +437,8 @@ export function MessageTimelineRail({
         startFling(-lastDragDeltaRef.current);
       }
     },
-    [onNavigate, startFling, turns],
+    [navigateToTurn, startFling, turns],
   );
-
-  // Clicks landing on the button itself (the 8px gap rows between 3px bars,
-  // or a bar that shifted mid-click) still navigate to the nearest turn —
-  // the whole rail is an effective click target.
-  const findNearestTurnByViewportY = useCallback((clientY: number) => {
-    let nearestIndex: number | null = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    barRefs.current.forEach((bar, index) => {
-      if (!bar) return;
-      const rect = bar.getBoundingClientRect();
-      const distance = Math.abs(clientY - (rect.top + rect.height / 2));
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestIndex = index;
-      }
-    });
-    return nearestIndex;
-  }, []);
 
   const handleRailClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
@@ -410,17 +448,35 @@ export function MessageTimelineRail({
       }
       const index = findNearestTurnByViewportY(event.clientY);
       if (index !== null && turns[index]) {
-        onNavigate(turns[index].user.anchorId, turns[index].user.messageIndex);
+        navigateToTurn(index);
       }
     },
-    [findNearestTurnByViewportY, onNavigate, turns],
+    [findNearestTurnByViewportY, navigateToTurn, turns],
   );
 
   // Keep the active turn's bar visible inside the scrollable rail.
-  const activeTurnIndex =
+  // 锚定优先：视口起点仍落在被导航轮（或其上一条消息的尾巴）时，
+  // 激活保持在被导航的轮；起点滚出该轮消息区间后交还范围解析。
+  const computedActiveTurnIndex =
     visibleRange === null
       ? null
       : turns.findIndex((turn) => isTurnInRange(turn, visibleRange));
+  const pinnedTurn =
+    pinnedActiveTurnIndex !== null && turns[pinnedActiveTurnIndex] !== undefined
+      ? turns[pinnedActiveTurnIndex]
+      : null;
+  const pinnedStillRelevant =
+    pinnedTurn !== null &&
+    visibleRange !== null &&
+    visibleRange.startIndex >= pinnedTurn.user.messageIndex - 1 &&
+    visibleRange.startIndex <=
+      (pinnedTurn.responses.length > 0
+        ? pinnedTurn.responses[pinnedTurn.responses.length - 1]!.messageIndex
+        : pinnedTurn.user.messageIndex);
+  const activeTurnIndex =
+    pinnedStillRelevant && pinnedActiveTurnIndex !== null
+      ? pinnedActiveTurnIndex
+      : computedActiveTurnIndex;
 
   useEffect(() => {
     if (activeTurnIndex === null || activeTurnIndex === -1) return;
@@ -429,18 +485,15 @@ export function MessageTimelineRail({
 
   if (turns.length <= 2) return null;
 
-  const count = turns.length;
-
   return (
     <div
       ref={railScrollRef}
-      className="hidden lg:block absolute left-2 top-1/2 -translate-y-1/2 z-20 max-h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 z-20 max-h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <button
         type="button"
-        className="group/timeline pointer-events-auto flex flex-col items-start px-4 py-3 pl-1 transition-all duration-150"
+        className="group/timeline pointer-events-auto flex flex-col items-end px-4 py-3 pr-1 transition-all duration-150"
         aria-label={t("chat.timeline", "Timeline")}
-        title={`${t("chat.timeline", "Timeline")} · ${count}`}
         style={{ gap: 8, touchAction: "none" }}
         onMouseLeave={handleRailMouseLeave}
         onClick={handleRailClick}
@@ -450,21 +503,32 @@ export function MessageTimelineRail({
         onPointerCancel={(e) => handleTouchEnd(e, true)}
       >
         {turns.map((turn, index) => {
-          const isActive =
-            visibleRange !== null && isTurnInRange(turn, visibleRange);
+          // Exactly one bar is active: the topmost turn in the visible
+          // range — matching the single-highlight reference design.
+          const isActive = index === activeTurnIndex;
 
           const isHovered =
             hoveredTurnIndex === index || touchTurnIndex === index;
-          // Touched bar doubles in width (following the finger); neighbors
-          // stay at base width — no wave taper.
+          // Touch wave: the touched bar grows to 3× base width and
+          // thickens via scaleY (3px → 5px without layout shift, so the
+          // cached drag centers stay valid); neighbors get a gentle bump.
+          const touchDistance =
+            touchTurnIndex === null ? null : Math.abs(index - touchTurnIndex);
           const barWidth =
-            touchTurnIndex === null
+            touchDistance === null
               ? isHovered
                 ? 24
                 : 16
-              : index === touchTurnIndex
-                ? 32
-                : 16;
+              : touchDistance === 0
+                ? 48
+                : touchDistance === 1
+                  ? 34
+                  : touchDistance === 2
+                    ? 26
+                    : touchDistance === 3
+                      ? 20
+                      : 16;
+          const barTransform = touchDistance === 0 ? "scaleY(1.67)" : undefined;
 
           return (
             <span
@@ -473,19 +537,22 @@ export function MessageTimelineRail({
                 barRefs.current[index] = element;
               }}
               data-turn-index={index}
-              className="flex w-11 cursor-pointer items-center justify-start"
+              className="flex w-11 cursor-pointer items-center justify-end"
               onClick={(e) => {
                 e.stopPropagation();
-                onNavigate(turn.user.anchorId, turn.user.messageIndex);
+                navigateToTurn(index);
               }}
               onMouseEnter={(e) => {
+                // 触摸后浏览器补发的合成 mouseenter：锚点是过期位置，
+                // 直接忽略。
+                if (lastPointerTypeRef.current === "touch") return;
                 hoveredBarRef.current = e.currentTarget;
                 setHoveredTurnIndex(index);
               }}
             >
               <span
                 className={clsx(
-                  "h-[3px] rounded-full transition-[width,background-color] duration-200 ease-out",
+                  "h-[3px] rounded-full transition-[width,background-color,transform] duration-200 ease-out",
                   isActive
                     ? "bg-[var(--theme-primary)]"
                     : isHovered
@@ -494,6 +561,7 @@ export function MessageTimelineRail({
                 )}
                 style={{
                   width: `${barWidth}px`,
+                  transform: barTransform,
                 }}
               />
             </span>
@@ -501,9 +569,12 @@ export function MessageTimelineRail({
         })}
       </button>
 
-      {/* Hover preview card */}
+      {/* Hover preview card — keyed by turn so it re-anchors to the bar
+          the mouse is currently on (the position hook only recomputes on
+          open, not when the anchor element changes). */}
       {hoveredTurnIndex !== null && turns[hoveredTurnIndex] && (
         <TimelinePreviewCard
+          key={hoveredTurnIndex}
           turn={turns[hoveredTurnIndex]}
           anchorRef={hoveredBarRef}
           visible={hoveredTurnIndex !== null}

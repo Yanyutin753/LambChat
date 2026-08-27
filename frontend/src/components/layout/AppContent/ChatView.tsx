@@ -208,20 +208,29 @@ export function ChatView({
     firstItemIndexRef.current = firstItemIndex;
   }, [firstItemIndex]);
   const prevRenderItemsRef = useRef<Message[]>([]);
-  useEffect(() => {
-    const prev = prevRenderItemsRef.current;
-    prevRenderItemsRef.current = messages;
-    if (!messages.length || !prev.length) return;
-    // 首条消息未变说明只是尾部追加/更新，无需前移锚点
-    if (messages[0].id === prev[0].id) return;
-    // 找到上一帧首条消息在新列表中的位置：前插了多少条就前移多少
-    const prependCount = messages.findIndex(
-      (message) => message.id === prev[0].id,
+  // firstItemIndex 必须与前插数据落在同一次 commit：若放到事后 effect 里
+  // 修正，中间那一帧会被 Virtuoso 当成顶部插入，滚动位置被重置——表现
+  // 就是上滑加载更早消息时视口跳回列表顶部。渲染期 setState 会让 React
+  // 丢弃本帧、带着新锚点立即重渲，两处变更同帧生效。
+  const previousFirstMessageId = prevRenderItemsRef.current[0]?.id;
+  const prependCount =
+    previousFirstMessageId !== undefined &&
+    messages.length > 0 &&
+    messages[0].id !== previousFirstMessageId
+      ? messages.findIndex((message) => message.id === previousFirstMessageId)
+      : -1;
+  if (prependCount > 0) {
+    // ref 与 state 同帧更新：rangeChanged 的换算读 ref，父组件的
+    // useEffect 晚于 Virtuoso 的事件发射，靠 effect 同步会留一帧用旧
+    // 基准换算的窗口（dataRange 偏移一个分页量，时间轴点亮错位）。
+    const nextFirstItemIndex = Math.max(
+      0,
+      firstItemIndexRef.current - prependCount,
     );
-    if (prependCount > 0) {
-      setFirstItemIndex((current) => Math.max(0, current - prependCount));
-    }
-  }, [messages]);
+    firstItemIndexRef.current = nextFirstItemIndex;
+    setFirstItemIndex(nextFirstItemIndex);
+  }
+  prevRenderItemsRef.current = messages;
 
   const {
     messagesContainerRef,
@@ -377,15 +386,18 @@ export function ChatView({
     (anchorId: string, messageIndex: number) => {
       // 瞬时跳转：smooth 在长虚拟列表上是「估算→滚动→测量→修正」多段
       // 迭代，表现为长时间停顿后缓慢爬行；小地图点击应立即到位。
+      // offset: -24 等效消息行的 scroll-mt-6 留白，一次滚动到位；不追加
+      // rAF scrollIntoView——它与 scrollToIndex 的测量修正竞争，远距离
+      // 条目按过期布局二次滚动会冲过头一轮（点亮落在点击轮的下一轮）。
       dataIndexVirtuosoRef.current?.scrollToIndex({
         index: messageIndex,
         behavior: "auto",
         align: "start",
+        offset: -24,
       });
       requestAnimationFrame(() => {
         const el = document.getElementById(anchorId);
         if (el) {
-          el.scrollIntoView({ behavior: "auto", block: "start" });
           el.setAttribute("data-external-navigation-highlighted", "true");
           setTimeout(() => {
             el.removeAttribute("data-external-navigation-highlighted");

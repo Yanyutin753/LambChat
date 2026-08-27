@@ -1042,7 +1042,8 @@ test("does not auto-scroll when multiple messages are appended at once", () => {
   ).toBe(false);
 });
 
-test("treats an early upward mobile user scroll during active follow as an immediate detach", () => {
+test("keeps following across small upward reflow jitter near the bottom", () => {
+  // 上方内容回流造成的 ≤24px 上移是抖动，不是用户上滚，继续跟随
   expect(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: true,
@@ -1051,6 +1052,32 @@ test("treats an early upward mobile user scroll during active follow as an immed
       movedUp: true,
       isAwayFromBottom: false,
       deltaScrollPx: 18,
+      scrollTop: 260,
+    }),
+  ).toBe(false);
+
+  expect(
+    shouldStopAutoScrollOnUserScroll({
+      isMobileViewport: true,
+      autoScrollActive: true,
+      programmaticScroll: false,
+      movedUp: true,
+      isAwayFromBottom: false,
+      deltaScrollPx: 24,
+      scrollTop: 260,
+    }),
+  ).toBe(false);
+});
+
+test("detaches when the user deliberately scrolls up past the jitter window", () => {
+  expect(
+    shouldStopAutoScrollOnUserScroll({
+      isMobileViewport: true,
+      autoScrollActive: true,
+      programmaticScroll: false,
+      movedUp: true,
+      isAwayFromBottom: false,
+      deltaScrollPx: 32,
       scrollTop: 260,
     }),
   ).toBe(true);
@@ -1064,7 +1091,7 @@ test("treats an early upward mobile user scroll as a detach even in short transc
       programmaticScroll: false,
       movedUp: true,
       isAwayFromBottom: false,
-      deltaScrollPx: 12,
+      deltaScrollPx: 32,
       scrollTop: 80,
     }),
   ).toBe(true);
@@ -1120,7 +1147,7 @@ test("ignores an unexpected top jump while the bottom lock is still active", () 
   ).toBe(false);
 });
 
-test("treats that same early upward scroll as a detach on desktop too", () => {
+test("treats that same deliberate upward scroll as a detach on desktop too", () => {
   expect(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: false,
@@ -1128,7 +1155,7 @@ test("treats that same early upward scroll as a detach on desktop too", () => {
       programmaticScroll: false,
       movedUp: true,
       isAwayFromBottom: false,
-      deltaScrollPx: 18,
+      deltaScrollPx: 32,
       scrollTop: 260,
     }),
   ).toBe(true);

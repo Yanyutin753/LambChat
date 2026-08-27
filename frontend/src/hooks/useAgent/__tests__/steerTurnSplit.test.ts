@@ -43,6 +43,25 @@ describe("splitAssistantTurn", () => {
     expect(twice.map((m) => m.id).filter((id) => id === "a1")).toHaveLength(1);
   });
 
+  test("新轮次继承原 run 起点时间戳，插话分割后实时计时不清零", () => {
+    const runStart = new Date("2026-08-26T09:00:00Z");
+    const base: Message[] = [
+      msg({ id: "u1", role: "user", content: "任务" }),
+      msg({
+        id: "a1",
+        role: "assistant",
+        content: "第一轮",
+        isStreaming: true,
+        timestamp: runStart,
+        parts: [],
+      }),
+    ];
+
+    const result = splitAssistantTurn(base, "a1");
+
+    expect(result[2].timestamp).toEqual(runStart);
+  });
+
   test("找不到助手消息时返回原数组", () => {
     const base: Message[] = [msg({ id: "u", role: "user" })];
     expect(splitAssistantTurn(base, "missing")).toBe(base);

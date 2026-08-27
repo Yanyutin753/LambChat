@@ -141,6 +141,44 @@ describe("RunStepsCollapse", () => {
     expect((row as HTMLButtonElement).disabled).toBe(false);
   });
 
+  test("summary row text uses the body text color in both states", () => {
+    const { unmount } = render(
+      <RunStepsCollapse
+        steps={2}
+        durationMs={45000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    let span = SummaryRow().querySelector("span");
+    expect(span?.className).toContain("text-theme-text-secondary");
+    expect(span?.className).not.toContain("text-theme-text-tertiary");
+    unmount();
+
+    render(
+      <RunStepsCollapse
+        active
+        steps={2}
+        durationMs={45000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    span = ExpandedSummaryRow().querySelector("span");
+    expect(span?.className).toContain("text-theme-text-secondary");
+    expect(span?.className).not.toContain("text-theme-text-tertiary");
+  });
+
+  test("summary row divider uses the full theme border color", () => {
+    render(
+      <RunStepsCollapse
+        steps={2}
+        durationMs={45000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    expect(SummaryRow().className).toContain("border-theme-border");
+    expect(SummaryRow().style.borderColor).toBe("");
+  });
+
   test("shows the full details directly when toggled open", () => {
     const renderExpanded = vi.fn(() => <div>step-details</div>);
     render(

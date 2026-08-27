@@ -155,7 +155,10 @@ export function EditorSidebar({
               )}
               {icon && <div className="editor-sidebar-header-icon">{icon}</div>}
               <div className="min-w-0">
-                <div id={titleId} className="editor-sidebar-header-title">
+                <div
+                  id={titleId}
+                  className="editor-sidebar-header-title font-serif"
+                >
                   {title}
                 </div>
                 {subtitle && (

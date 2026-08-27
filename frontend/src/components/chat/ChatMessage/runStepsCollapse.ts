@@ -144,17 +144,19 @@ export function getRunElapsedMs(
 
 /**
  * run 起点（流式期间实时计时的锚点）：
- * parts 中最早的时间戳，缺省回退到 message.timestamp。
+ * message.timestamp 与 parts 时间戳中最早的一个。
+ * 插话分割出的新轮次 parts 时间戳都晚于 run 起点，必须让
+ * message.timestamp（继承的原起点）参与取最小，计时才不会清零。
  */
 export function getRunStartedAtMs(
   message: Pick<Message, "timestamp" | "parts">,
 ): number | null {
   const times: number[] = [];
   for (const part of message.parts ?? []) collectPartTimes(part, times);
-  if (times.length > 0) return Math.min(...times);
   const timestampMs = message.timestamp?.getTime();
   if (typeof timestampMs === "number" && Number.isFinite(timestampMs)) {
-    return timestampMs;
+    times.push(timestampMs);
   }
+  if (times.length > 0) return Math.min(...times);
   return null;
 }

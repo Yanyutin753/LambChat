@@ -33,6 +33,7 @@ interface FeatureMenuProps {
   totalSkillsCount: number;
   hasPersonaSelector?: boolean;
   personaName?: string | null;
+  totalPersonaCount?: number;
   hasTeamSelector?: boolean;
   totalTeamCount?: number;
   // File upload
@@ -115,6 +116,7 @@ export const FeatureMenu = memo(function FeatureMenu({
   totalSkillsCount,
   hasPersonaSelector = false,
   personaName,
+  totalPersonaCount = 0,
   hasTeamSelector = false,
   totalTeamCount = 0,
   uploadCategories,
@@ -237,7 +239,12 @@ export const FeatureMenu = memo(function FeatureMenu({
                   <MenuItem
                     icon={<UserRound size={18} />}
                     label={t("featureMenu.persona", "角色")}
-                    badge={personaName || undefined}
+                    badge={
+                      personaName ||
+                      (totalPersonaCount > 0
+                        ? `${totalPersonaCount}`
+                        : undefined)
+                    }
                     active={activePanel === "persona"}
                     onClick={() => onOpen("persona")}
                   />
