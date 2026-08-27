@@ -40,7 +40,7 @@ def choose_index_memories(
 
 def evict_index_cache(index_cache: dict[str, tuple[float, str]], max_size: int) -> None:
     now = time.monotonic()
-    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 3600)
+    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
     expired = [uid for uid, (t, _) in index_cache.items() if (now - t) >= cache_ttl]
     for uid in expired:
         del index_cache[uid]
@@ -52,7 +52,7 @@ def evict_index_cache(index_cache: dict[str, tuple[float, str]], max_size: int) 
 
 
 async def build_memory_index(backend, user_id: str) -> str:
-    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 3600)
+    cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
     cached = backend._index_cache.get(user_id)
     if cached:
         built_at, cached_str = cached

@@ -10,6 +10,7 @@ Follows the same pub/sub pattern as SettingsPubSub.
 
 import json
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from src.infra.async_utils import run_blocking_io
@@ -38,6 +39,7 @@ COMPACTION_SCAN_LOCK_KEY = "memory:compaction_scan_lock"
 COMPACTION_COOLDOWN_KEY = "memory:compaction_cooldown:{user_id}"
 AUTO_CAPTURE_LOCK_KEY = "memory:auto_capture_lock:{user_id}"
 AUTO_CAPTURE_LOCK_TTL = 30  # seconds
+AUTO_RETAIN_DAILY_COUNT_KEY = "memory:auto_retain:cnt:{user_id}:{date}"
 
 # ============================================================================
 # Publisher helpers (called from NativeMemoryBackend)
@@ -170,6 +172,32 @@ async def release_auto_capture_lock(user_id: str, instance_id: str) -> None:
         await redis_client.eval(_RELEASE_LOCK_LUA, 1, lock_key, instance_id)  # type: ignore[misc]
     except Exception as e:
         logger.debug("[Memory] Failed to release auto-capture lock for %s: %s", user_id, e)
+
+
+async def check_auto_retain_daily_limit(user_id: str) -> str:
+    """Count this user's auto-retain evaluations against the daily cap.
+
+    Returns "allowed" / "exceeded" / "unavailable"（Redis 故障时 fail-open 允许）。
+    计数按 UTC 日分键，首次计数设置 24h 过期；上限 0 = 不限制。
+    """
+    try:
+        from src.kernel.config import settings
+
+        limit = int(getattr(settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 20) or 0)
+        if limit <= 0:
+            return "allowed"
+        redis_client = get_redis_client()
+        date_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
+        key = AUTO_RETAIN_DAILY_COUNT_KEY.format(user_id=user_id, date=date_tag)
+        count = int(await redis_client.incr(key))
+        # 无条件续期：只在 count==1 时设置的话，INCR 成功而 EXPIRE 失败会让键
+        # 永不过期，用户从此被静默限死。多续的 TTL 最多让键多活一天，无碍正确性
+        # （日期在键名里，跨日即换键）。
+        await redis_client.expire(key, 86400)
+        return "allowed" if count <= limit else "exceeded"
+    except Exception as e:
+        logger.debug("[Memory] Failed to check auto-retain daily limit: %s", e)
+        return "unavailable"
 
 
 # ============================================================================

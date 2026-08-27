@@ -255,10 +255,7 @@ class WorkflowScopedBackend(BackendProtocol):
         ]
 
 
-def _create_routes(
-    assistant_id: str,
-    user_id: str,
-) -> dict[str, BackendProtocol]:
+def _create_routes(user_id: str) -> dict[str, BackendProtocol]:
     """创建通用的 backend 路由（skills + memories）"""
     from src.infra.backend.skills_store import create_skills_backend
 
@@ -266,7 +263,7 @@ def _create_routes(
 
     return {
         "/skills/": skills_backend,
-        "/memories/": StoreBackend(namespace=lambda _rt: (assistant_id, "memories")),
+        "/memories/": StoreBackend(namespace=lambda _rt: ("memories", user_id, "vfs")),
     }
 
 
@@ -293,7 +290,7 @@ def create_persistent_backend(
 
     底层 Store 由 create_deep_agent 传入，此处只负责 namespace 路由。
     """
-    routes = _create_routes(assistant_id, user_id or "default")
+    routes = _create_routes(user_id or "default")
     workflow_session_id = _safe_session_id(session_id)
     workspace_path = f"/workflow/{workflow_session_id}"
     filesystem_backend = StoreBackend(
@@ -312,7 +309,7 @@ def create_sandbox_backend(
     user_id: str | None = None,
 ) -> CompositeBackend:
     """创建基于沙箱的具体 Backend。"""
-    routes = _create_routes(assistant_id, user_id or "default")
+    routes = _create_routes(user_id or "default")
 
     return CompositeBackend(
         default=sandbox_backend,

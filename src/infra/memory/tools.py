@@ -223,6 +223,10 @@ async def memory_recall(
         Optional[list[str]],
         "Filter by memory types (backend-specific), or None for all types",
     ] = None,
+    context: Annotated[
+        Optional[str],
+        "Optional exact-match context scope filter (e.g. 'project_constraint'), or None for all scopes",
+    ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
@@ -244,7 +248,7 @@ async def memory_recall(
         return await _json_dumps_result({"success": False, "error": "Memory service not available"})
 
     try:
-        result = await backend.recall(user_id, query, max_results, memory_types)
+        result = await backend.recall(user_id, query, max_results, memory_types, context)
         return await _json_dumps_result(result)
     except Exception as e:
         logger.error(f"[Memory] Failed to recall memories: {e}")
@@ -338,6 +342,15 @@ async def _auto_retain_user_memory(
             if lock_state != "acquired":
                 return
             try:
+                from src.infra.memory.distributed import check_auto_retain_daily_limit
+
+                daily_state = await check_auto_retain_daily_limit(user_id)
+                if daily_state == "exceeded":
+                    logger.debug(
+                        "[Memory] Auto-retain daily limit reached for user %s, skipping",
+                        user_id,
+                    )
+                    return
                 backend = await _get_backend()
                 if backend is None:
                     return
@@ -480,6 +493,13 @@ async def _close_and_reset_backend() -> None:
             logger.warning(f"[Memory] Error closing backend during reset: {e}")
     if settings.ENABLE_MEMORY:
         start_memory_compaction_agent()
+        # 运行时开启记忆时补启动失效广播（boot 时才会随 runtime_services 启动）
+        try:
+            from src.infra.memory.distributed import get_memory_pubsub
+
+            await get_memory_pubsub().start_listener()
+        except Exception as e:
+            logger.warning(f"[Memory] PubSub listener start after reset failed: {e}")
     logger.info("[Memory] Backend reset (will be recreated on next use)")
 
 

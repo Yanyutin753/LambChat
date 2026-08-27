@@ -71,7 +71,9 @@ async def test_memory_recall_offloads_result_json(monkeypatch):
     calls: list[object] = []
 
     class FakeBackend:
-        async def recall(self, user_id: str, query: str, max_results: int, memory_types):
+        async def recall(
+            self, user_id: str, query: str, max_results: int, memory_types, context_filter=None
+        ):
             assert user_id == "u1"
             assert query == "project"
             assert max_results == 5
@@ -188,6 +190,7 @@ async def test_auto_memory_capture_forwards_current_source_refs(monkeypatch):
     )
 
     refs = [{"session_id": "session-1", "run_id": "run-1"}]
+    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
     await memory_tools._auto_retain_user_memory("u1", "hello", source_refs=refs)
 
     assert seen["call"] == ("u1", "hello", refs)
@@ -224,6 +227,7 @@ async def test_auto_memory_capture_serializes_per_user(monkeypatch):
     monkeypatch.setattr(
         memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
     )
+    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
 
     t1 = asyncio.create_task(memory_tools._auto_retain_user_memory("u1", "first"))
     await asyncio.sleep(0)
@@ -267,6 +271,7 @@ async def test_auto_memory_capture_uses_distributed_lock(monkeypatch):
         memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
     )
 
+    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1"), ("retain", "u1"), ("release", "u1")]
@@ -312,6 +317,7 @@ async def test_auto_memory_capture_notifies_compaction_agent_after_store(monkeyp
         raising=False,
     )
 
+    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1"), ("retain", "u1"), ("compact", "u1"), ("release", "u1")]
@@ -462,6 +468,7 @@ async def test_auto_memory_capture_skips_compaction_when_nothing_stored(monkeypa
         raising=False,
     )
 
+    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1"), ("retain", "u1"), ("release", "u1")]
@@ -494,6 +501,7 @@ async def test_auto_memory_capture_skips_when_distributed_lock_not_acquired(monk
         memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
     )
 
+    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
     assert events == [("acquire", "u1")]
@@ -607,3 +615,116 @@ async def test_schedule_backend_reset_deduplicates_inflight_reset_task(monkeypat
     await asyncio.gather(*list(memory_tools._background_tasks))
 
     assert memory_tools._backend_reset_task is None
+
+
+@pytest.mark.asyncio
+async def test_auto_retain_skipped_when_daily_limit_exceeded(monkeypatch):
+    from src.infra.memory import distributed as distributed_module
+    from src.infra.memory import tools as tools_module
+
+    calls = []
+
+    async def fake_exceeded(user_id):
+        return "exceeded"
+
+    monkeypatch.setattr(distributed_module, "check_auto_retain_daily_limit", fake_exceeded)
+    monkeypatch.setattr(tools_module, "check_auto_retain_daily_limit", fake_exceeded, raising=False)
+
+    class NoBackend:
+        async def auto_retain_from_text(self, *args, **kwargs):
+            calls.append(args)
+            return {"success": True, "stored": 0, "candidates": 0}
+
+    async def fake_get_backend():
+        return NoBackend()
+
+    async def fake_acquire(_uid, _iid):
+        return "acquired"
+
+    async def fake_release(_uid, _iid):
+        return None
+
+    monkeypatch.setattr(tools_module, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(
+        tools_module, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
+
+    await tools_module._auto_retain_user_memory("u1", "一条会被跳过的消息")
+
+    assert calls == []  # 超限直接跳过评估
+
+
+@pytest.mark.asyncio
+async def test_auto_retain_proceeds_when_limit_unavailable(monkeypatch):
+    from src.infra.memory import distributed as distributed_module
+    from src.infra.memory import tools as tools_module
+
+    calls = []
+
+    async def fake_unavailable(user_id):
+        return "unavailable"  # Redis 故障 → fail-open
+
+    monkeypatch.setattr(distributed_module, "check_auto_retain_daily_limit", fake_unavailable)
+
+    class NoBackend:
+        async def auto_retain_from_text(self, *args, **kwargs):
+            calls.append(args)
+            return {"success": True, "stored": 0, "candidates": 0}
+
+    async def fake_get_backend():
+        return NoBackend()
+
+    async def fake_acquire(_uid, _iid):
+        return "acquired"
+
+    async def fake_release(_uid, _iid):
+        return None
+
+    monkeypatch.setattr(tools_module, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(
+        tools_module, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
+
+    await tools_module._auto_retain_user_memory("u1", "Redis 挂了也要继续评估")
+
+    assert len(calls) == 1
+
+
+def test_native_memory_guide_vfs_preserves_compact_behavior_contract() -> None:
+    from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE_VFS
+
+    required = (
+        "memory_retain",
+        "memory_recall",
+        "memory_delete",
+        "hint only",
+        "user",
+        "feedback",
+        "project",
+        "reference",
+        "Remember",
+        "Skip",
+        "selective",
+        "30 days",
+        "stale",
+        "/memories/",
+    )
+
+    assert all(marker.lower() in NATIVE_MEMORY_GUIDE_VFS.lower() for marker in required)
+    assert "/memories/working/" in NATIVE_MEMORY_GUIDE_VFS
+    assert len(NATIVE_MEMORY_GUIDE_VFS) <= 960
+
+
+def test_get_memory_guide_selects_variant_by_vfs_setting(monkeypatch):
+    from src.agents.core import subagent_prompts
+    from src.infra.memory.client.types import (
+        NATIVE_MEMORY_GUIDE,
+        NATIVE_MEMORY_GUIDE_VFS,
+    )
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "ENABLE_MEMORY_VFS", False)
+    assert subagent_prompts.get_memory_guide() == NATIVE_MEMORY_GUIDE
+
+    monkeypatch.setattr(settings, "ENABLE_MEMORY_VFS", True)
+    assert subagent_prompts.get_memory_guide() == NATIVE_MEMORY_GUIDE_VFS
