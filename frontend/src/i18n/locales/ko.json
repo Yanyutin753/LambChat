@@ -2270,6 +2270,7 @@
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "백엔드 다운로드 실패 시 reveal/download 흐름이 서버 로컬 파일 시스템으로 폴백하는 것을 허용",
     "ENABLE_MCP": "MCP 기능 활성화",
     "ENABLE_MEMORY": "세션 간 메모리 기능 활성화(마스터 스위치)",
+    "ENABLE_MEMORY_VFS": "/memories/working/ 에이전트 관리 메모 레이어 활성화 (기본 비활성)",
     "ENABLE_MESSAGE_HISTORY": "메시지 기록 저장 활성화",
     "ENABLE_POSTGRES_STORAGE": "PostgreSQL 기반 장기 스토리지 활성화",
     "ENABLE_RECOMMEND_QUESTIONS": "각 답변 후 추천 후속 질문 이벤트 활성화 (관리자가 전역 제어)",

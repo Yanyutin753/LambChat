@@ -40,3 +40,11 @@ def test_memory_auto_retain_daily_limit_default_matches_definition() -> None:
 
     assert Settings(_env_file=None).NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY == 20
     assert definition["default"] == 20
+
+
+def test_memory_vfs_setting_default_matches_definition() -> None:
+    definition = SETTING_DEFINITIONS["ENABLE_MEMORY_VFS"]
+
+    assert Settings(_env_file=None).ENABLE_MEMORY_VFS is False
+    assert definition["default"] is False
+    assert definition["depends_on"] == "ENABLE_MEMORY"

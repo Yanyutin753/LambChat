@@ -350,6 +350,7 @@ class Settings(BaseSettings):
 
     # Memory Settings (Master Switch)
     ENABLE_MEMORY: bool = False
+    ENABLE_MEMORY_VFS: bool = False
 
     # Scheduled Task Settings
     ENABLE_SCHEDULED_TASK: bool = False

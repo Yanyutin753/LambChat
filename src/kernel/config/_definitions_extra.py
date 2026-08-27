@@ -587,6 +587,14 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": False,
         "frontend_visible": True,
     },
+    "ENABLE_MEMORY_VFS": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.MEMORY,
+        "subcategory": "vfs",
+        "description": "settingDesc.ENABLE_MEMORY_VFS",
+        "default": False,
+        "depends_on": "ENABLE_MEMORY",
+    },
     # ============================================
     # Memory Embedding Settings
     # ============================================

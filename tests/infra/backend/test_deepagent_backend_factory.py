@@ -186,3 +186,14 @@ async def test_workflow_backend_remaps_mutation_and_transfer_result_paths() -> N
     assert recording.edit_calls == ["/report.md", "/report.md"]
     assert uploaded[0].path == "/workflow/session-1/upload.txt"
     assert downloaded[0].path == "/workflow/session-1/download.txt"
+
+
+def test_memories_route_namespace_aligned_with_memory_store_family() -> None:
+    backend = create_persistent_backend(
+        assistant_id="assistant-user-1",
+        user_id="user-1",
+        session_id="session-1",
+    )
+
+    memories_backend = backend.routes["/memories/"]
+    assert memories_backend._namespace(None) == ("memories", "user-1", "vfs")

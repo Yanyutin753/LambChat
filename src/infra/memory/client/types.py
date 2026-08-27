@@ -45,3 +45,26 @@ Tools: `memory_retain` (store/update), `memory_recall` (search), `memory_delete`
 
 Delete inaccurate entries and honor ignore/forget requests. Content older than 30 days may be stale; verify current paths, flags, and observations.
 """
+
+# ENABLE_MEMORY_VFS=true 时的变体：放开 /memories/working/ 作为多轮长任务工作
+# 笔记层（agent 自管理），持久用户事实仍只允许走 memory_* 工具。两个变体都受
+# ≤960 字符契约测试约束（tests/infra/memory/test_tools.py）。
+NATIVE_MEMORY_GUIDE_VFS = """
+## Cross-Session Memory
+
+Tools: `memory_retain` (store/update), `memory_recall` (search), `memory_delete` (remove). Durable facts: these tools only. `/memories/working/`: multi-turn task notes (plans, findings) only, never durable facts.
+
+`<memory_index>` entries are hint only, not ground truth. Recall selectively when prior context matters.
+
+| Type | Keep |
+|---|---|
+| `user` | role, preferences, working style |
+| `feedback` | corrections, confirmations, why |
+| `project` | goals, constraints, decisions; use absolute dates |
+| `reference` | external systems, docs, and URLs |
+
+**Remember:** durable preferences, project context, key decisions, references; update instead of duplicating.
+**Skip:** greetings, ephemeral state, activity logs, code/git history, debugging captured in code.
+
+Delete inaccurate entries; honor ignore/forget requests. Content older than 30 days may be stale; verify current paths and flags.
+"""

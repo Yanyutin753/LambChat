@@ -700,3 +700,43 @@ async def test_auto_retain_proceeds_when_limit_unavailable(monkeypatch):
     await tools_module._auto_retain_user_memory("u1", "Redis 挂了也要继续评估")
 
     assert len(calls) == 1
+
+
+def test_native_memory_guide_vfs_preserves_compact_behavior_contract() -> None:
+    from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE_VFS
+
+    required = (
+        "memory_retain",
+        "memory_recall",
+        "memory_delete",
+        "hint only",
+        "user",
+        "feedback",
+        "project",
+        "reference",
+        "Remember",
+        "Skip",
+        "selective",
+        "30 days",
+        "stale",
+        "/memories/",
+    )
+
+    assert all(marker.lower() in NATIVE_MEMORY_GUIDE_VFS.lower() for marker in required)
+    assert "/memories/working/" in NATIVE_MEMORY_GUIDE_VFS
+    assert len(NATIVE_MEMORY_GUIDE_VFS) <= 960
+
+
+def test_get_memory_guide_selects_variant_by_vfs_setting(monkeypatch):
+    from src.agents.core import subagent_prompts
+    from src.infra.memory.client.types import (
+        NATIVE_MEMORY_GUIDE,
+        NATIVE_MEMORY_GUIDE_VFS,
+    )
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "ENABLE_MEMORY_VFS", False)
+    assert subagent_prompts.get_memory_guide() == NATIVE_MEMORY_GUIDE
+
+    monkeypatch.setattr(settings, "ENABLE_MEMORY_VFS", True)
+    assert subagent_prompts.get_memory_guide() == NATIVE_MEMORY_GUIDE_VFS

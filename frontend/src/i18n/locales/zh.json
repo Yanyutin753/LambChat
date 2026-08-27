@@ -2270,6 +2270,7 @@
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "当后端下载失败时，允许 reveal/download 流程回退到服务器本地文件系统",
     "ENABLE_MCP": "启用 MCP 功能",
     "ENABLE_MEMORY": "启用跨会话记忆功能（主开关）",
+    "ENABLE_MEMORY_VFS": "启用 /memories/working/ 工作记忆层（agent 自管理任务笔记，默认关闭）",
     "ENABLE_MESSAGE_HISTORY": "启用消息历史存储",
     "ENABLE_POSTGRES_STORAGE": "启用基于 PostgreSQL 的长期存储",
     "ENABLE_RECOMMEND_QUESTIONS": "启用回答完成后的推荐追问事件（由管理员全局控制）",

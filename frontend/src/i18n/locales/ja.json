@@ -2270,6 +2270,7 @@
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "バックエンドでのダウンロードに失敗した場合、reveal/download フローでサーバーのローカルファイルシステムへのフォールバックを許可する",
     "ENABLE_MCP": "MCP機能を有効化",
     "ENABLE_MEMORY": "セッション間メモリ機能を有効化（マスタースイッチ）",
+    "ENABLE_MEMORY_VFS": "/memories/working/ エージェント管理メモ層を有効化（デフォルト無効）",
     "ENABLE_MESSAGE_HISTORY": "メッセージ履歴の保存を有効化",
     "ENABLE_POSTGRES_STORAGE": "PostgreSQLベースの長期保存を有効化",
     "ENABLE_RECOMMEND_QUESTIONS": "各回答後のおすすめフォローアップ質問イベントを有効化（管理者が全体を制御）",

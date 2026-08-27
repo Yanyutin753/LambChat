@@ -266,7 +266,7 @@ def _create_routes(
 
     return {
         "/skills/": skills_backend,
-        "/memories/": StoreBackend(namespace=lambda _rt: (assistant_id, "memories")),
+        "/memories/": StoreBackend(namespace=lambda _rt: ("memories", user_id, "vfs")),
     }
 
 

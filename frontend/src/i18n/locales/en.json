@@ -2270,6 +2270,7 @@
     "ENABLE_LOCAL_FILESYSTEM_FALLBACK": "Allow reveal/download flows to fall back to the server's local filesystem when backend download fails",
     "ENABLE_MCP": "Enable MCP feature",
     "ENABLE_MEMORY": "Enable cross-session memory feature (master switch)",
+    "ENABLE_MEMORY_VFS": "Enable /memories/working/ agent-managed task-note memory layer (off by default)",
     "ENABLE_MESSAGE_HISTORY": "Enable message history storage",
     "ENABLE_POSTGRES_STORAGE": "Enable PostgreSQL-based long-term storage",
     "ENABLE_RECOMMEND_QUESTIONS": "Enable recommended follow-up question events after each answer (globally controlled by admins)",
