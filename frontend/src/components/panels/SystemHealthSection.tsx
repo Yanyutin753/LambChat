@@ -158,7 +158,7 @@ export function SystemHealthSection() {
             <Activity size={16} />
           </div>
           <div>
-            <span className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+            <span className="text-sm font-semibold font-serif text-stone-800 dark:text-stone-100">
               {t("systemHealth.title", "System Health")}
             </span>
             {overview && (

@@ -691,7 +691,7 @@ export const ChatInput = memo(function ChatInput({
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className={className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl"}
+        className={className ?? "mx-auto max-w-4xl 2xl:max-w-5xl"}
       >
         <div ref={composerSlotRef} className="w-full">
           {composerHost &&
@@ -849,7 +849,7 @@ export const ChatInput = memo(function ChatInput({
                     ) : null}
                   </div>
                 </div>
-      
+
                 <ChatInputToolbar
                   activePanel={activePanel}
                   onActivePanelChange={setActivePanel}
@@ -860,7 +860,10 @@ export const ChatInput = memo(function ChatInput({
                   onSteer={
                     onSteer &&
                     (() => {
-                      onSteer(input, filterSendableAttachments(visibleAttachments));
+                      onSteer(
+                        input,
+                        filterSendableAttachments(visibleAttachments),
+                      );
                       clearSteerDraft();
                     })
                   }

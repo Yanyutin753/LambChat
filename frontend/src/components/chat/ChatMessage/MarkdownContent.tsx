@@ -373,7 +373,7 @@ export const MarkdownContent = memo(function MarkdownContent({
                 id={id}
                 data-outline-anchor="true"
                 data-outline-id={id}
-                className="text-lg font-semibold text-stone-900 dark:text-stone-100 mt-2 mb-1.5 group/head scroll-mt-4"
+                className="text-lg font-semibold font-serif text-stone-900 dark:text-stone-100 mt-2 mb-1.5 group/head scroll-mt-4"
               >
                 <a
                   href={`#${id}`}

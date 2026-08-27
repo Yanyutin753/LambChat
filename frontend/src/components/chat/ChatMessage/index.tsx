@@ -628,16 +628,6 @@ export const ChatMessage = memo(function ChatMessage({
             >
               {personaName || t("chat.message.assistant")}
             </span>
-            {message.timestamp && (
-              <span
-                className="self-center opacity-0 mt-0.5 sm:mt-1 shrink-0 whitespace-nowrap text-xs text-center leading-none tabular-nums transition-opacity duration-200 group-hover:opacity-100"
-                style={{ color: "var(--theme-text-secondary)" }}
-              >
-                {message.timestamp
-                  ? formatDateTimeShort(message.timestamp)
-                  : ""}
-              </span>
-            )}
           </div>
 
           {/* Run just started, no parts yet: still show the working row */}

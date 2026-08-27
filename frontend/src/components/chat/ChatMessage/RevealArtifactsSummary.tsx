@@ -695,7 +695,7 @@ export function RevealArtifactsSummary({
             <FolderIcon size={28} className="shrink-0" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-[var(--theme-text)]">
+            <div className="truncate text-sm font-semibold font-serif text-[var(--theme-text)]">
               {t("chat.message.allFiles", "全部文件")}
             </div>
             <div className="mt-0.5 truncate text-xs text-[var(--theme-text-secondary)]">

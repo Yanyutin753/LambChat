@@ -142,7 +142,7 @@ const ModelItem = memo(function ModelItem({
           />
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span
-              className={`truncate text-[13px] leading-5 ${
+              className={`truncate text-[14px] leading-5 font-serif ${
                 isSelected
                   ? "text-[var(--theme-text)]"
                   : "text-stone-700 dark:text-stone-200"
@@ -473,7 +473,7 @@ const ModelSelector = memo(function ModelSelector({
           >
             <div className="px-3 pt-2 pb-1.5">
               <div
-                className="flex gap-1.5 overflow-x-auto whitespace-nowrap py-0.5 -my-0.5 overscroll-x-contain"
+                className="flex gap-1.5 overflow-x-auto whitespace-nowrap py-0.5 -my-0.5 overscroll-x-contain font-serif"
                 style={{ scrollbarWidth: "none" }}
               >
                 {filterOptions.map((option) => {

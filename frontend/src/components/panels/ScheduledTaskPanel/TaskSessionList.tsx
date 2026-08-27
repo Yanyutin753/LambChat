@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../../i18n";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
-import { ArrowLeft, Bot, ChevronRight, MessageSquare } from "lucide-react";
+import { AgentIcon } from "../../agent/AgentIcon";
+import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
 import { Pagination } from "../../common/Pagination";
 import { TaskSessionListSkeleton } from "../../skeletons";
@@ -83,7 +84,7 @@ export function TaskSessionList({
         actions={
           <button
             onClick={() => navigate("/scheduled-tasks", { replace: true })}
-            className="scheduled-task-button scheduled-task-button--secondary"
+            className="scheduled-task-button scheduled-task-button--secondary font-serif"
           >
             <ArrowLeft size={16} />
             {t("scheduledTask.backToTasks")}
@@ -119,7 +120,7 @@ export function TaskSessionList({
                   onClick={() => handleSessionClick(session.id)}
                   className="glass-card scheduled-task-session-card w-full text-left"
                 >
-                  {/* Left indicator icon */}
+                  {/* Left indicator: agent's real icon (emoji / lobe icon) */}
                   <div
                     className={`scheduled-task-session-card__indicator ${
                       session.is_active
@@ -127,19 +128,18 @@ export function TaskSessionList({
                         : ""
                     }`}
                   >
-                    <MessageSquare size={16} />
+                    <AgentIcon icon={agent?.icon} size={20} />
                   </div>
 
                   {/* Body */}
                   <div className="scheduled-task-session-card__body">
-                    <p className="scheduled-task-session-card__title">
+                    <p className="scheduled-task-session-card__title font-serif">
                       {session.name || t("scheduledTask.untitledSession")}
                     </p>
                     <div className="scheduled-task-session-card__meta">
                       {agentName && (
                         <>
-                          <span className="inline-flex items-center gap-1">
-                            <Bot size={10} />
+                          <span className="scheduled-task-session-card__agent">
                             {agentName}
                           </span>
                           {session.created_at && (

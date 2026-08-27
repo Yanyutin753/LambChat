@@ -215,7 +215,7 @@ describe("MessageTimelineRail", () => {
     expect(onNavigate).toHaveBeenCalledWith("chat-outline-message-u2", 2);
   });
 
-  test("touching a turn creates a length-based wave across nearby bars", () => {
+  test("touching a turn doubles that bar's width and leaves neighbors unchanged", () => {
     const items = createPairedItems();
     const { container } = render(
       <MessageTimelineRail items={items} onNavigate={onNavigate} />,
@@ -243,8 +243,10 @@ describe("MessageTimelineRail", () => {
     const bars = container.querySelectorAll(
       "button > span > span.rounded-full",
     );
-    expect((bars[1] as HTMLElement).style.width).toBe("24px");
-    expect((bars[0] as HTMLElement).style.width).toBe("23px");
+    // Only the touched bar expands (2× base width), neighbors stay at base
+    expect((bars[1] as HTMLElement).style.width).toBe("32px");
+    expect((bars[0] as HTMLElement).style.width).toBe("16px");
+    expect((bars[2] as HTMLElement).style.width).toBe("16px");
   });
 
   test("inactive bars use color-mix transparent background", () => {
@@ -329,7 +331,7 @@ describe("MessageTimelineRail", () => {
     spy.mockRestore();
   });
 
-  test("positioned centered on right edge", () => {
+  test("positioned on left edge with a small inset", () => {
     const items = createPairedItems();
     const { container } = render(
       <MessageTimelineRail items={items} onNavigate={onNavigate} />,
@@ -337,9 +339,24 @@ describe("MessageTimelineRail", () => {
 
     const wrapper = container.firstElementChild as HTMLElement;
     expect(wrapper.className).toContain("absolute");
-    expect(wrapper.className).toContain("right-0");
+    expect(wrapper.className).toContain("left-2");
+    expect(wrapper.className).not.toContain("left-0");
+    expect(wrapper.className).not.toContain("right-0");
     expect(wrapper.className).toContain("top-1/2");
     expect(wrapper.className).toContain("-translate-y-1/2");
+  });
+
+  test("bars anchor to the left edge of the rail", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const btn = screen.getByRole("button", { name: "Timeline" });
+    expect(btn.className).toContain("items-start");
+
+    const row = container.querySelector("button > span.cursor-pointer")!;
+    expect(row.className).toContain("justify-start");
   });
 
   /* ---- Overflow scrolling (rail taller than chat area) ---- */
@@ -597,7 +614,7 @@ describe("MessageTimelineRail", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  test("pressing overflowing rail shows wave feedback on nearest bar", () => {
+  test("pressing overflowing rail enlarges nearest bar to double width", () => {
     const items = createPairedItems();
     const { container } = render(
       <MessageTimelineRail items={items} onNavigate={onNavigate} />,
@@ -624,7 +641,7 @@ describe("MessageTimelineRail", () => {
       "button > span > span.rounded-full",
     );
     // All jsdom rects are zero → nearest bar is index 0
-    expect((bars[0] as HTMLElement).style.width).toBe("24px");
+    expect((bars[0] as HTMLElement).style.width).toBe("32px");
 
     fireEvent.pointerUp(btn, {
       pointerId: 8,
@@ -952,7 +969,37 @@ describe("MessageTimelineRail", () => {
     expect(card.textContent).toContain("Machine learning is a subset of AI");
   });
 
-  test("preview card has arrow element", () => {
+  test("preview card opens to the right of the rail", () => {
+    const items = createPairedItems();
+    const { container } = render(
+      <MessageTimelineRail items={items} onNavigate={onNavigate} />,
+    );
+
+    const clickTarget = container.querySelector(
+      "button > span.cursor-pointer",
+    )!;
+    vi.spyOn(clickTarget, "getBoundingClientRect").mockReturnValue({
+      top: 100,
+      bottom: 116,
+      left: 0,
+      right: 44,
+      width: 44,
+      height: 16,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    } as DOMRect);
+    fireEvent.mouseEnter(clickTarget);
+
+    const card = document.body.querySelector(
+      ".rounded-lg.shadow-lg",
+    ) as HTMLElement;
+    // Card sits 8px to the right of the bar's right edge (44px)
+    expect(card.style.left).toBe("52px");
+    expect(card.style.right).toBe("");
+  });
+
+  test("preview card has arrow element on its left edge", () => {
     const items = createPairedItems();
     const { container } = render(
       <MessageTimelineRail items={items} onNavigate={onNavigate} />,
@@ -964,7 +1011,10 @@ describe("MessageTimelineRail", () => {
     fireEvent.mouseEnter(clickTarget);
 
     const card = document.body.querySelector(".rounded-lg.shadow-lg")!;
-    const arrow = card.querySelector(".rotate-45");
+    const arrow = card.querySelector(".rotate-45") as HTMLElement;
     expect(arrow).toBeInTheDocument();
+    // Arrow points left toward the rail on the left edge
+    expect(arrow.style.left).toBe("-4px");
+    expect(arrow.style.right).toBe("");
   });
 });

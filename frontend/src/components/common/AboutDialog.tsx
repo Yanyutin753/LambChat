@@ -47,7 +47,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 font-serif">
+            <h2 className="text-lg font-semibold font-serif text-stone-900 dark:text-stone-100 font-serif">
               {t("about.title", APP_NAME)}
             </h2>
           </div>

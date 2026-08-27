@@ -148,7 +148,6 @@ function SharedPageLanguageToggle() {
   );
 }
 
-
 export function SharedPage({
   initialData,
 }: {
@@ -604,7 +603,7 @@ export function SharedPage({
           <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0 animate-in fade-in duration-800">
             {/* Overline label */}
             <div className="text-center mb-5">
-              <span className="inline-block text-[11px] font-semibold tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
+              <span className="inline-block text-[11px] font-semibold font-serif tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
                 {t("share.sharedConversation")}
               </span>
             </div>
@@ -615,7 +614,7 @@ export function SharedPage({
             </h1>
 
             {/* Author + meta strip */}
-            <div className="mt-10 sm:mt-14 flex flex-col items-center gap-4 sm:gap-5">
+            <div className="mt-10 sm:mt-14 flex flex-col items-center gap-4 sm:gap-5 font-serif">
               {/* Author */}
               <div className="flex items-center gap-3">
                 {data.owner.avatar_url ? (

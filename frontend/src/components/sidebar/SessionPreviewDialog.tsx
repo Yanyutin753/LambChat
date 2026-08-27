@@ -128,7 +128,7 @@ export function SessionPreviewDialog({
                   fill="currentColor"
                 />
               </svg>
-              <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100 truncate">
+              <h2 className="text-sm font-semibold font-serif text-stone-800 dark:text-stone-100 truncate">
                 {sessionName}
               </h2>
             </div>

@@ -112,7 +112,7 @@ function TimelinePreviewCard({
 
     return {
       position: "fixed",
-      right: window.innerWidth - rect.left + 8,
+      left: rect.right + 8,
       top,
       zIndex: 60,
       width: `${CARD_WIDTH}px`,
@@ -154,13 +154,13 @@ function TimelinePreviewCard({
         </div>
       )}
 
-      {/* Arrow pointing right toward the bar */}
+      {/* Arrow pointing left toward the rail */}
       <div
         className="absolute top-1/2 -translate-y-1/2 h-[7px] w-[7px] rotate-45 border-[var(--theme-border)] bg-[var(--theme-bg-card)]"
         style={{
-          right: "-4px",
+          left: "-4px",
           borderTop: "none",
-          borderLeft: "none",
+          borderRight: "none",
         }}
       />
     </div>,
@@ -169,7 +169,7 @@ function TimelinePreviewCard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  MessageTimelineRail — vertical bar strip on right edge             */
+/*  MessageTimelineRail — vertical bar strip on left edge              */
 /*                                                                      */
 /*  One bar per turn (user + assistant pair). Hover shows a preview    */
 /*  card with the turn's messages. Click navigates to the turn.        */
@@ -323,7 +323,7 @@ export function MessageTimelineRail({
       }
       scrollStart.prevY = event.clientY;
 
-      // Wave feedback follows the finger while scrolling.
+      // The doubled-width highlight follows the finger while scrolling.
       const index = findTurnAtY(event.clientY, railScrolls ? dy : 0);
       if (index !== touchTurnRef.current) {
         touchTurnRef.current = index;
@@ -434,11 +434,11 @@ export function MessageTimelineRail({
   return (
     <div
       ref={railScrollRef}
-      className="hidden lg:block absolute right-0 top-1/2 -translate-y-1/2 z-20 max-h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="hidden lg:block absolute left-2 top-1/2 -translate-y-1/2 z-20 max-h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <button
         type="button"
-        className="group/timeline pointer-events-auto flex flex-col items-end px-4 py-3 pr-1 transition-all duration-150"
+        className="group/timeline pointer-events-auto flex flex-col items-start px-4 py-3 pl-1 transition-all duration-150"
         aria-label={t("chat.timeline", "Timeline")}
         title={`${t("chat.timeline", "Timeline")} · ${count}`}
         style={{ gap: 8, touchAction: "none" }}
@@ -455,12 +455,16 @@ export function MessageTimelineRail({
 
           const isHovered =
             hoveredTurnIndex === index || touchTurnIndex === index;
-          const waveWidth =
+          // Touched bar doubles in width (following the finger); neighbors
+          // stay at base width — no wave taper.
+          const barWidth =
             touchTurnIndex === null
               ? isHovered
                 ? 24
                 : 16
-              : 16 + Math.max(0, 8 - Math.abs(index - touchTurnIndex));
+              : index === touchTurnIndex
+                ? 32
+                : 16;
 
           return (
             <span
@@ -469,7 +473,7 @@ export function MessageTimelineRail({
                 barRefs.current[index] = element;
               }}
               data-turn-index={index}
-              className="flex w-11 cursor-pointer items-center justify-end"
+              className="flex w-11 cursor-pointer items-center justify-start"
               onClick={(e) => {
                 e.stopPropagation();
                 onNavigate(turn.user.anchorId, turn.user.messageIndex);
@@ -489,7 +493,7 @@ export function MessageTimelineRail({
                       : "bg-[color-mix(in_srgb,var(--theme-text-secondary)_22%,transparent)] group-hover/timeline:bg-[color-mix(in_srgb,var(--theme-primary)_32%,transparent)]",
                 )}
                 style={{
-                  width: `${waveWidth}px`,
+                  width: `${barWidth}px`,
                 }}
               />
             </span>
