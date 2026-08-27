@@ -96,9 +96,7 @@ async def test_running_only_cleanup_scans_running_but_not_pending_or_failed(
     monkeypatch.setattr(
         "src.infra.task.startup_cleanup._release_startup_cleanup_lease", _no_release
     )
-    monkeypatch.setattr(
-        "src.infra.task.startup_cleanup._renew_startup_cleanup_lease", _no_renew
-    )
+    monkeypatch.setattr("src.infra.task.startup_cleanup._renew_startup_cleanup_lease", _no_renew)
 
     await service.cleanup_stale_tasks(running_only=True)
 
@@ -107,23 +105,17 @@ async def test_running_only_cleanup_scans_running_but_not_pending_or_failed(
 
 
 def test_recovery_interval_reads_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        orphan_recovery.settings, "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS", 300
-    )
+    monkeypatch.setattr(orphan_recovery.settings, "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS", 300)
     assert orphan_recovery.recovery_interval_seconds() == 300
 
 
 def test_register_orphan_recovery_job_respects_disabled_setting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        orphan_recovery.settings, "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS", 0
-    )
+    monkeypatch.setattr(orphan_recovery.settings, "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS", 0)
     registered: list[object] = []
     fake_scheduler = SimpleNamespace(register_job=registered.append)
-    monkeypatch.setattr(
-        orphan_recovery, "get_runtime_scheduler", lambda: fake_scheduler
-    )
+    monkeypatch.setattr(orphan_recovery, "get_runtime_scheduler", lambda: fake_scheduler)
 
     orphan_recovery.register_orphan_recovery_job()
 
@@ -133,14 +125,10 @@ def test_register_orphan_recovery_job_respects_disabled_setting(
 def test_register_orphan_recovery_job_registers_interval_job(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        orphan_recovery.settings, "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS", 120
-    )
+    monkeypatch.setattr(orphan_recovery.settings, "TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS", 120)
     registered: list[object] = []
     fake_scheduler = SimpleNamespace(register_job=registered.append)
-    monkeypatch.setattr(
-        orphan_recovery, "get_runtime_scheduler", lambda: fake_scheduler
-    )
+    monkeypatch.setattr(orphan_recovery, "get_runtime_scheduler", lambda: fake_scheduler)
 
     orphan_recovery.register_orphan_recovery_job()
 

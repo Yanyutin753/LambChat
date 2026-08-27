@@ -81,6 +81,7 @@ Add raw name-reservation methods that do not expose the record:
 async def system_server_name_exists(self, name: str) -> bool:
     return await self._get_system_collection().find_one({"name": name}, {"_id": 1}) is not None
 
+
 async def user_server_name_exists(self, name: str, user_id: str) -> bool:
     query = {"name": name, "user_id": user_id}
     return await self._get_user_collection().find_one(query, {"_id": 1}) is not None

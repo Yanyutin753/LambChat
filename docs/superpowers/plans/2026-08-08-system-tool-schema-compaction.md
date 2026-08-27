@@ -259,21 +259,34 @@ Add a fixture guard:
 
 ```python
 EXPECTED_SYSTEM_TOOL_NAMES = {
-    "ls", "read_file", "write_file", "edit_file", "delete", "glob", "grep", "execute",
-    "task", "write_todos", "ask_human", "reveal_file", "reveal_project", "transfer_file",
-    "transfer_path", "memory_retain", "memory_recall", "memory_delete",
-    "upload_url_to_sandbox", "search_skills", "search_tools",
+    "ls",
+    "read_file",
+    "write_file",
+    "edit_file",
+    "delete",
+    "glob",
+    "grep",
+    "execute",
+    "task",
+    "write_todos",
+    "ask_human",
+    "reveal_file",
+    "reveal_project",
+    "transfer_file",
+    "transfer_path",
+    "memory_retain",
+    "memory_recall",
+    "memory_delete",
+    "upload_url_to_sandbox",
+    "search_skills",
+    "search_tools",
 }
 
 
 def _token_count(definitions: list[dict[str, Any]]) -> int:
     encoding = tiktoken.get_encoding("o200k_base")
     return sum(
-        len(
-            encoding.encode(
-                json.dumps(definition, ensure_ascii=False, separators=(",", ":"))
-            )
-        )
+        len(encoding.encode(json.dumps(definition, ensure_ascii=False, separators=(",", ":"))))
         for definition in definitions
     )
 
@@ -505,7 +518,10 @@ async def test_tool_search_compaction_and_cache_execute_in_order() -> None:
     assert len(search_tool.description) < len(search._get_search_tool().description)
     assert next(tool for tool in after_compaction if tool.name == "web_search_prime") is web_tool
     assert next(tool for tool in after_compaction if tool.name == "search_doc") is search_doc_tool
-    assert next(tool for tool in after_compaction if tool.name == "get_repo_structure") is repo_structure_tool
+    assert (
+        next(tool for tool in after_compaction if tool.name == "get_repo_structure")
+        is repo_structure_tool
+    )
     assert any((tool.extras or {}).get("cache_control") for tool in result.tools)
 ```
 

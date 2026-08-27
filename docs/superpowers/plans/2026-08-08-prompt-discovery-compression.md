@@ -64,6 +64,7 @@ def test_search_matches_full_pinyin_and_initials():
     assert [r.name for r in search_records("xiaohongshufabu", records)] == ["小红书发布"]
     assert [r.name for r in search_records("xhsfb", records)] == ["小红书发布"]
 
+
 def test_required_term_matches_pinyin_alias():
     records = [DiscoveryRecord(name="小红书发布", text="publish content")]
     assert [r.name for r in search_records("+xiaohongshu publish", records)] == ["小红书发布"]

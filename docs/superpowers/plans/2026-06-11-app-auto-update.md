@@ -68,23 +68,25 @@ class GitHubRelease:
 In `src/infra/github_client.py`, update `_parse_release` (replace lines 62-68):
 
 ```python
-    def _parse_release(self, data: dict) -> GitHubRelease:
-        """Parse GitHub API response"""
-        assets = []
-        for asset in data.get("assets", []):
-            assets.append({
+def _parse_release(self, data: dict) -> GitHubRelease:
+    """Parse GitHub API response"""
+    assets = []
+    for asset in data.get("assets", []):
+        assets.append(
+            {
                 "name": asset.get("name", ""),
                 "url": asset.get("browser_download_url", ""),
                 "size": asset.get("size"),
                 "content_type": asset.get("content_type", "application/octet-stream"),
-            })
-        return GitHubRelease(
-            tag_name=data.get("tag_name", ""),
-            html_url=data.get("html_url", ""),
-            published_at=data.get("published_at", ""),
-            body=data.get("body", ""),
-            assets=assets,
+            }
         )
+    return GitHubRelease(
+        tag_name=data.get("tag_name", ""),
+        html_url=data.get("html_url", ""),
+        published_at=data.get("published_at", ""),
+        body=data.get("body", ""),
+        assets=assets,
+    )
 ```
 
 - [ ] **Step 5: Update version route to return new fields**
@@ -92,25 +94,23 @@ In `src/infra/github_client.py`, update `_parse_release` (replace lines 62-68):
 In `src/api/routes/version.py`, update the route to include `release_notes` and `release_assets` in the response (replace lines 26-36):
 
 ```python
-    release_assets = None
-    if latest_release:
-        release_assets = [
-            ReleaseAsset(**asset) for asset in latest_release.assets
-        ]
+release_assets = None
+if latest_release:
+    release_assets = [ReleaseAsset(**asset) for asset in latest_release.assets]
 
-    return VersionResponse(
-        app_version=settings.APP_VERSION,
-        git_tag=settings.GIT_TAG,
-        commit_hash=settings.COMMIT_HASH,
-        build_time=settings.BUILD_TIME,
-        latest_version=normalize_version(latest_release.tag_name) if latest_release else None,
-        release_url=latest_release.html_url if latest_release else None,
-        github_url=settings.GITHUB_URL,
-        has_update=has_update,
-        published_at=latest_release.published_at if latest_release else None,
-        release_notes=latest_release.body if latest_release else None,
-        release_assets=release_assets,
-    )
+return VersionResponse(
+    app_version=settings.APP_VERSION,
+    git_tag=settings.GIT_TAG,
+    commit_hash=settings.COMMIT_HASH,
+    build_time=settings.BUILD_TIME,
+    latest_version=normalize_version(latest_release.tag_name) if latest_release else None,
+    release_url=latest_release.html_url if latest_release else None,
+    github_url=settings.GITHUB_URL,
+    has_update=has_update,
+    published_at=latest_release.published_at if latest_release else None,
+    release_notes=latest_release.body if latest_release else None,
+    release_assets=release_assets,
+)
 ```
 
 Add the import at the top of `version.py`:

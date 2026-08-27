@@ -224,6 +224,7 @@ def _schedule_artifact_delivery(
     if task is not None:
         self._delivery_tasks[normalized] = task
 
+
 async def _deliver_latest_artifact(self, normalized: str, runtime: Any) -> None:
     current_task = asyncio.current_task()
     try:
@@ -381,9 +382,7 @@ async def test_execute_returns_before_background_post_snapshot() -> None:
         reveal_file=reveal_file,
         workspace_path="/workspace",
     )
-    runtime = SimpleNamespace(
-        config={"configurable": {"backend": backend, "presenter": presenter}}
-    )
+    runtime = SimpleNamespace(config={"configurable": {"backend": backend, "presenter": presenter}})
 
     async def handler(_request):
         return ToolMessage(content="created report.csv", tool_call_id="exec-1", name="execute")
@@ -450,6 +449,7 @@ async def _take_workspace_snapshot(self, runtime: Any):
         if snapshot is not None:
             self._last_snapshot = snapshot
         return snapshot
+
 
 def _schedule_workspace_snapshot(self, runtime: Any, *, name: str):
     return self._track_background_task(
@@ -549,6 +549,7 @@ async def test_distinct_artifacts_reveal_concurrently() -> None:
     async def run_write(path: str, call_id: str) -> None:
         async def handler(_request):
             return ToolMessage(content="ok", tool_call_id=call_id, name="write_file")
+
         await middleware.awrap_tool_call(
             SimpleNamespace(
                 tool_call={
@@ -600,6 +601,7 @@ async def test_same_path_write_coalesces_to_one_delivery_worker() -> None:
     async def run_write(content: str, call_id: str) -> None:
         async def handler(_request):
             return ToolMessage(content="ok", tool_call_id=call_id, name="write_file")
+
         await middleware.awrap_tool_call(
             SimpleNamespace(
                 tool_call={

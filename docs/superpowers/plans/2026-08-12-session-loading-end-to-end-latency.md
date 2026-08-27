@@ -123,6 +123,7 @@ async def test_mark_read_for_user_updates_custom_id_and_owner_once():
     assert collection.query == {"session_id": "session-1", "user_id": "user-1"}
     assert collection.update_calls == 1
 
+
 @pytest.mark.asyncio
 async def test_mark_read_for_user_accepts_idempotent_matched_update():
     storage = SessionStorage()
@@ -349,7 +350,9 @@ def test_compacts_only_consecutive_compatible_message_chunks():
         chunk("c", seq=4, depth=0, agent_id="main"),
     ]
     compacted = compact_consecutive_message_chunks(events)
-    assert [event["data"]["content"] for event in compacted if event["event_type"] == "message:chunk"] == ["ab", "c"]
+    assert [
+        event["data"]["content"] for event in compacted if event["event_type"] == "message:chunk"
+    ] == ["ab", "c"]
     assert compacted[0]["seq"] == 2
 ```
 
