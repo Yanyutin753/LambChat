@@ -51,6 +51,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/assets/",
         "/icons/",
         "/images/",
+        "/fonts/",
         "/shared/",
         "/api/share/public/",
         "/api/agents",
