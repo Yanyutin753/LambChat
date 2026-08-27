@@ -386,12 +386,15 @@ class NativeMemoryBackend(MemoryBackend):
                     SystemMessage(
                         content=(
                             "You are a background memory-retention evaluator.\n"
-                            "You receive one user message after the main assistant response has already finished.\n"
+                            "You receive the latest exchange: the user's message followed by the "
+                            "assistant's final reply.\n"
                             "You may see similar existing memories.\n"
-                            "If the message contains durable cross-session memory, call memory_retain.\n"
+                            "If the exchange contains durable cross-session memory, call memory_retain.\n"
                             "If it does not, do not call any tool.\n"
-                            "Only retain user identity, preferences with reasons, durable project context, "
-                            "explicit feedback, or lasting references. Never retain code, file paths, "
+                            "Only retain durable facts about the user revealed in either message: "
+                            "user identity, preferences with reasons, durable project context, "
+                            "explicit feedback, or lasting references. Never retain the assistant's "
+                            "generic answer content, code, file paths, "
                             "temporary worklogs, greetings, or transient status updates.\n"
                             "When calling memory_retain, ALWAYS provide title, summary, and tags "
                             "— this avoids a second LLM call. Keep title under 25 chars, summary under 80 chars, "
@@ -404,7 +407,7 @@ class NativeMemoryBackend(MemoryBackend):
                     ),
                     HumanMessage(
                         content=(
-                            f"User message:\n{text}\n\n"
+                            f"Latest exchange:\n{text}\n\n"
                             f"Similar existing memories:\n{candidates_text or '(none)'}"
                         )
                     ),

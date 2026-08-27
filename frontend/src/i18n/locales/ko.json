@@ -2339,6 +2339,7 @@
     "NATIVE_MEMORY_APPEND_MAX_DETAILS": "프로젝트/참조 메모리에 유지되는 최대 추가 상세 항목 수. 이전 항목은 잘림.",
     "NATIVE_MEMORY_AUTO_CAPTURE_INPUT_MAX_CHARS": "자동 캡처 메모리 작업당 최대 입력 문자 수",
     "NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS": "자동 캡처 메모리 최대 동시 작업 수",
+    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "사용자당 일일 자동 메모리 평가 상한 (0=무제한, 기본 20)",
     "NATIVE_MEMORY_AUTO_COMPACT_ENABLED": "백그라운드 메모리 압축 agent를 활성화합니다.",
     "NATIVE_MEMORY_AUTO_COMPACT_INTERVAL_SECONDS": "메모리 압축 agent가 임계값 초과 사용자를 스캔하는 간격(초).",
     "NATIVE_MEMORY_AUTO_COMPACT_MIN_INTERVAL_SECONDS": "같은 사용자에 대한 압축 시도 사이의 최소 간격(초).",

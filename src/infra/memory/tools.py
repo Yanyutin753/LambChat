@@ -338,6 +338,15 @@ async def _auto_retain_user_memory(
             if lock_state != "acquired":
                 return
             try:
+                from src.infra.memory.distributed import check_auto_retain_daily_limit
+
+                daily_state = await check_auto_retain_daily_limit(user_id)
+                if daily_state == "exceeded":
+                    logger.debug(
+                        "[Memory] Auto-retain daily limit reached for user %s, skipping",
+                        user_id,
+                    )
+                    return
                 backend = await _get_backend()
                 if backend is None:
                     return

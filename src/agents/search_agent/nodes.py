@@ -464,6 +464,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             hitl_suspended=getattr(presenter, "hitl_suspended", False),
             user_input=user_input,
             recommendation_input=recommendation_input,
+            assistant_text=event_processor.output_text,
         )
         if memory_text:
             from src.infra.logging.context import TraceContext

@@ -2339,6 +2339,7 @@
     "NATIVE_MEMORY_APPEND_MAX_DETAILS": "项目/参考记忆上保留的最大追加详情条目数，超出后修剪旧条目。",
     "NATIVE_MEMORY_AUTO_CAPTURE_INPUT_MAX_CHARS": "每次自动捕获记忆任务的最大输入字符数",
     "NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS": "自动捕获记忆的最大并发任务数",
+    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "每用户每日自动记忆评估上限（0=不限，默认 20）",
     "NATIVE_MEMORY_AUTO_COMPACT_ENABLED": "启用后台记忆压缩 agent。",
     "NATIVE_MEMORY_AUTO_COMPACT_INTERVAL_SECONDS": "记忆压缩 agent 扫描超阈值用户的间隔秒数。",
     "NATIVE_MEMORY_AUTO_COMPACT_MIN_INTERVAL_SECONDS": "同一用户两次压缩尝试之间的最小间隔秒数。",

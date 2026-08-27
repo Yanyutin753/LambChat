@@ -33,3 +33,10 @@ def test_memory_query_context_defaults_match_definitions() -> None:
     assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_TOP_K"]["default"] == 3
     assert Settings(_env_file=None).NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS == 1200
     assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS"]["default"] == 1200
+
+
+def test_memory_auto_retain_daily_limit_default_matches_definition() -> None:
+    definition = SETTING_DEFINITIONS["NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY"]
+
+    assert Settings(_env_file=None).NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY == 20
+    assert definition["default"] == 20

@@ -2339,6 +2339,7 @@
     "NATIVE_MEMORY_APPEND_MAX_DETAILS": "プロジェクト/参照メモリに保持される最大追加詳細エントリ数。古いエントリは削除される。",
     "NATIVE_MEMORY_AUTO_CAPTURE_INPUT_MAX_CHARS": "自動キャプチャメモリタスクごとの最大入力文字数",
     "NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS": "自動キャプチャメモリの最大並行タスク数",
+    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "ユーザーあたりの1日自動メモリ評価上限（0=無制限、デフォルト 20）",
     "NATIVE_MEMORY_AUTO_COMPACT_ENABLED": "バックグラウンドのメモリ圧縮agentを有効化。",
     "NATIVE_MEMORY_AUTO_COMPACT_INTERVAL_SECONDS": "メモリ圧縮agentがしきい値超過ユーザーをスキャンする間隔（秒）。",
     "NATIVE_MEMORY_AUTO_COMPACT_MIN_INTERVAL_SECONDS": "同じユーザーへの圧縮試行の最小間隔（秒）。",

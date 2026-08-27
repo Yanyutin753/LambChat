@@ -607,3 +607,78 @@ async def test_schedule_backend_reset_deduplicates_inflight_reset_task(monkeypat
     await asyncio.gather(*list(memory_tools._background_tasks))
 
     assert memory_tools._backend_reset_task is None
+
+
+@pytest.mark.asyncio
+async def test_auto_retain_skipped_when_daily_limit_exceeded(monkeypatch):
+    from src.infra.memory import distributed as distributed_module
+    from src.infra.memory import tools as tools_module
+
+    calls = []
+
+    async def fake_exceeded(user_id):
+        return "exceeded"
+
+    monkeypatch.setattr(distributed_module, "check_auto_retain_daily_limit", fake_exceeded)
+    monkeypatch.setattr(
+        tools_module, "check_auto_retain_daily_limit", fake_exceeded, raising=False
+    )
+
+    class NoBackend:
+        async def auto_retain_from_text(self, *args, **kwargs):
+            calls.append(args)
+            return {"success": True, "stored": 0, "candidates": 0}
+
+    async def fake_get_backend():
+        return NoBackend()
+
+    async def fake_acquire(_uid, _iid):
+        return "acquired"
+
+    async def fake_release(_uid, _iid):
+        return None
+
+    monkeypatch.setattr(tools_module, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(
+        tools_module, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
+
+    await tools_module._auto_retain_user_memory("u1", "一条会被跳过的消息")
+
+    assert calls == []  # 超限直接跳过评估
+
+
+@pytest.mark.asyncio
+async def test_auto_retain_proceeds_when_limit_unavailable(monkeypatch):
+    from src.infra.memory import distributed as distributed_module
+    from src.infra.memory import tools as tools_module
+
+    calls = []
+
+    async def fake_unavailable(user_id):
+        return "unavailable"  # Redis 故障 → fail-open
+
+    monkeypatch.setattr(distributed_module, "check_auto_retain_daily_limit", fake_unavailable)
+
+    class NoBackend:
+        async def auto_retain_from_text(self, *args, **kwargs):
+            calls.append(args)
+            return {"success": True, "stored": 0, "candidates": 0}
+
+    async def fake_get_backend():
+        return NoBackend()
+
+    async def fake_acquire(_uid, _iid):
+        return "acquired"
+
+    async def fake_release(_uid, _iid):
+        return None
+
+    monkeypatch.setattr(tools_module, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(
+        tools_module, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
+
+    await tools_module._auto_retain_user_memory("u1", "Redis 挂了也要继续评估")
+
+    assert len(calls) == 1

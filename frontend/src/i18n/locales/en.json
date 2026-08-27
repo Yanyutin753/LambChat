@@ -2339,6 +2339,7 @@
     "NATIVE_MEMORY_APPEND_MAX_DETAILS": "Maximum number of appended detail entries kept on project/reference memories before older detail entries are trimmed.",
     "NATIVE_MEMORY_AUTO_CAPTURE_INPUT_MAX_CHARS": "Maximum input characters per auto-capture memory task",
     "NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS": "Maximum concurrent auto-capture memory tasks",
+    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "Daily auto memory evaluation cap per user (0=unlimited, default 20)",
     "NATIVE_MEMORY_AUTO_COMPACT_ENABLED": "Enable the background memory compaction agent.",
     "NATIVE_MEMORY_AUTO_COMPACT_INTERVAL_SECONDS": "How often the memory compaction agent scans for users over the threshold.",
     "NATIVE_MEMORY_AUTO_COMPACT_MIN_INTERVAL_SECONDS": "Minimum seconds between compaction attempts for the same user.",

@@ -865,4 +865,12 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 8,
         "depends_on": "ENABLE_MEMORY",
     },
+    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_STORAGE,
+        "subcategory": "policy",
+        "description": "settingDesc.NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY",
+        "default": 20,
+        "depends_on": "ENABLE_MEMORY",
+    },
 }

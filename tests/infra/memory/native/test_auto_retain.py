@@ -253,3 +253,41 @@ async def test_get_auto_retain_candidates_does_not_touch_access_stats(monkeypatc
     candidates = await backend._get_auto_retain_candidates("u1", "duckdb")
 
     assert candidates == [{"memory_id": "m1", "summary": "Prefers DuckDB", "type": "user"}]
+
+
+@pytest.mark.asyncio
+async def test_auto_retain_prompt_frames_latest_exchange():
+    captured: dict[str, str] = {}
+
+    class FakeBoundModel:
+        async def ainvoke(self, messages):
+            captured["system"] = messages[0].content
+            captured["human"] = messages[1].content
+
+            class Response:
+                tool_calls = []
+
+            return Response()
+
+    class FakeModel:
+        def bind_tools(self, _tools):
+            return FakeBoundModel()
+
+    backend = NativeMemoryBackend()
+    backend._get_memory_model = staticmethod(lambda: FakeModel())  # type: ignore[method-assign]
+
+    async def fake_candidates(*_args, **_kwargs):
+        return []
+
+    backend._get_auto_retain_candidates = fake_candidates  # type: ignore[method-assign]
+
+    result = await backend.auto_retain_from_text(
+        "u1", "User:\n项目统一用 pnpm\n\nAssistant:\n好的，已记录。"
+    )
+
+    assert result == {"success": True, "stored": 0, "candidates": 0}
+    # 决策提示词必须按"最近一轮交换"框定输入，并禁止记录助手泛泛回答
+    assert "latest exchange" in captured["system"]
+    assert "assistant's generic answer" in captured["system"]
+    assert captured["human"].startswith("Latest exchange:\n")
+    assert "User:\n项目统一用 pnpm" in captured["human"]
