@@ -54,7 +54,11 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --group dev
+        env:
+          # uv.lock pins a CN mirror (fastest locally); GH-hosted runners
+          # pull from it fine but throttle under uv's 50 parallel downloads.
+          UV_CONCURRENT_DOWNLOADS: "8"
+        run: uv sync --group dev || (sleep 15 && uv sync --group dev)
 
       - name: Run Ruff check
         run: uv run ruff check .
@@ -77,7 +81,11 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --group dev
+        env:
+          # uv.lock pins a CN mirror (fastest locally); GH-hosted runners
+          # pull from it fine but throttle under uv's 50 parallel downloads.
+          UV_CONCURRENT_DOWNLOADS: "8"
+        run: uv sync --group dev || (sleep 15 && uv sync --group dev)
 
       - name: Run MyPy
         run: uv run mypy src/
@@ -97,7 +105,11 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --group dev
+        env:
+          # uv.lock pins a CN mirror (fastest locally); GH-hosted runners
+          # pull from it fine but throttle under uv's 50 parallel downloads.
+          UV_CONCURRENT_DOWNLOADS: "8"
+        run: uv sync --group dev || (sleep 15 && uv sync --group dev)
 
       - name: Run backend tests
         run: uv run pytest
@@ -116,6 +128,10 @@ jobs:
           max_bytes=$((5 * 1024 * 1024))
           failed=0
           while IFS= read -r -d '' file; do
+            # Bundled font assets (CJK cover rendering) are legitimately large
+            case "$file" in
+              *.ttf|*.ttc|*.otf) continue ;;
+            esac
             size=$(wc -c < "$file")
             if [ "$size" -gt "$max_bytes" ]; then
               printf 'Tracked file exceeds 5 MiB: %s (%s bytes)\n' "$file" "$size"

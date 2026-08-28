@@ -31,6 +31,7 @@ from src.api.routes.file_type import (
     get_file_category,
     get_permission_for_category,
 )
+from src.api.routes.upload_cover import get_file_cover_response
 from src.api.routes.upload_signed_urls import (
     SignedUrlItem,
     SignedUrlRequest,
@@ -827,6 +828,8 @@ async def get_file_proxy(
     request: Request,
     direct: bool = False,
     proxy: bool = False,
+    cover: bool = False,
+    t: int | None = None,
 ) -> Response:
     """
     Dynamic proxy endpoint for file access
@@ -838,10 +841,18 @@ async def get_file_proxy(
     Query params:
         direct: If true, return the URL as JSON instead of redirecting.
         proxy: If true, stream non-local storage through the app instead of redirecting.
+        cover: If true, serve a 16:9 cover thumbnail instead of the original
+            (OSS image crop / video first frame; local storage via Pillow).
+            Unsupported types return 404 so clients fall back without
+            downloading the original file.
+        t: Video snapshot timestamp in ms for cover (default 1000).
     """
     from fastapi.responses import JSONResponse
 
     storage = await get_or_init_storage()
+
+    if cover:
+        return await get_file_cover_response(storage, key, t)
 
     base_url = _get_base_url(request)
     proxy_url = f"{base_url}/api/upload/file/{key}"
