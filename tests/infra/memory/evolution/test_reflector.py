@@ -230,7 +230,37 @@ async def test_down_signal_marked_processed(monkeypatch):
 
     sigs = await reflector.collect_signal_runs("u1")
     assert len(sigs) == 1
-    await reflector._mark_signal_processed(sigs[0])
+    await reflector._mark_signal_processed(sigs[0], "u1")
     assert any(u.get("$set", {}).get("evolution_processed") is True for u in updates)
     again = await reflector.collect_signal_runs("u1")
     assert again == []
+
+
+@pytest.mark.asyncio
+async def test_llm_failure_does_not_mark_processed(monkeypatch):
+    """反思 LLM 失败（skipped）不得标记信号已处理——失败≠已处理，信号不能白丢。"""
+    from src.infra.memory.evolution import reflector as r
+
+    marked = []
+
+    async def fake_collect(uid, **k):
+        return [r.SignalRun(run_id="r-down", session_id="s", kind="down", comment="c")]
+
+    async def fake_reflect(backend, uid, sig):
+        return {"stored": 0, "skipped": True}
+
+    async def fake_mark(sig, uid):
+        marked.append(sig.run_id)
+
+    monkeypatch.setattr(r, "collect_signal_runs", fake_collect)
+    monkeypatch.setattr(r, "reflect_on_run", fake_reflect)
+    monkeypatch.setattr(r, "_mark_signal_processed", fake_mark)
+    await r.evolve_user(object(), "u1")
+    assert marked == []
+
+    async def fake_reflect_ok(backend, uid, sig):
+        return {"stored": 1}
+
+    monkeypatch.setattr(r, "reflect_on_run", fake_reflect_ok)
+    await r.evolve_user(object(), "u1")
+    assert marked == ["r-down"]

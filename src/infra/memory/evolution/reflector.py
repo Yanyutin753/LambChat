@@ -159,15 +159,40 @@ async def collect_positive_runs(
         return []
 
 
-async def _mark_signal_processed(signal: SignalRun) -> None:
-    """down 信号处理一次后打标，防下轮调度重复反思同一 run。"""
-    if signal.kind != "down":
-        return
+def _get_marks_collection():
+    from src.infra.storage.mongodb import get_mongo_client
+
+    return get_mongo_client()[settings.MONGODB_DB]["memory_evolution_marks"]
+
+
+async def _get_marked_run_ids(user_id: str) -> set[str]:
+    """已处理过的 run 标记（failed 等无 feedback 文档的信号用）。"""
     try:
-        await _get_feedback_collection().update_one(
-            {"user_id": {"$exists": True}, "run_id": signal.run_id, "rating": "down"},
-            {"$set": {"evolution_processed": True}},
+        docs = (
+            await _get_marks_collection()
+            .find({"user_id": user_id}, {"run_id": 1})
+            .to_list(length=200)
         )
+        return {str(d.get("run_id")) for d in docs}
+    except Exception as e:
+        logger.debug("[MemoryEvolution] marks read failed: %s", e)
+        return set()
+
+
+async def _mark_signal_processed(signal: SignalRun, user_id: str) -> None:
+    """信号处理一次后打标，防下轮调度重复反思同一 run（down→feedback 文档；其余→marks 集合）。"""
+    try:
+        if signal.kind == "down":
+            await _get_feedback_collection().update_one(
+                {"user_id": {"$exists": True}, "run_id": signal.run_id, "rating": "down"},
+                {"$set": {"evolution_processed": True}},
+            )
+        else:
+            await _get_marks_collection().update_one(
+                {"user_id": user_id, "run_id": signal.run_id},
+                {"$set": {"user_id": user_id, "run_id": signal.run_id}},
+                upsert=True,
+            )
     except Exception as e:
         logger.debug("[MemoryEvolution] mark processed failed: %s", e)
 
@@ -266,7 +291,7 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
         )
     except Exception as e:
         logger.info("[MemoryEvolution] reflect LLM failed for run %s: %s", signal.run_id, e)
-        return {"stored": 0}
+        return {"stored": 0, "skipped": True}  # 失败≠已处理，不标记，下轮重试
 
     stored = 0
     for tool_call in getattr(response, "tool_calls", None) or []:
@@ -314,7 +339,8 @@ async def evolve_user(backend, user_id: str, *, max_per_night: Optional[int] = N
             break
         r = await reflect_on_run(backend, user_id, sig)
         stored += int(r.get("stored") or 0)
-        await _mark_signal_processed(sig)
+        if not r.get("skipped"):
+            await _mark_signal_processed(sig, user_id)
 
     if stored < limit and _should_sample_positive():
         for sig in await collect_positive_runs(user_id):
