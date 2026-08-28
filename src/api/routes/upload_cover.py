@@ -134,15 +134,16 @@ def _key_ext(key: str) -> str:
 
 
 def render_pdf_cover(data: bytes) -> bytes:
-    """Render the first PDF page letterboxed on a white 16:9 canvas.
+    """Render the top slice of the first PDF page, cover-cropped to 16:9.
 
-    Rendered at 2x and served as JPEG so grids only ever load a small
-    raster image, never the PDF itself.
+    Only a slice is shown (the title area carries the visual identity), the
+    page is scaled up to fill the full canvas — no letterbox bars. Rendered
+    at 2x and served as JPEG so grids only ever load a small raster image,
+    never the PDF itself.
     """
     import io
 
     import pypdfium2 as pdfium
-    from PIL import Image
 
     ensure_cjk_fonts_available()
 
@@ -150,25 +151,20 @@ def render_pdf_cover(data: bytes) -> bytes:
     try:
         page = pdf[0]
         target_w = COVER_WIDTH * 2
-        scale = max(target_w / page.get_width(), 0.5)
+        target_h = COVER_HEIGHT * 2
+        # Cover-crop semantics: scale so BOTH dimensions overflow the canvas
+        scale = max(target_w / page.get_width(), target_h / page.get_height())
         img = page.render(scale=scale).to_pil().convert("RGB")
     finally:
         pdf.close()
 
-    canvas = Image.new("RGB", (COVER_WIDTH * 2, COVER_HEIGHT * 2), "white")
-    ratio = min(canvas.width / img.width, canvas.height / img.height)
-    fitted = img.resize(
-        (round(img.width * ratio), round(img.height * ratio)),
-    )
-    canvas.paste(
-        fitted,
-        (
-            (canvas.width - fitted.width) // 2,
-            (canvas.height - fitted.height) // 2,
-        ),
-    )
+    # Documents read top-first: crop from the top edge, centered horizontally.
+    left = max((img.width - target_w) // 2, 0)
+    top = 0
+    cover = img.crop((left, top, left + target_w, top + target_h))
+
     buf = io.BytesIO()
-    canvas.save(buf, format="JPEG", quality=85)
+    cover.save(buf, format="JPEG", quality=85)
     return buf.getvalue()
 
 

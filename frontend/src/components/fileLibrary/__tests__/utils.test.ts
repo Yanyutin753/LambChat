@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import {
+  pickDocFontSize,
   buildFileCardPreview,
   getImagePreviewNavigation,
   getPreviewableImageFiles,
   getSessionNavigationTarget,
+  pickDocFontSize,
 } from "../utils.ts";
 import type { RevealedFileItem } from "../../../services/api";
 
@@ -249,4 +251,24 @@ test("card preview lines strip replacement and control characters", () => {
   expect(preview.lines.join(" ")).not.toContain("\uFFFD");
   expect(preview.lines.join(" ")).not.toContain("\u0007");
   expect(preview.subtitle).not.toContain("\uFFFD");
+});
+
+test("doc cover font scales up when content is sparse", () => {
+  expect(pickDocFontSize(0)).toBe("11.5px");
+  expect(pickDocFontSize(2)).toBe("11.5px");
+  expect(pickDocFontSize(3)).toBe("10.5px");
+  expect(pickDocFontSize(5)).toBe("10px");
+  expect(pickDocFontSize(6)).toBe("10px");
+});
+
+test("xlsx files get the spreadsheet cover kind", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "季度财务报表.xlsx",
+      file_type: "document",
+      mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+  );
+  expect(preview.kind).toBe("sheet");
+  expect(preview.badge).toBe("XLSX");
 });

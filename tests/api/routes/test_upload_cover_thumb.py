@@ -357,3 +357,28 @@ def _bundled_font_path():
     from src.api.routes import upload_cover as cover
 
     return cover._BUNDLED_CJK_FONT
+
+
+def test_render_pdf_cover_fills_canvas_without_letterbox():
+    """A solid-color page must fill the whole 16:9 canvas — the old
+    letterbox logic would leave white bars on A4 pages."""
+    import io
+
+    from src.api.routes.upload_cover import render_pdf_cover
+
+    buf = io.BytesIO()
+    Image.new("RGB", (595, 842), (40, 80, 160)).save(buf, format="PDF")
+
+    out = render_pdf_cover(buf.getvalue())
+    cover = Image.open(io.BytesIO(out))
+    assert cover.size == (1120, 630)
+
+    corners = [
+        cover.getpixel((2, 2)),
+        cover.getpixel((1117, 2)),
+        cover.getpixel((2, 627)),
+        cover.getpixel((1117, 627)),
+    ]
+    for r, g, b in corners:
+        # Page blue, not letterbox white
+        assert abs(r - 40) < 12 and abs(g - 80) < 12 and abs(b - 160) < 12

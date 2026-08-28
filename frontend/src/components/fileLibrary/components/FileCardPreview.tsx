@@ -4,6 +4,7 @@ import { Play } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getFullUrl } from "../../../services/api";
 import type { FileCardPreview as FileCardPreviewModel } from "../utils";
+import { pickDocFontSize } from "../utils";
 import {
   buildImageThumbUrl,
   buildProxyCoverUrl,
@@ -108,27 +109,87 @@ const DOC_LINE_WIDTHS = ["w-full", "w-11/12", "w-5/6", "w-3/4", "w-5/6"];
 
 function DocCover({ p }: { p: FileCardPreviewModel }) {
   const bodyLines = p.lines.filter(Boolean).slice(0, 5);
+  const fontSize = pickDocFontSize(bodyLines.length);
 
   return (
     <PaperCanvas>
-      <div className="flex h-full flex-col px-3.5 pb-3 pt-3">
+      <div className="flex h-full flex-col px-3.5 pb-3.5 pt-3">
         <p className="truncate text-[12px] font-semibold leading-snug text-stone-800 dark:text-stone-200">
           {p.title}
         </p>
-        <div className="mt-1.5 mb-2 h-px w-9 bg-stone-300 dark:bg-stone-700" />
-        <div className="space-y-[7px]">
+        <div className="mt-1.5 h-px w-9 bg-stone-300 dark:bg-stone-700" />
+        {/* Sparse content spreads out; dense content packs and clips. */}
+        <div className="mt-1 flex flex-1 flex-col justify-evenly overflow-hidden">
           {bodyLines.map((line, i) => (
             <p
               key={i}
+              style={{ fontSize }}
               className={clsx(
-                "truncate text-[10px] leading-[1.6] text-stone-500 dark:text-stone-400",
+                "truncate leading-[1.6] text-stone-500 dark:text-stone-400",
                 i === 0 &&
-                  "text-[10.5px] font-medium text-stone-700 dark:text-stone-300",
+                  "font-medium text-stone-700 dark:text-stone-300",
                 DOC_LINE_WIDTHS[i % DOC_LINE_WIDTHS.length],
               )}
             >
               {line}
             </p>
+          ))}
+        </div>
+      </div>
+    </PaperCanvas>
+  );
+}
+
+/* ── Sheet cover: spreadsheet grid fills the canvas ──── */
+
+const SHEET_COLS = ["A", "B", "C", "D"];
+
+function SheetCover({ p }: { p: FileCardPreviewModel }) {
+  const rows = 5;
+  return (
+    <PaperCanvas>
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-1.5 border-b border-stone-200 px-3 py-1 dark:border-stone-800">
+          <span className="truncate text-[9px] font-medium text-stone-500 dark:text-stone-400">
+            {p.title}
+          </span>
+          <span className="shrink-0 rounded bg-stone-100 px-1 text-[8px] font-semibold text-stone-400 dark:bg-stone-800 dark:text-stone-500">
+            {p.badge}
+          </span>
+        </div>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Column headers */}
+          <div className="flex border-b border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-800/60">
+            {SHEET_COLS.map((col) => (
+              <span
+                key={col}
+                className="flex-1 border-r border-stone-200 py-[3px] text-center font-mono text-[8px] font-semibold text-stone-400 last:border-r-0 dark:border-stone-800 dark:text-stone-500"
+              >
+                {col}
+              </span>
+            ))}
+          </div>
+          {Array.from({ length: rows }, (_, r) => (
+            <div
+              key={r}
+              className="flex flex-1 border-b border-stone-100 last:border-b-0 dark:border-stone-800/60"
+            >
+              {SHEET_COLS.map((col, c) => {
+                const text = r === 0 && c === 0 ? p.lines[0] : "";
+                return (
+                  <span
+                    key={col}
+                    className={clsx(
+                      "flex-1 truncate border-r border-stone-100 px-1.5 py-1 text-[8.5px] text-stone-500 last:border-r-0 dark:border-stone-800/60 dark:text-stone-400",
+                      r === 0 && c === 0 && "font-medium text-stone-600 dark:text-stone-300",
+                      c === 0 && "w-1/4 flex-none",
+                    )}
+                  >
+                    {text}
+                  </span>
+                );
+              })}
+            </div>
           ))}
         </div>
       </div>
@@ -152,7 +213,7 @@ function CodeCover({ p }: { p: FileCardPreviewModel }) {
             {p.title}
           </span>
         </div>
-        <div className="flex-1 space-y-[4px] overflow-hidden px-3 py-2 font-mono text-[10px] leading-[1.65]">
+        <div className="flex flex-1 flex-col justify-evenly overflow-hidden px-3 py-2 font-mono text-[10px] leading-[1.65]">
           {p.lines.slice(0, 4).map((line, i) => (
             <div key={i} className="flex items-baseline gap-2 overflow-hidden">
               <span className="w-2.5 shrink-0 text-right text-[9px] text-stone-300 select-none dark:text-stone-600">
@@ -228,7 +289,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
 
   return (
     <PaperCanvas>
-      <div className="h-full space-y-[5px] overflow-hidden px-3.5 py-3 font-mono text-[10px] leading-[1.7]">
+      <div className="flex h-full flex-col justify-evenly overflow-hidden px-3.5 py-3 font-mono text-[10px] leading-[1.7]">
         {p.lines.slice(0, 5).map((line, i) => (
           <p key={i} className="truncate text-stone-600 dark:text-stone-400">
             {tokenizeCodeLine(line).map((tok, j) => (
@@ -255,7 +316,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
 function ProjectCover({ p }: { p: FileCardPreviewModel }) {
   return (
     <PaperCanvas>
-      <div className="flex h-full flex-col px-3.5 pb-3 pt-3 font-mono text-[10px] leading-[1.9]">
+      <div className="flex h-full flex-col justify-evenly px-3.5 pb-3 pt-3 font-mono text-[10px] leading-[1.9]">
         {p.lines.slice(0, 4).map((line, i) => (
           <p
             key={i}
@@ -468,6 +529,8 @@ export function FileCardPreview({
       return <DataCover p={preview} />;
     case "project":
       return <ProjectCover p={preview} />;
+    case "sheet":
+      return <SheetCover p={preview} />;
     case "document":
     case "markdown":
       return <DocCover p={preview} />;

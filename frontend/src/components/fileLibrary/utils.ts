@@ -87,6 +87,7 @@ export type FileCardPreviewKind =
   | "project"
   | "video"
   | "pdf"
+  | "sheet"
   | "document"
   | "fallback";
 
@@ -139,6 +140,18 @@ const CODE_EXTENSIONS = new Set([
 ]);
 
 const DATA_EXTENSIONS = new Set(["CSV", "JSON", "TOML", "XML"]);
+
+const SHEET_EXTENSIONS = new Set(["XLSX", "XLS", "XLSM", "ET"]);
+
+/**
+ * Sparse content earns bigger type: the doc cover scales its body font by
+ * line count so a two-line note fills the 16:9 area instead of floating.
+ */
+export function pickDocFontSize(lineCount: number): string {
+  if (lineCount <= 2) return "11.5px";
+  if (lineCount <= 4) return "10.5px";
+  return "10px";
+}
 
 function stripExtension(fileName: string): string {
   const last = fileName.split("/").pop() || fileName;
@@ -371,6 +384,17 @@ export function buildFileCardPreview(
       lines: [],
       colorName,
       imageUrl: file.url,
+    };
+  }
+
+  if (SHEET_EXTENSIONS.has(ext)) {
+    return {
+      kind: "sheet",
+      title,
+      subtitle: description || label,
+      badge: ext,
+      lines: normalizeLines([description]),
+      colorName,
     };
   }
 
