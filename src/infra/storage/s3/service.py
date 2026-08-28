@@ -386,6 +386,13 @@ class S3StorageService:
         """Check if a file exists"""
         return await self._get_backend().exists(key)
 
+    async def get_size(self, key: str) -> int | None:
+        """Get object size in bytes, or None when unavailable"""
+        try:
+            return await self._get_backend().get_size(key)
+        except Exception:
+            return None
+
     def get_file_path(self, key: str):
         """Get local filesystem path for a key (local backend only)."""
         backend = self._get_backend()

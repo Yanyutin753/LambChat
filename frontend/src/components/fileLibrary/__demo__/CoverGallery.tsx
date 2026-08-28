@@ -55,6 +55,7 @@ const DEMO_FILES: RevealedFileItem[] = [
     file_type: "document",
     mime_type: "application/pdf",
     description: "LambChat v3 分层架构与演进路线",
+    url: `${OSS_BASE}/architecture.pdf`,
   }),
   file({
     file_name: "api-client.ts",

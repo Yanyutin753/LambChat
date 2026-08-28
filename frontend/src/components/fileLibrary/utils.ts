@@ -86,6 +86,7 @@ export type FileCardPreviewKind =
   | "markdown"
   | "project"
   | "video"
+  | "pdf"
   | "document"
   | "fallback";
 
@@ -345,6 +346,20 @@ export function buildFileCardPreview(
       title,
       subtitle: description || label,
       badge: ext || "Video",
+      lines: [],
+      colorName,
+      imageUrl: file.url,
+    };
+  }
+
+  if (ext === "PDF" && file.url) {
+    // Real first-page cover rendered server-side (?cover=1); never loads
+    // the PDF itself in the grid.
+    return {
+      kind: "pdf",
+      title,
+      subtitle: description || label,
+      badge: ext,
       lines: [],
       colorName,
       imageUrl: file.url,

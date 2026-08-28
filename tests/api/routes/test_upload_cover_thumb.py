@@ -158,3 +158,123 @@ async def test_cover_signature_expiry_is_day_aligned_and_stable(
     assert expires[0] == expires[1]
     assert expires[0] % 86400 == 0
     assert expires[0] >= 86400
+
+
+def _make_pdf_bytes() -> bytes:
+    import io
+
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (1240, 1754), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([90, 120, 700, 150], fill=(30, 30, 30))
+    for i, y in enumerate([220, 260, 300, 340, 380]):
+        d.rectangle([90, y, 1150 - i * 120, y + 14], fill=(150, 150, 150))
+    buf = io.BytesIO()
+    img.save(buf, format="PDF")
+    return buf.getvalue()
+
+
+class _FakePdfStorage:
+    """Aliyun-style storage that renders a real cached thumbnail."""
+
+    is_local = False
+    _config = SimpleNamespace(provider="aliyun", public_bucket=False)
+
+    def __init__(self, cached: bool = False, size: int | None = 1000) -> None:
+        self.presigned_calls: list[dict] = []
+        self.uploads: list[str] = []
+        self.downloaded: list[str] = []
+        self._cached = cached
+        self._size = size
+
+    async def file_exists(self, key: str) -> bool:
+        return self._cached if key.startswith("covers/") else True
+
+    async def get_size(self, key: str) -> int | None:
+        return self._size
+
+    async def download_file(self, key: str) -> bytes:
+        self.downloaded.append(key)
+        return _make_pdf_bytes()
+
+    async def upload_to_key(self, data: bytes, key: str, content_type=None, **kwargs) -> None:
+        self.uploads.append(key)
+
+    async def get_presigned_url(
+        self, key: str, expires: int = 3600, process: str | None = None
+    ) -> str:
+        self.presigned_calls.append({"key": key, "expires": expires, "process": process})
+        return f"https://signed.example/{key}?sig=1"
+
+
+@pytest.mark.asyncio
+async def test_cover_pdf_renders_first_page_and_caches_beside_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakePdfStorage()
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+
+    assert resp.status_code in (302, 307)
+    assert storage.downloaded == ["revealed_files/report.pdf"]
+    assert storage.uploads == ["covers/560x315/revealed_files/report.pdf.jpg"]
+    # Redirect points at the cached thumbnail, unsigned process
+    assert storage.presigned_calls[0]["key"] == ("covers/560x315/revealed_files/report.pdf.jpg")
+    assert storage.presigned_calls[0]["process"] is None
+
+
+@pytest.mark.asyncio
+async def test_cover_pdf_serves_cached_thumbnail_without_re_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakePdfStorage(cached=True)
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+
+    assert resp.status_code in (302, 307)
+    assert storage.downloaded == []
+    assert storage.uploads == []
+
+
+@pytest.mark.asyncio
+async def test_cover_pdf_skips_oversized_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakePdfStorage(size=80 * 1024 * 1024)
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    with pytest.raises(upload.HTTPException) as exc:
+        await upload.get_file_proxy("revealed_files/huge.pdf", _fake_request(), cover=True)
+    assert exc.value.status_code == 404
+    assert storage.downloaded == []
+
+
+@pytest.mark.asyncio
+async def test_cover_pdf_local_storage_renders_real_jpeg(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    src = tmp_path / "report.pdf"
+    src.write_bytes(_make_pdf_bytes())
+
+    class _FakeLocalStorage:
+        is_local = True
+        _config = SimpleNamespace(public_bucket=False)
+
+        def get_file_path(self, key: str):
+            return src
+
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(_FakeLocalStorage()))
+
+    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+
+    assert resp.status_code == 200
+    assert resp.media_type == "image/jpeg"
+    import io
+
+    from PIL import Image as _Img
+
+    cover = _Img.open(io.BytesIO(resp.body))
+    assert cover.size == (1120, 630)

@@ -36,6 +36,10 @@ def cover_signature_expiry() -> int:
 _COVER_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "bmp"}
 # gif keeps its animation and svg is vector data — neither crops well
 _COVER_VIDEO_EXTS = {"mp4", "webm", "mov", "m4v"}
+_COVER_PDF_EXTS = {"pdf"}
+_COVER_CACHE_PREFIX = f"covers/{COVER_WIDTH}x{COVER_HEIGHT}"
+# Rendering downloads the source PDF server-side; skip absurdly large files
+_PDF_MAX_SOURCE_BYTES = 30 * 1024 * 1024
 
 
 def cover_process_for_key(key: str, t_ms: int) -> str | None:
@@ -46,6 +50,132 @@ def cover_process_for_key(key: str, t_ms: int) -> str | None:
     if ext in _COVER_VIDEO_EXTS:
         return f"video/snapshot,t_{t_ms},f_jpg,w_{COVER_WIDTH},h_{COVER_HEIGHT},m_fast"
     return None
+
+
+def _key_ext(key: str) -> str:
+    return key.rsplit(".", 1)[-1].lower() if "." in key else ""
+
+
+def render_pdf_cover(data: bytes) -> bytes:
+    """Render the first PDF page letterboxed on a white 16:9 canvas.
+
+    Rendered at 2x and served as JPEG so grids only ever load a small
+    raster image, never the PDF itself.
+    """
+    import io
+
+    import pypdfium2 as pdfium
+    from PIL import Image
+
+    pdf = pdfium.PdfDocument(data)
+    try:
+        page = pdf[0]
+        target_w = COVER_WIDTH * 2
+        scale = max(target_w / page.get_width(), 0.5)
+        img = page.render(scale=scale).to_pil().convert("RGB")
+    finally:
+        pdf.close()
+
+    canvas = Image.new("RGB", (COVER_WIDTH * 2, COVER_HEIGHT * 2), "white")
+    ratio = min(canvas.width / img.width, canvas.height / img.height)
+    fitted = img.resize(
+        (round(img.width * ratio), round(img.height * ratio)),
+    )
+    canvas.paste(
+        fitted,
+        (
+            (canvas.width - fitted.width) // 2,
+            (canvas.height - fitted.height) // 2,
+        ),
+    )
+    buf = io.BytesIO()
+    canvas.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
+
+
+async def _get_pdf_cover_response(storage: Any, key: str) -> Response:
+    """PDF covers need real content: render page 1 once, cache beside the
+    original (uploads are content-addressed and immutable, so the cache
+    never goes stale), and serve the small JPEG from then on."""
+    thumb_key = f"{_COVER_CACHE_PREFIX}/{key}.jpg"
+    expires = cover_signature_expiry()
+
+    if storage.is_local:
+        file_path = storage.get_file_path(key)
+        if not await run_blocking_io(_path_exists, file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+
+        def _read_and_render() -> bytes:
+            with open(file_path, "rb") as fh:
+                return render_pdf_cover(fh.read())
+
+        try:
+            body = await run_blocking_io(_read_and_render)
+        except Exception as e:
+            logger.error(f"Failed to render local PDF cover for {key}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to render cover")
+        return Response(
+            content=body,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    try:
+        if await storage.file_exists(thumb_key):
+            url = await storage.get_presigned_url(thumb_key, expires)
+            return Response(
+                status_code=302,
+                headers={
+                    "Location": url,
+                    "Cache-Control": "public, max-age=86400",
+                },
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to check cached PDF cover for {key}: {e}")
+
+    try:
+        source_size = await storage.get_size(key)
+        if source_size and source_size > _PDF_MAX_SOURCE_BYTES:
+            raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to stat PDF for cover {key}: {e}")
+
+    try:
+        data = await storage.download_file(key)
+    except Exception as e:
+        logger.error(f"Failed to download PDF for cover {key}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate file URL")
+
+    try:
+        body = await run_blocking_io(render_pdf_cover, data)
+    except Exception as e:
+        logger.error(f"Failed to render PDF cover for {key}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to render cover")
+
+    try:
+        await storage.upload_to_key(
+            body,
+            thumb_key,
+            content_type="image/jpeg",
+            skip_size_limit=True,
+        )
+        url = await storage.get_presigned_url(thumb_key, expires)
+        return Response(
+            status_code=302,
+            headers={"Location": url, "Cache-Control": "public, max-age=86400"},
+        )
+    except Exception as e:
+        # Cache write is best-effort; serve the rendered bytes directly.
+        logger.warning(f"Failed to cache PDF cover for {key}: {e}")
+        return Response(
+            content=body,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
 
 
 def _render_local_cover(file_path) -> bytes:
@@ -70,6 +200,9 @@ def _path_exists(file_path) -> bool:
 
 
 async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Response:
+    if _key_ext(key) in _COVER_PDF_EXTS:
+        return await _get_pdf_cover_response(storage, key)
+
     t_ms = t if t is not None else 1000
     process = cover_process_for_key(key, t_ms)
     if not process:

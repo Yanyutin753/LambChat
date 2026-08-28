@@ -218,3 +218,20 @@ test("builds a video card preview that opts into OSS snapshot covers", () => {
     "https://b.oss-cn-hongkong.aliyuncs.com/p/demo-clip.mp4",
   );
 });
+
+test("builds a pdf card preview backed by the server-side cover", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "架构设计文档.pdf",
+      file_type: "document",
+      mime_type: "application/pdf",
+      url: "https://lambchat.com/api/upload/file/revealed_files/x.pdf",
+    }),
+  );
+
+  expect(preview.kind).toBe("pdf");
+  expect(preview.badge).toBe("PDF");
+  expect(preview.imageUrl).toBe(
+    "https://lambchat.com/api/upload/file/revealed_files/x.pdf",
+  );
+});

@@ -102,15 +102,12 @@ function PaperCanvas({
   );
 }
 
-/* ── Doc cover: page of text (md / pdf / docs) ───────── */
+/* ── Doc cover: page of text (md / pdf fallback / docs) ── */
 
 const DOC_LINE_WIDTHS = ["w-full", "w-11/12", "w-5/6", "w-3/4", "w-5/6"];
-const DOC_SKELETON_WIDTHS = ["w-full", "w-5/6", "w-11/12", "w-2/3"];
-const DOC_MIN_ROWS = 6;
 
 function DocCover({ p }: { p: FileCardPreviewModel }) {
   const bodyLines = p.lines.filter(Boolean).slice(0, 5);
-  const filler = Math.max(0, DOC_MIN_ROWS - bodyLines.length);
 
   return (
     <PaperCanvas>
@@ -132,15 +129,6 @@ function DocCover({ p }: { p: FileCardPreviewModel }) {
             >
               {line}
             </p>
-          ))}
-          {Array.from({ length: filler }, (_, i) => (
-            <div
-              key={`sk-${i}`}
-              className={clsx(
-                "h-[6px] rounded-[3px] bg-stone-200 dark:bg-stone-800",
-                DOC_SKELETON_WIDTHS[(i + bodyLines.length) % DOC_SKELETON_WIDTHS.length],
-              )}
-            />
           ))}
         </div>
       </div>
@@ -424,6 +412,26 @@ function buildVideoSources(raw: string): string[] {
   return [...proxy, ...oss].filter((s): s is string => Boolean(s));
 }
 
+/* ── PDF cover: real first page via ?cover=1 ─────────── */
+
+function PdfCover({ p }: { p: FileCardPreviewModel }) {
+  const raw = (getFullUrl(p.imageUrl!) ?? "").trim();
+  const sources = raw
+    ? [buildProxyCoverUrl(raw)].filter((s): s is string => Boolean(s))
+    : [];
+
+  return (
+    <div className="relative h-full w-full overflow-hidden bg-stone-50 dark:bg-stone-900/60">
+      <SmartThumb
+        sources={sources}
+        alt={p.title}
+        className="h-full w-full object-contain"
+        fallback={<DocCover p={p} />}
+      />
+    </div>
+  );
+}
+
 /* ── Main ────────────────────────────────────────────── */
 
 export function FileCardPreview({
@@ -447,6 +455,10 @@ export function FileCardPreview({
 
   if (preview.kind === "video") {
     return <VideoCover p={preview} icon={icon} />;
+  }
+
+  if (preview.kind === "pdf" && imageUrl) {
+    return <PdfCover p={preview} />;
   }
 
   switch (preview.kind) {
