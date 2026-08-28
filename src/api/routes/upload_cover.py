@@ -8,9 +8,11 @@ long-lived signed URL, local storage resizes with Pillow, everything else
 
 from __future__ import annotations
 
+import asyncio
 import re
 import shutil
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,25 @@ logger = get_logger(__name__)
 COVER_WIDTH = 560
 COVER_HEIGHT = 315
 _DAY = 24 * 3600
+
+# ── Render concurrency protection ────────────────────────────────────────
+# Rendering (PDF pages / spreadsheet tables) is CPU-heavy and holds a slot
+# in the app-wide 8-thread blocking-io pool shared with every storage
+# operation. Cap concurrent renders and shed load fast so a burst of first
+# views degrades to the client-side paper cover instead of starving the
+# shared pool for everyone.
+
+_RENDER_CONCURRENCY = 2
+_RENDER_ACQUIRE_TIMEOUT = 8.0
+_render_semaphore: asyncio.Semaphore | None = None
+_render_inflight: dict[str, asyncio.Task] = {}
+
+
+def _get_render_semaphore() -> asyncio.Semaphore:
+    global _render_semaphore
+    if _render_semaphore is None:
+        _render_semaphore = asyncio.Semaphore(_RENDER_CONCURRENCY)
+    return _render_semaphore
 
 
 # ── CJK font availability ────────────────────────────────────────────────
@@ -52,6 +73,10 @@ _CJK_FONT_NAME_RE = re.compile(
     re.IGNORECASE,
 )
 _cjk_fonts_ensured = False
+_font_install_lock = threading.Lock()
+# FreeTypeFont is not shareable across threads; cache per rendering thread
+# so the 18MB TTC is parsed once per worker instead of per render.
+_sheet_font_cache = threading.local()
 
 
 def _scan_dirs_have_cjk_font(scan_dirs: list[str]) -> bool:
@@ -86,11 +111,14 @@ def ensure_cjk_fonts_available(
 
     target_dir = install_dir or Path("/usr/local/share/fonts")
     try:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target = target_dir / _BUNDLED_CJK_FONT.name
-        if not target.exists():
-            shutil.copy2(_BUNDLED_CJK_FONT, target)
-        logger.info(f"Installed bundled CJK font for cover rendering: {target}")
+        with _font_install_lock:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target = target_dir / _BUNDLED_CJK_FONT.name
+            if not target.exists():
+                shutil.copy2(_BUNDLED_CJK_FONT, target)
+        logger.info(
+            f"Installed bundled CJK font for cover rendering: {target_dir / _BUNDLED_CJK_FONT.name}"
+        )
     except OSError as e:
         logger.warning(
             "No CJK font found for PDF cover rendering and auto-install failed "
@@ -114,9 +142,11 @@ _COVER_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "bmp"}
 # gif keeps its animation and svg is vector data — neither crops well
 _COVER_VIDEO_EXTS = {"mp4", "webm", "mov", "m4v"}
 _COVER_PDF_EXTS = {"pdf"}
+# Legacy .xls (binary BIFF) needs xlrd; only OOXML sheets are parsed
+_COVER_SHEET_EXTS = {"xlsx", "xlsm"}
 _COVER_CACHE_PREFIX = f"covers/{COVER_WIDTH}x{COVER_HEIGHT}"
 # Rendering downloads the source PDF server-side; skip absurdly large files
-_PDF_MAX_SOURCE_BYTES = 30 * 1024 * 1024
+_RENDER_MAX_SOURCE_BYTES = 30 * 1024 * 1024
 
 
 def cover_process_for_key(key: str, t_ms: int) -> str | None:
@@ -168,10 +198,115 @@ def render_pdf_cover(data: bytes) -> bytes:
     return buf.getvalue()
 
 
-async def _get_pdf_cover_response(storage: Any, key: str) -> Response:
-    """PDF covers need real content: render page 1 once, cache beside the
-    original (uploads are content-addressed and immutable, so the cache
-    never goes stale), and serve the small JPEG from then on."""
+def _sheet_preview_rows(data: bytes) -> list[list[str]]:
+    """First rows of the first sheet, stringified."""
+    import io
+
+    import openpyxl
+
+    workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    try:
+        rows: list[list[str]] = []
+        if workbook.worksheets:
+            sheet = workbook.worksheets[0]
+            for row in sheet.iter_rows(min_row=1, max_row=7, max_col=5, values_only=True):
+                rows.append(["" if cell is None else str(cell) for cell in row])
+        return rows
+    finally:
+        workbook.close()
+
+
+def _cached_sheet_font(size: int) -> Any:
+    """FreeTypeFont per rendering thread (18MB TTC parsed once per worker)."""
+    from PIL import ImageFont
+
+    cache = getattr(_sheet_font_cache, "fonts", None)
+    if cache is None:
+        cache = {}
+        _sheet_font_cache.fonts = cache
+    font = cache.get(size)
+    if font is None:
+        font = ImageFont.truetype(str(_BUNDLED_CJK_FONT), size, index=0)
+        cache[size] = font
+    return font
+
+
+def render_sheet_cover(data: bytes) -> bytes:
+    """Draw the leading spreadsheet rows as a full-bleed 16:9 table.
+
+    Text is set with the bundled Noto Sans CJK so headers like 「季度」
+    render identically on every host; only a slice of the sheet is shown,
+    laid out to fill the canvas.
+    """
+    import io
+
+    from PIL import Image, ImageDraw
+
+    ensure_cjk_fonts_available()
+
+    rows = _sheet_preview_rows(data)
+    width, height = COVER_WIDTH * 2, COVER_HEIGHT * 2
+
+    header_bg = (243, 243, 245)
+    header_fg = (55, 60, 70)
+    body_fg = (90, 95, 105)
+    grid = (228, 228, 232)
+    accent = (70, 100, 220)
+
+    img = Image.new("RGB", (width, height), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    header_font = _cached_sheet_font(30)
+    body_font = _cached_sheet_font(28)
+
+    cols = max((len(r) for r in rows), default=0) or 1
+    row_count = max(len(rows), 2)
+    row_h = height // row_count
+    col_w = [width // 5 + width // 10] + [
+        (width - (width // 5 + width // 10)) // max(cols - 1, 1)
+    ] * (cols - 1)
+
+    def _grid_row(y: int) -> None:
+        draw.line([(0, y + row_h - 1), (width, y + row_h - 1)], fill=grid, width=2)
+        x = col_w[0]
+        for c in range(1, cols):
+            draw.line([(x, y), (x, y + row_h)], fill=grid, width=2)
+            x += col_w[c]
+
+    y = 0
+    for r, row in enumerate(rows):
+        is_header = r == 0
+        if is_header:
+            draw.rectangle([0, y, width, y + row_h], fill=header_bg)
+        x = 0
+        for c in range(cols):
+            text = (row[c] if c < len(row) else "")[:18]
+            if text:
+                font = header_font if is_header else body_font
+                color = header_fg if is_header else body_fg
+                draw.text((x + 18, y + (row_h - 34) // 2), text, font=font, fill=color)
+            x += col_w[c]
+        _grid_row(y)
+        if is_header:
+            draw.line([(0, row_h - 2), (width, row_h - 2)], fill=accent, width=4)
+        y += row_h
+
+    # Empty gridded rows fill the leftover height so the canvas stays full
+    while y + row_h <= height + row_h:
+        _grid_row(min(y, height - row_h))
+        y += row_h
+        if y >= height:
+            break
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
+
+
+async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render: Any) -> Response:
+    """Shared flow for covers rendered server-side from the original file
+    (PDF pages, spreadsheet rows): render once, cache beside the original
+    (uploads are content-addressed and immutable, so the cache never goes
+    stale), and serve the small JPEG from then on."""
     thumb_key = f"{_COVER_CACHE_PREFIX}/{key}.jpg"
     expires = cover_signature_expiry()
 
@@ -182,12 +317,12 @@ async def _get_pdf_cover_response(storage: Any, key: str) -> Response:
 
         def _read_and_render() -> bytes:
             with open(file_path, "rb") as fh:
-                return render_pdf_cover(fh.read())
+                return render(fh.read())
 
         try:
             body = await run_blocking_io(_read_and_render)
         except Exception as e:
-            logger.error(f"Failed to render local PDF cover for {key}: {e}")
+            logger.error(f"Failed to render local {kind} cover for {key}: {e}")
             raise HTTPException(status_code=500, detail="Failed to render cover")
         return Response(
             content=body,
@@ -208,27 +343,70 @@ async def _get_pdf_cover_response(storage: Any, key: str) -> Response:
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Failed to check cached PDF cover for {key}: {e}")
+        logger.warning(f"Failed to check cached {kind} cover for {key}: {e}")
 
     try:
         source_size = await storage.get_size(key)
-        if source_size and source_size > _PDF_MAX_SOURCE_BYTES:
+        if source_size and source_size > _RENDER_MAX_SOURCE_BYTES:
             raise HTTPException(status_code=404, detail="Cover thumbnail not available")
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Failed to stat PDF for cover {key}: {e}")
+        logger.warning(f"Failed to stat {kind} for cover {key}: {e}")
 
+    return await _render_and_cache_cover(storage, key, thumb_key, kind, render, expires)
+
+
+async def _render_and_cache_cover(
+    storage: Any, key: str, thumb_key: str, kind: str, render: Any, expires: int
+) -> Response:
+    """Download → render → cache, guarded against bursts.
+
+    - Same thumbnail is rendered once: concurrent first requests join the
+      in-flight task instead of piling duplicate work onto the pool.
+    - At most `_RENDER_CONCURRENCY` renders run at once; beyond that,
+      requests fail fast with 404 so the client shows its zero-traffic
+      paper cover and the shared blocking-io pool keeps serving everyone.
+    """
+    existing = _render_inflight.get(thumb_key)
+    if existing is not None:
+        return await asyncio.shield(existing)
+
+    semaphore = _get_render_semaphore()
+    try:
+        await asyncio.wait_for(semaphore.acquire(), timeout=_RENDER_ACQUIRE_TIMEOUT)
+    except asyncio.TimeoutError:
+        logger.info(f"Cover render slots saturated for {key}; falling back")
+        raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+
+    try:
+        existing = _render_inflight.get(thumb_key)
+        if existing is not None:
+            return await asyncio.shield(existing)
+
+        task = asyncio.create_task(
+            _do_render_and_cache(storage, key, thumb_key, kind, render, expires)
+        )
+        _render_inflight[thumb_key] = task
+        task.add_done_callback(lambda _t: _render_inflight.pop(thumb_key, None))
+        return await asyncio.shield(task)
+    finally:
+        semaphore.release()
+
+
+async def _do_render_and_cache(
+    storage: Any, key: str, thumb_key: str, kind: str, render: Any, expires: int
+) -> Response:
     try:
         data = await storage.download_file(key)
     except Exception as e:
-        logger.error(f"Failed to download PDF for cover {key}: {e}")
+        logger.error(f"Failed to download {kind} for cover {key}: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate file URL")
 
     try:
-        body = await run_blocking_io(render_pdf_cover, data)
+        body = await run_blocking_io(render, data)
     except Exception as e:
-        logger.error(f"Failed to render PDF cover for {key}: {e}")
+        logger.error(f"Failed to render {kind} cover for {key}: {e}")
         raise HTTPException(status_code=500, detail="Failed to render cover")
 
     try:
@@ -245,7 +423,7 @@ async def _get_pdf_cover_response(storage: Any, key: str) -> Response:
         )
     except Exception as e:
         # Cache write is best-effort; serve the rendered bytes directly.
-        logger.warning(f"Failed to cache PDF cover for {key}: {e}")
+        logger.warning(f"Failed to cache {kind} cover for {key}: {e}")
         return Response(
             content=body,
             media_type="image/jpeg",
@@ -275,8 +453,11 @@ def _path_exists(file_path) -> bool:
 
 
 async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Response:
-    if _key_ext(key) in _COVER_PDF_EXTS:
-        return await _get_pdf_cover_response(storage, key)
+    ext = _key_ext(key)
+    if ext in _COVER_PDF_EXTS:
+        return await _get_rendered_cover_response(storage, key, "PDF", render_pdf_cover)
+    if ext in _COVER_SHEET_EXTS:
+        return await _get_rendered_cover_response(storage, key, "sheet", render_sheet_cover)
 
     t_ms = t if t is not None else 1000
     process = cover_process_for_key(key, t_ms)

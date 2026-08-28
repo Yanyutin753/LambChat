@@ -473,9 +473,15 @@ function buildVideoSources(raw: string): string[] {
   return [...proxy, ...oss].filter((s): s is string => Boolean(s));
 }
 
-/* ── PDF cover: real first page via ?cover=1 ─────────── */
+/* ── Rendered covers: real content via ?cover=1 ─────── */
 
-function PdfCover({ p }: { p: FileCardPreviewModel }) {
+function RenderedCover({
+  p,
+  fallback,
+}: {
+  p: FileCardPreviewModel;
+  fallback: React.ReactNode;
+}) {
   const raw = (getFullUrl(p.imageUrl!) ?? "").trim();
   const sources = raw
     ? [buildProxyCoverUrl(raw)].filter((s): s is string => Boolean(s))
@@ -487,7 +493,7 @@ function PdfCover({ p }: { p: FileCardPreviewModel }) {
         sources={sources}
         alt={p.title}
         className="h-full w-full object-contain"
-        fallback={<DocCover p={p} />}
+        fallback={fallback}
       />
     </div>
   );
@@ -519,7 +525,11 @@ export function FileCardPreview({
   }
 
   if (preview.kind === "pdf" && imageUrl) {
-    return <PdfCover p={preview} />;
+    return <RenderedCover p={preview} fallback={<DocCover p={preview} />} />;
+  }
+
+  if (preview.kind === "sheet" && imageUrl) {
+    return <RenderedCover p={preview} fallback={<SheetCover p={preview} />} />;
   }
 
   switch (preview.kind) {

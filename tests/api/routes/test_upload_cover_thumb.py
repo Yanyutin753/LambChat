@@ -14,6 +14,7 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from src.api.routes import upload
+from src.api.routes.upload_cover import render_sheet_cover
 
 
 def _fake_request() -> SimpleNamespace:
@@ -181,12 +182,18 @@ class _FakePdfStorage:
     is_local = False
     _config = SimpleNamespace(provider="aliyun", public_bucket=False)
 
-    def __init__(self, cached: bool = False, size: int | None = 1000) -> None:
+    def __init__(
+        self,
+        cached: bool = False,
+        size: int | None = 1000,
+        payload: bytes | None = None,
+    ) -> None:
         self.presigned_calls: list[dict] = []
         self.uploads: list[str] = []
         self.downloaded: list[str] = []
         self._cached = cached
         self._size = size
+        self._payload = payload
 
     async def file_exists(self, key: str) -> bool:
         return self._cached if key.startswith("covers/") else True
@@ -196,7 +203,7 @@ class _FakePdfStorage:
 
     async def download_file(self, key: str) -> bytes:
         self.downloaded.append(key)
-        return _make_pdf_bytes()
+        return self._payload if self._payload is not None else _make_pdf_bytes()
 
     async def upload_to_key(self, data: bytes, key: str, content_type=None, **kwargs) -> None:
         self.uploads.append(key)
@@ -382,3 +389,139 @@ def test_render_pdf_cover_fills_canvas_without_letterbox():
     for r, g, b in corners:
         # Page blue, not letterbox white
         assert abs(r - 40) < 12 and abs(g - 80) < 12 and abs(b - 160) < 12
+
+
+def _make_xlsx_bytes() -> bytes:
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["月份", "营收", "成本", "利润"])
+    ws.append(["2026 Q1", "1280", "640", "640"])
+    ws.append(["2026 Q2", "1542", "701", "841"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_cover_sheet_renders_real_rows_and_caches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakePdfStorage(payload=_make_xlsx_bytes())
+
+    def _fake_render(data: bytes) -> bytes:
+        assert data[:2] == b"PK"  # xlsx is a zip container
+        return b"fake-sheet-jpeg"
+
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+    monkeypatch.setattr("src.api.routes.upload_cover.render_sheet_cover", _fake_render)
+
+    resp = await upload.get_file_proxy("revealed_files/report.xlsx", _fake_request(), cover=True)
+
+    assert resp.status_code in (302, 307)
+    assert storage.downloaded == ["revealed_files/report.xlsx"]
+    assert storage.uploads == ["covers/560x315/revealed_files/report.xlsx.jpg"]
+
+
+@pytest.mark.asyncio
+async def test_cover_legacy_xls_falls_back_without_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakePdfStorage()
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    with pytest.raises(upload.HTTPException) as exc:
+        await upload.get_file_proxy("revealed_files/old.xls", _fake_request(), cover=True)
+    assert exc.value.status_code == 404
+    assert storage.downloaded == []
+
+
+def test_render_sheet_cover_draws_real_chinese_table():
+    import io
+
+    out = render_sheet_cover(_make_xlsx_bytes())
+
+    cover = Image.open(io.BytesIO(out))
+    assert cover.size == (1120, 630)
+    # Real CJK cell text drawn with the bundled font produces a real table
+    assert len(out) > 12000
+
+
+# ── Concurrency protection ───────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_requests_render_only_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cache-stampede guard: N users hitting the same fresh PDF share one
+    download+render instead of piling onto the shared blocking-io pool."""
+    import asyncio
+    import time as _time
+
+    storage = _FakePdfStorage()
+
+    def _slow_render(data: bytes) -> bytes:
+        _time.sleep(0.15)
+        return b"fake-jpeg"
+
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+    monkeypatch.setattr("src.api.routes.upload_cover.render_pdf_cover", _slow_render)
+
+    import src.api.routes.upload_cover as cover_mod
+
+    cover_mod._render_inflight.clear()
+
+    responses = await asyncio.gather(
+        *[
+            upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+            for _ in range(4)
+        ]
+    )
+
+    assert all(r.status_code in (302, 307) for r in responses)
+    assert storage.downloaded == ["revealed_files/report.pdf"]
+    assert storage.uploads == ["covers/560x315/revealed_files/report.pdf.jpg"]
+
+
+@pytest.mark.asyncio
+async def test_render_burst_degrades_to_404_instead_of_pool_starvation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the render slots are saturated, extra requests fall back with a
+    fast 404 (client shows the paper cover) instead of queueing behind the
+    shared blocking-io pool."""
+    import asyncio
+    import time as _time
+
+    import src.api.routes.upload_cover as cover_mod
+
+    storage = _FakePdfStorage()
+
+    def _slow_render(data: bytes) -> bytes:
+        _time.sleep(0.3)
+        return b"fake-jpeg"
+
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+    monkeypatch.setattr("src.api.routes.upload_cover.render_pdf_cover", _slow_render)
+    monkeypatch.setattr(cover_mod, "_RENDER_ACQUIRE_TIMEOUT", 0.05)
+    cover_mod._render_inflight.clear()
+
+    # Occupy both render slots with distinct keys
+    first_two = [
+        asyncio.create_task(
+            upload.get_file_proxy(f"revealed_files/a{i}.pdf", _fake_request(), cover=True)
+        )
+        for i in range(2)
+    ]
+    await asyncio.sleep(0.05)
+
+    with pytest.raises(upload.HTTPException) as exc:
+        await upload.get_file_proxy("revealed_files/burst.pdf", _fake_request(), cover=True)
+    assert exc.value.status_code == 404
+
+    done = await asyncio.gather(*first_two)
+    assert all(r.status_code in (302, 307) for r in done)

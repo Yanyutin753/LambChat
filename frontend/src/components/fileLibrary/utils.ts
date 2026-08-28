@@ -395,6 +395,8 @@ export function buildFileCardPreview(
       badge: ext,
       lines: normalizeLines([description]),
       colorName,
+      // Real leading rows rendered server-side (?cover=1)
+      imageUrl: file.url || undefined,
     };
   }
 

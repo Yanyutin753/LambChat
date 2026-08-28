@@ -106,6 +106,7 @@ const DEMO_FILES: RevealedFileItem[] = [
     file_name: "季度财务报表.xlsx",
     file_type: "document",
     mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    url: `${OSS_BASE}/report.xlsx`,
   }),
   file({
     file_name: "load-test.rs",
