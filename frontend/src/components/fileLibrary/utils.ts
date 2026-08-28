@@ -147,7 +147,12 @@ function stripExtension(fileName: string): string {
 }
 
 function compactLine(value: string | null | undefined): string {
-  return (value || "").replace(/\s+/g, " ").trim();
+  // Strip replacement chars and control codes so odd binary/mis-encoded
+  // content never renders as 乱码 on the cover.
+  return (value || "")
+    .replace(/[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeLines(lines: Array<string | null | undefined>): string[] {

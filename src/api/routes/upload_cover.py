@@ -8,7 +8,11 @@ long-lived signed URL, local storage resizes with Pillow, everything else
 
 from __future__ import annotations
 
+import re
+import shutil
+import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -23,6 +27,79 @@ logger = get_logger(__name__)
 COVER_WIDTH = 560
 COVER_HEIGHT = 315
 _DAY = 24 * 3600
+
+
+# ── CJK font availability ────────────────────────────────────────────────
+# pypdfium2's bundled pdfium substitutes fonts for PDFs that don't embed
+# them (the common case for WPS/browser exports). It scans a fixed set of
+# system directories — no fontconfig, no $HOME/.fonts. Docker images ship
+# fonts-noto-cjk; for bare venv deployments the bundled Noto Sans CJK is
+# installed into /usr/local/share/fonts on first render so Chinese covers
+# never degrade to tofu boxes on any Linux host.
+
+_BUNDLED_CJK_FONT = (
+    Path(__file__).resolve().parents[2] / "assets" / "fonts" / "NotoSansCJK-Regular.ttc"
+)
+_FONT_SCAN_DIRS = [
+    "/usr/share/fonts",
+    "/usr/local/share/fonts",
+    "/usr/share/X11/fonts/TTF",
+    "/usr/share/X11/fonts/Type1",
+]
+_CJK_FONT_NAME_RE = re.compile(
+    r"noto.*cjk|wqy|wenquanyi|source\s?han|simsun|simhei|yahei|"
+    r"song|hei|kai|ming|droid.*fallback",
+    re.IGNORECASE,
+)
+_cjk_fonts_ensured = False
+
+
+def _scan_dirs_have_cjk_font(scan_dirs: list[str]) -> bool:
+    for scan_dir in scan_dirs:
+        root = Path(scan_dir)
+        if not root.is_dir():
+            continue
+        for font_path in root.rglob("*"):
+            if _CJK_FONT_NAME_RE.search(font_path.name):
+                return True
+    return False
+
+
+def ensure_cjk_fonts_available(
+    scan_dirs: list[str] | None = None,
+    install_dir: Path | None = None,
+) -> bool:
+    """Best-effort, run-once font bootstrap. Returns True when a CJK font is
+    (or was made) available in a pdfium-scanned directory."""
+    global _cjk_fonts_ensured
+    if _cjk_fonts_ensured:
+        return True
+    _cjk_fonts_ensured = True
+
+    if sys.platform != "linux":
+        # Windows/macOS render via OS font APIs and always ship CJK fonts.
+        return True
+
+    dirs = scan_dirs or _FONT_SCAN_DIRS
+    if _scan_dirs_have_cjk_font(dirs):
+        return True
+
+    target_dir = install_dir or Path("/usr/local/share/fonts")
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / _BUNDLED_CJK_FONT.name
+        if not target.exists():
+            shutil.copy2(_BUNDLED_CJK_FONT, target)
+        logger.info(f"Installed bundled CJK font for cover rendering: {target}")
+    except OSError as e:
+        logger.warning(
+            "No CJK font found for PDF cover rendering and auto-install failed "
+            f"({e}); non-embedded CJK text will render as tofu. Install "
+            "fonts-noto-cjk or make /usr/local/share/fonts writable."
+        )
+        _cjk_fonts_ensured = False
+        return False
+    return True
 
 
 def cover_signature_expiry() -> int:
@@ -66,6 +143,8 @@ def render_pdf_cover(data: bytes) -> bytes:
 
     import pypdfium2 as pdfium
     from PIL import Image
+
+    ensure_cjk_fonts_available()
 
     pdf = pdfium.PdfDocument(data)
     try:

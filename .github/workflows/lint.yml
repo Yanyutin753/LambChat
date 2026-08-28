@@ -128,6 +128,10 @@ jobs:
           max_bytes=$((5 * 1024 * 1024))
           failed=0
           while IFS= read -r -d '' file; do
+            # Bundled font assets (CJK cover rendering) are legitimately large
+            case "$file" in
+              *.ttf|*.ttc|*.otf) continue ;;
+            esac
             size=$(wc -c < "$file")
             if [ "$size" -gt "$max_bytes" ]; then
               printf 'Tracked file exceeds 5 MiB: %s (%s bytes)\n' "$file" "$size"

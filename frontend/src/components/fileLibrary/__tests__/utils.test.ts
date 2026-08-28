@@ -235,3 +235,18 @@ test("builds a pdf card preview backed by the server-side cover", () => {
     "https://lambchat.com/api/upload/file/revealed_files/x.pdf",
   );
 });
+
+test("card preview lines strip replacement and control characters", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "奇怪编码.md",
+      file_type: "document",
+      mime_type: "text/markdown",
+      description: "正常描述\uFFFD\u0007带非法字符",
+    }),
+  );
+
+  expect(preview.lines.join(" ")).not.toContain("\uFFFD");
+  expect(preview.lines.join(" ")).not.toContain("\u0007");
+  expect(preview.subtitle).not.toContain("\uFFFD");
+});

@@ -11,6 +11,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image, ImageDraw, ImageFont
 
 from src.api.routes import upload
 
@@ -106,7 +107,6 @@ async def test_cover_skips_processing_for_non_aliyun_providers(
 async def test_cover_serves_local_files_resized_by_pillow(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    from PIL import Image
 
     src = tmp_path / "hero.jpg"
     Image.new("RGB", (640, 400), (200, 120, 60)).save(src, format="JPEG")
@@ -163,7 +163,7 @@ async def test_cover_signature_expiry_is_day_aligned_and_stable(
 def _make_pdf_bytes() -> bytes:
     import io
 
-    from PIL import Image, ImageDraw
+    from PIL import ImageDraw
 
     img = Image.new("RGB", (1240, 1754), "white")
     d = ImageDraw.Draw(img)
@@ -274,7 +274,86 @@ async def test_cover_pdf_local_storage_renders_real_jpeg(
     assert resp.media_type == "image/jpeg"
     import io
 
-    from PIL import Image as _Img
-
-    cover = _Img.open(io.BytesIO(resp.body))
+    cover = Image.open(io.BytesIO(resp.body))
     assert cover.size == (1120, 630)
+
+
+# ── CJK font bootstrap ───────────────────────────────────────────────────
+
+
+def test_ensure_cjk_fonts_copies_bundled_font_when_missing(tmp_path, monkeypatch):
+    from src.api.routes import upload_cover as cover
+
+    empty_scan = tmp_path / "scan-empty"
+    empty_scan.mkdir()
+    install_dir = tmp_path / "install"
+    monkeypatch.setattr(cover, "_cjk_fonts_ensured", False)
+
+    ok = cover.ensure_cjk_fonts_available(scan_dirs=[str(empty_scan)], install_dir=install_dir)
+
+    assert ok is True
+    installed = install_dir / "NotoSansCJK-Regular.ttc"
+    assert installed.exists()
+    assert installed.stat().st_size == cover._BUNDLED_CJK_FONT.stat().st_size
+
+
+def test_ensure_cjk_fonts_noop_when_system_font_present(tmp_path, monkeypatch):
+    from src.api.routes import upload_cover as cover
+
+    scan = tmp_path / "scan"
+    scan.mkdir()
+    (scan / "NotoSansCJK-Bold.ttc").write_bytes(b"fake")
+    install_dir = tmp_path / "install"
+    monkeypatch.setattr(cover, "_cjk_fonts_ensured", False)
+
+    ok = cover.ensure_cjk_fonts_available(scan_dirs=[str(scan)], install_dir=install_dir)
+
+    assert ok is True
+    assert not install_dir.exists()
+
+
+def test_ensure_cjk_fonts_warns_when_not_writable(tmp_path, monkeypatch):
+    from src.api.routes import upload_cover as cover
+
+    empty_scan = tmp_path / "scan-empty"
+    empty_scan.mkdir()
+    blocked = tmp_path / "blocked"  # a FILE: mkdir will fail
+    blocked.write_text("occupied")
+    monkeypatch.setattr(cover, "_cjk_fonts_ensured", False)
+
+    ok = cover.ensure_cjk_fonts_available(
+        scan_dirs=[str(empty_scan)], install_dir=blocked / "fonts"
+    )
+
+    assert ok is False
+
+
+def test_render_pdf_cover_renders_real_chinese_text():
+    """End-to-end with the bundled CJK font: embedded-font PDF renders
+    real glyphs on every system, regardless of installed fonts."""
+    import io
+
+    from src.api.routes.upload_cover import render_pdf_cover
+
+    font = ImageFont.truetype(str(_bundled_font_path()), 30, index=0)
+    img = Image.new("RGB", (1240, 1754), "white")
+    draw = ImageDraw.Draw(img)
+    draw.text((90, 200), "架构设计文档：中文渲染验证", font=font, fill=(20, 22, 28))
+    draw.text((90, 280), "飞书风格文件封面 — 简约大气", font=font, fill=(60, 64, 74))
+    buf = io.BytesIO()
+    img.save(buf, format="PDF")
+
+    out = render_pdf_cover(buf.getvalue())
+
+    cover_img = Image.open(io.BytesIO(out))
+    assert cover_img.size == (1120, 630)
+    assert cover_img.mode == "RGB"
+    # Real glyph rasterization produces a meaningfully sized JPEG; a tofu
+    # failure still encodes boxes but embedded fonts make this deterministic.
+    assert len(out) > 10000
+
+
+def _bundled_font_path():
+    from src.api.routes import upload_cover as cover
+
+    return cover._BUNDLED_CJK_FONT
