@@ -86,6 +86,7 @@ export interface ModelOption {
   label: string;
   description?: string;
   profile?: ModelProfile;
+  supports_thinking?: boolean;
 }
 
 export interface ModelConfig {

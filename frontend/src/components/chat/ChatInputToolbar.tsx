@@ -45,7 +45,6 @@ export interface ChatInputToolbarProps {
   agentIcon?: string;
   hasThinkingOption: boolean;
   thinkingLabel?: string;
-  thinkingLevel?: string;
   uploadCategories: FileCategory[];
   uploadFiles: (files: FileList | File[], category?: FileCategory) => void;
   selectedPersonaName?: string | null;
@@ -108,7 +107,6 @@ export function ChatInputToolbar({
   agentIcon,
   hasThinkingOption,
   thinkingLabel,
-  thinkingLevel,
   uploadCategories,
   uploadFiles,
   selectedPersonaName,
@@ -379,7 +377,6 @@ export function ChatInputToolbar({
           onOpenAgentPanel={() => onActivePanelChange("agent")}
           hasThinkingOption={hasThinkingOption}
           thinkingLabel={thinkingLabel}
-          thinkingLevel={thinkingLevel}
           onOpenThinkingPanel={() => onActivePanelChange("thinking")}
           booleanAgentOptions={booleanAgentOptions}
           agentOptionValues={agentOptionValues}

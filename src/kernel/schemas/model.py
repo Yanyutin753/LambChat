@@ -149,6 +149,10 @@ class AvailableModel(BaseModel):
     label: str = Field(..., description="Display name for the model")
     description: Optional[str] = Field(None, description="Model description")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
+    supports_thinking: Optional[bool] = Field(
+        None,
+        description="Computed per request from the LLM client capability gates; not persisted",
+    )
 
 
 class AvailableModelListResponse(BaseModel):

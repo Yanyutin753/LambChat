@@ -219,14 +219,13 @@
       "label": "Code Interpreter"
     },
     "enableThinking": {
-      "description": "Control thinking intensity (supported models only)",
+      "description": "Control thinking intensity",
       "label": "Thinking",
       "options": {
         "high": "High",
         "low": "Low",
         "max": "Max",
-        "medium": "Medium",
-        "off": "Off"
+        "medium": "Medium"
       }
     }
   },

@@ -219,14 +219,13 @@
       "label": "代码解释器"
     },
     "enableThinking": {
-      "description": "控制思考强度（仅支持的模型生效）",
+      "description": "控制思考强度",
       "label": "思考",
       "options": {
         "high": "高",
         "low": "低",
         "max": "超强",
-        "medium": "中",
-        "off": "关"
+        "medium": "中"
       }
     }
   },

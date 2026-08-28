@@ -179,6 +179,8 @@ export interface ChatViewProps {
   agentOptions: Record<string, AgentOption>;
   agentOptionValues: Record<string, boolean | string | number>;
   onToggleAgentOption: (key: string, value: boolean | string | number) => void;
+  /** 当前模型思考能力；undefined=未知（不隐藏），false=隐藏思考强度控件 */
+  modelSupportsThinking?: boolean;
   // Agent mode selector
   agents: AgentInfo[];
   currentAgent: string;
