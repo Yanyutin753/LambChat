@@ -207,6 +207,7 @@ async def test_list_available_models_exposes_thinking_capability(
                     [
                         {"id": "gpt", "value": "openai/gpt-5.5", "provider": "openai"},
                         {"id": "glm", "value": "zhipu/glm-4.6", "provider": "zhipu"},
+                        {"id": "glm-zai", "value": "glm-5.3", "provider": "zai"},
                         {"id": "claude", "value": "claude-opus-5", "provider": "anthropic"},
                         {"id": "gemini", "value": "gemini-2.5-flash", "provider": "google"},
                         {"id": "plain", "value": "deepseek-chat", "provider": "deepseek"},
@@ -230,6 +231,7 @@ async def test_list_available_models_exposes_thinking_capability(
     assert capability == {
         "gpt": True,
         "glm": True,
+        "glm-zai": True,
         "claude": True,
         "gemini": True,
         "plain": False,

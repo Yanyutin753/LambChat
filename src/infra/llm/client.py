@@ -246,6 +246,11 @@ _ZHIPU_THINKING_PREFIXES = (
     "glm-5",
 )
 
+
+def _is_zhipu_thinking_model(name: str) -> bool:
+    """GLM 思考系模型（glm-4.5+/glm-5），与托管渠道无关，按模型名判断。"""
+    return any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES)
+
 # 次版本限定为 1-2 位数字且后不跟数字：防止把官方 model ID 里的发布日期
 # 后缀（claude-opus-4-20250514 / grok-4-0709-beta）当成次版本吞掉——否则
 # (4, 20250514) 会被误判进 effort era。
@@ -295,11 +300,10 @@ def _resolve_zhipu_thinking_body(
     thinking: dict[str, Any],
 ) -> Optional[dict[str, Any]]:
     """Map a thinking config to zhipu's `thinking` request-body field."""
-    # 仅智谱官方端点已验证；第三方 GLM 托管（SiliconFlow/OpenRouter 等）不发送
-    if provider != "zhipu":
-        return None
+    # 全渠道支持：任意 OpenAI 协议渠道上托管的 GLM 思考系都发送（中转对未知
+    # body 字段透传或忽略）；GLM 无档位语义，任何强度都只是 enabled。
     name = model_name.lower()
-    if not any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES):
+    if not _is_zhipu_thinking_model(name):
         return None
     return {"thinking": {"type": "enabled"}}
 
@@ -318,7 +322,16 @@ def _resolve_anthropic_thinking(
     if not thinking:
         # 未配置思考的调用方（标题生成/推荐等）保持原行为，不注入任何参数
         return None, None, None
-    match = _CLAUDE_VERSION_RE.search(model_name.lower())
+    name = model_name.lower()
+    # GLM 思考系挂在 Anthropic 协议渠道（zai 等）：注入 Claude Code 同款 thinking
+    # 体（智谱 Anthropic 兼容端点直接接受）。GLM 无档位语义，任何强度都只是
+    # enabled；budget_tokens 纯透传无实效。不覆盖 temperature（智谱无 Claude
+    # manual thinking 的 temp=1 约束）。
+    if _is_zhipu_thinking_model(name):
+        glm_thinking: dict[str, Any] = {"type": "enabled"}
+        glm_thinking["budget_tokens"] = thinking.get("budget_tokens") or 1024
+        return glm_thinking, None, None
+    match = _CLAUDE_VERSION_RE.search(name)
     if match is None:
         return None, None, None
     version = _version_tuple(match)
@@ -367,7 +380,7 @@ def model_supports_thinking(provider: Optional[str], model_value: str) -> bool:
 
     Known acceptable deviations (both only over-report, never mis-send):
     get_model's default-model provider inheritance for unprefixed generic
-    values, and zhipu models configured with api_format="responses" (the
+    values, and GLM models configured with api_format="responses" (the
     thinking body is chat_completions-only) are not replicated here.
     """
     parsed_provider, model_name = _parse_provider(model_value)
@@ -376,6 +389,8 @@ def model_supports_thinking(provider: Optional[str], model_value: str) -> bool:
     name = model_name.lower()
 
     if protocol == "anthropic":
+        if _is_zhipu_thinking_model(name):
+            return True
         match = _CLAUDE_VERSION_RE.search(name)
         if match is None:
             return False
@@ -390,10 +405,9 @@ def model_supports_thinking(provider: Optional[str], model_value: str) -> bool:
     if prefixes:
         if name.endswith("-chat-latest") or name.endswith("-non-reasoning"):
             return False
-        return any(name.startswith(prefix) for prefix in prefixes)
-    if effective_provider == "zhipu":
-        return any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES)
-    return False
+        if any(name.startswith(prefix) for prefix in prefixes):
+            return True
+    return _is_zhipu_thinking_model(name)
 
 
 async def _lookup_stored_api_key(

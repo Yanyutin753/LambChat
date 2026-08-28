@@ -24,9 +24,14 @@ def _openai_model(provider: str, model_name: str, thinking: dict | None):
     )
 
 
-def _anthropic_model(model_name: str, thinking: dict | None, temperature: float = 0.7):
+def _anthropic_model(
+    model_name: str,
+    thinking: dict | None,
+    temperature: float = 0.7,
+    provider: str = "anthropic",
+):
     return LLMClient._create_model(
-        "anthropic",
+        provider,
         model_name,
         temperature=temperature,
         api_key="sk-test",
@@ -135,11 +140,11 @@ def test_zhipu_unverified_families_receive_nothing() -> None:
     assert "thinking" not in model.model_kwargs
 
 
-def test_zhipu_body_not_sent_to_other_providers_hosting_glm() -> None:
-    # 第三方 GLM 托管（SiliconFlow/OpenRouter 等）只按模型名匹配时不得收到智谱字段
-    for provider in ("openai", "deepseek", "siliconflow"):
+def test_zhipu_body_sent_to_openai_protocol_glm_hosting() -> None:
+    # 用户指示：全部供应商支持——第三方中转托管的 GLM 也发 thinking body（中转透传）
+    for provider in ("zhipu", "openai", "deepseek", "siliconflow"):
         model = _openai_model(provider, "glm-4.6", ENABLED("low"))
-        assert "thinking" not in model.model_kwargs, provider
+        assert model.model_kwargs["thinking"] == {"type": "enabled"}, provider
 
 
 def test_zhipu_does_not_receive_openai_cache_extensions() -> None:
@@ -224,6 +229,36 @@ def test_anthropic_protocol_third_party_models_receive_nothing() -> None:
         assert model.reasoning_effort is None, model_name
 
 
+# ── GLM on Anthropic-protocol providers (zai) ────────────────────────────
+
+
+def test_zai_glm_receives_thinking_enabled() -> None:
+    # 智谱 Anthropic 兼容端点接受 Claude Code 同款 thinking 体；GLM 无档位语义，
+    # 任何强度都只是 enabled；不覆盖 temperature（智谱无 Claude 的 temp=1 约束）
+    model = _anthropic_model("glm-5.3", ENABLED("low"), provider="zai")
+    assert model.thinking == {"type": "enabled", "budget_tokens": 1024}
+    assert model.reasoning_effort is None
+    assert model.temperature == 0.7
+
+
+def test_zai_glm_max_level_maps_to_max_budget() -> None:
+    model = _anthropic_model("glm-4.6", ENABLED("max"), provider="zai")
+    assert model.thinking == {"type": "enabled", "budget_tokens": 65536}
+
+
+def test_zai_glm_without_thinking_config_sends_nothing() -> None:
+    # 未配置思考的辅助调用方保持原行为
+    model = _anthropic_model("glm-5.3", None, provider="zai")
+    assert model.thinking is None
+    assert model.reasoning_effort is None
+
+
+def test_zai_legacy_and_unverified_glm_receive_nothing() -> None:
+    for model_name in ("chatglm-3-turbo", "glm-4.7"):
+        model = _anthropic_model(model_name, ENABLED("low"), provider="zai")
+        assert model.thinking is None, model_name
+
+
 # ── Google protocol branch ───────────────────────────────────────────────
 
 
@@ -291,9 +326,19 @@ def test_model_supports_thinking_zhipu() -> None:
     assert model_supports_thinking("zhipu", "glm-5.3") is True
     assert model_supports_thinking("zhipu", "glm-4.7") is False
     assert model_supports_thinking("zhipu", "chatglm-3-turbo") is False
-    # 第三方 GLM 托管不收智谱 thinking 字段
-    assert model_supports_thinking("openai", "glm-4.6") is False
-    assert model_supports_thinking("deepseek", "glm-4.6") is False
+    # 第三方中转托管的 GLM 同样下发思考体（用户指示：全部供应商支持）
+    assert model_supports_thinking("openai", "glm-4.6") is True
+    assert model_supports_thinking("deepseek", "glm-4.6") is True
+
+
+def test_model_supports_thinking_zai_anthropic_protocol() -> None:
+    # zai 渠道（anthropic 协议路由）的 GLM 思考系支持
+    assert model_supports_thinking("zai", "glm-5.3") is True
+    assert model_supports_thinking("zai", "glm-5.2") is True
+    assert model_supports_thinking("zai", "glm-4.6") is True
+    assert model_supports_thinking("zai", "glm-4.5-air") is True
+    assert model_supports_thinking("zai", "glm-4.7") is False
+    assert model_supports_thinking("zai", "chatglm-3-turbo") is False
 
 
 def test_model_supports_thinking_anthropic() -> None:
@@ -347,5 +392,5 @@ def test_model_supports_thinking_infers_provider_when_missing() -> None:
 
 
 def test_model_supports_thinking_explicit_provider_wins() -> None:
-    # 显式 provider 优先于 value 前缀：openai 渠道托管的 glm 收不到智谱字段
-    assert model_supports_thinking("openai", "zhipu/glm-4.6") is False
+    # 显式 provider 优先于 value 前缀：google 渠道托管的 glm 走 Gemini 门控（不匹配）
+    assert model_supports_thinking("google", "zhipu/glm-4.6") is False
