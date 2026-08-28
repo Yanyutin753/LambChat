@@ -34,7 +34,7 @@ MEMORY_INVALIDATION_CHANNEL = "memory:invalidated"
 
 # Distributed lock keys
 CONSOLIDATION_LOCK_KEY = "memory:consolidation_lock:{user_id}"
-CONSOLIDATION_LOCK_TTL = 120  # seconds
+CONSOLIDATION_LOCK_TTL = 600  # seconds — must exceed worst-case DeepAgent compaction runtime
 COMPACTION_SCAN_LOCK_KEY = "memory:compaction_scan_lock"
 COMPACTION_COOLDOWN_KEY = "memory:compaction_cooldown:{user_id}"
 AUTO_CAPTURE_LOCK_KEY = "memory:auto_capture_lock:{user_id}"

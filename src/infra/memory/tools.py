@@ -510,6 +510,13 @@ async def _close_and_reset_backend() -> None:
             await get_memory_pubsub().start_listener()
         except Exception as e:
             logger.warning(f"[Memory] PubSub listener start after reset failed: {e}")
+        # Qdrant 向量索引单例重建（URL/维度变更时旧实例已不可用）
+        try:
+            from src.infra.memory.client.native.vector_store import reset_vector_index
+
+            await reset_vector_index()
+        except Exception:
+            pass
     logger.info("[Memory] Backend reset (will be recreated on next use)")
 
 

@@ -16,26 +16,38 @@ EVOLUTION_SCAN_LOCK_KEY = "memory:evolution_scan_lock"
 EVOLUTION_SCAN_LOCK_TTL = 600  # 10 分钟（远小于调度间隔，防死锁）
 
 
+_EVOLUTION_LOCK_TOKEN: str = ""
+_RELEASE_LOCK_LUA = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then "
+    "return redis.call('del', KEYS[1]) else return 0 end"
+)
+
+
 async def _acquire_scan_lock() -> bool:
-    """Redis SETNX 扫描锁——多副本部署防重复执行。"""
+    """Redis SETNX 扫描锁——多副本防重。fail-closed：Redis 不可用时不执行。"""
+    global _EVOLUTION_LOCK_TOKEN
     try:
         from src.infra.storage.redis import get_redis_client
 
-        instance_id = uuid.uuid4().hex[:8]
+        _EVOLUTION_LOCK_TOKEN = uuid.uuid4().hex[:8]
         acquired = await get_redis_client().set(
-            EVOLUTION_SCAN_LOCK_KEY, instance_id, nx=True, ex=EVOLUTION_SCAN_LOCK_TTL
+            EVOLUTION_SCAN_LOCK_KEY, _EVOLUTION_LOCK_TOKEN, nx=True, ex=EVOLUTION_SCAN_LOCK_TTL
         )
         return bool(acquired)
     except Exception as e:
-        logger.warning("[MemoryEvolution] scan lock failed (fail-open): %s", e)
-        return True  # Redis 不可用时允许执行（单机部署可接受）
+        logger.warning("[MemoryEvolution] scan lock failed (fail-closed): %s", e)
+        return False
 
 
 async def _release_scan_lock() -> None:
+    """Token-checked 释放——只删自己的锁。"""
     try:
         from src.infra.storage.redis import get_redis_client
 
-        await get_redis_client().delete(EVOLUTION_SCAN_LOCK_KEY)
+        if _EVOLUTION_LOCK_TOKEN:
+            await get_redis_client().eval(  # type: ignore[misc]
+                _RELEASE_LOCK_LUA, 1, EVOLUTION_SCAN_LOCK_KEY, _EVOLUTION_LOCK_TOKEN
+            )
     except Exception:
         pass
 

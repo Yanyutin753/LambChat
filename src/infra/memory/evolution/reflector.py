@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -80,10 +81,38 @@ def _get_traces_collection():
     return get_mongo_client()[settings.MONGODB_DB][settings.MONGODB_TRACES_COLLECTION]
 
 
+_marks_indexes_ensured = False
+
+
 def _get_marks_collection():
     from src.infra.storage.mongodb import get_mongo_client
 
-    return get_mongo_client()[settings.MONGODB_DB]["memory_evolution_marks"]
+    global _marks_indexes_ensured
+    col = get_mongo_client()[settings.MONGODB_DB]["memory_evolution_marks"]
+    if not _marks_indexes_ensured:
+        _marks_indexes_ensured = True
+        import asyncio
+
+        async def _ensure():
+            try:
+                await col.create_index(
+                    [("user_id", 1), ("run_id", 1)], name="evolution_marks_uid_rid", background=True
+                )
+                await col.create_index(
+                    "processed_at",
+                    expireAfterSeconds=7 * 86400,
+                    name="evolution_marks_ttl",
+                    background=True,
+                )
+            except Exception:
+                pass
+
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_ensure())
+        except RuntimeError:
+            pass
+    return col
 
 
 async def _get_marked_run_ids(user_id: str) -> set[str]:
@@ -214,7 +243,14 @@ async def _mark_signal_processed(signal: SignalRun, user_id: str) -> None:
         # marks 集合统一记录（含 failed 与 up/down 双保险）
         await _get_marks_collection().update_one(
             {"user_id": user_id, "run_id": signal.run_id},
-            {"$set": {"user_id": user_id, "run_id": signal.run_id, "kind": signal.kind}},
+            {
+                "$set": {
+                    "user_id": user_id,
+                    "run_id": signal.run_id,
+                    "kind": signal.kind,
+                    "processed_at": utc_now(),
+                }
+            },
             upsert=True,
         )
     except Exception as e:
