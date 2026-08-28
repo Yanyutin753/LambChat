@@ -2,8 +2,11 @@
 
 File-library cards must never download the original file just to show a
 cover: Aliyun OSS processes the crop/snapshot server-side behind a
-long-lived signed URL, local storage resizes with Pillow, everything else
-404s so clients can fall back to a generated cover without any traffic.
+long-lived signed URL, local storage resizes with Pillow, and every other
+S3 provider renders once server-side (Pillow) and caches the small JPEG
+beside the original. Video snapshots stay Aliyun-only (no server-side
+ffmpeg) and unsupported types 404 so clients fall back to a generated
+cover without any traffic.
 """
 
 from __future__ import annotations
@@ -306,11 +309,31 @@ def render_sheet_cover(data: bytes) -> bytes:
     return buf.getvalue()
 
 
+async def _serve_cached_cover(storage: Any, thumb_key: str, expires: int) -> Response:
+    """Aliyun 302s to a day-aligned signed URL; other providers stream the
+    small cached JPEG through the app (their presigned URLs rotate per
+    request and self-hosted endpoints are often not browser-reachable)."""
+    provider = getattr(getattr(storage, "_config", None), "provider", None)
+    if provider == S3Provider.ALIYUN:
+        url = await storage.get_cover_presigned_url(thumb_key, expires)
+        return Response(
+            status_code=302,
+            headers={"Location": url, "Cache-Control": "public, max-age=86400"},
+        )
+    data = await storage.download_file(thumb_key)
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render: Any) -> Response:
     """Shared flow for covers rendered server-side from the original file
-    (PDF pages, spreadsheet rows): render once, cache beside the original
-    (uploads are content-addressed and immutable, so the cache never goes
-    stale), and serve the small JPEG from then on."""
+    (PDF pages, spreadsheet rows, images on providers without x-oss-process):
+    render once, cache beside the original (uploads are content-addressed
+    and immutable, so the cache never goes stale), and serve the small JPEG
+    from then on."""
     thumb_key = f"{_COVER_CACHE_PREFIX}/{key}.jpg"
     expires = cover_signature_expiry()
 
@@ -340,22 +363,9 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
-    # 缓存缩略图的 302 服务依赖绝对过期时间预签名（sign_url_at），只有
-    # Aliyun 后端实现；其他 S3 后端会静默退化为每次请求全量下载原文件重渲染。
-    provider = getattr(getattr(storage, "_config", None), "provider", None)
-    if provider != S3Provider.ALIYUN:
-        raise HTTPException(status_code=404, detail="Cover thumbnail not available")
-
     try:
         if await storage.file_exists(thumb_key):
-            url = await storage.get_cover_presigned_url(thumb_key, expires)
-            return Response(
-                status_code=302,
-                headers={
-                    "Location": url,
-                    "Cache-Control": "public, max-age=86400",
-                },
-            )
+            return await _serve_cached_cover(storage, thumb_key, expires)
     except HTTPException:
         raise
     except Exception as e:
@@ -432,27 +442,31 @@ async def _do_render_and_cache(
             content_type="image/jpeg",
             skip_size_limit=True,
         )
-        url = await storage.get_cover_presigned_url(thumb_key, expires)
-        return Response(
-            status_code=302,
-            headers={"Location": url, "Cache-Control": "public, max-age=86400"},
-        )
+        provider = getattr(getattr(storage, "_config", None), "provider", None)
+        if provider == S3Provider.ALIYUN:
+            url = await storage.get_cover_presigned_url(thumb_key, expires)
+            return Response(
+                status_code=302,
+                headers={"Location": url, "Cache-Control": "public, max-age=86400"},
+            )
     except Exception as e:
         # Cache write is best-effort; serve the rendered bytes directly.
         logger.warning(f"Failed to cache {kind} cover for {key}: {e}")
-        return Response(
-            content=body,
-            media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=86400"},
-        )
+    return Response(
+        content=body,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
-def _render_local_cover(file_path) -> bytes:
+def render_cover_jpeg(data: bytes) -> bytes:
+    """16:9 cover-crop render from raw image bytes (local storage and
+    non-Aliyun S3 providers — no x-oss-process available)."""
     import io
 
     from PIL import Image, ImageOps
 
-    with Image.open(file_path) as opened:
+    with Image.open(io.BytesIO(data)) as opened:
         img: Image.Image = ImageOps.exif_transpose(opened)
         if img.mode != "RGB":
             img = img.convert("RGB")
@@ -482,45 +496,39 @@ async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Resp
 
     if storage.is_local:
         # Local storage has no server-side processing; resize via Pillow.
-        if key.rsplit(".", 1)[-1].lower() not in _COVER_IMAGE_EXTS:
+        # Videos can't be snapshot without ffmpeg — clients fall back.
+        if ext not in _COVER_IMAGE_EXTS:
             raise HTTPException(status_code=404, detail="Cover thumbnail not available")
-        file_path = storage.get_file_path(key)
-        if not await run_blocking_io(_path_exists, file_path):
-            raise HTTPException(status_code=404, detail="File not found")
-        try:
-            body = await run_blocking_io(_render_local_cover, file_path)
-        except Exception as e:
-            logger.error(f"Failed to render local cover for {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to render cover")
-        return Response(
-            content=body,
-            media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=86400"},
-        )
+        return await _get_rendered_cover_response(storage, key, "image", render_cover_jpeg)
 
     provider = getattr(getattr(storage, "_config", None), "provider", None)
-    if provider != S3Provider.ALIYUN:
-        # Only Aliyun OSS supports x-oss-process; other providers fall back
+    if provider == S3Provider.ALIYUN:
+        try:
+            exists = await storage.file_exists(key)
+            if not exists:
+                raise HTTPException(status_code=404, detail="File not found")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check file existence for {key}: {e}")
+
+        try:
+            url = await storage.get_cover_presigned_url(
+                key, cover_signature_expiry(), process=process
+            )
+        except TypeError:
+            raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+        except Exception as e:
+            logger.error(f"Failed to generate cover URL for {key}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to generate file URL")
+
+        return Response(
+            status_code=302,
+            headers={"Location": url, "Cache-Control": "public, max-age=86400"},
+        )
+
+    # Other S3 providers have no x-oss-process: images render and cache
+    # like PDF/sheet covers; videos would need server-side ffmpeg — 404.
+    if ext not in _COVER_IMAGE_EXTS:
         raise HTTPException(status_code=404, detail="Cover thumbnail not available")
-
-    try:
-        exists = await storage.file_exists(key)
-        if not exists:
-            raise HTTPException(status_code=404, detail="File not found")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.warning(f"Failed to check file existence for {key}: {e}")
-
-    try:
-        url = await storage.get_cover_presigned_url(key, cover_signature_expiry(), process=process)
-    except TypeError:
-        raise HTTPException(status_code=404, detail="Cover thumbnail not available")
-    except Exception as e:
-        logger.error(f"Failed to generate cover URL for {key}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate file URL")
-
-    return Response(
-        status_code=302,
-        headers={"Location": url, "Cache-Control": "public, max-age=86400"},
-    )
+    return await _get_rendered_cover_response(storage, key, "image", render_cover_jpeg)

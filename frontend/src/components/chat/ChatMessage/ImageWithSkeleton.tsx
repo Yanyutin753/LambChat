@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { getFullUrl } from "../../../services/api/config";
 
 /** Tracks URLs that have already loaded — skip skeleton for cached images */
@@ -7,6 +7,12 @@ const loadedImages = new Set<string>();
 interface ImageWithSkeletonProps {
   /** Image source URL (will be resolved via getFullUrl if relative) */
   src?: string;
+  /**
+   * Lightweight thumbnail URL (already resolved, used as-is). Rendered in
+   * place of src; when it fails to load the original src is tried once
+   * before the error state kicks in.
+   */
+  thumbSrc?: string;
   alt?: string;
   className?: string;
   loading?: "lazy" | "eager";
@@ -39,6 +45,7 @@ interface ImageWithSkeletonProps {
  */
 export function ImageWithSkeleton({
   src,
+  thumbSrc,
   alt,
   className,
   loading = "lazy",
@@ -53,21 +60,37 @@ export function ImageWithSkeleton({
   onError: onExternalError,
 }: ImageWithSkeletonProps) {
   const resolvedSrc = skipUrlResolve ? src : getFullUrl(src);
+  const [srcUsed, setSrcUsed] = useState<string | undefined>(
+    () => thumbSrc ?? resolvedSrc,
+  );
   const [isLoaded, setIsLoaded] = useState(() =>
-    loadedImages.has(resolvedSrc ?? ""),
+    loadedImages.has((thumbSrc ?? resolvedSrc) ?? ""),
   );
   const [hasError, setHasError] = useState(false);
 
+  useEffect(() => {
+    const initial = thumbSrc ?? resolvedSrc;
+    setSrcUsed(initial);
+    setHasError(false);
+    setIsLoaded(loadedImages.has(initial ?? ""));
+  }, [thumbSrc, resolvedSrc]);
+
   const handleLoad = useCallback(() => {
     setIsLoaded(true);
-    if (resolvedSrc) loadedImages.add(resolvedSrc);
+    if (srcUsed) loadedImages.add(srcUsed);
     onExternalLoad?.();
-  }, [onExternalLoad, resolvedSrc]);
+  }, [onExternalLoad, srcUsed]);
   const handleError = useCallback(() => {
+    if (srcUsed !== resolvedSrc && resolvedSrc) {
+      // Thumbnail unavailable (unsupported provider/format) — try the
+      // original once before reporting failure.
+      setSrcUsed(resolvedSrc);
+      return;
+    }
     setIsLoaded(true);
     setHasError(true);
     onExternalError?.();
-  }, [onExternalError]);
+  }, [srcUsed, resolvedSrc, onExternalError]);
 
   if (!resolvedSrc) return null;
 
@@ -88,7 +111,7 @@ export function ImageWithSkeleton({
           )
         ) : (
           <img
-            src={resolvedSrc}
+            src={srcUsed}
             alt={alt}
             loading={loading}
             onLoad={handleLoad}
@@ -127,7 +150,7 @@ export function ImageWithSkeleton({
       {/* Actual image */}
       {!hasError && (
         <img
-          src={resolvedSrc}
+          src={srcUsed}
           alt={alt}
           loading={loading}
           onLoad={handleLoad}

@@ -11,6 +11,7 @@ import {
   isExcalidrawFile,
 } from "../documents/utils";
 import { getFullUrl } from "../../services/api";
+import { buildChatThumbUrl, buildFileCoverUrl, isChatCoverableFile } from "../../utils/chatThumbs";
 
 // Re-export formatFileSize for external use
 // eslint-disable-next-line react-refresh/only-export-components
@@ -87,7 +88,15 @@ export const AttachmentCard = memo(function AttachmentCard({
       : "";
   }, [attachment.name]);
   const isExcalidraw = isExcalidrawFile(fileExt) && Boolean(attachmentUrl);
-  const isThumbnail = isImage || isExcalidraw;
+  // 服务端封面：PDF 首页/表格前几行/视频首帧，失败回退文件图标（零流量）
+  const coverUrl =
+    !isImage &&
+    !isExcalidraw &&
+    Boolean(attachmentUrl) &&
+    isChatCoverableFile(fileExt)
+      ? buildFileCoverUrl(attachmentUrl)
+      : undefined;
+  const isThumbnail = isImage || isExcalidraw || Boolean(coverUrl);
   const isCompact = size === "compact";
   const isFailed = Boolean(attachment.uploadError);
   const uploadStatusLabel =
@@ -144,12 +153,21 @@ export const AttachmentCard = memo(function AttachmentCard({
           ) : isImage ? (
             <ImageWithSkeleton
               src={attachmentUrl}
+              thumbSrc={buildChatThumbUrl(attachmentUrl)}
               alt={attachment.name}
               skipUrlResolve
               inline
             />
           ) : isExcalidraw ? (
             <ExcalidrawThumbnail url={attachmentUrl} alt={attachment.name} />
+          ) : coverUrl ? (
+            <ImageWithSkeleton
+              src={coverUrl}
+              alt={attachment.name}
+              skipUrlResolve
+              inline
+              errorFallback={<FileIcon size={18} className={iconColor} />}
+            />
           ) : (
             <FileIcon size={18} className={iconColor} />
           )}
@@ -296,6 +314,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           <>
             <ImageWithSkeleton
               src={attachmentUrl}
+              thumbSrc={buildChatThumbUrl(attachmentUrl)}
               alt={attachment.name}
               skipUrlResolve
               inline
@@ -308,6 +327,23 @@ export const AttachmentCard = memo(function AttachmentCard({
             url={attachmentUrl}
             alt={attachment.name}
             className="w-full h-full object-cover"
+          />
+        ) : coverUrl ? (
+          <ImageWithSkeleton
+            src={coverUrl}
+            alt={attachment.name}
+            skipUrlResolve
+            inline
+            className="w-full h-full object-cover"
+            errorFallback={
+              <FileIcon
+                size={18}
+                className={clsx(
+                  iconColor,
+                  "transition-transform duration-300 group-hover:scale-110",
+                )}
+              />
+            }
           />
         ) : (
           <FileIcon
