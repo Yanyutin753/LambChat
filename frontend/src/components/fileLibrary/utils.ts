@@ -146,11 +146,14 @@ function stripExtension(fileName: string): string {
   return idx > 0 ? last.slice(0, idx) : last;
 }
 
+// Replacement chars and control codes: odd binary/mis-encoded content must
+// never render as 乱码 on a cover.
+// eslint-disable-next-line no-control-regex
+const GARBLED_CHARS_RE = /[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+
 function compactLine(value: string | null | undefined): string {
-  // Strip replacement chars and control codes so odd binary/mis-encoded
-  // content never renders as 乱码 on the cover.
   return (value || "")
-    .replace(/[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(GARBLED_CHARS_RE, "")
     .replace(/\s+/g, " ")
     .trim();
 }
