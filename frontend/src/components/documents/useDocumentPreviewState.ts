@@ -472,7 +472,9 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
   const handleDownload = async () => {
     const downloadUrl =
-      getFullUrl(signedUrl) || resolvedUrl || getFullUrl(externalImageUrl);
+      getFullUrl(signedUrl) ||
+      getFullUrl(resolvedUrl) ||
+      getFullUrl(externalImageUrl);
     if (downloadUrl) {
       try {
         const response = await fetchUploadFile(

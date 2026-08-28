@@ -17,6 +17,7 @@ import {
   Share2,
 } from "lucide-react";
 import { formatFileSize as formatFileSizeUtil } from "./utils";
+import { getFullUrl } from "../../services/api/config";
 import type { DocumentPreviewState } from "./useDocumentPreviewState";
 
 type ToolbarProps = Pick<
@@ -89,7 +90,10 @@ export default function DocumentPreviewToolbar({
 }: ToolbarProps) {
   const [linkCopied, setLinkCopied] = useState(false);
 
-  const fileUrl = resolvedUrl || signedUrl || externalImageUrl;
+  const fileUrl =
+    getFullUrl(resolvedUrl) ||
+    getFullUrl(signedUrl) ||
+    getFullUrl(externalImageUrl);
 
   const handleCopyLink = useCallback(() => {
     if (!fileUrl) return;
