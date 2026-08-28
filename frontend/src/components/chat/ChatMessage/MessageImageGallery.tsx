@@ -55,7 +55,7 @@ export function MessageImageGallery({ images }: MessageImageGalleryProps) {
               />
               {/* Hover overlay — top-right icon */}
               <div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none z-[2]">
-                <div className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm shadow pointer-events-auto">
+                <div className="p-1.5 rounded-lg bg-black/40 shadow pointer-events-auto">
                   <ExternalLink size={14} className="text-white" />
                 </div>
               </div>

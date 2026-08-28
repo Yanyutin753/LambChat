@@ -36,7 +36,10 @@ function PwaStatusToast({
   const { t } = useTranslation();
 
   return (
-    <div className={`pwa-status-toast pwa-status-toast--${tone}`} role="status">
+    <div
+      className={`pwa-status-toast font-serif pwa-status-toast--${tone}`}
+      role="status"
+    >
       <div className="pwa-status-toast__icon" aria-hidden="true">
         {tone === "offline" ? (
           <WifiOff size={17} />

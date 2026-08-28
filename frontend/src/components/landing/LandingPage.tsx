@@ -172,7 +172,7 @@ export function LandingPage() {
   return (
     <div
       ref={containerRef}
-      className="blog-landing-container relative bg-white dark:bg-stone-950 antialiased"
+      className="blog-landing-container font-serif relative bg-white dark:bg-stone-950 antialiased"
     >
       {/* Progress bar */}
       <div
