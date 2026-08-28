@@ -9,6 +9,7 @@ import {
   isPersistentToolPanelOpen,
 } from "./items/persistentToolPanelState";
 import { SidebarMarkdownContent } from "./SidebarMarkdownContent";
+import { buildStreamingThinkingPreview } from "./thinkingPreview";
 
 export function ThinkingBlock({
   content,
@@ -44,13 +45,16 @@ export function ThinkingBlock({
 
   // Show a brief preview of the reasoning content in the pill label
   const preview = useMemo(() => {
-    if (isStreaming || !content) return "";
+    if (!content) return "";
+    if (isStreaming) return buildStreamingThinkingPreview(content);
     const text = content.replace(/\n+/g, " ").trim();
     return text.length > 80 ? text.slice(0, 80) + "…" : text;
   }, [content, isStreaming]);
 
   const label = isStreaming
-    ? t("chat.message.thinking")
+    ? preview
+      ? `${t("chat.message.thinking")} ${preview}`
+      : t("chat.message.thinking")
     : preview || t("chat.message.thought");
 
   return (
