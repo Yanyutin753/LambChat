@@ -67,6 +67,7 @@ async def build_memory_index(backend, user_id: str) -> str:
         "updated_at": 1,
         "memory_type": 1,
         "source": 1,
+        "context": 1,
     }
     docs = (
         await backend._collection.find(
@@ -84,6 +85,8 @@ async def build_memory_index(backend, user_id: str) -> str:
     now = utc_now()
     grouped: dict[str, list[dict[str, Any]]] = {}
     for doc in docs:
+        if doc.get("context") == "feedback_rule":
+            continue  # 已进 Lessons 子块，不重复出现在类型区
         grouped.setdefault(str(doc.get("memory_type", "")), []).append(doc)
 
     type_order = {
@@ -100,7 +103,24 @@ async def build_memory_index(backend, user_id: str) -> str:
         MemoryType.REFERENCE.value: "Reference",
     }
 
+    # Lessons 子块：feedback_rule 教训一行一条，独立预算（自进化小抄）
+    lessons_max_chars = 400
+    lesson_docs = [d for d in docs if d.get("context") == "feedback_rule"]
+    lesson_docs.sort(key=lambda d: str(d.get("updated_at") or ""), reverse=True)
+    lesson_docs = lesson_docs[:3]
+
     lines = ["<memory_index>", "# Cross-Session Memory Index"]
+    if lesson_docs:
+        lesson_lines: list[str] = ["\n## Lessons"]
+        for d in lesson_docs:
+            rule = str(d.get("title") or d.get("summary") or "").strip()
+            lesson_lines.append(f"- {rule}")
+        block = "\n".join(lesson_lines)
+        while len(block) > lessons_max_chars and len(lesson_lines) > 2:
+            lesson_lines.pop()
+            block = "\n".join(lesson_lines)
+        lines.append(block)
+
     for mtype in sorted(grouped.keys(), key=lambda key: type_order.get(key, 99)):
         chosen = choose_index_memories(
             grouped[mtype], per_type_limit=5, now=now, staleness_days=staleness_days

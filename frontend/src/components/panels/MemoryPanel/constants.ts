@@ -36,6 +36,7 @@ export const SOURCE_OPTIONS = [
   { value: "auto_retained", labelKey: "memory.source.auto_retained" },
   { value: "imported", labelKey: "memory.source.imported" },
   { value: "consolidated", labelKey: "memory.source.consolidated" },
+  { value: "self_evolved", labelKey: "memory.source.selfEvolved" },
 ] as const;
 
 export const SOURCE_OPTIONS_LIST = [
@@ -43,6 +44,7 @@ export const SOURCE_OPTIONS_LIST = [
   { value: "auto_retained", labelKey: "memory.source.auto_retained" },
   { value: "imported", labelKey: "memory.source.imported" },
   { value: "consolidated", labelKey: "memory.source.consolidated" },
+  { value: "self_evolved", labelKey: "memory.source.selfEvolved" },
 ];
 
 export const SOURCE_STYLES: Record<string, string> = {
@@ -52,6 +54,8 @@ export const SOURCE_STYLES: Record<string, string> = {
   imported: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
   consolidated:
     "bg-gray-100 text-gray-600 dark:bg-gray-800/40 dark:text-gray-400",
+  self_evolved:
+    "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
 };
 
 export const SOURCE_DOTS: Record<string, string> = {
@@ -59,6 +63,7 @@ export const SOURCE_DOTS: Record<string, string> = {
   auto_retained: "bg-indigo-500",
   imported: "bg-teal-500",
   consolidated: "bg-gray-400",
+  self_evolved: "bg-rose-500",
 };
 
 export const PAGE_SIZE = 20;
