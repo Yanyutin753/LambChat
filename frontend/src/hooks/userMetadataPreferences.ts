@@ -1,4 +1,7 @@
-import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../components/layout/AppContent/useAgentOptions";
+import {
+  DEFAULT_THINKING_LEVEL_STORAGE_KEY,
+  normalizeThinkingOptionValue,
+} from "../components/layout/AppContent/useAgentOptions";
 import { SEND_MODIFIER_STORAGE_KEY } from "./sendModifier";
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "lamb-sidebar-collapsed";
@@ -61,8 +64,12 @@ export function applyUserMetadataPreferences({
     localStorage.setItem(NEWLINE_MODIFIER_STORAGE_KEY, newlineModifier);
   }
 
-  const defaultThinkingLevel = stringValue(metadata.defaultThinkingLevel);
-  if (defaultThinkingLevel) {
+  const storedThinkingLevel = stringValue(metadata.defaultThinkingLevel);
+  if (storedThinkingLevel) {
+    // "off" 档已下线：历史存量值归一为最低档，避免把 off 写回本地
+    const defaultThinkingLevel = String(
+      normalizeThinkingOptionValue(storedThinkingLevel),
+    );
     localStorage.setItem(
       DEFAULT_THINKING_LEVEL_STORAGE_KEY,
       defaultThinkingLevel,

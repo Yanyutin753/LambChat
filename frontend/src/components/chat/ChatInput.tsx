@@ -119,6 +119,7 @@ export const ChatInput = memo(function ChatInput({
   agentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
+  modelSupportsThinking,
   agents = [],
   currentAgent,
   onSelectAgent,
@@ -670,8 +671,11 @@ export const ChatInput = memo(function ChatInput({
     if (!validateCount(files.length)) return;
     uploadFiles(files);
   };
-  const { label: thinkingLabel, level: thinkingLevel } =
-    resolveThinkingPresentation(agentOptions, agentOptionValues, t);
+  const { label: thinkingLabel } = resolveThinkingPresentation(
+    agentOptions,
+    agentOptionValues,
+    t,
+  );
   return (
     <div
       className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-5"
@@ -890,11 +894,11 @@ export const ChatInput = memo(function ChatInput({
                     !!(
                       agentOptions &&
                       onToggleAgentOption &&
-                      Object.keys(agentOptions).length > 0
+                      Object.keys(agentOptions).length > 0 &&
+                      modelSupportsThinking !== false
                     )
                   }
                   thinkingLabel={thinkingLabel}
-                  thinkingLevel={thinkingLevel}
                   uploadCategories={uploadCategories}
                   uploadFiles={uploadFiles}
                   selectedPersonaName={selectedPersonaName}
@@ -961,6 +965,7 @@ export const ChatInput = memo(function ChatInput({
         agentOptions={agentOptions}
         agentOptionValues={agentOptionValues}
         onToggleAgentOption={onToggleAgentOption}
+        modelSupportsThinking={modelSupportsThinking}
       />
 
       {showHelpMenu && <ChatInputHelpMenu className={helpMenuClassName} />}

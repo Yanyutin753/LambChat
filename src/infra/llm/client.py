@@ -236,12 +236,8 @@ _REASONING_EFFORT_PREFIXES: dict[str, tuple[str, ...]] = {
     "openai": ("gpt-5", "o3", "o4"),
     "xai": ("grok-4",),
 }
-# gpt 版本解析：reasoning_effort="none" 自 gpt-5.1 起支持，用版本比较保持
-# 对未来 5.x 家族的前向兼容（避免硬编码枚举封顶）。
-_GPT_VERSION_RE = re.compile(r"(?:chatgpt-)?gpt-(\d+)(?:[.](\d{1,2})(?!\d))?")
 # zhipu hybrid-reasoning GLM families that accept the `thinking` request-body
-# field (via model_kwargs). GLM-4.x supports explicit "disabled"; GLM-5.x does
-# not (its thinking cannot be turned off). glm-4.7 未核实，不发送。
+# field (via model_kwargs). glm-4.7 未核实，不发送。
 _ZHIPU_THINKING_PREFIXES = (
     "glm-4.5",
     "glm-4-5",
@@ -249,7 +245,6 @@ _ZHIPU_THINKING_PREFIXES = (
     "glm-4-6",
     "glm-5",
 )
-_ZHIPU_DISABLED_PREFIXES = ("glm-4.5", "glm-4-5", "glm-4.6", "glm-4-6")
 
 # 次版本限定为 1-2 位数字且后不跟数字：防止把官方 model ID 里的发布日期
 # 后缀（claude-opus-4-20250514 / grok-4-0709-beta）当成次版本吞掉——否则
@@ -273,9 +268,7 @@ def _resolve_reasoning_effort(
     """Map a thinking config to reasoning_effort for OpenAI-protocol providers.
 
     Returns None when the provider/model family is not documented to accept
-    reasoning_effort. For "off", falls back to the model's lowest supported
-    effort value ("none" where the family supports it) so the disable intent
-    is still expressed instead of silently reverting to the model default.
+    reasoning_effort. Thinking is always enabled; only the level varies.
     """
     prefixes = _REASONING_EFFORT_PREFIXES.get(provider)
     if not prefixes:
@@ -289,27 +282,11 @@ def _resolve_reasoning_effort(
         return None
 
     level = str(thinking.get("level") or "medium")
-    enabled = thinking.get("type") == "enabled"
-    if provider == "xai":
-        # grok has no "none" value; omitting the parameter would default to
-        # high, so an explicit off floors to the lowest supported effort.
-        if not enabled:
-            return "low"
-        if level == "max":
-            match = _GROK_VERSION_RE.search(name)
-            return "xhigh" if match and _version_tuple(match) >= (4, 6) else "high"
-        return _EFFORT_BY_LEVEL.get(level, "medium")
-
-    if enabled:
-        return _EFFORT_BY_LEVEL.get(level, "medium")
-    # off → 该模型最低支持档；-pro 变体不支持 minimal/none，统一落到 low
-    if "-pro" not in name:
-        match = _GPT_VERSION_RE.search(name)
-        if match and _version_tuple(match) >= (5, 1):
-            return "none"
-        if name.startswith("gpt-5"):
-            return "minimal"
-    return "low"
+    if provider == "xai" and level == "max":
+        # grok 4.6+ 的 max 档映射到 xhigh
+        match = _GROK_VERSION_RE.search(name)
+        return "xhigh" if match and _version_tuple(match) >= (4, 6) else "high"
+    return _EFFORT_BY_LEVEL.get(level, "medium")
 
 
 def _resolve_zhipu_thinking_body(
@@ -324,12 +301,7 @@ def _resolve_zhipu_thinking_body(
     name = model_name.lower()
     if not any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES):
         return None
-    if thinking.get("type") == "enabled":
-        return {"thinking": {"type": "enabled"}}
-    if any(name.startswith(prefix) for prefix in _ZHIPU_DISABLED_PREFIXES):
-        return {"thinking": {"type": "disabled"}}
-    # GLM-5.x rejects thinking.type="disabled"; leave the model default alone.
-    return None
+    return {"thinking": {"type": "enabled"}}
 
 
 def _resolve_anthropic_thinking(
@@ -353,9 +325,6 @@ def _resolve_anthropic_thinking(
 
     if version[0] >= 5 or version >= (4, 7):
         level = str(thinking.get("level") or "low")
-        if thinking.get("type") != "enabled":
-            # Newest models always think and reject "disabled"; floor effort.
-            level = "low"
         effort = _EFFORT_BY_LEVEL.get(level, "low")
         # Newest models also reject non-default sampling parameters outright.
         return None, effort, 1.0
@@ -364,8 +333,6 @@ def _resolve_anthropic_thinking(
         # on 4.7+/Sonnet 5 — no verified combination, send nothing.
         return None, None, None
     if (3, 7) <= version <= (4, 5):
-        if thinking.get("type") != "enabled":
-            return None, None, None
         manual: dict[str, Any] = {"type": "enabled"}
         # Anthropic 对 enabled thinking 强制要求 budget_tokens（>=1024）
         manual["budget_tokens"] = thinking.get("budget_tokens") or 1024
@@ -379,13 +346,54 @@ def _resolve_gemini_thinking_level(
     thinking: dict[str, Any],
 ) -> Optional[str]:
     """Map a thinking config to thinking_level for Gemini 2.5+ models."""
+    if not thinking:
+        # 未配置思考的调用方（标题生成/推荐等）保持原行为，不注入任何参数
+        return None
     match = _GEMINI_VERSION_RE.search(model_name.lower())
     if match is None or _version_tuple(match) < (2, 5):
         return None
-    if thinking.get("type") != "enabled":
-        return None
     level = str(thinking.get("level") or "medium")
     return _EFFORT_BY_LEVEL.get(level, "medium")
+
+
+def model_supports_thinking(provider: Optional[str], model_value: str) -> bool:
+    """Whether this provider+model combination receives any thinking parameter.
+
+    Mirrors the capability gates used when constructing models (single source
+    of truth with the resolvers above); powers frontend control visibility
+    (show the intensity picker only for thinking-capable models). Provider
+    resolution matches get_model: a stored explicit provider wins over the
+    "provider/model" prefix, and the prefix is always stripped from the name.
+
+    Known acceptable deviations (both only over-report, never mis-send):
+    get_model's default-model provider inheritance for unprefixed generic
+    values, and zhipu models configured with api_format="responses" (the
+    thinking body is chat_completions-only) are not replicated here.
+    """
+    parsed_provider, model_name = _parse_provider(model_value)
+    effective_provider = provider or parsed_provider
+    protocol = _resolve_protocol(effective_provider)
+    name = model_name.lower()
+
+    if protocol == "anthropic":
+        match = _CLAUDE_VERSION_RE.search(name)
+        if match is None:
+            return False
+        version = _version_tuple(match)
+        return (3, 7) <= version <= (4, 5) or version >= (4, 7)
+
+    if protocol == "google":
+        match = _GEMINI_VERSION_RE.search(name)
+        return match is not None and _version_tuple(match) >= (2, 5)
+
+    prefixes = _REASONING_EFFORT_PREFIXES.get(effective_provider)
+    if prefixes:
+        if name.endswith("-chat-latest") or name.endswith("-non-reasoning"):
+            return False
+        return any(name.startswith(prefix) for prefix in prefixes)
+    if effective_provider == "zhipu":
+        return any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES)
+    return False
 
 
 async def _lookup_stored_api_key(
@@ -562,8 +570,7 @@ class LLMClient:
         # 显式传 bool：None 会让 langchain-openai 自动探测，不满足确定性。
         openai_kwargs["use_responses_api"] = _resolve_use_responses(protocol, api_format)
         # OpenAI 协议：按 provider/模型家族门控思考参数（issue #211）
-        # - openai/xai 推理模型收到 reasoning_effort（off 映射到该模型最低
-        #   支持档，支持 none 的家族为 "none"）；responses 模式下
+        # - openai/xai 推理模型收到 reasoning_effort；responses 模式下
         #   langchain-openai 会自动映射为 reasoning.effort
         # - zhipu GLM-4.5+/GLM-5 收到 `thinking` 请求体字段（经 model_kwargs，
         #   仅 chat completions 线格式；/v1/responses 不接受该字段）

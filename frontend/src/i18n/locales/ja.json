@@ -219,14 +219,13 @@
       "label": "コードインタープリター"
     },
     "enableThinking": {
-      "description": "思考の強さを制御します（対応モデルのみ）",
+      "description": "思考の強さを制御します",
       "label": "思考",
       "options": {
         "high": "高",
         "low": "低",
         "max": "最強",
-        "medium": "中",
-        "off": "オフ"
+        "medium": "中"
       }
     }
   },

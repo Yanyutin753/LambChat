@@ -182,9 +182,58 @@ async def test_list_available_models_returns_public_fields_only(
                 "supports_vision": True,
                 "image_url_to_base64": False,
             },
+            "supports_thinking": False,
         }
     ]
     assert payload["default_model_id"] == "allowed-model"
+
+
+@pytest.mark.asyncio
+async def test_list_available_models_exposes_thinking_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _ThinkingModelStorage(_ModelStorage):
+        async def list_models(self, include_disabled: bool = False) -> list[ModelConfig]:
+            return [
+                ModelConfig(
+                    id=m["id"],
+                    value=m["value"],
+                    provider=m["provider"],
+                    label=m["id"],
+                    enabled=True,
+                    order=index,
+                )
+                for index, m in enumerate(
+                    [
+                        {"id": "gpt", "value": "openai/gpt-5.5", "provider": "openai"},
+                        {"id": "glm", "value": "zhipu/glm-4.6", "provider": "zhipu"},
+                        {"id": "claude", "value": "claude-opus-5", "provider": "anthropic"},
+                        {"id": "gemini", "value": "gemini-2.5-flash", "provider": "google"},
+                        {"id": "plain", "value": "deepseek-chat", "provider": "deepseek"},
+                    ]
+                )
+            ]
+
+    async def _no_model_restrictions(_user) -> list[str] | None:
+        return None
+
+    monkeypatch.setattr(model_routes, "get_model_storage", lambda: _ThinkingModelStorage())
+    monkeypatch.setattr(
+        "src.infra.agent.model_access.resolve_user_allowed_model_ids",
+        _no_model_restrictions,
+    )
+    user = TokenPayload(sub="user-1", username="tester", roles=["user"])
+
+    response = await model_routes.list_available_models(user)
+
+    capability = {model.id: model.supports_thinking for model in response.models}
+    assert capability == {
+        "gpt": True,
+        "glm": True,
+        "claude": True,
+        "gemini": True,
+        "plain": False,
+    }
 
 
 @pytest.mark.asyncio

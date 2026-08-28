@@ -290,6 +290,16 @@ export function ChatAppContent({
   const [sessionModelSelection, setSessionModelSelection] =
     useState<ModelSelection | null>(null);
 
+  // 当前选中模型是否支持思考：undefined 表示未知（未加载/未选中），仅明确 false 时
+  // 隐藏思考强度控件（能力由后端按 provider+模型名门控计算下发）
+  const modelSupportsThinking = useMemo(() => {
+    return availableModels?.find(
+      (m) =>
+        (currentModelId && m.id === currentModelId) ||
+        (currentModelValue && m.value === currentModelValue),
+    )?.supports_thinking;
+  }, [availableModels, currentModelId, currentModelValue]);
+
   const modelSelectionRevisionRef = useRef(0);
   const activeSessionLoadRef = useRef<{
     loadId: number;
@@ -840,6 +850,7 @@ export function ChatAppContent({
           agentOptions={currentAgentOptions}
           agentOptionValues={agentOptionValues}
           onToggleAgentOption={handleToggleAgentOption}
+          modelSupportsThinking={modelSupportsThinking}
           agents={agents}
           currentAgent={currentAgent}
           onSelectAgent={switchAgent}

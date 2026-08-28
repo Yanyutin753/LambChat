@@ -5,7 +5,7 @@ export function resolveThinkingPresentation(
   agentOptions: Record<string, AgentOption> | undefined,
   agentOptionValues: Record<string, boolean | string | number>,
   t: TFunction,
-): { label?: string; level?: string } {
+): { label?: string } {
   if (!agentOptions) return {};
   const optionEntry = Object.entries(agentOptions).find(
     ([, opt]) => opt.options && opt.options.length > 0,
@@ -18,6 +18,5 @@ export function resolveThinkingPresentation(
     label: selected?.label_key
       ? t(selected.label_key)
       : selected?.label || String(val),
-    level: String(val),
   };
 }

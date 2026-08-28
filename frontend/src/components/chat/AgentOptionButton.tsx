@@ -4,7 +4,7 @@ import { Brain, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import type { AgentOption } from "../../types";
-import { ICON_MAP, THINKING_LEVEL_COLOR } from "./chatInputConstants";
+import { ICON_MAP } from "./chatInputConstants";
 
 interface AgentOptionButtonProps {
   optionKey: string;
@@ -13,6 +13,49 @@ interface AgentOptionButtonProps {
   onChange: (value: boolean | string | number) => void;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+}
+
+function AgentOptionRow({
+  option,
+  isActive,
+  onSelect,
+}: {
+  option: NonNullable<AgentOption["options"]>[number];
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left cursor-pointer active:scale-[0.98]"
+      style={{
+        background: isActive
+          ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
+          : "transparent",
+        color: isActive ? "var(--theme-primary)" : "var(--theme-text)",
+      }}
+    >
+      <span
+        className="w-2.5 h-2.5 rounded-full shrink-0"
+        style={{
+          background: isActive
+            ? "var(--theme-primary)"
+            : "var(--theme-border)",
+        }}
+      />
+      {option.label_key ? t(option.label_key) : option.label || String(option.value)}
+      {isActive && (
+        <span
+          className="ml-auto text-xs"
+          style={{ color: "var(--theme-primary)" }}
+        >
+          ✓
+        </span>
+      )}
+    </button>
+  );
 }
 
 export const AgentOptionButton = memo(function AgentOptionButton({
@@ -111,51 +154,17 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                     {description}
                   </div>
                   <div className="flex flex-col gap-1">
-                    {options.map((opt) => {
-                      const isActive = opt.value === value;
-                      const optColor =
-                        THINKING_LEVEL_COLOR[String(opt.value)] ??
-                        THINKING_LEVEL_COLOR.off;
-                      return (
-                        <button
-                          key={String(opt.value)}
-                          type="button"
-                          onClick={() => {
-                            onChange(opt.value);
-                            setShowDropdown(false);
-                          }}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left cursor-pointer active:scale-[0.98]"
-                          style={{
-                            background: isActive
-                              ? `color-mix(in srgb, ${optColor.text} 12%, transparent)`
-                              : "transparent",
-                            color: isActive
-                              ? optColor.text
-                              : "var(--theme-text)",
-                          }}
-                        >
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{
-                              background: isActive
-                                ? optColor.text
-                                : "var(--theme-border)",
-                            }}
-                          />
-                          {opt.label_key
-                            ? t(opt.label_key)
-                            : opt.label || String(opt.value)}
-                          {isActive && (
-                            <span
-                              className="ml-auto text-xs"
-                              style={{ color: optColor.text }}
-                            >
-                              ✓
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {options.map((opt) => (
+                      <AgentOptionRow
+                        key={String(opt.value)}
+                        option={opt}
+                        isActive={opt.value === value}
+                        onSelect={() => {
+                          onChange(opt.value);
+                          setShowDropdown(false);
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -191,9 +200,6 @@ export const AgentOptionButton = memo(function AgentOptionButton({
       : selectedOption?.label || String(value);
 
     const ActiveIcon = IconComponent || Brain;
-    const isOff = String(value) === "off";
-    const levelColor =
-      THINKING_LEVEL_COLOR[String(value)] ?? THINKING_LEVEL_COLOR.off;
 
     return (
       <div ref={dropdownRef}>
@@ -201,15 +207,6 @@ export const AgentOptionButton = memo(function AgentOptionButton({
           type="button"
           onClick={() => setShowDropdown(!showDropdown)}
           className="chat-tool-btn"
-          style={
-            isOff
-              ? undefined
-              : {
-                  borderColor: levelColor.border,
-                  background: levelColor.bg,
-                  color: levelColor.text,
-                }
-          }
           title={`${description}: ${selectedLabel}`}
         >
           <ActiveIcon size={18} />
@@ -244,56 +241,22 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                     {description}
                   </div>
                   <div className="flex flex-col gap-1">
-                    {options.map((opt) => {
-                      const isActive = opt.value === value;
-                      const optColor =
-                        THINKING_LEVEL_COLOR[String(opt.value)] ??
-                        THINKING_LEVEL_COLOR.off;
-                      return (
-                        <button
-                          key={String(opt.value)}
-                          type="button"
-                          onClick={() => {
-                            onChange(opt.value);
-                            setShowDropdown(false);
-                          }}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left active:scale-[0.98]"
-                          style={{
-                            background: isActive
-                              ? `color-mix(in srgb, ${optColor.text} 12%, transparent)`
-                              : "transparent",
-                            color: isActive
-                              ? optColor.text
-                              : "var(--theme-text)",
-                          }}
-                        >
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{
-                              background: isActive
-                                ? optColor.text
-                                : "var(--theme-border)",
-                            }}
-                          />
-                          {opt.label_key
-                            ? t(opt.label_key)
-                            : opt.label || String(opt.value)}
-                          {isActive && (
-                            <span
-                              className="ml-auto text-xs"
-                              style={{ color: optColor.text }}
-                            >
-                              ✓
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {options.map((opt) => (
+                      <AgentOptionRow
+                        key={String(opt.value)}
+                        option={opt}
+                        isActive={opt.value === value}
+                        onSelect={() => {
+                          onChange(opt.value);
+                          setShowDropdown(false);
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Desktop: dropdown with stepped slider */}
+              {/* Desktop: plain dropdown list */}
               <div
                 ref={portalRef}
                 className="hidden sm:block w-72 rounded-xl px-2 py-1.5 border shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-200"
@@ -309,120 +272,18 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                 >
                   {description}
                 </div>
-
-                <div className="mx-2 mb-1">
-                  <div className="stepped-slider select-none">
-                    <div
-                      className="relative h-10 flex items-center cursor-pointer"
-                      role="slider"
-                      tabIndex={0}
-                      aria-valuemin={0}
-                      aria-valuemax={options.length - 1}
-                      aria-valuenow={options.findIndex(
-                        (opt) => opt.value === value,
-                      )}
-                      onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const clientX = (e.nativeEvent as MouseEvent).clientX;
-                        const ratio = Math.max(
-                          0,
-                          Math.min(1, (clientX - rect.left) / rect.width),
-                        );
-                        const idx = Math.round(ratio * (options.length - 1));
-                        const opt = options[idx];
-                        if (opt) onChange(opt.value);
+                <div className="flex flex-col gap-1">
+                  {options.map((opt) => (
+                    <AgentOptionRow
+                      key={String(opt.value)}
+                      option={opt}
+                      isActive={opt.value === value}
+                      onSelect={() => {
+                        onChange(opt.value);
+                        setShowDropdown(false);
                       }}
-                      onKeyDown={(e) => {
-                        const currentIdx = options.findIndex(
-                          (opt) => opt.value === value,
-                        );
-                        if (
-                          e.key === "ArrowRight" &&
-                          currentIdx < options.length - 1
-                        ) {
-                          onChange(options[currentIdx + 1].value);
-                        } else if (e.key === "ArrowLeft" && currentIdx > 0) {
-                          onChange(options[currentIdx - 1].value);
-                        }
-                      }}
-                    >
-                      <div
-                        className="absolute left-0 right-0 h-1 rounded-full"
-                        style={{
-                          background: "var(--theme-border)",
-                        }}
-                      />
-                      <div
-                        className="absolute left-0 h-1 rounded-full transition-all duration-150"
-                        style={{
-                          width: `${
-                            (options.findIndex((opt) => opt.value === value) /
-                              (options.length - 1)) *
-                            100
-                          }%`,
-                          background:
-                            levelColor.text ?? "var(--theme-text-secondary)",
-                        }}
-                      />
-                      {options.map((opt, idx) => {
-                        const pos = (idx / (options.length - 1)) * 100;
-                        const isActive = opt.value === value;
-                        return (
-                          <div
-                            key={String(opt.value)}
-                            className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 transition-colors duration-150"
-                            style={{
-                              left: `${pos}%`,
-                              background: isActive
-                                ? levelColor.text ??
-                                  "var(--theme-text-secondary)"
-                                : "var(--theme-text-secondary)",
-                              opacity: isActive ? 1 : 0.5,
-                            }}
-                          />
-                        );
-                      })}
-                      <div
-                        className="absolute w-4 h-4 rounded-full -translate-x-1/2 transition-all duration-150 shadow-sm hover:scale-105"
-                        style={{
-                          left: `${
-                            (options.findIndex((opt) => opt.value === value) /
-                              (options.length - 1)) *
-                            100
-                          }%`,
-                          background:
-                            levelColor.text ?? "var(--theme-text-secondary)",
-                          border: "2px solid var(--theme-bg-card)",
-                        }}
-                      />
-                    </div>
-                    <div className="relative h-4 -mt-1">
-                      {options.map((opt, idx) => {
-                        const pos = (idx / (options.length - 1)) * 100;
-                        const isActive = opt.value === value;
-                        return (
-                          <button
-                            key={String(opt.value)}
-                            type="button"
-                            onClick={() => onChange(opt.value)}
-                            className="absolute text-[10px] leading-tight text-center transition-all duration-150 cursor-pointer -translate-x-1/2 whitespace-nowrap"
-                            style={{
-                              left: `${pos}%`,
-                              color: isActive
-                                ? levelColor.text ??
-                                  "var(--theme-text-secondary)"
-                                : "var(--theme-text-secondary)",
-                              fontWeight: isActive ? 500 : 400,
-                            }}
-                          >
-                            {opt.label_key
-                              ? t(opt.label_key)
-                              : opt.label || String(opt.value)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                    />
+                  ))}
                 </div>
               </div>
             </>,

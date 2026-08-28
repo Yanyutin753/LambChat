@@ -21,6 +21,7 @@ export interface AvailableModel {
   label: string;
   description?: string;
   profile?: ModelProfile;
+  supports_thinking?: boolean;
 }
 
 interface SettingsContextValue {
@@ -91,6 +92,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               label: m.label,
               description: m.description,
               profile: m.profile,
+              supports_thinking: m.supports_thinking,
             })),
           );
         } else {
