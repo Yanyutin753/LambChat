@@ -386,6 +386,13 @@ class S3StorageService:
         """Check if a file exists"""
         return await self._get_backend().exists(key)
 
+    async def get_size(self, key: str) -> int | None:
+        """Get object size in bytes, or None when unavailable"""
+        try:
+            return await self._get_backend().get_size(key)
+        except Exception:
+            return None
+
     def get_file_path(self, key: str):
         """Get local filesystem path for a key (local backend only)."""
         backend = self._get_backend()
@@ -397,9 +404,28 @@ class S3StorageService:
         """Get public URL for a file"""
         return await self._get_backend().get_url(key)
 
-    async def get_presigned_url(self, key: str, expires: int = 3600) -> str:
-        """Get presigned URL for a file (for private buckets)"""
-        return await self._get_backend().get_presigned_url(key, expires)
+    async def get_presigned_url(
+        self, key: str, expires: int = 3600, process: str | None = None
+    ) -> str:
+        """Get presigned URL for a file (for private buckets).
+
+        `process` requests provider-side processing (e.g. OSS image crop)
+        and is signed into the URL; backends without support raise TypeError.
+        """
+        backend = self._get_backend()
+        if process is None:
+            return await backend.get_presigned_url(key, expires)
+        return await backend.get_presigned_url(key, expires, process=process)
+
+    async def get_cover_presigned_url(
+        self, key: str, expires_at: int, process: str | None = None
+    ) -> str:
+        """Presigned GET URL with an absolute expiry (stable per day).
+
+        Raises AttributeError on backends without cover signing.
+        """
+        backend = self._get_backend()
+        return await backend.sign_url_at(key, expires_at, process)
 
     async def list_files(self, folder: str) -> list[str]:
         """List files in a folder"""

@@ -647,38 +647,44 @@ class BackgroundTaskManager:
         # 获取 current_run_id
         try:
             session = await self.storage.get_by_session_id(session_id)
-            if session and session.metadata:
-                run_id = session.metadata.get("current_run_id")
-                if run_id:
-                    # current_run_id 在 run 结束后仍保留；任务已终态时取消是
-                    # 迟到的停止请求，不得把已完成的 trace 改写成 error，
-                    # 也不得污染会话的 task_error_code 元数据。
-                    task_status = session.metadata.get("task_status")
-                    if self._state_machine.is_terminal(task_status):
-                        return {
-                            "success": False,
-                            "cancelled_locally": False,
-                            "run_id": None,
-                            "message": "没有正在运行的任务",
-                        }
-                    run_info = await self._build_run_info_from_session(
-                        session,
-                        session_id=session_id,
-                        run_id=str(run_id),
-                        user_id=user_id,
-                    )
-                    return await self.cancel_run(
-                        str(run_id),
-                        user_id=user_id,
-                        run_info_override=run_info,
-                    )
-                else:
+            if not session or not session.metadata:
+                return {
+                    "success": False,
+                    "cancelled_locally": False,
+                    "run_id": None,
+                    "message": "没有正在运行的任务",
+                }
+            run_id = session.metadata.get("current_run_id")
+            if run_id:
+                # current_run_id 在 run 结束后仍保留；任务已终态时取消是
+                # 迟到的停止请求，不得把已完成的 trace 改写成 error，
+                # 也不得污染会话的 task_error_code 元数据。
+                task_status = session.metadata.get("task_status")
+                if self._state_machine.is_terminal(task_status):
                     return {
                         "success": False,
                         "cancelled_locally": False,
                         "run_id": None,
                         "message": "没有正在运行的任务",
                     }
+                run_info = await self._build_run_info_from_session(
+                    session,
+                    session_id=session_id,
+                    run_id=str(run_id),
+                    user_id=user_id,
+                )
+                return await self.cancel_run(
+                    str(run_id),
+                    user_id=user_id,
+                    run_info_override=run_info,
+                )
+            else:
+                return {
+                    "success": False,
+                    "cancelled_locally": False,
+                    "run_id": None,
+                    "message": "没有正在运行的任务",
+                }
         except Exception as e:
             logger.warning(f"Failed to cancel session {session_id}: {e}")
         return {

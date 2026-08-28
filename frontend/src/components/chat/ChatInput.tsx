@@ -44,7 +44,7 @@ import {
   consumePendingSelectionActionPrompt,
   SELECTION_ACTION_EVENT,
   type SelectionActionEventDetail,
-} from "../common/selectionActionPopover";
+} from "../common/selectionActionPopoverUtils";
 import type { ChatInputProps } from "./chatInputTypes";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
 import type { MessageAttachment, PersonaPreset } from "../../types";

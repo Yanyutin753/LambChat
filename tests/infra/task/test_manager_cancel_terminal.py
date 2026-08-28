@@ -98,3 +98,23 @@ async def test_cancel_proceeds_when_task_active_or_status_missing(task_status):
     assert result["success"] is True
     assert len(cancellation.calls) == 1
     assert cancellation.calls[0]["run_id"] == "run-active"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("empty_metadata", [None, {}])
+async def test_cancel_reports_no_running_task_when_session_metadata_empty(empty_metadata):
+    """新建会话 metadata 为空 dict/None：取消应报"没有正在运行的任务"而非"取消失败"。
+
+    空 metadata 会掉进 fall-through 返回通用失败文案，前端会误展示为系统错误。
+    """
+    session = SimpleNamespace(
+        id="session-1", user_id="user-1", agent_id="search", metadata=empty_metadata
+    )
+    manager, cancellation, _storage = _manager_with(session)
+
+    result = await manager.cancel("session-1", user_id="user-1")
+
+    assert result["success"] is False
+    assert result["run_id"] is None
+    assert "没有正在运行的任务" in result["message"]
+    assert cancellation.calls == []

@@ -478,6 +478,55 @@ async def notify_approval_response(approval_id: str, response: ApprovalResponse)
         logger.warning("Failed to publish approval response notification: %s", e)
 
 
+# 静态订阅的等待者注册表：approval_id -> 等待事件集合。
+# 订阅/退订频道会让共享 pubsub hub 重启整条连接（窗口内所有频道消息丢失），
+# 因此频道只订阅一次，由 handler 按 approval_id 分发唤醒。
+_approval_waiters_lock = asyncio.Lock()
+_approval_waiters: dict[str, set[asyncio.Event]] = {}
+_approval_channel_subscribed = False
+
+
+async def _reset_approval_notification_state() -> None:
+    """测试辅助：清空静态订阅状态与等待者。"""
+    global _approval_channel_subscribed
+    async with _approval_waiters_lock:
+        _approval_waiters.clear()
+        _approval_channel_subscribed = False
+
+
+async def _on_approval_response_message(message: dict[str, Any]) -> None:
+    try:
+        data = await run_blocking_io(json.loads, message.get("data") or "{}")
+    except json.JSONDecodeError:
+        logger.warning("Invalid approval response notification: %s", message.get("data"))
+        return
+    approval_id = data.get("approval_id")
+    if not approval_id:
+        return
+    async with _approval_waiters_lock:
+        events = list(_approval_waiters.get(approval_id, ()))
+    for event in events:
+        event.set()
+
+
+async def _ensure_approval_channel_subscribed() -> bool:
+    """确保审批频道已静态订阅；失败时返回 False（等待方退化为 Mongo 轮询兜底）。"""
+    global _approval_channel_subscribed
+    async with _approval_waiters_lock:
+        if _approval_channel_subscribed:
+            return True
+    try:
+        hub = get_pubsub_hub()
+        hub.subscribe(APPROVAL_RESPONSE_CHANNEL, _on_approval_response_message)
+        await hub.start()
+    except Exception as e:
+        logger.warning("Failed to subscribe approval response notifications: %s", e)
+        return False
+    async with _approval_waiters_lock:
+        _approval_channel_subscribed = True
+    return True
+
+
 async def wait_for_response_distributed(
     approval_id: str,
     timeout: float = 300,
@@ -498,25 +547,11 @@ async def wait_for_response_distributed(
     max_interval = 3.0
     current_interval = min_interval
     notification_event = asyncio.Event()
-    subscription_token: str | None = None
-    hub = None
 
-    async def _handle_notification(message: dict[str, Any]) -> None:
-        try:
-            data = await run_blocking_io(json.loads, message.get("data") or "{}")
-            if data.get("approval_id") == approval_id:
-                notification_event.set()
-        except json.JSONDecodeError:
-            logger.warning("Invalid approval response notification: %s", message.get("data"))
-
-    try:
-        hub = get_pubsub_hub()
-        subscription_token = hub.subscribe(APPROVAL_RESPONSE_CHANNEL, _handle_notification)
-        await hub.start()
-    except Exception as e:
-        logger.warning("Failed to subscribe approval response notifications: %s", e)
-        hub = None
-        subscription_token = None
+    # 先注册等待者再订阅：hub.start() 可能在订阅完成前即投递消息。
+    async with _approval_waiters_lock:
+        _approval_waiters.setdefault(approval_id, set()).add(notification_event)
+    await _ensure_approval_channel_subscribed()
 
     try:
         while True:
@@ -544,6 +579,9 @@ async def wait_for_response_distributed(
             if response:
                 return response
     finally:
-        if hub is not None and subscription_token is not None:
-            hub.unsubscribe(subscription_token)
-            await hub.stop_if_idle()
+        async with _approval_waiters_lock:
+            events = _approval_waiters.get(approval_id)
+            if events is not None:
+                events.discard(notification_event)
+                if not events:
+                    _approval_waiters.pop(approval_id, None)

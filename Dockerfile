@@ -23,8 +23,11 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install uv (Node.js not needed at runtime — e2b uses remote sandboxes)
+# fonts-noto-cjk: PDF cover rendering (pypdfium2) substitutes system fonts
+# for PDFs that don't embed CJK fonts — without this they render as tofu.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

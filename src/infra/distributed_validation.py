@@ -37,7 +37,10 @@ def is_distributed_runtime(environ: dict[str, str] | None = None) -> bool:
         except ValueError:
             return False
 
-    return False
+    # k8s Pod 内该变量由 kubelet 注入且必然存在：容器文件系统为临时层，
+    # 上传/密钥等配置必须满足多副本约束。显式 LAMBCHAT_DISTRIBUTED_MODE
+    # 仍可覆盖（例如单副本 k8s 调试场景设为 false）。
+    return bool(env.get("KUBERNETES_SERVICE_HOST"))
 
 
 def _was_generated(settings: Any, attr_name: str) -> bool:
