@@ -104,38 +104,44 @@ function PaperCanvas({
 
 /* ── Doc cover: page of text (md / pdf / docs) ───────── */
 
-const DOC_LINE_WIDTHS = ["w-full", "w-11/12", "w-4/5", "w-3/5"];
+const DOC_LINE_WIDTHS = ["w-full", "w-11/12", "w-5/6", "w-3/4", "w-5/6"];
+const DOC_SKELETON_WIDTHS = ["w-full", "w-5/6", "w-11/12", "w-2/3"];
+const DOC_MIN_ROWS = 6;
 
 function DocCover({ p }: { p: FileCardPreviewModel }) {
   const bodyLines = p.lines.filter(Boolean).slice(0, 5);
+  const filler = Math.max(0, DOC_MIN_ROWS - bodyLines.length);
 
   return (
     <PaperCanvas>
-      <div className="flex h-full flex-col px-3 pb-3 pt-3">
-        <p className="truncate text-[11px] font-semibold leading-tight text-stone-800 dark:text-stone-200">
+      <div className="flex h-full flex-col px-3.5 pb-3 pt-3">
+        <p className="truncate text-[12px] font-semibold leading-snug text-stone-800 dark:text-stone-200">
           {p.title}
         </p>
-        <div className="mt-1 h-px w-8 bg-stone-300 dark:bg-stone-700" />
-        <div className="mt-1.5 space-y-[5px]">
+        <div className="mt-1.5 mb-2 h-px w-9 bg-stone-300 dark:bg-stone-700" />
+        <div className="space-y-[7px]">
           {bodyLines.map((line, i) => (
             <p
               key={i}
               className={clsx(
-                "truncate text-[9px] leading-[1.5] text-stone-500 dark:text-stone-400",
-                i === 0 && "font-medium text-stone-600 dark:text-stone-300",
-                DOC_LINE_WIDTHS[(i + 1) % DOC_LINE_WIDTHS.length],
+                "truncate text-[10px] leading-[1.6] text-stone-500 dark:text-stone-400",
+                i === 0 &&
+                  "text-[10.5px] font-medium text-stone-700 dark:text-stone-300",
+                DOC_LINE_WIDTHS[i % DOC_LINE_WIDTHS.length],
               )}
             >
               {line}
             </p>
           ))}
-          {bodyLines.length === 0 && (
-            <>
-              <div className="h-[5px] w-full rounded-[2px] bg-stone-200 dark:bg-stone-800" />
-              <div className="h-[5px] w-11/12 rounded-[2px] bg-stone-200 dark:bg-stone-800" />
-              <div className="h-[5px] w-4/5 rounded-[2px] bg-stone-200 dark:bg-stone-800" />
-            </>
-          )}
+          {Array.from({ length: filler }, (_, i) => (
+            <div
+              key={`sk-${i}`}
+              className={clsx(
+                "h-[6px] rounded-[3px] bg-stone-200 dark:bg-stone-800",
+                DOC_SKELETON_WIDTHS[(i + bodyLines.length) % DOC_SKELETON_WIDTHS.length],
+              )}
+            />
+          ))}
         </div>
       </div>
     </PaperCanvas>
@@ -158,10 +164,10 @@ function CodeCover({ p }: { p: FileCardPreviewModel }) {
             {p.title}
           </span>
         </div>
-        <div className="flex-1 space-y-[3px] overflow-hidden px-3 py-2 font-mono text-[9.5px] leading-[1.6]">
+        <div className="flex-1 space-y-[4px] overflow-hidden px-3 py-2 font-mono text-[10px] leading-[1.65]">
           {p.lines.slice(0, 4).map((line, i) => (
             <div key={i} className="flex items-baseline gap-2 overflow-hidden">
-              <span className="w-2 shrink-0 text-right text-[8px] text-stone-300 select-none dark:text-stone-600">
+              <span className="w-2.5 shrink-0 text-right text-[9px] text-stone-300 select-none dark:text-stone-600">
                 {i + 1}
               </span>
               <span className="truncate text-stone-700 dark:text-stone-300">
@@ -197,7 +203,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
     return (
       <PaperCanvas>
         <div className="flex h-full flex-col px-3 pb-3 pt-3">
-          <p className="mb-1.5 truncate text-[10px] font-medium text-stone-700 dark:text-stone-300">
+          <p className="mb-1.5 truncate text-[11px] font-medium text-stone-700 dark:text-stone-300">
             {p.title}
           </p>
           <div className="overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
@@ -205,7 +211,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
               {header.slice(0, 3).map((cell, i) => (
                 <span
                   key={i}
-                  className="flex-1 truncate px-1.5 py-1 text-[8px] font-semibold text-stone-600 dark:text-stone-300"
+                  className="flex-1 truncate px-1.5 py-1.5 text-[9px] font-semibold text-stone-600 dark:text-stone-300"
                 >
                   {cell}
                 </span>
@@ -219,7 +225,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
                 {Array.from({ length: Math.min(3, header.length) }, (_, c) => (
                   <span
                     key={c}
-                    className="flex-1 truncate px-1.5 py-1 font-mono text-[8px] text-stone-500 dark:text-stone-400"
+                    className="flex-1 truncate px-1.5 py-1.5 font-mono text-[9px] text-stone-500 dark:text-stone-400"
                   >
                     {row[c] ?? ""}
                   </span>
@@ -234,7 +240,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
 
   return (
     <PaperCanvas>
-      <div className="h-full space-y-[3px] overflow-hidden px-3 py-3 font-mono text-[9.5px] leading-[1.6]">
+      <div className="h-full space-y-[5px] overflow-hidden px-3.5 py-3 font-mono text-[10px] leading-[1.7]">
         {p.lines.slice(0, 5).map((line, i) => (
           <p key={i} className="truncate text-stone-600 dark:text-stone-400">
             {tokenizeCodeLine(line).map((tok, j) => (
@@ -261,7 +267,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
 function ProjectCover({ p }: { p: FileCardPreviewModel }) {
   return (
     <PaperCanvas>
-      <div className="flex h-full flex-col px-3 pb-3 pt-3 font-mono text-[9px] leading-[1.8]">
+      <div className="flex h-full flex-col px-3.5 pb-3 pt-3 font-mono text-[10px] leading-[1.9]">
         {p.lines.slice(0, 4).map((line, i) => (
           <p
             key={i}

@@ -141,3 +141,20 @@ def _async_of(value):
         return value
 
     return _factory
+
+
+@pytest.mark.asyncio
+async def test_cover_signature_expiry_is_day_aligned_and_stable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeS3Storage()
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), cover=True)
+    await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), cover=True)
+
+    expires = [c["expires"] for c in storage.presigned_calls]
+    # Same day → identical signed URL → browser/CDN disk-caches the thumb
+    assert expires[0] == expires[1]
+    assert expires[0] % 86400 == 0
+    assert expires[0] >= 86400

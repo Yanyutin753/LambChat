@@ -8,6 +8,7 @@ long-lived signed URL, local storage resizes with Pillow, everything else
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import HTTPException
@@ -21,7 +22,16 @@ logger = get_logger(__name__)
 
 COVER_WIDTH = 560
 COVER_HEIGHT = 315
-COVER_SIGNED_EXPIRES = 7 * 24 * 3600  # stable URL → browser/CDN can cache
+_DAY = 24 * 3600
+
+
+def cover_signature_expiry() -> int:
+    """Day-aligned expiry: every request within a day yields the identical
+    signed URL, so browsers/CDNs disk-cache the thumbnail itself instead of
+    re-fetching a fresh signature per visit. Valid until end of tomorrow."""
+    now = int(time.time())
+    return ((now // _DAY) + 2) * _DAY
+
 
 _COVER_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "bmp"}
 # gif keeps its animation and svg is vector data — neither crops well
@@ -98,7 +108,7 @@ async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Resp
         logger.warning(f"Failed to check file existence for {key}: {e}")
 
     try:
-        url = await storage.get_presigned_url(key, COVER_SIGNED_EXPIRES, process=process)
+        url = await storage.get_presigned_url(key, cover_signature_expiry(), process=process)
     except TypeError:
         raise HTTPException(status_code=404, detail="Cover thumbnail not available")
     except Exception as e:
