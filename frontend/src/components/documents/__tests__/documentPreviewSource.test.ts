@@ -21,3 +21,9 @@ test("DocumentPreview fetches file content through the upload proxy", () => {
   expect(source).toMatch(/fetchDocumentArrayBuffer\(readUrl\)/);
   expect(source).toMatch(/fetchDocumentText\(readUrl\)/);
 });
+
+test("DocumentPreview download URL is absolutized for every source", () => {
+  expect(source).toMatch(/getFullUrl\(signedUrl\)/);
+  expect(source).toMatch(/getFullUrl\(resolvedUrl\)/);
+  expect(source).toMatch(/getFullUrl\(externalImageUrl\)/);
+});
