@@ -769,7 +769,9 @@ async def test_memory_index_snapshotted_per_user_with_ttl(monkeypatch) -> None:
     every turn."""
     from src.infra.agent.middleware import prompt_injection
 
+    # 模块级 dict 是共享状态——两个都要清，防前序测试污染（见下方 test_memory_index_skipped_when_user_disabled）
     prompt_injection._MEMORY_INDEX_SNAPSHOTS.clear()
+    prompt_injection._MEMORY_INDEX_USER_SNAPSHOTS.clear()
     calls = {"n": 0}
 
     async def _uncached(_user_id: str) -> str:

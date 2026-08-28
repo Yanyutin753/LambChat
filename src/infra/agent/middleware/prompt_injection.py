@@ -38,8 +38,25 @@ _MEMORY_INDEX_EMPTY_TTL_SECONDS = 60
 _MEMORY_INDEX_BUILD_TIMEOUT_SECONDS = 2.0
 _MEMORY_INDEX_SNAPSHOT_MAX_SIZE = 2000
 
-# 用户级 fallback（无 session_id 的场景，如 sub-agent）
+# 用户级 fallback（无 session_id 的场景，如 sub-agent）；同样有上界防膨胀
 _MEMORY_INDEX_USER_SNAPSHOTS: dict[str, tuple[float, str]] = {}
+_MEMORY_INDEX_USER_SNAPSHOT_MAX_SIZE = 2000
+
+
+def _evict_oldest_user_snapshots() -> None:
+    """LRU-style：先清过期（>60s），仍超限再按最旧淘汰——与会话快照同策略。"""
+    import time as _time
+
+    now = _time.monotonic()
+    expired = [k for k, (t, _) in _MEMORY_INDEX_USER_SNAPSHOTS.items() if (now - t) > 60]
+    for k in expired:
+        _MEMORY_INDEX_USER_SNAPSHOTS.pop(k, None)
+    if len(_MEMORY_INDEX_USER_SNAPSHOTS) > _MEMORY_INDEX_USER_SNAPSHOT_MAX_SIZE:
+        sorted_keys = sorted(
+            _MEMORY_INDEX_USER_SNAPSHOTS, key=lambda k: _MEMORY_INDEX_USER_SNAPSHOTS[k][0]
+        )
+        for k in sorted_keys[: len(sorted_keys) - _MEMORY_INDEX_USER_SNAPSHOT_MAX_SIZE]:
+            _MEMORY_INDEX_USER_SNAPSHOTS.pop(k, None)
 
 
 def invalidate_memory_index_snapshot(user_id: str) -> None:
@@ -176,6 +193,8 @@ async def _build_memory_index_for_user(user_id: str, *, session_id: str | None =
             _evict_oldest_snapshots()
     else:
         _MEMORY_INDEX_USER_SNAPSHOTS[cache_key] = (now, index)  # type: ignore[index,assignment]
+        if len(_MEMORY_INDEX_USER_SNAPSHOTS) > _MEMORY_INDEX_USER_SNAPSHOT_MAX_SIZE:
+            _evict_oldest_user_snapshots()
     return index
 
 

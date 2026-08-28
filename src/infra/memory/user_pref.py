@@ -17,7 +17,23 @@ from src.kernel.config import settings
 logger = logging.getLogger(__name__)
 
 PREF_CACHE_TTL_SECONDS = 30
+_PREF_CACHE_MAX_SIZE = 2000  # 上界防用户量异常膨胀；超限先清过期再淘汰最旧
 _pref_cache: dict[str, tuple[datetime, bool]] = {}
+
+
+def _evict_pref_cache() -> None:
+    now = datetime.now(timezone.utc)
+    expired = [
+        uid
+        for uid, (t, _) in _pref_cache.items()
+        if (now - t).total_seconds() >= PREF_CACHE_TTL_SECONDS
+    ]
+    for uid in expired:
+        _pref_cache.pop(uid, None)
+    if len(_pref_cache) > _PREF_CACHE_MAX_SIZE:
+        oldest = sorted(_pref_cache, key=lambda uid: _pref_cache[uid][0])
+        for uid in oldest[: len(_pref_cache) - _PREF_CACHE_MAX_SIZE]:
+            _pref_cache.pop(uid, None)
 
 
 def _get_users_collection():
@@ -54,4 +70,6 @@ async def user_memory_enabled(user_id: str) -> bool:
         logger.debug("[MemoryUserPref] lookup failed, defaulting enabled: %s", e)
         enabled = True
     _pref_cache[user_id] = (now, enabled)
+    if len(_pref_cache) > _PREF_CACHE_MAX_SIZE:
+        _evict_pref_cache()
     return enabled

@@ -164,3 +164,20 @@ async def test_auto_capture_gated_for_disabled_user(monkeypatch):
     await memory_tools._auto_retain_user_memory("u1", "一条不该被评估的消息")
 
     assert events == []  # 关闭用户直接短路，连分布式锁都不碰
+
+
+@pytest.mark.asyncio
+async def test_pref_cache_bounded_under_burst(monkeypatch):
+    """缓存上界：超限时先清过期再淘汰最旧，条目数不超过上限。"""
+    cap = getattr(user_pref, "_PREF_CACHE_MAX_SIZE", None)
+    if cap is None:
+        cap = 2000
+    stale = datetime.now(timezone.utc) - timedelta(seconds=9999)
+    for i in range(cap + 500):
+        user_pref._pref_cache[f"old-{i}"] = (stale, True)
+
+    monkeypatch.setattr(user_pref, "_get_users_collection", lambda: _FakeUserCollection({}))
+    await user_pref.user_memory_enabled("fresh-user")
+
+    assert len(user_pref._pref_cache) <= cap
+    assert "fresh-user" in user_pref._pref_cache
