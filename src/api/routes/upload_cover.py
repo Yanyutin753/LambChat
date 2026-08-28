@@ -53,8 +53,8 @@ def _render_local_cover(file_path) -> bytes:
 
     from PIL import Image, ImageOps
 
-    with Image.open(file_path) as img:
-        img = ImageOps.exif_transpose(img)
+    with Image.open(file_path) as opened:
+        img: Image.Image = ImageOps.exif_transpose(opened)
         if img.mode != "RGB":
             img = img.convert("RGB")
         fitted = ImageOps.fit(img, (COVER_WIDTH, COVER_HEIGHT))

@@ -243,7 +243,9 @@ class MinioS3Backend(S3StorageBackend):
     async def get_url(self, key: str) -> str:
         return self.config.get_public_url(key)
 
-    async def get_presigned_url(self, key: str, expires: int = 3600) -> str:
+    async def get_presigned_url(
+        self, key: str, expires: int = 3600, process: str | None = None
+    ) -> str:
         client = await run_blocking_io(self._get_client)
 
         def _presigned_url():

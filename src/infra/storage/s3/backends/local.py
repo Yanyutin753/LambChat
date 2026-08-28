@@ -193,7 +193,9 @@ class LocalStorageBackend(S3StorageBackend):
     async def get_url(self, key: str) -> str:
         return f"/api/upload/file/{key}"
 
-    async def get_presigned_url(self, key: str, expires: int = 3600) -> str:
+    async def get_presigned_url(
+        self, key: str, expires: int = 3600, process: str | None = None
+    ) -> str:
         _ = expires
         return f"/api/upload/file/{key}"
 

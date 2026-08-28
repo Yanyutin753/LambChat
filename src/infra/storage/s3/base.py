@@ -122,8 +122,14 @@ class S3StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def get_presigned_url(self, key: str, expires: int = 3600) -> str:
-        """Get presigned URL for a file (for private buckets)"""
+    async def get_presigned_url(
+        self, key: str, expires: int = 3600, process: str | None = None
+    ) -> str:
+        """Get presigned URL for a file (for private buckets).
+
+        `process` requests provider-side processing (e.g. OSS image crop)
+        and is signed into the URL; backends without support may ignore it.
+        """
         pass
 
     @abstractmethod
