@@ -132,9 +132,7 @@ class S3StorageBackend(ABC):
         """
         pass
 
-    async def sign_url_at(
-        self, key: str, expires_at: int, process: str | None = None
-    ) -> str:
+    async def sign_url_at(self, key: str, expires_at: int, process: str | None = None) -> str:
         """V1-signed GET URL with an absolute expiry timestamp.
 
         Used by cover thumbnails so day-aligned URLs stay stable for

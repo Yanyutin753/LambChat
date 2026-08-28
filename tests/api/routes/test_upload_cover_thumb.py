@@ -496,7 +496,6 @@ async def test_concurrent_first_requests_render_only_once(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
     monkeypatch.setattr("src.api.routes.upload_cover.render_pdf_cover", _slow_render)
 
-
     responses = await asyncio.gather(
         *[
             upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
