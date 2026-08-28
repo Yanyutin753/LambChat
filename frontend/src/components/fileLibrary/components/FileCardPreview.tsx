@@ -203,13 +203,13 @@ function CodeCover({ p }: { p: FileCardPreviewModel }) {
   return (
     <PaperCanvas>
       <div className="flex h-full flex-col">
-        <div className="flex items-center gap-1.5 border-b border-stone-200 px-3 py-1.5 dark:border-stone-800">
-          <span className="flex gap-1">
+        <div className="flex items-center gap-2 border-b border-stone-200 px-3 py-1.5 dark:border-stone-800">
+          <span className="flex items-center gap-1">
             <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
             <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
             <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
           </span>
-          <span className="truncate font-mono text-[8px] text-stone-400 dark:text-stone-500">
+          <span className="truncate font-serif text-[9px] leading-none text-stone-500 dark:text-stone-400">
             {p.title}
           </span>
         </div>
