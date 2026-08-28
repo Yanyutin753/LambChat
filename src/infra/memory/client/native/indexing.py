@@ -103,7 +103,9 @@ async def build_memory_index(backend, user_id: str) -> str:
         MemoryType.REFERENCE.value: "Reference",
     }
 
-    # Lessons 子块：feedback_rule 教训一行一条，独立预算（自进化小抄）
+    # Lessons 子块：feedback_rule 教训一行一条，独立预算（自进化小抄）。
+    # 刻意只按 updated_at 排序：access_count 每次召回自增，若进排序键会在
+    # 快照重建时改变前缀字节、击穿 KV 缓存（与 choose_index_memories 同纪律）。
     lessons_max_chars = 400
     lesson_docs = [d for d in docs if d.get("context") == "feedback_rule"]
     lesson_docs.sort(key=lambda d: str(d.get("updated_at") or ""), reverse=True)

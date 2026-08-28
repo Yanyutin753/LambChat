@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -53,19 +54,54 @@ class QdrantVectorIndex:
             await self.ensure_collection()
             self._ensured = True
 
-    async def ensure_collection(self) -> None:
+    async def ensure_collection(self) -> bool:
+        """确保 collection 存在且维度与配置一致。
+
+        返回 True = 本次新建（调用方可据此触发回填）；False = 已存在且一致。
+        维度不一致时抛 RuntimeError 且不删库——存量 Mongo embedding 已随旧
+        维度失配，自动重建也无法正确回填，需管理员显式处置（换嵌入模型后
+        应清理旧 embedding 重嵌，或删除该 collection 后重建）。
+        """
         from qdrant_client.models import Distance, VectorParams
 
-        if not await self._client.collection_exists(COLLECTION):
-            await self._client.create_collection(
-                collection_name=COLLECTION,
-                vectors_config=VectorParams(size=self._dims, distance=Distance.COSINE),
-            )
-            logger.info(
-                "[MemoryVector] Qdrant collection created: %s (%d dims, cosine)",
+        if await self._client.collection_exists(COLLECTION):
+            existing_size = await self._existing_vector_size()
+            if existing_size is None or existing_size == self._dims:
+                return False
+            logger.error(
+                "[MemoryVector] collection %s dimension mismatch: existing=%s configured=%d "
+                "— vector index degraded to mongo fallback. Re-embed memories or drop the "
+                "collection to recover.",
                 COLLECTION,
+                existing_size,
                 self._dims,
             )
+            raise RuntimeError(
+                f"vector collection dimension mismatch: {existing_size} != {self._dims}"
+            )
+        await self._client.create_collection(
+            collection_name=COLLECTION,
+            vectors_config=VectorParams(size=self._dims, distance=Distance.COSINE),
+        )
+        logger.info(
+            "[MemoryVector] Qdrant collection created: %s (%d dims, cosine)",
+            COLLECTION,
+            self._dims,
+        )
+        return True
+
+    async def _existing_vector_size(self) -> Optional[int]:
+        """读取既有 collection 的向量维度；读不出（结构异常）返回 None 视为兼容。"""
+        try:
+            info = await self._client.get_collection(COLLECTION)
+            vectors = getattr(getattr(info.config, "params", None), "vectors", None)
+            size = getattr(vectors, "size", None)
+            if size is None and isinstance(vectors, dict):
+                size = vectors.get("size")
+            return int(size) if size is not None else None
+        except Exception as e:
+            logger.warning("[MemoryVector] failed to read existing vector size: %s", e)
+            return None
 
     async def upsert(
         self,
@@ -166,9 +202,65 @@ _vector_index: Optional[QdrantVectorIndex] = None
 _index_failed_until = 0.0  # monotonic 时间戳；冷却期内不再重试建连
 _INDEX_RETRY_COOLDOWN_SECONDS = 60.0
 
+# 自动回填（issue #278）：切到 qdrant 后存量 Mongo embedding 自动灌入，
+# 完成标记持久在 Redis——跨副本至多跑一次；首建/重建 force 重跑。
+_BACKFILL_DONE_KEY = "memory:vector_backfill:done"
+_BACKFILL_LOCK_KEY = "memory:vector_backfill:lock"
+_BACKFILL_LOCK_TTL = 1800  # 覆盖最大预期回填时长
+_RELEASE_LOCK_LUA = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then "
+    "return redis.call('del', KEYS[1]) else return 0 end"
+)
+_backfill_task: Optional[asyncio.Task] = None
+
 
 def vector_backend_enabled() -> bool:
     return getattr(settings, "NATIVE_MEMORY_VECTOR_BACKEND", "mongo") == "qdrant"
+
+
+async def _run_backfill_once(*, force: bool = False) -> None:
+    """幂等自动回填：Redis 完成标记 + token 锁防跨副本重跑。
+
+    回填只搬运 Mongo 已存的 embedding（不重算），成本低；任何故障静默
+    降级（下次建库重试），绝不影响主链路。
+    """
+    try:
+        from src.infra.storage.redis import get_redis_client
+
+        rc = get_redis_client()
+        if force:
+            await rc.delete(_BACKFILL_DONE_KEY)
+        elif await rc.get(_BACKFILL_DONE_KEY):
+            return
+        token = uuid.uuid4().hex[:8]
+        if not await rc.set(_BACKFILL_LOCK_KEY, token, nx=True, ex=_BACKFILL_LOCK_TTL):
+            return  # 其他副本在灌
+        try:
+            from src.infra.memory.tools import _get_backend
+
+            backend = await _get_backend()
+            collection = getattr(backend, "_collection", None) if backend is not None else None
+            if collection is None:
+                return
+            result = await backfill_from_mongo(collection)
+            await rc.set(_BACKFILL_DONE_KEY, "1")  # type: ignore[misc]
+            logger.info("[MemoryVector] auto backfill completed: %s", result)
+        finally:
+            await rc.eval(_RELEASE_LOCK_LUA, 1, _BACKFILL_LOCK_KEY, token)  # type: ignore[misc]
+    except Exception as e:
+        logger.warning("[MemoryVector] auto backfill failed (will retry next init): %s", e)
+
+
+def _schedule_backfill_once(*, force: bool = False) -> None:
+    """后台调度回填；持引用防 GC 中断，单例存续期内至多一个在途任务。"""
+    global _backfill_task
+    if _backfill_task is not None and not _backfill_task.done():
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        _backfill_task = loop.create_task(_run_backfill_once(force=force))
+    except RuntimeError:
+        pass
 
 
 async def get_vector_index() -> Optional[QdrantVectorIndex]:
@@ -184,13 +276,15 @@ async def get_vector_index() -> Optional[QdrantVectorIndex]:
             return None
         candidate = QdrantVectorIndex()
         try:
-            await candidate.ensure_collection()
+            created = await candidate.ensure_collection()
         except Exception as e:
             logger.warning("[MemoryVector] Qdrant unavailable, vector backend degraded: %s", e)
             await candidate.close()
             _index_failed_until = time.monotonic() + _INDEX_RETRY_COOLDOWN_SECONDS
             return None
         _vector_index = candidate
+        # 首建（或 done 标记缺失的上次未完成回填）→ 后台自动回填存量
+        _schedule_backfill_once(force=created)
     return _vector_index
 
 

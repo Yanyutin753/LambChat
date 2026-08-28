@@ -58,7 +58,7 @@ Codex（v0.100+ Memories）与 Claude Code 收敛出的专业模式，正是本�
 
 ### 3. 进化式小抄层（注入升级，零新注入机制）
 
-`indexing.py` 的 `<memory_index>` 增加一个 `### Lessons` 子块：feedback_rule 类记忆按 `(命中次数×新鲜度×manual优先)` 排序取 top-3，每条一行 `rule`（Why/How 留给 memory_recall）。**骑现有 30 分钟快照机制**——KV 缓存纪律零新增（tools 前缀字节稳定性由既有快照保证）。子块预算 ≤400 字符，超预算从尾部裁。
+`indexing.py` 的 `<memory_index>` 增加一个 `## Lessons` 子块：feedback_rule 类记忆按 `updated_at` 倒序取 top-3（**刻意不用命中次数排序**：`access_count` 每次召回都会自增，一旦进入排序键，快照 TTL 过期重建时前缀字节会变、击穿 KV 缓存——与类型区 `choose_index_memories` 的稳定性纪律一致；manual 优先已在类型区实现），每条一行 `rule`（Why/How 留给 memory_recall）。**骑现有 30 分钟快照机制**——KV 缓存纪律零新增（tools 前缀字节稳定性由既有快照保证）。子块预算 ≤400 字符，超预算从尾部裁。
 
 ### 4. 治理与护栏
 
