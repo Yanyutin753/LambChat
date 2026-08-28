@@ -82,6 +82,7 @@ def _get_traces_collection():
 
 
 _marks_indexes_ensured = False
+_marks_ensure_tasks: set = set()
 
 
 def _get_marks_collection():
@@ -109,7 +110,10 @@ def _get_marks_collection():
 
         try:
             loop = asyncio.get_event_loop()
-            loop.create_task(_ensure())
+            # 持引用防 GC 中断（CPython 对无引用的任务不保证执行完）
+            task = loop.create_task(_ensure())
+            _marks_ensure_tasks.add(task)
+            task.add_done_callback(_marks_ensure_tasks.discard)
         except RuntimeError:
             pass
     return col
@@ -166,12 +170,20 @@ async def collect_signal_runs(
     except Exception as e:
         logger.warning("[MemoryEvolution] feedback scan failed: %s", e)
 
-    # 失败 run（通过 marks 集合排除已处理的）
+    # 失败 run（通过 marks 集合排除已处理的）。
+    # traces 终态写入的是 "error"（complete_trace 调用点），
+    # "failed" 仅作防御性兼容，防止旧数据/未来取值变化漏采。
     try:
         marked = await _get_marked_run_ids(user_id)
         tr_docs = (
             await _get_traces_collection()
-            .find({"user_id": user_id, "status": "failed", "started_at": {"$gte": cutoff}})
+            .find(
+                {
+                    "user_id": user_id,
+                    "status": {"$in": ["error", "failed"]},
+                    "started_at": {"$gte": cutoff},
+                }
+            )
             .sort("started_at", -1)
             .limit(cap * 2)
             .to_list(length=cap * 2)
@@ -387,13 +399,14 @@ async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
         logger.info("[MemoryEvolution] no exchange content for %s, skipping", signal.run_id)
         return {"stored": 0}  # 空内容 = 合法跳过（标记已处理）
 
+    # 注入防护：用户可控文本（消息正文/差评评论）中的代码围栏替换为普通引号防 prompt 注入
+    safe_user = (user_msg or "")[:EXCHANGE_CLIP_CHARS].replace("```", "'''")
+    safe_comment = (signal.comment or "").replace("```", "'''")
     outcome = {
-        "down": f"User rated this run DOWN. Comment: {signal.comment or '(none)'}",
+        "down": f"User rated this run DOWN. Comment: {safe_comment or '(none)'}",
         "failed": "This run FAILED (assistant errored or never completed).",
         "up": "User rated this run UP (validated practice — record what worked, anti-drift).",
     }.get(signal.kind, "Unknown outcome.")
-    # 注入防护：用户消息中的代码围栏替换为普通引号防 prompt 注入
-    safe_user = (user_msg or "")[:EXCHANGE_CLIP_CHARS].replace("```", "'''")
 
     # 相似既有教训喂给 LLM 做去重（直调 recall_memories 绕过 backend.recall 的签名限制）
     existing_text = ""

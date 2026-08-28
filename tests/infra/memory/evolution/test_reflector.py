@@ -41,7 +41,15 @@ class _FakeTracesCol:
 
     def find(self, query, *_a, **_k):
         uid = query.get("user_id")
-        return _FakeFind([d for d in self._docs if d.get("user_id") == uid])
+        status = query.get("status")
+
+        def _status_match(d):
+            # 对齐真实 Mongo 语义：$in 任意命中或精确相等
+            if isinstance(status, dict) and "$in" in status:
+                return d.get("status") in status["$in"]
+            return status is None or d.get("status") == status
+
+        return _FakeFind([d for d in self._docs if d.get("user_id") == uid and _status_match(d)])
 
 
 @pytest.fixture(autouse=True)
@@ -83,9 +91,17 @@ async def test_collect_signals_down_and_failed(monkeypatch):
                     "user_id": "u1",
                     "run_id": "r-fail",
                     "session_id": "s2",
-                    "status": "failed",
+                    # 真实 schema：complete_trace 终态写 "error"（非 "failed"）
+                    "status": "error",
                     "started_at": _dt(hours=3),
-                }
+                },
+                {
+                    "user_id": "u1",
+                    "run_id": "r-done",
+                    "session_id": "s3",
+                    "status": "completed",
+                    "started_at": _dt(hours=1),
+                },
             ]
         ),
     )

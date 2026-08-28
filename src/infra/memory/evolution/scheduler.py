@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from src.kernel.config import settings
 
@@ -16,38 +17,41 @@ EVOLUTION_SCAN_LOCK_KEY = "memory:evolution_scan_lock"
 EVOLUTION_SCAN_LOCK_TTL = 600  # 10 分钟（远小于调度间隔，防死锁）
 
 
-_EVOLUTION_LOCK_TOKEN: str = ""
 _RELEASE_LOCK_LUA = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
 )
 
 
-async def _acquire_scan_lock() -> bool:
-    """Redis SETNX 扫描锁——多副本防重。fail-closed：Redis 不可用时不执行。"""
-    global _EVOLUTION_LOCK_TOKEN
+async def _acquire_scan_lock() -> Optional[str]:
+    """Redis SETNX 扫描锁——多副本防重。fail-closed：Redis 不可用时不执行。
+
+    返回本次持有的 token（释放用）；未取到锁返回 None。
+    token 由调用方持有，防止锁 TTL 过期交叉后释放掉其他副本的锁。
+    """
     try:
         from src.infra.storage.redis import get_redis_client
 
-        _EVOLUTION_LOCK_TOKEN = uuid.uuid4().hex[:8]
+        token = uuid.uuid4().hex[:8]
         acquired = await get_redis_client().set(
-            EVOLUTION_SCAN_LOCK_KEY, _EVOLUTION_LOCK_TOKEN, nx=True, ex=EVOLUTION_SCAN_LOCK_TTL
+            EVOLUTION_SCAN_LOCK_KEY, token, nx=True, ex=EVOLUTION_SCAN_LOCK_TTL
         )
-        return bool(acquired)
+        return token if acquired else None
     except Exception as e:
         logger.warning("[MemoryEvolution] scan lock failed (fail-closed): %s", e)
-        return False
+        return None
 
 
-async def _release_scan_lock() -> None:
+async def _release_scan_lock(token: str) -> None:
     """Token-checked 释放——只删自己的锁。"""
+    if not token:
+        return
     try:
         from src.infra.storage.redis import get_redis_client
 
-        if _EVOLUTION_LOCK_TOKEN:
-            await get_redis_client().eval(  # type: ignore[misc]
-                _RELEASE_LOCK_LUA, 1, EVOLUTION_SCAN_LOCK_KEY, _EVOLUTION_LOCK_TOKEN
-            )
+        await get_redis_client().eval(  # type: ignore[misc]
+            _RELEASE_LOCK_LUA, 1, EVOLUTION_SCAN_LOCK_KEY, token
+        )
     except Exception:
         pass
 
@@ -88,7 +92,8 @@ async def _collect_signal_user_ids(cutoff: datetime) -> list[str]:
                 _get_traces_collection()
                 .find(
                     {
-                        "status": "failed",
+                        # traces 终态写入 "error"；"failed" 仅防御性兼容
+                        "status": {"$in": ["error", "failed"]},
                         "started_at": {"$gte": cutoff},
                         "user_id": {"$exists": True},
                     },
@@ -115,7 +120,8 @@ async def run_scheduled_evolution() -> dict:
     if not getattr(settings, "NATIVE_MEMORY_SELF_EVOLVE_ENABLED", False):
         return {"skipped": "self_evolve_disabled"}
 
-    if not await _acquire_scan_lock():
+    lock_token = await _acquire_scan_lock()
+    if not lock_token:
         logger.info("[MemoryEvolution] scan lock held by another instance, skipping")
         return {"skipped": "scan_lock_not_acquired"}
 
@@ -152,7 +158,7 @@ async def run_scheduled_evolution() -> dict:
         )
         return {"users": len(user_ids), "users_evolved": users_processed, "stored": total}
     finally:
-        await _release_scan_lock()
+        await _release_scan_lock(lock_token)
 
 
 def is_evolution_enabled() -> bool:

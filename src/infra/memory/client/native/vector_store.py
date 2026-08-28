@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Optional
@@ -162,6 +163,8 @@ class QdrantVectorIndex:
 # ---------------------------------------------------------------------------
 
 _vector_index: Optional[QdrantVectorIndex] = None
+_index_failed_until = 0.0  # monotonic 时间戳；冷却期内不再重试建连
+_INDEX_RETRY_COOLDOWN_SECONDS = 60.0
 
 
 def vector_backend_enabled() -> bool:
@@ -169,27 +172,34 @@ def vector_backend_enabled() -> bool:
 
 
 async def get_vector_index() -> Optional[QdrantVectorIndex]:
-    """单例；未启用返回 None。collection 惰性确保（首用时建）。"""
-    global _vector_index
+    """单例；未启用返回 None。collection 惰性确保（首用时建）。
+
+    Qdrant 不可达时进入冷却期，避免每次 recall/retain 都重付建连+ensure 的超时成本。
+    """
+    global _vector_index, _index_failed_until
     if not vector_backend_enabled():
         return None
     if _vector_index is None:
+        if time.monotonic() < _index_failed_until:
+            return None
         candidate = QdrantVectorIndex()
         try:
             await candidate.ensure_collection()
         except Exception as e:
             logger.warning("[MemoryVector] Qdrant unavailable, vector backend degraded: %s", e)
             await candidate.close()
+            _index_failed_until = time.monotonic() + _INDEX_RETRY_COOLDOWN_SECONDS
             return None
         _vector_index = candidate
     return _vector_index
 
 
 async def reset_vector_index() -> None:
-    global _vector_index
+    global _vector_index, _index_failed_until
     if _vector_index is not None:
         await _vector_index.close()
     _vector_index = None
+    _index_failed_until = 0.0
 
 
 # ---------------------------------------------------------------------------
