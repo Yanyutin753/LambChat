@@ -42,6 +42,7 @@ from src.api.routes.upload_signed_urls import (
 from src.api.routes.upload_signed_urls import (
     router as signed_url_router,
 )
+from src.api.routes.upload_thumb import get_file_thumb_response
 from src.infra.async_utils import run_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.auth.rbac import check_permission
@@ -829,6 +830,7 @@ async def get_file_proxy(
     direct: bool = False,
     proxy: bool = False,
     cover: bool = False,
+    thumb: bool = False,
     t: int | None = None,
 ) -> Response:
     """
@@ -845,6 +847,10 @@ async def get_file_proxy(
             (OSS image crop / video first frame; local storage via Pillow).
             Unsupported types return 404 so clients fall back without
             downloading the original file.
+        thumb: If true, serve an aspect-fit chat thumbnail instead of the
+            original (OSS m_lfit resize; local/Pillow; other S3 providers
+            render once and cache beside the original). Unsupported types
+            return 404 so clients fall back to the original.
         t: Video snapshot timestamp in ms for cover (default 1000).
     """
     from fastapi.responses import JSONResponse
@@ -853,6 +859,9 @@ async def get_file_proxy(
 
     if cover:
         return await get_file_cover_response(storage, key, t)
+
+    if thumb:
+        return await get_file_thumb_response(storage, key)
 
     base_url = _get_base_url(request)
     proxy_url = f"{base_url}/api/upload/file/{key}"

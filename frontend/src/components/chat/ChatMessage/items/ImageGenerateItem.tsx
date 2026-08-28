@@ -13,6 +13,7 @@ import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { useSessionImageGallery } from "../sessionImageGallery";
 import { getFullUrl } from "../../../../services/api/config";
+import { buildChatThumbUrl } from "../../../../utils/chatThumbs";
 
 const ImageGenerateItem = memo(function ImageGenerateItem({
   args,
@@ -258,6 +259,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
                 >
                   <ImageWithSkeleton
                     src={resolvedUrl}
+                    thumbSrc={buildChatThumbUrl(resolvedUrl)}
                     alt={t("chat.message.toolImageRefAlt", { index: i + 1 })}
                     skipUrlResolve
                     inline
@@ -295,6 +297,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
             >
               <ImageWithSkeleton
                 src={img.url}
+                thumbSrc={buildChatThumbUrl(img.url)}
                 alt={img.name}
                 skipUrlResolve
                 inline
@@ -419,6 +422,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
               >
                 <ImageWithSkeleton
                   src={resolvedUrl}
+                  thumbSrc={buildChatThumbUrl(resolvedUrl)}
                   alt={t("chat.message.toolImageRefAltShort", { index: i + 1 })}
                   skipUrlResolve
                   inline
@@ -449,6 +453,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
             >
               <ImageWithSkeleton
                 src={img.url}
+                thumbSrc={buildChatThumbUrl(img.url)}
                 alt={img.name}
                 skipUrlResolve
                 inline

@@ -18,6 +18,7 @@ import { setActiveRevealPreviewState } from "./items/activeRevealPreviewStore";
 import { createActiveRevealPreviewState } from "./items/revealPreviewState";
 import { shouldInterceptFilePreviewLink } from "./items/revealPreviewLinks";
 import { copyToClipboard } from "../../../utils/clipboard";
+import { buildChatThumbUrl } from "../../../utils/chatThumbs";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { normalizeMarkdownCodeFences } from "./markdownCodeFences";
@@ -571,6 +572,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             return (
               <ImageWithSkeleton
                 src={resolvedSrc}
+                thumbSrc={buildChatThumbUrl(resolvedSrc)}
                 alt={alt}
                 loading="eager"
                 className="max-w-lg h-auto rounded-lg shadow hover:opacity-90 transition-opacity cursor-zoom-in"
