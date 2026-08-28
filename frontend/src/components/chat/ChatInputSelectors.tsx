@@ -73,6 +73,8 @@ export interface ChatInputSelectorsProps {
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
+  /** 当前模型思考能力；undefined=未知（不隐藏），false=隐藏思考强度控件 */
+  modelSupportsThinking?: boolean;
 }
 
 export function ChatInputSelectors({
@@ -118,6 +120,7 @@ export function ChatInputSelectors({
   agentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
+  modelSupportsThinking,
 }: ChatInputSelectorsProps) {
   const navigate = useNavigate();
 
@@ -206,7 +209,13 @@ export function ChatInputSelectors({
         onToggleAgentOption &&
         Object.keys(agentOptions).length > 0 &&
         Object.entries(agentOptions)
-          .filter(([, opt]) => opt.options && opt.options.length > 0)
+          .filter(
+            ([key, opt]) =>
+              opt.options &&
+              opt.options.length > 0 &&
+              // 仅思考选项按模型能力隐藏；未来其他枚举型选项不受连带影响
+              (key !== "enable_thinking" || modelSupportsThinking !== false),
+          )
           .map(([key, option]) => (
             <AgentOptionButton
               key={key}

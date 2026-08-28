@@ -391,14 +391,14 @@ export function FileRevealItem({
               {(isImage || isVideo || isExcalidraw) && (
                 <>
                   <div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none z-[2]">
-                    <div className="p-1.5 rounded-lg bg-black/40 backdrop-blur-sm shadow pointer-events-auto">
+                    <div className="p-1.5 rounded-lg bg-black/40 shadow pointer-events-auto">
                       <ExternalLink size={14} className="text-white" />
                     </div>
                   </div>
                   {isImage && (fileName || parsed.description) && (
                     <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 transition-opacity z-[2]">
                       <div className="px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent">
-                        <span className="text-[11px] text-white/90 truncate block">
+                        <span className="text-[11px] text-white/90 truncate block font-serif">
                           {parsed.description || fileName}
                         </span>
                       </div>

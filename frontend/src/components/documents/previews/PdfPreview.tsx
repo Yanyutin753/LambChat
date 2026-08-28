@@ -107,7 +107,7 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
       </DocumentViewerFrame>
 
       {numPages > 0 && (
-        <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg bg-black/60 px-2.5 py-1.5 text-xs font-medium text-white/75 backdrop-blur-sm sm:left-4 sm:top-4">
+        <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg bg-black/60 px-2.5 py-1.5 text-xs font-medium text-white/75 sm:left-4 sm:top-4 font-serif">
           {pageCountLabel}
         </div>
       )}

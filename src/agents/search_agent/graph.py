@@ -75,7 +75,6 @@ class SearchAgent(BaseGraphAgent):
             "description_key": "agentOptions.enableThinking.description",
             "icon": "Brain",
             "options": [
-                {"value": "off", "label_key": "agentOptions.enableThinking.options.off"},
                 {"value": "low", "label_key": "agentOptions.enableThinking.options.low"},
                 {"value": "medium", "label_key": "agentOptions.enableThinking.options.medium"},
                 {"value": "high", "label_key": "agentOptions.enableThinking.options.high"},

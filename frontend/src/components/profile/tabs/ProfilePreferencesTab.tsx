@@ -27,7 +27,7 @@ const LANGUAGES = [
   { code: "ru", nativeName: "Русский" },
 ];
 
-type ThinkingLevel = "off" | "low" | "medium" | "high" | "max";
+type ThinkingLevel = "low" | "medium" | "high" | "max";
 
 const NEWLINE_OPTIONS: { key: SendModifier; labelKey: string }[] = [
   { key: "enter", labelKey: "profile.newlineEnter" },
@@ -42,7 +42,6 @@ const THEME_OPTIONS: { key: Theme; labelKey: string }[] = [
 ];
 
 const THINKING_LEVEL_OPTIONS: { key: ThinkingLevel; labelKey: string }[] = [
-  { key: "off", labelKey: "agentOptions.enableThinking.options.off" },
   { key: "low", labelKey: "agentOptions.enableThinking.options.low" },
   { key: "medium", labelKey: "agentOptions.enableThinking.options.medium" },
   { key: "high", labelKey: "agentOptions.enableThinking.options.high" },
@@ -178,9 +177,9 @@ export function ProfilePreferencesTab() {
   );
   const [defaultThinkingLevel, setDefaultThinkingLevel] =
     useState<ThinkingLevel>(() => {
+      // "off" 档已下线：历史存量值降级到最低档
       const stored = localStorage.getItem(DEFAULT_THINKING_LEVEL_STORAGE_KEY);
       if (
-        stored === "off" ||
         stored === "low" ||
         stored === "medium" ||
         stored === "high" ||

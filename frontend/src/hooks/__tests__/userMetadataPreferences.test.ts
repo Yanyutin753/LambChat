@@ -12,6 +12,25 @@ class LocalStorageMock {
   }
 }
 
+test("normalizes retired thinking off level to low when applying metadata", () => {
+  const localStorage = new LocalStorageMock();
+  const events: { type: string; detail: unknown }[] = [];
+
+  applyUserMetadataPreferences({
+    metadata: { defaultThinkingLevel: "off" },
+    localStorage,
+    changeLanguage: () => {},
+    dispatchEvent: (event) => {
+      events.push({ type: event.type, detail: event.detail });
+    },
+  });
+
+  expect(localStorage.getItem("defaultThinkingLevel")).toBe("low");
+  expect(events).toEqual([
+    { type: "thinking-preference-updated", detail: "low" },
+  ]);
+});
+
 test("applies all persisted user metadata preferences to local storage and events", () => {
   const localStorage = new LocalStorageMock();
   const events: { type: string; detail: unknown }[] = [];

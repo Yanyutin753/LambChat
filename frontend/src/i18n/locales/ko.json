@@ -219,14 +219,13 @@
       "label": "코드 인터프리터"
     },
     "enableThinking": {
-      "description": "사고 강도를 조절합니다 (지원 모델에만 적용)",
+      "description": "사고 강도를 조절합니다",
       "label": "사고",
       "options": {
         "high": "높음",
         "low": "낮음",
         "max": "최강",
-        "medium": "중간",
-        "off": "끔"
+        "medium": "중간"
       }
     }
   },

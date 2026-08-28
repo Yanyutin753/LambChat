@@ -4,27 +4,27 @@ import type { AgentInfo } from "../../../types";
 export const DEFAULT_THINKING_LEVEL_STORAGE_KEY = "defaultThinkingLevel";
 
 const THINKING_LEVEL_OPTION_DEFS = [
-  { value: "off", label_key: "agentOptions.enableThinking.options.off" },
   { value: "low", label_key: "agentOptions.enableThinking.options.low" },
   { value: "medium", label_key: "agentOptions.enableThinking.options.medium" },
   { value: "high", label_key: "agentOptions.enableThinking.options.high" },
   { value: "max", label_key: "agentOptions.enableThinking.options.max" },
 ] as const;
 
-function normalizeThinkingOptionValue(value: boolean | string | number) {
+/** 归一思考档位值："off" 时代已下线，历史 off 值统一降级到 low */
+export function normalizeThinkingOptionValue(value: boolean | string | number) {
   if (value === true) return "medium";
-  if (value === false) return "off";
+  if (value === false) return "low";
   if (typeof value !== "string") return value;
 
   const normalized = value.trim().toLowerCase();
-  if (["off", "low", "medium", "high", "max"].includes(normalized)) {
+  if (["low", "medium", "high", "max"].includes(normalized)) {
     return normalized;
   }
   if (["enabled", "enable", "on", "true"].includes(normalized)) {
     return "medium";
   }
-  if (["disabled", "disable", "false", "none"].includes(normalized)) {
-    return "off";
+  if (["off", "disabled", "disable", "none"].includes(normalized)) {
+    return "low";
   }
   return value;
 }

@@ -11,7 +11,6 @@ import {
   Settings2,
   ChevronRight,
 } from "lucide-react";
-import { THINKING_LEVEL_COLOR } from "./chatInputConstants";
 import { getRunModePopoverPosition } from "./runModePopoverPosition";
 import { useStickyDropdownPosition } from "../../hooks/useStickyDropdownPosition";
 import type { AgentOption } from "../../types";
@@ -30,7 +29,6 @@ interface RunModePopoverProps {
   onOpenAgentPanel?: () => void;
   hasThinkingOption?: boolean;
   thinkingLabel?: string;
-  thinkingLevel?: string;
   onOpenThinkingPanel?: () => void;
   booleanAgentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
@@ -58,7 +56,6 @@ export function RunModePopover({
   onOpenAgentPanel,
   hasThinkingOption,
   thinkingLabel,
-  thinkingLevel,
   onOpenThinkingPanel,
   booleanAgentOptions,
   agentOptionValues = {},
@@ -240,19 +237,7 @@ export function RunModePopover({
                     {t("chat.thinkingIntensity", "Thinking Intensity")}
                   </span>
                   {thinkingLabel && (
-                    <span
-                      className="feature-menu-item-badge font-serif"
-                      style={
-                        THINKING_LEVEL_COLOR[thinkingLevel ?? ""]
-                          ? {
-                              color:
-                                THINKING_LEVEL_COLOR[thinkingLevel ?? ""].text,
-                              background:
-                                THINKING_LEVEL_COLOR[thinkingLevel ?? ""].bg,
-                            }
-                          : undefined
-                      }
-                    >
+                    <span className="feature-menu-item-badge font-serif">
                       {thinkingLabel}
                     </span>
                   )}

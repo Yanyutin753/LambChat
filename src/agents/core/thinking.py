@@ -14,20 +14,19 @@ BUDGET_TOKENS_MAP: dict[str, int] = {
 def normalize_thinking_level(value: Any) -> str:
     """Normalize legacy and current thinking option values.
 
-    Missing/invalid values normalize to "low" (the default intensity);
-    explicit off-aliases (false/none/disabled) normalize to "off".
+    Thinking can no longer be turned off: historical off-aliases (false/none/
+    disabled/off) normalize to "low"; missing/invalid values also normalize
+    to "low" (the default intensity).
     """
     if isinstance(value, bool):
-        return "medium" if value else "off"
+        return "medium" if value else "low"
 
     if isinstance(value, str):
         normalized = value.strip().lower()
-        if normalized in SUPPORTED_THINKING_LEVELS or normalized == "off":
+        if normalized in SUPPORTED_THINKING_LEVELS:
             return normalized
         if normalized in {"enabled", "enable", "on", "true"}:
             return "medium"
-        if normalized in {"disabled", "disable", "false", "none"}:
-            return "off"
 
     return "low"
 
@@ -35,20 +34,16 @@ def normalize_thinking_level(value: Any) -> str:
 def build_thinking_config(agent_options: dict[str, Any] | None) -> dict[str, Any]:
     """Build provider thinking config from agent options.
 
-    Never returns None: an explicit "off" yields a disabled dict so the client
-    layer can still express "disable thinking" to providers that need it
-    explicitly (e.g. reasoning_effort="none"); omitting the option yields the
-    default "low" level.
+    Never returns None and never disables thinking: an "off"-era value
+    normalizes down to the lowest intensity instead. Omitting the option
+    yields the default "low" level.
 
     Returns a dict with:
-      - "type": "enabled" | "disabled"
+      - "type": "enabled"
       - "level": normalized level string (also used by Google protocol)
       - "budget_tokens": mapped token budget (used by Anthropic manual thinking)
     """
     level = normalize_thinking_level((agent_options or {}).get("enable_thinking"))
-    if level == "off":
-        return {"type": "disabled", "level": "off", "budget_tokens": 0}
-
     return {
         "type": "enabled",
         "level": level,
