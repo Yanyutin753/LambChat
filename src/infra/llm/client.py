@@ -251,6 +251,7 @@ def _is_zhipu_thinking_model(name: str) -> bool:
     """GLM 思考系模型（glm-4.5+/glm-5），与托管渠道无关，按模型名判断。"""
     return any(name.startswith(prefix) for prefix in _ZHIPU_THINKING_PREFIXES)
 
+
 # 次版本限定为 1-2 位数字且后不跟数字：防止把官方 model ID 里的发布日期
 # 后缀（claude-opus-4-20250514 / grok-4-0709-beta）当成次版本吞掉——否则
 # (4, 20250514) 会被误判进 effort era。
