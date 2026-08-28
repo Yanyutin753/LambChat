@@ -245,6 +245,16 @@
       }
     },
     {
+      "event": "tool:args:chunk",
+      "data": {
+        "tool": "read_file",
+        "tool_call_id": "tool-call-1",
+        "content": "{\"path\": \"READ",
+        "timestamp": "2026-05-30T00:00:00Z",
+        "agent_id": "fast"
+      }
+    },
+    {
       "event": "tool:start",
       "data": {
         "tool": "read_file",

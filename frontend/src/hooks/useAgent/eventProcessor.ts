@@ -25,12 +25,14 @@ import { translateBackendError } from "../../utils/backendErrors";
 import type { EventData, SubagentStackItem } from "./types";
 import {
   addPartToDepth,
+  appendToolArgsDelta,
   createSubagentPart,
   createThinkingPart,
   createToolPart,
   updateSubagentResult,
   updateToolResultInDepth,
   clearAllLoadingStates,
+  upgradeGeneratingToolPart,
 } from "./messageParts";
 import type { ThinkingPart } from "../../types";
 
@@ -231,6 +233,27 @@ export function processMessageEvent(
 
     // ---- Tool events ----
 
+    case "tool:args:chunk": {
+      const delta = typeof data.content === "string" ? data.content : "";
+      if (!delta) break;
+      const toolName = data.tool || "";
+      const toolCallId =
+        typeof data.tool_call_id === "string" && data.tool_call_id.trim()
+          ? data.tool_call_id
+          : undefined;
+      result.parts = appendToolArgsDelta(
+        parts,
+        toolName,
+        toolCallId,
+        delta,
+        depth,
+        agentId,
+        subagentStack,
+        messageId,
+      );
+      break;
+    }
+
     case "tool:start": {
       const toolCallId = data.tool_call_id as string | undefined;
       if (toolCallId && hasToolCallId(parts, toolCallId)) {
@@ -250,7 +273,14 @@ export function processMessageEvent(
         data.timestamp as string | undefined,
       );
 
-      if (depth > 0) {
+      // 流式参数已先建生成中 part：原位升级而不是再追加一个
+      const upgraded = upgradeGeneratingToolPart(parts, toolPart);
+      if (upgraded) {
+        result.parts = upgraded;
+        if (depth === 0) {
+          result.toolCalls = [...toolCalls, toolCall];
+        }
+      } else if (depth > 0) {
         result.parts = addPartToDepth(
           parts,
           toolPart,

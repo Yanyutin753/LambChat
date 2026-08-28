@@ -76,6 +76,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_chunk_buffer",
         "_summary_chunk_buffer",
         "_thinking_chunk_buffer",
+        "_tool_args_buffers",
+        "_tool_args_meta",
         "_agent_context_cache",
         "_subagent_display_names",
         "_subagent_avatars",
@@ -117,6 +119,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
         self._summary_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
         self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
+        self._tool_args_buffers: dict[int | str, TextChunkBuffer] = {}
+        self._tool_args_meta: dict[int | str, tuple[str, str | None]] = {}
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}
         self._subagent_display_names = subagent_display_names or {}
         self._subagent_avatars = subagent_avatars or {}
@@ -135,6 +139,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         await self._flush_chunk_buffer()
         await self._flush_summary_chunk_buffer()
         await self._flush_thinking_chunk_buffer()
+        await self._flush_tool_args_buffers()
 
     async def finalize(self) -> None:
         """Flush pending chunks and release session-scoped buffers."""
@@ -183,6 +188,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._chunk_buffer.reset()
         self._summary_chunk_buffer.reset()
         self._thinking_chunk_buffer.reset()
+        self._tool_args_buffers.clear()
+        self._tool_args_meta.clear()
         self._started_tool_call_ids.clear()
 
     async def process_event(self, event: StreamEvent) -> None:
@@ -288,6 +295,9 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         match evt_type:
             case "on_chat_model_start":
+                # 新模型流开始：上一步残留的参数缓冲已被 model_end 冲掉，
+                # 异常中断的残留在此丢弃（对应工具不会执行）。
+                self._reset_tool_args_buffers()
                 if current_depth == 0:
                     self._first_event_timing.start_model()
             case "on_chat_model_stream":

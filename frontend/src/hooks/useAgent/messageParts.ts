@@ -46,6 +46,130 @@ export function createToolPart(
 }
 
 /**
+ * Create a generating tool part holding partial args text streamed from the
+ * LLM (tool:args:chunk). Rendered by the same ToolCallItem via args.partial.
+ */
+export function createGeneratingToolPart(
+  toolName: string,
+  toolCallId: string | undefined,
+  partialArgs: string,
+  depth: number,
+  agentId?: string,
+): ToolPart {
+  return {
+    type: "tool",
+    id: toolCallId,
+    name: toolName,
+    args: { partial: partialArgs },
+    argsPartial: true,
+    isPending: true,
+    depth,
+    agent_id: agentId,
+  };
+}
+
+function findGeneratingToolIndex(
+  parts: MessagePart[],
+  toolCallId: string | undefined,
+): number {
+  if (toolCallId) {
+    return parts.findIndex(
+      (p) => p.type === "tool" && (p as ToolPart).argsPartial && p.id === toolCallId,
+    );
+  }
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i].type === "tool" && (parts[i] as ToolPart).argsPartial) return i;
+  }
+  return -1;
+}
+
+function appendPartialArgs(existing: ToolPart, delta: string): ToolPart {
+  const current = typeof existing.args.partial === "string" ? existing.args.partial : "";
+  return { ...existing, args: { partial: current + delta } };
+}
+
+function mergeToolArgsDeltaInParts(
+  parts: MessagePart[],
+  toolCallId: string | undefined,
+  delta: string,
+): MessagePart[] | null {
+  const idx = findGeneratingToolIndex(parts, toolCallId);
+  if (idx !== -1) {
+    const newParts = [...parts];
+    newParts[idx] = appendPartialArgs(newParts[idx] as ToolPart, delta);
+    return newParts;
+  }
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    if (p.type === "subagent" && p.parts) {
+      const updated = mergeToolArgsDeltaInParts(p.parts, toolCallId, delta);
+      if (updated) {
+        const newParts = [...parts];
+        newParts[i] = { ...p, parts: updated };
+        return newParts;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Append a streamed tool-args delta onto its generating part, creating the
+ * part when this is its first delta. Falls back to addPartToDepth routing
+ * for subagent placement.
+ */
+export function appendToolArgsDelta(
+  parts: MessagePart[],
+  toolName: string,
+  toolCallId: string | undefined,
+  delta: string,
+  depth: number,
+  agentId: string | undefined,
+  activeSubagentStack: SubagentStackItem[],
+  messageId?: string,
+): MessagePart[] {
+  const merged = mergeToolArgsDeltaInParts(parts, toolCallId, delta);
+  if (merged) return merged;
+
+  const part = createGeneratingToolPart(toolName, toolCallId, delta, depth, agentId);
+  if (depth > 0) {
+    return addPartToDepth(parts, part, depth, activeSubagentStack, agentId, messageId);
+  }
+  return [...parts, part];
+}
+
+/**
+ * Replace the first (generation-order) args-partial tool part with the final
+ * tool:start part, keeping the earlier startedAt for honest elapsed timing.
+ * Returns null when no generating part exists (plain append path).
+ */
+export function upgradeGeneratingToolPart(
+  parts: MessagePart[],
+  replacement: ToolPart,
+): MessagePart[] | null {
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p.type === "tool" && (p as ToolPart).argsPartial) {
+      const newParts = [...parts];
+      newParts[i] = {
+        ...replacement,
+        startedAt: (p as ToolPart).startedAt ?? replacement.startedAt,
+      };
+      return newParts;
+    }
+    if (p.type === "subagent" && p.parts) {
+      const updated = upgradeGeneratingToolPart(p.parts, replacement);
+      if (updated) {
+        const newParts = [...parts];
+        newParts[i] = { ...p, parts: updated };
+        return newParts;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Create a thinking part from thinking data.
  */
 export function createThinkingPart(
