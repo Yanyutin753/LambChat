@@ -248,3 +248,65 @@ async def test_worker_silent_exit_restarts_worker(
     assert runtime.is_running is True
 
     await runtime.stop()
+
+
+@pytest.mark.asyncio
+async def test_worker_crash_triggers_post_restart_recovery_callback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """worker 崩溃重启后必须触发一次 FAILED-recoverable 恢复。
+
+    回归防护：worker 被掐断的 run 落在 FAILED+recoverable（payload 已删），
+    周期孤儿接管 running_only=True 会跳过它们——没有这个回调，会话只能
+    等到下一次 Pod 重启才被恢复（分布式 P1 死区）。
+    """
+
+    class _CrashOnceWorker(_FakeWorker):
+        runs = 0
+
+        async def async_run(self) -> None:
+            type(self).runs += 1
+            if type(self).runs == 1:
+                raise RuntimeError("simulated worker crash")
+            await self.closed.wait()
+
+    _FakeWorker.instances.clear()
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    recovery_calls: list[int] = []
+
+    async def _on_worker_restarted() -> None:
+        recovery_calls.append(1)
+
+    runtime = arq_runtime.EmbeddedArqRuntime(
+        worker_factory=_CrashOnceWorker,
+        restart_delay_seconds=0.01,
+        on_worker_restarted=_on_worker_restarted,
+    )
+    await runtime.start()
+
+    await _wait_until(lambda: len(recovery_calls) >= 1)
+    await asyncio.sleep(0.05)
+
+    assert len(recovery_calls) == 1
+    await runtime.stop()
+
+
+@pytest.mark.asyncio
+async def test_recovery_callback_not_invoked_without_worker_crash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakeWorker.instances.clear()
+    monkeypatch.setattr(arq_runtime, "settings", _arq_settings())
+    recovery_calls: list[int] = []
+
+    async def _on_worker_restarted() -> None:
+        recovery_calls.append(1)
+
+    runtime = arq_runtime.EmbeddedArqRuntime(
+        worker_factory=_FakeWorker, on_worker_restarted=_on_worker_restarted
+    )
+    await runtime.start()
+    await asyncio.sleep(0.05)
+
+    assert recovery_calls == []
+    await runtime.stop()

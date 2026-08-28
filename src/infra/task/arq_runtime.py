@@ -27,12 +27,15 @@ class EmbeddedArqRuntime:
         self,
         worker_factory: Callable[..., Any] = Worker,
         restart_delay_seconds: float = 5.0,
+        on_worker_restarted: Callable[[], Any] | None = None,
     ) -> None:
         self._worker_factory = worker_factory
         self._restart_delay = restart_delay_seconds
+        self._on_worker_restarted = on_worker_restarted
         self._worker: Any | None = None
         self._supervisor: asyncio.Future | None = None
         self._stopping = False
+        self._recovery_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def is_running(self) -> bool:
@@ -108,6 +111,14 @@ class EmbeddedArqRuntime:
             if self._stopping:
                 return
             self._worker = self._create_worker()
+            # worker 崩溃时在途 run 会被标为 FAILED+recoverable（payload 已删），
+            # 周期孤儿接管是 running_only 会跳过它们——重启后主动补一次恢复，
+            # 否则这些会话要等任意 Pod 重启才能恢复。
+            callback = self._on_worker_restarted
+            if callback is not None:
+                recovery_task = asyncio.create_task(callback())
+                self._recovery_tasks.add(recovery_task)
+                recovery_task.add_done_callback(self._recovery_tasks.discard)
 
     async def stop(self) -> None:
         self._stopping = True
@@ -121,6 +132,9 @@ class EmbeddedArqRuntime:
             except asyncio.CancelledError:
                 pass
 
+        if self._recovery_tasks:
+            await asyncio.gather(*self._recovery_tasks, return_exceptions=True)
+
         self._worker = None
         self._supervisor = None
 
@@ -128,10 +142,22 @@ class EmbeddedArqRuntime:
 _runtime: EmbeddedArqRuntime | None = None
 
 
+async def _recover_stale_tasks_after_worker_restart() -> None:
+    """Worker 崩溃重启后补一次全量恢复（与启动清理等价，有租约互斥保护）。"""
+    try:
+        from .manager import get_task_manager
+
+        await get_task_manager().cleanup_stale_tasks(running_only=False)
+    except Exception:
+        logger.exception("Post-restart stale task recovery failed")
+
+
 def get_arq_runtime() -> EmbeddedArqRuntime:
     global _runtime
     if _runtime is None:
-        _runtime = EmbeddedArqRuntime()
+        _runtime = EmbeddedArqRuntime(
+            on_worker_restarted=_recover_stale_tasks_after_worker_restart
+        )
     return _runtime
 
 
