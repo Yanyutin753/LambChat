@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ExternalLink } from "lucide-react";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { useSessionImageGallery } from "./sessionImageGallery";
+import { buildChatThumbUrl } from "../../../utils/chatThumbs";
 import type { RevealFileImageInfo } from "./revealFileImageUtils";
 
 interface MessageImageGalleryProps {
@@ -45,6 +46,7 @@ export function MessageImageGallery({ images }: MessageImageGalleryProps) {
             >
               <ImageWithSkeleton
                 src={image.src}
+                thumbSrc={buildChatThumbUrl(image.src)}
                 alt={image.fileName}
                 skipUrlResolve
                 inline

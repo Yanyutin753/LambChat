@@ -11,6 +11,7 @@ import {
 } from "../../../documents/utils";
 import { ExcalidrawCardPreview } from "../../../documents/previews/ExcalidrawCardPreview";
 import { getFullUrl } from "../../../../services/api";
+import { buildChatThumbUrl } from "../../../../utils/chatThumbs";
 import {
   getFileRevealAutoOpenKey,
   markFileRevealPreviewAutoOpened,
@@ -363,6 +364,7 @@ export function FileRevealItem({
               {isImage ? (
                 <ImageWithSkeleton
                   src={parsed.s3Url}
+                  thumbSrc={buildChatThumbUrl(parsed.s3Url)}
                   alt={fileName}
                   skipUrlResolve
                   inline

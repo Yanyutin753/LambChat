@@ -162,10 +162,9 @@ def start_memory_evolution_scheduler() -> None:
     from src.infra.memory.evolution.scheduler import run_scheduled_evolution
     from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
 
-    if not (
-        getattr(settings, "ENABLE_MEMORY", False)
-        and getattr(settings, "NATIVE_MEMORY_SELF_EVOLVE_ENABLED", False)
-    ):
+    # 只按记忆总开关决定注册；NATIVE_MEMORY_SELF_EVOLVE_ENABLED 走任务的
+    # enabled lambda 动态读取——settings 热刷新后无需重启即可开/关自进化。
+    if not getattr(settings, "ENABLE_MEMORY", False):
         return
     get_runtime_scheduler().register_job(
         ScheduledJob.from_interval(

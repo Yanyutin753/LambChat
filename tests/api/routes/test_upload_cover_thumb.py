@@ -8,6 +8,7 @@ S3/阿里云走「预签名 URL + x-oss-process」302 重定向（图片裁剪 /
 
 from __future__ import annotations
 
+import io
 from types import SimpleNamespace
 
 import pytest
@@ -108,15 +109,45 @@ async def test_cover_returns_404_for_unsupported_types(
 
 
 @pytest.mark.asyncio
-async def test_cover_skips_processing_for_non_aliyun_providers(
+async def test_cover_image_renders_and_caches_for_non_aliyun_providers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    storage = _FakeS3Storage(provider="minio")
+    """minio/AWS/腾讯等没有 x-oss-process：下载原文件 Pillow 裁剪 16:9，
+    缓存到原文件旁边，字节直接经应用返回。"""
+    storage = _FakePdfStorage(payload=_jpeg_payload((1200, 500)))
+    storage._config = SimpleNamespace(provider="minio", public_bucket=False)
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    resp = await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), cover=True)
+
+    assert resp.status_code == 200
+    assert resp.media_type == "image/jpeg"
+    assert storage.downloaded == ["a/b/hero.jpg"]
+    assert storage.uploads == ["covers/560x315/a/b/hero.jpg.jpg"]
+    cover = Image.open(io.BytesIO(resp.body))
+    assert cover.size == (560, 315)
+
+
+@pytest.mark.asyncio
+async def test_cover_video_non_aliyun_still_404s(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """视频快照需要服务端 ffmpeg，非 Aliyun 厂商维持 404 客户端兜底。"""
+    storage = _FakePdfStorage()
+    storage._config = SimpleNamespace(provider="minio", public_bucket=False)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     with pytest.raises(upload.HTTPException) as exc:
-        await upload.get_file_proxy("a/b/hero.jpg", _fake_request(), cover=True)
+        await upload.get_file_proxy("a/b/clip.mp4", _fake_request(), cover=True)
     assert exc.value.status_code == 404
+    assert storage.downloaded == []
+    assert storage.uploads == []
+
+
+def _jpeg_payload(size: tuple[int, int]) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", size, (80, 120, 200)).save(buf, format="JPEG")
+    return buf.getvalue()
 
 
 @pytest.mark.asyncio
@@ -272,20 +303,37 @@ async def test_cover_pdf_serves_cached_thumbnail_without_re_render(
 
 
 @pytest.mark.asyncio
-async def test_cover_pdf_non_aliyun_provider_404s_without_download(
+async def test_cover_pdf_renders_and_caches_for_non_aliyun_providers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """非 Aliyun 后端不支持绝对过期签名，必须 404 兜底而非每次重下载重渲染。"""
+    """非 Aliyun 后端不再 404：下载→渲染→缓存小图→应用直接回字节。"""
     storage = _FakePdfStorage()
     storage._config = SimpleNamespace(provider="minio", public_bucket=False)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    with pytest.raises(upload.HTTPException) as exc:
-        await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
-    assert exc.value.status_code == 404
-    assert storage.downloaded == []
-    assert storage.uploads == []
+    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+
+    assert resp.status_code == 200
+    assert resp.media_type == "image/jpeg"
+    assert storage.downloaded == ["revealed_files/report.pdf"]
+    assert storage.uploads == ["covers/560x315/revealed_files/report.pdf.jpg"]
     assert storage.presigned_calls == []
+
+
+@pytest.mark.asyncio
+async def test_cover_cached_thumbnail_served_as_bytes_for_non_aliyun(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """缓存命中后非 Aliyun 厂商只下载缓存小图，不再重渲染。"""
+    storage = _FakePdfStorage(cached=True, payload=_jpeg_payload((560, 315)))
+    storage._config = SimpleNamespace(provider="minio", public_bucket=False)
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    resp = await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+
+    assert resp.status_code == 200
+    assert storage.downloaded == ["covers/560x315/revealed_files/report.pdf.jpg"]
+    assert storage.uploads == []
 
 
 @pytest.mark.asyncio
