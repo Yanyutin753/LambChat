@@ -138,3 +138,190 @@ async def test_get_vector_index_returns_none_when_unreachable(monkeypatch):
         assert await vs.index_search(vector=[0.1] * 4, user_id="u1", limit=3) is None
     finally:
         await _teardown()
+
+
+# ---------------------------------------------------------------------------
+# 维度校验与自动回填（issue #278）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ensure_collection_returns_created_flag():
+    idx = _mk_index()
+    assert await idx.ensure_collection() is True  # 首建
+    assert await idx.ensure_collection() is False  # 已存在且维度一致
+
+
+@pytest.mark.asyncio
+async def test_dimension_mismatch_raises_without_deleting():
+    idx = _mk_index()
+    await idx.ensure_collection()
+    idx._dims = DIMS // 2  # 模拟改了 EMBEDDING_DIMENSIONS
+    with pytest.raises(RuntimeError, match="[Dd]imension"):
+        await idx.ensure_collection()
+    # 保守处理：不自动删库，原样保留待管理员处置
+    info = await idx._client.get_collection("native_memories")
+    assert info.config.params.vectors.size == DIMS
+
+
+class _FakeRedis:
+    """dict 后端的极简 redis 假件（set nx / get / delete / token-eval）。"""
+
+    def __init__(self, initial: dict | None = None):
+        self.store: dict = dict(initial or {})
+        self.eval_calls: list = []
+
+    async def get(self, key):
+        return self.store.get(key)
+
+    async def set(self, key, value, nx=False, ex=None):
+        if nx and key in self.store:
+            return None
+        self.store[key] = value
+        return True
+
+    async def delete(self, *keys):
+        for k in keys:
+            self.store.pop(k, None)
+
+    async def eval(self, _script, _numkeys, key, token):
+        self.eval_calls.append((key, token))
+        if self.store.get(key) == token:
+            self.store.pop(key)
+
+
+@pytest.mark.asyncio
+async def test_run_backfill_once_skips_when_done_flag_set(monkeypatch):
+    from src.infra.memory.client.native import vector_store as vs
+
+    fake = _FakeRedis({vs._BACKFILL_DONE_KEY: "1"})
+    monkeypatch.setattr("src.infra.storage.redis.get_redis_client", lambda: fake)
+    called = []
+    monkeypatch.setattr(
+        vs, "backfill_from_mongo", lambda coll, batch_size=100: called.append(coll) or _ok(0)
+    )
+    await vs._run_backfill_once(force=False)
+    assert called == []
+
+
+async def _ok(n):
+    return {"upserted": n}
+
+
+@pytest.mark.asyncio
+async def test_run_backfill_once_runs_locks_and_marks_done(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.infra.memory.client.native import vector_store as vs
+
+    fake = _FakeRedis()
+    monkeypatch.setattr("src.infra.storage.redis.get_redis_client", lambda: fake)
+    coll = object()
+    calls = []
+
+    async def fake_backfill(collection, batch_size=100):
+        calls.append(collection)
+        return {"upserted": 7}
+
+    monkeypatch.setattr(vs, "backfill_from_mongo", fake_backfill)
+
+    async def fake_backend():
+        return SimpleNamespace(_collection=coll)
+
+    monkeypatch.setattr("src.infra.memory.tools._get_backend", fake_backend)
+
+    await vs._run_backfill_once(force=False)
+
+    assert calls == [coll]
+    assert fake.store.get(vs._BACKFILL_DONE_KEY) == "1"  # 完成标记
+    assert vs._BACKFILL_LOCK_KEY not in fake.store  # 锁已释放
+
+
+@pytest.mark.asyncio
+async def test_run_backfill_once_force_overrides_done_flag(monkeypatch):
+    from types import SimpleNamespace
+
+    from src.infra.memory.client.native import vector_store as vs
+
+    fake = _FakeRedis({vs._BACKFILL_DONE_KEY: "1"})
+    monkeypatch.setattr("src.infra.storage.redis.get_redis_client", lambda: fake)
+    calls = []
+
+    async def fake_backfill(collection, batch_size=100):
+        calls.append(collection)
+        return {"upserted": 1}
+
+    monkeypatch.setattr(vs, "backfill_from_mongo", fake_backfill)
+
+    async def fake_backend():
+        return SimpleNamespace(_collection=object())
+
+    monkeypatch.setattr("src.infra.memory.tools._get_backend", fake_backend)
+
+    await vs._run_backfill_once(force=True)  # 首建/重建 → 忽略旧完成标记
+    assert calls != []
+    assert fake.store.get(vs._BACKFILL_DONE_KEY) == "1"
+
+
+@pytest.mark.asyncio
+async def test_run_backfill_once_skips_when_lock_held(monkeypatch):
+    from src.infra.memory.client.native import vector_store as vs
+
+    fake = _FakeRedis({vs._BACKFILL_LOCK_KEY: "other-replica"})
+    monkeypatch.setattr("src.infra.storage.redis.get_redis_client", lambda: fake)
+    called = []
+    monkeypatch.setattr(
+        vs,
+        "backfill_from_mongo",
+        lambda coll, batch_size=100: called.append(coll) or _ok(0),
+    )
+    await vs._run_backfill_once(force=True)
+    assert called == []
+    assert fake.store.get(vs._BACKFILL_DONE_KEY) is None  # 未被误标完成
+
+
+@pytest.mark.asyncio
+async def test_run_backfill_once_redis_failure_is_silent(monkeypatch):
+    from src.infra.memory.client.native import vector_store as vs
+
+    def _boom():
+        raise RuntimeError("redis down")
+
+    monkeypatch.setattr("src.infra.storage.redis.get_redis_client", _boom)
+    called = []
+    monkeypatch.setattr(
+        vs,
+        "backfill_from_mongo",
+        lambda coll, batch_size=100: called.append(coll) or _ok(0),
+    )
+    await vs._run_backfill_once(force=True)  # 不抛
+    assert called == []
+
+
+@pytest.mark.asyncio
+async def test_get_vector_index_schedules_backfill_task_once(monkeypatch):
+    import asyncio
+
+    from src.infra.memory.client.native import vector_store as vs
+
+    await vs.reset_vector_index()
+    monkeypatch.setattr(vs, "vector_backend_enabled", lambda: True)
+    monkeypatch.setattr(vs, "QdrantVectorIndex", _mk_index)
+    forces: list[bool] = []
+
+    async def fake_run(force: bool = False):
+        forces.append(force)
+
+    monkeypatch.setattr(vs, "_run_backfill_once", fake_run)
+    try:
+        idx = await vs.get_vector_index()
+        assert idx is not None
+        await asyncio.sleep(0.05)
+        assert forces == [True]  # 首建 → force 回填
+
+        idx2 = await vs.get_vector_index()
+        assert idx2 is idx
+        await asyncio.sleep(0.05)
+        assert forces == [True]  # 单例复用，不重复调度
+    finally:
+        await vs.reset_vector_index()

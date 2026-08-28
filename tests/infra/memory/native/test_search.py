@@ -175,3 +175,137 @@ async def test_recall_memories_threads_context_filter(monkeypatch):
     assert captured["text"] == "project_constraint"
     assert captured["fallback"] == "project_constraint"  # overview 查询走 fallback 也带过滤
     assert "vector" not in captured  # 无 embedding 时不调向量检索
+
+
+# ---------------------------------------------------------------------------
+# Qdrant 索引分支（issue #278 补测：水合排序 / 空结果权威 / None 回退）
+# ---------------------------------------------------------------------------
+
+from types import SimpleNamespace
+
+
+def _mem_doc(mid: str, content: str = "内容", embedding=None) -> dict:
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    return {
+        "memory_id": mid,
+        "user_id": "u1",
+        "content": content,
+        "summary": content,
+        "title": content[:10],
+        "memory_type": "user",
+        "source": "manual",
+        "content_storage_mode": "inline",
+        "content_store_key": None,
+        "created_at": now,
+        "updated_at": now,
+        "embedding": embedding,
+    }
+
+
+class _FakeCursor:
+    def __init__(self, docs):
+        self._docs = docs
+
+    def sort(self, *a, **k):
+        return self
+
+    def limit(self, n):
+        return self
+
+    async def to_list(self, length=None):
+        return self._docs
+
+
+class _FakeCollection:
+    def __init__(self, docs):
+        self.docs = docs
+        self.find_queries: list = []
+
+    def find(self, query, projection=None):
+        self.find_queries.append(query)
+        return _FakeCursor(list(self.docs))
+
+    def aggregate(self, pipeline):
+        raise RuntimeError("aggregate unavailable in fake")
+
+
+@pytest.mark.asyncio
+async def test_vector_search_qdrant_hits_hydrate_in_score_order(monkeypatch):
+    from src.infra.memory.client.native import search, vector_store
+    from src.infra.memory.client.native.vector_store import VectorHit
+
+    async def fake_index_search(**kw):
+        return [VectorHit(memory_id="b" * 32, score=0.9), VectorHit(memory_id="a" * 32, score=0.5)]
+
+    monkeypatch.setattr(vector_store, "index_search", fake_index_search)
+
+    col = _FakeCollection([_mem_doc("a" * 32, "低分"), _mem_doc("b" * 32, "高分")])
+
+    async def embed(_q):
+        return [1.0, 0.0]
+
+    backend = SimpleNamespace(_maybe_embed=embed, _collection=col)
+
+    out = await search.vector_search(backend, "u1", "查询", 5, None)
+
+    assert [d["memory_id"] for d in out] == ["b" * 32, "a" * 32]  # 高分在前
+    assert out[0]["score"] == 0.9
+    # 水合查询带 user 过滤 + id 集合 + 排除 session_summary
+    q = col.find_queries[0]
+    assert q["user_id"] == "u1"
+    assert set(q["memory_id"]["$in"]) == {"a" * 32, "b" * 32}
+    assert q["source"] == {"$ne": "session_summary"}
+
+
+@pytest.mark.asyncio
+async def test_vector_search_qdrant_empty_is_authoritative(monkeypatch):
+    from src.infra.memory.client.native import search, vector_store
+
+    async def fake_index_search(**kw):
+        return []
+
+    monkeypatch.setattr(vector_store, "index_search", fake_index_search)
+    col = _FakeCollection([_mem_doc("a" * 32)])
+
+    async def embed(_q):
+        return [1.0, 0.0]
+
+    backend = SimpleNamespace(_maybe_embed=embed, _collection=col)
+
+    out = await search.vector_search(backend, "u1", "查询", 5, None)
+    assert out == []
+    assert col.find_queries == []  # 权威空：不再回退打 Mongo
+
+
+@pytest.mark.asyncio
+async def test_vector_search_qdrant_none_falls_back_to_cosine(monkeypatch):
+    from src.infra.memory.client.native import search, vector_store
+
+    async def fake_index_search(**kw):
+        return None  # 未启用/故障 → 走既有链路
+
+    monkeypatch.setattr(vector_store, "index_search", fake_index_search)
+
+    docs = [
+        _mem_doc("a" * 32, "正交", embedding=[0.0, 1.0]),
+        _mem_doc("b" * 32, "同向", embedding=[1.0, 0.0]),
+    ]
+    col = _FakeCollection(docs)
+
+    async def embed(_q):
+        return [1.0, 0.0]
+
+    backend = SimpleNamespace(
+        _maybe_embed=embed,
+        _collection=col,
+        _logger=SimpleNamespace(debug=lambda *a, **k: None),
+    )
+
+    out = await search.vector_search(backend, "u1", "查询", 5, None)
+    # 余弦兜底：同向高分在前、正交低分在后（按相似度降序）
+    assert [d["memory_id"] for d in out] == ["b" * 32, "a" * 32]
+    assert out[0]["score"] == pytest.approx(1.0)
+    assert out[1]["score"] == pytest.approx(0.0)
+    assert col.find_queries  # 走了 Mongo find 兜底
