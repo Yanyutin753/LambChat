@@ -132,6 +132,16 @@ class S3StorageBackend(ABC):
         """
         pass
 
+    async def sign_url_at(
+        self, key: str, expires_at: int, process: str | None = None
+    ) -> str:
+        """V1-signed GET URL with an absolute expiry timestamp.
+
+        Used by cover thumbnails so day-aligned URLs stay stable for
+        browser/CDN caching. Backends without support raise AttributeError.
+        """
+        raise AttributeError("backend does not support absolute-expiry signing")
+
     @abstractmethod
     async def list_objects(self, prefix: str = "") -> list[str]:
         """List objects with given prefix"""

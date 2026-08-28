@@ -39,15 +39,19 @@ _DAY = 24 * 3600
 
 _RENDER_CONCURRENCY = 2
 _RENDER_ACQUIRE_TIMEOUT = 8.0
-_render_semaphore: asyncio.Semaphore | None = None
+# Per-event-loop semaphores (primitives bind to the loop that first awaits
+# them; tests swap loops between cases)
+_render_sems: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
 _render_inflight: dict[str, asyncio.Task] = {}
 
 
 def _get_render_semaphore() -> asyncio.Semaphore:
-    global _render_semaphore
-    if _render_semaphore is None:
-        _render_semaphore = asyncio.Semaphore(_RENDER_CONCURRENCY)
-    return _render_semaphore
+    loop = asyncio.get_running_loop()
+    semaphore = _render_sems.get(loop)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(_RENDER_CONCURRENCY)
+        _render_sems[loop] = semaphore
+    return semaphore
 
 
 # ── CJK font availability ────────────────────────────────────────────────
@@ -332,7 +336,7 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
 
     try:
         if await storage.file_exists(thumb_key):
-            url = await storage.get_presigned_url(thumb_key, expires)
+            url = await storage.get_cover_presigned_url(thumb_key, expires)
             return Response(
                 status_code=302,
                 headers={
@@ -416,7 +420,7 @@ async def _do_render_and_cache(
             content_type="image/jpeg",
             skip_size_limit=True,
         )
-        url = await storage.get_presigned_url(thumb_key, expires)
+        url = await storage.get_cover_presigned_url(thumb_key, expires)
         return Response(
             status_code=302,
             headers={"Location": url, "Cache-Control": "public, max-age=86400"},
@@ -497,7 +501,7 @@ async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Resp
         logger.warning(f"Failed to check file existence for {key}: {e}")
 
     try:
-        url = await storage.get_presigned_url(key, cover_signature_expiry(), process=process)
+        url = await storage.get_cover_presigned_url(key, cover_signature_expiry(), process=process)
     except TypeError:
         raise HTTPException(status_code=404, detail="Cover thumbnail not available")
     except Exception as e:

@@ -215,6 +215,51 @@ class AliyunOssBackend(S3StorageBackend):
 
         return await run_blocking_io(_get_url)
 
+    async def sign_url_at(self, key: str, expires_at: int, process: str | None = None) -> str:
+        """V1-signed GET URL with an ABSOLUTE expiry timestamp.
+
+        oss2's sign_url only takes relative seconds, which would re-sign a
+        different URL on every call and defeat browser/CDN caching. Signing
+        against a day-aligned absolute expiry keeps the URL stable all day.
+        """
+
+        def _sign():
+            import base64
+            import hmac
+            from hashlib import sha1
+            from urllib.parse import quote
+
+            params = {"response-content-disposition": "inline"}
+            if process:
+                params["x-oss-process"] = process
+
+            bucket_name = self.config.bucket_name
+            sub = sorted(params.items())
+            canonical = f"/{bucket_name}/{key}" + "?" + "&".join(f"{k}={v}" for k, v in sub)
+            string_to_sign = f"GET\n\n\n{expires_at}\n{canonical}"
+            secret = self.config.secret_key.encode()
+            signature = base64.b64encode(
+                hmac.new(secret, string_to_sign.encode(), sha1).digest()
+            ).decode()
+
+            endpoint = (
+                (self.config.get_endpoint_url() or f"https://oss-{self.config.region}.aliyuncs.com")
+                .replace("https://", "")
+                .replace("http://", "")
+                .rstrip("/")
+            )
+            host = f"https://{self.config.bucket_name}.{endpoint}"
+            quoted_key = quote(key, safe="")
+            query = "&".join(f"{quote(k, safe='')}={quote(v, safe='')}" for k, v in sub)
+            return (
+                f"{host}/{quoted_key}?{query}"
+                f"&OSSAccessKeyId={quote(self.config.access_key, safe='')}"
+                f"&Expires={expires_at}"
+                f"&Signature={quote(signature, safe='')}"
+            )
+
+        return await run_blocking_io(_sign)
+
     async def list_objects(self, prefix: str = "") -> list[str]:
         bucket = await run_blocking_io(self._get_bucket)
 

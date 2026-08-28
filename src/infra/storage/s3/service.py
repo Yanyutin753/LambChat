@@ -417,6 +417,16 @@ class S3StorageService:
             return await backend.get_presigned_url(key, expires)
         return await backend.get_presigned_url(key, expires, process=process)
 
+    async def get_cover_presigned_url(
+        self, key: str, expires_at: int, process: str | None = None
+    ) -> str:
+        """Presigned GET URL with an absolute expiry (stable per day).
+
+        Raises AttributeError on backends without cover signing.
+        """
+        backend = self._get_backend()
+        return await backend.sign_url_at(key, expires_at, process)
+
     async def list_files(self, folder: str) -> list[str]:
         """List files in a folder"""
         return await self._get_backend().list_objects(prefix=folder)

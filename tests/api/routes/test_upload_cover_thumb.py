@@ -13,8 +13,17 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
-from src.api.routes import upload
+from src.api.routes import upload, upload_cover
 from src.api.routes.upload_cover import render_sheet_cover
+
+
+@pytest.fixture(autouse=True)
+def _reset_cover_concurrency_state():
+    upload_cover._render_inflight.clear()
+    upload_cover._render_sems.clear()
+    yield
+    upload_cover._render_inflight.clear()
+    upload_cover._render_sems.clear()
 
 
 def _fake_request() -> SimpleNamespace:
@@ -43,6 +52,12 @@ class _FakeS3Storage:
     ) -> str:
         self.presigned_calls.append({"key": key, "expires": expires, "process": process})
         return f"https://signed.example/{key}?sig=1"
+
+    async def get_cover_presigned_url(
+        self, key: str, expires_at: int, process: str | None = None
+    ) -> str:
+        self.presigned_calls.append({"key": key, "expires": expires_at, "process": process})
+        return f"https://signed.example/{key}?Expires={expires_at}&sig=1"
 
 
 @pytest.mark.asyncio
@@ -158,7 +173,11 @@ async def test_cover_signature_expiry_is_day_aligned_and_stable(
     # Same day → identical signed URL → browser/CDN disk-caches the thumb
     assert expires[0] == expires[1]
     assert expires[0] % 86400 == 0
-    assert expires[0] >= 86400
+    import time as _t
+
+    # Absolute expiry within the next two days — NOT a relative offset that
+    # oss2 would stack on top of now (that bug produced year-2083 URLs)
+    assert _t.time() < expires[0] <= _t.time() + 2 * 86400
 
 
 def _make_pdf_bytes() -> bytes:
@@ -213,6 +232,12 @@ class _FakePdfStorage:
     ) -> str:
         self.presigned_calls.append({"key": key, "expires": expires, "process": process})
         return f"https://signed.example/{key}?sig=1"
+
+    async def get_cover_presigned_url(
+        self, key: str, expires_at: int, process: str | None = None
+    ) -> str:
+        self.presigned_calls.append({"key": key, "expires": expires_at, "process": process})
+        return f"https://signed.example/{key}?Expires={expires_at}&sig=1"
 
 
 @pytest.mark.asyncio
@@ -471,9 +496,6 @@ async def test_concurrent_first_requests_render_only_once(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
     monkeypatch.setattr("src.api.routes.upload_cover.render_pdf_cover", _slow_render)
 
-    import src.api.routes.upload_cover as cover_mod
-
-    cover_mod._render_inflight.clear()
 
     responses = await asyncio.gather(
         *[
@@ -508,7 +530,6 @@ async def test_render_burst_degrades_to_404_instead_of_pool_starvation(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
     monkeypatch.setattr("src.api.routes.upload_cover.render_pdf_cover", _slow_render)
     monkeypatch.setattr(cover_mod, "_RENDER_ACQUIRE_TIMEOUT", 0.05)
-    cover_mod._render_inflight.clear()
 
     # Occupy both render slots with distinct keys
     first_two = [
