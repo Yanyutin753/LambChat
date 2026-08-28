@@ -278,7 +278,10 @@ export const AgentOptionButton = memo(function AgentOptionButton({
                       key={String(opt.value)}
                       option={opt}
                       isActive={opt.value === value}
-                      onSelect={() => onChange(opt.value)}
+                      onSelect={() => {
+                        onChange(opt.value);
+                        setShowDropdown(false);
+                      }}
                     />
                   ))}
                 </div>

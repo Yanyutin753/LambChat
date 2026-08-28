@@ -207,10 +207,15 @@ export function ChatInputSelectors({
       )}
       {agentOptions &&
         onToggleAgentOption &&
-        modelSupportsThinking !== false &&
         Object.keys(agentOptions).length > 0 &&
         Object.entries(agentOptions)
-          .filter(([, opt]) => opt.options && opt.options.length > 0)
+          .filter(
+            ([key, opt]) =>
+              opt.options &&
+              opt.options.length > 0 &&
+              // 仅思考选项按模型能力隐藏；未来其他枚举型选项不受连带影响
+              (key !== "enable_thinking" || modelSupportsThinking !== false),
+          )
           .map(([key, option]) => (
             <AgentOptionButton
               key={key}

@@ -346,6 +346,9 @@ def _resolve_gemini_thinking_level(
     thinking: dict[str, Any],
 ) -> Optional[str]:
     """Map a thinking config to thinking_level for Gemini 2.5+ models."""
+    if not thinking:
+        # 未配置思考的调用方（标题生成/推荐等）保持原行为，不注入任何参数
+        return None
     match = _GEMINI_VERSION_RE.search(model_name.lower())
     if match is None or _version_tuple(match) < (2, 5):
         return None
@@ -361,6 +364,11 @@ def model_supports_thinking(provider: Optional[str], model_value: str) -> bool:
     (show the intensity picker only for thinking-capable models). Provider
     resolution matches get_model: a stored explicit provider wins over the
     "provider/model" prefix, and the prefix is always stripped from the name.
+
+    Known acceptable deviations (both only over-report, never mis-send):
+    get_model's default-model provider inheritance for unprefixed generic
+    values, and zhipu models configured with api_format="responses" (the
+    thinking body is chat_completions-only) are not replicated here.
     """
     parsed_provider, model_name = _parse_provider(model_value)
     effective_provider = provider or parsed_provider

@@ -238,6 +238,12 @@ def test_gemini_2_5_receives_thinking_level_per_level() -> None:
         assert model.reasoning_effort == expected
 
 
+def test_gemini_without_thinking_config_keeps_current_behaviour() -> None:
+    # 未配置思考的调用方（标题生成/推荐/记忆压缩等）不应被注入任何思考参数
+    model = _google_model("gemini-2.5-flash", None)
+    assert model.reasoning_effort is None
+
+
 def test_gemini_newer_families_supported() -> None:
     model = _google_model("gemini-3-pro-preview", ENABLED("low"))
     assert model.reasoning_effort == "low"
