@@ -46,7 +46,7 @@ class _FakeTracesCol:
 
 @pytest.fixture(autouse=True)
 def _exchange_stub(monkeypatch):
-    async def fake_load(run_id):
+    async def fake_load(run_id, session_id=""):
         if run_id == "r-down":
             return "帮我写个部署脚本", "好的，这是一个 3000 字的详细教程……（非常啰嗦）"
         if run_id == "r-fail":
@@ -186,6 +186,17 @@ async def test_reflect_quota_enforced(monkeypatch):
 
     monkeypatch.setattr(r, "collect_signal_runs", fake_collect)
     monkeypatch.setattr(r, "reflect_on_run", fake_reflect)
+
+    async def _enabled(_uid):
+        return True
+
+    async def _quota_ok(_uid, _lim):
+        return True
+
+    import src.infra.memory.user_pref as up
+
+    monkeypatch.setattr(up, "user_memory_enabled", _enabled)
+    monkeypatch.setattr(r, "_check_daily_quota", _quota_ok)
     out = await r.evolve_user(object(), "u1", max_per_night=3)
     assert out == {"stored": 3}
     assert calls == ["r0", "r1", "r2"]
@@ -255,6 +266,17 @@ async def test_llm_failure_does_not_mark_processed(monkeypatch):
     monkeypatch.setattr(r, "collect_signal_runs", fake_collect)
     monkeypatch.setattr(r, "reflect_on_run", fake_reflect)
     monkeypatch.setattr(r, "_mark_signal_processed", fake_mark)
+
+    async def _enabled(_uid):
+        return True
+
+    async def _quota_ok(_uid, _lim):
+        return True
+
+    import src.infra.memory.user_pref as up
+
+    monkeypatch.setattr(up, "user_memory_enabled", _enabled)
+    monkeypatch.setattr(r, "_check_daily_quota", _quota_ok)
     await r.evolve_user(object(), "u1")
     assert marked == []
 

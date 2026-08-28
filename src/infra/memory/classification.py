@@ -105,7 +105,7 @@ def is_manual_memory_worthy(content: str, context: Optional[str] = None) -> bool
         return False
     # For explicit manual retention, skip transient/code filters entirely
     # — the user explicitly chose to save this content.
-    if context and any(kw in context.lower() for kw in ("project", "reference", "feedback_rule")):
+    if context and any(kw in context.lower() for kw in ("project", "reference")):
         return True
     if not passes_lightweight_memory_filter(stripped):
         return False
