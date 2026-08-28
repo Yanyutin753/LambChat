@@ -358,9 +358,7 @@ async def test_start_runtime_services_registers_orphan_recovery_when_scheduled_t
         scheduled_task_service=scheduled_task_service,
     )
     # 让 register_orphan_recovery_job 真实执行并把 job 注册到 fake scheduler
-    monkeypatch.setattr(
-        "src.infra.task.orphan_recovery.get_runtime_scheduler", lambda: scheduler
-    )
+    monkeypatch.setattr("src.infra.task.orphan_recovery.get_runtime_scheduler", lambda: scheduler)
 
     await runtime_services.start_runtime_services()
 

@@ -155,9 +155,7 @@ async def _recover_stale_tasks_after_worker_restart() -> None:
 def get_arq_runtime() -> EmbeddedArqRuntime:
     global _runtime
     if _runtime is None:
-        _runtime = EmbeddedArqRuntime(
-            on_worker_restarted=_recover_stale_tasks_after_worker_restart
-        )
+        _runtime = EmbeddedArqRuntime(on_worker_restarted=_recover_stale_tasks_after_worker_restart)
     return _runtime
 
 

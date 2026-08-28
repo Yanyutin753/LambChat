@@ -407,12 +407,8 @@ async def test_static_approval_notification_routes_by_approval_id(
     monkeypatch.setattr(mongodb, "get_pubsub_hub", lambda: _FakeHub(), raising=False)
 
     await mongodb._reset_approval_notification_state()
-    task_a = asyncio.create_task(
-        mongodb.wait_for_response_distributed("approval-a", timeout=3)
-    )
-    task_b = asyncio.create_task(
-        mongodb.wait_for_response_distributed("approval-b", timeout=3)
-    )
+    task_a = asyncio.create_task(mongodb.wait_for_response_distributed("approval-a", timeout=3))
+    task_b = asyncio.create_task(mongodb.wait_for_response_distributed("approval-b", timeout=3))
     await asyncio.sleep(0.1)  # 让两个等待者都注册完毕
 
     handler = handler_holder["handler"]
