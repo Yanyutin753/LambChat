@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import {
+  pickDocFontSize,
   buildFileCardPreview,
   getImagePreviewNavigation,
   getPreviewableImageFiles,
@@ -200,4 +201,73 @@ test("ImageViewer shows a loading affordance while switched images load", () => 
   expect(source).toMatch(/onError=\{\(\) => setIsImageLoading\(false\)\}/);
   expect(source).toMatch(/skeleton-line/);
   expect(source).toMatch(/opacity: isImageLoading \? 0\.45 : 1/);
+});
+
+test("builds a video card preview that opts into OSS snapshot covers", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "demo-clip.mp4",
+      file_type: "video",
+      mime_type: "video/mp4",
+      url: "https://b.oss-cn-hongkong.aliyuncs.com/p/demo-clip.mp4",
+    }),
+  );
+
+  expect(preview.kind).toBe("video");
+  expect(preview.badge).toBe("MP4");
+  expect(preview.imageUrl).toBe(
+    "https://b.oss-cn-hongkong.aliyuncs.com/p/demo-clip.mp4",
+  );
+});
+
+test("builds a pdf card preview backed by the server-side cover", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "架构设计文档.pdf",
+      file_type: "document",
+      mime_type: "application/pdf",
+      url: "https://lambchat.com/api/upload/file/revealed_files/x.pdf",
+    }),
+  );
+
+  expect(preview.kind).toBe("pdf");
+  expect(preview.badge).toBe("PDF");
+  expect(preview.imageUrl).toBe(
+    "https://lambchat.com/api/upload/file/revealed_files/x.pdf",
+  );
+});
+
+test("card preview lines strip replacement and control characters", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "奇怪编码.md",
+      file_type: "document",
+      mime_type: "text/markdown",
+      description: "正常描述\uFFFD\u0007带非法字符",
+    }),
+  );
+
+  expect(preview.lines.join(" ")).not.toContain("\uFFFD");
+  expect(preview.lines.join(" ")).not.toContain("\u0007");
+  expect(preview.subtitle).not.toContain("\uFFFD");
+});
+
+test("doc cover font scales up when content is sparse", () => {
+  expect(pickDocFontSize(0)).toBe("11.5px");
+  expect(pickDocFontSize(2)).toBe("11.5px");
+  expect(pickDocFontSize(3)).toBe("10.5px");
+  expect(pickDocFontSize(5)).toBe("10px");
+  expect(pickDocFontSize(6)).toBe("10px");
+});
+
+test("xlsx files get the spreadsheet cover kind", () => {
+  const preview = buildFileCardPreview(
+    createFile({
+      file_name: "季度财务报表.xlsx",
+      file_type: "document",
+      mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+  );
+  expect(preview.kind).toBe("sheet");
+  expect(preview.badge).toBe("XLSX");
 });

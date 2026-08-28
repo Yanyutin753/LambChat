@@ -26,6 +26,7 @@ from src.infra.memory.compaction_agent import (
     get_memory_compaction_agent,
     stop_memory_compaction_agent,
 )
+from src.infra.memory.user_pref import user_memory_enabled
 from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
 from src.kernel.config import settings
 from src.kernel.schemas.conversation_history import ConversationSourceRef
@@ -193,6 +194,8 @@ async def memory_retain(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"success": False, "error": "User not authenticated"})
+    if not await user_memory_enabled(user_id):
+        return await _json_dumps_result({"success": False, "error": "memory_disabled_for_user"})
 
     backend = await _get_backend()
     if not backend:
@@ -242,6 +245,8 @@ async def memory_recall(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"success": False, "error": "User not authenticated"})
+    if not await user_memory_enabled(user_id):
+        return await _json_dumps_result({"success": False, "error": "memory_disabled_for_user"})
 
     backend = await _get_backend()
     if not backend:
@@ -269,6 +274,8 @@ async def memory_delete(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return await _json_dumps_result({"success": False, "error": "User not authenticated"})
+    if not await user_memory_enabled(user_id):
+        return await _json_dumps_result({"success": False, "error": "memory_disabled_for_user"})
 
     backend = await _get_backend()
     if not backend:
@@ -328,6 +335,9 @@ async def _auto_retain_user_memory(
     source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
 ) -> None:
     if not user_id or not user_input.strip():
+        return
+    if not await user_memory_enabled(user_id):
+        logger.debug("[Memory] Auto-capture skipped: memory disabled by user %s", user_id)
         return
     lock = _auto_capture_user_locks.get(user_id)
     if lock is None:
@@ -500,6 +510,13 @@ async def _close_and_reset_backend() -> None:
             await get_memory_pubsub().start_listener()
         except Exception as e:
             logger.warning(f"[Memory] PubSub listener start after reset failed: {e}")
+        # Qdrant 向量索引单例重建（URL/维度变更时旧实例已不可用）
+        try:
+            from src.infra.memory.client.native.vector_store import reset_vector_index
+
+            await reset_vector_index()
+        except Exception:
+            pass
     logger.info("[Memory] Backend reset (will be recreated on next use)")
 
 

@@ -70,6 +70,15 @@ const AppContent = lazy(() =>
     default: m.AppContent,
   })),
 );
+
+// Dev-only cover gallery — excluded from production builds via the DEV guard.
+const CoverGalleryDemo = import.meta.env.DEV
+  ? lazy(() =>
+      import("./components/fileLibrary/__demo__/CoverGallery").then((m) => ({
+        default: m.CoverGalleryDemo,
+      })),
+    )
+  : null;
 const NotFoundPage = lazy(() =>
   import("./components/common/NotFoundPage").then((m) => ({
     default: m.NotFoundPage,
@@ -568,6 +577,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {import.meta.env.DEV && CoverGalleryDemo && (
+              <Route
+                path="/dev/covers"
+                element={
+                  <Suspense fallback={null}>
+                    <CoverGalleryDemo />
+                  </Suspense>
+                }
+              />
+            )}
             <Route
               path="/files"
               element={

@@ -96,6 +96,10 @@ async def append_memory_context(message: str, user_id: str, raw_query: str | Non
         return message
     if not getattr(settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", False):
         return message
+    from src.infra.memory.user_pref import user_memory_enabled
+
+    if not await user_memory_enabled(user_id):
+        return message
     query = (raw_query or message or "").strip()
     if len(query) < MEMORY_CONTEXT_MIN_QUERY_CHARS:
         return message

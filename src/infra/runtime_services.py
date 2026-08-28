@@ -158,6 +158,34 @@ def start_memory_compaction_agent() -> None:
     start_memory_compaction_agent()
 
 
+def start_memory_evolution_scheduler() -> None:
+    from src.infra.memory.evolution.scheduler import run_scheduled_evolution
+    from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
+
+    if not (
+        getattr(settings, "ENABLE_MEMORY", False)
+        and getattr(settings, "NATIVE_MEMORY_SELF_EVOLVE_ENABLED", False)
+    ):
+        return
+    get_runtime_scheduler().register_job(
+        ScheduledJob.from_interval(
+            id="memory.evolution",
+            name="Memory self-evolution",
+            interval_seconds=lambda: max(
+                60,
+                int(
+                    getattr(settings, "NATIVE_MEMORY_SELF_EVOLVE_INTERVAL_SECONDS", 43200) or 43200
+                ),
+            ),
+            enabled=lambda: (
+                bool(settings.ENABLE_MEMORY)
+                and bool(getattr(settings, "NATIVE_MEMORY_SELF_EVOLVE_ENABLED", False))
+            ),
+            handler=run_scheduled_evolution,
+        )
+    )
+
+
 def register_orphan_recovery_job() -> None:
     from src.infra.task.orphan_recovery import register_orphan_recovery_job
 
@@ -215,6 +243,7 @@ async def start_runtime_services() -> None:
 
     if settings.ENABLE_MEMORY:
         start_memory_compaction_agent()
+        start_memory_evolution_scheduler()
 
     register_orphan_recovery_job()
 
@@ -225,7 +254,10 @@ async def start_runtime_services() -> None:
         await scheduled_task_service.load_persisted_tasks()
         register_scheduled_task_reconcile_job(scheduled_task_service)
 
-        get_runtime_scheduler().start()
+    # Runtime scheduler 承载基础设施 job（task.orphan_recovery、
+    # memory.compaction），必须无条件启动；ENABLE_SCHEDULED_TASK 只控制
+    # 用户定时任务功能（reconcile job 与 DB 加载）。
+    get_runtime_scheduler().start()
 
 
 async def stop_runtime_services() -> None:

@@ -292,6 +292,16 @@ class NativeMemoryBackend(MemoryBackend):
             ):
                 await delete_memory_content(self, user_id, _existing.get("content_store_key"))
             await self._invalidate_cache(user_id)
+            from src.infra.memory.client.native.vector_store import index_write_through
+
+            await index_write_through(
+                user_id=user_id,
+                memory_id=_existing["memory_id"],
+                embedding=embedding,
+                memory_type=memory_type,
+                context=context,
+                updated_at_ts=int(now.timestamp()),
+            )
             return {
                 "success": True,
                 "memory_id": _existing["memory_id"],
@@ -322,6 +332,16 @@ class NativeMemoryBackend(MemoryBackend):
         await self._collection.insert_one(doc)
         # Invalidate index cache (local + distributed)
         await self._invalidate_cache(user_id)
+        from src.infra.memory.client.native.vector_store import index_write_through
+
+        await index_write_through(
+            user_id=user_id,
+            memory_id=memory_id,
+            embedding=embedding,
+            memory_type=memory_type,
+            context=context,
+            updated_at_ts=int(now.timestamp()),
+        )
 
         return {
             "success": True,
@@ -356,6 +376,9 @@ class NativeMemoryBackend(MemoryBackend):
             if existing_doc and existing_doc.get("content_storage_mode") == "store":
                 await delete_memory_content(self, user_id, existing_doc.get("content_store_key"))
             await self._invalidate_cache(user_id)
+            from src.infra.memory.client.native.vector_store import index_delete
+
+            await index_delete(user_id, memory_id)
             return {"success": True, "message": f"Memory {memory_id} deleted"}
         return {"success": False, "error": "Memory not found"}
 

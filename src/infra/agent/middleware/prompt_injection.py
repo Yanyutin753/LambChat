@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 
@@ -26,13 +27,26 @@ logger = logging.getLogger(__name__)
 # writes memories after each turn; rebuilding the index mid-session would
 # change the memory_recall tool description — and with it the entire tools
 # prefix — on almost every turn.
-_MEMORY_INDEX_SNAPSHOTS: dict[str, tuple[float, str]] = {}
+#
+# Key = (user_id, session_id) — session-scoped, not user-scoped: consecutive
+# turns of one session on DIFFERENT replicas (k8s dual-Pod) get identical
+# bytes for the life of the session. Empty indexes are cached with a short
+# TTL so memoryless users don't hit Mongo on every model call.
+_MEMORY_INDEX_SNAPSHOTS: dict[tuple[str, str], tuple[float, str]] = {}
 _MEMORY_INDEX_SNAPSHOT_TTL_SECONDS = 30 * 60
+_MEMORY_INDEX_EMPTY_TTL_SECONDS = 60
+_MEMORY_INDEX_BUILD_TIMEOUT_SECONDS = 2.0
+_MEMORY_INDEX_SNAPSHOT_MAX_SIZE = 2000
+
+# 用户级 fallback（无 session_id 的场景，如 sub-agent）
+_MEMORY_INDEX_USER_SNAPSHOTS: dict[str, tuple[float, str]] = {}
 
 
 def invalidate_memory_index_snapshot(user_id: str) -> None:
-    """Drop the cached index so the next call rebuilds it (e.g. explicit refresh)."""
-    _MEMORY_INDEX_SNAPSHOTS.pop(user_id, None)
+    """Drop all cached indexes for a user (panel edit/delete → next call rebuilds)."""
+    for key in [k for k in _MEMORY_INDEX_SNAPSHOTS if k[0] == user_id]:
+        _MEMORY_INDEX_SNAPSHOTS.pop(key, None)
+    _MEMORY_INDEX_USER_SNAPSHOTS.pop(user_id, None)
 
 
 class SectionPromptMiddleware(AgentMiddleware):
@@ -117,25 +131,75 @@ class MemoryIndexMiddleware(AgentMiddleware):
 async def _build_memory_index_for_user(user_id: str, *, session_id: str | None = None) -> str:
     """Build memory index string for a user. Returns empty string on any failure.
 
-    With a session_id, the index is snapshotted per user for the TTL: memories
-    captured during the session only surface in later sessions, keeping the
-    tools prefix byte-stable across the turns of one conversation.
+    Session-scoped snapshot (user_id, session_id): consecutive turns on any
+    replica get identical bytes for the session lifetime. Empty results are
+    cached with a short TTL. The whole build (user-pref check + Mongo) is
+    hard-capped at 2s — on timeout, degrade to no injection (never block
+    the model call).
     """
     import time as _time
 
-    cache_key = user_id
-    cached = _MEMORY_INDEX_SNAPSHOTS.get(cache_key)
     now = _time.monotonic()
-    if (
-        session_id is not None
-        and cached is not None
-        and (now - cached[0]) < _MEMORY_INDEX_SNAPSHOT_TTL_SECONDS
-    ):
-        return cached[1]
-    index = await _build_memory_index_uncached(user_id)
-    if index:
-        _MEMORY_INDEX_SNAPSHOTS[cache_key] = (now, index)
+    cache_key: tuple[str, str] | str
+    if session_id:
+        cache_key = (user_id, session_id)
+        cached = _MEMORY_INDEX_SNAPSHOTS.get(cache_key)
+        if cached is not None:
+            ttl = (
+                _MEMORY_INDEX_SNAPSHOT_TTL_SECONDS if cached[1] else _MEMORY_INDEX_EMPTY_TTL_SECONDS
+            )
+            if (now - cached[0]) < ttl:
+                return cached[1]
+    else:
+        cache_key = user_id
+        cached = _MEMORY_INDEX_USER_SNAPSHOTS.get(cache_key)
+        if cached is not None:
+            ttl = (
+                _MEMORY_INDEX_SNAPSHOT_TTL_SECONDS if cached[1] else _MEMORY_INDEX_EMPTY_TTL_SECONDS
+            )
+            if (now - cached[0]) < ttl:
+                return cached[1]
+
+    # 硬超时：user_pref 检查 + 索引构建全链路 ≤ 2s，超时降级为不注入
+    try:
+        index = await asyncio.wait_for(
+            _build_memory_index_full(user_id), timeout=_MEMORY_INDEX_BUILD_TIMEOUT_SECONDS
+        )
+    except (asyncio.TimeoutError, Exception):
+        logger.debug("[Memory] Index build timed out/failed for %s, degrading", user_id)
+        index = ""
+
+    # 缓存（含空结果的短 TTL 缓存——防 memoryless 用户每轮打 Mongo）
+    if session_id:
+        _MEMORY_INDEX_SNAPSHOTS[cache_key] = (now, index)  # type: ignore[index,assignment]
+        if len(_MEMORY_INDEX_SNAPSHOTS) > _MEMORY_INDEX_SNAPSHOT_MAX_SIZE:
+            _evict_oldest_snapshots()
+    else:
+        _MEMORY_INDEX_USER_SNAPSHOTS[cache_key] = (now, index)  # type: ignore[index,assignment]
     return index
+
+
+def _evict_oldest_snapshots() -> None:
+    """LRU-style: pop the oldest ~10% when the snapshot cache exceeds its bound."""
+    import time as _time
+
+    now = _time.monotonic()
+    expired = [k for k, (t, _) in _MEMORY_INDEX_SNAPSHOTS.items() if (now - t) > 60]
+    for k in expired:
+        _MEMORY_INDEX_SNAPSHOTS.pop(k, None)
+    if len(_MEMORY_INDEX_SNAPSHOTS) > _MEMORY_INDEX_SNAPSHOT_MAX_SIZE:
+        sorted_keys = sorted(_MEMORY_INDEX_SNAPSHOTS, key=lambda k: _MEMORY_INDEX_SNAPSHOTS[k][0])
+        for k in sorted_keys[: len(sorted_keys) - _MEMORY_INDEX_SNAPSHOT_MAX_SIZE]:
+            _MEMORY_INDEX_SNAPSHOTS.pop(k, None)
+
+
+async def _build_memory_index_full(user_id: str) -> str:
+    """User-pref check + actual index build (called under wait_for)."""
+    from src.infra.memory.user_pref import user_memory_enabled
+
+    if not await user_memory_enabled(user_id):
+        return ""
+    return await _build_memory_index_uncached(user_id)
 
 
 async def _build_memory_index_uncached(user_id: str) -> str:

@@ -1,7 +1,7 @@
 import {
   buildSelectionActionPrompt,
   getSelectionPopoverPosition,
-} from "../selectionActionPopover";
+} from "../selectionActionPopoverUtils";
 
 test("getSelectionPopoverPosition places the menu below the selected text and clamps to the viewport", () => {
   const position = getSelectionPopoverPosition({

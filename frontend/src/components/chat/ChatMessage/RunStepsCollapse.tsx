@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import clsx from "clsx";
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatElapsedCompact, formatElapsedHuman } from "./runStepsCollapse";
+import { formatElapsedCompact, formatElapsedHuman } from "./runStepsCollapseUtils";
 
 /**
  * run 过程折叠区：状态行「已工作 9 分 57 秒 ›」（右侧 chevron、行下淡分隔线）。

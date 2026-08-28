@@ -78,3 +78,25 @@ def test_is_distributed_runtime_detects_replica_count(monkeypatch: pytest.Monkey
     monkeypatch.setenv("LAMBCHAT_REPLICA_COUNT", "2")
 
     assert is_distributed_runtime() is True
+
+
+def test_is_distributed_runtime_detects_kubernetes_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """k8s Pod 内 KUBERNETES_SERVICE_HOST 一定存在，应自动启用分布式校验。
+
+    回归防护：此前仅在显式设置 LAMBCHAT_DISTRIBUTED_MODE / REPLICA_COUNT 时
+    校验才生效，生产 k8s 双 Pod 未设这两个变量 → S3 关闭等危险配置静默上线。
+    """
+    monkeypatch.delenv("LAMBCHAT_DISTRIBUTED_MODE", raising=False)
+    monkeypatch.delenv("LAMBCHAT_REPLICA_COUNT", raising=False)
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.43.0.1")
+
+    assert is_distributed_runtime() is True
+
+
+def test_is_distributed_runtime_kubernetes_env_overridable_by_explicit_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KUBERNETES_SERVICE_HOST", "10.43.0.1")
+    monkeypatch.setenv("LAMBCHAT_DISTRIBUTED_MODE", "false")
+
+    assert is_distributed_runtime() is False

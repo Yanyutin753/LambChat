@@ -8,7 +8,7 @@ import {
   getSelectionPopoverPosition,
   storePendingSelectionActionPrompt,
   type SelectionAction,
-} from "./selectionActionPopover";
+} from "./selectionActionPopoverUtils";
 
 const MENU_WIDTH = 142;
 const MENU_HEIGHT = 34;

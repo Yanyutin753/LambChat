@@ -85,6 +85,9 @@ export type FileCardPreviewKind =
   | "code"
   | "markdown"
   | "project"
+  | "video"
+  | "pdf"
+  | "sheet"
   | "document"
   | "fallback";
 
@@ -138,14 +141,34 @@ const CODE_EXTENSIONS = new Set([
 
 const DATA_EXTENSIONS = new Set(["CSV", "JSON", "TOML", "XML"]);
 
+const SHEET_EXTENSIONS = new Set(["XLSX", "XLS", "XLSM", "ET"]);
+
+/**
+ * Sparse content earns bigger type: the doc cover scales its body font by
+ * line count so a two-line note fills the 16:9 area instead of floating.
+ */
+export function pickDocFontSize(lineCount: number): string {
+  if (lineCount <= 2) return "11.5px";
+  if (lineCount <= 4) return "10.5px";
+  return "10px";
+}
+
 function stripExtension(fileName: string): string {
   const last = fileName.split("/").pop() || fileName;
   const idx = last.lastIndexOf(".");
   return idx > 0 ? last.slice(0, idx) : last;
 }
 
+// Replacement chars and control codes: odd binary/mis-encoded content must
+// never render as 乱码 on a cover.
+// eslint-disable-next-line no-control-regex
+const GARBLED_CHARS_RE = /[\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+
 function compactLine(value: string | null | undefined): string {
-  return (value || "").replace(/\s+/g, " ").trim();
+  return (value || "")
+    .replace(GARBLED_CHARS_RE, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeLines(lines: Array<string | null | undefined>): string[] {
@@ -335,6 +358,45 @@ export function buildFileCardPreview(
       lines: [],
       colorName,
       imageUrl: file.url,
+    };
+  }
+
+  if (file.file_type === "video" && file.url) {
+    return {
+      kind: "video",
+      title,
+      subtitle: description || label,
+      badge: ext || "Video",
+      lines: [],
+      colorName,
+      imageUrl: file.url,
+    };
+  }
+
+  if (ext === "PDF" && file.url) {
+    // Real first-page cover rendered server-side (?cover=1); never loads
+    // the PDF itself in the grid.
+    return {
+      kind: "pdf",
+      title,
+      subtitle: description || label,
+      badge: ext,
+      lines: [],
+      colorName,
+      imageUrl: file.url,
+    };
+  }
+
+  if (SHEET_EXTENSIONS.has(ext)) {
+    return {
+      kind: "sheet",
+      title,
+      subtitle: description || label,
+      badge: ext,
+      lines: normalizeLines([description]),
+      colorName,
+      // Real leading rows rendered server-side (?cover=1)
+      imageUrl: file.url || undefined,
     };
   }
 
