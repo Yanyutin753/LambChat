@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -302,13 +303,130 @@ async def test_wait_for_response_distributed_returns_on_pubsub_notification(
     monkeypatch.setattr(mongodb, "get_approval_storage", lambda: storage)
     monkeypatch.setattr(mongodb, "get_pubsub_hub", lambda: _FakeHub(), raising=False)
 
+    await mongodb._reset_approval_notification_state()
     result = await mongodb.wait_for_response_distributed("approval-1", timeout=1)
 
     assert result == response
     assert subscribed["channel"] == mongodb.APPROVAL_RESPONSE_CHANNEL
-    assert subscribed["unsubscribed"] == "token-1"
-    assert subscribed["stopped_if_idle"] is True
+    # 静态订阅：等待结束不退订、不尝试停连接——退订会触发 pubsub hub
+    # 重订整条连接，窗口内所有频道消息丢失（分布式 P1）。
+    assert "unsubscribed" not in subscribed
+    assert "stopped_if_idle" not in subscribed
     assert storage.get_response_calls == 1
+    await mongodb._reset_approval_notification_state()
+
+
+@pytest.mark.asyncio
+async def test_wait_for_response_distributed_subscribes_channel_only_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """两个连续等待只应 subscribe 一次，且永不 unsubscribe/stop_if_idle。
+
+    回归防护：动态订阅/退订会让共享 pubsub hub 杀掉整条连接重订，
+    每次 HITL 审批等待制造两次全频道消息丢失窗口。
+    """
+    response = ApprovalResponse(approved=True, response={"ok": True})
+    subscribe_calls: list[str] = []
+    unsubscribe_calls: list[str] = []
+    stop_if_idle_calls = 0
+    handler_holder: dict[str, object] = {}
+
+    class _FakeStorage:
+        async def has_response(self, _approval_id: str) -> bool:
+            return True
+
+        async def get_response(self, _approval_id: str):
+            return response
+
+    class _FakeHub:
+        def subscribe(self, channel: str, handler):
+            subscribe_calls.append(channel)
+            handler_holder["handler"] = handler
+            return f"token-{len(subscribe_calls)}"
+
+        def unsubscribe(self, token: str) -> None:
+            unsubscribe_calls.append(token)
+
+        async def start(self) -> None:
+            handler_holder["started"] = True
+
+        async def stop_if_idle(self) -> None:
+            nonlocal stop_if_idle_calls
+            stop_if_idle_calls += 1
+
+    storage = _FakeStorage()
+    hub = _FakeHub()
+    monkeypatch.setattr(mongodb, "get_approval_storage", lambda: storage)
+    monkeypatch.setattr(mongodb, "get_pubsub_hub", lambda: hub, raising=False)
+
+    await mongodb._reset_approval_notification_state()
+    first = await mongodb.wait_for_response_distributed("approval-a", timeout=1)
+    second = await mongodb.wait_for_response_distributed("approval-b", timeout=1)
+
+    assert first == response
+    assert second == response
+    assert subscribe_calls == [mongodb.APPROVAL_RESPONSE_CHANNEL]
+    assert unsubscribe_calls == []
+    assert stop_if_idle_calls == 0
+    await mongodb._reset_approval_notification_state()
+
+
+@pytest.mark.asyncio
+async def test_static_approval_notification_routes_by_approval_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """静态 handler 只唤醒匹配 approval_id 的等待者，不误醒其他等待者。"""
+    response_a = ApprovalResponse(approved=True, response={"which": "a"})
+    handler_holder: dict[str, object] = {}
+
+    class _FakeStorage:
+        async def has_response(self, approval_id: str) -> bool:
+            return approval_id == "approval-a"
+
+        async def get_response(self, approval_id: str):
+            if approval_id == "approval-a":
+                return response_a
+            return None
+
+    class _FakeHub:
+        def subscribe(self, channel: str, handler):
+            handler_holder["handler"] = handler
+            return "token-1"
+
+        def unsubscribe(self, token: str) -> None:
+            pass
+
+        async def start(self) -> None:
+            pass
+
+        async def stop_if_idle(self) -> None:
+            pass
+
+    storage = _FakeStorage()
+    monkeypatch.setattr(mongodb, "get_approval_storage", lambda: storage)
+    monkeypatch.setattr(mongodb, "get_pubsub_hub", lambda: _FakeHub(), raising=False)
+
+    await mongodb._reset_approval_notification_state()
+    task_a = asyncio.create_task(
+        mongodb.wait_for_response_distributed("approval-a", timeout=3)
+    )
+    task_b = asyncio.create_task(
+        mongodb.wait_for_response_distributed("approval-b", timeout=3)
+    )
+    await asyncio.sleep(0.1)  # 让两个等待者都注册完毕
+
+    handler = handler_holder["handler"]
+    await handler({"data": '{"approval_id": "approval-a"}'})
+    await asyncio.sleep(0.1)
+
+    assert task_a.done() and task_a.result() is response_a
+    assert not task_b.done(), "approval-b 不应被 approval-a 的通知唤醒"
+    task_b.cancel()
+    try:
+        await task_b
+    except asyncio.CancelledError:
+        pass
+    await mongodb._reset_approval_notification_state()
 
 
 @pytest.mark.asyncio
@@ -351,10 +469,12 @@ async def test_wait_for_response_distributed_offloads_notification_json_parse(
     monkeypatch.setattr(mongodb, "get_pubsub_hub", lambda: _FakeHub(), raising=False)
     monkeypatch.setattr(mongodb, "run_blocking_io", fake_run_blocking_io)
 
+    await mongodb._reset_approval_notification_state()
     result = await mongodb.wait_for_response_distributed("approval-1", timeout=1)
 
     assert result == response
     assert calls == [json.loads]
+    await mongodb._reset_approval_notification_state()
 
 
 @pytest.mark.asyncio
