@@ -2,31 +2,9 @@ import {
   buildProxyCoverUrl,
   buildImageThumbUrl,
   buildVideoThumbChain,
-  familyForPreviewKind,
-  getCoverTheme,
-  isOssDirectUrl,
-  pickCoverVariant,
-  tokenizeCodeLine,
+      isOssDirectUrl,
+    tokenizeCodeLine,
 } from "../coverTheme.ts";
-
-/* ── Deterministic variant pick ──────────────────────── */
-
-test("pickCoverVariant returns the same index for the same seed", () => {
-  expect(pickCoverVariant("revealed/file-1")).toBe(
-    pickCoverVariant("revealed/file-1"),
-  );
-});
-
-test("pickCoverVariant stays within [0, count) and spreads across variants", () => {
-  const seen = new Set<number>();
-  for (let i = 0; i < 60; i++) {
-    const v = pickCoverVariant(`seed-${i}`);
-    expect(v).toBeGreaterThanOrEqual(0);
-    expect(v).toBeLessThan(3);
-    seen.add(v);
-  }
-  expect(seen.size).toBeGreaterThanOrEqual(2);
-});
 
 /* ── OSS direct URL detection ────────────────────────── */
 
@@ -106,50 +84,6 @@ test("tokenizeCodeLine accents quoted strings and literals for numbers", () => {
   expect(str?.tone).toBe("accent");
   const num = tokenizeCodeLine("return 42;");
   expect(num.find((t) => t.text.includes("42"))?.tone).toBe("literal");
-});
-
-/* ── Cover theme palettes ────────────────────────────── */
-
-test("familyForPreviewKind maps preview kinds to cover families", () => {
-  expect(familyForPreviewKind("code")).toBe("code");
-  expect(familyForPreviewKind("markdown")).toBe("markdown");
-  expect(familyForPreviewKind("text")).toBe("data");
-  expect(familyForPreviewKind("project")).toBe("project");
-  expect(familyForPreviewKind("document")).toBe("document");
-  expect(familyForPreviewKind("image")).toBe("media");
-  expect(familyForPreviewKind("fallback")).toBe("other");
-});
-
-test("getCoverTheme is stable per seed and always returns hex stops", () => {
-  const a = getCoverTheme("code", "seed-1");
-  const b = getCoverTheme("code", "seed-1");
-  expect(a).toEqual(b);
-  expect(a.from).toMatch(/^#[0-9a-f]{6}$/i);
-  expect(a.to).toMatch(/^#[0-9a-f]{6}$/i);
-  expect(typeof a.angle).toBe("number");
-});
-
-test("getCoverTheme varies with the seed inside one family", () => {
-  const variants = new Set(
-    Array.from({ length: 30 }, (_, i) => getCoverTheme("code", `s-${i}`).from),
-  );
-  expect(variants.size).toBeGreaterThanOrEqual(2);
-});
-
-test("getCoverTheme covers every family", () => {
-  for (const family of [
-    "code",
-    "markdown",
-    "data",
-    "project",
-    "document",
-    "media",
-    "other",
-  ] as const) {
-    const theme = getCoverTheme(family, "any");
-    expect(theme.from).toMatch(/^#/);
-    expect(theme.to).toMatch(/^#/);
-  }
 });
 
 /* ── App proxy cover URLs ────────────────────────────── */

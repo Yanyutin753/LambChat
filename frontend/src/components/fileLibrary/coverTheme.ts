@@ -1,27 +1,9 @@
-import type { FileCardPreviewKind } from "./utils";
 
 /* ═══════════════════════════════════════════════════════
-   Studio cover theme — pure helpers backing the 16:9 file
-   covers in the revealed files library. Zero network use
-   for generative covers; OSS thumbs are built here too.
+   Cover helpers — thumbnail URL chains (app proxy ?cover=1 →
+   OSS processing → original) and the lightweight code-line
+   tinting used by the paper covers. Zero network use here.
    ═══════════════════════════════════════════════════════ */
-
-/* ── Deterministic variant pick ──────────────────────── */
-
-/** FNV-1a — stable across sessions, cheap, good spread. */
-function hashSeed(seed: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-export function pickCoverVariant(seed: string, count = 3): number {
-  if (count <= 1) return 0;
-  return hashSeed(seed) % count;
-}
 
 /* ── OSS direct URL detection ────────────────────────── */
 
@@ -159,93 +141,3 @@ export function tokenizeCodeLine(line: string): CodeToken[] {
   if (last < line.length) tokens.push({ text: line.slice(last), tone: "default" });
   return tokens.length ? tokens : [{ text: line, tone: "default" }];
 }
-
-/* ── Cover families & palettes ───────────────────────── */
-
-export type CoverFamily =
-  | "code"
-  | "markdown"
-  | "data"
-  | "project"
-  | "document"
-  | "media"
-  | "other";
-
-export function familyForPreviewKind(
-  kind: FileCardPreviewKind,
-): CoverFamily {
-  switch (kind) {
-    case "code":
-      return "code";
-    case "markdown":
-      return "markdown";
-    case "text":
-      return "data";
-    case "project":
-      return "project";
-    case "document":
-      return "document";
-    case "image":
-    case "excalidraw":
-      return "media";
-    default:
-      return "other";
-  }
-}
-
-export interface CoverTheme {
-  from: string;
-  to: string;
-  angle: number;
-}
-
-/**
- * Curated dark-canvas gradients per family. Three variants each —
- * the seed (file key) picks one so same-type files in a grid stay
- * scannable but not identical. Covers keep their own rich canvas
- * in both light and dark app themes, like gallery thumbnails.
- */
-const PALETTES: Record<CoverFamily, Array<[string, string, number]>> = {
-  code: [
-    ["#312e81", "#4c1d95", 135],
-    ["#1e3a8a", "#312e81", 160],
-    ["#4c1d95", "#701a75", 120],
-  ],
-  markdown: [
-    ["#78350f", "#9a3412", 135],
-    ["#7c2d12", "#881337", 150],
-    ["#854d0e", "#7c2d12", 120],
-  ],
-  data: [
-    ["#134e4a", "#0e7490", 135],
-    ["#164e63", "#0369a1", 155],
-    ["#064e3b", "#0f766e", 120],
-  ],
-  project: [
-    ["#4c1d95", "#5b21b6", 135],
-    ["#5b21b6", "#3730a3", 155],
-    ["#701a75", "#4c1d95", 120],
-  ],
-  document: [
-    ["#0c4a6e", "#1e40af", 135],
-    ["#1e3a8a", "#0c4a6e", 155],
-    ["#334155", "#0c4a6e", 120],
-  ],
-  media: [
-    ["#831843", "#9d174d", 135],
-    ["#86198f", "#701a75", 155],
-    ["#9f1239", "#86198f", 120],
-  ],
-  other: [
-    ["#1f2937", "#374151", 135],
-    ["#292524", "#44403c", 155],
-    ["#1e293b", "#334155", 120],
-  ],
-};
-
-export function getCoverTheme(family: CoverFamily, seed: string): CoverTheme {
-  const variants = PALETTES[family] ?? PALETTES.other;
-  const [from, to, angle] = variants[pickCoverVariant(seed, variants.length)];
-  return { from, to, angle };
-}
-

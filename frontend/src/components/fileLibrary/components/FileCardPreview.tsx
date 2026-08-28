@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { clsx } from "clsx";
-import { Layers, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getFullUrl } from "../../../services/api";
 import type { FileCardPreview as FileCardPreviewModel } from "../utils";
@@ -8,10 +8,7 @@ import {
   buildImageThumbUrl,
   buildProxyCoverUrl,
   buildVideoThumbChain,
-  familyForPreviewKind,
-  getCoverTheme,
   tokenizeCodeLine,
-  type CoverFamily,
 } from "../coverTheme";
 import { ExcalidrawCardPreview } from "../../documents/previews/ExcalidrawCardPreview";
 
@@ -19,15 +16,13 @@ interface FileCardPreviewProps {
   preview: FileCardPreviewModel;
   icon: LucideIcon;
   compact?: boolean;
-  /** Short extension watermark (e.g. "PDF", "TS") rendered on the cover canvas. */
-  watermark?: string;
 }
 
 /* ═══════════════════════════════════════════════════════
-   Studio covers — every revealed file gets a 16:9 cover with
-   its own rich canvas: curated gradient by type family, a
-   deterministic variant per file, dot-grid texture, giant
-   extension watermark and kind-specific mini content.
+   Paper covers — Feishu-style document previews. The 16:9
+   area reads as a page of the file itself (doc lines, mini
+   editor, data table) on a quiet paper canvas that follows
+   the app theme; type color stays confined to small icons.
    ═══════════════════════════════════════════════════════ */
 
 /* ── Smart thumbnail with fallback chain ─────────────── */
@@ -62,129 +57,121 @@ function SmartThumb({
   );
 }
 
-/* ── Shared cover canvas ─────────────────────────────── */
+/* ── Per-type icon tint (compact + fallbacks) ────────── */
 
-function CoverCanvas({
-  family,
-  seed,
-  watermark,
-  badge,
-  topRight,
+const ICON_TINT: Record<string, string> = {
+  amber: "text-amber-500 dark:text-amber-400",
+  blue: "text-blue-500 dark:text-blue-400",
+  cyan: "text-cyan-500 dark:text-cyan-400",
+  emerald: "text-emerald-500 dark:text-emerald-400",
+  green: "text-green-500 dark:text-green-400",
+  indigo: "text-indigo-500 dark:text-indigo-400",
+  lime: "text-lime-500 dark:text-lime-400",
+  orange: "text-orange-500 dark:text-orange-400",
+  pink: "text-pink-500 dark:text-pink-400",
+  purple: "text-purple-500 dark:text-purple-400",
+  red: "text-red-500 dark:text-red-400",
+  rose: "text-rose-500 dark:text-rose-400",
+  sky: "text-sky-500 dark:text-sky-400",
+  slate: "text-slate-500 dark:text-slate-400",
+  stone: "text-stone-500 dark:text-stone-400",
+  teal: "text-teal-500 dark:text-teal-400",
+  violet: "text-violet-500 dark:text-violet-400",
+  yellow: "text-yellow-500 dark:text-yellow-400",
+  zinc: "text-zinc-500 dark:text-zinc-400",
+};
+
+/* ── Shared paper canvas ─────────────────────────────── */
+
+function PaperCanvas({
   children,
+  className,
 }: {
-  family: CoverFamily;
-  seed: string;
-  watermark?: string;
-  badge?: string;
-  topRight?: React.ReactNode;
   children?: React.ReactNode;
+  className?: string;
 }) {
-  const theme = getCoverTheme(family, seed);
-
   return (
     <div
-      className="relative h-full w-full overflow-hidden"
-      style={{
-        background: `linear-gradient(${theme.angle}deg, ${theme.from} 0%, ${theme.to} 100%)`,
-      }}
+      className={clsx(
+        "relative h-full w-full overflow-hidden bg-stone-50 dark:bg-stone-900/60",
+        className,
+      )}
     >
-      {/* Top-right sheen */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(120% 90% at 88% -12%, rgba(255,255,255,0.16), transparent 55%)",
-        }}
-      />
-      {/* Dot grid texture */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-25"
-        style={{
-          backgroundImage:
-            "radial-gradient(rgba(255,255,255,0.16) 1px, transparent 1px)",
-          backgroundSize: "14px 14px",
-        }}
-      />
-      {/* Bottom scrim for legibility */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(to top, rgba(0,0,0,0.42), transparent 52%)",
-        }}
-      />
-
-      {/* Giant extension watermark */}
-      {watermark && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -bottom-2 -right-1 select-none font-black leading-none tracking-tighter text-white/[0.08] transition-all duration-500 ease-out group-hover/card:-translate-y-1 group-hover/card:text-white/[0.12]"
-          style={{ fontSize: watermark.length > 4 ? 44 : 64 }}
-        >
-          {watermark}
-        </span>
-      )}
-
-      {/* Badge chip */}
-      {badge && (
-        <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 px-2.5 pt-2">
-          <span className="max-w-[62%] truncate rounded-md border border-white/15 bg-white/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/90 backdrop-blur-sm">
-            {badge}
-          </span>
-          {topRight}
-        </div>
-      )}
-
       {children}
     </div>
   );
 }
 
-/* ── Code cover: mini editor window ──────────────────── */
+/* ── Doc cover: page of text (md / pdf / docs) ───────── */
 
-function CodeCover({
-  p,
-  seed,
-  watermark,
-}: {
-  p: FileCardPreviewModel;
-  seed: string;
-  watermark?: string;
-}) {
+const DOC_LINE_WIDTHS = ["w-full", "w-11/12", "w-4/5", "w-3/5"];
+
+function DocCover({ p }: { p: FileCardPreviewModel }) {
+  const bodyLines = p.lines.filter(Boolean).slice(0, 5);
+
   return (
-    <CoverCanvas
-      family="code"
-      seed={seed}
-      watermark={watermark}
-      badge={p.badge}
-      topRight={
-        <div className="flex gap-1">
-          <span className="h-[6px] w-[6px] rounded-full bg-[#ff5f57]/90" />
-          <span className="h-[6px] w-[6px] rounded-full bg-[#febc2e]/90" />
-          <span className="h-[6px] w-[6px] rounded-full bg-[#28c840]/90" />
-        </div>
-      }
-    >
-      <div className="absolute inset-x-0 bottom-0 top-8 px-3 pb-2.5">
-        <p className="mb-1 truncate font-mono text-[9px] text-white/50">
+    <PaperCanvas>
+      <div className="flex h-full flex-col px-3 pb-3 pt-3">
+        <p className="truncate text-[11px] font-semibold leading-tight text-stone-800 dark:text-stone-200">
           {p.title}
-          {p.language ? ` · ${p.language}` : ""}
         </p>
-        <div className="space-y-[3px] font-mono text-[10px] leading-[1.55]">
+        <div className="mt-1 h-px w-8 bg-stone-300 dark:bg-stone-700" />
+        <div className="mt-1.5 space-y-[5px]">
+          {bodyLines.map((line, i) => (
+            <p
+              key={i}
+              className={clsx(
+                "truncate text-[9px] leading-[1.5] text-stone-500 dark:text-stone-400",
+                i === 0 && "font-medium text-stone-600 dark:text-stone-300",
+                DOC_LINE_WIDTHS[(i + 1) % DOC_LINE_WIDTHS.length],
+              )}
+            >
+              {line}
+            </p>
+          ))}
+          {bodyLines.length === 0 && (
+            <>
+              <div className="h-[5px] w-full rounded-[2px] bg-stone-200 dark:bg-stone-800" />
+              <div className="h-[5px] w-11/12 rounded-[2px] bg-stone-200 dark:bg-stone-800" />
+              <div className="h-[5px] w-4/5 rounded-[2px] bg-stone-200 dark:bg-stone-800" />
+            </>
+          )}
+        </div>
+      </div>
+    </PaperCanvas>
+  );
+}
+
+/* ── Code cover: quiet mini editor ───────────────────── */
+
+function CodeCover({ p }: { p: FileCardPreviewModel }) {
+  return (
+    <PaperCanvas>
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-1.5 border-b border-stone-200 px-3 py-1.5 dark:border-stone-800">
+          <span className="flex gap-1">
+            <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
+            <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
+            <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
+          </span>
+          <span className="truncate font-mono text-[8px] text-stone-400 dark:text-stone-500">
+            {p.title}
+          </span>
+        </div>
+        <div className="flex-1 space-y-[3px] overflow-hidden px-3 py-2 font-mono text-[9.5px] leading-[1.6]">
           {p.lines.slice(0, 4).map((line, i) => (
             <div key={i} className="flex items-baseline gap-2 overflow-hidden">
-              <span className="w-2.5 shrink-0 text-right text-[8px] text-white/25 select-none">
+              <span className="w-2 shrink-0 text-right text-[8px] text-stone-300 select-none dark:text-stone-600">
                 {i + 1}
               </span>
-              <span className="truncate">
+              <span className="truncate text-stone-700 dark:text-stone-300">
                 {tokenizeCodeLine(line).map((tok, j) => (
                   <span
                     key={j}
                     className={clsx(
-                      tok.tone === "accent" && "text-amber-300/90",
-                      tok.tone === "literal" && "text-sky-300/90",
-                      tok.tone === "muted" && "text-white/30 italic",
-                      tok.tone === "default" && "text-white/80",
+                      tok.tone === "accent" && "text-amber-700 dark:text-amber-300",
+                      tok.tone === "literal" && "text-blue-700 dark:text-blue-300",
+                      tok.tone === "muted" && "text-stone-400 italic dark:text-stone-500",
                     )}
                   >
                     {tok.text}
@@ -195,86 +182,30 @@ function CodeCover({
           ))}
         </div>
       </div>
-    </CoverCanvas>
+    </PaperCanvas>
   );
 }
 
-/* ── Markdown cover: mini document ───────────────────── */
+/* ── Data cover: quiet mini table / rows ─────────────── */
 
-function MarkdownCover({
-  p,
-  seed,
-  watermark,
-}: {
-  p: FileCardPreviewModel;
-  seed: string;
-  watermark?: string;
-}) {
-  const rows = p.lines.length > 1 ? p.lines.slice(1, 4) : p.lines.slice(0, 3);
-  const widths = ["w-11/12", "w-4/5", "w-3/5"];
-
-  return (
-    <CoverCanvas
-      family="markdown"
-      seed={seed}
-      watermark={watermark}
-      badge={p.badge}
-    >
-      <div className="absolute inset-x-0 bottom-0 px-3 pb-3">
-        <p className="truncate text-[13px] font-semibold text-white">
-          {p.title}
-        </p>
-        <div className="my-1.5 h-[3px] w-8 rounded-full bg-amber-300/80" />
-        <div className="space-y-[5px]">
-          {rows.map((line, i) => (
-            <p
-              key={i}
-              className={clsx(
-                "truncate text-[9px] leading-tight text-white/55",
-                widths[i % widths.length],
-              )}
-            >
-              {line}
-            </p>
-          ))}
-        </div>
-      </div>
-    </CoverCanvas>
-  );
-}
-
-/* ── Data cover: mini table / json rows ──────────────── */
-
-function DataCover({
-  p,
-  seed,
-  watermark,
-}: {
-  p: FileCardPreviewModel;
-  seed: string;
-  watermark?: string;
-}) {
+function DataCover({ p }: { p: FileCardPreviewModel }) {
   const isTable = p.badge?.toUpperCase() === "CSV" && (p.lines[0] ?? "").includes(",");
 
   if (isTable) {
     const header = (p.lines[0] ?? "").split(",").map((c) => c.trim());
-    const rows = p.lines
-      .slice(1, 3)
-      .map((l) => l.split(",").map((c) => c.trim()));
+    const rows = p.lines.slice(1, 3).map((l) => l.split(",").map((c) => c.trim()));
     return (
-      <CoverCanvas
-        family="data"
-        seed={seed}
-        watermark={watermark}
-        badge={p.badge}
-      >
-        <div className="absolute inset-x-0 bottom-0 px-3 pb-3">
-          <div className="overflow-hidden rounded-md border border-white/15 bg-black/20 backdrop-blur-[2px]">
-            <div className="flex bg-white/10">
+      <PaperCanvas>
+        <div className="flex h-full flex-col px-3 pb-3 pt-3">
+          <p className="mb-1.5 truncate text-[10px] font-medium text-stone-700 dark:text-stone-300">
+            {p.title}
+          </p>
+          <div className="overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
+            <div className="flex bg-stone-100 dark:bg-stone-800/60">
               {header.slice(0, 3).map((cell, i) => (
                 <span
                   key={i}
-                  className="flex-1 truncate px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide text-white/80"
+                  className="flex-1 truncate px-1.5 py-1 text-[8px] font-semibold text-stone-600 dark:text-stone-300"
                 >
                   {cell}
                 </span>
@@ -283,12 +214,12 @@ function DataCover({
             {rows.map((row, r) => (
               <div
                 key={r}
-                className="flex divide-x divide-white/10 border-t border-white/10"
+                className="flex divide-x divide-stone-200 border-t border-stone-200 dark:divide-stone-800 dark:border-stone-800"
               >
                 {Array.from({ length: Math.min(3, header.length) }, (_, c) => (
                   <span
                     key={c}
-                    className="flex-1 truncate px-1.5 py-1 font-mono text-[8px] text-white/75"
+                    className="flex-1 truncate px-1.5 py-1 font-mono text-[8px] text-stone-500 dark:text-stone-400"
                   >
                     {row[c] ?? ""}
                   </span>
@@ -297,27 +228,22 @@ function DataCover({
             ))}
           </div>
         </div>
-      </CoverCanvas>
+      </PaperCanvas>
     );
   }
 
   return (
-    <CoverCanvas
-      family="data"
-      seed={seed}
-      watermark={watermark}
-      badge={p.badge}
-    >
-      <div className="absolute inset-x-0 bottom-0 px-3 pb-3 font-mono text-[10px] leading-[1.7]">
-        {p.lines.slice(0, 4).map((line, i) => (
-          <p key={i} className="truncate text-white/75">
+    <PaperCanvas>
+      <div className="h-full space-y-[3px] overflow-hidden px-3 py-3 font-mono text-[9.5px] leading-[1.6]">
+        {p.lines.slice(0, 5).map((line, i) => (
+          <p key={i} className="truncate text-stone-600 dark:text-stone-400">
             {tokenizeCodeLine(line).map((tok, j) => (
               <span
                 key={j}
                 className={clsx(
-                  tok.tone === "accent" && "text-amber-300/90",
-                  tok.tone === "literal" && "text-sky-300/90",
-                  tok.tone === "muted" && "text-white/30 italic",
+                  tok.tone === "accent" && "text-amber-700 dark:text-amber-300",
+                  tok.tone === "literal" && "text-blue-700 dark:text-blue-300",
+                  tok.tone === "muted" && "text-stone-400 italic dark:text-stone-500",
                 )}
               >
                 {tok.text}
@@ -326,187 +252,92 @@ function DataCover({
           </p>
         ))}
       </div>
-    </CoverCanvas>
+    </PaperCanvas>
   );
 }
 
-/* ── Project cover: template + file tree ─────────────── */
+/* ── Project cover: entry + file rows ────────────────── */
 
-function ProjectCover({
-  p,
-  seed,
-  watermark,
-}: {
-  p: FileCardPreviewModel;
-  seed: string;
-  watermark?: string;
-}) {
+function ProjectCover({ p }: { p: FileCardPreviewModel }) {
   return (
-    <CoverCanvas
-      family="project"
-      seed={seed}
-      watermark={watermark}
-      badge={p.badge}
-      topRight={
-        p.subtitle && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-white/80">
-            <Layers size={10} />
-            {p.subtitle}
-          </span>
-        )
-      }
-    >
-      <div className="absolute inset-x-0 bottom-0 px-3 pb-3 font-mono text-[9px] leading-[1.8]">
-        {p.lines.slice(0, 3).map((line, i) => (
+    <PaperCanvas>
+      <div className="flex h-full flex-col px-3 pb-3 pt-3 font-mono text-[9px] leading-[1.8]">
+        {p.lines.slice(0, 4).map((line, i) => (
           <p
             key={i}
             className={clsx(
               "truncate",
-              i === 0 ? "text-white/85" : "text-white/50",
+              i === 0
+                ? "text-stone-700 dark:text-stone-300"
+                : "text-stone-400 dark:text-stone-500",
             )}
           >
             {line}
           </p>
         ))}
       </div>
-    </CoverCanvas>
+    </PaperCanvas>
   );
 }
 
-/* ── Document cover: floating page sheet ─────────────── */
+/* ── Other cover: centered glyph ─────────────────────── */
 
-function DocumentCover({
-  family,
-  seed,
-  watermark,
-  badge,
+function OtherCover({
   icon: Icon,
+  colorName,
 }: {
-  family: CoverFamily;
-  seed: string;
-  watermark?: string;
-  badge?: string;
-  icon?: LucideIcon;
+  icon: LucideIcon;
+  colorName?: string;
 }) {
-  // Unknown/archive types get a centered glyph instead of the paper sheet
-  const sheet = !(Icon && family === "other");
-
+  const tint = ICON_TINT[colorName ?? ""] ?? ICON_TINT.stone;
   return (
-    <CoverCanvas family={family} seed={seed} watermark={watermark} badge={badge}>
-      {sheet ? (
-        /* Stacked page sheets */
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="relative mt-3 h-[78%] w-[42%] transition-transform duration-500 ease-out group-hover/card:-rotate-2">
-            <div className="absolute inset-0 translate-x-2 translate-y-1 rotate-[4deg] rounded-[3px] bg-white/15 shadow-lg" />
-            <div className="absolute inset-0 rounded-[3px] bg-white px-2.5 py-2.5 shadow-2xl">
-              <div className="mb-2 h-[4px] w-2/3 rounded-sm bg-stone-800/80" />
-              <div className="space-y-[3px]">
-                <div className="h-[2.5px] w-full rounded-sm bg-stone-300" />
-                <div className="h-[2.5px] w-11/12 rounded-sm bg-stone-300" />
-                <div className="h-[2.5px] w-full rounded-sm bg-stone-300" />
-                <div className="h-[2.5px] w-4/5 rounded-sm bg-stone-300" />
-                <div className="mt-2 h-[2.5px] w-full rounded-sm bg-stone-300" />
-                <div className="h-[2.5px] w-3/5 rounded-sm bg-stone-300" />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Icon
-            size={44}
-            strokeWidth={1.2}
-            className="text-white/70 transition-transform duration-500 ease-out group-hover/card:scale-110"
-          />
-        </div>
-      )}
-    </CoverCanvas>
+    <PaperCanvas className="flex items-center justify-center">
+      <Icon size={38} strokeWidth={1.2} className={clsx("opacity-70", tint)} />
+    </PaperCanvas>
   );
 }
 
-/* ── Media covers: real thumbnails with graceful fallback ── */
+/* ── Media covers: real thumbnails ───────────────────── */
 
-function coverBadgeChip(badge?: string, translucent = false) {
+function badgeChip(badge?: string) {
   if (!badge) return null;
   return (
-    <span
-      className={clsx(
-        "max-w-[62%] truncate rounded-md border border-white/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/90 backdrop-blur-sm",
-        translucent ? "bg-black/30" : "bg-white/10",
-      )}
-    >
+    <span className="absolute left-2.5 top-2 z-10 rounded bg-black/45 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
       {badge}
     </span>
   );
 }
 
-/* ── Source builders ─────────────────────────────────── */
-
-/** Prefer the lightweight 16:9 cover over the original file. */
-function buildImageSources(raw: string): string[] {
-  return [buildProxyCoverUrl(raw), buildImageThumbUrl(raw), raw].filter(
-    (s): s is string => Boolean(s),
-  );
-}
-
-/** Video covers try the 1s keyframe then 0s; never the raw video. */
-function buildVideoSources(raw: string): string[] {
-  if (!raw) return [];
-  const proxy = [buildProxyCoverUrl(raw, { t: 1000 }), buildProxyCoverUrl(raw, { t: 0 })];
-  const oss = buildVideoThumbChain(raw) ?? [];
-  return [...proxy, ...oss].filter((s): s is string => Boolean(s));
-}
-
 function ImageCover({
   p,
-  seed,
-  watermark,
+  icon,
 }: {
   p: FileCardPreviewModel;
-  seed: string;
-  watermark?: string;
+  icon: LucideIcon;
 }) {
-  const raw = getFullUrl(p.imageUrl!) ?? "";
+  const raw = (getFullUrl(p.imageUrl!) ?? "").trim();
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-theme-bg-subtle">
       <SmartThumb
         sources={buildImageSources(raw)}
         alt={p.title}
-        className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.04]"
-        fallback={
-          <DocumentCover
-            family="media"
-            seed={seed}
-            watermark={watermark}
-            badge={p.badge}
-          />
-        }
+        className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.03]"
+        fallback={<OtherCover icon={icon} colorName={p.colorName} />}
       />
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(to top, rgba(0,0,0,0.38), transparent 40%)",
-        }}
-      />
-      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2.5 pt-2">
-        {coverBadgeChip(p.badge, true)}
-      </div>
+      {badgeChip(p.badge)}
     </div>
   );
 }
 
 function VideoCover({
   p,
-  seed,
-  watermark,
+  icon,
 }: {
   p: FileCardPreviewModel;
-  seed: string;
-  watermark?: string;
+  icon: LucideIcon;
 }) {
-  const raw = getFullUrl(p.imageUrl!) ?? "";
+  const raw = (getFullUrl(p.imageUrl!) ?? "").trim();
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-theme-bg-subtle">
@@ -514,36 +345,21 @@ function VideoCover({
         sources={buildVideoSources(raw)}
         alt={p.title}
         className="h-full w-full object-cover"
-        fallback={
-          <CoverCanvas
-            family="media"
-            seed={seed}
-            watermark={watermark}
-            badge={p.badge}
-          >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-black/40 backdrop-blur-sm">
-                <Play size={13} className="ml-0.5 fill-white text-white" />
-              </span>
-            </div>
-          </CoverCanvas>
-        }
+        fallback={<OtherCover icon={icon} colorName={p.colorName} />}
       />
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to top, rgba(0,0,0,0.45), transparent 45%)",
+            "linear-gradient(to top, rgba(0,0,0,0.35), transparent 40%)",
         }}
       />
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/40 shadow-xl backdrop-blur-sm transition-transform duration-300 group-hover/card:scale-110">
+        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-black/40 shadow-lg backdrop-blur-sm transition-transform duration-300 group-hover/card:scale-110">
           <Play size={14} className="ml-0.5 fill-white text-white" />
         </span>
       </div>
-      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2.5 pt-2">
-        {coverBadgeChip(p.badge, true)}
-      </div>
+      {badgeChip(p.badge)}
     </div>
   );
 }
@@ -557,9 +373,8 @@ function CompactCover({
   preview: FileCardPreviewModel;
   icon: LucideIcon;
 }) {
-  const family = familyForPreviewKind(preview.kind);
-  const theme = getCoverTheme(family, preview.title);
   const raw = (preview.imageUrl ? getFullUrl(preview.imageUrl) : "") ?? "";
+  const tint = ICON_TINT[preview.colorName] ?? ICON_TINT.stone;
 
   let sources: string[] = [];
   if (raw && preview.kind === "image") {
@@ -574,25 +389,33 @@ function CompactCover({
       alt={preview.title}
       className="h-full w-full object-cover"
       fallback={
-        <div
-          className="relative flex h-full w-full items-center justify-center overflow-hidden"
-          style={{
-            background: `linear-gradient(${theme.angle}deg, ${theme.from} 0%, ${theme.to} 100%)`,
-          }}
-        >
-          <div
-            className="pointer-events-none absolute inset-0 opacity-25"
-            style={{
-              backgroundImage:
-                "radial-gradient(rgba(255,255,255,0.18) 1px, transparent 1px)",
-              backgroundSize: "8px 8px",
-            }}
-          />
-          <Icon size={16} strokeWidth={1.8} className="relative text-white/85" />
+        <div className="flex h-full w-full items-center justify-center bg-theme-bg-subtle">
+          <Icon size={16} strokeWidth={1.8} className={tint} />
         </div>
       }
     />
   );
+}
+
+/* ── Source builders ─────────────────────────────────── */
+
+/** Prefer the lightweight 16:9 cover over the original file. */
+function buildImageSources(raw: string): string[] {
+  if (!raw) return [];
+  return [buildProxyCoverUrl(raw), buildImageThumbUrl(raw), raw].filter(
+    (s): s is string => Boolean(s),
+  );
+}
+
+/** Video covers try the 1s keyframe then 0s; never the raw video. */
+function buildVideoSources(raw: string): string[] {
+  if (!raw) return [];
+  const proxy = [
+    buildProxyCoverUrl(raw, { t: 1000 }),
+    buildProxyCoverUrl(raw, { t: 0 }),
+  ];
+  const oss = buildVideoThumbChain(raw) ?? [];
+  return [...proxy, ...oss].filter((s): s is string => Boolean(s));
 }
 
 /* ── Main ────────────────────────────────────────────── */
@@ -601,17 +424,15 @@ export function FileCardPreview({
   preview,
   icon,
   compact = false,
-  watermark,
 }: FileCardPreviewProps) {
-  const seed = preview.title || "seed";
-  const imageUrl = preview.imageUrl ? getFullUrl(preview.imageUrl) : "";
-
   if (compact) {
     return <CompactCover preview={preview} icon={icon} />;
   }
 
+  const imageUrl = preview.imageUrl ? getFullUrl(preview.imageUrl) : "";
+
   if (preview.kind === "image" && imageUrl) {
-    return <ImageCover p={preview} seed={seed} watermark={watermark} />;
+    return <ImageCover p={preview} icon={icon} />;
   }
 
   if (preview.kind === "excalidraw" && imageUrl) {
@@ -619,36 +440,20 @@ export function FileCardPreview({
   }
 
   if (preview.kind === "video") {
-    return <VideoCover p={preview} seed={seed} watermark={watermark} />;
+    return <VideoCover p={preview} icon={icon} />;
   }
 
   switch (preview.kind) {
     case "code":
-      return <CodeCover p={preview} seed={seed} watermark={watermark} />;
-    case "markdown":
-      return <MarkdownCover p={preview} seed={seed} watermark={watermark} />;
+      return <CodeCover p={preview} />;
     case "text":
-      return <DataCover p={preview} seed={seed} watermark={watermark} />;
+      return <DataCover p={preview} />;
     case "project":
-      return <ProjectCover p={preview} seed={seed} watermark={watermark} />;
+      return <ProjectCover p={preview} />;
     case "document":
-      return (
-        <DocumentCover
-          family="document"
-          seed={seed}
-          watermark={watermark}
-          badge={preview.badge}
-        />
-      );
+    case "markdown":
+      return <DocCover p={preview} />;
     default:
-      return (
-        <DocumentCover
-          family={familyForPreviewKind(preview.kind)}
-          seed={seed}
-          watermark={watermark}
-          badge={preview.badge}
-          icon={icon}
-        />
-      );
+      return <OtherCover icon={icon} colorName={preview.colorName} />;
   }
 }
