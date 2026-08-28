@@ -313,7 +313,61 @@ async def test_start_runtime_services_skips_scheduled_task_runtime_when_disabled
     assert scheduled_task_storage.ensure_indexes_calls == 0
     assert scheduled_task_service.load_calls == 0
     assert scheduler.registered_job_ids == []
-    assert scheduler.start_calls == 0
+    # ENABLE_SCHEDULED_TASK 只应关掉用户定时任务功能（reconcile/DB 加载）；
+    # 基础设施 job（task.orphan_recovery / memory.compaction）依赖的
+    # runtime scheduler 必须仍然启动，否则孤儿接管在默认部署下永不运行。
+    assert scheduler.start_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_start_runtime_services_registers_orphan_recovery_when_scheduled_task_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ENABLE_SCHEDULED_TASK=false 时孤儿接管 job 仍要注册并启动调度器。
+
+    回归防护：register_orphan_recovery_job() 无条件注册，但调度器 start()
+    曾只在 ENABLE_SCHEDULED_TASK 分支内调用，导致默认部署下孤儿接管
+    （PR #249）与 memory.compaction 从不执行。
+    """
+    task_manager = _FakeTaskManager()
+    settings_pubsub = _FakeAsyncService()
+    model_config_pubsub = _FakeAsyncService()
+    memory_pubsub = _FakeAsyncService()
+    websocket_manager = _FakeWebSocketManager()
+    channel_pubsub = _FakeAsyncService()
+    tool_cache_pubsub = _FakeAsyncService()
+    mcp_cache_pubsub = _FakeAsyncService()
+    scheduler = _FakeRuntimeScheduler()
+    scheduled_task_storage = _FakeScheduledTaskStorage()
+    scheduled_task_service = _FakeScheduledTaskService()
+
+    _patch_runtime_service_dependencies(
+        monkeypatch,
+        enable_memory=False,
+        enable_scheduled_task=False,
+        task_manager=task_manager,
+        settings_pubsub=settings_pubsub,
+        model_config_pubsub=model_config_pubsub,
+        memory_pubsub=memory_pubsub,
+        websocket_manager=websocket_manager,
+        channel_pubsub=channel_pubsub,
+        tool_cache_pubsub=tool_cache_pubsub,
+        mcp_cache_pubsub=mcp_cache_pubsub,
+        scheduler=scheduler,
+        scheduled_task_storage=scheduled_task_storage,
+        scheduled_task_service=scheduled_task_service,
+    )
+    # 让 register_orphan_recovery_job 真实执行并把 job 注册到 fake scheduler
+    monkeypatch.setattr(
+        "src.infra.task.orphan_recovery.get_runtime_scheduler", lambda: scheduler
+    )
+
+    await runtime_services.start_runtime_services()
+
+    assert "task.orphan_recovery" in scheduler.registered_job_ids
+    assert scheduler.start_calls == 1
+    assert scheduled_task_storage.ensure_indexes_calls == 0
+    assert scheduled_task_service.load_calls == 0
 
 
 @pytest.mark.asyncio

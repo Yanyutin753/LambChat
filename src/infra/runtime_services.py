@@ -225,7 +225,10 @@ async def start_runtime_services() -> None:
         await scheduled_task_service.load_persisted_tasks()
         register_scheduled_task_reconcile_job(scheduled_task_service)
 
-        get_runtime_scheduler().start()
+    # Runtime scheduler 承载基础设施 job（task.orphan_recovery、
+    # memory.compaction），必须无条件启动；ENABLE_SCHEDULED_TASK 只控制
+    # 用户定时任务功能（reconcile job 与 DB 加载）。
+    get_runtime_scheduler().start()
 
 
 async def stop_runtime_services() -> None:
