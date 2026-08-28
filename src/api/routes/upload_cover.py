@@ -318,6 +318,12 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
         file_path = storage.get_file_path(key)
         if not await run_blocking_io(_path_exists, file_path):
             raise HTTPException(status_code=404, detail="File not found")
+        try:
+            stat = await run_blocking_io(file_path.stat)
+        except OSError:
+            raise HTTPException(status_code=404, detail="File not found")
+        if stat.st_size > _RENDER_MAX_SOURCE_BYTES:
+            raise HTTPException(status_code=404, detail="Cover thumbnail not available")
 
         def _read_and_render() -> bytes:
             with open(file_path, "rb") as fh:
@@ -333,6 +339,12 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
             media_type="image/jpeg",
             headers={"Cache-Control": "public, max-age=86400"},
         )
+
+    # 缓存缩略图的 302 服务依赖绝对过期时间预签名（sign_url_at），只有
+    # Aliyun 后端实现；其他 S3 后端会静默退化为每次请求全量下载原文件重渲染。
+    provider = getattr(getattr(storage, "_config", None), "provider", None)
+    if provider != S3Provider.ALIYUN:
+        raise HTTPException(status_code=404, detail="Cover thumbnail not available")
 
     try:
         if await storage.file_exists(thumb_key):

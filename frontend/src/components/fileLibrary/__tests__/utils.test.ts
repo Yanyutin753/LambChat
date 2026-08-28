@@ -5,7 +5,6 @@ import {
   getImagePreviewNavigation,
   getPreviewableImageFiles,
   getSessionNavigationTarget,
-  pickDocFontSize,
 } from "../utils.ts";
 import type { RevealedFileItem } from "../../../services/api";
 

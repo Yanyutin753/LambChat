@@ -272,6 +272,23 @@ async def test_cover_pdf_serves_cached_thumbnail_without_re_render(
 
 
 @pytest.mark.asyncio
+async def test_cover_pdf_non_aliyun_provider_404s_without_download(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """非 Aliyun 后端不支持绝对过期签名，必须 404 兜底而非每次重下载重渲染。"""
+    storage = _FakePdfStorage()
+    storage._config = SimpleNamespace(provider="minio", public_bucket=False)
+    monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
+
+    with pytest.raises(upload.HTTPException) as exc:
+        await upload.get_file_proxy("revealed_files/report.pdf", _fake_request(), cover=True)
+    assert exc.value.status_code == 404
+    assert storage.downloaded == []
+    assert storage.uploads == []
+    assert storage.presigned_calls == []
+
+
+@pytest.mark.asyncio
 async def test_cover_pdf_skips_oversized_sources(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
