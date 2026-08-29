@@ -10,11 +10,18 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore", SyntaxWarning)
     import jieba.posseg as pseg
 
-from src.infra.memory.client.native.models import CJK_STOPWORDS, STOPWORDS, char_ngrams, has_cjk
+from src.infra.memory.client.native.models import (
+    CJK_STOPWORDS,
+    STOPWORDS,
+    char_ngrams,
+    cosine_similarity,
+    has_cjk,
+)
 
 _USEFUL_POS = frozenset({"n", "nr", "ns", "nt", "nz", "v", "vn", "a", "eng", "x"})
 
-_CODE_MARKERS = (
+# 代码/命令/报错特征：单个出现即判定为非记忆内容
+_CODE_STRONG_MARKERS = (
     "import ",
     "def ",
     "class ",
@@ -25,14 +32,12 @@ _CODE_MARKERS = (
     "pip install",
     "npm install",
     "npm run",
-    "src/",
-    "node_modules",
-    ".py",
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
 )
+
+# 文件引用是弱信号：耐久事实里提到单个文件名（如“gen_docx.py 保留在工作区”）
+# 不代表是代码转储，出现次数达到 2 才更像代码/路径列表。
+# 注意 alternation 中 tsx/jsx 必须排在 ts/js 前，避免 ".tsx" 被拆成 ".ts" 重复计数。
+_FILE_REFERENCE_RE = re.compile(r"\.(?:py|tsx|jsx|ts|js)|src/|node_modules")
 
 _TRANSIENT_STARTS = (
     "正在",
@@ -79,7 +84,10 @@ def word_similarity(a: str, b: str) -> float:
 def looks_like_code_or_path(content: str) -> bool:
     if content.count("/") + content.count("\\") >= 3:
         return True
-    return any(marker in content for marker in _CODE_MARKERS)
+    lowered = content.lower()
+    if any(marker in lowered for marker in _CODE_STRONG_MARKERS):
+        return True
+    return len(_FILE_REFERENCE_RE.findall(content)) >= 2
 
 
 def is_transient_status_content(content: str) -> bool:
@@ -185,6 +193,40 @@ async def find_existing_memory_match(
         if not existing_summary:
             continue
         score = word_similarity(summary, existing_summary)
+        if score >= threshold and score > best_score:
+            best_score = score
+            best_match = doc
+    return best_match
+
+
+# 写时语义去重阈值：生产同一条记忆“入党申请书”召回得分约 0.89，
+# 同一事实的改写通常 >= 0.9，相关但不同的事实一般在 0.8x 以下。
+SEMANTIC_DEDUP_THRESHOLD = 0.88
+
+
+async def find_semantic_memory_match(
+    fetch_candidates: Callable[[str], Awaitable[list[dict[str, Any]]]],
+    user_id: str,
+    query_embedding: list[float],
+    memory_type: str,
+    threshold: float = SEMANTIC_DEDUP_THRESHOLD,
+) -> dict[str, Any] | None:
+    """按新内容 embedding 与既有记忆的余弦相似度找同一条记忆（写时先读）。
+
+    摘要措辞不同但语义相同的写入应合并更新，而不是新建重复记忆。
+    """
+    if not query_embedding:
+        return None
+    candidates = await fetch_candidates(user_id)
+    best_match: dict[str, Any] | None = None
+    best_score = 0.0
+    for doc in candidates:
+        if doc.get("memory_type") != memory_type:
+            continue
+        embedding = doc.get("embedding")
+        if not embedding:
+            continue
+        score = cosine_similarity(query_embedding, embedding)
         if score >= threshold and score > best_score:
             best_score = score
             best_match = doc

@@ -181,9 +181,11 @@ async def memory_retain(
 ) -> str:
     """
     Store a memory for cross-session persistence. STRICT: only genuinely useful,
-    non-temporary information is accepted. Content that is too short, looks like a
-    question, resembles code/commands, or duplicates an existing recent memory will
-    be rejected. Prefer storing high-signal facts like user preferences, project
+    non-temporary information is accepted. Content that is too short or resembles
+    code/commands will be rejected. If a semantically similar memory already exists
+    it is merged and updated automatically (result `updated_existing` is true), so
+    write the FULL refreshed content including previously known details, not just
+    the delta. Prefer storing high-signal facts like user preferences, project
     context, feedback, or external references. Use explicit context labels such as
     `user_identity`, `project_constraint`, `project_status`, `feedback_rule`, or
     `reference_link` instead of vague buckets like `user_preferences`.
