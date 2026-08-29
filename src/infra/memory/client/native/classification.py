@@ -14,7 +14,8 @@ from src.infra.memory.client.native.models import CJK_STOPWORDS, STOPWORDS, char
 
 _USEFUL_POS = frozenset({"n", "nr", "ns", "nt", "nz", "v", "vn", "a", "eng", "x"})
 
-_CODE_MARKERS = (
+# 代码/命令/报错特征：单个出现即判定为非记忆内容
+_CODE_STRONG_MARKERS = (
     "import ",
     "def ",
     "class ",
@@ -25,14 +26,12 @@ _CODE_MARKERS = (
     "pip install",
     "npm install",
     "npm run",
-    "src/",
-    "node_modules",
-    ".py",
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
 )
+
+# 文件引用是弱信号：耐久事实里提到单个文件名（如“gen_docx.py 保留在工作区”）
+# 不代表是代码转储，出现次数达到 2 才更像代码/路径列表。
+# 注意 alternation 中 tsx/jsx 必须排在 ts/js 前，避免 ".tsx" 被拆成 ".ts" 重复计数。
+_FILE_REFERENCE_RE = re.compile(r"\.(?:py|tsx|jsx|ts|js)|src/|node_modules")
 
 _TRANSIENT_STARTS = (
     "正在",
@@ -79,7 +78,10 @@ def word_similarity(a: str, b: str) -> float:
 def looks_like_code_or_path(content: str) -> bool:
     if content.count("/") + content.count("\\") >= 3:
         return True
-    return any(marker in content for marker in _CODE_MARKERS)
+    lowered = content.lower()
+    if any(marker in lowered for marker in _CODE_STRONG_MARKERS):
+        return True
+    return len(_FILE_REFERENCE_RE.findall(content)) >= 2
 
 
 def is_transient_status_content(content: str) -> bool:
