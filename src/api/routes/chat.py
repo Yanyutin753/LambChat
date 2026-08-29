@@ -48,6 +48,16 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def resolve_default_agent_id(agent_id: str | None) -> str:
+    """Normalize the agent_id query param, falling back to DEFAULT_AGENT.
+
+    不能硬编码回落到 "search"：无沙箱场景（fast agent）会被静默切到
+    search agent 并触发沙箱初始化。
+    """
+    normalized = (agent_id or "").strip()
+    return normalized or settings.DEFAULT_AGENT
+
+
 def append_required_skills_prompt(message: str, enabled_skills: list[str] | None) -> str:
     """Append a run-scoped instruction for explicitly selected skills."""
     if not enabled_skills:
@@ -376,7 +386,7 @@ async def build_model_facing_message(
 async def chat_stream(
     request: AgentRequest,
     http_request: Request,
-    agent_id: str = "search",
+    agent_id: str = "",
     user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
     """
@@ -387,7 +397,7 @@ async def chat_stream(
 
     Args:
         request: 包含 message 和 session_id
-        agent_id: 要使用的 Agent ID（默认: search）
+        agent_id: 要使用的 Agent ID（缺省回落到 settings.DEFAULT_AGENT）
 
     Returns:
         session_id: 会话 ID
@@ -400,6 +410,7 @@ async def chat_stream(
     from src.infra.task.manager import _generate_run_id
 
     session_id = request.session_id or str(uuid.uuid4())
+    agent_id = resolve_default_agent_id(agent_id)
     validate_team_agent_request(agent_id, request)
 
     # 并行执行无数据依赖的 I/O 操作：session 查询 / persona 解析 / model 权限验证

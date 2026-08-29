@@ -15,14 +15,14 @@ test("collapses newlines and whitespace runs into single spaces", () => {
   );
 });
 
-test("long content keeps only the last few characters with a leading ellipsis", () => {
+test("long content keeps only the last few characters without an ellipsis prefix", () => {
   const head = "前情提要".repeat(40); // 160 chars
-  const tail = "最新进展";
+  const tail = "最新进展".repeat(5); // 20 chars
   const preview = buildStreamingThinkingPreview(head + tail);
-  expect(preview.startsWith("…")).toBe(true);
+  expect(preview.startsWith("…")).toBe(false);
   expect(preview.endsWith(tail)).toBe(true);
-  // … + at most 12 chars
-  expect(preview.length).toBeLessThanOrEqual(13);
+  // at most 24 chars, no ellipsis prefix
+  expect(preview.length).toBeLessThanOrEqual(24);
 });
 
 test("tail window survives content much longer than the preview cap", () => {
@@ -36,6 +36,6 @@ test("does not start with a dangling high surrogate from the tail slice", () => 
   const content = "a".repeat(300) + emoji + "思考中";
   const preview = buildStreamingThinkingPreview(content);
   // must not begin with a lone high surrogate (would render as replacement char)
-  const first = preview.charCodeAt(preview.startsWith("…") ? 1 : 0);
+  const first = preview.charCodeAt(0);
   expect(first < 0xd800 || first > 0xdbff).toBe(true);
 });

@@ -315,6 +315,7 @@ test("works correctly", () => { /* 过于笼统 */ });
 - 编辑前先阅读现有模块，保持当前架构、命名和代码风格。
 - Python 后端使用 `uv`，不要混用 `pip install`。
 - 前端使用 `pnpm`，不要提交 `node_modules/` 或构建产物。
+- Agent/工具生成的本地状态目录（如 `.mimosa/`、`.zcode/`、`.claude/`、`.codex/`）一律在 `.gitignore` 中按整目录忽略，不要按单文件零散追加条目，也不要提交。
 - Python 代码遵循 `pyproject.toml` 中的 Ruff、Mypy、Pytest 配置；格式统一交给 `make format`（ruff），不要手工维持另一种风格。
 - TypeScript/React 代码遵循 `frontend/package.json` 和 Vite/ESLint 配置。
 - 面向用户的文案遵循现有的 i18n 结构，不要只更新一个 locale。

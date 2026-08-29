@@ -134,6 +134,8 @@ export interface ToolPart {
   id?: string;
   name: string;
   args: Record<string, unknown>;
+  /** args 为 { partial: "…" } 的生成中形态：LLM 还在产出参数 JSON */
+  argsPartial?: boolean;
   result?: string | Record<string, unknown>;
   success?: boolean;
   error?: string;

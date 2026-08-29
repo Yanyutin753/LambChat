@@ -8,6 +8,9 @@ from typing import Any
 from src.infra.agent.events.buffers import BufferKey, TextChunkBuffer
 from src.infra.agent.events.types import StreamEvent, get_value
 
+# 工具生命周期不走标准 tool:start 通道（由专用事件渲染），参数流式会悬空
+TOOL_ARGS_STREAM_SKIP_NAMES = frozenset(("ask_human", "task", "write_todos"))
+
 
 def _first_int(*values: Any) -> int | None:
     for value in values:
@@ -61,6 +64,9 @@ class StreamEventMixin:
     _chunk_buffer: TextChunkBuffer
     _summary_chunk_buffer: TextChunkBuffer
     _thinking_chunk_buffer: TextChunkBuffer
+    _tool_args_buffers: dict[int | str, TextChunkBuffer]
+    _tool_args_meta: dict[int | str, tuple[str, str | None]]
+    _CHUNK_FLUSH_SIZE: int
     _output_buffer: StringIO
     _presenter_emit: Any
     presenter: Any
@@ -94,6 +100,104 @@ class StreamEventMixin:
     async def _flush_thinking_chunk_buffer(self) -> None:
         text, key = self._thinking_chunk_buffer.consume()
         await self._emit_thinking_flush(text, key)
+
+    async def _flush_tool_args_buffers(self) -> None:
+        """Emit and release all pending tool-args buffers (model stream ended)."""
+        if not self._tool_args_buffers:
+            return
+        for key, buffer in self._tool_args_buffers.items():
+            text, buffer_key = buffer.consume()
+            if not text or buffer_key is None:
+                continue
+            depth, agent_id, tool_call_id = buffer_key
+            name, _ = self._tool_args_meta.get(key, (tool_call_id or "", tool_call_id))
+            await self._presenter_emit(
+                self.presenter.present_tool_args_delta(
+                    name,
+                    tool_call_id,
+                    text,
+                    depth=depth,
+                    agent_id=agent_id,
+                )
+            )
+        self._tool_args_buffers.clear()
+        self._tool_args_meta.clear()
+
+    def _reset_tool_args_buffers(self) -> None:
+        """Drop pending tool-args buffers without emitting (new model run)."""
+        self._tool_args_buffers.clear()
+        self._tool_args_meta.clear()
+
+    async def _handle_tool_args_chunks(
+        self,
+        tool_call_chunks: list[Any],
+        depth: int,
+        agent_id: str | None,
+    ) -> None:
+        """Stream LLM tool-call argument deltas as tool:args:chunk events."""
+        # 参数增量意味着其前的思考/正文已生成完毕（模型输出恒为
+        # 思考/正文 → 工具参数）。参数 buffer 首块直发而正文按阈值/定时
+        # flush，不先冲刷会把同一句正文拆到工具事件两侧。
+        await self._flush_thinking_chunk_buffer()
+        await self._flush_chunk_buffer()
+        for tc in tool_call_chunks:
+            if not isinstance(tc, dict):
+                continue
+            index = tc.get("index")
+            key: int | str | None = index if isinstance(index, int) else None
+            call_id = tc.get("id") or None
+            if key is None:
+                key = call_id
+            if key is None:
+                continue
+
+            name = tc.get("name") or None
+            if name:
+                if name in TOOL_ARGS_STREAM_SKIP_NAMES:
+                    continue
+                existing_name, existing_id = self._tool_args_meta.get(key, (name, call_id))
+                self._tool_args_meta[key] = (name, call_id or existing_id)
+
+            meta = self._tool_args_meta.get(key)
+            if meta is None:
+                # 未见过工具名的增量无法归属（也无从渲染），等待 tool:start 兜底
+                continue
+            tool_name, tool_call_id = meta
+
+            delta = tc.get("args") or ""
+            if not delta:
+                continue
+            buffer = self._tool_args_buffers.get(key)
+            if buffer is None:
+                from src.kernel.config import settings
+
+                buffer = TextChunkBuffer(
+                    self._CHUNK_FLUSH_SIZE, settings.STREAM_CHUNK_FLUSH_INTERVAL
+                )
+                self._tool_args_buffers[key] = buffer
+            buffer_key: BufferKey = (depth, agent_id, tool_call_id)
+            if buffer.append(delta, buffer_key):
+                text, flushed_key = buffer.consume()
+                await self._emit_tool_args_flush(tool_name, text, flushed_key)
+
+    async def _emit_tool_args_flush(
+        self,
+        tool_name: str,
+        text: str,
+        key: BufferKey | None,
+    ) -> None:
+        if not text or key is None:
+            return
+        depth, agent_id, tool_call_id = key
+        await self._presenter_emit(
+            self.presenter.present_tool_args_delta(
+                tool_name,
+                tool_call_id,
+                text,
+                depth=depth,
+                agent_id=agent_id,
+            )
+        )
 
     async def _emit_text_flush(self, text: str, key: BufferKey | None) -> None:
         if not text or key is None:
@@ -288,6 +392,10 @@ class StreamEventMixin:
         if not chunk:
             return
 
+        # 参数增量与文本可以同 chunk（非流式响应走流式管道时合并产出）。
+        # 模型输出顺序恒为「思考/正文 → 工具参数」，所以先走内容分支把
+        # 文本压入 buffer，再处理参数增量（其下发前会先冲刷内容缓冲），
+        # 保证前端按到达顺序重建时正文不被工具块从中间劈开。
         content = chunk.content
         chunk_id = chunk.id
 
@@ -304,9 +412,7 @@ class StreamEventMixin:
             if ready_flushes:
                 for ready in ready_flushes:
                     await self._emit_text_flush(*ready)
-            return
-
-        if isinstance(content, str) and not content:
+        elif isinstance(content, str):
             rc = getattr(chunk, "additional_kwargs", {}).get("reasoning_content")
             if rc:
                 ready_flushes = self._buffer_thinking_chunk(
@@ -318,9 +424,7 @@ class StreamEventMixin:
                 if ready_flushes:
                     for ready in ready_flushes:
                         await self._emit_thinking_flush(*ready)
-            return
-
-        if isinstance(content, list):
+        elif isinstance(content, list):
             for block in content:
                 if not isinstance(block, dict):
                     continue
@@ -353,3 +457,7 @@ class StreamEventMixin:
                         if ready_flushes:
                             for ready in ready_flushes:
                                 await self._emit_text_flush(*ready)
+
+        tool_call_chunks = getattr(chunk, "tool_call_chunks", None)
+        if isinstance(tool_call_chunks, list) and tool_call_chunks:
+            await self._handle_tool_args_chunks(tool_call_chunks, current_depth, current_agent_id)

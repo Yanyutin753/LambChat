@@ -375,6 +375,7 @@ export function handleStreamEvent(
     "message:chunk",
     "tool:start",
     "tool:result",
+    "tool:args:chunk",
     "approval_resolved",
     "artifact:result",
     "sandbox:starting",
