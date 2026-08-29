@@ -20,11 +20,22 @@ from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
 from .exceptions import TaskInterruptedError
 from .heartbeat import TaskHeartbeat
+from .stall_watchdog import aiter_with_stall_timeout
 from .state_machine import TaskStateMachine
 from .status import TaskStatus
 
 logger = get_logger(__name__)
 _TERMINAL_STREAM_TTL_SECONDS = 60
+_DEFAULT_RUN_STALL_TIMEOUT_SECONDS = 3600
+
+
+def _run_stall_timeout_seconds() -> float:
+    """Watchdog deadline between executor events; 0/negative disables it."""
+    value = getattr(settings, "TASK_RUN_STALL_TIMEOUT", _DEFAULT_RUN_STALL_TIMEOUT_SECONDS)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return _DEFAULT_RUN_STALL_TIMEOUT_SECONDS
 
 
 def should_schedule_recommend_questions() -> bool:
@@ -191,25 +202,28 @@ class TaskExecutor:
             # 2. 清除可能导致与 SSE 连接的竞争条件
             # 3. Redis Stream 有 TTL 自动过期
 
-            # 执行 agent，统一保存所有事件
-            async for event in executor(
-                session_id,
-                agent_id,
-                message,
-                user_id,
-                presenter=presenter,
-                disabled_tools=disabled_tools,
-                agent_options=agent_options,
-                attachments=attachments,
-                disabled_skills=disabled_skills,
-                enabled_skills=enabled_skills,
-                persona_system_prompt=persona_system_prompt,
-                disabled_mcp_tools=disabled_mcp_tools,
-                recommendation_input=recommendation_input,
-                team_id=team_id,
-                active_goal=active_goal,
-                auto_mode=auto_mode,
-                hitl_resume=hitl_resume,
+            # 执行 agent，统一保存所有事件；watchdog 保证事件流停滞时迁移 error 终态
+            async for event in aiter_with_stall_timeout(
+                executor(
+                    session_id,
+                    agent_id,
+                    message,
+                    user_id,
+                    presenter=presenter,
+                    disabled_tools=disabled_tools,
+                    agent_options=agent_options,
+                    attachments=attachments,
+                    disabled_skills=disabled_skills,
+                    enabled_skills=enabled_skills,
+                    persona_system_prompt=persona_system_prompt,
+                    disabled_mcp_tools=disabled_mcp_tools,
+                    recommendation_input=recommendation_input,
+                    team_id=team_id,
+                    active_goal=active_goal,
+                    auto_mode=auto_mode,
+                    hitl_resume=hitl_resume,
+                ),
+                timeout=_run_stall_timeout_seconds(),
             ):
                 await presenter.save_event(event)
 

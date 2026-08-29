@@ -145,6 +145,10 @@ class Settings(BaseSettings):
     ARQ_JOB_TIMEOUT_SECONDS: int = 86400
     TASK_STARTUP_CLEANUP_CONCURRENCY: int = 16
     TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 120
+    # run 级停滞 watchdog：executor 事件流超过该秒数无任何事件即判定挂死，
+    # 迁移 error 终态（worker 存活但 LLM/工具挂起时心跳不会失效，issue #293）。
+    # 默认须覆盖最长合法静默窗口（沙箱工具执行期无事件，E2B/CUBE 上限 3600s）
+    TASK_RUN_STALL_TIMEOUT: int = 3600
 
     # MongoDB Settings
     MONGODB_URL: str = "mongodb://localhost:27017"
