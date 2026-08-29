@@ -5,7 +5,11 @@ import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
@@ -67,30 +71,11 @@ function RenderAvatar({
   return <>{fallback}</>;
 }
 
-// ── PersonaItem ──────────────────────────────────────────────────────
+// ── PersonaDetail ─────────────────────────────────────────────────────
 
-const PersonaItem = memo(function PersonaItem({
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+/** 面板详情：实时跟随 toolCallPanelStore 数据重建（人设数据到达即刷新） */
+function PersonaDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
-
   const personaName = (args.name as string) || "";
 
   // Backend returns {success, action, preset: {...PersonaPreset}, message}
@@ -123,19 +108,7 @@ const PersonaItem = memo(function PersonaItem({
     [displayName],
   );
 
-  const canExpand =
-    !!displayName || !!description || tags.length > 0 || !!result;
-  const status = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  // ── Panel detail content ──
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {/* Hero card */}
       {displayName && (
@@ -409,6 +382,78 @@ const PersonaItem = memo(function PersonaItem({
       )}
     </div>
   );
+}
+
+// ── PersonaItem ──────────────────────────────────────────────────────
+
+const PersonaItem = memo(function PersonaItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+
+  const personaName = (args.name as string) || "";
+
+  // Backend returns {success, action, preset: {...PersonaPreset}, message}
+  const parsed = useMemo(() => {
+    const text = extractText(result);
+    if (!text) return null;
+    try {
+      const raw = JSON.parse(text);
+      if (raw?.preset && typeof raw.preset === "object") return raw.preset;
+      return raw;
+    } catch {
+      return null;
+    }
+  }, [result]);
+
+  const displayName = parsed?.name || personaName;
+  const description = parsed?.description || "";
+  const avatar = parsed?.avatar || (args.avatar as string) || "";
+  const tags: string[] = parsed?.tags || (args.tags as string[]) || [];
+  const skillNames: string[] = parsed?.skill_names || [];
+
+  const canExpand =
+    !!displayName || !!description || tags.length > 0 || !!result;
+  const status = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  // ── Panel detail content ──
+
+  const detailContent = canExpand && (
+    <PersonaDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   // ── Inline (compact) view ──
 
@@ -422,12 +467,16 @@ const PersonaItem = memo(function PersonaItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: t("chat.message.toolPersonaPreset"),
             icon: <UserRound size={16} />,
             status,
             subtitle: displayName || undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <PersonaDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}

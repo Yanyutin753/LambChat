@@ -4,75 +4,60 @@ import { Terminal, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 
-const ExecuteItem = memo(function ExecuteItem({
+function parseExecuteResult(result?: string | Record<string, unknown>) {
+  if (!result) return { output: "", exitCode: null, truncated: false };
+  const raw = extractText(result);
+
+  // Parse the status line appended by deepagents backend
+  let exitCode: number | null = null;
+  let truncated = false;
+  const lines = raw.split("\n");
+  const statusLines: string[] = [];
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line.match(/^\[Command (succeeded|failed)/)) {
+      statusLines.unshift(lines.splice(i, 1)[0]);
+      const codeMatch = line.match(/exit code (\d+)/);
+      if (codeMatch) exitCode = parseInt(codeMatch[1], 10);
+    } else if (line.match(/^\[Output was truncated/)) {
+      statusLines.unshift(lines.splice(i, 1)[0]);
+      truncated = true;
+    } else if (line.startsWith("[")) {
+      // Might be a status line from a sub-step, stop parsing
+      break;
+    } else {
+      break;
+    }
+  }
+
+  return { output: lines.join("\n").trim(), exitCode, truncated };
+}
+
+/** 面板详情：实时跟随 toolCallPanelStore 数据重建（执行输出到达即刷新） */
+function ExecuteDetail({
   args,
   result,
   success,
   isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+  startedAt: _startedAt,
+  completedAt: _completedAt,
+}: ToolDetailProps) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
   const command = (args.command as string) || "";
   const timeout = args.timeout as number | undefined;
+  const parsed = useMemo(() => parseExecuteResult(result), [result]);
 
-  const parsed = useMemo(() => {
-    if (!result) return { output: "", exitCode: null, truncated: false };
-    const raw = extractText(result);
-
-    // Parse the status line appended by deepagents backend
-    let exitCode: number | null = null;
-    let truncated = false;
-    const lines = raw.split("\n");
-    const statusLines: string[] = [];
-
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i];
-      if (line.match(/^\[Command (succeeded|failed)/)) {
-        statusLines.unshift(lines.splice(i, 1)[0]);
-        const codeMatch = line.match(/exit code (\d+)/);
-        if (codeMatch) exitCode = parseInt(codeMatch[1], 10);
-      } else if (line.match(/^\[Output was truncated/)) {
-        statusLines.unshift(lines.splice(i, 1)[0]);
-        truncated = true;
-      } else if (line.startsWith("[")) {
-        // Might be a status line from a sub-step, stop parsing
-        break;
-      } else {
-        break;
-      }
-    }
-
-    return { output: lines.join("\n").trim(), exitCode, truncated };
-  }, [result]);
-
-  const canExpand = !!command || !!parsed.output;
-  const status = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       <div className="group/args relative px-3.5 py-3 rounded-xl bg-theme-bg-elevated text-sm font-mono flex items-center gap-2.5 flex-wrap shadow-[var(--shadow-card)] ring-1 ring-theme-border transition-colors duration-200">
         <Terminal size={13} className="shrink-0 text-theme-text-tertiary" />
@@ -135,6 +120,56 @@ const ExecuteItem = memo(function ExecuteItem({
       )}
     </div>
   );
+}
+
+const ExecuteItem = memo(function ExecuteItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+  const command = (args.command as string) || "";
+  const timeout = args.timeout as number | undefined;
+
+  const parsed = useMemo(() => parseExecuteResult(result), [result]);
+
+  const canExpand = !!command || !!parsed.output;
+  const status = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  const detailContent = canExpand && (
+    <ExecuteDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   return (
     <>
@@ -152,13 +187,17 @@ const ExecuteItem = memo(function ExecuteItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: t("chat.message.toolExecute"),
             icon: <Terminal size={16} />,
             status,
             subtitle:
               command.length > 120 ? command.slice(0, 117) + "…" : command,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <ExecuteDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}
@@ -171,7 +210,7 @@ const ExecuteItem = memo(function ExecuteItem({
                 {command}
               </span>
               {timeout && (
-                <span className="shrink-0 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary">
+                <span className="shrink-0 px-1 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary">
                   {t("chat.message.toolTimeSeconds", { count: timeout })}
                 </span>
               )}
@@ -218,10 +257,7 @@ const ExecuteItem = memo(function ExecuteItem({
                       : t("chat.message.toolFailed")}
                 </span>
                 {parsed.truncated && (
-                  <AlertTriangle
-                    size={12}
-                    className="shrink-0 ml-1 text-amber-500"
-                  />
+                  <AlertTriangle size={12} className="shrink-0" />
                 )}
               </div>
             )}

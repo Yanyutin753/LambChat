@@ -2,6 +2,17 @@ import { useCallback, useState } from "react";
 import { clsx } from "clsx";
 import { ChevronDown } from "lucide-react";
 
+/** 标题 → 快照定位 slug：面板历史返回时按 key 恢复小节展开状态 */
+function snapshotKeySlug(title: string): string {
+  return (
+    title
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "section"
+  );
+}
+
 export function CollapsibleSection({
   title,
   defaultExpanded = true,
@@ -22,6 +33,7 @@ export function CollapsibleSection({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const isError = variant === "error";
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
+  const sectionKey = `section:${snapshotKeySlug(title)}`;
 
   return (
     <div
@@ -38,6 +50,7 @@ export function CollapsibleSection({
         <button
           type="button"
           aria-expanded={expanded}
+          data-sidebar-snapshot-key={sectionKey}
           onClick={toggleExpanded}
           className="flex items-center gap-1.5 flex-1 min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]/50 rounded-md"
         >
@@ -65,7 +78,10 @@ export function CollapsibleSection({
         {action && <div className="shrink-0">{action}</div>}
       </div>
       {expanded && (
-        <div className="mt-2 flex-1 min-h-0 overflow-y-auto animate-[fade-in_150ms_ease-out]">
+        <div
+          data-sidebar-snapshot-key={`${sectionKey}-content`}
+          className="mt-2 flex-1 min-h-0 overflow-y-auto animate-[fade-in_150ms_ease-out]"
+        >
           {children}
         </div>
       )}

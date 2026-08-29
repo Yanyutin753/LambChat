@@ -35,7 +35,13 @@ test("subagent status badge does not use theme-blue border chrome", () => {
 });
 
 test("subagent sidebar timestamp is rendered in the panel footer", () => {
-  expect(source).toMatch(/function createSubagentPanelFooter/);
+  // 时间戳页脚工厂迁至 subagentPanelState：面板 host 与 SubagentBlock 共用，
+  // 面板打开期间的时间戳/状态由 host 实时刷新（与虚拟化滚动无关）
+  const panelStateSource = readFileSync(
+    new URL("../subagentPanelState.tsx", import.meta.url),
+    "utf8",
+  );
+  expect(panelStateSource).toMatch(/export function createSubagentPanelFooter/);
   expect(source).toMatch(/footer: createSubagentPanelFooter\(subtitle\)/);
   expect(source).not.toMatch(
     /subtitle,\s*\n\s*panelKey,\s*\n\s*children: <SubagentPanelContent/,

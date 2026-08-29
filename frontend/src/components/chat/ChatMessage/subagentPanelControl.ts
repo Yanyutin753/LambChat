@@ -29,22 +29,32 @@ export function resetSubagentPanelAutoOpenState(key: string): void {
   dismissedKeys.delete(key);
 }
 
+/** 会话切换：自动开面板的标记/静音记录不跨会话存活 */
+export function clearSubagentPanelAutoOpenState(): void {
+  autoOpenedKeys.clear();
+  dismissedKeys.clear();
+}
+
 export function shouldAutoOpenSubagentPanel({
   status,
   laneOccupied,
   alreadyAutoOpened,
   autoOpenDismissed,
+  userReadingHistory = false,
 }: {
   status: SubagentPanelStatus;
   laneOccupied: boolean;
   alreadyAutoOpened: boolean;
   autoOpenDismissed: boolean;
+  /** 用户上滑阅读历史中：自动弹面板会挤压聊天列宽打断阅读 */
+  userReadingHistory?: boolean;
 }): boolean {
   return (
     status === "running" &&
     !laneOccupied &&
     !alreadyAutoOpened &&
-    !autoOpenDismissed
+    !autoOpenDismissed &&
+    !userReadingHistory
   );
 }
 

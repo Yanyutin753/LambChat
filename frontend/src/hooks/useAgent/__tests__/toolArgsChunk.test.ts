@@ -520,3 +520,71 @@ test("late text chunk merges before a trailing run of parallel generating tools"
   expect(healed.parts[1]).toMatchObject({ type: "tool", id: "call_a" });
   expect(healed.parts[2]).toMatchObject({ type: "tool", id: "call_b" });
 });
+
+test("tool:start upgrade keeps the streaming id as alias for live panels", () => {
+  const generating = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('{"content":"hel'),
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const started = processMessageEvent(
+    "tool:start",
+    {
+      tool: "write_file",
+      tool_call_id: "run-level-id",
+      args: { content: "hello world" },
+    },
+    generating.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const upgraded = started.parts[0] as ToolPart;
+  expect(upgraded.id).toBe("run-level-id");
+  // 参数流式期间以 LLM call id 打开的面板，升级后要靠 alias 继续收更新
+  expect(upgraded.alias_id).toBe("call_1");
+});
+
+test("tool:start upgrade keeps existing alias when the generating part has none", () => {
+  const generating = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('{"content":"hel', { tool_call_id: undefined }),
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  expect((generating.parts[0] as ToolPart).id).toBeUndefined();
+
+  const started = processMessageEvent(
+    "tool:start",
+    {
+      tool: "write_file",
+      tool_call_id: "run-level-id",
+      args: { content: "hello world" },
+    },
+    generating.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect((started.parts[0] as ToolPart).alias_id).toBeUndefined();
+});

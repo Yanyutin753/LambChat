@@ -4,50 +4,24 @@ import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { MarkdownContent } from "../MarkdownContent";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 
-const AudioTranscribeItem = memo(function AudioTranscribeItem({
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
-  const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
-
+/** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
+function AudioTranscribeDetail({ args, result }: ToolDetailProps) {
   const url = (args.url as string) || "";
   const language = (args.language as string) || "";
   const model = (args.model as string) || "";
-
   const transcription = useMemo(() => extractText(result), [result]);
 
-  const canExpand = !!url || !!transcription;
-  const status = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {url && (
         <ToolArgsBlock size="detail" wrap>
@@ -92,6 +66,59 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
       )}
     </div>
   );
+}
+
+const AudioTranscribeItem = memo(function AudioTranscribeItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+
+  const url = (args.url as string) || "";
+  const language = (args.language as string) || "";
+  const model = (args.model as string) || "";
+
+  const transcription = useMemo(() => extractText(result), [result]);
+
+  // 参数生成中（无转写文本）也允许打开面板：实时等待转写结果
+  const canExpand = !!url || !!transcription || !!isPending;
+  const status = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  const detailContent = canExpand && (
+    <AudioTranscribeDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   return (
     <>
@@ -105,13 +132,17 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: t("chat.message.toolAudioTranscribe"),
             icon: <Mic size={16} />,
             status,
             subtitle:
               url.length > 100 ? url.slice(0, 97) + "…" : url || undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <AudioTranscribeDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}

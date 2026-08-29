@@ -828,7 +828,8 @@
     "thinkingIntensity": "思考强度",
     "title": "对话",
     "todo": {
-      "progress": "{{completed}}/{{total}} 已完成"
+      "progress": "{{completed}}/{{total}} 已完成",
+      "toggle": "任务清单"
     },
     "unknownAgent": "未知助手",
     "unknownError": "未知错误",

@@ -3,7 +3,11 @@ import { Code2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
 import { ToolResultContent } from "./McpBlockPreview";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
@@ -97,41 +101,15 @@ const evalCodePreviewClassName =
 const evalInlineCodePreviewClassName =
   "eval-code-preview rounded-md border border-theme-border bg-[color-mix(in_srgb,var(--theme-bg)_78%,var(--theme-bg-card)_22%)] px-2.5 py-2 text-xs text-theme-text-secondary shadow-inner overflow-x-auto max-h-48 overflow-y-auto min-w-0 font-mono";
 
-const EvalItem = memo(function EvalItem({
-  toolName = "eval",
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  toolName?: string;
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+/** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
+function EvalDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
   const codePreview = getEvalCodePreview(args);
   const argsJson = JSON.stringify(args, null, 2);
   const hasArgs = Object.keys(args).length > 0;
   const hasResult = result !== undefined;
-  const canExpand = !!codePreview || hasArgs || hasResult;
-  const status = deriveStatus({ isPending, cancelled, success, hasResult });
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
-  const evalLabel = t("chat.message.toolEval");
-  const title = isEvalToolName(toolName) ? evalLabel : toolName;
-  const pillSummary = getEvalPillSummary(args, codePreview);
-  const pillLabel = pillSummary ? `${evalLabel} ${pillSummary}` : evalLabel;
 
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {codePreview && (
         <section className="space-y-2">
@@ -174,6 +152,56 @@ const EvalItem = memo(function EvalItem({
       )}
     </div>
   );
+}
+
+const EvalItem = memo(function EvalItem({
+  id,
+  toolName = "eval",
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  toolName?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const codePreview = getEvalCodePreview(args);
+  const argsJson = JSON.stringify(args, null, 2);
+  const hasArgs = Object.keys(args).length > 0;
+  const hasResult = result !== undefined;
+  // 运行中（args 已到、无 result）也允许打开面板：实时等待执行结果
+  const canExpand = !!codePreview || hasArgs || hasResult || isPending;
+  const status = deriveStatus({ isPending, cancelled, success, hasResult });
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+  const evalLabel = t("chat.message.toolEval");
+  const title = isEvalToolName(toolName) ? evalLabel : toolName;
+  const pillSummary = getEvalPillSummary(args, codePreview);
+  const pillLabel = pillSummary ? `${evalLabel} ${pillSummary}` : evalLabel;
+
+  const detailContent = canExpand && (
+    <EvalDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   return (
     <CollapsiblePill
@@ -192,12 +220,16 @@ const EvalItem = memo(function EvalItem({
       expandable={canExpand}
       onPanelOpen={() => {
         if (!canExpand) return;
-        openPersistentToolPanel({
+        openToolLivePanel({
+          id,
           title,
           icon: <Code2 size={16} />,
           status,
           subtitle: codePreview?.language,
-          children: detailContent,
+          fallback: detailContent || undefined,
+          buildDetail: (data) => (
+            <EvalDetail {...toolDetailPropsFromPanelData(data)} />
+          ),
           footer: durationFooter,
         });
       }}

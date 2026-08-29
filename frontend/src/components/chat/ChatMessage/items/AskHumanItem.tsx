@@ -14,7 +14,11 @@ import {
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
@@ -263,29 +267,19 @@ function AnswerSummary({
   );
 }
 
-// ── AskHumanItem ──────────────────────────────────────────────────────
+// ── AskHumanDetail ────────────────────────────────────────────────────
 
-const AskHumanItem = memo(function AskHumanItem({
+/**
+ * 面板详情：实时跟随 toolCallPanelStore 数据重建（用户作答后即时刷新）。
+ * 模块作用域声明保证组件类型稳定，流式更新只 patch props，
+ * 不会重置内部本地状态（FieldDisplay 等只读展示，无表单输入）。
+ */
+function AskHumanDetail({
   args,
   result,
-  success,
   isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+}: ToolDetailProps) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
 
   const parsed = useMemo(() => parseArgs(args), [args]);
   const parsedResult = useMemo(() => parseResult(result), [result]);
@@ -327,24 +321,8 @@ const AskHumanItem = memo(function AskHumanItem({
   );
 
   const hasFields = effectiveFields.length > 0;
-  const canExpand = !!message || hasFields || !!result;
 
-  // Derive pill status
-  const status = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : parsedResult?.status === "rejected"
-        ? "cancelled"
-        : parsedResult?.status === "timeout"
-          ? "error"
-          : success
-            ? "success"
-            : "error";
-
-  // ── Panel detail content ──
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-3">
       {/* Mini approval-style card (read-only snapshot) */}
       <div className="approval-card">
@@ -471,6 +449,86 @@ const AskHumanItem = memo(function AskHumanItem({
       )}
     </div>
   );
+}
+
+// ── AskHumanItem ──────────────────────────────────────────────────────
+
+const AskHumanItem = memo(function AskHumanItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+
+  const parsed = useMemo(() => parseArgs(args), [args]);
+  const parsedResult = useMemo(() => parseResult(result), [result]);
+
+  const { message, fields } = parsed;
+
+  // Supplement _other field when backend didn't include it
+  // (e.g. cached events before the backend fix, or non-standard flows).
+  const effectiveFields = useMemo(() => {
+    const needOther = parsed.allow_other || !!parsedResult?.values?._other;
+    if (!needOther) return fields;
+    if (fields.some((f) => f.name === "_other")) return fields;
+    return [
+      ...fields,
+      {
+        name: "_other",
+        label: t("chat.message.askHumanOtherLabel"),
+        type: "textarea" as const,
+        required: false,
+        placeholder: t("chat.message.askHumanOtherPlaceholder"),
+      },
+    ];
+  }, [parsed.allow_other, parsedResult?.values?._other, fields, t]);
+
+  const hasFields = effectiveFields.length > 0;
+  const canExpand = !!message || hasFields || !!result;
+
+  // Derive pill status
+  const status = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : parsedResult?.status === "rejected"
+        ? "cancelled"
+        : parsedResult?.status === "timeout"
+          ? "error"
+          : success
+            ? "success"
+            : "error";
+
+  // ── Panel detail content ──
+
+  const detailContent = canExpand && (
+    <AskHumanDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   // ── Label ──
 
@@ -575,7 +633,8 @@ const AskHumanItem = memo(function AskHumanItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: t("chat.message.toolAskHuman"),
             icon: <ShieldCheck size={16} />,
             status,
@@ -583,7 +642,10 @@ const AskHumanItem = memo(function AskHumanItem({
               message && message.length > 120
                 ? message.slice(0, 117) + "…"
                 : message || undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <AskHumanDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}

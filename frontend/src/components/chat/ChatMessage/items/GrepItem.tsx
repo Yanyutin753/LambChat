@@ -4,85 +4,64 @@ import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 
-const GrepItem = memo(function GrepItem({
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+function parseGrepResult(result?: string | Record<string, unknown>): {
+  files: string[];
+  lines: string[];
+} {
+  if (!result) return { files: [], lines: [] };
+  const raw = extractText(result);
+  try {
+    const obj = JSON.parse(raw);
+    if (Array.isArray(obj)) {
+      const files: string[] = [];
+      const lines: string[] = [];
+      for (const item of obj) {
+        if (typeof item === "string") {
+          files.push(item);
+        } else if (item && typeof item === "object") {
+          const file = (item as Record<string, unknown>).file as string;
+          if (file) files.push(file);
+          const matches = (item as Record<string, unknown>).matches;
+          if (Array.isArray(matches)) {
+            for (const m of matches) {
+              const match = m as Record<string, unknown>;
+              lines.push(`${file}:${match.line ?? ""}:${match.text ?? ""}`);
+            }
+          }
+        }
+      }
+      return { files, lines };
+    }
+  } catch {
+    // 非 JSON，按行解析 ripgrep 风格输出
+  }
+
+  const lines: string[] = raw.split("\n").filter(Boolean);
+  const files = [...new Set(lines.map((l) => l.split(":")[0]).filter(Boolean))];
+  return { files, lines };
+}
+
+/** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
+function GrepDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
   const pattern = (args.pattern as string) || "";
   const searchPath = (args.path as string) || "";
   const glob = (args.glob as string) || "";
   const outputMode = (args.output_mode as string) || "files_with_matches";
 
-  const parsedResult = useMemo(() => {
-    if (!result) return { files: [] as string[], lines: [] as string[] };
-    const raw = extractText(result);
-    try {
-      const obj = JSON.parse(raw);
-      if (Array.isArray(obj)) {
-        const files: string[] = [];
-        const lines: string[] = [];
-        for (const item of obj) {
-          if (typeof item === "string") {
-            files.push(item);
-          } else if (item && typeof item === "object") {
-            const file = (item as Record<string, unknown>).file as string;
-            if (file) files.push(file);
-            const matches = (item as Record<string, unknown>).matches;
-            if (Array.isArray(matches)) {
-              for (const m of matches) {
-                const match = m as Record<string, unknown>;
-                lines.push(`${file}:${match.line ?? ""}:${match.text ?? ""}`);
-              }
-            }
-          }
-        }
-        return { files, lines };
-      }
-    } catch {
-      // 非 JSON，按行解析 ripgrep 风格输出
-    }
+  const parsedResult = useMemo(() => parseGrepResult(result), [result]);
 
-    const lines: string[] = raw.split("\n").filter(Boolean);
-    const files = [
-      ...new Set(lines.map((l) => l.split(":")[0]).filter(Boolean)),
-    ];
-    return { files, lines };
-  }, [result]);
-
-  const canExpand =
-    !!pattern || parsedResult.files.length > 0 || parsedResult.lines.length > 0;
-  const status = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       <ToolArgsBlock size="detail" wrap>
         <Search
@@ -163,6 +142,63 @@ const GrepItem = memo(function GrepItem({
         })()}
     </div>
   );
+}
+
+const GrepItem = memo(function GrepItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+  const pattern = (args.pattern as string) || "";
+  const searchPath = (args.path as string) || "";
+  const glob = (args.glob as string) || "";
+  const outputMode = (args.output_mode as string) || "files_with_matches";
+
+  const parsedResult = useMemo(() => parseGrepResult(result), [result]);
+
+  // 运行中（pattern 已到、无 result）也允许打开面板：实时等待搜索结果
+  const canExpand =
+    !!pattern ||
+    parsedResult.files.length > 0 ||
+    parsedResult.lines.length > 0 ||
+    isPending;
+  const status = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  const detailContent = canExpand && (
+    <GrepDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   return (
     <>
@@ -174,12 +210,16 @@ const GrepItem = memo(function GrepItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: `${t("chat.message.toolSearch")} ${pattern}`,
             icon: <Search size={16} />,
             status,
             subtitle: searchPath || glob || undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <GrepDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}

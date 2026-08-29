@@ -828,7 +828,8 @@
     "thinkingIntensity": "사고 강도",
     "title": "채팅",
     "todo": {
-      "progress": "{{completed}}/{{total}} 완료"
+      "progress": "{{completed}}/{{total}} 완료",
+      "toggle": "할 일 목록"
     },
     "unknownAgent": "알 수 없는 에이전트",
     "unknownError": "알 수 없는 오류",

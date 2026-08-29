@@ -42,7 +42,7 @@ test("expanded collapsible section cards fill the available panel height", () =>
     /className="flex min-h-0 flex-1 flex-col space-y-3"/,
   );
   expect(sectionSource).toMatch(
-    /<div className="mt-2 flex-1 min-h-0 overflow-y-auto animate-\[fade-in_150ms_ease-out\]">/,
+    /<div\s+data-sidebar-snapshot-key=\{`\$\{sectionKey\}-content`\}\s+className="mt-2 flex-1 min-h-0 overflow-y-auto animate-\[fade-in_150ms_ease-out\]"\s*>/,
   );
   expect(sectionSource).toMatch(/expanded && expandedClassName/);
   expect(panelSource).toMatch(

@@ -4,47 +4,22 @@ import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 
-const WriteFileItem = memo(function WriteFileItem({
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
-  const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
+/** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
+function WriteFileDetail({ args, result }: ToolDetailProps) {
   const filePath = (args.file_path as string) || "";
-  const fileName = filePath.split("/").pop() || filePath;
   const content = (args.content as string) || "";
 
-  const canExpand = !!content || !!result;
-  const status = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
       <ToolArgsBlock size="detail">
         <span className="truncate">{filePath}</span>
@@ -81,6 +56,56 @@ const WriteFileItem = memo(function WriteFileItem({
         })()}
     </div>
   );
+}
+
+const WriteFileItem = memo(function WriteFileItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+  const filePath = (args.file_path as string) || "";
+  const fileName = filePath.split("/").pop() || filePath;
+  const content = (args.content as string) || "";
+
+  // 参数生成中（无 result）也允许打开面板：实时等待写入结果
+  const canExpand = !!content || !!result || isPending || !!filePath;
+  const status = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  const detailContent = canExpand && (
+    <WriteFileDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   return (
     <>
@@ -93,12 +118,16 @@ const WriteFileItem = memo(function WriteFileItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: `${t("chat.message.toolWrite")} ${fileName || filePath}`,
             icon: <FilePlus size={16} />,
             status,
             subtitle: filePath,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <WriteFileDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}

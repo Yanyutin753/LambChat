@@ -57,7 +57,7 @@ describe("RunStepsCollapse", () => {
     expect(SummaryRow().textContent).toContain("2");
   });
 
-  test("starts expanded with a live timer while the run is active, without chevron or toggle", () => {
+  test("starts expanded with a live timer while active and stays user-collapsible", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-26T10:00:45Z"));
     try {
@@ -74,8 +74,8 @@ describe("RunStepsCollapse", () => {
       const row = ExpandedSummaryRow();
       expect(row.textContent).toContain("Working");
       expect(row.textContent).toContain("45s");
-      expect(row.querySelector("svg")).toBeNull();
-      expect((row as HTMLButtonElement).disabled).toBe(true);
+      // 流式中也允许手动收起（长 run 只想看最新输出时不必等结束）
+      expect((row as HTMLButtonElement).disabled).toBe(false);
       expect(renderExpanded).toHaveBeenCalled();
       expect(screen.getByText("step-details")).toBeTruthy();
 
@@ -83,6 +83,11 @@ describe("RunStepsCollapse", () => {
         vi.advanceTimersByTime(1000);
       });
       expect(ExpandedSummaryRow().textContent).toContain("46s");
+
+      act(() => {
+        fireEvent.click(ExpandedSummaryRow());
+      });
+      expect(screen.queryByText("step-details")).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -179,6 +184,34 @@ describe("RunStepsCollapse", () => {
     );
     expect(SummaryRow().className).toContain("border-theme-border");
     expect(SummaryRow().style.borderColor).toBe("");
+  });
+
+  test("keeps the user's manual choice after the run finishes", () => {
+    const { rerender } = render(
+      <RunStepsCollapse
+        active
+        steps={1}
+        durationMs={null}
+        startedAtMs={Date.now() - 1000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+
+    // 流式中用户手动收起
+    fireEvent.click(ExpandedSummaryRow());
+    expect(screen.queryByText("step-details")).toBeNull();
+
+    // 结束时不强制重置：保持用户收起的选择
+    rerender(
+      <RunStepsCollapse
+        steps={1}
+        durationMs={60000}
+        startedAtMs={null}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    expect(screen.queryByText("step-details")).toBeNull();
+    expect(SummaryRow().getAttribute("aria-expanded")).toBe("false");
   });
 
   test("shows the full details directly when toggled open", () => {

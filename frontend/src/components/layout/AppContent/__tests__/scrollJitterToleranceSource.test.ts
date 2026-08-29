@@ -21,8 +21,19 @@ describe("message list scroll jitter tolerance (source)", () => {
     );
   });
 
-  test("requires a deliberate upward wheel intent beyond -6 to detach follow", () => {
-    expect(hookSource).toMatch(/if \(event\.deltaY >= -6\) \{/);
+  test("requires a deliberate upward wheel intent to detach follow", () => {
+    // 单次 -6px 以内的微滑不算意图；触控板惯性按 300ms 时间窗累计 24px 判定
+    // （nextWheelIntentState），累计前的微滑由底部锁定保持跟随
+    expect(hookSource).toMatch(/nextWheelIntentState\(/);
+    const utilsSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/components/layout/AppContent/messageScrollUtils.ts",
+      ),
+      "utf8",
+    );
+    expect(utilsSource).toMatch(/WHEEL_DETACH_SINGLE_PX = 6/);
+    expect(utilsSource).toMatch(/WHEEL_DETACH_CUMULATIVE_PX = 24/);
   });
 
   test("rebinding scroll listeners keeps the real scrollTop baseline", () => {

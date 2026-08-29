@@ -1,4 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+
+/** 内容相等时复用旧引用：派生值进下游 memo/useCallback 依赖时，
+ *  流式 tick 的重算不换身份，下游（如 Virtuoso 行级 memo）不被打穿 */
+function useStableMemoValue<T>(value: T, isEqual: (a: T, b: T) => boolean): T {
+  const ref = useRef(value);
+  if (!isEqual(ref.current, value)) {
+    ref.current = value;
+    return value;
+  }
+  return ref.current;
+}
 import type { Message } from "../../../types";
 import type { AutoPreviewTarget } from "../../chat/ChatMessage/autoPreviewEligibility";
 import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
@@ -12,6 +23,7 @@ import { isFileLink } from "../../documents/utils";
 import { getFullUrl } from "../../../services/api/config";
 import { closePersistentToolPanel } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { clearSidebarHistory } from "../../chat/ChatMessage/items/sidebarHistoryStore";
+import { isUserReadingHistory } from "../../chat/streamFollowSignal";
 import {
   createActiveRevealPreviewState,
   markRevealPreviewInteracted,
@@ -275,27 +287,37 @@ export function useRevealPreview(
     sessionId,
   ]);
 
-  const latestAutoPreview = useMemo(
-    () =>
-      getLatestObservedCompletionAutoPreviewTarget({
-        messages,
-        observedStreamingMessageIds: observedStreamingMessageIdsRef.current,
-        suppressAutoPreview: !!externalNavigationPreview,
-        currentRunId,
-      }),
-    [messages, externalNavigationPreview, currentRunId],
+  // 流式期间 messages 每 tick 换引用：两个 memo 每 tick 重算，结果内容
+  // 未变时必须复用旧对象——latestAutoPreview 进 virtuosoItemContent 依赖，
+  // 换引用会让全部可见消息行每 tick 重渲（长会话滑动掉帧）
+  const latestAutoPreview = useStableMemoValue(
+    useMemo(
+      () =>
+        getLatestObservedCompletionAutoPreviewTarget({
+          messages,
+          observedStreamingMessageIds: observedStreamingMessageIdsRef.current,
+          suppressAutoPreview: !!externalNavigationPreview,
+          currentRunId,
+        }),
+      [messages, externalNavigationPreview, currentRunId],
+    ),
+    (a, b) =>
+      a?.messageId === b?.messageId && a?.partIndex === b?.partIndex,
   );
 
-  const latestAutoPreviewRequest = useMemo(
-    () =>
-      getLatestObservedCompletionRevealPreviewRequest({
-        messages,
-        observedStreamingMessageIds: observedStreamingMessageIdsRef.current,
-        suppressAutoPreview: !!externalNavigationPreview,
-        currentRunId,
-        allowHistoricalLatest: !isLoadingHistory,
-      }),
-    [messages, externalNavigationPreview, currentRunId, isLoadingHistory],
+  const latestAutoPreviewRequest = useStableMemoValue(
+    useMemo(
+      () =>
+        getLatestObservedCompletionRevealPreviewRequest({
+          messages,
+          observedStreamingMessageIds: observedStreamingMessageIdsRef.current,
+          suppressAutoPreview: !!externalNavigationPreview,
+          currentRunId,
+          allowHistoricalLatest: !isLoadingHistory,
+        }),
+      [messages, externalNavigationPreview, currentRunId, isLoadingHistory],
+    ),
+    (a, b) => a?.previewKey === b?.previewKey,
   );
 
   useEffect(() => {
@@ -304,6 +326,12 @@ export function useRevealPreview(
     }
 
     if (typeof window !== "undefined" && window.innerWidth < 640) {
+      return;
+    }
+
+    // 用户上滑阅读历史时不自动弹预览：docked 面板会挤压聊天列宽打断阅读。
+    // 本次自动打开静默跳过（不挂起补弹），产物仍可从消息里手动点开。
+    if (isUserReadingHistory()) {
       return;
     }
 
