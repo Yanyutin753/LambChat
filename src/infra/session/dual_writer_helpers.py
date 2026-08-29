@@ -93,6 +93,12 @@ def _buffer_item_skip_chunk(item: MongoBufferItem) -> bool:
     return bool(len(item) >= 9 and item[8])
 
 
+def _buffer_item_attempts(item: MongoBufferItem) -> int:
+    if len(item) < 10 or item[9] is None:
+        return 0
+    return int(item[9])
+
+
 def _with_chunk_retry_metadata(
     item: MongoBufferItem,
     *,
@@ -101,9 +107,44 @@ def _with_chunk_retry_metadata(
     skip_chunk: bool = False,
 ) -> MongoBufferItem:
     base = (*_buffer_item_base(item), reserved_start_seq, skip_legacy)
-    if skip_chunk:
-        return (*base, True)
-    return base
+    attempts = _buffer_item_attempts(item) + 1
+    return (*base, skip_chunk, attempts)
+
+
+def _sanitize_event_data_for_mongo(obj: Any) -> Any:
+    """Rewrite dict keys that MongoDB update pipelines cannot store.
+
+    Chunked event writes build pipeline ``$set`` updates, which reject field
+    names containing '.', leading '$', or empty strings — patterns that occur
+    in external tool output (e.g. scraped structured content). Clean subtrees
+    are returned as-is (identity preserved) so normal events pay no copy cost.
+    """
+    if isinstance(obj, dict):
+        changed = False
+        new_dict: dict[Any, Any] = {}
+        for key, value in obj.items():
+            safe_key = _sanitize_mongo_key(key)
+            new_value = _sanitize_event_data_for_mongo(value)
+            changed = changed or safe_key != key or new_value is not value
+            new_dict[safe_key] = new_value
+        return new_dict if changed else obj
+    if isinstance(obj, list):
+        changed = False
+        items: list[Any] = []
+        for value in obj:
+            new_value = _sanitize_event_data_for_mongo(value)
+            changed = changed or new_value is not value
+            items.append(new_value)
+        return items if changed else obj
+    return obj
+
+
+def _sanitize_mongo_key(key: Any) -> Any:
+    key = key if isinstance(key, str) else str(key)
+    safe = key.replace(".", "_")
+    if safe.startswith("$"):
+        safe = f"_{safe[1:]}"
+    return safe or "_"
 
 
 def _group_mongo_buffer_events(
