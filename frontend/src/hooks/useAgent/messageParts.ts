@@ -46,6 +46,130 @@ export function createToolPart(
 }
 
 /**
+ * Create a generating tool part holding partial args text streamed from the
+ * LLM (tool:args:chunk). Rendered by the same ToolCallItem via args.partial.
+ */
+export function createGeneratingToolPart(
+  toolName: string,
+  toolCallId: string | undefined,
+  partialArgs: string,
+  depth: number,
+  agentId?: string,
+): ToolPart {
+  return {
+    type: "tool",
+    id: toolCallId,
+    name: toolName,
+    args: { partial: partialArgs },
+    argsPartial: true,
+    isPending: true,
+    depth,
+    agent_id: agentId,
+  };
+}
+
+function findGeneratingToolIndex(
+  parts: MessagePart[],
+  toolCallId: string | undefined,
+): number {
+  if (toolCallId) {
+    return parts.findIndex(
+      (p) => p.type === "tool" && (p as ToolPart).argsPartial && p.id === toolCallId,
+    );
+  }
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i].type === "tool" && (parts[i] as ToolPart).argsPartial) return i;
+  }
+  return -1;
+}
+
+function appendPartialArgs(existing: ToolPart, delta: string): ToolPart {
+  const current = typeof existing.args.partial === "string" ? existing.args.partial : "";
+  return { ...existing, args: { partial: current + delta } };
+}
+
+function mergeToolArgsDeltaInParts(
+  parts: MessagePart[],
+  toolCallId: string | undefined,
+  delta: string,
+): MessagePart[] | null {
+  const idx = findGeneratingToolIndex(parts, toolCallId);
+  if (idx !== -1) {
+    const newParts = [...parts];
+    newParts[idx] = appendPartialArgs(newParts[idx] as ToolPart, delta);
+    return newParts;
+  }
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    if (p.type === "subagent" && p.parts) {
+      const updated = mergeToolArgsDeltaInParts(p.parts, toolCallId, delta);
+      if (updated) {
+        const newParts = [...parts];
+        newParts[i] = { ...p, parts: updated };
+        return newParts;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Append a streamed tool-args delta onto its generating part, creating the
+ * part when this is its first delta. Falls back to addPartToDepth routing
+ * for subagent placement.
+ */
+export function appendToolArgsDelta(
+  parts: MessagePart[],
+  toolName: string,
+  toolCallId: string | undefined,
+  delta: string,
+  depth: number,
+  agentId: string | undefined,
+  activeSubagentStack: SubagentStackItem[],
+  messageId?: string,
+): MessagePart[] {
+  const merged = mergeToolArgsDeltaInParts(parts, toolCallId, delta);
+  if (merged) return merged;
+
+  const part = createGeneratingToolPart(toolName, toolCallId, delta, depth, agentId);
+  if (depth > 0) {
+    return addPartToDepth(parts, part, depth, activeSubagentStack, agentId, messageId);
+  }
+  return [...parts, part];
+}
+
+/**
+ * Replace the first (generation-order) args-partial tool part with the final
+ * tool:start part, keeping the earlier startedAt for honest elapsed timing.
+ * Returns null when no generating part exists (plain append path).
+ */
+export function upgradeGeneratingToolPart(
+  parts: MessagePart[],
+  replacement: ToolPart,
+): MessagePart[] | null {
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p.type === "tool" && (p as ToolPart).argsPartial) {
+      const newParts = [...parts];
+      newParts[i] = {
+        ...replacement,
+        startedAt: (p as ToolPart).startedAt ?? replacement.startedAt,
+      };
+      return newParts;
+    }
+    if (p.type === "subagent" && p.parts) {
+      const updated = upgradeGeneratingToolPart(p.parts, replacement);
+      if (updated) {
+        const newParts = [...parts];
+        newParts[i] = { ...p, parts: updated };
+        return newParts;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Create a thinking part from thinking data.
  */
 export function createThinkingPart(
@@ -161,6 +285,53 @@ function mergeTextPart(
     return newParts;
   }
   return null;
+}
+
+/**
+ * 追加一段顶层正文（depth 0 的 message:chunk）。
+ *
+ * 流式下后端按阈值/定时 flush 正文，而工具参数首块直发，导致「先于工具
+ * 调用生成的正文」可能在 tool:args:chunk 之后到达。模型输出顺序恒为
+ * 「正文 → 工具参数」，仍在参数生成中（argsPartial，tool:start 之前）的
+ * 工具不可能先于其前面的正文：把晚到的正文插回这些生成中工具之前并与
+ * 相邻正文段合并，避免同一句被工具卡从中间劈开。
+ */
+export function appendTopLevelTextChunk(
+  parts: MessagePart[],
+  content: string,
+): MessagePart[] {
+  const lastPart = parts[parts.length - 1];
+  if (lastPart?.type === "text" && !lastPart.depth) {
+    const newParts = [...parts];
+    newParts[newParts.length - 1] = {
+      ...lastPart,
+      content: lastPart.content + content,
+    };
+    return newParts;
+  }
+
+  let anchor = parts.length;
+  while (anchor > 0) {
+    const part = parts[anchor - 1];
+    if (part.type === "tool" && (part as ToolPart).argsPartial) {
+      anchor--;
+      continue;
+    }
+    break;
+  }
+
+  const before = parts[anchor - 1];
+  if (before?.type === "text" && !before.depth) {
+    const newParts = [...parts];
+    newParts[anchor - 1] = {
+      ...before,
+      content: before.content + content,
+    };
+    return newParts;
+  }
+
+  const textPart: MessagePart = { type: "text", content };
+  return [...parts.slice(0, anchor), textPart, ...parts.slice(anchor)];
 }
 
 /**

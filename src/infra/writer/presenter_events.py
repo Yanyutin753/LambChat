@@ -311,6 +311,35 @@ class EventPresenterMixin:
             agent_id=agent_id,
         )
 
+    def present_tool_args_delta(
+        self,
+        tool_name: str,
+        tool_call_id: Optional[str],
+        content: str,
+        depth: int = 0,
+        agent_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出工具调用参数的流式增量（LLM 生成参数阶段）
+
+        Args:
+            tool_name: 工具名称
+            tool_call_id: LLM 生成的调用 ID（与 tool:start 的 run_id 不同源）
+            content: 参数 JSON 文本的增量片段
+            depth: 层级深度（0=主代理，1+=子代理）
+            agent_id: 代理ID（用于子代理事件）
+        """
+        return self._build_event(
+            "tool:args:chunk",
+            {
+                "tool": tool_name,
+                "tool_call_id": tool_call_id,
+                "content": content,
+                "timestamp": utc_now_iso(),
+            },
+            depth=depth,
+            agent_id=agent_id,
+        )
+
     def present_tool_start(
         self,
         tool_name: str,

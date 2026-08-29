@@ -146,6 +146,14 @@ INFRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": {"key": "TASK_BACKEND", "value": "arq"},
         "frontend_visible": False,
     },
+    "TASK_RUN_STALL_TIMEOUT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.REDIS,
+        "subcategory": "task",
+        "description": "settingDesc.TASK_RUN_STALL_TIMEOUT",
+        "default": 3600,
+        "frontend_visible": False,
+    },
     # ============================================
     # LangSmith Tracing Settings
     # ============================================

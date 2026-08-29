@@ -97,6 +97,24 @@ export function MessagePartRenderer({
   }
 
   if (part.type === "tool") {
+    // 参数生成中（tool:args:chunk 建立的 argsPartial part）统一走通用
+    // ToolCallItem 的 partial 展示；专属 Item 直接读 args 键（此时还不存在），
+    // 转正（tool:start 升级、argsPartial 移除）后自动切回专属组件。
+    if (part.argsPartial) {
+      return (
+        <ToolCallItem
+          id={part.id}
+          name={part.name}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
     // Detect Read tool, use dedicated component (strips line numbers, shows file path)
     if (part.name === "read_file") {
       return (

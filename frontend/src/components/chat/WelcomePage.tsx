@@ -62,6 +62,8 @@ interface WelcomePageProps {
   starterPromptsLabel?: string;
   changePersonaLabel?: string;
   personaPresets: PersonaPreset[];
+  /** 首次列表请求是否已落地；后台刷新不回退骨架屏（issue #158） */
+  personaPresetsLoaded?: boolean;
   hasMorePersonaPresets?: boolean;
   isLoadingMorePersonaPresets?: boolean;
   onLoadMorePersonaPresets?: () => void;
@@ -109,6 +111,7 @@ export const WelcomePage = memo(function WelcomePage({
   starterPromptsLabel,
   changePersonaLabel,
   personaPresets,
+  personaPresetsLoaded = false,
   hasMorePersonaPresets,
   isLoadingMorePersonaPresets,
   onLoadMorePersonaPresets,
@@ -382,6 +385,7 @@ export const WelcomePage = memo(function WelcomePage({
     settingsLoading,
     currentAgent,
     personaPresetsLoading,
+    personaPresetsLoaded,
     teamRequestSettled: teamCardsLoaded,
   });
 
