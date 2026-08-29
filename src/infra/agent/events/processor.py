@@ -30,6 +30,7 @@ from src.infra.agent.events.types import TOOL_TASK, StreamEvent
 from src.infra.agent.first_event_timing import FirstEventTiming
 from src.infra.logging import get_logger
 from src.infra.writer.present import Presenter
+from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
@@ -101,9 +102,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self.presenter = presenter
         self.checkpoint_to_agent: dict[str, tuple[str, str]] = {}
         if not base_url:
-            from src.kernel.config import settings
-
-            base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+            base_url = settings.APP_BASE_URL.rstrip("/")
         self._base_url = base_url
         self.thinking_ids: dict[str | None, str | None] = {}
         self._output_buffer = StringIO()
@@ -116,9 +115,14 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._token_usage_emitted = False
         self._presenter_emit = presenter.emit
         self._before_tool_start = before_tool_start
-        self._chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
-        self._summary_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
-        self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
+        chunk_flush_interval = settings.STREAM_CHUNK_FLUSH_INTERVAL
+        self._chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
+        self._summary_chunk_buffer = TextChunkBuffer(
+            self._CHUNK_FLUSH_SIZE, chunk_flush_interval
+        )
+        self._thinking_chunk_buffer = TextChunkBuffer(
+            self._CHUNK_FLUSH_SIZE, chunk_flush_interval
+        )
         self._tool_args_buffers: dict[int | str, TextChunkBuffer] = {}
         self._tool_args_meta: dict[int | str, tuple[str, str | None]] = {}
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}

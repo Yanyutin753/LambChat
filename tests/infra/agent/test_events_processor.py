@@ -1056,3 +1056,29 @@ async def test_emit_token_usage_flushes_accumulated_totals_once() -> None:
             },
         }
     ]
+
+
+def test_text_chunk_buffer_time_based_flush_surfaces_small_tail() -> None:
+    buffer = TextChunkBuffer(flush_size=100, flush_interval=1.0)
+
+    # First chunk flushes immediately.
+    assert buffer.append("hello", (0, None, "k")) is True
+    buffer.consume()
+
+    # Below size threshold and within the interval: keep buffering.
+    assert buffer.append("world", (0, None, "k")) is False
+
+    # Once the interval elapsed, the same small tail must flush on next append.
+    buffer._last_flush_at = buffer._last_flush_at - 2.0
+    assert buffer.append("!", (0, None, "k")) is True
+    assert buffer.consume() == ("world!", (0, None, "k"))
+
+
+def test_text_chunk_buffer_no_time_flush_when_interval_disabled() -> None:
+    buffer = TextChunkBuffer(flush_size=100)
+
+    assert buffer.append("hello", (0, None, "k")) is True
+    buffer.consume()
+
+    buffer._last_flush_at = buffer._last_flush_at - 3600.0
+    assert buffer.append("tail", (0, None, "k")) is False

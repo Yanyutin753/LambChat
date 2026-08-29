@@ -164,7 +164,11 @@ class StreamEventMixin:
                 continue
             buffer = self._tool_args_buffers.get(key)
             if buffer is None:
-                buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE)
+                from src.kernel.config import settings
+
+                buffer = TextChunkBuffer(
+                    self._CHUNK_FLUSH_SIZE, settings.STREAM_CHUNK_FLUSH_INTERVAL
+                )
                 self._tool_args_buffers[key] = buffer
             buffer_key: BufferKey = (depth, agent_id, tool_call_id)
             if buffer.append(delta, buffer_key):

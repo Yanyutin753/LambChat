@@ -146,6 +146,9 @@ class Settings(BaseSettings):
     TASK_STARTUP_CLEANUP_CONCURRENCY: int = 16
     TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 120
     TASK_EVENT_IDLE_TIMEOUT: float = 600.0  # run 事件流空闲看门狗（秒；<=0 禁用）
+    # 流式分片的时间维 flush 间隔（秒）：正文/思考/工具参数攒不够大小阈值时，
+    # 每隔该时长也强制下发一次，避免小尾巴要等流结束才出来（<=0 禁用）。
+    STREAM_CHUNK_FLUSH_INTERVAL: float = 1.0
 
     # MongoDB Settings
     MONGODB_URL: str = "mongodb://localhost:27017"
