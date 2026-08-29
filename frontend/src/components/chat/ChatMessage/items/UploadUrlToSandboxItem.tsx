@@ -2,7 +2,11 @@ import { memo } from "react";
 import { Download, FileInput, LinkIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
@@ -19,7 +23,50 @@ function truncate(value: string, maxLength: number) {
   return `${value.slice(0, maxLength - 1)}...`;
 }
 
+/** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
+function UploadUrlToSandboxDetail({ args, result }: ToolDetailProps) {
+  const url = (args.url as string) || "";
+  const filePath = (args.file_path as string) || "";
+  const hasResult = result !== undefined;
+  const resultText = stringifyResult(result);
+
+  return (
+    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4">
+      {url && (
+        <ToolArgsBlock size="detail" wrap>
+          <LinkIcon
+            size={14}
+            className="shrink-0 text-cyan-500 dark:text-cyan-400"
+          />
+          <span className="break-all">{url}</span>
+        </ToolArgsBlock>
+      )}
+      {filePath && (
+        <ToolArgsBlock size="detail" wrap>
+          <FileInput
+            size={14}
+            className="shrink-0 text-emerald-500 dark:text-emerald-400"
+          />
+          <span className="break-all">{filePath}</span>
+        </ToolArgsBlock>
+      )}
+      {hasResult && (
+        <div className="group/result relative text-xs text-theme-text-secondary overflow-y-auto min-w-0">
+          <ToolHoverCopyButton
+            text={resultText}
+            position="resultCompact"
+            className="z-20 pointer-events-auto"
+            copyButtonClassName="bg-[var(--theme-bg-elevated)] shadow-sm ring-1 ring-stone-200/70 hover:bg-stone-100 dark:bg-stone-900/90 dark:ring-stone-700/70 dark:hover:bg-stone-800"
+          />
+          <ToolResultContent result={result} hideCopyButton />
+        </div>
+      )}
+    </div>
+  );
+}
+
 const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
+  id,
   args,
   result,
   success,
@@ -28,6 +75,7 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
   startedAt,
   completedAt,
 }: {
+  id?: string;
   args: Record<string, unknown>;
   result?: string | Record<string, unknown>;
   success?: boolean;
@@ -43,7 +91,8 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
   const url = (args.url as string) || "";
   const filePath = (args.file_path as string) || "";
   const hasResult = result !== undefined;
-  const canExpand = !!url || !!filePath || hasResult;
+  // 参数生成中（无结果）也允许打开面板：实时等待上传结果
+  const canExpand = !!url || !!filePath || hasResult || !!isPending;
   const status = isPending
     ? "loading"
     : cancelled
@@ -66,27 +115,15 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
   ) : null;
 
   const detailContent = canExpand && (
-    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4">
-      {url && (
-        <ToolArgsBlock size="detail" wrap>
-          <LinkIcon
-            size={14}
-            className="shrink-0 text-cyan-500 dark:text-cyan-400"
-          />
-          <span className="break-all">{url}</span>
-        </ToolArgsBlock>
-      )}
-      {filePath && (
-        <ToolArgsBlock size="detail" wrap>
-          <FileInput
-            size={14}
-            className="shrink-0 text-emerald-500 dark:text-emerald-400"
-          />
-          <span className="break-all">{filePath}</span>
-        </ToolArgsBlock>
-      )}
-      {resultPreview}
-    </div>
+    <UploadUrlToSandboxDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
   );
 
   return (
@@ -101,12 +138,18 @@ const UploadUrlToSandboxItem = memo(function UploadUrlToSandboxItem({
       expandable={canExpand}
       onPanelOpen={() => {
         if (!canExpand) return;
-        openPersistentToolPanel({
+        openToolLivePanel({
+          id,
           title: t("chat.message.toolUploadUrlToSandbox"),
           icon: <Download size={16} />,
           status,
           subtitle: filePath || url || undefined,
-          children: detailContent,
+          fallback: detailContent || undefined,
+          buildDetail: (data) => (
+            <UploadUrlToSandboxDetail
+              {...toolDetailPropsFromPanelData(data)}
+            />
+          ),
           footer: durationFooter,
         });
       }}

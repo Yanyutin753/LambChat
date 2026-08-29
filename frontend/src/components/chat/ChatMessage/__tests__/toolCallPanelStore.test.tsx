@@ -188,6 +188,78 @@ test("clears cached tool data at the conversation lifecycle boundary", () => {
   unsubscribe();
 });
 
+test("publishes aliased tool data under the pre-upgrade streaming id", () => {
+  // 参数流式期间面板以 LLM call id 订阅；tool:start 转正后换成 run 级 id。
+  // store 需在别名 id 下同步发布，已打开的面板才能跨升级继续实时更新。
+  toolCallPanelStore.set({
+    toolCallId: "run-level-1",
+    aliasToolCallId: "llm-call-1",
+    toolName: "shell",
+    formattedToolName: "Shell",
+    args: { command: "ls" },
+    isPending: true,
+    status: "loading",
+  });
+
+  expect(toolCallPanelStore.get("llm-call-1")).toMatchObject({
+    toolCallId: "run-level-1",
+    isPending: true,
+  });
+
+  const aliasNotifications: string[] = [];
+  const unsubscribe = toolCallPanelStore.subscribe("llm-call-1", () =>
+    aliasNotifications.push("changed"),
+  );
+
+  toolCallPanelStore.set({
+    toolCallId: "run-level-1",
+    aliasToolCallId: "llm-call-1",
+    toolName: "shell",
+    formattedToolName: "Shell",
+    args: { command: "ls" },
+    result: "done",
+    success: true,
+    isPending: false,
+    status: "success",
+  });
+
+  expect(toolCallPanelStore.get("llm-call-1")).toMatchObject({
+    result: "done",
+    status: "success",
+  });
+  expect(aliasNotifications).toEqual(["changed"]);
+  unsubscribe();
+
+  toolCallPanelStore.delete("run-level-1");
+  toolCallPanelStore.delete("llm-call-1");
+});
+
+test("syncToolCallPanelStore publishes upgraded parts under their alias id", () => {
+  toolPanelModule.syncToolCallPanelStore([
+    assistantMessage([
+      {
+        type: "tool",
+        id: "run-level-2",
+        alias_id: "llm-call-2",
+        name: "shell",
+        args: { command: "ls" },
+        isPending: true,
+      },
+    ]),
+  ]);
+
+  expect(toolCallPanelStore.get("run-level-2")).toMatchObject({
+    toolCallId: "run-level-2",
+  });
+  expect(toolCallPanelStore.get("llm-call-2")).toMatchObject({
+    toolCallId: "run-level-2",
+    isPending: true,
+  });
+
+  toolCallPanelStore.delete("run-level-2");
+  toolCallPanelStore.delete("llm-call-2");
+});
+
 test("syncToolCallPanelStore parses partial args once per unchanged tool part", () => {
   let partialReads = 0;
   const argsWithCountingPartial = {

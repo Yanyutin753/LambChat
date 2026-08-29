@@ -14,6 +14,11 @@ import { setActiveRevealPreviewState } from "./activeRevealPreviewStore";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 import { toolCallPanelStore } from "../toolCallPanelStore";
 import {
+  buildSubagentPanelState,
+  createSubagentPanelFooter,
+} from "../subagentPanelState";
+import { subagentPanelStore } from "../subagentPanelStore";
+import {
   registerPanelCapture,
   pushCurrentPanelToHistory,
 } from "./sidebarHistoryStore";
@@ -121,41 +126,65 @@ function usePersistentToolPanel() {
   };
 }
 
-function useLiveToolPanelData(panelKey?: string) {
+interface LivePanelChrome {
+  status: CollapsibleStatus;
+  footer?: ReactNode;
+}
+
+/**
+ * 面板头部状态与页脚的实时数据源：tool: 前缀走 toolCallPanelStore，
+ * subagent- 前缀走 subagentPanelStore。两个 store 均由 ChatView 全量
+ * 同步，面板刷新与消息虚拟化（滚动）无关。
+ */
+function useLivePanelChrome(panelKey?: string): LivePanelChrome | null {
   const toolCallId = panelKey?.startsWith("tool:")
     ? panelKey.slice("tool:".length)
     : null;
-  const [data, setData] = useState(() =>
-    toolCallId ? toolCallPanelStore.get(toolCallId) : undefined,
-  );
+  const subagentId = panelKey?.startsWith("subagent-")
+    ? panelKey.slice("subagent-".length)
+    : null;
+  const [, forceRender] = useState(0);
 
   useEffect(() => {
-    if (!toolCallId) {
-      setData(undefined);
-      return;
-    }
-    const sync = () => setData(toolCallPanelStore.get(toolCallId));
-    sync();
-    return toolCallPanelStore.subscribe(toolCallId, sync);
-  }, [toolCallId]);
+    const listener = () => forceRender((count) => count + 1);
+    if (toolCallId) return toolCallPanelStore.subscribe(toolCallId, listener);
+    if (subagentId) return subagentPanelStore.subscribe(subagentId, listener);
+  }, [toolCallId, subagentId]);
 
-  return data;
+  const toolData = toolCallId
+    ? toolCallPanelStore.get(toolCallId)
+    : undefined;
+  if (toolData) {
+    return {
+      status: toolData.status,
+      footer: (
+        <ToolDurationFooter
+          startedAt={toolData.startedAt}
+          completedAt={toolData.completedAt}
+        />
+      ),
+    };
+  }
+
+  const subagentData = subagentId
+    ? subagentPanelStore.get(subagentId)
+    : undefined;
+  if (subagentData) {
+    const { panelStatus, subtitle } = buildSubagentPanelState(subagentData);
+    return {
+      status: panelStatus,
+      footer: createSubagentPanelFooter(subtitle),
+    };
+  }
+
+  return null;
 }
 
 export function PersistentToolPanelHost() {
   const { panel, close } = usePersistentToolPanel();
-  const liveToolData = useLiveToolPanelData(panel?.panelKey);
+  const liveChrome = useLivePanelChrome(panel?.panelKey);
 
   if (!panel) return null;
-
-  const footer = liveToolData ? (
-    <ToolDurationFooter
-      startedAt={liveToolData.startedAt}
-      completedAt={liveToolData.completedAt}
-    />
-  ) : (
-    panel.footer
-  );
 
   return createPortal(
     <ToolResultPanel
@@ -165,12 +194,12 @@ export function PersistentToolPanelHost() {
       automatic={panel.auto}
       title={panel.title}
       icon={panel.icon}
-      status={liveToolData?.status ?? panel.status}
+      status={liveChrome?.status ?? panel.status}
       subtitle={panel.subtitle}
       viewMode={panel.viewMode}
       headerActions={panel.headerActions}
       customHeader={panel.customHeader}
-      footer={footer}
+      footer={liveChrome?.footer ?? panel.footer}
       overlayClass={panel.overlayClass}
       panelClass={panel.panelClass}
       mobileFillViewport={panel.mobileFillViewport}

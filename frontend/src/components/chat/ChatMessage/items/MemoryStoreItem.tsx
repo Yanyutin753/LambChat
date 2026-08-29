@@ -17,7 +17,11 @@ import {
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
@@ -56,29 +60,14 @@ function getTypeIcon(type: string): LucideIcon {
 
 // ── MemoryStoreItem ─────────────────────────────────────────────────────
 
-const MemoryStoreItem = memo(function MemoryStoreItem({
-  toolName,
+/** 面板详情：实时跟随 toolCallPanelStore 数据重建（存储结果到达即刷新） */
+function MemoryStoreDetail({
   args,
   result,
   success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  toolName: string;
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+  toolName,
+}: ToolDetailProps & { toolName?: string }) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
 
   const action: StoreAction =
     toolName === "memory_delete" ? "delete" : "retain";
@@ -114,36 +103,7 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
   const resultMessage = parsed?.message || "";
   const errorMessage = parsed?.error || "";
 
-  const canExpand =
-    (action === "retain" && content.length > 0) ||
-    (action === "delete" && memoryIdArg.length > 0) ||
-    !!result;
-  const pillStatus = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : isSuccess
-        ? "success"
-        : isError
-          ? "error"
-          : "idle";
-
-  // ── Pill labels ──
-
-  const pillLabel = useMemo(() => {
-    if (action === "delete") {
-      return t("chat.message.toolMemoryDelete");
-    }
-    if (title) {
-      const truncated = title.length > 28 ? title.slice(0, 25) + "…" : title;
-      return `${t("chat.message.toolMemoryStore")} ${truncated}`;
-    }
-    return t("chat.message.toolMemoryStore");
-  }, [action, title, t]);
-
-  // ── Panel detail content ──
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {/* Status banner */}
       {isSuccess && (
@@ -338,6 +298,103 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
       )}
     </div>
   );
+}
+
+const MemoryStoreItem = memo(function MemoryStoreItem({
+  id,
+  toolName,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+
+  const action: StoreAction =
+    toolName === "memory_delete" ? "delete" : "retain";
+
+  // Args
+  const content = (args.content as string) || "";
+  const title = (args.title as string) || "";
+  const summary = (args.summary as string) || "";
+  const tags: string[] = (args.tags as string[]) || [];
+  const memoryIdArg = (args.memory_id as string) || "";
+
+  // Parsed result
+  const parsed = useMemo((): MemoryStoreResult | null => {
+    const text = extractText(result);
+    if (!text) return null;
+    try {
+      const raw = JSON.parse(text);
+      return raw;
+    } catch {
+      return null;
+    }
+  }, [result]);
+
+  const isSuccess = parsed ? parsed.success : success;
+  const isError = parsed
+    ? !parsed.success && !!parsed.error
+    : !success && !!result;
+  const memoryType = parsed?.memory_type || "";
+
+  const canExpand =
+    (action === "retain" && content.length > 0) ||
+    (action === "delete" && memoryIdArg.length > 0) ||
+    !!result;
+  const pillStatus = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : isSuccess
+        ? "success"
+        : isError
+          ? "error"
+          : "idle";
+
+  // ── Pill labels ──
+
+  const pillLabel = useMemo(() => {
+    if (action === "delete") {
+      return t("chat.message.toolMemoryDelete");
+    }
+    if (title) {
+      const truncated = title.length > 28 ? title.slice(0, 25) + "…" : title;
+      return `${t("chat.message.toolMemoryStore")} ${truncated}`;
+    }
+    return t("chat.message.toolMemoryStore");
+  }, [action, title, t]);
+
+  // ── Panel detail content ──
+
+  const detailContent = canExpand && (
+    <MemoryStoreDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+      toolName={toolName}
+    />
+  );
 
   // ── Inline (compact) view ──
 
@@ -357,7 +414,8 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title:
               action === "delete"
                 ? t("chat.message.toolMemoryDelete")
@@ -370,7 +428,13 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
                 ? title.slice(0, 77) + "…"
                 : title
               : undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <MemoryStoreDetail
+                {...toolDetailPropsFromPanelData(data)}
+                toolName={toolName}
+              />
+            ),
             footer: durationFooter,
           });
         }}

@@ -1,9 +1,12 @@
 import type { CollapsibleStatus } from "../../common/CollapsiblePill";
 import type { Message, MessagePart, ToolPart } from "../../../types";
+import { parsePartialToolArgs } from "./items/partialToolArgs";
 
 export interface ToolCallPanelData {
   /** Tool call ID (part.id) */
   toolCallId: string;
+  /** 参数流式期间的面板以 LLM call id 订阅；转正换 id 后在该别名下同步发布 */
+  aliasToolCallId?: string;
   toolName: string;
   formattedToolName: string;
   args: Record<string, unknown>;
@@ -21,6 +24,7 @@ type Listener = () => void;
 function shallowEqual(a: ToolCallPanelData, b: ToolCallPanelData): boolean {
   return (
     a.toolCallId === b.toolCallId &&
+    a.aliasToolCallId === b.aliasToolCallId &&
     a.toolName === b.toolName &&
     a.formattedToolName === b.formattedToolName &&
     a.args === b.args &&
@@ -70,6 +74,10 @@ export function createToolCallPanelStore(): ToolCallPanelStore {
       if (prev && shallowEqual(prev, next)) return;
       data.set(next.toolCallId, next);
       emit(next.toolCallId);
+      if (next.aliasToolCallId && next.aliasToolCallId !== next.toolCallId) {
+        data.set(next.aliasToolCallId, next);
+        emit(next.aliasToolCallId);
+      }
     },
     subscribe(toolCallId, listener) {
       const subscribed = listeners.get(toolCallId) ?? new Set<Listener>();
@@ -100,11 +108,10 @@ function normalizeToolArgs(
   args: Record<string, unknown>,
 ): Record<string, unknown> {
   if (args.partial === undefined) return args;
-  try {
-    return JSON.parse(args.partial as string) as Record<string, unknown>;
-  } catch {
-    return { partial: args.partial };
-  }
+  // 渐进解析未完成的参数 JSON：面板与内联专属项展示一致（路径/命令逐字增长）
+  return parsePartialToolArgs(
+    typeof args.partial === "string" ? args.partial : "",
+  );
 }
 
 // tool part 不可变替换：未变 part 保持引用，按引用缓存避免每次
@@ -126,6 +133,7 @@ function toToolCallPanelData(part: ToolPart): ToolCallPanelData | null {
 
   const data: ToolCallPanelData = {
     toolCallId: part.id,
+    aliasToolCallId: part.alias_id,
     toolName,
     formattedToolName,
     args: normalizeToolArgs(part.args),

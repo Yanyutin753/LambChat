@@ -3,7 +3,11 @@ import { Eye, ImageIcon, MessageSquareText, ScanSearch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { MarkdownContent } from "../MarkdownContent";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { extractText } from "./toolUtils";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolDurationFooter } from "./ToolDurationFooter";
@@ -36,7 +40,58 @@ function getAnalysisText(result: string | Record<string, unknown> | undefined) {
   return text;
 }
 
+/** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
+function ImageAnalyzeDetail({ args, result }: ToolDetailProps) {
+  const imageUrls = getImageUrls(args);
+  const prompt = (args.prompt as string) || "";
+  const analysis = useMemo(() => getAnalysisText(result), [result]);
+
+  return (
+    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
+      {prompt && (
+        <ToolArgsBlock size="detail" wrap>
+          <MessageSquareText
+            size={14}
+            className="shrink-0 text-amber-500 dark:text-amber-400"
+          />
+          <span className="break-words">{prompt}</span>
+        </ToolArgsBlock>
+      )}
+      {imageUrls.length > 0 && (
+        <div className="space-y-2">
+          {imageUrls.map((url, index) => (
+            <ToolArgsBlock key={`${url}-${index}`} size="detail" wrap>
+              <ImageIcon
+                size={14}
+                className="shrink-0 text-teal-500 dark:text-teal-400"
+              />
+              <span className="break-all">{url}</span>
+            </ToolArgsBlock>
+          ))}
+        </div>
+      )}
+      {analysis && (
+        <div className="relative group rounded-lg tool-code-block">
+          <div
+            className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-0.5 prose-headings:my-1 p-3 sm:p-4"
+            style={{ color: "var(--theme-text)" }}
+          >
+            <MarkdownContent content={analysis} />
+          </div>
+          <ToolHoverCopyButton
+            text={analysis}
+            size={14}
+            position="panel"
+            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
+  id,
   args,
   result,
   success,
@@ -45,6 +100,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
   startedAt,
   completedAt,
 }: {
+  id?: string;
   args: Record<string, unknown>;
   result?: string | Record<string, unknown>;
   success?: boolean;
@@ -60,7 +116,9 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
   const imageUrls = getImageUrls(args);
   const prompt = (args.prompt as string) || "";
   const analysis = useMemo(() => getAnalysisText(result), [result]);
-  const canExpand = imageUrls.length > 0 || !!prompt || !!analysis;
+  // 参数生成中（无结果）也允许打开面板：实时等待分析结果
+  const canExpand =
+    imageUrls.length > 0 || !!prompt || !!analysis || !!isPending;
   const status = isPending
     ? "loading"
     : cancelled
@@ -87,31 +145,15 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
   ) : null;
 
   const detailContent = canExpand && (
-    <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
-      {prompt && (
-        <ToolArgsBlock size="detail" wrap>
-          <MessageSquareText
-            size={14}
-            className="shrink-0 text-amber-500 dark:text-amber-400"
-          />
-          <span className="break-words">{prompt}</span>
-        </ToolArgsBlock>
-      )}
-      {imageUrls.length > 0 && (
-        <div className="space-y-2">
-          {imageUrls.map((url, index) => (
-            <ToolArgsBlock key={`${url}-${index}`} size="detail" wrap>
-              <ImageIcon
-                size={14}
-                className="shrink-0 text-teal-500 dark:text-teal-400"
-              />
-              <span className="break-all">{url}</span>
-            </ToolArgsBlock>
-          ))}
-        </div>
-      )}
-      {analysisBlock}
-    </div>
+    <ImageAnalyzeDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
   );
 
   const imageSummary =
@@ -131,12 +173,16 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
       expandable={canExpand}
       onPanelOpen={() => {
         if (!canExpand) return;
-        openPersistentToolPanel({
+        openToolLivePanel({
+          id,
           title: t("chat.message.toolImageAnalyze"),
           icon: <Eye size={16} />,
           status,
           subtitle: imageSummary || prompt || undefined,
-          children: detailContent,
+          fallback: detailContent || undefined,
+          buildDetail: (data) => (
+            <ImageAnalyzeDetail {...toolDetailPropsFromPanelData(data)} />
+          ),
           footer: durationFooter,
         });
       }}

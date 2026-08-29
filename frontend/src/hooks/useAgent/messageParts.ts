@@ -141,6 +141,8 @@ export function appendToolArgsDelta(
 /**
  * Replace the first (generation-order) args-partial tool part with the final
  * tool:start part, keeping the earlier startedAt for honest elapsed timing.
+ * The streaming-era id (if any) is preserved as alias_id so panels opened
+ * during args streaming keep receiving live updates under the new id.
  * Returns null when no generating part exists (plain append path).
  */
 export function upgradeGeneratingToolPart(
@@ -150,10 +152,15 @@ export function upgradeGeneratingToolPart(
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
     if (p.type === "tool" && (p as ToolPart).argsPartial) {
+      const generating = p as ToolPart;
       const newParts = [...parts];
       newParts[i] = {
         ...replacement,
-        startedAt: (p as ToolPart).startedAt ?? replacement.startedAt,
+        startedAt: generating.startedAt ?? replacement.startedAt,
+        alias_id:
+          generating.id && generating.id !== replacement.id
+            ? generating.id
+            : replacement.alias_id,
       };
       return newParts;
     }

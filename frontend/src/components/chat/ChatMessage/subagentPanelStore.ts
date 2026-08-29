@@ -38,6 +38,7 @@ function shallowEqual(a: SubagentPanelData, b: SubagentPanelData): boolean {
 }
 
 export interface SubagentPanelStore {
+  clear: () => void;
   delete: (agentId: string) => void;
   get: (agentId: string) => SubagentPanelData | undefined;
   set: (data: SubagentPanelData) => void;
@@ -56,6 +57,11 @@ export function createSubagentPanelStore(): SubagentPanelStore {
   }
 
   return {
+    clear() {
+      const agentIds = [...data.keys()];
+      data.clear();
+      agentIds.forEach(emit);
+    },
     delete(agentId) {
       if (!data.delete(agentId)) {
         return;

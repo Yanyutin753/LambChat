@@ -14,7 +14,11 @@ import {
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
@@ -130,28 +134,9 @@ function ScoreBar({ score }: { score: number }) {
 
 // ── MemoryRecallItem ─────────────────────────────────────────────────────
 
-const MemoryRecallItem = memo(function MemoryRecallItem({
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+/** 面板详情：实时跟随 toolCallPanelStore 数据重建（召回结果到达即刷新） */
+function MemoryRecallDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
-
   const query = (args.query as string) || "";
 
   const parsed = useMemo((): MemoryRecallResult | null => {
@@ -175,18 +160,7 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
   const searchModeLabel = t(`memory.searchMode.${searchMode}`, searchMode);
   const resultQuery = parsed?.query || query;
 
-  const canExpand = !!resultQuery || memories.length > 0 || !!result;
-  const pillStatus = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  // ── Panel detail content ──
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {/* Query summary header */}
       {resultQuery && (
@@ -331,6 +305,77 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
       )}
     </div>
   );
+}
+
+const MemoryRecallItem = memo(function MemoryRecallItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+
+  const query = (args.query as string) || "";
+
+  const parsed = useMemo((): MemoryRecallResult | null => {
+    const text = extractText(result);
+    if (!text) return null;
+    try {
+      const raw = JSON.parse(text);
+      if (raw?.memories && Array.isArray(raw.memories)) return raw;
+      return raw;
+    } catch {
+      return null;
+    }
+  }, [result]);
+
+  const memories: MemoryItem[] = useMemo(() => {
+    if (!parsed?.memories) return [];
+    return parsed.memories;
+  }, [parsed]);
+
+  const resultQuery = parsed?.query || query;
+
+  // 检索进行中也允许打开面板：召回结果到达时实时刷新
+  const canExpand =
+    !!resultQuery || memories.length > 0 || !!result || isPending;
+  const pillStatus = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  // ── Panel detail content ──
+
+  const detailContent = canExpand && (
+    <MemoryRecallDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   // ── Inline (compact) view ──
 
@@ -357,7 +402,8 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: t("chat.message.toolMemoryRecall"),
             icon: <Brain size={16} />,
             status: pillStatus,
@@ -366,7 +412,10 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
                 ? resultQuery.slice(0, 77) + "…"
                 : resultQuery
               : undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <MemoryRecallDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}

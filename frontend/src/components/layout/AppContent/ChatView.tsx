@@ -57,6 +57,8 @@ import {
   syncToolCallPanelStore,
   toolCallPanelStore,
 } from "../../chat/ChatMessage/toolCallPanelStore";
+import { syncSubagentPanelStore } from "../../chat/ChatMessage/subagentPanelState";
+import { subagentPanelStore } from "../../chat/ChatMessage/subagentPanelStore";
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 
 const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
@@ -169,10 +171,12 @@ export function ChatView({
 
   useEffect(() => {
     toolCallPanelStore.clear();
+    subagentPanelStore.clear();
   }, [sessionId]);
 
   useEffect(() => {
     syncToolCallPanelStore(messages);
+    syncSubagentPanelStore(messages);
   }, [messages]);
 
   const showStreamingFooterSkeleton = shouldShowStreamingFooterSkeleton({

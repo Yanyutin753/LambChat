@@ -14,7 +14,11 @@ import {
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
@@ -379,36 +383,14 @@ function RejectionCard({
   );
 }
 
-// ── component ──────────────────────────────────────────────────────────
+// ── ScheduledTaskDetail ──────────────────────────────────────────────────
 
-const ScheduledTaskItem = memo(function ScheduledTaskItem({
-  toolName,
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  toolName: string;
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+/** 面板详情：实时跟随 toolCallPanelStore 数据重建（任务结果到达即刷新） */
+function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
 
-  const actionLabel = getActionLabel(toolName, t);
   const taskName = (args.name as string) || "";
   const triggerType = (args.trigger_type as string) || "";
-  const action = (args.action as string) || "";
 
   const parsed = useMemo(() => parseResult(result), [result]);
 
@@ -442,20 +424,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
   const totalRuns =
     typeof task?.total_runs === "number" ? task.total_runs : undefined;
 
-  const canExpand = !!displayName || !!trigger || !!result;
-  const pillStatus = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  const labelSuffix = displayName || action || "";
-
-  // ── detail (panel) content ─────────────────────────────────────────
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
       {/* Rejection card */}
       {rejection && (
@@ -607,6 +576,88 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
       )}
     </div>
   );
+}
+
+// ── component ──────────────────────────────────────────────────────────
+
+const ScheduledTaskItem = memo(function ScheduledTaskItem({
+  id,
+  toolName,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+
+  const actionLabel = getActionLabel(toolName, t);
+  const taskName = (args.name as string) || "";
+  const triggerType = (args.trigger_type as string) || "";
+  const action = (args.action as string) || "";
+
+  const parsed = useMemo(() => parseResult(result), [result]);
+
+  // Merge args + result data
+  const task = parsed.task;
+  const preview = parsed.preview;
+  const resultMessage = parsed.message;
+  const isList = parsed.isList;
+  const tasks = parsed.tasks;
+  const rejection = parsed.rejection;
+
+  // When rejected, extract name from the rejection preview for the pill label
+  const rejectionTaskName = rejection?.preview?.name
+    ? String(rejection.preview.name)
+    : "";
+
+  const displayName = String(task?.name || taskName || rejectionTaskName || "");
+  const trigger = String(
+    task?.trigger_type || triggerType || preview?.trigger_type || "",
+  );
+  const schedule = formatSchedule(preview, t) || formatSchedule(parsed.task, t);
+  const status = typeof task?.status === "string" ? task.status : undefined;
+  const enabled = typeof task?.enabled === "boolean" ? task.enabled : undefined;
+
+  const canExpand = !!displayName || !!trigger || !!result;
+  const pillStatus = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  const labelSuffix = displayName || action || "";
+
+  // ── detail (panel) content ─────────────────────────────────────────
+
+  const detailContent = canExpand && (
+    <ScheduledTaskDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   // ── compact (inline) content ────────────────────────────────────────
 
@@ -741,12 +792,16 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: actionLabel,
             icon: <CalendarClock size={16} />,
             status: pillStatus,
             subtitle: labelSuffix || undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <ScheduledTaskDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}

@@ -66,12 +66,18 @@ test("collapsible pill uses a non-submit button for form-safe tool clicks", () =
 test("ls tool panel has a stable key so repeated clicks keep the sidebar open", () => {
   const source = readSource("../LsItem.tsx");
 
-  expect(source).toMatch(/panelKey:\s*`ls:\$\{dirPath\}`/);
+  // 面板 key 由 tool call id 派生（openToolLivePanel 内部生成 tool:<id>），
+  // 同一次 ls 调用反复点击仍是同一面板，不关闭重建
+  expect(source).toMatch(/openToolLivePanel\(\{/);
+  expect(source).toMatch(/openToolLivePanel\(\{\n\s+id,/);
 });
 
 test("ls tool opens from any non-empty result even when entries do not parse", () => {
   const source = readSource("../LsItem.tsx");
 
   expect(source).toMatch(/const rawText = extractText\(result\);/);
-  expect(source).toMatch(/const canExpand = rawText\.trim\(\)\.length > 0;/);
+  // gate 在原「任意非空 result」基础上放宽：运行中/已有 path 也可打开实时等待
+  expect(source).toMatch(
+    /const canExpand =\n?\s*rawText\.trim\(\)\.length > 0 \|\| isPending \|\| !!\(args\.path as string\);/,
+  );
 });

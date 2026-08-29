@@ -4,33 +4,19 @@ import { FolderSearch, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractPaths } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolArgsBlock } from "./ToolArgsBlock";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolDurationFooter } from "./ToolDurationFooter";
 
-const GlobItem = memo(function GlobItem({
-  args,
-  result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+/** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
+function GlobDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
   const pattern = (args.pattern as string) || "";
   const searchPath = (args.path as string) || "";
 
@@ -38,16 +24,7 @@ const GlobItem = memo(function GlobItem({
     return extractPaths(result);
   }, [result]);
 
-  const canExpand = !!pattern || paths.length > 0;
-  const status = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       <ToolArgsBlock size="detail" wrap>
         <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -110,6 +87,59 @@ const GlobItem = memo(function GlobItem({
       )}
     </div>
   );
+}
+
+const GlobItem = memo(function GlobItem({
+  id,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+  const pattern = (args.pattern as string) || "";
+  const searchPath = (args.path as string) || "";
+
+  const paths = useMemo(() => {
+    return extractPaths(result);
+  }, [result]);
+
+  // 运行中（pattern 已到、无 result）也允许打开面板：实时等待匹配结果
+  const canExpand = !!pattern || paths.length > 0 || isPending;
+  const status = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  const detailContent = canExpand && (
+    <GlobDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+    />
+  );
 
   return (
     <>
@@ -121,12 +151,16 @@ const GlobItem = memo(function GlobItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: `${t("chat.message.toolGlob")} ${pattern}`,
             icon: <FolderSearch size={16} />,
             status,
             subtitle: searchPath || undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <GlobDetail {...toolDetailPropsFromPanelData(data)} />
+            ),
             footer: durationFooter,
           });
         }}
