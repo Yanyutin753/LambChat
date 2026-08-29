@@ -75,7 +75,6 @@ docs/deepagents
 docs/plans/
 node_modules/
 .claude/
-docs/plans/
 !docs/images/
 !docs/images/**/
 frontend/src/components/common/DynamicIcon.tsx
@@ -98,7 +97,6 @@ YubbChat/
 !/scripts/verify_trace_event_chunks.py
 !/scripts/pre_deploy_db_checks.py
 docs/docs/.vitepress/
-.gitignore
 k8s/lambchat-secret.yaml
 k8s/lambchat.yaml
 
@@ -109,4 +107,7 @@ k8s/lambchat.yaml
 # Personal logs & audits (not for sync)
 log_and_audit/
 uv.lock
-uv.lock
+
+# Agent tooling local state (ZCode / Mimosa, not part of this repo)
+.mimosa/
+.zcode/

@@ -145,6 +145,7 @@ class Settings(BaseSettings):
     ARQ_JOB_TIMEOUT_SECONDS: int = 86400
     TASK_STARTUP_CLEANUP_CONCURRENCY: int = 16
     TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 120
+    TASK_EVENT_IDLE_TIMEOUT: float = 600.0  # run 事件流空闲看门狗（秒；<=0 禁用）
 
     # MongoDB Settings
     MONGODB_URL: str = "mongodb://localhost:27017"
