@@ -636,6 +636,7 @@ export const ChatMessage = memo(function ChatMessage({
               steps={0}
               durationMs={null}
               startedAtMs={getRunStartedAtMs(message)}
+              stateKey={message.id}
               active
               renderExpanded={() => (
                 <Loader2
@@ -653,6 +654,7 @@ export const ChatMessage = memo(function ChatMessage({
                   steps={countRunSteps(message.parts!)}
                   durationMs={getRunElapsedMs(message)}
                   startedAtMs={getRunStartedAtMs(message)}
+              stateKey={message.id}
                   active={message.isStreaming}
                   renderExpanded={() => renderPartGroups(runHeadGroups)}
                 />

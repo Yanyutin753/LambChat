@@ -61,6 +61,7 @@ import { syncSubagentPanelStore } from "../../chat/ChatMessage/subagentPanelStat
 import { subagentPanelStore } from "../../chat/ChatMessage/subagentPanelStore";
 import { clearSubagentPanelAutoOpenState } from "../../chat/ChatMessage/subagentPanelControl";
 import { resetStreamFollowSignal } from "../../chat/streamFollowSignal";
+import { clearUiExpansions } from "../../chat/ChatMessage/uiExpansionStore";
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 
 const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
@@ -174,8 +175,9 @@ export function ChatView({
   useEffect(() => {
     toolCallPanelStore.clear();
     subagentPanelStore.clear();
-    // 自动开面板的标记/静音记录不跨会话存活
+    // 自动开面板的标记/静音记录、行内展开状态不跨会话存活
     clearSubagentPanelAutoOpenState();
+    clearUiExpansions();
     resetStreamFollowSignal();
   }, [sessionId]);
 

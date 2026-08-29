@@ -18,6 +18,8 @@ import {
   shouldIgnoreUnexpectedTopJumpDuringBottomLock,
   getUnexpectedTopJumpRecoveryUntilAfterUserIntent,
   startVirtuosoScrollToBottom,
+  createWheelIntentAccumulator,
+  nextWheelIntentState,
   type ScrollToBottomTimingMode,
 } from "./messageScrollUtils";
 import { getMessageScrollViewportState } from "./useMessageScroll.viewport";
@@ -444,6 +446,9 @@ export function useMessageScroll(
       detachFromUserGesture(getNextMessageScrollFollowStateForUserIntent);
     };
 
+    // wheel 上滚意图累计器（触控板惯性微滑判定，见 nextWheelIntentState）
+    let wheelIntentAccum = createWheelIntentAccumulator();
+
     const handleTouchMove = (event: TouchEvent) => {
       if (!isMobileViewport || touchStartY === null) {
         return;
@@ -464,8 +469,15 @@ export function useMessageScroll(
     };
 
     const handleWheel = (event: WheelEvent) => {
-      // 触控板误触/惯性微抖（deltaY 在 -6 以内）不构成上滚意图，不打断跟随
-      if (event.deltaY >= -6) {
+      // 触控板惯性是一串 <6px 的连续微上滑：单事件阈值拦不住会被
+      // 底部锁定逐个粘回；按时间窗累计判定明确的上滚意图后才脱钉
+      const intent = nextWheelIntentState(
+        wheelIntentAccum,
+        event.deltaY,
+        Date.now(),
+      );
+      wheelIntentAccum = intent.state;
+      if (!intent.detach) {
         return;
       }
 

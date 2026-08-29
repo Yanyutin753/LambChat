@@ -4,37 +4,54 @@ import clsx from "clsx";
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatElapsedCompact, formatElapsedHuman } from "./runStepsCollapseUtils";
+import { useUiExpansionState } from "./uiExpansionStore";
 
 /**
  * run 过程折叠区：状态行「已工作 9 分 57 秒 ›」（右侧 chevron、行下淡分隔线）。
  * 流式过程中默认展开并实时计时，直接显示完整过程详情；
  * 完成后自动收起成一行，点击可再展开。流式中也允许用户手动收起
  * （长 run 只想看最新输出时不必等结束）；用户动过折叠后，结束时
- * 不再强制覆盖其选择。
+ * 不再强制覆盖其选择。展开状态按 stateKey 存入会话级 store，
+ * 虚拟列表滚动卸载后滚回不丢。
  */
 export function RunStepsCollapse({
   steps,
   durationMs,
   startedAtMs = null,
   active = false,
+  stateKey,
   renderExpanded,
 }: {
   steps: number;
   durationMs: number | null;
   startedAtMs?: number | null;
   active?: boolean;
+  /** 稳定标识（如 message.id）：跨虚拟化卸载复水展开状态 */
+  stateKey?: string;
   renderExpanded: () => ReactNode;
 }) {
   const { t, i18n } = useTranslation();
-  const [expanded, setExpanded] = useState(active);
+  const [expanded, toggleExpanded, setExpanded] = useUiExpansionState(
+    stateKey ? `${stateKey}:run-steps` : undefined,
+    active,
+  );
   const [nowMs, setNowMs] = useState(() => Date.now());
   const userToggledRef = useRef(false);
 
+  const prevActiveRef = useRef(active);
   useEffect(() => {
-    if (active) return;
-    // 用户流式中手动收起/展开过的，结束时保持其选择
-    if (!userToggledRef.current) setExpanded(false);
-  }, [active]);
+    const wasActive = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (active) {
+      if (wasActive) return;
+      // 新 run 开始：回到默认展开（上一轮的收起选择不带入新 run）
+      userToggledRef.current = false;
+      setExpanded(true);
+      return;
+    }
+    // 仅在结束翻转时收起；重挂载的历史消息保持 store 复水的状态
+    if (wasActive && !userToggledRef.current) setExpanded(false);
+  }, [active, setExpanded]);
 
   useEffect(() => {
     if (!active) return;
@@ -70,7 +87,7 @@ export function RunStepsCollapse({
         aria-label={t("chat.message.runStepsToggle")}
         onClick={() => {
           userToggledRef.current = true;
-          setExpanded((value) => !value);
+          toggleExpanded();
         }}
         className={clsx(
           "group/steps flex w-full items-baseline gap-1.5 border-b border-theme-border pb-1.5 text-left",
