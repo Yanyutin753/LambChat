@@ -1039,9 +1039,10 @@ async def test_flush_mongo_buffer_requeues_failed_chunk_write_with_reserved_sequ
 
     # Both events keep the group base seq so the retry re-forms a single
     # group (one claim/append round trip) instead of one group per event.
+    # Trailing fields: skip_chunk=False, attempts=1 (bounded-retry counter).
     assert writer._mongo_buffer == [
-        (*events[0], 6, False),
-        (*events[1], 6, False),
+        (*events[0], 6, False, False, 1),
+        (*events[1], 6, False, False, 1),
     ]
 
 
@@ -1255,6 +1256,8 @@ async def test_flush_mongo_buffer_dual_write_requeues_chunk_retry_without_rewrit
             datetime(2026, 1, 1),
             1,
             True,
+            False,
+            1,
         )
     ]
 
