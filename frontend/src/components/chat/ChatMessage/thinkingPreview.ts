@@ -5,7 +5,7 @@
 // constant regardless of how long the reasoning grows.
 const TAIL_WINDOW = 60;
 
-export const STREAMING_PREVIEW_MAX_LEN = 12;
+export const STREAMING_PREVIEW_MAX_LEN = 24;
 
 function isHighSurrogate(code: number): boolean {
   return code >= 0xd800 && code <= 0xdbff;

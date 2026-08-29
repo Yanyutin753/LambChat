@@ -17,12 +17,12 @@ test("collapses newlines and whitespace runs into single spaces", () => {
 
 test("long content keeps only the last few characters without an ellipsis prefix", () => {
   const head = "前情提要".repeat(40); // 160 chars
-  const tail = "最新进展";
+  const tail = "最新进展".repeat(5); // 20 chars
   const preview = buildStreamingThinkingPreview(head + tail);
   expect(preview.startsWith("…")).toBe(false);
   expect(preview.endsWith(tail)).toBe(true);
-  // at most 12 chars, no ellipsis prefix
-  expect(preview.length).toBeLessThanOrEqual(12);
+  // at most 24 chars, no ellipsis prefix
+  expect(preview.length).toBeLessThanOrEqual(24);
 });
 
 test("tail window survives content much longer than the preview cap", () => {
