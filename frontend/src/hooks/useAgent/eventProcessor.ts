@@ -265,7 +265,8 @@ export function processMessageEvent(
       );
 
       // 流式参数已先建生成中 part：原位升级而不是再追加一个
-      const upgraded = upgradeGeneratingToolPart(parts, toolPart);
+      // depth 决定升级范围：嵌套 subagent 工具只在自己子树内找目标
+      const upgraded = upgradeGeneratingToolPart(parts, toolPart, depth);
       if (upgraded) {
         result.parts = upgraded;
         if (depth === 0) {

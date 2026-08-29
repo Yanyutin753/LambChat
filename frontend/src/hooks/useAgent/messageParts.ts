@@ -131,6 +131,13 @@ export function appendToolArgsDelta(
   const merged = mergeToolArgsDeltaInParts(parts, toolCallId, delta);
   if (merged) return merged;
 
+  // 防御：对应的工具已转正（tool:start 已升级，id 或 alias 命中）时，
+  // 迟到的增量直接丢弃——最终 args 已权威，再建 part 会留下一个永远
+  // 停留在「参数生成中」的幽灵卡片
+  if (toolCallId && hasUpgradedToolCallId(parts, toolCallId)) {
+    return parts;
+  }
+
   const part = createGeneratingToolPart(toolName, toolCallId, delta, depth, agentId);
   if (depth > 0) {
     return addPartToDepth(parts, part, depth, activeSubagentStack, agentId, messageId);
@@ -138,42 +145,86 @@ export function appendToolArgsDelta(
   return [...parts, part];
 }
 
+function hasUpgradedToolCallId(parts: MessagePart[], toolCallId: string): boolean {
+  return parts.some((p) => {
+    if (p.type === "tool") {
+      return (
+        !p.argsPartial && (p.id === toolCallId || p.alias_id === toolCallId)
+      );
+    }
+    return p.type === "subagent" && p.parts
+      ? hasUpgradedToolCallId(p.parts, toolCallId)
+      : false;
+  });
+}
+
 /**
- * Replace the first (generation-order) args-partial tool part with the final
- * tool:start part, keeping the earlier startedAt for honest elapsed timing.
+ * 定位 tool:start 应升级的生成中 part。
+ *
+ * 优先级：id 精确命中 > 按工具名取「最后一个」> 最后一个 argsPartial。
+ * 必须与 findGeneratingToolIndex 的合并目标（反扫取最后一个）一致：
+ * 若按位置取第一个，早前轮次残留的 stale 生成中 part（流式中断遗留）
+ * 或并行工具执行顺序与生成顺序不一致时会错配——正在流式的新 part
+ * 永远等不到升级，UI 卡在「参数生成中」不被替换。
+ */
+function findUpgradeTargetIndex(
+  parts: MessagePart[],
+  replacement: ToolPart,
+): number {
+  let nameMatch = -1;
+  let anyMatch = -1;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p.type !== "tool" || !p.argsPartial) continue;
+    if (replacement.id && p.id === replacement.id) return i;
+    if (replacement.name && p.name === replacement.name) nameMatch = i;
+    anyMatch = i;
+  }
+  return nameMatch !== -1 ? nameMatch : anyMatch;
+}
+
+/**
+ * Replace the matching args-partial tool part with the final tool:start part,
+ * keeping the earlier startedAt for honest elapsed timing.
+ * depth 0 only upgrades top-level generating parts; nested subagent tools
+ * (depth > 0) upgrade within their own subtree, matching where the args
+ * chunks were routed.
  * The streaming-era id (if any) is preserved as alias_id so panels opened
  * during args streaming keep receiving live updates under the new id.
- * Returns null when no generating part exists (plain append path).
+ * Returns null when no matching generating part exists (plain append path).
  */
 export function upgradeGeneratingToolPart(
   parts: MessagePart[],
   replacement: ToolPart,
+  targetDepth = 0,
 ): MessagePart[] | null {
-  for (let i = 0; i < parts.length; i++) {
-    const p = parts[i];
-    if (p.type === "tool" && (p as ToolPart).argsPartial) {
-      const generating = p as ToolPart;
-      const newParts = [...parts];
-      newParts[i] = {
-        ...replacement,
-        startedAt: generating.startedAt ?? replacement.startedAt,
-        alias_id:
-          generating.id && generating.id !== replacement.id
-            ? generating.id
-            : replacement.alias_id,
-      };
-      return newParts;
-    }
-    if (p.type === "subagent" && p.parts) {
-      const updated = upgradeGeneratingToolPart(p.parts, replacement);
+  if (targetDepth > 0) {
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      if (p.type !== "subagent" || !p.parts) continue;
+      const updated = upgradeGeneratingToolPart(p.parts, replacement, targetDepth - 1);
       if (updated) {
         const newParts = [...parts];
         newParts[i] = { ...p, parts: updated };
         return newParts;
       }
     }
+    return null;
   }
-  return null;
+
+  const idx = findUpgradeTargetIndex(parts, replacement);
+  if (idx === -1) return null;
+  const generating = parts[idx] as ToolPart;
+  const newParts = [...parts];
+  newParts[idx] = {
+    ...replacement,
+    startedAt: generating.startedAt ?? replacement.startedAt,
+    alias_id:
+      generating.id && generating.id !== replacement.id
+        ? generating.id
+        : replacement.alias_id,
+  };
+  return newParts;
 }
 
 /**
