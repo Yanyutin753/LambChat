@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test } from "vitest";
-
-const source = readFileSync(
+import { expect, test } from "vitest";const source = readFileSync(
   resolve(import.meta.dirname, "../ChatView.tsx"),
   { encoding: "utf8" },
 );
@@ -39,4 +37,16 @@ test("composer onSend keeps a stable identity so memo(ChatInput) holds", () => {
   expect(onSend).toBeTruthy();
   expect(onSend).toMatch(/onSendMessageRef\.current/);
   expect(source).toMatch(/onSend: handleStableSend/);
+});
+
+test("auto preview target identity stays stable across streaming ticks", () => {
+  // latestAutoPreview 进 virtuosoItemContent 依赖：memo 每 tick 重算若换
+  // 新对象，最后一条消息带 reveal 产物时全部可见行每 tick 重渲
+  const revealSource = readFileSync(
+    resolve(import.meta.dirname, "../useRevealPreview.ts"),
+    { encoding: "utf8" },
+  );
+  expect(revealSource).toMatch(/useStableMemoValue/);
+  expect(revealSource).toMatch(/a\?\.messageId === b\?\.messageId/);
+  expect(revealSource).toMatch(/a\?\.previewKey === b\?\.previewKey/);
 });

@@ -550,6 +550,11 @@ export function MessagePartRenderer({
       <TodoBlock
         items={part.items}
         isStreaming={isStreaming && isLast && part.isStreaming}
+        stateKey={
+          messageId !== undefined && partIndex !== undefined
+            ? `${messageId}:${partIndex}`
+            : undefined
+        }
       />
     );
   }

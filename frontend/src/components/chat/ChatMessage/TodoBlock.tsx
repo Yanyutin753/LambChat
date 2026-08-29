@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { clsx } from "clsx";
 import {
   CheckCircle2,
@@ -10,10 +9,13 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TodoItem, TodoStatus } from "../../../types";
+import { useUiExpansionState } from "./uiExpansionStore";
 
 interface TodoBlockProps {
   items: TodoItem[];
   isStreaming?: boolean;
+  /** 稳定标识（messageId:partIndex）：折叠状态跨虚拟化卸载保留 */
+  stateKey?: string;
 }
 
 const statusConfig: Record<
@@ -42,10 +44,14 @@ const statusConfig: Record<
   },
 };
 
-export function TodoBlock({ items, isStreaming }: TodoBlockProps) {
+export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
   const { t } = useTranslation();
-  // 长会话翻阅时可收起整块清单（默认展开；用户手动收起后由本地 state 保持）
-  const [collapsed, setCollapsed] = useState(false);
+  // 长会话翻阅时可收起整块清单（默认展开；状态存会话级 store，
+  // 虚拟列表滚动卸载后滚回不丢）
+  const [collapsed, toggleCollapsed] = useUiExpansionState(
+    stateKey ? `${stateKey}:todo-collapsed` : undefined,
+    false,
+  );
 
   if (!items || items.length === 0) return null;
 
@@ -67,7 +73,7 @@ export function TodoBlock({ items, isStreaming }: TodoBlockProps) {
         type="button"
         aria-expanded={!collapsed}
         aria-label={t("chat.todo.toggle")}
-        onClick={() => setCollapsed((value) => !value)}
+        onClick={() => toggleCollapsed()}
         className="group/todo flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left"
       >
         <ListTodo

@@ -688,3 +688,59 @@ export function shouldPreloadOlderHistory({
   if (startIndex > threshold) return false;
   return startIndex < previousStartIndex;
 }
+
+export interface WheelIntentAccumulator {
+  /** 时间窗内累计的上滑像素量 */
+  upwardPx: number;
+  /** 最近一次 wheel 事件时间戳（ms） */
+  lastWheelTs: number;
+}
+
+export const WHEEL_DETACH_SINGLE_PX = 6;
+export const WHEEL_DETACH_CUMULATIVE_PX = 24;
+export const WHEEL_INTENT_WINDOW_MS = 300;
+
+export function createWheelIntentAccumulator(): WheelIntentAccumulator {
+  return { upwardPx: 0, lastWheelTs: 0 };
+}
+
+/**
+ * wheel 上滚意图判定（触控板友好）。
+ *
+ * 触控板惯性常表现为一串 <6px 的连续微上滑：单事件阈值拦不住，
+ * 底部锁定循环又把它们逐个粘回，表现为"轻轻上滑被吸回底部"。
+ * 在时间窗内累计上滑量——单次达到 singlePx 或窗口累计达到
+ * cumulativePx 都视为明确的用户上滚意图（脱钉跟随）；
+ * 下滑/水平滚动清零累计（ reaffirm 跟随）。
+ */
+export function nextWheelIntentState(
+  state: WheelIntentAccumulator,
+  deltaY: number,
+  nowMs: number,
+  options?: {
+    singlePx?: number;
+    cumulativePx?: number;
+    windowMs?: number;
+  },
+): { detach: boolean; state: WheelIntentAccumulator } {
+  const singlePx = options?.singlePx ?? WHEEL_DETACH_SINGLE_PX;
+  const cumulativePx =
+    options?.cumulativePx ?? WHEEL_DETACH_CUMULATIVE_PX;
+  const windowMs = options?.windowMs ?? WHEEL_INTENT_WINDOW_MS;
+
+  if (deltaY >= 0) {
+    return { detach: false, state: { upwardPx: 0, lastWheelTs: nowMs } };
+  }
+
+  const magnitude = Math.abs(deltaY);
+  if (magnitude >= singlePx) {
+    return { detach: true, state: { upwardPx: 0, lastWheelTs: nowMs } };
+  }
+
+  const withinWindow = nowMs - state.lastWheelTs <= windowMs;
+  const upwardPx = (withinWindow ? state.upwardPx : 0) + magnitude;
+  if (upwardPx >= cumulativePx) {
+    return { detach: true, state: { upwardPx: 0, lastWheelTs: nowMs } };
+  }
+  return { detach: false, state: { upwardPx, lastWheelTs: nowMs } };
+}
