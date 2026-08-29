@@ -117,12 +117,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._before_tool_start = before_tool_start
         chunk_flush_interval = settings.STREAM_CHUNK_FLUSH_INTERVAL
         self._chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
-        self._summary_chunk_buffer = TextChunkBuffer(
-            self._CHUNK_FLUSH_SIZE, chunk_flush_interval
-        )
-        self._thinking_chunk_buffer = TextChunkBuffer(
-            self._CHUNK_FLUSH_SIZE, chunk_flush_interval
-        )
+        self._summary_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
+        self._thinking_chunk_buffer = TextChunkBuffer(self._CHUNK_FLUSH_SIZE, chunk_flush_interval)
         self._tool_args_buffers: dict[int | str, TextChunkBuffer] = {}
         self._tool_args_meta: dict[int | str, tuple[str, str | None]] = {}
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}

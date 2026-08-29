@@ -126,9 +126,7 @@ async def test_idle_timeout_can_be_disabled() -> None:
         await asyncio.sleep(0.02)
         yield "second"
 
-    result = [
-        item async for item in aiter_with_idle_timeout(chunks(), timeout=None)
-    ]
+    result = [item async for item in aiter_with_idle_timeout(chunks(), timeout=None)]
     assert result == ["first", "second"]
     assert [item async for item in aiter_with_idle_timeout(chunks(), timeout=0)] == [
         "first",
