@@ -588,3 +588,150 @@ test("tool:start upgrade keeps existing alias when the generating part has none"
 
   expect((started.parts[0] as ToolPart).alias_id).toBeUndefined();
 });
+
+test("tool:start upgrades the LATEST generating part, not a stale leftover", () => {
+  // 上一轮流式中断残留的 stale 生成中 part 排在前面；新一轮工具的
+  // 生成中 part 在最后。tool:start 必须升级后者，否则新 pill 永远
+  // 停在"参数生成中"不被替换（用户实测的卡死现象）
+  const stale = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('{"q":"old"', { tool: "grep" }),
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  const fresh = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('{"q":"new"', { tool: "grep", tool_call_id: "call_new" }),
+    stale.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  expect(fresh.parts).toHaveLength(2);
+
+  const started = processMessageEvent(
+    "tool:start",
+    { tool: "grep", tool_call_id: "run-9", args: { q: "new" } },
+    fresh.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  const parts = started.parts as ToolPart[];
+  expect(parts).toHaveLength(2);
+  // 升级命中的是最后一个（本轮正在流式的）part
+  expect(parts[1]).toMatchObject({ id: "run-9", args: { q: "new" } });
+  expect(parts[1].argsPartial).toBeUndefined();
+  // stale part 保持原样（由中断清理流程标记 cancelled，不被误吃）
+  expect(parts[0]).toMatchObject({ argsPartial: true, args: { partial: '{"q":"old"' } });
+});
+
+test("parallel tools upgrade by tool name even in reverse execution order", () => {
+  let parts: MessagePart[] = [];
+  parts = processMessageEvent(
+    "tool:args:chunk",
+    { tool: "grep", tool_call_id: "call_a", content: '{"q' },
+    parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+  parts = processMessageEvent(
+    "tool:args:chunk",
+    { tool: "read_file", tool_call_id: "call_b", content: '{"file_path' },
+    parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+
+  // 执行顺序与生成顺序相反：read_file 先执行
+  const startedB = processMessageEvent(
+    "tool:start",
+    { tool: "read_file", tool_call_id: "run-b", args: { file_path: "/a" } },
+    parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts as ToolPart[];
+  expect(startedB[0]).toMatchObject({ name: "grep", argsPartial: true });
+  expect(startedB[1]).toMatchObject({ id: "run-b", args: { file_path: "/a" } });
+  expect(startedB[1].argsPartial).toBeUndefined();
+
+  const startedA = processMessageEvent(
+    "tool:start",
+    { tool: "grep", tool_call_id: "run-a", args: { q: "x" } },
+    startedB,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts as ToolPart[];
+  expect(startedA[0]).toMatchObject({ id: "run-a", args: { q: "x" } });
+  expect(startedA[0].argsPartial).toBeUndefined();
+});
+
+test("late args chunk after upgrade does not create a ghost generating part", () => {
+  const generating = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('{"q":"x"'),
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+  const started = processMessageEvent(
+    "tool:start",
+    { tool: "grep", tool_call_id: "run-1", args: { q: "x" } },
+    generating.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  // 迟到的参数增量（极端时序下可能残留）：不得再生成新的 argsPartial part
+  const late = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('y"}', { tool_call_id: "call_1" }),
+    started.parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(late.parts).toHaveLength(1);
+  expect((late.parts[0] as ToolPart).argsPartial).toBeUndefined();
+  expect((late.parts[0] as ToolPart).args).toEqual({ q: "x" });
+});
