@@ -22,6 +22,8 @@ export interface UsageLog {
   total_tokens: number;
   cache_creation_tokens: number;
   cache_read_tokens: number;
+  cost_usd?: number;
+  cost_available?: boolean;
   duration: number;
   started_at: string | null;
   completed_at: string | null;
@@ -39,6 +41,8 @@ export interface UsageStats {
   total_tokens: number;
   total_cache_creation_tokens: number;
   total_cache_read_tokens: number;
+  total_cost_usd?: number;
+  unpriced_requests?: number;
   total_duration: number;
 }
 
@@ -54,6 +58,8 @@ export interface UsageDashboardSummary {
   total_input_tokens: number;
   total_output_tokens: number;
   total_cache_read_tokens: number;
+  total_cost_usd?: number;
+  unpriced_requests?: number;
   total_duration: number;
   total_tool_calls: number;
   scheduled_runs: number;
@@ -72,6 +78,7 @@ export interface UsageDailyPoint {
   date: string;
   requests: number;
   tokens: number;
+  cost_usd?: number;
   duration: number;
   scheduled_runs: number;
   failed_requests: number;
@@ -83,6 +90,7 @@ export interface UsageRankingItem {
   name: string;
   requests: number;
   tokens: number;
+  cost_usd?: number;
   duration: number;
   input_tokens: number;
   cache_creation_tokens: number;

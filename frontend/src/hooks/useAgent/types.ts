@@ -87,6 +87,20 @@ export interface EventData {
   cache_read_tokens?: number;
   model_id?: string;
   model?: string;
+  cost_usd?: number;
+  cost_breakdown?: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_write: number;
+    total: number;
+  };
+  cost_rates?: {
+    input: number | null;
+    output: number | null;
+    cache_read: number | null;
+    cache_write: number | null;
+  };
   // user:message event fields
   message_id?: string;
   enabled_skills?: string[];

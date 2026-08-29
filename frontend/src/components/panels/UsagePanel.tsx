@@ -18,9 +18,12 @@ import {
   PieChart,
   UserRound,
   LayoutDashboard,
+  Coins,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { useFxRates } from "../../hooks/useFxRates";
+import { fmtCostUsd } from "./UsagePanel/formatters";
 import { PanelHeader } from "../common/PanelHeader";
 import { PanelFilterSelect } from "../common";
 import { Pagination } from "../common/Pagination";
@@ -59,7 +62,8 @@ function useDebounce<T>(value: T, delay: number): T {
 // ── Main Component ─────────────────────────────────────
 
 export function UsagePanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const fxRates = useFxRates();
   const { hasPermission } = useAuth();
   const isAdmin = hasPermission(Permission.USAGE_ADMIN);
 
@@ -251,7 +255,7 @@ export function UsagePanel() {
       {/* KPI Cards */}
       {stats && (
         <div className="mx-auto w-full px-4 pt-5 pb-4 sm:px-6 sm:pt-6 sm:pb-5 lg:px-8">
-          <div className="usage-surface grid grid-cols-2 overflow-hidden rounded-xl md:grid-cols-3 xl:grid-cols-6">
+          <div className="usage-surface grid grid-cols-2 overflow-hidden rounded-xl md:grid-cols-4 xl:grid-cols-7">
             <StatMetric
               icon={Zap}
               label={t("usage.totalRequests")}
@@ -302,6 +306,21 @@ export function UsagePanel() {
                 in: fmt(stats.total_input_tokens),
                 out: fmt(stats.total_output_tokens),
               })}
+            />
+            <StatMetric
+              icon={Coins}
+              label={t("usage.costTotal")}
+              value={fmtCostUsd(stats.total_cost_usd, true, {
+                language: i18n.language,
+                rates: fxRates,
+              })}
+              hint={
+                (stats.unpriced_requests ?? 0) > 0
+                  ? t("usage.unpricedHint", {
+                      count: fmt(stats.unpriced_requests ?? 0),
+                    })
+                  : undefined
+              }
             />
           </div>
         </div>

@@ -583,6 +583,7 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
         "requests": 2,
         "tokens": 150,
         "duration": 60.0,
+        "cost_usd": 0.0,
         "input_tokens": 70,
         "cache_creation_tokens": 5,
         "cache_read_tokens": 20,

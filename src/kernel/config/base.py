@@ -163,6 +163,7 @@ class Settings(BaseSettings):
     MONGODB_TRACES_COLLECTION: str = "traces"
     MONGODB_TRACE_EVENT_CHUNKS_COLLECTION: str = "trace_event_chunks"
     MONGODB_USAGE_LOGS_COLLECTION: str = "usage_logs"
+    MONGODB_MODEL_PRICES_COLLECTION: str = "model_prices"
     MONGODB_STORE_BATCH_CONCURRENCY: int = 16
     # Motor business connection pool (shared across all MongoDB-backed storages).
     # Change requires restart: the lru_cache singleton plus per-storage collection
@@ -257,6 +258,11 @@ class Settings(BaseSettings):
 
     # Code Interpreter Settings
     ENABLE_CODE_INTERPRETER: bool = False
+
+    # Model Pricing Settings（models.dev 价格同步 + USD 汇率换算）
+    PRICING_MODELS_DEV_URL: str = "https://models.dev/api.json"
+    PRICING_FX_RATES_URL: str = "https://open.er-api.com/v6/latest/USD"
+    PRICING_SYNC_INTERVAL_HOURS: int = 24
 
     # LangSmith Tracing Settings
     LANGSMITH_TRACING: bool = False

@@ -211,7 +211,20 @@
     "tempTag": "temp: {{value}}",
     "temperature": "Temperature",
     "title": "Agent Configuration",
-    "valueAndLabelRequired": "Value and Label are required"
+    "valueAndLabelRequired": "Value and Label are required",
+    "pricingLabel": "Price override (USD / 1M tokens)",
+    "pricingInput": "Input",
+    "pricingOutput": "Output",
+    "pricingCacheRead": "Cache read",
+    "pricingCacheWrite": "Cache write",
+    "pricingMatched": "models.dev match: input ${{input}} · output ${{output}} ({{match}})",
+    "pricingUnmatched": "No models.dev match; leave empty to skip cost tracking",
+    "pricingHint": "Empty fields follow synced prices; override for relays with different pricing",
+    "pricingInvalid": "Prices must be non-negative numbers",
+    "pricingSync": "Sync prices",
+    "pricingSyncSuccess": "Prices synced ({{count}} models)",
+    "pricingSyncPartial": "Sync finished (partial failure: {{error}})",
+    "pricingSyncFailed": "Failed to sync prices"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -773,7 +786,8 @@
       "toolTransferPath": "Transfer Path",
       "toolUploadUrlToSandbox": "Upload URL To Sandbox",
       "toolVarCount": "{{count}} variables",
-      "toolWrite": "Write"
+      "toolWrite": "Write",
+      "costTotal": "Cost"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -3147,7 +3161,10 @@
       "title": "Daily Execution Trend",
       "tokens": "Tokens"
     },
-    "user": "User"
+    "user": "User",
+    "cost": "Cost",
+    "costTotal": "Total cost",
+    "unpricedHint": "{{count}} unpriced"
   },
   "users": {
     "actions": "Actions",

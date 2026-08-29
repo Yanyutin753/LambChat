@@ -2,7 +2,8 @@ import { Activity, Bot, FileText, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatDateTimeShort } from "../../../utils/datetime";
 import type { UsageLog } from "../../../types/usage";
-import { fmt, fmtDur } from "./formatters";
+import { useFxRates } from "../../../hooks/useFxRates";
+import { fmt, fmtCostUsd, fmtDur, type CostFormatOpts } from "./formatters";
 
 function StatusPill({ status, title }: { status: string; title?: string }) {
   const { t } = useTranslation();
@@ -69,19 +70,21 @@ function DesktopTable({
   logs,
   isAdmin,
   hasAnyCache,
+  costOpts,
 }: {
   logs: UsageLog[];
   isAdmin: boolean;
   hasAnyCache: boolean;
+  costOpts: CostFormatOpts;
 }) {
   const { t } = useTranslation();
   const desktopGridTemplate = isAdmin
     ? hasAnyCache
-      ? "9.5rem 11rem minmax(8rem,.7fr) minmax(7rem,.9fr) minmax(7rem,.85fr) 5.75rem 5.75rem 5.75rem 6.25rem 5rem 5rem"
-      : "9.5rem 11rem minmax(9rem,.8fr) minmax(7rem,.9fr) minmax(7rem,.9fr) 5.75rem 5.75rem 6.25rem 5rem 5rem"
+      ? "9.5rem 11rem minmax(8rem,.7fr) minmax(7rem,.9fr) minmax(7rem,.85fr) 5.75rem 5.75rem 5.75rem 6.25rem 5.5rem 5rem 5rem"
+      : "9.5rem 11rem minmax(9rem,.8fr) minmax(7rem,.9fr) minmax(7rem,.9fr) 5.75rem 5.75rem 6.25rem 5.5rem 5rem 5rem"
     : hasAnyCache
-      ? "9.5rem minmax(9rem,.85fr) minmax(7rem,.9fr) minmax(7rem,.95fr) 5.75rem 5.75rem 5.75rem 6.25rem 5rem 5rem"
-      : "9.5rem minmax(9rem,.9fr) minmax(7rem,.9fr) minmax(7rem,1fr) 5.75rem 5.75rem 6.25rem 5rem 5rem";
+      ? "9.5rem minmax(9rem,.85fr) minmax(7rem,.9fr) minmax(7rem,.95fr) 5.75rem 5.75rem 5.75rem 6.25rem 5.5rem 5rem 5rem"
+      : "9.5rem minmax(9rem,.9fr) minmax(7rem,.9fr) minmax(7rem,1fr) 5.75rem 5.75rem 6.25rem 5.5rem 5rem 5rem";
   const headerCellClass =
     "whitespace-nowrap px-4 py-3 text-[11px] font-medium uppercase tracking-wider text-theme-text-tertiary";
   const textCellClass =
@@ -92,7 +95,7 @@ function DesktopTable({
   return (
     <div className="hidden lg:block">
       <div className="usage-surface overflow-x-auto rounded-xl">
-        <div className="min-w-[1080px]">
+        <div className="min-w-[1130px]">
           <div
             className="sticky top-0 z-10 grid border-b border-[var(--usage-border)] bg-[var(--usage-inset-bg)]/70"
             style={{ gridTemplateColumns: desktopGridTemplate }}
@@ -127,6 +130,9 @@ function DesktopTable({
             )}
             <div className={`${headerCellClass} text-right`}>
               {t("usage.total")}
+            </div>
+            <div className={`${headerCellClass} text-right`}>
+              {t("usage.cost")}
             </div>
             <div className={`${headerCellClass} text-right`}>
               {t("usage.duration")}
@@ -192,6 +198,9 @@ function DesktopTable({
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-[12px] font-semibold tabular-nums text-[var(--theme-primary)]">
                     {fmt(log.total_tokens)}
                   </div>
+                  <div className={`${numericCellClass} text-theme-text-tertiary`}>
+                    {fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts)}
+                  </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-[12px] tabular-nums text-theme-text-tertiary">
                     {fmtDur(log.duration)}
                   </div>
@@ -210,7 +219,15 @@ function DesktopTable({
 
 // ── Tablet Row (sm → lg) ──
 
-function TabletRow({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
+function TabletRow({
+  log,
+  isAdmin,
+  costOpts,
+}: {
+  log: UsageLog;
+  isAdmin: boolean;
+  costOpts: CostFormatOpts;
+}) {
   const { t } = useTranslation();
   const personaOrTeam = [log.persona_preset_name, log.team_name]
     .filter(Boolean)
@@ -255,12 +272,17 @@ function TabletRow({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
           )}
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-4 gap-2 rounded-lg bg-[var(--usage-inset-bg)] px-3 py-3 text-right">
+      <div className="mt-4 grid grid-cols-5 gap-2 rounded-lg bg-[var(--usage-inset-bg)] px-3 py-3 text-right">
         {[
           [t("usage.inTokens"), fmt(log.input_tokens), false],
           [t("usage.outTokens"), fmt(log.output_tokens), false],
           [t("usage.cache"), fmt(log.cache_read_tokens), false],
           [t("usage.total"), fmt(log.total_tokens), true],
+          [
+            t("usage.cost"),
+            fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts),
+            false,
+          ],
         ].map(([label, value, strong]) => (
           <div key={String(label)} className="min-w-0">
             <span className="block text-[9px] text-theme-text-tertiary">
@@ -284,7 +306,15 @@ function TabletRow({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
 
 // ── Mobile Card (< sm) ──
 
-function MobileCard({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
+function MobileCard({
+  log,
+  isAdmin,
+  costOpts,
+}: {
+  log: UsageLog;
+  isAdmin: boolean;
+  costOpts: CostFormatOpts;
+}) {
   const { t } = useTranslation();
   const ok = log.status === "completed";
   const personaOrTeam = [log.persona_preset_name, log.team_name]
@@ -334,12 +364,17 @@ function MobileCard({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
         </div>
 
         {/* Token metrics — segmented bar */}
-        <div className="usage-metrics-bar mt-4 grid grid-cols-4 overflow-hidden rounded-xl">
+        <div className="usage-metrics-bar mt-4 grid grid-cols-5 overflow-hidden rounded-xl">
           {[
             [t("usage.inTokens"), fmt(log.input_tokens), false],
             [t("usage.outTokens"), fmt(log.output_tokens), false],
             [t("usage.cacheRead"), fmt(log.cache_read_tokens), false],
             [t("usage.totalTokens"), fmt(log.total_tokens), true],
+            [
+              t("usage.cost"),
+              fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts),
+              false,
+            ],
           ].map(([label, value, strong], i) => (
             <div
               key={String(label)}
@@ -409,7 +444,9 @@ export function UsageLogsTable({
   isAdmin: boolean;
   hasAnyCache: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const fxRates = useFxRates();
+  const costOpts: CostFormatOpts = { language: i18n.language, rates: fxRates };
 
   if (logs.length === 0) {
     return (
@@ -438,13 +475,23 @@ export function UsageLogsTable({
       />
 
       {/* Desktop table */}
-      <DesktopTable logs={logs} isAdmin={isAdmin} hasAnyCache={hasAnyCache} />
+      <DesktopTable
+        logs={logs}
+        isAdmin={isAdmin}
+        hasAnyCache={hasAnyCache}
+        costOpts={costOpts}
+      />
 
       {/* Tablet rows */}
       <div className="hidden sm:block lg:hidden">
         <div className="space-y-4">
           {logs.map((log) => (
-            <TabletRow key={log.trace_id} log={log} isAdmin={isAdmin} />
+            <TabletRow
+              key={log.trace_id}
+              log={log}
+              isAdmin={isAdmin}
+              costOpts={costOpts}
+            />
           ))}
         </div>
       </div>
@@ -452,7 +499,12 @@ export function UsageLogsTable({
       {/* Mobile cards */}
       <div className="space-y-4 pb-5 sm:hidden">
         {logs.map((log) => (
-          <MobileCard key={log.trace_id} log={log} isAdmin={isAdmin} />
+          <MobileCard
+            key={log.trace_id}
+            log={log}
+            isAdmin={isAdmin}
+            costOpts={costOpts}
+          />
         ))}
       </div>
     </>

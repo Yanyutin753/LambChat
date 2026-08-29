@@ -1,7 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { UsageRankingItem } from "../../../types/usage";
-import { fmt, fmtDur, pct } from "./formatters";
+import { useFxRates } from "../../../hooks/useFxRates";
+import { fmt, fmtDur, fmtCostUsd, pct } from "./formatters";
 
 function RankBadge({ rank }: { rank: number }) {
   if (rank > 3) return null;
@@ -48,7 +49,8 @@ export function RankingList({
   emptyLabel: string;
   showCacheMetrics?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const fxRates = useFxRates();
   const maxTokens = Math.max(...items.map((i) => i.tokens), 1);
   return (
     <div className="usage-surface rounded-xl p-4 transition-colors duration-200 hover:border-[var(--usage-border-hover)] sm:p-5">
@@ -93,11 +95,21 @@ export function RankingList({
               <CustomProgressBar
                 percentage={Math.max(4, (item.tokens / maxTokens) * 100)}
               />
-              <div className="mt-1 flex justify-between text-[10px] text-theme-text-tertiary">
+              <div className="mt-1 flex justify-between gap-2 text-[10px] text-theme-text-tertiary">
                 <span>
                   {t("usage.ranking.countSuffix", { count: item.requests })}
                 </span>
-                <span>{fmtDur(item.duration)}</span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {(item.cost_usd ?? 0) > 0 && (
+                    <span className="tabular-nums">
+                      {fmtCostUsd(item.cost_usd ?? 0, true, {
+                        language: i18n.language,
+                        rates: fxRates,
+                      })}
+                    </span>
+                  )}
+                  <span>{fmtDur(item.duration)}</span>
+                </span>
               </div>
               {showCacheMetrics && (
                 <div className="mt-1 flex flex-wrap justify-between gap-x-2 text-[10px] text-theme-text-tertiary">

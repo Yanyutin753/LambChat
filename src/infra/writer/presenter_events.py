@@ -545,6 +545,8 @@ class EventPresenterMixin:
         cache_read_tokens: int = 0,
         model_id: str | None = None,
         model: str | None = None,
+        cost: Any = None,
+        rates: Any = None,
     ) -> Dict[str, Any]:
         """输出 Token 使用统计
 
@@ -557,6 +559,8 @@ class EventPresenterMixin:
             cache_read_tokens: 缓存读取 token 数
             model_id: 模型配置 ID
             model: 原始模型值
+            cost: USD 成本分解（CostBreakdown）；无法计价时为 None
+            rates: 计价所用单价（PriceRates）；无法计价时为 None
         """
         data: Dict[str, Any] = {
             "input_tokens": input_tokens,
@@ -574,6 +578,17 @@ class EventPresenterMixin:
             data["model_id"] = model_id
         if model:
             data["model"] = model
+        # 金额字段仅在可计价时携带，前端据此区分「未计价」与「0 美元」
+        if cost is not None:
+            data["cost_usd"] = cost.total_usd
+            data["cost_breakdown"] = cost.to_event_data()
+        if rates is not None:
+            data["cost_rates"] = {
+                "input": rates.input,
+                "output": rates.output,
+                "cache_read": rates.cache_read,
+                "cache_write": rates.cache_write,
+            }
         return self._build_event("token:usage", data)
 
     def present_skills_changed(
