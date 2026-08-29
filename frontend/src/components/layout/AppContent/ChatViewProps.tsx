@@ -143,6 +143,8 @@ export interface ChatViewProps {
   enableSkills: boolean;
   personaPresets: PersonaPreset[];
   personaPresetsTotal: number;
+  /** 首次列表请求是否已落地；后台刷新不回退骨架屏（issue #158） */
+  personaPresetsLoaded: boolean;
   hasMorePersonaPresets: boolean;
   isLoadingMorePersonaPresets: boolean;
   onLoadMorePersonaPresets: () => void;

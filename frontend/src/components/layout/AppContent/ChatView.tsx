@@ -95,6 +95,7 @@ export function ChatView({
   enableSkills,
   personaPresets,
   personaPresetsTotal,
+  personaPresetsLoaded,
   hasMorePersonaPresets,
   isLoadingMorePersonaPresets,
   onLoadMorePersonaPresets,
@@ -741,6 +742,7 @@ export function ChatView({
                   "Change persona",
                 )}
                 personaPresets={personaPresets}
+                personaPresetsLoaded={personaPresetsLoaded}
                 hasMorePersonaPresets={hasMorePersonaPresets}
                 isLoadingMorePersonaPresets={isLoadingMorePersonaPresets}
                 onLoadMorePersonaPresets={onLoadMorePersonaPresets}

@@ -23,6 +23,7 @@ export function usePersonaPresets(options?: {
   const [isLoading, setIsLoading] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPresets = useCallback(
@@ -49,6 +50,8 @@ export function usePersonaPresets(options?: {
         );
       } finally {
         setIsLoading(false);
+        // 首次请求落地后，后续搜索/翻页刷新不再把页面回退成骨架屏（issue #158）
+        setHasLoaded(true);
       }
     },
     [enabled, t],
@@ -264,6 +267,7 @@ export function usePersonaPresets(options?: {
     isLoading,
     isLoadingMore,
     isMutating,
+    hasLoaded,
     error,
     fetchPresets,
     loadMore,
