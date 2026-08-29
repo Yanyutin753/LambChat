@@ -70,6 +70,22 @@ export interface TokenUsagePart {
   cache_read_tokens?: number;
   model_id?: string;
   model?: string;
+  // USD 金额（models.dev 计价；undefined 表示该模型未匹配到价格）
+  cost_usd?: number;
+  cost_breakdown?: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_write: number;
+    total: number;
+  };
+  // 计价所用单价（USD / 每百万 token）
+  cost_rates?: {
+    input: number | null;
+    output: number | null;
+    cache_read: number | null;
+    cache_write: number | null;
+  };
 }
 
 // 取消状态块类型

@@ -89,6 +89,14 @@ export interface ModelOption {
   supports_thinking?: boolean;
 }
 
+export interface ModelPricingOverride {
+  /** USD / 每百万 token；未填档位沿用 models.dev 同步价格 */
+  input?: number;
+  output?: number;
+  cache_read?: number;
+  cache_write?: number;
+}
+
 export interface ModelConfig {
   id?: string;
   value: string;
@@ -103,6 +111,7 @@ export interface ModelConfig {
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
+  pricing?: ModelPricingOverride | null;
   fallback_model?: string;
   enabled: boolean;
   order: number;
@@ -123,6 +132,7 @@ export interface ModelConfigCreate {
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
+  pricing?: ModelPricingOverride | null;
   fallback_model?: string;
   enabled?: boolean;
   order?: number;
@@ -142,6 +152,8 @@ export interface ModelConfigUpdate {
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
+  /** {} clears the override back to the models.dev synced price */
+  pricing?: ModelPricingOverride | null;
   fallback_model?: string;
   enabled?: boolean;
   order?: number;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { fmt, pct, precise } from "../formatters";
+import { fmt, fmtCostUsd, pct, precise } from "../formatters";
 
 describe("fmt number abbreviation", () => {
   test("keeps plain numbers below 1K", () => {
@@ -41,5 +41,26 @@ describe("precise", () => {
   test("trims trailing zero", () => {
     expect(precise(1.04)).toBe("1");
     expect(precise(1.06)).toBe("1.1");
+  });
+});
+
+describe("fmtCostUsd", () => {
+  test("formats priced log cost in display currency", () => {
+    expect(fmtCostUsd(0.0246, true, { language: "en" })).toBe("$0.0246");
+    expect(
+      fmtCostUsd(0.05, true, {
+        language: "zh",
+        rates: { base: "USD", rates: { CNY: 7.1 }, synced_at: null },
+      }),
+    ).toContain("0.355");
+  });
+
+  test("unpriced log shows dash placeholder", () => {
+    expect(fmtCostUsd(0, false, { language: "en" })).toBe("—");
+    expect(fmtCostUsd(undefined, false, { language: "en" })).toBe("—");
+  });
+
+  test("priced log with missing amount formats zero", () => {
+    expect(fmtCostUsd(undefined, true, { language: "en" })).toBe("$0.00");
   });
 });

@@ -238,6 +238,9 @@ async def update_model(
     # Allow clearing request_headers by sending an empty object {}
     if "request_headers" in update_data and not update_data["request_headers"]:
         update_data["request_headers"] = None
+    # Allow clearing pricing override by sending an empty object {}
+    if "pricing" in update_data and not update_data["pricing"]:
+        update_data["pricing"] = None
     # 校验 fallback_model
     if "fallback_model" in update_data and update_data["fallback_model"] is not None:
         if update_data["fallback_model"] == model_id:

@@ -318,6 +318,8 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
         duration: float = 0.0,
         model_id: str | None = None,
         model: str | None = None,
+        cost: Any = None,
+        rates: Any = None,
     ) -> Dict[str, Any]:
         """输出 Token 使用统计并保存"""
         event = self.present_token_usage(
@@ -327,6 +329,8 @@ class Presenter(EventPresenterMixin, StoragePresenterMixin):
             duration,
             model_id=model_id,
             model=model,
+            cost=cost,
+            rates=rates,
         )
         await self.save_event(event)
         return event

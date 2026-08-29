@@ -252,6 +252,8 @@ class UsageStorage:
             "total_tokens": total_tokens,
             "cache_creation_tokens": _as_int(usage_data.get("cache_creation_tokens", 0)),
             "cache_read_tokens": _as_int(usage_data.get("cache_read_tokens", 0)),
+            "cost_usd": _as_float(usage_data.get("cost_usd", 0.0)),
+            "cost_available": "cost_usd" in usage_data and usage_data["cost_usd"] is not None,
             "duration": _as_float(usage_data.get("duration", 0.0)),
             "started_at": _as_datetime(trace_doc.get("started_at")),
             "completed_at": _as_datetime(trace_doc.get("completed_at")),
@@ -384,6 +386,10 @@ class UsageStorage:
                                 "total_duration": {"$sum": "$duration"},
                                 "total_tool_calls": {"$sum": "$tool_calls"},
                                 "max_duration": {"$max": "$duration"},
+                                "total_cost_usd": {"$sum": "$cost_usd"},
+                                "unpriced_requests": {
+                                    "$sum": {"$cond": [{"$ne": ["$cost_available", True]}, 1, 0]}
+                                },
                                 "scheduled_runs": {
                                     "$sum": {"$cond": [SCHEDULED_USAGE_CONDITION, 1, 0]}
                                 },
@@ -408,6 +414,7 @@ class UsageStorage:
                                 "requests": {"$sum": 1},
                                 "tokens": {"$sum": "$total_tokens"},
                                 "duration": {"$sum": "$duration"},
+                                "cost_usd": {"$sum": "$cost_usd"},
                                 "scheduled_runs": {
                                     "$sum": {"$cond": [SCHEDULED_USAGE_CONDITION, 1, 0]}
                                 },
@@ -467,6 +474,7 @@ class UsageStorage:
             "requests": {"$sum": 1},
             "tokens": {"$sum": "$total_tokens"},
             "duration": {"$sum": "$duration"},
+            "cost_usd": {"$sum": "$cost_usd"},
         }
         if name_field:
             group["name"] = {"$first": f"${name_field}"}
@@ -519,6 +527,10 @@ class UsageStorage:
                     "total_cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
                     "total_cache_read_tokens": {"$sum": "$cache_read_tokens"},
                     "total_duration": {"$sum": "$duration"},
+                    "total_cost_usd": {"$sum": "$cost_usd"},
+                    "unpriced_requests": {
+                        "$sum": {"$cond": [{"$ne": ["$cost_available", True]}, 1, 0]}
+                    },
                 }
             },
         ]
@@ -536,6 +548,8 @@ class UsageStorage:
                         "total_cache_creation_tokens": doc.get("total_cache_creation_tokens", 0),
                         "total_cache_read_tokens": doc.get("total_cache_read_tokens", 0),
                         "total_duration": doc.get("total_duration", 0.0),
+                        "total_cost_usd": doc.get("total_cost_usd", 0.0),
+                        "unpriced_requests": doc.get("unpriced_requests", 0),
                     }
                 )
                 break  # only one group result
@@ -605,6 +619,8 @@ def _empty_stats() -> Dict[str, Any]:
         "total_cache_creation_tokens": 0,
         "total_cache_read_tokens": 0,
         "total_duration": 0.0,
+        "total_cost_usd": 0.0,
+        "unpriced_requests": 0,
     }
 
 
@@ -618,6 +634,7 @@ def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "requests": _as_int(doc.get("requests")),
         "tokens": _as_int(doc.get("tokens")),
         "duration": _as_float(doc.get("duration")),
+        "cost_usd": _as_float(doc.get("cost_usd")),
         "input_tokens": input_tokens,
         "cache_creation_tokens": _as_int(doc.get("cache_creation_tokens")),
         "cache_read_tokens": cache_read_tokens,
@@ -643,6 +660,7 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
             "requests": _as_int(item.get("requests")),
             "tokens": _as_int(item.get("tokens")),
             "duration": _as_float(item.get("duration")),
+            "cost_usd": _as_float(item.get("cost_usd")),
             "scheduled_runs": _as_int(item.get("scheduled_runs")),
             "failed_requests": _as_int(item.get("failed_requests")),
             "tool_calls": _as_int(item.get("tool_calls")),
@@ -663,6 +681,8 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
         "total_cache_read_tokens": total_cache_read_tokens,
         "total_duration": total_duration,
         "total_tool_calls": total_tool_calls,
+        "total_cost_usd": _as_float(summary_doc.get("total_cost_usd")),
+        "unpriced_requests": _as_int(summary_doc.get("unpriced_requests")),
         "scheduled_runs": scheduled_runs,
         "failed_requests": failed_requests,
         "success_rate": (successful_requests / total_requests) if total_requests else 0.0,
@@ -699,6 +719,8 @@ def _empty_dashboard() -> Dict[str, Any]:
             "total_cache_read_tokens": 0,
             "total_duration": 0.0,
             "total_tool_calls": 0,
+            "total_cost_usd": 0.0,
+            "unpriced_requests": 0,
             "scheduled_runs": 0,
             "failed_requests": 0,
             "success_rate": 0.0,

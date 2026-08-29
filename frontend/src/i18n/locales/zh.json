@@ -211,7 +211,20 @@
     "tempTag": "温度: {{value}}",
     "temperature": "温度",
     "title": "助手配置",
-    "valueAndLabelRequired": "值和标签为必填项"
+    "valueAndLabelRequired": "值和标签为必填项",
+    "pricingLabel": "价格覆盖（USD / 百万 tokens）",
+    "pricingInput": "输入",
+    "pricingOutput": "输出",
+    "pricingCacheRead": "缓存读",
+    "pricingCacheWrite": "缓存写",
+    "pricingMatched": "models.dev 匹配：输入 ${{input}} · 输出 ${{output}}（{{match}}）",
+    "pricingUnmatched": "未在 models.dev 匹配到价格；留空则该模型不计算费用",
+    "pricingHint": "留空档位沿用同步价格；中转站实际价格不同时可在此覆盖",
+    "pricingInvalid": "价格必须是非负数字",
+    "pricingSync": "同步价格",
+    "pricingSyncSuccess": "价格已同步（{{count}} 个模型）",
+    "pricingSyncPartial": "同步完成（部分失败：{{error}}）",
+    "pricingSyncFailed": "同步价格失败"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -773,7 +786,8 @@
       "toolTransferPath": "传输目录",
       "toolUploadUrlToSandbox": "上传 URL 到沙箱",
       "toolVarCount": "{{count}} 个变量",
-      "toolWrite": "写入"
+      "toolWrite": "写入",
+      "costTotal": "费用"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",
@@ -3147,7 +3161,10 @@
       "title": "每日执行趋势",
       "tokens": "Tokens"
     },
-    "user": "用户"
+    "user": "用户",
+    "cost": "费用",
+    "costTotal": "总费用",
+    "unpricedHint": "{{count}} 次未计价"
   },
   "users": {
     "actions": "操作",

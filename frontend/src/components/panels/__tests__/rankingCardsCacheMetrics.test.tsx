@@ -10,7 +10,9 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, options?: { count?: number; n?: number }) =>
       options?.count ?? options?.n ?? key,
+    i18n: { language: "en" },
   }),
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 const modelItem = {

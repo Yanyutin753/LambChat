@@ -33,6 +33,7 @@ from src.api.routes import (
     memory,
     notification,
     persona_preset,
+    pricing,
     project,
     push,
     revealed_file,
@@ -104,6 +105,7 @@ _LIFESPAN_BACKGROUND_TASK_NAMES = (
     "stale_task_cleanup_task",
     "stale_task_cleanup_recheck_task",
     "feishu_task",
+    "pricing_sync_task",
 )
 _STALE_TASK_CLEANUP_RECHECK_DELAY_SECONDS = max(5.0, HEARTBEAT_TIMEOUT * 2 + 5)
 
@@ -415,6 +417,12 @@ def _startup_index_initializers():
         await get_usage_storage().ensure_indexes()
         logger.info("UsageStorage indexes initialized")
 
+    async def _init_pricing_storage() -> None:
+        from src.infra.pricing.storage import get_pricing_storage
+
+        await get_pricing_storage().ensure_indexes()
+        logger.info("PricingStorage indexes initialized")
+
     async def _init_team_storage() -> None:
         from src.infra.team.storage import TeamStorage
 
@@ -469,6 +477,7 @@ def _startup_index_initializers():
         ("role_storage", _init_role_storage),
         ("mcp_storage", _init_mcp_storage),
         ("file_record_storage", _init_file_record_storage),
+        ("pricing_storage", _init_pricing_storage),
     ]
 
 
@@ -625,6 +634,19 @@ async def lifespan(app: FastAPI):
     # Keep task reference to prevent GC from cancelling it
     _feishu_task = asyncio.create_task(_start_feishu())
     app.state.feishu_task = _feishu_task
+
+    # Periodically sync model prices (models.dev) and USD fx rates.
+    async def _run_pricing_sync_loop() -> None:
+        from src.infra.pricing.sync import sync_pricing
+
+        while True:
+            try:
+                await sync_pricing()
+            except Exception as e:
+                logger.warning(f"Pricing sync loop failed: {e}")
+            await asyncio.sleep(max(1, settings.PRICING_SYNC_INTERVAL_HOURS) * 3600)
+
+    app.state.pricing_sync_task = asyncio.create_task(_run_pricing_sync_loop())
 
     async def _reset_memory_monitor_after_startup() -> None:
         try:
@@ -823,6 +845,7 @@ def create_app() -> FastAPI:
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
     app.include_router(usage.router, prefix="/api/usage", tags=["Usage"])
+    app.include_router(pricing.router, prefix="/api/pricing", tags=["Pricing"])
     app.include_router(notification.router, prefix="/api/notifications", tags=["Notifications"])
     app.include_router(push.router, prefix="/api/push", tags=["Push"])
     # Generic channel configuration

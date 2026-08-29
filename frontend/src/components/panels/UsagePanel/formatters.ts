@@ -1,4 +1,5 @@
 import { formatDuration } from "../../../utils/datetime";
+import { formatCostUsd, type FxRatesDoc } from "../../../utils/currency";
 import type { UsageDailyPoint } from "../../../types/usage";
 
 export function fmt(n: number): string {
@@ -68,4 +69,19 @@ export function normalizeTrendPoints(
     );
   }
   return result;
+}
+
+export interface CostFormatOpts {
+  language?: string;
+  rates?: FxRatesDoc | null;
+}
+
+/** 用量日志成本展示：未计价显示占位符，已计价按展示货币格式化 */
+export function fmtCostUsd(
+  usd: number | undefined,
+  available: boolean,
+  opts: CostFormatOpts,
+): string {
+  if (!available) return "—";
+  return formatCostUsd(usd ?? 0, opts);
 }

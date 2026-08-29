@@ -27,6 +27,21 @@ class ModelProfile(BaseModel):
     )
 
 
+class ModelPricingOverride(BaseModel):
+    """Per-model USD pricing override (per 1M tokens).
+
+    覆盖 models.dev 同步价格（中转站等价格不一致场景）；
+    字段级生效：未填写的档位沿用同步价格（若有匹配）。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    input: Optional[float] = Field(None, description="Input price (USD / 1M tokens)")
+    output: Optional[float] = Field(None, description="Output price (USD / 1M tokens)")
+    cache_read: Optional[float] = Field(None, description="Cache read price (USD / 1M tokens)")
+    cache_write: Optional[float] = Field(None, description="Cache write price (USD / 1M tokens)")
+
+
 class ModelConfig(BaseModel):
     """Model configuration stored in database."""
 
@@ -57,6 +72,9 @@ class ModelConfig(BaseModel):
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
+    pricing: Optional[ModelPricingOverride] = Field(
+        None, description="Per-model USD pricing override (per 1M tokens)"
+    )
     fallback_model: Optional[str] = Field(
         None, description="Fallback model ID (UUID) when this model fails"
     )
@@ -93,6 +111,9 @@ class ModelConfigCreate(BaseModel):
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
+    pricing: Optional[ModelPricingOverride] = Field(
+        None, description="Per-model USD pricing override (per 1M tokens)"
+    )
     fallback_model: Optional[str] = Field(
         None, description="Fallback model ID (UUID) when this model fails"
     )
@@ -122,6 +143,9 @@ class ModelConfigUpdate(BaseModel):
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
+    pricing: Optional[ModelPricingOverride] = Field(
+        None, description="Per-model USD pricing override (per 1M tokens)"
+    )
     fallback_model: Optional[str] = Field(
         None, description="Fallback model ID (UUID) when this model fails"
     )

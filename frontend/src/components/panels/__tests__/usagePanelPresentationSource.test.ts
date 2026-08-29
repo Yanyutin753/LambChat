@@ -46,7 +46,7 @@ test("usage admin and read views present different dashboard context", () => {
 test("usage table keeps admin-only user column and aligned numeric columns", () => {
   expect(usageTableSource).toMatch(/gridTemplateColumns: desktopGridTemplate/);
   expect(usageTableSource).toMatch(/desktopGridTemplate = isAdmin/);
-  expect(usageTableSource).toMatch(/min-w-\[1080px\]/);
+  expect(usageTableSource).toMatch(/min-w-\[1130px\]/);
   expect(usageTableSource).toMatch(/minmax\(8rem,\.7fr\)|minmax\(9rem,\.8fr\)/);
   expect(usageTableSource).toMatch(/usage\.roleOrTeam/);
   expect(usageTableSource).toMatch(/personaOrTeam/);
