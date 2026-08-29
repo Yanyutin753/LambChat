@@ -277,6 +277,4 @@ def restore_price_index(snapshot: list[dict] | dict) -> PriceIndex:
     else:
         entries = snapshot or []
         model_owners = {}
-    return PriceIndex(
-        [_entry_from_snapshot(doc) for doc in entries], model_owners=model_owners
-    )
+    return PriceIndex([_entry_from_snapshot(doc) for doc in entries], model_owners=model_owners)
