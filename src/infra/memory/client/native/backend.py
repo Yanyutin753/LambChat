@@ -1,6 +1,5 @@
 """Native Memory Backend — MongoDB-backed, zero external dependencies."""
 
-import asyncio
 import inspect
 import uuid
 from datetime import timedelta
@@ -14,6 +13,7 @@ from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
     find_existing_memory_match,
+    find_semantic_memory_match,
     is_manual_memory_worthy,
 )
 from src.infra.memory.client.native.content import (
@@ -206,6 +206,19 @@ class NativeMemoryBackend(MemoryBackend):
                 {"summary": 1, "memory_id": 1, "memory_type": 1},
             ).to_list(length=50)
 
+        async def fetch_semantic_candidates(target_user_id: str) -> list[dict[str, Any]]:
+            return await self._collection.find(
+                {
+                    "user_id": target_user_id,
+                    "embedding": {"$exists": True, "$ne": None},
+                    "source": {"$ne": "session_summary"},
+                },
+                {"memory_id": 1, "memory_type": 1, "summary": 1, "embedding": 1},
+            ).to_list(length=200)
+
+        # embedding 既用于落库，也用于写时语义去重（写前先读，避免重复记忆）
+        embedding = await self._maybe_embed(content)
+
         existing_match = None
         _match_projection = {
             "memory_id": 1,
@@ -230,6 +243,13 @@ class NativeMemoryBackend(MemoryBackend):
                 summary=summary,
                 memory_type=memory_type,
             )
+            if existing_match is None:
+                existing_match = await find_semantic_memory_match(
+                    fetch_candidates=fetch_semantic_candidates,
+                    user_id=user_id,
+                    query_embedding=embedding or [],
+                    memory_type=memory_type,
+                )
             # fetch content fields for store cleanup if matched via similarity
             if existing_match and "content_storage_mode" not in existing_match:
                 full_doc = await self._collection.find_one(
@@ -263,10 +283,7 @@ class NativeMemoryBackend(MemoryBackend):
                 )
                 merged_source_refs = []
         source_ref_docs = [ref.model_dump() for ref in merged_source_refs]
-        content_fields, embedding = await asyncio.gather(
-            build_content_fields(self, user_id, memory_id, content),
-            self._maybe_embed(content),
-        )
+        content_fields = await build_content_fields(self, user_id, memory_id, content)
 
         if is_update:
             await self._collection.update_one(
