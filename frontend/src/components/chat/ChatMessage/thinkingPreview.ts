@@ -20,5 +20,5 @@ export function buildStreamingThinkingPreview(content: string): string {
   if (text.length <= STREAMING_PREVIEW_MAX_LEN) return text;
   let tail = text.slice(-STREAMING_PREVIEW_MAX_LEN);
   if (isHighSurrogate(tail.charCodeAt(0))) tail = tail.slice(1);
-  return `…${tail.trimStart()}`;
+  return tail.trimStart();
 }
