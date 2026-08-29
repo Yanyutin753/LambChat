@@ -828,7 +828,8 @@
     "thinkingIntensity": "思考強度",
     "title": "チャット",
     "todo": {
-      "progress": "{{completed}}/{{total}} 完了"
+      "progress": "{{completed}}/{{total}} 完了",
+      "toggle": "タスクリスト"
     },
     "unknownAgent": "不明なエージェント",
     "unknownError": "不明なエラー",

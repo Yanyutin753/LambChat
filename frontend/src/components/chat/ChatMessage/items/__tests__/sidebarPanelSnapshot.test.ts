@@ -149,7 +149,7 @@ test("replays expansion before scroll and skips missing snapshot elements", asyn
   );
 });
 
-test("leaves a pending snapshot available for its matching panel", async () => {
+test("drops a pending snapshot that belongs to a different panel", async () => {
   const root = document.createElement("section");
   const scroller = document.createElement("div");
   scroller.dataset.sidebarSnapshotKey = "results";
@@ -163,13 +163,14 @@ test("leaves a pending snapshot available for its matching panel", async () => {
   };
   queueSidebarPanelSnapshot(snapshot);
 
+  // 不匹配的面板打开时旧快照直接丢弃，不残留等误命中
   await expect(
     restorePendingSidebarPanelSnapshot("panel:b", root),
   ).resolves.toBe(false);
   await expect(
     restorePendingSidebarPanelSnapshot("panel:a", root),
-  ).resolves.toBe(true);
-  expect(scroller.scrollTop).toBe(64);
+  ).resolves.toBe(false);
+  expect(scroller.scrollTop).toBe(0);
 });
 
 test("captures and restores pressed panel controls", async () => {

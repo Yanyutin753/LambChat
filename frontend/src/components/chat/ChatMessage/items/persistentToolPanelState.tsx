@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 import { hasOpenRightPanel } from "../../../common/rightPanelCoordinator";
@@ -20,6 +20,7 @@ import {
 import { subagentPanelStore } from "../subagentPanelStore";
 import {
   registerPanelCapture,
+  registerPanelDeactivate,
   pushCurrentPanelToHistory,
 } from "./sidebarHistoryStore";
 
@@ -42,6 +43,8 @@ export interface PersistentToolPanelState {
   auto?: boolean;
   /** When true, mobile renders as full-viewport instead of bottom sheet */
   mobileFillViewport?: boolean;
+  /** 用户切换过全屏时记录：面板历史返回后恢复原视图，而非重置 */
+  isFullscreen?: boolean;
 }
 
 const panelStore = createSingletonStore<PersistentToolPanelState | null>(null);
@@ -59,6 +62,10 @@ registerPanelCapture(() => {
     };
   }
   return null;
+});
+
+registerPanelDeactivate(() => {
+  closePersistentToolPanel();
 });
 
 function openPersistentToolPanelDirect(panel: PersistentToolPanelState): void {
@@ -184,6 +191,28 @@ export function PersistentToolPanelHost() {
   const { panel, close } = usePersistentToolPanel();
   const liveChrome = useLivePanelChrome(panel?.panelKey);
 
+  // viewMode/全屏完全受控并回写 store：面板历史返回后恢复用户当时的
+  // 视图模式，也修掉同一面板实例在不同面板之间串台的问题
+  const activePanelKey = panel?.panelKey;
+  const handleViewModeChange = useCallback(
+    (mode: "sidebar" | "center") => {
+      updatePersistentToolPanel(
+        (prev) => ({ ...prev, viewMode: mode }),
+        activePanelKey,
+      );
+    },
+    [activePanelKey],
+  );
+  const handleFullscreenChange = useCallback(
+    (fullscreen: boolean) => {
+      updatePersistentToolPanel(
+        (prev) => ({ ...prev, isFullscreen: fullscreen }),
+        activePanelKey,
+      );
+    },
+    [activePanelKey],
+  );
+
   if (!panel) return null;
 
   return createPortal(
@@ -196,7 +225,10 @@ export function PersistentToolPanelHost() {
       icon={panel.icon}
       status={liveChrome?.status ?? panel.status}
       subtitle={panel.subtitle}
-      viewMode={panel.viewMode}
+      viewMode={panel.viewMode ?? "sidebar"}
+      onViewModeChange={handleViewModeChange}
+      isFullscreen={panel.isFullscreen ?? false}
+      onFullscreenChange={handleFullscreenChange}
       headerActions={panel.headerActions}
       customHeader={panel.customHeader}
       footer={liveChrome?.footer ?? panel.footer}

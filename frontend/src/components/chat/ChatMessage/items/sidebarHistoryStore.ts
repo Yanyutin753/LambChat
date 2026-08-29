@@ -13,8 +13,11 @@ export interface SidebarHistoryEntry {
 }
 
 type CaptureFn = () => SidebarHistoryEntry | null;
+/** 返回历史时直接收起对应面板（不再入栈），避免多面板叠加显示 */
+type DeactivateFn = () => void;
 
 const captures: CaptureFn[] = [];
+const deactivators: DeactivateFn[] = [];
 let history: SidebarHistoryEntry[] = [];
 let isRestoring = false;
 
@@ -22,6 +25,10 @@ const countStore = createSingletonStore<number>(0);
 
 export function registerPanelCapture(fn: CaptureFn): void {
   captures.push(fn);
+}
+
+export function registerPanelDeactivate(fn: DeactivateFn): void {
+  deactivators.push(fn);
 }
 
 function captureCurrentPanel(): SidebarHistoryEntry | null {
@@ -52,6 +59,8 @@ export function goBackSidebar(): boolean {
   isRestoring = true;
   clearToolPanelRegistry();
   try {
+    // 先把所有面板源收起（旧 store 残留会导致恢复后双面板叠加），再恢复目标
+    deactivators.forEach((deactivate) => deactivate());
     queueSidebarPanelSnapshot(entry.snapshot ?? null);
     entry.restore();
   } finally {

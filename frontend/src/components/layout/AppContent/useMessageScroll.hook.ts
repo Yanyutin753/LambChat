@@ -36,6 +36,7 @@ import {
   shouldFinalizeHistoryLoadScroll,
   shouldInferBatchedHistoryLoadReady,
 } from "./useMessageScroll.followState";
+import { setStreamFollowSignal } from "../../chat/streamFollowSignal";
 
 interface UseMessageScrollReturn {
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -195,6 +196,11 @@ export function useMessageScroll(
     rafRef.current = requestAnimationFrame(() => {
       setIsNearBottom(atBottom);
       isNearBottomRef.current = atBottom;
+      // 供深层组件（自动开面板等）同步读取：用户是否离开底部在读历史
+      setStreamFollowSignal({
+        nearBottom: atBottom,
+        detached: manualDetachFromStreamRef.current,
+      });
       if (atBottom) {
         const nextFollowState =
           getNextMessageScrollFollowStateForAtBottomChange({

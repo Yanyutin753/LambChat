@@ -32,6 +32,7 @@ import {
   resetSubagentPanelAutoOpenState,
   shouldAutoOpenSubagentPanel,
 } from "./subagentPanelControl";
+import { isUserReadingHistory } from "../streamFollowSignal";
 import {
   buildSubagentPanelState,
   createSubagentPanelFooter,
@@ -194,6 +195,7 @@ export function SubagentBlock({
         laneOccupied,
         alreadyAutoOpened: hasSubagentPanelAutoOpened(panelKey),
         autoOpenDismissed: isSubagentPanelAutoOpenDismissed(panelKey),
+        userReadingHistory: isUserReadingHistory(),
       })
     ) {
       markSubagentPanelAutoOpened(panelKey);

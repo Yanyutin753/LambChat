@@ -2,6 +2,7 @@ import { createSingletonStore } from "./createSingletonStore";
 import { closeCurrentToolPanel } from "./ToolResultPanel";
 import {
   registerPanelCapture,
+  registerPanelDeactivate,
   pushCurrentPanelToHistory,
 } from "./sidebarHistoryStore";
 
@@ -22,6 +23,10 @@ registerPanelCapture(() => {
     return { restore: () => openBlockPreviewDirect(captured) };
   }
   return null;
+});
+
+registerPanelDeactivate(() => {
+  store.set(null);
 });
 
 function openBlockPreviewDirect(data: BlockPreviewData): void {

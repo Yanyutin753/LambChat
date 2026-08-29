@@ -95,6 +95,25 @@ function waitForAnimationFrame(): Promise<void> {
   });
 }
 
+/**
+ * 恢复重试的时间窗口：面板内容常为 lazy 加载（DeferredSubagentPanelContent
+ * 的 React.lazy）或流式增长，固定 4-5 帧重试会赶不上 DOM 就绪；按截止
+ * 时间持续重试（rAF 间隔），覆盖 ~600ms 内陆续就位的节点。
+ */
+const RESTORE_DEADLINE_MS = 600;
+
+async function restoreUntilDeadline(
+  deadlineMs: number,
+  pass: () => boolean,
+): Promise<void> {
+  while (true) {
+    const settled = pass();
+    if (settled) return;
+    if (performance.now() >= deadlineMs) return;
+    await waitForAnimationFrame();
+  }
+}
+
 export function registerActiveSidebarSnapshotTarget(
   panelKey: string,
   root: HTMLElement,
@@ -167,10 +186,17 @@ export async function restorePendingSidebarPanelSnapshot(
   root: HTMLElement,
 ): Promise<boolean> {
   const snapshot = pendingSnapshot;
-  if (!snapshot || snapshot.panelKey !== panelKey) return false;
+  if (!snapshot) return false;
+  if (snapshot.panelKey !== panelKey) {
+    // 其他面板的残留快照直接丢弃，避免之后同 key 面板误吃旧状态
+    pendingSnapshot = null;
+    return false;
+  }
   pendingSnapshot = null;
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  const deadlineMs = performance.now() + RESTORE_DEADLINE_MS;
+
+  await restoreUntilDeadline(deadlineMs, () => {
     let needsAnotherPass = false;
     snapshot.expanded.forEach(({ locator, expanded }) => {
       const element = resolveElement(root, locator);
@@ -204,19 +230,21 @@ export async function restorePendingSidebarPanelSnapshot(
       }
       element.open = open;
     });
-    if (!needsAnotherPass) break;
-    if (attempt < 4) await waitForAnimationFrame();
-  }
+    return !needsAnotherPass;
+  });
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  await restoreUntilDeadline(deadlineMs, () => {
+    let resolvedAny = false;
     snapshot.scroll.forEach(({ locator, top, left }) => {
       const element = resolveElement(root, locator);
       if (!element) return;
       element.scrollTop = top;
       element.scrollLeft = left;
+      resolvedAny = true;
     });
-    if (attempt < 3) await waitForAnimationFrame();
-  }
+    // 滚动容器找到即可结束；内容其后继续增高由各面板自身的贴底逻辑兜底
+    return snapshot.scroll.length === 0 || resolvedAny;
+  });
 
   return true;
 }

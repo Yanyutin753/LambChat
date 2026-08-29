@@ -24,7 +24,11 @@ test("disables the send button while waiting for human input", () => {
 });
 
 test("derives the composer block from pending ask-human parts", () => {
+  // 每 tick 只算一次（useMemo），sendBlocked 复用结果
   expect(chatViewSource).toMatch(
-    /sendBlocked:\s*approvals\.length\s*>\s*0\s*\|\|\s*hasPendingAskHuman\(/,
+    /const hasPendingAskHumanParts = useMemo\(\s*\(\) => hasPendingAskHuman\(messages\.flatMap/,
+  );
+  expect(chatViewSource).toMatch(
+    /sendBlocked:\s*approvals\.length\s*>\s*0\s*\|\|\s*hasPendingAskHumanParts/,
   );
 });

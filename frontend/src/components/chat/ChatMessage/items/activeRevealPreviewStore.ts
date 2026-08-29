@@ -2,6 +2,7 @@ import { createSingletonStore } from "./createSingletonStore";
 import type { ActiveRevealPreviewState } from "./revealPreviewState";
 import {
   registerPanelCapture,
+  registerPanelDeactivate,
   pushCurrentPanelToHistory,
 } from "./sidebarHistoryStore";
 
@@ -14,6 +15,10 @@ registerPanelCapture(() => {
     return { restore: () => store.set(captured) };
   }
   return null;
+});
+
+registerPanelDeactivate(() => {
+  store.set(null);
 });
 
 export function getActiveRevealPreviewState(): ActiveRevealPreviewState | null {
