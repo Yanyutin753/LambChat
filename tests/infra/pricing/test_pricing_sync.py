@@ -51,7 +51,7 @@ def _http_client(handler) -> httpx.AsyncClient:
 
 
 class TestFetchModelsDev:
-    def test_returns_snapshot_entries(self):
+    def test_returns_snapshot_with_entries_and_owners(self):
         def handler(request: httpx.Request) -> httpx.Response:
             assert str(request.url) == "https://models.dev/api.json"
             return httpx.Response(200, json=MODELS_DEV_PAYLOAD)
@@ -60,8 +60,8 @@ class TestFetchModelsDev:
             async with _http_client(handler) as client:
                 return await pricing_sync.fetch_models_dev(client)
 
-        entries = asyncio.run(run())
-        assert entries == [
+        snapshot = asyncio.run(run())
+        assert snapshot["entries"] == [
             {
                 "provider": "openai",
                 "model_id": "gpt-4o",
@@ -69,6 +69,7 @@ class TestFetchModelsDev:
                 "rates": {"input": 2.5, "output": 10, "cache_read": None, "cache_write": None},
             }
         ]
+        assert snapshot["model_owners"]["gpt-4o"] == ["openai"]
 
     def test_non_200_raises(self):
         def handler(request: httpx.Request) -> httpx.Response:

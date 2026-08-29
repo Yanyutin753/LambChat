@@ -95,9 +95,27 @@ class TestBuildPriceIndex:
         from src.infra.pricing.matching import restore_price_index
 
         index = build_price_index(MODELS_DEV_SAMPLE)
-        restored = restore_price_index(index.to_snapshot_entries())
+        restored = restore_price_index(index.to_snapshot())
         assert restored.match("gpt-4o") is not None
         assert restored.match("deepseek/deepseek-chat") is not None
+
+    def test_restore_keeps_canonical_ownership_rules(self):
+        from src.infra.pricing.matching import restore_price_index
+
+        api_json = {
+            "cortecs": {
+                "id": "cortecs",
+                "models": {"gpt-4o": {"cost": {"input": 2.659, "output": 10.635}}},
+            },
+            "openai": {
+                "id": "openai",
+                "models": {"gpt-4o": {"cost": {"input": 2.5, "output": 10}}},
+            },
+        }
+        restored = restore_price_index(build_price_index(api_json).to_snapshot())
+        entry = restored.match("gpt-4o")
+        assert entry is not None
+        assert entry.provider == "openai"
 
 
 class TestPriceIndexMatch:
@@ -152,3 +170,95 @@ class TestPriceIndexMatch:
         entry = self.index.match("deepseek/deepseek-chat", provider="openai")
         assert entry is not None
         assert entry.provider == "deepseek"
+
+
+class TestCanonicalProviderPreference:
+    """裸模型名全局匹配时优先官方 provider，避免命中第三方路由商价格。"""
+
+    def setup_method(self):
+        from src.infra.pricing.matching import build_price_index
+
+        self.api_json = {
+            "cortecs": {
+                "id": "cortecs",
+                "name": "Cortecs",
+                "models": {
+                    "gpt-4o": {"cost": {"input": 2.659, "output": 10.635}},
+                },
+            },
+            "openai": {
+                "id": "openai",
+                "name": "OpenAI",
+                "models": {
+                    "gpt-4o": {"cost": {"input": 2.5, "output": 10}},
+                },
+            },
+            "nano-gpt": {
+                "id": "nano-gpt",
+                "name": "NanoGPT",
+                "models": {
+                    "deepseek-chat": {"cost": {"input": 0.1, "output": 0.425}},
+                },
+            },
+            "deepseek": {
+                "id": "deepseek",
+                "name": "DeepSeek",
+                "models": {
+                    "deepseek-chat": {"cost": {"input": 0.27, "output": 1.1}},
+                },
+            },
+        }
+        self.index = build_price_index(self.api_json)
+
+    def test_bare_name_prefers_canonical_provider(self):
+        entry = self.index.match("gpt-4o")
+        assert entry is not None
+        assert entry.provider == "openai"
+        assert entry.rates.input == 2.5
+
+    def test_canonical_preference_applies_to_normalized_match(self):
+        entry = self.index.match("GPT-4o-2024-08-13")
+        assert entry is not None
+        assert entry.provider == "openai"
+
+    def test_canonical_provider_owned_unpriced_model_returns_none(self):
+        # 官方 provider 收录了该模型但无价格：宁可不计价，也不用第三方价格
+        api_json = {
+            "qwen": {
+                "id": "qwen",
+                "name": "Qwen",
+                "models": {"qwen3-max": {"name": "Qwen3 Max"}},
+            },
+            "iflowcn": {
+                "id": "iflowcn",
+                "name": "iFlow",
+                "models": {"qwen3-max": {"cost": {"input": 0, "output": 0}}},
+            },
+        }
+        from src.infra.pricing.matching import build_price_index
+
+        index = build_price_index(api_json)
+        assert index.match("qwen3-max") is None
+        # 带前缀显式指向第三方时仍然允许
+        entry = index.match("iflowcn/qwen3-max")
+        assert entry is not None
+        assert entry.provider == "iflowcn"
+
+    def test_unknown_family_falls_back_deterministically(self):
+        # 无官方归属规则时按 provider 名排序取第一个，保证快照间稳定
+        api_json = {
+            "zzz-relay": {
+                "id": "zzz-relay",
+                "models": {"weird-model": {"cost": {"input": 1, "output": 2}}},
+            },
+            "aaa-relay": {
+                "id": "aaa-relay",
+                "models": {"weird-model": {"cost": {"input": 3, "output": 4}}},
+            },
+        }
+        from src.infra.pricing.matching import build_price_index
+
+        index = build_price_index(api_json)
+        entry = index.match("weird-model")
+        assert entry is not None
+        assert entry.provider == "aaa-relay"

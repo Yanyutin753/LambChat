@@ -42,7 +42,7 @@ async def get_price_index() -> PriceIndex:
     global _runtime_index
     if _runtime_index is None:
         snapshot = await get_pricing_storage().load_price_snapshot() or {}
-        _runtime_index = restore_price_index(snapshot.get("entries") or [])
+        _runtime_index = restore_price_index(snapshot)
     return _runtime_index
 
 

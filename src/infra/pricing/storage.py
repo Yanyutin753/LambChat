@@ -46,7 +46,13 @@ class PricingStorage:
         except Exception as e:
             logger.error(f"Failed to ensure pricing indexes: {e}")
 
-    async def save_price_snapshot(self, entries: list[dict], *, source_url: str = "") -> bool:
+    async def save_price_snapshot(
+        self,
+        entries: list[dict],
+        *,
+        source_url: str = "",
+        model_owners: Optional[dict[str, list[str]]] = None,
+    ) -> bool:
         """保存 models.dev 价格快照（整体覆盖）。"""
         try:
             await self.collection.update_one(
@@ -55,6 +61,7 @@ class PricingStorage:
                     "$set": {
                         "entries": entries,
                         "entry_count": len(entries),
+                        "model_owners": model_owners or {},
                         "source_url": source_url,
                         "synced_at": _utc_now_iso(),
                     }

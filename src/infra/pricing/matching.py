@@ -91,15 +91,55 @@ def _rates_from_cost(cost: dict | None) -> PriceRates | None:
     return rates
 
 
+# 官方 provider 归属规则：裸模型名全局匹配时优先官方价格，
+# 避免命中 models.dev 上大量第三方路由商的同名模型条目。
+# 规则为 (正则, provider slug)，匹配对象是小写模型 ID。
+CANONICAL_PROVIDER_RULES: tuple[tuple[str, str], ...] = (
+    (r"gpt-|^o[134](-|$)|^chatgpt", "openai"),
+    (r"^claude-", "anthropic"),
+    (r"^gemini-|^gemma-|^veo-|^nano-banana", "google"),
+    (r"^deepseek", "deepseek"),
+    (r"^qwen|^qwq|^qvq", "qwen"),
+    (r"^glm", "zai"),
+    (r"^kimi|^moonshot", "moonshotai"),
+    (r"^minimax|^abab", "minimax"),
+    (r"^llama-|^meta-llama|^lama-", "meta"),
+    (r"^mistral|^codestral|^pixtral|^magistral|^mixtral|^devstral", "mistral"),
+    (r"^grok", "xai"),
+    (r"^command", "cohere"),
+    (r"^sonar", "perplexity"),
+    (r"^ernie", "baidu"),
+    (r"^hunyuan", "tencent"),
+    (r"^doubao", "bytedance"),
+    (r"^step-", "stepfun"),
+)
+
+
+def canonical_provider(model_id: str) -> str | None:
+    """按模型名前缀推断官方 provider slug；无法推断返回 None。"""
+    text = model_id.strip().lower()
+    if not text:
+        return None
+    for pattern, provider in CANONICAL_PROVIDER_RULES:
+        if re.match(pattern, text):
+            return provider
+    return None
+
+
 class PriceIndex:
     """价格索引：内存中的模型价格快照，支持多级匹配。"""
 
-    def __init__(self, entries: list[PriceEntry]):
+    def __init__(
+        self,
+        entries: list[PriceEntry],
+        model_owners: dict[str, list[str]] | None = None,
+    ):
         self._entries = entries
         self._by_provider: dict[str, dict[str, PriceEntry]] = {}
         self._by_provider_normalized: dict[str, dict[str, PriceEntry]] = {}
-        self._global: dict[str, PriceEntry] = {}
-        self._global_normalized: dict[str, PriceEntry] = {}
+        # 全局候选按 provider 名排序，保证同快照内匹配结果确定
+        self._global: dict[str, list[PriceEntry]] = {}
+        self._global_normalized: dict[str, list[PriceEntry]] = {}
         for entry in entries:
             self._by_provider.setdefault(entry.provider, {})[entry.model_id] = entry
             normalized = normalize_model_key(entry.model_id)
@@ -107,16 +147,56 @@ class PriceIndex:
                 self._by_provider_normalized.setdefault(entry.provider, {}).setdefault(
                     normalized, entry
                 )
-                self._global.setdefault(entry.model_id, entry)
-                self._global_normalized.setdefault(normalized, entry)
+                self._global.setdefault(entry.model_id, []).append(entry)
+                self._global_normalized.setdefault(normalized, []).append(entry)
+        for candidates in self._global.values():
+            candidates.sort(key=lambda e: e.provider)
+        for candidates in self._global_normalized.values():
+            candidates.sort(key=lambda e: e.provider)
+        # model_id → 收录该模型的所有 provider（含未计价），用于官方归属判断
+        self._model_owners: dict[str, list[str]] = {
+            model_id: sorted(set(providers)) for model_id, providers in (model_owners or {}).items()
+        }
 
     @property
     def entry_count(self) -> int:
         return len(self._entries)
 
-    def to_snapshot_entries(self) -> list[dict]:
+    def to_snapshot(self) -> dict:
         """导出为可 JSON 序列化的快照（用于 Mongo 持久化）。"""
+        return {
+            "entries": [entry.to_snapshot() for entry in self._entries],
+            "model_owners": self._model_owners,
+        }
+
+    def to_snapshot_entries(self) -> list[dict]:
+        """导出价格条目列表（兼容旧调用方）。"""
         return [entry.to_snapshot() for entry in self._entries]
+
+    def _pick_global(
+        self,
+        model: str,
+        candidates: list[PriceEntry],
+        *,
+        owners_key: str | None = None,
+    ) -> PriceEntry | None:
+        """全局候选选择：官方 provider 优先；官方收录但未计价时宁缺毋滥。
+
+        归一化匹配时 candidates 按归一化键取，但官方归属判断要用原始
+        模型名（owners 表按精确 model_id 记录）。
+        """
+        if not candidates:
+            return None
+        canonical = canonical_provider(model)
+        if canonical:
+            for entry in candidates:
+                if entry.provider == canonical:
+                    return entry
+            owners = self._model_owners.get(owners_key or model)
+            if owners and canonical in owners:
+                # 官方收录了该模型但无价格：不用第三方价格顶替
+                return None
+        return candidates[0]
 
     def _match_in_provider(self, provider: str, model: str) -> PriceEntry | None:
         exact = self._by_provider.get(provider, {}).get(model)
@@ -145,44 +225,58 @@ class PriceIndex:
             if entry:
                 return entry
 
-        exact = self._global.get(model)
+        exact = self._pick_global(model, self._global.get(model, []))
         if exact:
             return exact
         normalized = normalize_model_key(model)
         if normalized:
-            return self._global_normalized.get(normalized)
+            return self._pick_global(
+                model,
+                self._global_normalized.get(normalized, []),
+                owners_key=model,
+            )
         return None
 
 
 def build_price_index(api_json: dict) -> PriceIndex:
     """解析 models.dev api.json 为价格索引。"""
     entries: list[PriceEntry] = []
-    if not isinstance(api_json, dict):
-        return PriceIndex(entries)
-    for provider_doc in api_json.values():
-        if not isinstance(provider_doc, dict):
-            continue
-        provider = str(provider_doc.get("id") or "")
-        if not provider:
-            continue
-        models = provider_doc.get("models")
-        if not isinstance(models, dict):
-            continue
-        for model_id, model_doc in models.items():
-            rates = _rates_from_cost((model_doc or {}).get("cost"))
-            if rates is None:
+    model_owners: dict[str, list[str]] = {}
+    if isinstance(api_json, dict):
+        for provider_doc in api_json.values():
+            if not isinstance(provider_doc, dict):
                 continue
-            entries.append(
-                PriceEntry(
-                    provider=provider,
-                    model_id=str(model_id),
-                    rates=rates,
-                    name=str((model_doc or {}).get("name") or ""),
+            provider = str(provider_doc.get("id") or "")
+            if not provider:
+                continue
+            models = provider_doc.get("models")
+            if not isinstance(models, dict):
+                continue
+            for model_id, model_doc in models.items():
+                model_id = str(model_id)
+                model_owners.setdefault(model_id, []).append(provider)
+                rates = _rates_from_cost((model_doc or {}).get("cost"))
+                if rates is None:
+                    continue
+                entries.append(
+                    PriceEntry(
+                        provider=provider,
+                        model_id=model_id,
+                        rates=rates,
+                        name=str((model_doc or {}).get("name") or ""),
+                    )
                 )
-            )
-    return PriceIndex(entries)
+    return PriceIndex(entries, model_owners=model_owners)
 
 
-def restore_price_index(snapshot_entries: list[dict]) -> PriceIndex:
-    """从持久化快照还原价格索引。"""
-    return PriceIndex([_entry_from_snapshot(doc) for doc in snapshot_entries or []])
+def restore_price_index(snapshot: list[dict] | dict) -> PriceIndex:
+    """从持久化快照还原价格索引（兼容旧的纯列表格式）。"""
+    if isinstance(snapshot, dict):
+        entries = snapshot.get("entries") or []
+        model_owners = snapshot.get("model_owners") or {}
+    else:
+        entries = snapshot or []
+        model_owners = {}
+    return PriceIndex(
+        [_entry_from_snapshot(doc) for doc in entries], model_owners=model_owners
+    )

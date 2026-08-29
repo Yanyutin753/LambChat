@@ -38,12 +38,11 @@ def parse_fx_payload(payload: Any) -> Optional[dict]:
     }
 
 
-async def fetch_models_dev(client: httpx.AsyncClient) -> list[dict]:
-    """拉取 models.dev api.json 并转为快照条目；非 200 抛异常。"""
+async def fetch_models_dev(client: httpx.AsyncClient) -> dict:
+    """拉取 models.dev api.json 并转为价格快照（含官方归属表）；非 200 抛异常。"""
     response = await client.get(settings.PRICING_MODELS_DEV_URL)
     response.raise_for_status()
-    index = build_price_index(response.json())
-    return index.to_snapshot_entries()
+    return build_price_index(response.json()).to_snapshot()
 
 
 async def _fetch_fx_rates(client: httpx.AsyncClient) -> Optional[dict]:
@@ -87,9 +86,12 @@ async def sync_pricing(*, force: bool = False, storage: Optional[PricingStorage]
     async with _build_http_client() as client:
         if price_stale:
             try:
-                entries = await fetch_models_dev(client)
+                snapshot = await fetch_models_dev(client)
+                entries = snapshot.get("entries") or []
                 await storage.save_price_snapshot(
-                    entries, source_url=settings.PRICING_MODELS_DEV_URL
+                    entries,
+                    source_url=settings.PRICING_MODELS_DEV_URL,
+                    model_owners=snapshot.get("model_owners"),
                 )
                 logger.info(f"Pricing: synced {len(entries)} model prices from models.dev")
             except Exception as e:
