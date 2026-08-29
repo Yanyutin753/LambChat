@@ -2,6 +2,7 @@ import type { MessageAttachment } from "../../types";
 import { createSingletonStore } from "./ChatMessage/items/createSingletonStore";
 import {
   registerPanelCapture,
+  registerPanelDeactivate,
   pushCurrentPanelToHistory,
 } from "./ChatMessage/items/sidebarHistoryStore";
 
@@ -23,6 +24,10 @@ registerPanelCapture(() => {
     };
   }
   return null;
+});
+
+registerPanelDeactivate(() => {
+  store.set(null);
 });
 
 export function getAttachmentPreviewState(): AttachmentPreviewState | null {

@@ -12,6 +12,7 @@ import { isFileLink } from "../../documents/utils";
 import { getFullUrl } from "../../../services/api/config";
 import { closePersistentToolPanel } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { clearSidebarHistory } from "../../chat/ChatMessage/items/sidebarHistoryStore";
+import { isUserReadingHistory } from "../../chat/streamFollowSignal";
 import {
   createActiveRevealPreviewState,
   markRevealPreviewInteracted,
@@ -304,6 +305,12 @@ export function useRevealPreview(
     }
 
     if (typeof window !== "undefined" && window.innerWidth < 640) {
+      return;
+    }
+
+    // 用户上滑阅读历史时不自动弹预览：docked 面板会挤压聊天列宽打断阅读。
+    // 本次自动打开静默跳过（不挂起补弹），产物仍可从消息里手动点开。
+    if (isUserReadingHistory()) {
       return;
     }
 

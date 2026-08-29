@@ -148,6 +148,20 @@ export function SubagentPanelContent({ agentId }: { agentId: string }) {
     return () => observer.disconnect();
   }, [startAutoScroll]);
 
+  // 面板历史返回时快照会恢复滚动位置（含 lazy 内容，~600ms 窗口）。
+  // 窗口结束后固化滚动意图：恢复到非底部 → 视为用户已上滑，后续流式
+  // 更新不再把面板拉回底部；在底部则维持跟随。
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const scroller = scrollRef.current;
+      if (scroller && !isNearSubagentPanelBottom(scroller)) {
+        userScrolledUpRef.current = true;
+        setShowScrollToBottom(true);
+      }
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const partsText = useMemo(
     () => (data?.parts?.length ? extractPartsText(data.parts) : ""),
     [data?.parts],

@@ -57,6 +57,10 @@ import {
   syncToolCallPanelStore,
   toolCallPanelStore,
 } from "../../chat/ChatMessage/toolCallPanelStore";
+import { syncSubagentPanelStore } from "../../chat/ChatMessage/subagentPanelState";
+import { subagentPanelStore } from "../../chat/ChatMessage/subagentPanelStore";
+import { clearSubagentPanelAutoOpenState } from "../../chat/ChatMessage/subagentPanelControl";
+import { resetStreamFollowSignal } from "../../chat/streamFollowSignal";
 import { hasPendingAskHuman } from "../../../hooks/useAgent/messageParts";
 
 const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
@@ -169,11 +173,32 @@ export function ChatView({
 
   useEffect(() => {
     toolCallPanelStore.clear();
+    subagentPanelStore.clear();
+    // 自动开面板的标记/静音记录不跨会话存活
+    clearSubagentPanelAutoOpenState();
+    resetStreamFollowSignal();
   }, [sessionId]);
 
   useEffect(() => {
     syncToolCallPanelStore(messages);
+    syncSubagentPanelStore(messages);
   }, [messages]);
+
+  // 流式期间 messages 每个 tick 都换引用：行级回调和 composer 的 onSend
+  // 经 ref 读取最新值，保持身份稳定，Virtuoso 可见行与 memo(ChatInput)
+  // 才不会每 tick 全量重渲（长会话下滑动掉帧的主因）
+  const messagesRef = useRef(messages);
+  const onSendMessageRef = useRef(onSendMessage);
+  useEffect(() => {
+    messagesRef.current = messages;
+    onSendMessageRef.current = onSendMessage;
+  });
+
+  // O(全部 parts) 的 ask-human 扫描每 tick 只跑一次（此前每渲染两遍）
+  const hasPendingAskHumanParts = useMemo(
+    () => hasPendingAskHuman(messages.flatMap((message) => message.parts ?? [])),
+    [messages],
+  );
 
   const showStreamingFooterSkeleton = shouldShowStreamingFooterSkeleton({
     connectionStatus,
@@ -461,14 +486,14 @@ export function ChatView({
         return;
       }
 
-      const target = findCancelledRetryTarget(messages, messageId);
+      const target = findCancelledRetryTarget(messagesRef.current, messageId);
       if (!target) {
         return;
       }
 
       onSendMessage(target.content, target.attachments);
     },
-    [canSendMessage, messages, onSendMessage, sessionRunning],
+    [canSendMessage, onSendMessage, sessionRunning],
   );
 
   const handleRecommendQuestionClick = useCallback(
@@ -634,24 +659,34 @@ export function ChatView({
     return () => setSteerCancelHandler(null);
   }, [onCancelSteer]);
 
-  // Shared ChatInput props to avoid duplication
-  const chatInputProps = {
-    onSend: (
+  // onSend 身份稳定（经 ref 读最新 onSendMessage），配合 memo(ChatInput)
+  // 逐字段比较，流式期间输入框不再反复重渲
+  const handleStableSend = useCallback(
+    (
       content: string,
       _options?: Record<string, boolean | string | number>,
       sendAttachments?: MessageAttachment[],
       runOptions?: { enabledSkills?: string[] },
       submissionCallbacks?: Parameters<ChatViewProps["onSendMessage"]>[3],
     ) =>
-      onSendMessage(content, sendAttachments, runOptions, submissionCallbacks),
+      onSendMessageRef.current(
+        content,
+        sendAttachments,
+        runOptions,
+        submissionCallbacks,
+      ),
+    [],
+  );
+
+  // Shared ChatInput props to avoid duplication
+  const chatInputProps = {
+    onSend: handleStableSend,
     onStop: onStopGeneration,
     onSteer: onSteerMessage,
     steerMessages,
     onCancelSteer,
     isLoading: sessionRunning,
-    sendBlocked:
-      approvals.length > 0 ||
-      hasPendingAskHuman(messages.flatMap((message) => message.parts ?? [])),
+    sendBlocked: approvals.length > 0 || hasPendingAskHumanParts,
     canSend: canSendMessage,
     tools,
     onToggleTool,

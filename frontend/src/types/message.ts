@@ -132,6 +132,8 @@ export interface ThinkingPart {
 export interface ToolPart {
   type: "tool";
   id?: string;
+  /** 参数流式期间的 LLM call id：tool:start 转正换 run 级 id 后留作面板实时订阅的别名 */
+  alias_id?: string;
   name: string;
   args: Record<string, unknown>;
   /** args 为 { partial: "…" } 的生成中形态：LLM 还在产出参数 JSON */

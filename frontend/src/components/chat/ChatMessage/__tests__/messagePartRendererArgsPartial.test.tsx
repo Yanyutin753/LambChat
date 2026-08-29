@@ -21,17 +21,41 @@ function renderPart(part: ToolPart) {
   );
 }
 
-test("args-partial tool parts render via the generic partial display", () => {
+test("args-partial read_file renders via the dedicated item with the growing path", () => {
   renderPart({
     ...basePart,
-    args: { partial: '{"file_path":"/tmp' },
+    args: { partial: '{"file_path":"/tmp/ma' },
     argsPartial: true,
   });
 
-  // Generic ToolCallItem formats the tool name (Read File) and surfaces the
-  // partial args text in the pill summary.
-  expect(screen.getByText(/read_file/i)).toBeTruthy();
-  expect(screen.getByText(/\{"file_path":"\/tmp/)).toBeTruthy();
+  // Dedicated ReadFileItem surfaces the progressively parsed path and never
+  // falls back to the generic raw-partial display.
+  expect(screen.getByText(/\/tmp\/ma/)).toBeTruthy();
+  expect(screen.queryByText(/\{"file_path/)).toBe(null);
+});
+
+test("args-partial execute renders via the dedicated item with the growing command", () => {
+  renderPart({
+    ...basePart,
+    name: "execute",
+    args: { partial: '{"command":"python foo' },
+    argsPartial: true,
+  });
+
+  expect(screen.getByText(/python foo/)).toBeTruthy();
+  expect(screen.queryByText(/\{"command/)).toBe(null);
+});
+
+test("args-partial generic tools keep the raw partial display", () => {
+  renderPart({
+    ...basePart,
+    name: "my_server:fetch_url",
+    args: { partial: '{"url":"https://example' },
+    argsPartial: true,
+  });
+
+  // Generic ToolCallItem keeps its existing partial rendering contract.
+  expect(screen.getByText(/\{"url":"https:\/\/example/)).toBeTruthy();
 });
 
 test("upgraded (non-partial) read_file renders via the dedicated item", () => {

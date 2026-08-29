@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 import { clsx } from "clsx";
 import {
   CheckCircle,
@@ -20,13 +20,10 @@ import { PersonaAvatarIcon } from "../../persona/PersonaAvatarIcon";
 import type { MessagePart } from "../../../types";
 import {
   openPersistentToolPanel,
-  updatePersistentToolPanel,
   isPersistentToolPanelOpen,
 } from "./items/persistentToolPanelState";
-import {
-  subagentPanelStore,
-  type SubagentPanelData,
-} from "./subagentPanelStore";
+import { subagentPanelStore } from "./subagentPanelStore";
+import type { SubagentPanelData } from "./subagentPanelStore";
 import {
   dismissSubagentPanelAutoOpen,
   hasSubagentPanelAutoOpened,
@@ -35,7 +32,11 @@ import {
   resetSubagentPanelAutoOpenState,
   shouldAutoOpenSubagentPanel,
 } from "./subagentPanelControl";
-import { buildSubagentPanelState } from "./subagentPanelState";
+import { isUserReadingHistory } from "../streamFollowSignal";
+import {
+  buildSubagentPanelState,
+  createSubagentPanelFooter,
+} from "./subagentPanelState";
 import {
   getSubagentAvatarImageUrl,
   getSubagentRoleIconMeta,
@@ -91,20 +92,6 @@ function SubagentStatusIcon({
       size={size}
       className={clsx("text-stone-400 dark:text-stone-500", className)}
     />
-  );
-}
-
-function createSubagentPanelFooter(subtitle: string | undefined) {
-  if (!subtitle) return undefined;
-  return (
-    <div className="flex justify-end border-t border-theme-border bg-theme-bg-card px-3 py-2 sm:px-4">
-      <span
-        className="shrink-0 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-theme-bg-subtle px-1.5 text-[10px] font-semibold leading-none text-theme-text-secondary"
-        title={subtitle}
-      >
-        {subtitle}
-      </span>
-    </div>
   );
 }
 
@@ -188,62 +175,40 @@ export function SubagentBlock({
   const RoleIcon = roleIconMeta.icon;
   const agentAvatarUrl = getSubagentAvatarImageUrl(agent_avatar);
 
-  // Stable serialization of parts for effect dependency — array reference
-  // changes every render from the parent but content only changes on real updates.
-  const partsKey = useMemo(() => JSON.stringify(parts ?? []), [parts]);
+  // 面板数据由 ChatView 级 syncSubagentPanelStore 全量同步（与虚拟化无关）；
+  // 这里只负责自动开启判定，不再直接写 store——组件卸载不应冻结/清空侧边栏。
 
   useEffect(() => {
-    subagentPanelStore.set({
-      agentId: agent_id,
-      agentName: agent_name,
-      input,
-      result,
-      success,
-      error,
-      isPending,
-      parts,
-      startedAt,
-      completedAt,
-      status: effectiveStatus as SubagentPanelData["status"],
-    });
-
-    // Background activity may surface once, only in an empty docked lane.
     if (isPersistentToolPanelOpen(panelKey)) {
-      updatePersistentToolPanel(
-        (prev) => ({
-          ...prev,
-          status: panelStatus,
-          footer: createSubagentPanelFooter(subtitle),
-        }),
-        panelKey,
-      );
-    } else {
-      const laneOccupied = hasOpenRightPanel();
-      const allowAutomaticPanel = shouldAllowAutomaticRightPanel({
-        presentation: getRightPanelPresentation(window.innerWidth),
+      // 状态/页脚由 PersistentToolPanelHost 订阅 store 实时刷新
+      return;
+    }
+    const laneOccupied = hasOpenRightPanel();
+    const allowAutomaticPanel = shouldAllowAutomaticRightPanel({
+      presentation: getRightPanelPresentation(window.innerWidth),
+      laneOccupied,
+    });
+    if (
+      allowAutomaticPanel &&
+      shouldAutoOpenSubagentPanel({
+        status: effectiveStatus,
         laneOccupied,
+        alreadyAutoOpened: hasSubagentPanelAutoOpened(panelKey),
+        autoOpenDismissed: isSubagentPanelAutoOpenDismissed(panelKey),
+        userReadingHistory: isUserReadingHistory(),
+      })
+    ) {
+      markSubagentPanelAutoOpened(panelKey);
+      openPersistentToolPanel({
+        title: formattedAgentName,
+        icon: <RoleIcon size={16} />,
+        status: panelStatus,
+        panelKey,
+        children: <DeferredSubagentPanelContent agentId={agent_id} />,
+        footer: createSubagentPanelFooter(subtitle),
+        auto: true,
+        onUserClose: () => dismissSubagentPanelAutoOpen(panelKey),
       });
-      if (
-        allowAutomaticPanel &&
-        shouldAutoOpenSubagentPanel({
-          status: effectiveStatus,
-          laneOccupied,
-          alreadyAutoOpened: hasSubagentPanelAutoOpened(panelKey),
-          autoOpenDismissed: isSubagentPanelAutoOpenDismissed(panelKey),
-        })
-      ) {
-        markSubagentPanelAutoOpened(panelKey);
-        openPersistentToolPanel({
-          title: formattedAgentName,
-          icon: <RoleIcon size={16} />,
-          status: panelStatus,
-          panelKey,
-          children: <DeferredSubagentPanelContent agentId={agent_id} />,
-          footer: createSubagentPanelFooter(subtitle),
-          auto: true,
-          onUserClose: () => dismissSubagentPanelAutoOpen(panelKey),
-        });
-      }
     }
   }, [
     agent_id,
@@ -254,7 +219,6 @@ export function SubagentBlock({
     error,
     isPending,
     parts,
-    partsKey,
     startedAt,
     completedAt,
     effectiveStatus,
@@ -264,12 +228,6 @@ export function SubagentBlock({
     RoleIcon,
     panelKey,
   ]);
-
-  useEffect(() => {
-    return () => {
-      subagentPanelStore.delete(agent_id);
-    };
-  }, [agent_id]);
 
   const handleOpenInPanel = useCallback(() => {
     resetSubagentPanelAutoOpenState(panelKey);

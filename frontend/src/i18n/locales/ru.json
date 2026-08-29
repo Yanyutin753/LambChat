@@ -828,7 +828,8 @@
     "thinkingIntensity": "Интенсивность мышления",
     "title": "Чат",
     "todo": {
-      "progress": "{{completed}}/{{total}} выполнено"
+      "progress": "{{completed}}/{{total}} выполнено",
+      "toggle": "Список задач"
     },
     "unknownAgent": "Неизвестный агент",
     "unknownError": "Неизвестная ошибка",

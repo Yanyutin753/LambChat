@@ -5,7 +5,11 @@ import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
 import { ImageWithSkeleton } from "../ImageWithSkeleton";
 import { extractText } from "./toolUtils";
-import { openPersistentToolPanel } from "./persistentToolPanelState";
+import {
+  openToolLivePanel,
+  toolDetailPropsFromPanelData,
+  type ToolDetailProps,
+} from "./ToolLivePanelContent";
 import { ToolInlineDetails } from "./ToolInlineDetails";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 import { ToolDurationFooter } from "./ToolDurationFooter";
@@ -66,38 +70,18 @@ function RenderAvatar({
   return <>{fallback}</>;
 }
 
-// ── TeamItem ──────────────────────────────────────────────────────────
+// ── TeamDetail ──────────────────────────────────────────────────────────
 
-const TeamItem = memo(function TeamItem({
-  toolName,
+/** 面板详情：实时跟随 toolCallPanelStore 数据重建（团队/搜索结果到达即刷新） */
+function TeamDetail({
   args,
   result,
-  success,
-  isPending,
-  cancelled,
-  startedAt,
-  completedAt,
-}: {
-  toolName: string;
-  args: Record<string, unknown>;
-  result?: string | Record<string, unknown>;
-  success?: boolean;
-  isPending?: boolean;
-  cancelled?: boolean;
-  startedAt?: string;
-  completedAt?: string;
-}) {
+  toolName,
+}: ToolDetailProps & { toolName?: string }) {
   const { t } = useTranslation();
-  const durationFooter = (
-    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
-  );
 
   const isSearch = toolName === "search_persona_presets";
-  const actionLabel = isSearch
-    ? t("chat.message.toolSearchPersonas")
-    : t("chat.message.toolCreateTeam");
 
-  const query = (args.query as string) || "";
   const teamName = (args.name as string) || "";
   const teamAvatar = (args.avatar as string) || "";
   const members: Array<Record<string, unknown>> =
@@ -138,25 +122,7 @@ const TeamItem = memo(function TeamItem({
     [resultTeamName],
   );
 
-  const canExpand =
-    !!query ||
-    !!teamName ||
-    personas.length > 0 ||
-    resultMembers.length > 0 ||
-    !!result;
-  const pillStatus = isPending
-    ? "loading"
-    : cancelled
-      ? "cancelled"
-      : success
-        ? "success"
-        : "error";
-
-  const labelSuffix = isSearch ? query : resultTeamName || teamName || "";
-
-  // ── Panel detail content ──
-
-  const detailContent = canExpand && (
+  return (
     <div className="p-4 sm:p-5 space-y-4 tool-panel-content">
       {/* Search: persona list */}
       {isSearch && personas.length > 0 && (
@@ -601,6 +567,104 @@ const TeamItem = memo(function TeamItem({
         )}
     </div>
   );
+}
+
+// ── TeamItem ──────────────────────────────────────────────────────────
+
+const TeamItem = memo(function TeamItem({
+  id,
+  toolName,
+  args,
+  result,
+  success,
+  isPending,
+  cancelled,
+  startedAt,
+  completedAt,
+}: {
+  id?: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+  cancelled?: boolean;
+  startedAt?: string;
+  completedAt?: string;
+}) {
+  const { t } = useTranslation();
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
+
+  const isSearch = toolName === "search_persona_presets";
+  const actionLabel = isSearch
+    ? t("chat.message.toolSearchPersonas")
+    : t("chat.message.toolCreateTeam");
+
+  const query = (args.query as string) || "";
+  const teamName = (args.name as string) || "";
+  const teamAvatar = (args.avatar as string) || "";
+  const members: Array<Record<string, unknown>> =
+    (args.members as Array<Record<string, unknown>>) || [];
+
+  const parsed = useMemo(() => {
+    const text = extractText(result);
+    if (!text) return null;
+    try {
+      const raw = JSON.parse(text);
+      if (raw?.team && typeof raw.team === "object") return raw.team;
+      return raw;
+    } catch {
+      return null;
+    }
+  }, [result]);
+
+  const personas: Array<Record<string, unknown>> = useMemo(() => {
+    if (!isSearch || !parsed) return [];
+    if (Array.isArray(parsed)) return parsed as Array<Record<string, unknown>>;
+    if (Array.isArray(parsed.items))
+      return parsed.items as Array<Record<string, unknown>>;
+    if (Array.isArray(parsed.presets))
+      return parsed.presets as Array<Record<string, unknown>>;
+    return [];
+  }, [isSearch, parsed]);
+
+  const resultTeamName = parsed?.name || teamName;
+  const resultAvatar = parsed?.avatar || teamAvatar;
+  const resultMembers: Array<Record<string, unknown>> =
+    parsed?.members || members || [];
+
+  const canExpand =
+    !!query ||
+    !!teamName ||
+    personas.length > 0 ||
+    resultMembers.length > 0 ||
+    !!result;
+  const pillStatus = isPending
+    ? "loading"
+    : cancelled
+      ? "cancelled"
+      : success
+        ? "success"
+        : "error";
+
+  const labelSuffix = isSearch ? query : resultTeamName || teamName || "";
+
+  // ── Panel detail content ──
+
+  const detailContent = canExpand && (
+    <TeamDetail
+      args={args}
+      result={result}
+      success={success}
+      isPending={isPending}
+      cancelled={cancelled}
+      startedAt={startedAt}
+      completedAt={completedAt}
+      toolName={toolName}
+    />
+  );
 
   // ── Inline (compact) view ──
 
@@ -622,7 +686,8 @@ const TeamItem = memo(function TeamItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (!canExpand) return;
-          openPersistentToolPanel({
+          openToolLivePanel({
+            id,
             title: actionLabel,
             icon: <Users size={16} />,
             status: pillStatus,
@@ -631,7 +696,10 @@ const TeamItem = memo(function TeamItem({
                 ? labelSuffix.slice(0, 77) + "…"
                 : labelSuffix
               : undefined,
-            children: detailContent,
+            fallback: detailContent || undefined,
+            buildDetail: (data) => (
+              <TeamDetail {...toolDetailPropsFromPanelData(data)} toolName={toolName} />
+            ),
             footer: durationFooter,
           });
         }}

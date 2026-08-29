@@ -1,5 +1,13 @@
+import { useState } from "react";
 import { clsx } from "clsx";
-import { CheckCircle2, Circle, Loader2, ListTodo, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronRight,
+  Circle,
+  Loader2,
+  ListTodo,
+  XCircle,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TodoItem, TodoStatus } from "../../../types";
 
@@ -36,6 +44,8 @@ const statusConfig: Record<
 
 export function TodoBlock({ items, isStreaming }: TodoBlockProps) {
   const { t } = useTranslation();
+  // 长会话翻阅时可收起整块清单（默认展开；用户手动收起后由本地 state 保持）
+  const [collapsed, setCollapsed] = useState(false);
 
   if (!items || items.length === 0) return null;
 
@@ -52,8 +62,14 @@ export function TodoBlock({ items, isStreaming }: TodoBlockProps) {
         "bg-stone-50/80 dark:bg-stone-800/40",
       )}
     >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3.5 py-2.5">
+      {/* Header（点击折叠/展开） */}
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        aria-label={t("chat.todo.toggle")}
+        onClick={() => setCollapsed((value) => !value)}
+        className="group/todo flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left"
+      >
         <ListTodo
           size={14}
           className={clsx(
@@ -91,15 +107,24 @@ export function TodoBlock({ items, isStreaming }: TodoBlockProps) {
           <span className="text-[11px] tabular-nums text-stone-400 dark:text-stone-500">
             {Math.round(progress)}%
           </span>
+          <ChevronRight
+            size={14}
+            className={clsx(
+              "shrink-0 text-stone-400 opacity-70 transition-transform duration-200 group-hover/todo:opacity-100",
+              !collapsed && "rotate-90",
+            )}
+          />
         </div>
-      </div>
+      </button>
 
       {/* Task list */}
-      <div className="space-y-0.5 border-t border-stone-200/60 dark:border-stone-700/50 px-3.5 py-2 max-h-60 overflow-y-auto">
-        {items.map((item, index) => (
-          <TodoItemRow key={index} item={item} />
-        ))}
-      </div>
+      {!collapsed && (
+        <div className="space-y-0.5 border-t border-stone-200/60 dark:border-stone-700/50 px-3.5 py-2 max-h-60 overflow-y-auto">
+          {items.map((item, index) => (
+            <TodoItemRow key={index} item={item} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
