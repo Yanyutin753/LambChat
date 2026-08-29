@@ -347,3 +347,176 @@ test("subagent tool:start upgrades the generating part inside the container", ()
   });
   expect(subagent.parts[0].argsPartial).toBeUndefined();
 });
+
+test("late text chunk merges into the text part before a generating tool", () => {
+  // 复现真实乱序：正文首段先到，参数增量插入，正文余段晚到。
+  let parts: MessagePart[] = processMessageEvent(
+    "message:chunk",
+    { content: "我先" },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+  parts = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('{"path":'),
+    parts,
+    "我先",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+
+  const healed = processMessageEvent(
+    "message:chunk",
+    { content: "确认工作区路径，然后写入文件。" },
+    parts,
+    "我先",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(healed.parts).toHaveLength(2);
+  expect(healed.parts[0]).toMatchObject({
+    type: "text",
+    content: "我先确认工作区路径，然后写入文件。",
+  });
+  expect(healed.parts[1]).toMatchObject({ type: "tool", argsPartial: true });
+  expect(healed.content).toBe("我先确认工作区路径，然后写入文件。");
+});
+
+test("late text chunk inserted before the tool even without an earlier text part", () => {
+  const parts: MessagePart[] = processMessageEvent(
+    "tool:args:chunk",
+    toolArgsChunk('{"path":'),
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+
+  const healed = processMessageEvent(
+    "message:chunk",
+    { content: "我先确认工作区路径。" },
+    parts,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(healed.parts).toHaveLength(2);
+  expect(healed.parts[0]).toMatchObject({
+    type: "text",
+    content: "我先确认工作区路径。",
+  });
+  expect(healed.parts[1]).toMatchObject({ type: "tool", argsPartial: true });
+});
+
+test("text chunk after a started tool still appends after the tool", () => {
+  const started: MessagePart[] = processMessageEvent(
+    "tool:start",
+    {
+      tool: "write_file",
+      tool_call_id: "run-1",
+      args: { content: "hello" },
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+
+  const result = processMessageEvent(
+    "message:chunk",
+    { content: "工作区为空，我将新建文件。" },
+    started,
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(result.parts).toHaveLength(2);
+  expect(result.parts[0]).toMatchObject({ type: "tool", id: "run-1" });
+  expect(result.parts[1]).toMatchObject({
+    type: "text",
+    content: "工作区为空，我将新建文件。",
+  });
+});
+
+test("late text chunk merges before a trailing run of parallel generating tools", () => {
+  // 并行工具：两个参数生成中的工具都在尾部，晚到的正文属于两者之前
+  let parts: MessagePart[] = processMessageEvent(
+    "message:chunk",
+    { content: "我先" },
+    [],
+    "",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+  parts = processMessageEvent(
+    "tool:args:chunk",
+    { tool: "grep", tool_call_id: "call_a", content: '{"q":"x"' },
+    parts,
+    "我先",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+  parts = processMessageEvent(
+    "tool:args:chunk",
+    { tool: "read_file", tool_call_id: "call_b", content: '{"file_path":"/a"' },
+    parts,
+    "我先",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  ).parts;
+
+  const healed = processMessageEvent(
+    "message:chunk",
+    { content: "搜索一下。" },
+    parts,
+    "我先",
+    [],
+    0,
+    [],
+    true,
+    "message-1",
+  );
+
+  expect(healed.parts).toHaveLength(3);
+  expect(healed.parts[0]).toMatchObject({
+    type: "text",
+    content: "我先搜索一下。",
+  });
+  expect(healed.parts[1]).toMatchObject({ type: "tool", id: "call_a" });
+  expect(healed.parts[2]).toMatchObject({ type: "tool", id: "call_b" });
+});

@@ -160,6 +160,25 @@ class FakePresenter:
             },
         }
 
+    def present_tool_args_delta(
+        self,
+        tool_name: str,
+        tool_call_id: str | None,
+        content: str,
+        depth: int = 0,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "event": "tool:args:chunk",
+            "data": {
+                "tool": tool_name,
+                "tool_call_id": tool_call_id,
+                "content": content,
+                "depth": depth,
+                "agent_id": agent_id,
+            },
+        }
+
     def present_tool_result(
         self,
         tool_name: str,
@@ -189,6 +208,29 @@ def chat_stream(content: str, chunk_id: str = "chunk-1", metadata: dict[str, Any
         "event": "on_chat_model_stream",
         "name": "chat_model",
         "data": {"chunk": SimpleNamespace(content=content, id=chunk_id)},
+        "metadata": metadata or {},
+    }
+
+
+def tool_args_stream(
+    tool_name: str,
+    args_delta: str,
+    tool_call_id: str = "call-1",
+    index: int = 0,
+    metadata: dict[str, Any] | None = None,
+):
+    return {
+        "event": "on_chat_model_stream",
+        "name": "chat_model",
+        "data": {
+            "chunk": SimpleNamespace(
+                content="",
+                id=f"chunk-args-{index}",
+                tool_call_chunks=[
+                    {"name": tool_name, "id": tool_call_id, "index": index, "args": args_delta}
+                ],
+            )
+        },
         "metadata": metadata or {},
     }
 
@@ -1082,3 +1124,59 @@ def test_text_chunk_buffer_no_time_flush_when_interval_disabled() -> None:
 
     buffer._last_flush_at = buffer._last_flush_at - 3600.0
     assert buffer.append("tail", (0, None, "k")) is False
+
+
+@pytest.mark.asyncio
+async def test_pending_text_flushes_before_tool_args_delta() -> None:
+    """工具参数增量下发前必须先 flush 缓冲中的正文。
+
+    模型真实输出顺序是「正文 → 工具调用参数」；正文 buffer 按阈值/定时
+    flush 而参数首块直发，若不先冲刷正文，前端会把同一句正文按到达顺序
+    拆到工具块两侧（句子中间插进工具卡片）。
+    """
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    # 首块正文立即下发；第二段正文不足阈值，滞留在 buffer 中。
+    await processor.process_event(chat_stream("我先", "chunk-1"))
+    await processor.process_event(chat_stream("确认工作区路径，然后写入文件。", "chunk-2"))
+
+    # 参数增量到达：滞留的正文必须先于参数事件下发。
+    await processor.process_event(tool_args_stream("list", '{"path": "/workflow"}'))
+    await processor.process_event({"event": "on_chat_model_end", "data": {"output": None}})
+
+    assert [event["event"] for event in presenter.emitted] == [
+        "message:chunk",
+        "message:chunk",
+        "tool:args:chunk",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_same_chunk_text_precedes_tool_args_delta() -> None:
+    """正文与参数增量同 chunk 到达（非流式响应走流式管道）时，正文先行。"""
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(
+        {
+            "event": "on_chat_model_stream",
+            "name": "chat_model",
+            "data": {
+                "chunk": SimpleNamespace(
+                    content="我先确认工作区路径，然后写入文件。",
+                    id="chunk-mixed",
+                    tool_call_chunks=[
+                        {"name": "list", "id": "call-1", "index": 0, "args": '{"path":'}
+                    ],
+                )
+            },
+            "metadata": {},
+        }
+    )
+    await processor.process_event({"event": "on_chat_model_end", "data": {"output": None}})
+
+    assert [event["event"] for event in presenter.emitted] == [
+        "message:chunk",
+        "tool:args:chunk",
+    ]

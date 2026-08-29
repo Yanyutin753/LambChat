@@ -26,6 +26,7 @@ import type { EventData, SubagentStackItem } from "./types";
 import {
   addPartToDepth,
   appendToolArgsDelta,
+  appendTopLevelTextChunk,
   createSubagentPart,
   createThinkingPart,
   createToolPart,
@@ -215,17 +216,7 @@ export function processMessageEvent(
           messageId,
         );
       } else {
-        const newParts = [...parts];
-        const lastPart = newParts[newParts.length - 1];
-        if (lastPart?.type === "text" && !lastPart.depth) {
-          newParts[newParts.length - 1] = {
-            ...lastPart,
-            content: lastPart.content + chunkContent,
-          };
-        } else {
-          newParts.push({ type: "text" as const, content: chunkContent });
-        }
-        result.parts = newParts;
+        result.parts = appendTopLevelTextChunk(parts, chunkContent);
         result.content = content + chunkContent;
       }
       break;

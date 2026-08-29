@@ -135,6 +135,11 @@ class StreamEventMixin:
         agent_id: str | None,
     ) -> None:
         """Stream LLM tool-call argument deltas as tool:args:chunk events."""
+        # 参数增量意味着其前的思考/正文已生成完毕（模型输出恒为
+        # 思考/正文 → 工具参数）。参数 buffer 首块直发而正文按阈值/定时
+        # flush，不先冲刷会把同一句正文拆到工具事件两侧。
+        await self._flush_thinking_chunk_buffer()
+        await self._flush_chunk_buffer()
         for tc in tool_call_chunks:
             if not isinstance(tc, dict):
                 continue
@@ -387,12 +392,10 @@ class StreamEventMixin:
         if not chunk:
             return
 
-        # 参数增量与文本可以同 chunk（非流式响应走流式管道时合并产出），
-        # 两类缓冲互不干扰，处理完参数增量后继续走文本分支。
-        tool_call_chunks = getattr(chunk, "tool_call_chunks", None)
-        if isinstance(tool_call_chunks, list) and tool_call_chunks:
-            await self._handle_tool_args_chunks(tool_call_chunks, current_depth, current_agent_id)
-
+        # 参数增量与文本可以同 chunk（非流式响应走流式管道时合并产出）。
+        # 模型输出顺序恒为「思考/正文 → 工具参数」，所以先走内容分支把
+        # 文本压入 buffer，再处理参数增量（其下发前会先冲刷内容缓冲），
+        # 保证前端按到达顺序重建时正文不被工具块从中间劈开。
         content = chunk.content
         chunk_id = chunk.id
 
@@ -409,9 +412,7 @@ class StreamEventMixin:
             if ready_flushes:
                 for ready in ready_flushes:
                     await self._emit_text_flush(*ready)
-            return
-
-        if isinstance(content, str) and not content:
+        elif isinstance(content, str):
             rc = getattr(chunk, "additional_kwargs", {}).get("reasoning_content")
             if rc:
                 ready_flushes = self._buffer_thinking_chunk(
@@ -423,9 +424,7 @@ class StreamEventMixin:
                 if ready_flushes:
                     for ready in ready_flushes:
                         await self._emit_thinking_flush(*ready)
-            return
-
-        if isinstance(content, list):
+        elif isinstance(content, list):
             for block in content:
                 if not isinstance(block, dict):
                     continue
@@ -458,3 +457,7 @@ class StreamEventMixin:
                         if ready_flushes:
                             for ready in ready_flushes:
                                 await self._emit_text_flush(*ready)
+
+        tool_call_chunks = getattr(chunk, "tool_call_chunks", None)
+        if isinstance(tool_call_chunks, list) and tool_call_chunks:
+            await self._handle_tool_args_chunks(tool_call_chunks, current_depth, current_agent_id)

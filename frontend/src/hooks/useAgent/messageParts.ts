@@ -288,6 +288,53 @@ function mergeTextPart(
 }
 
 /**
+ * 追加一段顶层正文（depth 0 的 message:chunk）。
+ *
+ * 流式下后端按阈值/定时 flush 正文，而工具参数首块直发，导致「先于工具
+ * 调用生成的正文」可能在 tool:args:chunk 之后到达。模型输出顺序恒为
+ * 「正文 → 工具参数」，仍在参数生成中（argsPartial，tool:start 之前）的
+ * 工具不可能先于其前面的正文：把晚到的正文插回这些生成中工具之前并与
+ * 相邻正文段合并，避免同一句被工具卡从中间劈开。
+ */
+export function appendTopLevelTextChunk(
+  parts: MessagePart[],
+  content: string,
+): MessagePart[] {
+  const lastPart = parts[parts.length - 1];
+  if (lastPart?.type === "text" && !lastPart.depth) {
+    const newParts = [...parts];
+    newParts[newParts.length - 1] = {
+      ...lastPart,
+      content: lastPart.content + content,
+    };
+    return newParts;
+  }
+
+  let anchor = parts.length;
+  while (anchor > 0) {
+    const part = parts[anchor - 1];
+    if (part.type === "tool" && (part as ToolPart).argsPartial) {
+      anchor--;
+      continue;
+    }
+    break;
+  }
+
+  const before = parts[anchor - 1];
+  if (before?.type === "text" && !before.depth) {
+    const newParts = [...parts];
+    newParts[anchor - 1] = {
+      ...before,
+      content: before.content + content,
+    };
+    return newParts;
+  }
+
+  const textPart: MessagePart = { type: "text", content };
+  return [...parts.slice(0, anchor), textPart, ...parts.slice(anchor)];
+}
+
+/**
  * Merge a summary chunk into an existing parts array.
  * Returns a new array with content concatenated, or null if no match found.
  */
