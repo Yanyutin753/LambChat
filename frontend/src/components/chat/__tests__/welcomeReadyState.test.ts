@@ -56,6 +56,32 @@ test("waits for persona presets only in persona mode", () => {
   ).toBe(true);
 });
 
+test("background persona refetch after initial load keeps content ready", () => {
+  // issue #158：搜索/换页触发的重新加载不应把欢迎页（含聊天输入与角色广场
+  // 弹窗）整体回退成骨架屏——首次加载完成后，后台刷新保持内容就绪。
+  expect(
+    isWelcomeContentReady({
+      settingsLoading: false,
+      currentAgent: "assistant",
+      personaPresetsLoading: true,
+      personaPresetsLoaded: true,
+      teamRequestSettled: false,
+    }),
+  ).toBe(true);
+});
+
+test("initial persona load without a settled first fetch still shows skeleton", () => {
+  expect(
+    isWelcomeContentReady({
+      settingsLoading: false,
+      currentAgent: "assistant",
+      personaPresetsLoading: true,
+      personaPresetsLoaded: false,
+      teamRequestSettled: false,
+    }),
+  ).toBe(false);
+});
+
 test("waits for the active team request and settles on success or failure", () => {
   expect(
     isWelcomeContentReady({

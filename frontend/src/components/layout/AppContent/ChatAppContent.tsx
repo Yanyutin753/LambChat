@@ -97,7 +97,9 @@ export function ChatAppContent({
   const [personaPresetPage, setPersonaPresetPage] = useState(1);
   const [personaPresetQuery, setPersonaPresetQuery] = useState("");
   const [personaPresetTag, setPersonaPresetTag] = useState<string | null>(null);
-  const personaPresetPageSize = 12;
+  // 与 PersonaPresetSelector 的 PAGE_SIZE 保持一致：弹窗页码窗口与取数窗口
+  // 错位会漏行并让页码标注失真（issue #158）
+  const personaPresetPageSize = 20;
   const personaPresetListParams = useMemo(
     () => ({
       skip: (personaPresetPage - 1) * personaPresetPageSize,
@@ -113,6 +115,7 @@ export function ChatAppContent({
     isLoading: personaPresetsLoading,
     isLoadingMore: personaPresetsLoadingMore,
     isMutating: personaPresetsMutating,
+    hasLoaded: personaPresetsLoaded,
     usePreset: activatePersonaPreset,
     updatePreference: updatePersonaPreference,
     copyPreset: copyPersonaPreset,
@@ -828,6 +831,7 @@ export function ChatAppContent({
           enableSkills={enableSkills}
           personaPresets={personaPresets}
           personaPresetsTotal={personaPresetsTotal}
+          personaPresetsLoaded={personaPresetsLoaded}
           hasMorePersonaPresets={hasMorePersonaPresets}
           isLoadingMorePersonaPresets={personaPresetsLoadingMore}
           onLoadMorePersonaPresets={handleLoadMorePersonaPresets}

@@ -24,6 +24,7 @@ from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.session.dual_writer_helpers import (
     MongoBufferItem,
+    _buffer_item_attempts,
     _buffer_item_base,
     _buffer_item_reserved_start_seq,
     _buffer_item_skip_chunk,  # noqa: F401 - compatibility re-export
@@ -33,6 +34,7 @@ from src.infra.session.dual_writer_helpers import (
     _group_mongo_buffer_events,  # noqa: F401 - compatibility re-export
     _iter_chunk_write_groups,
     _operation_trace_id,  # noqa: F401 - compatibility re-export
+    _sanitize_event_data_for_mongo,
     _with_chunk_retry_metadata,
 )
 from src.infra.session.trace_storage import (
@@ -53,6 +55,9 @@ _MONGO_BATCH_SIZE = 200  # 每 200 条立即刷新
 _MONGO_BUFFER_MAX = 10000  # buffer 上限，防止 MongoDB 慢/宕机时 OOM
 _TTL_SET_KEYS_MAX = 5000  # _ttl_set_keys 上限，防止内存泄漏
 _LIVE_STREAM_READ_TIMEOUT_SECONDS = 24 * 60 * 60
+# 单组 chunk 事件的最大重试次数：超过后判定为不可写事件（如含非法字段名），
+# 丢弃并告警，避免毒事件永久阻塞 flush 循环
+_CHUNK_WRITE_MAX_ATTEMPTS = 50
 _SSE_HEARTBEAT_INTERVAL_SECONDS = 15
 _REDIS_XREAD_BLOCK_MS = 5000
 _REDIS_REPLAY_BATCH_SIZE = 500
@@ -199,6 +204,9 @@ class DualEventWriter:
         """
         # 统一时间戳，确保 Redis 和 MongoDB 使用相同的时间
         timestamp = utc_now()
+        # 外部工具输出可能携带 MongoDB pipeline 写不进去的字段名（含 '.'、
+        # '$' 前缀、空键），先归一化避免事件永远写不进 traces/chunks
+        data = _sanitize_event_data_for_mongo(data)
 
         # ---- Redis 写入（立即，无锁） ----
         stream_key = self._stream_key(session_id, run_id)
@@ -406,17 +414,31 @@ class DualEventWriter:
                         raise RuntimeError("trace_chunk_write_fenced")
                 except Exception as e:
                     if start_seq is not None:
-                        failed_chunk_items.extend(
-                            _with_chunk_retry_metadata(
-                                item,
-                                # Keep the group base seq for every item so the
-                                # retry re-forms one group instead of one group
-                                # per event.
-                                reserved_start_seq=start_seq,
-                                skip_legacy=dual_write_legacy or _buffer_item_skip_legacy(item),
+                        attempts = max(_buffer_item_attempts(item) for item in items)
+                        if attempts >= _CHUNK_WRITE_MAX_ATTEMPTS:
+                            logger.error(
+                                "Dropping %s unwritable events for trace %s "
+                                "(seq %s..%s, event_type=%s, attempts=%s): %s",
+                                len(events),
+                                trace_id,
+                                start_seq,
+                                (start_seq or 0) + len(events) - 1,
+                                events[0].get("event_type"),
+                                attempts,
+                                e,
                             )
-                            for item in items
-                        )
+                        else:
+                            failed_chunk_items.extend(
+                                _with_chunk_retry_metadata(
+                                    item,
+                                    # Keep the group base seq for every item so the
+                                    # retry re-forms one group instead of one group
+                                    # per event.
+                                    reserved_start_seq=start_seq,
+                                    skip_legacy=dual_write_legacy or _buffer_item_skip_legacy(item),
+                                )
+                                for item in items
+                            )
                     else:
                         failed_chunk_items.extend(items)
                     logger.error(

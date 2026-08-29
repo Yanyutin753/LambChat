@@ -10,7 +10,6 @@ import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
 from src.agents.core import resolve_agent_name
-from src.infra.llm.streaming import aiter_with_idle_timeout
 from src.infra.logging import get_logger
 from src.infra.session.dual_writer import get_dual_writer
 from src.infra.session.favorites import is_session_favorite
@@ -21,11 +20,22 @@ from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
 from .exceptions import TaskInterruptedError
 from .heartbeat import TaskHeartbeat
+from .stall_watchdog import aiter_with_stall_timeout
 from .state_machine import TaskStateMachine
 from .status import TaskStatus
 
 logger = get_logger(__name__)
 _TERMINAL_STREAM_TTL_SECONDS = 60
+_DEFAULT_RUN_STALL_TIMEOUT_SECONDS = 3600
+
+
+def _run_stall_timeout_seconds() -> float:
+    """Watchdog deadline between executor events; 0/negative disables it."""
+    value = getattr(settings, "TASK_RUN_STALL_TIMEOUT", _DEFAULT_RUN_STALL_TIMEOUT_SECONDS)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return _DEFAULT_RUN_STALL_TIMEOUT_SECONDS
 
 
 def should_schedule_recommend_questions() -> bool:
@@ -192,11 +202,8 @@ class TaskExecutor:
             # 2. 清除可能导致与 SSE 连接的竞争条件
             # 3. Redis Stream 有 TTL 自动过期
 
-            # 执行 agent，统一保存所有事件；事件流空闲看门狗兜底（issue #293）：
-            # 上游无论卡在 LLM 首包还是 graph 内任何无超时 await，超过
-            # TASK_EVENT_IDLE_TIMEOUT 都会转成 error 终态，避免 trace 永久 running。
-            event_idle_timeout = settings.TASK_EVENT_IDLE_TIMEOUT
-            async for event in aiter_with_idle_timeout(
+            # 执行 agent，统一保存所有事件；watchdog 保证事件流停滞时迁移 error 终态
+            async for event in aiter_with_stall_timeout(
                 executor(
                     session_id,
                     agent_id,
@@ -216,7 +223,7 @@ class TaskExecutor:
                     auto_mode=auto_mode,
                     hitl_resume=hitl_resume,
                 ),
-                timeout=event_idle_timeout if event_idle_timeout > 0 else None,
+                timeout=_run_stall_timeout_seconds(),
             ):
                 await presenter.save_event(event)
 

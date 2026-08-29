@@ -2,6 +2,8 @@ export interface WelcomeReadinessState {
   settingsLoading: boolean;
   currentAgent?: string;
   personaPresetsLoading: boolean;
+  /** 首次列表请求是否已落地；后台刷新（搜索/换页）不应回退骨架屏（issue #158） */
+  personaPresetsLoaded?: boolean;
   teamRequestSettled: boolean;
 }
 
@@ -9,12 +11,14 @@ export function isWelcomeContentReady({
   settingsLoading,
   currentAgent,
   personaPresetsLoading,
+  personaPresetsLoaded = false,
   teamRequestSettled,
 }: WelcomeReadinessState) {
+  const personaReady = !personaPresetsLoading || personaPresetsLoaded;
   return (
     !settingsLoading &&
     !!currentAgent &&
-    (currentAgent === "team" ? teamRequestSettled : !personaPresetsLoading)
+    (currentAgent === "team" ? teamRequestSettled : personaReady)
   );
 }
 

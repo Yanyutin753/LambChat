@@ -35,34 +35,3 @@ async def aiter_with_first_event_timeout(
         close = getattr(iterator, "aclose", None)
         if close is not None:
             await close()
-
-
-async def aiter_with_idle_timeout(
-    source: AsyncIterable[T],
-    *,
-    timeout: float | None,
-) -> AsyncIterator[T]:
-    """Require progress between events by a per-gap deadline (run-level watchdog).
-
-    Unlike ``aiter_with_first_event_timeout`` every wait for the next event is
-    bounded, so a stream that stalls anywhere — not only before its first
-    chunk — raises ``TimeoutError`` and the source stream gets closed.
-    """
-    iterator = source.__aiter__()
-    try:
-        while True:
-            try:
-                if timeout is None or timeout <= 0:
-                    item = await anext(iterator)
-                else:
-                    async with asyncio.timeout(timeout):
-                        item = await anext(iterator)
-            except StopAsyncIteration:
-                return
-            except TimeoutError as exc:
-                raise TimeoutError(f"stream stalled: no event for {timeout}s") from exc
-            yield item
-    finally:
-        close = getattr(iterator, "aclose", None)
-        if close is not None:
-            await close()
