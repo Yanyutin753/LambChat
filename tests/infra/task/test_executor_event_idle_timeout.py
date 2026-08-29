@@ -49,8 +49,17 @@ def _executor(monkeypatch: pytest.MonkeyPatch) -> TaskExecutor:
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
 
     class _Writer:
+        def __init__(self) -> None:
+            self.written_events: list[str] = []
+
+        async def _flush_redis_buffer(self, **_kwargs) -> None:
+            return None
+
         async def flush_mongo_buffer(self, **_kwargs) -> None:
             return None
+
+        async def write_event(self, *, event_type: str, **_kwargs) -> None:
+            self.written_events.append(event_type)
 
     monkeypatch.setattr("src.infra.task.executor.get_dual_writer", _Writer)
 
