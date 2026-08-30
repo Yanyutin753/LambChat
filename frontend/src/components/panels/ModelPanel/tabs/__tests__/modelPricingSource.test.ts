@@ -69,3 +69,13 @@ test("pricing form labels are available in every locale", () => {
     }
   }
 });
+
+test("api format selector is hidden for native anthropic/google protocols", () => {
+  const source = readFileSync(
+    resolve(currentDir, "../ModelFormModal.tsx"),
+    "utf8",
+  );
+
+  expect(source).toMatch(/showsApiFormat\(modelProtocol\) && \(/);
+  expect(source).toMatch(/resolveModelProtocol\(\{/);
+});
