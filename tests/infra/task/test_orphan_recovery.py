@@ -63,7 +63,7 @@ async def test_scheduled_recovery_runs_running_only(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.asyncio
-async def test_running_only_cleanup_scans_running_but_not_pending_or_failed(
+async def test_running_only_cleanup_scans_running_and_failed_recoverable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _FakeStorage()
@@ -100,8 +100,18 @@ async def test_running_only_cleanup_scans_running_but_not_pending_or_failed(
 
     await service.cleanup_stale_tasks(running_only=True)
 
-    assert len(storage.collection.queries) == 1
-    assert storage.collection.queries[0] == {"metadata.task_status": "running"}
+    # 周期扫描接管 RUNNING（心跳过期）与 FAILED+recoverable（优雅关停标记），
+    # 但不重放 PENDING/QUEUED
+    assert {"metadata.task_status": "running"} in storage.collection.queries
+    assert {
+        "metadata.task_status": "failed",
+        "metadata.task_recoverable": True,
+        "metadata.task_error_code": "server_restart",
+    } in storage.collection.queries
+    assert not any(
+        isinstance(q.get("metadata.task_status"), dict) and "$in" in q["metadata.task_status"]
+        for q in storage.collection.queries
+    )
 
 
 def test_recovery_interval_reads_settings(monkeypatch: pytest.MonkeyPatch) -> None:

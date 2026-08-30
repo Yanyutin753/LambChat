@@ -18,7 +18,7 @@ from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
-DEFAULT_ORPHAN_RECOVERY_INTERVAL_SECONDS = 120
+DEFAULT_ORPHAN_RECOVERY_INTERVAL_SECONDS = 15
 
 
 def recovery_interval_seconds() -> int:

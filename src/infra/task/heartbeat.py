@@ -7,12 +7,18 @@ Manages task heartbeat for detecting stale/failed tasks in distributed scenarios
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timezone
 
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
 from src.infra.utils.datetime import utc_now_iso
 
-from .constants import HEARTBEAT_INTERVAL, HEARTBEAT_PREFIX, HEARTBEAT_TIMEOUT
+from .constants import (
+    HEARTBEAT_INTERVAL,
+    HEARTBEAT_PREFIX,
+    HEARTBEAT_STALE_THRESHOLD_SECONDS,
+    HEARTBEAT_TIMEOUT,
+)
 from .startup_cleanup import _gather_limited
 
 logger = get_logger(__name__)
@@ -95,6 +101,33 @@ class TaskHeartbeat:
             stop_factories.append(_stop_current)
 
         await _gather_limited(stop_factories)
+
+    async def is_stale(self, run_id: str, max_age_seconds: int | None = None) -> bool:
+        """按时间戳判断心跳是否过期。
+
+        与 check_exists（等 Redis key 120s TTL 自然消失）相比，按「距最后一次
+        心跳的时长」判定可以把实例死亡后的接管检测从 ~2 分钟缩到 ~30 秒。
+        值缺失 → 过期；解析失败 → 按存活处理（避免误接管活任务）。
+        """
+        threshold = (
+            max_age_seconds
+            if max_age_seconds is not None
+            else HEARTBEAT_STALE_THRESHOLD_SECONDS
+        )
+        try:
+            value = await get_redis_client().get(f"{HEARTBEAT_PREFIX}{run_id}")
+        except Exception as e:
+            logger.warning(f"Heartbeat read failed for run_id={run_id}: {e}")
+            return False  # Redis 不可用时按存活处理，避免误接管
+        if value is None:
+            return True
+        try:
+            last_beat = datetime.fromisoformat(str(value))
+        except ValueError:
+            return False
+        if last_beat.tzinfo is None:
+            last_beat = last_beat.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - last_beat).total_seconds() > threshold
 
     async def check_exists(self, run_id: str) -> bool:
         """
