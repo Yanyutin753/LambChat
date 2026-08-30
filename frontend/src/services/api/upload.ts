@@ -12,6 +12,8 @@ import {
   refreshAccessToken,
 } from "./tokenManager";
 import { getRefreshToken } from "./token";
+import i18n from "i18next";
+import { parseErrorDetail, translateApiError } from "../../utils/backendErrors";
 
 interface SignedUrlItem {
   key: string;
@@ -106,9 +108,18 @@ export const uploadApi = {
 
           try {
             const errorData = JSON.parse(xhr.responseText);
-            reject(
-              new Error(errorData.detail || `Upload failed: ${xhr.statusText}`),
-            );
+            const { code, message, args } = parseErrorDetail(errorData);
+            const error = new Error(
+              translateApiError(
+                code,
+                message || `Upload failed: ${xhr.statusText}`,
+                args,
+                i18n.t.bind(i18n),
+              ),
+            ) as Error & { status?: number; code?: string };
+            error.status = xhr.status;
+            error.code = code;
+            reject(error);
           } catch {
             reject(new Error(`Upload failed: ${xhr.statusText}`));
           }
