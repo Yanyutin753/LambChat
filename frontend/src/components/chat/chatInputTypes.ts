@@ -21,7 +21,10 @@ export interface ChatInputProps {
     message: string,
     options?: Record<string, boolean | string | number>,
     attachments?: MessageAttachment[],
-    runOptions?: { enabledSkills?: string[] },
+    runOptions?: {
+      enabledSkills?: string[];
+      runModes?: Array<"auto" | "goal">;
+    },
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => void;
   onStop: () => void;

@@ -58,5 +58,6 @@ export interface ComposerProjection {
   message: string;
   activeReferenceIds: string[];
   enabledSkills: string[];
+  runModes: RunModeKey[];
   isEmpty: boolean;
 }

@@ -34,7 +34,7 @@ import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
-import { buildRunModesOptions } from "./chatInputRunModes";
+import { buildRunModesOptions, collectActiveRunModes } from "./chatInputRunModes";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
@@ -641,6 +641,7 @@ export const ChatInput = memo(function ChatInput({
     enabled: canSubmit,
     input,
     enabledSkillNames: runEnabledSkillNames,
+    runModes: collectActiveRunModes(autoModeEnabled, goalModeEnabled),
     composerRef,
     inputValueRef,
     longTextResourcesRef,

@@ -65,6 +65,7 @@ test("projects text, file references, and unique skills in document order", () =
     message: "请总结 [引用文件：notes.txt] 并使用",
     activeReferenceIds: ["ref-1"],
     enabledSkills: ["writer"],
+    runModes: [],
     isEmpty: false,
   });
 });
@@ -130,6 +131,39 @@ test("treats a document containing only a skill as non-empty", () => {
     message: "",
     activeReferenceIds: [],
     enabledSkills: ["writer"],
+    runModes: [],
+    isEmpty: false,
+  });
+});
+
+test("collects run-mode chips in canonical order without contributing text", () => {
+  const snapshot = {
+    version: 1,
+    editorState: {
+      root: {
+        type: "root",
+        version: 1,
+        children: [
+          {
+            type: "paragraph",
+            version: 1,
+            children: [
+              { type: "run-mode-reference", version: 1, modeKey: "goal" },
+              { type: "text", version: 1, text: "ok" },
+              { type: "run-mode-reference", version: 1, modeKey: "auto" },
+              { type: "run-mode-reference", version: 1, modeKey: "goal" },
+            ],
+          },
+        ],
+      },
+    },
+  } satisfies ComposerSnapshot;
+
+  expect(projectComposerSnapshot(snapshot)).toEqual({
+    message: "ok",
+    activeReferenceIds: [],
+    enabledSkills: [],
+    runModes: ["auto", "goal"],
     isEmpty: false,
   });
 });

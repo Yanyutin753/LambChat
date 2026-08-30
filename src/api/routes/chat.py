@@ -37,6 +37,7 @@ from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
 from src.infra.upload.file_record import AttachmentClaimError, FileRecordStorage
 from src.infra.writer.presenter_config import _extract_attachment_keys
+from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.agent import AgentRequest, AttachmentSchema
@@ -583,6 +584,7 @@ async def chat_stream(
                 enabled_skills=request.enabled_skills,
                 attachment_references_claimed=attachment_references_claimed,
                 schedule_search_index=settings.TASK_BACKEND != "arq",
+                run_modes=derive_user_message_run_modes(request.auto_mode, request.goal),
             )
             user_message_persisted = True
             if not await limiter.mark_queued_run_ready(user.sub, run_id):

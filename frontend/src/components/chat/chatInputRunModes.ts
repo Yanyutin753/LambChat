@@ -1,4 +1,7 @@
-import type { RunModesOptions } from "./richComposer/composerTypes";
+import type {
+  RunModeKey,
+  RunModesOptions,
+} from "./richComposer/composerTypes";
 
 type ToggleHandler = (enabled: boolean) => void;
 
@@ -17,4 +20,18 @@ export function buildRunModesOptions(
       else onToggleGoalMode?.(enabled);
     },
   };
+}
+
+/**
+ * Run modes active at send time, derived from the authoritative toggle
+ * booleans (the composer chips reconcile from / toggle these same values).
+ */
+export function collectActiveRunModes(
+  autoEnabled: boolean,
+  goalEnabled: boolean,
+): RunModeKey[] {
+  const modes: RunModeKey[] = [];
+  if (autoEnabled) modes.push("auto");
+  if (goalEnabled) modes.push("goal");
+  return modes;
 }

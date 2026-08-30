@@ -1461,3 +1461,25 @@ test("normalizeEventRunIds treats empty-string run_id as missing", () => {
   expect(normalized[2]?.run_id).toBe("run-a");
   expect(normalized[3]?.run_id).toBe("run-b");
 });
+
+test("restores run modes on user messages from history events", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-08-30T00:00:00.000Z",
+        data: {
+          content: "ok",
+          message_id: "run-1:user",
+          run_modes: ["auto", "goal"],
+        },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  expect(messages.length).toBe(1);
+  expect(messages[0]?.runModes).toEqual(["auto", "goal"]);
+});

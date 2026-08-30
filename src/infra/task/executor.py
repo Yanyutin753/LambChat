@@ -15,6 +15,7 @@ from src.infra.session.dual_writer import get_dual_writer
 from src.infra.session.favorites import is_session_favorite
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import utc_now_iso
+from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
@@ -163,6 +164,9 @@ class TaskExecutor:
                     attachments=attachments,
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
+                    run_modes=derive_user_message_run_modes(
+                        auto_mode, active_goal
+                    ),
                 )
 
             # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag

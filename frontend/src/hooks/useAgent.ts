@@ -461,7 +461,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       content: string,
       agentOptions?: Record<string, boolean | string | number>,
       attachments?: MessageAttachment[],
-      runOptions?: { enabledSkills?: string[] },
+      runOptions?: {
+        enabledSkills?: string[];
+        runModes?: Array<"auto" | "goal">;
+      },
       submissionCallbacks?: ChatSubmissionCallbacks,
     ) => {
       if (!content.trim()) {
@@ -514,6 +517,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           content,
           attachments,
           enabledSkills: runOptions?.enabledSkills,
+          runModes: runOptions?.runModes,
         });
 
       setMessages(optimisticMessages);
@@ -562,6 +566,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             enabledSkills,
             requestTeamId,
             goalForRun,
+            runOptions?.runModes?.includes("auto") || undefined,
           ) as Promise<{
             session_id: string;
             run_id: string;

@@ -632,6 +632,7 @@ export const ChatMessage = memo(function ChatMessage({
           attachments={message.attachments}
           isLastMessage={isLastMessage}
           enabledSkills={message.enabledSkills}
+          runModes={message.runModes}
           queued={message.metadata?.queued === true}
           deferred={message.metadata?.deferred === true}
           failed={message.metadata?.steerStatus === "failed"}
