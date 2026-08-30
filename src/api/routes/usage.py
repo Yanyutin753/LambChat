@@ -80,7 +80,9 @@ async def list_usage_logs(
 
 @router.get("/stats", response_model=UsageStats)
 async def get_usage_stats(
-    user_id: Optional[str] = Query(None, description="按用户ID过滤（仅管理员）"),
+    user_id: Optional[str] = Query(
+        None, description="按用户ID过滤（仅管理员，缺省查自己）"
+    ),
     period: Optional[str] = Query("all", description="周期: today, week, month, all"),
     start_date: Optional[str] = Query(
         None, description="起始时间（ISO，含时区），优先于 period 推导"
@@ -88,12 +90,12 @@ async def get_usage_stats(
     user: TokenPayload = Depends(get_current_user_required),
 ) -> UsageStats:
     """
-    获取聚合用量统计。
+    获取聚合用量统计（默认请求者本人；管理员可显式指定 user_id 查他人）。
     """
     storage = get_usage_storage()
 
     effective_user_id: Optional[str] = user.sub
-    if _is_admin(user):
+    if _is_admin(user) and user_id:
         effective_user_id = user_id
 
     start = start_date or _compute_start_date(period or "all")

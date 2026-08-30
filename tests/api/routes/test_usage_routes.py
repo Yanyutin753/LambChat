@@ -313,3 +313,24 @@ async def test_get_usage_dashboard_allows_admin_global_search(monkeypatch) -> No
     assert storage.calls[-1]["user_id"] is None
     assert storage.calls[-1]["search"] == "Ada"
     assert storage.calls[-1]["start_date"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_usage_stats_defaults_admin_to_own_usage(monkeypatch) -> None:
+    """管理员不传 user_id 时也应查自己的用量（输入框当日个人用量 chip 依赖此语义）。"""
+    storage = _FakeUsageStorage()
+    monkeypatch.setattr(usage_routes, "get_usage_storage", lambda: storage)
+    user = TokenPayload(
+        sub="admin-1",
+        username="Admin",
+        permissions=["usage:read", "usage:admin"],
+    )
+
+    await usage_routes.get_usage_stats(
+        user_id=None,
+        period="today",
+        start_date="2026-06-14T00:00:00+08:00",
+        user=user,
+    )
+
+    assert storage.calls[0]["user_id"] == "admin-1"
