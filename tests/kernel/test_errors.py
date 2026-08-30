@@ -54,3 +54,58 @@ def test_legacy_machine_codes_absorbed():
     }
     codes = {member.code for member in ErrorCode}
     assert legacy <= codes
+
+
+# ---------- kernel 异常类改造 ----------
+
+def test_retrofit_not_found_default_code():
+    from src.kernel.exceptions import NotFoundError
+
+    err = NotFoundError("whatever message")
+    assert err.error_code.code == "not_found"
+    assert err.http_status == 404
+    assert err.message == "whatever message"
+    assert isinstance(err, AppError)
+
+
+def test_retrofit_not_found_explicit_code():
+    from src.kernel.exceptions import NotFoundError
+
+    err = NotFoundError(ErrorCode.MESSAGE_NOT_FOUND)
+    assert err.error_code is ErrorCode.MESSAGE_NOT_FOUND
+    assert err.args_data == {}
+
+
+def test_retrofit_session_error_with_code_and_message():
+    from src.kernel.exceptions import SessionError
+
+    err = SessionError(ErrorCode.SESSION_DELETE_IN_PROGRESS)
+    assert err.http_status == 409
+    assert err.error_code.code == "session_delete_in_progress"
+
+
+def test_retrofit_validation_error_defaults():
+    from src.kernel.exceptions import ValidationError
+
+    err = ValidationError("bad input")
+    assert err.error_code.code == "validation_error"
+    assert err.http_status == 422
+
+
+def test_retrofit_email_not_verified_keeps_email():
+    from src.kernel.exceptions import EmailNotVerifiedError
+
+    err = EmailNotVerifiedError("verify first", "a@b.c")
+    assert err.email == "a@b.c"
+    assert err.error_code.code == "email_not_verified"
+    assert err.http_status == 403
+
+
+def test_retrofit_account_not_active():
+    from src.kernel.exceptions import AccountNotActiveError
+
+    err = AccountNotActiveError("inactive", "a@b.c")
+    assert err.email == "a@b.c"
+    assert err.error_code.code == "account_not_active"
+    assert err.http_status == 403
+
