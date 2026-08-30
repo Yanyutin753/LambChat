@@ -565,6 +565,7 @@ export const ChatMessage = memo(function ChatMessage({
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
   const [copied, setCopied] = useState(false);
+  const [isForking, setIsForking] = useState(false);
   const modelDetails = resolveTokenUsageModelDetails({
     modelId: message.tokenUsage?.model_id,
     model: message.tokenUsage?.model,
@@ -784,40 +785,41 @@ export const ChatMessage = memo(function ChatMessage({
             </button>
             {sessionId && onForkMessage && (
               <button
-                onClick={() => void onForkMessage(message.id)}
+                onClick={async () => {
+                  if (isForking) return;
+                  setIsForking(true);
+                  try {
+                    await onForkMessage(message.id);
+                  } finally {
+                    setIsForking(false);
+                  }
+                }}
+                disabled={isForking}
                 className={clsx(
                   "p-1.5 rounded-md transition-colors",
                   "hover:bg-stone-200 dark:hover:bg-stone-700",
                   "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
+                  isForking && "opacity-60 cursor-wait",
                 )}
                 title={t("chat.message.fork")}
               >
-                <GitBranch size={16} />
+                {isForking ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <GitBranch size={16} />
+                )}
               </button>
             )}
             {/* Token usage statistics button */}
             {(message.tokenUsage || message.duration) && (
-              <>
-                {hasPricedCost(message.tokenUsage) && (
-                  <span
-                    className="px-1.5 py-0.5 rounded-md text-[11px] leading-none tabular-nums text-stone-400 dark:text-stone-500"
-                    title={t("chat.message.costTotal")}
-                  >
-                    {formatCostUsd(message.tokenUsage?.cost_usd ?? 0, {
-                      language: i18n.language,
-                      rates: fxRates,
-                    })}
-                  </span>
-                )}
-                <TokenDetailsButton
-                  tokenUsage={message.tokenUsage}
-                  duration={message.duration}
-                  timestamp={message.timestamp}
-                  modelDetails={modelDetails}
-                  fxRates={fxRates}
-                  language={i18n.language}
-                />
-              </>
+              <TokenDetailsButton
+                tokenUsage={message.tokenUsage}
+                duration={message.duration}
+                timestamp={message.timestamp}
+                modelDetails={modelDetails}
+                fxRates={fxRates}
+                language={i18n.language}
+              />
             )}
             {showFeedbackAndShareActions && (
               <>

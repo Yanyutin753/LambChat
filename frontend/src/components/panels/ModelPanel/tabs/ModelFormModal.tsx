@@ -26,6 +26,11 @@ import type {
 } from "../../../../services/api/model";
 import { ModelIconSelect } from "./ModelIconSelect";
 import {
+  resolveModelProtocol,
+  showsApiFormat,
+  type ProviderInfo,
+} from "./modelProtocol";
+import {
   formatRequestHeaders,
   parseRequestHeadersInput,
 } from "./requestHeadersInput";
@@ -96,6 +101,26 @@ export const ModelFormModal = ({
   const [priceLookup, setPriceLookup] = useState<PricingLookupResponse | null>(
     null,
   );
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+
+  // 供应商协议信息：决定「API 格式」是否显示（仅 OpenAI 协议有意义）
+  useEffect(() => {
+    let alive = true;
+    modelApi
+      .listProviders()
+      .then((list) => {
+        if (alive) setProviders(list);
+      })
+      .catch(() => null);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const modelProtocol = resolveModelProtocol({
+    value: formValue,
+    provider: formProvider,
+    providers,
+  });
 
   // 按模型标识查询 models.dev 匹配价格（防抖）
   useEffect(() => {
@@ -513,23 +538,25 @@ export const ModelFormModal = ({
                 className="es-input"
               />
             </div>
-            <div className="es-field">
-              <label className="es-label">
-                {t("agentConfig.modelApiFormat")}
-              </label>
-              <Select
-                value={formApiFormat}
-                onChange={(v) => setFormApiFormat(v as ApiFormat | "")}
-                options={[
-                  { value: "", label: t("agentConfig.apiFormatFollowDefault") },
-                  { value: "chat_completions", label: "Chat Completions" },
-                  { value: "responses", label: "Responses" },
-                ]}
-              />
-              <p className="es-hint">
-                {t("agentConfig.modelApiFormatHint")}
-              </p>
-            </div>
+            {showsApiFormat(modelProtocol) && (
+              <div className="es-field">
+                <label className="es-label">
+                  {t("agentConfig.modelApiFormat")}
+                </label>
+                <Select
+                  value={formApiFormat}
+                  onChange={(v) => setFormApiFormat(v as ApiFormat | "")}
+                  options={[
+                    { value: "", label: t("agentConfig.apiFormatFollowDefault") },
+                    { value: "chat_completions", label: "Chat Completions" },
+                    { value: "responses", label: "Responses" },
+                  ]}
+                />
+                <p className="es-hint">
+                  {t("agentConfig.modelApiFormatHint")}
+                </p>
+              </div>
+            )}
             <div className="es-field">
               <label className="es-label">
                 {t("agentConfig.modelRequestHeaders")}
