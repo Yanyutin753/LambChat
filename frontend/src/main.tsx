@@ -27,11 +27,15 @@ import "./styles/utilities.css";
 import { AuthProvider } from "./hooks/useAuth";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { installMobileViewportResetHandlers } from "./utils/mobile";
+import { installFontScaleSync } from "./utils/fontScale";
 import { registerLambChatPwa } from "./pwa";
 
 // Fix mobile viewport zoom issue after notification interaction
 // This prevents the page from staying zoomed in after clicking browser notifications
 installMobileViewportResetHandlers();
+
+// 监听登录回灌的字体大小偏好变化
+installFontScaleSync();
 
 registerLambChatPwa();
 

@@ -15,10 +15,12 @@ import type {
   ComposerSnapshot,
   FileReferenceDescriptor,
   FileReferenceStatus,
+  RunModesOptions,
   SkillReferenceDescriptor,
 } from "./composerTypes";
 import { FileReferenceNode } from "./nodes/FileReferenceNode";
 import { SkillReferenceNode } from "./nodes/SkillReferenceNode";
+import { RunModeReferenceNode } from "./nodes/RunModeReferenceNode";
 import { RichComposerPlugins } from "./RichComposerPlugins";
 import type { ComposerArrowDirection } from "./ArrowKeyPlugin";
 
@@ -78,6 +80,7 @@ export interface RichChatComposerProps {
   filePaste?: FilePasteOptions;
   longTextPaste?: LongTextPasteOptions;
   onRetryFileReference?: (referenceId: string) => void;
+  runModes?: RunModesOptions;
   disabled?: boolean;
   onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
   onArrowKey?: (
@@ -108,6 +111,7 @@ export const RichChatComposer = forwardRef<
     filePaste,
     longTextPaste,
     onRetryFileReference,
+    runModes,
     disabled = false,
     onKeyDown,
     onArrowKey,
@@ -143,7 +147,7 @@ export const RichChatComposer = forwardRef<
 
   const initialConfig: InitialConfigType = {
     namespace: "LambChatRichComposer",
-    nodes: [FileReferenceNode, SkillReferenceNode],
+    nodes: [FileReferenceNode, SkillReferenceNode, RunModeReferenceNode],
     theme: {
       paragraph: "rich-chat-composer__paragraph",
     },
@@ -200,6 +204,7 @@ export const RichChatComposer = forwardRef<
           filePaste={filePaste}
           longTextPaste={longTextPaste}
           onRetryFileReference={onRetryFileReference}
+          runModes={runModes}
           onArrowKey={onArrowKey}
         />
         <EditablePlugin disabled={disabled} />

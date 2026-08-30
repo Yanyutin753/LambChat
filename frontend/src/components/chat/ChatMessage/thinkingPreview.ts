@@ -3,9 +3,9 @@
 
 // Slice a bounded tail window before flattening so per-delta cost stays
 // constant regardless of how long the reasoning grows.
-const TAIL_WINDOW = 60;
+const TAIL_WINDOW = 160;
 
-export const STREAMING_PREVIEW_MAX_LEN = 24;
+export const STREAMING_PREVIEW_MAX_LEN = 80;
 
 function isHighSurrogate(code: number): boolean {
   return code >= 0xd800 && code <= 0xdbff;

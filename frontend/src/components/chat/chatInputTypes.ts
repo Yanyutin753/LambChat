@@ -116,9 +116,6 @@ export interface ChatInputProps {
   /** Additional className for the help menu (e.g. "sm:hidden" to hide on desktop). */
   helpMenuClassName?: string;
 
-  /** Show the footnote under the composer (AI disclaimer + today's spend) — defaults to true. */
-  showFootnote?: boolean;
-
   /** INTERNAL: panel state lifted from ChatInput for ChatView layout. */
   activePanel?: FeaturePanel;
   onActivePanelChange?: (panel: FeaturePanel) => void;

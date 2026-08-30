@@ -148,7 +148,9 @@ export function ProfileModal({
           className="inline-block h-4 w-auto align-[-0.2em] text-stone-500 dark:text-stone-400"
         />
         {versionInfo?.app_version && (
-          <span className="ml-1 opacity-70">v{versionInfo.app_version}</span>
+          <span className="ml-1 opacity-70 font-serif">
+            v{versionInfo.app_version}
+          </span>
         )}
       </a>
       <a

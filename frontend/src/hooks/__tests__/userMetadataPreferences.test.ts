@@ -76,3 +76,32 @@ test("applies all persisted user metadata preferences to local storage and event
     },
   ]);
 });
+
+test("restores font scale preference and ignores unknown values", () => {
+  const localStorage = new LocalStorageMock();
+  const events: { type: string; detail: unknown }[] = [];
+
+  applyUserMetadataPreferences({
+    metadata: { fontScale: "large" },
+    localStorage,
+    changeLanguage: () => {},
+    dispatchEvent: (event) => {
+      events.push({ type: event.type, detail: event.detail });
+    },
+  });
+
+  expect(localStorage.getItem("lambchat-font-scale")).toBe("large");
+  expect(events).toEqual([
+    { type: "font-scale-external-change", detail: "large" },
+  ]);
+
+  const untouched = new LocalStorageMock();
+  applyUserMetadataPreferences({
+    metadata: { fontScale: "giant" },
+    localStorage: untouched,
+    changeLanguage: () => {},
+    dispatchEvent: () => {},
+  });
+
+  expect(untouched.getItem("lambchat-font-scale")).toBe(null);
+});
