@@ -261,7 +261,7 @@ export const ChatInput = memo(function ChatInput({
     if (!onMentionQueryChange) return;
     onMentionQueryChange(mention.isActive ? mention.query : null);
   }, [mention.isActive, mention.query, onMentionQueryChange]);
-  // 一轮对话结束后通知侧边栏用户行刷新当日用量
+  // 一轮对话结束后通知工具栏用量 chip 刷新当日金额
   useNotifyTodayUsageRefresh(isLoading);
   useEffect(() => {
     if (!onMentionQueryChange || !selectedPersonaPresetId || !mention.isActive)

@@ -108,6 +108,26 @@ test("refreshes when a chat round settles via the window event", async () => {
   expect(getStatsMock).toHaveBeenCalledTimes(2);
 });
 
+test("queues a follow-up refresh when the event lands while a fetch is in flight", async () => {
+  let resolveFirst!: (stats: UsageStats) => void;
+  getStatsMock.mockImplementationOnce(
+    () => new Promise<UsageStats>((resolve) => (resolveFirst = resolve)),
+  );
+  getStatsMock.mockResolvedValue(todayStats());
+  render(<ComposerUsageChip />);
+
+  // 首次拉取仍在途时收到刷新事件（如 WS 推送撞上 SSE 关流刷新）：不得并发，也不得丢弃
+  act(() => {
+    window.dispatchEvent(new Event("today-usage-refresh"));
+  });
+  expect(getStatsMock).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    resolveFirst(todayStats());
+  });
+  expect(getStatsMock).toHaveBeenCalledTimes(2);
+});
+
 test("chat input notifies the usage chip when a run settles", () => {
   const chatDir = dirname(fileURLToPath(import.meta.url));
   const source = readFileSync(resolve(chatDir, "../ChatInput.tsx"), "utf8");

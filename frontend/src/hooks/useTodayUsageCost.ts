@@ -15,9 +15,14 @@ export function useTodayUsageCost(): {
 } {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const inFlight = useRef(false);
+  const pending = useRef(false);
 
   const fetchStats = useCallback(async () => {
-    if (inFlight.current) return;
+    // 在途时到达的刷新（如 WS 推送撞上 SSE 关流刷新）不能并发也不能丢：记一笔，结束后补拉
+    if (inFlight.current) {
+      pending.current = true;
+      return;
+    }
     inFlight.current = true;
     try {
       const data = await usageApi.getStats({
@@ -29,6 +34,10 @@ export function useTodayUsageCost(): {
       // 静默失败：徽标保留上次值或保持隐藏
     } finally {
       inFlight.current = false;
+      if (pending.current) {
+        pending.current = false;
+        void fetchStats();
+      }
     }
   }, []);
 

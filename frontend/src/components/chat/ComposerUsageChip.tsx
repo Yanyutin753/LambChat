@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -43,10 +43,15 @@ export function ComposerUsageChip() {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
-  const snapshot = buildTodayUsageSnapshot(stats, {
-    language: i18n.language,
-    rates: fxRates,
-  });
+  // ChatInput 每次按键都会重渲染，快照（含 Intl.NumberFormat 构造）必须 memo，输入依赖不变时零开销
+  const snapshot = useMemo(
+    () =>
+      buildTodayUsageSnapshot(stats, {
+        language: i18n.language,
+        rates: fxRates,
+      }),
+    [stats, fxRates, i18n.language],
+  );
 
   const position = useStickyDropdownPosition(triggerRef, open, (rect) =>
     getUsagePopoverPosition({

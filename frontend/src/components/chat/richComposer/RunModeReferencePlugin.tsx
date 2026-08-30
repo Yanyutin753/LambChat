@@ -1,6 +1,6 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { COMMAND_PRIORITY_EDITOR } from "lexical";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { RunModesOptions } from "./composerTypes";
 import { $reconcileRunModeChips } from "./nodes/RunModeReferenceNode";
 import { TOGGLE_RUN_MODE_COMMAND } from "./nodes/referenceCommands";
@@ -12,6 +12,10 @@ export function RunModeReferencePlugin({
 }) {
   const [editor] = useLexicalComposerContext();
   const { autoEnabled, goalEnabled, onToggle } = runModes;
+
+  // onToggle 来自 ChatInput 每次渲染的新闭包；走 ref 避免命令监听随按键反复注销/重注册
+  const onToggleRef = useRef(onToggle);
+  onToggleRef.current = onToggle;
 
   useLayoutEffect(() => {
     editor.update(
@@ -25,12 +29,12 @@ export function RunModeReferencePlugin({
       editor.registerCommand(
         TOGGLE_RUN_MODE_COMMAND,
         (key) => {
-          onToggle(key, false);
+          onToggleRef.current(key, false);
           return true;
         },
         COMMAND_PRIORITY_EDITOR,
       ),
-    [editor, onToggle],
+    [editor],
   );
 
   return null;
