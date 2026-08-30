@@ -9,11 +9,15 @@ function readJson(path: string) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-test("message action bar shows the total cost directly without opening the popover", () => {
+test("total cost is not shown directly in the action bar, only in the popover", () => {
   const source = readFileSync(resolve(currentDir, "../index.tsx"), "utf8");
 
-  expect(source).toMatch(/hasPricedCost\(message\.tokenUsage\)/);
-  expect(source).toMatch(/formatCostUsd\(message\.tokenUsage\?\.cost_usd/);
+  // 操作栏（点赞点踩一侧）不直接渲染金额，仅保留详情弹层
+  expect(source).not.toMatch(/formatCostUsd\(message\.tokenUsage/);
+  expect(source).not.toMatch(/hasPricedCost\(message\.tokenUsage\)/);
+  // 弹层内仍由 TokenDetailsButton 渲染费用明细
+  expect(source).toMatch(/fxRates=\{fxRates\}/);
+  expect(source).toMatch(/language=\{i18n\.language\}/);
 });
 
 test("token details popover renders a cost breakdown section", () => {
