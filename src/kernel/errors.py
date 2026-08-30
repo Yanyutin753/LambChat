@@ -129,7 +129,11 @@ class ErrorCode(Enum):
     )
     ROLE_NOT_FOUND = ("role_not_found", 404, "Role not found")
     ROLE_NAME_EXISTS = ("role_name_exists", 409, "Role name '{{name}}' already exists")
-    SYSTEM_ROLE_PROTECTED = ("system_role_protected", 400, "System roles cannot be modified or deleted")
+    SYSTEM_ROLE_PROTECTED = (
+        "system_role_protected",
+        400,
+        "System roles cannot be modified or deleted",
+    )
     CANNOT_CHANGE_OWN_ROLE_PERMISSIONS = (
         "cannot_change_own_role_permissions",
         403,

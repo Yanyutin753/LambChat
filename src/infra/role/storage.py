@@ -324,7 +324,9 @@ class RoleStorage:
             raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
         if existing.is_system:
-            raise ValidationError(ErrorCode.SYSTEM_ROLE_PROTECTED, message="System roles cannot be modified")
+            raise ValidationError(
+                ErrorCode.SYSTEM_ROLE_PROTECTED, message="System roles cannot be modified"
+            )
 
         update_dict: dict = {"updated_at": utc_now()}
 
@@ -387,7 +389,9 @@ class RoleStorage:
         # 检查是否为系统角色
         existing = await self.get_by_id(role_id)
         if existing and existing.is_system:
-            raise ValidationError(ErrorCode.SYSTEM_ROLE_PROTECTED, message="System roles cannot be deleted")
+            raise ValidationError(
+                ErrorCode.SYSTEM_ROLE_PROTECTED, message="System roles cannot be deleted"
+            )
 
         from bson import ObjectId
 

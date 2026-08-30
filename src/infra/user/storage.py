@@ -217,7 +217,9 @@ class UserStorage:
             # 解析哪个字段重复
             error_msg = str(e)
             if "username" in error_msg or "username_1" in error_msg:
-                raise ValidationError(ErrorCode.USERNAME_EXISTS, args={"username": user_data.username})
+                raise ValidationError(
+                    ErrorCode.USERNAME_EXISTS, args={"username": user_data.username}
+                )
             elif "email" in error_msg or "email_1" in error_msg:
                 raise ValidationError(ErrorCode.EMAIL_EXISTS, args={"email": user_data.email})
             else:
@@ -389,7 +391,9 @@ class UserStorage:
             # 解析哪个字段重复
             error_msg = str(e)
             if "username" in error_msg or "username_1" in error_msg:
-                raise ValidationError(ErrorCode.USERNAME_EXISTS, args={"username": user_data.username})
+                raise ValidationError(
+                    ErrorCode.USERNAME_EXISTS, args={"username": user_data.username}
+                )
             elif "email" in error_msg or "email_1" in error_msg:
                 raise ValidationError(ErrorCode.EMAIL_EXISTS, args={"email": user_data.email})
             else:

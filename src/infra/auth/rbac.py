@@ -83,7 +83,9 @@ def require_permissions(
 
             for perm in required_permissions:
                 if perm not in user_permissions:
-                    raise AuthorizationError(ErrorCode.PERMISSION_MISSING, args={"permission": perm})
+                    raise AuthorizationError(
+                        ErrorCode.PERMISSION_MISSING, args={"permission": perm}
+                    )
 
             return await func(*args, **kwargs)
 
