@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "Add more files",
+    "aiDisclaimer": "AI can make mistakes — double-check important info",
     "assistant": "Assistant",
     "attachFile": "Attach file",
     "attachments": "Attachments",
@@ -3166,6 +3167,7 @@
     "time": "Time",
     "title": "Usage Details",
     "today": "Today",
+    "todayCost": "Today's spend {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "Total",
     "totalDuration": "Total Duration",

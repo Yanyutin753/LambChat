@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "添加更多文件",
+    "aiDisclaimer": "AI 生成内容可能出错，请注意核实",
     "assistant": "助手",
     "attachFile": "附件",
     "attachments": "附件",
@@ -3166,6 +3167,7 @@
     "time": "时间",
     "title": "使用详情",
     "today": "今天",
+    "todayCost": "今日已用 {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "合计",
     "totalDuration": "总耗时",

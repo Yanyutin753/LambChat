@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "Добавить еще файлы",
+    "aiDisclaimer": "ИИ может ошибаться — проверяйте важную информацию",
     "assistant": "Ассистент",
     "attachFile": "Прикрепить файл",
     "attachments": "Вложения",
@@ -3166,6 +3167,7 @@
     "time": "Время",
     "title": "Детали использования",
     "today": "Сегодня",
+    "todayCost": "Расходы за сегодня {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "Итого",
     "totalDuration": "Общая длительность",
