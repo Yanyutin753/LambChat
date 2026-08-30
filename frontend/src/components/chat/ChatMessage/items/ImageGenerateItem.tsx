@@ -216,7 +216,7 @@ function ImageGenerateDetail({
               <span className="min-w-0 flex-1 truncate">
                 {t("chat.message.toolImageRefImages", "Reference Images")}
               </span>
-              <span className="shrink-0 text-[10px] text-theme-text-secondary">
+              <span className="shrink-0 text-10 text-theme-text-secondary">
                 {inputImages.length}
               </span>
             </div>
@@ -250,7 +250,7 @@ function ImageGenerateDetail({
                       inline
                       className="w-full aspect-square object-cover"
                     />
-                    <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-[9px] font-medium">
+                    <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-9 font-medium">
                       #{i + 1}
                     </div>
                   </div>
@@ -290,7 +290,7 @@ function ImageGenerateDetail({
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity">
                   <div className="absolute bottom-2 left-2 right-2">
-                    <span className="text-white/90 text-[11px] font-medium truncate block drop-shadow-sm">
+                    <span className="text-white/90 text-11 font-medium truncate block drop-shadow-sm">
                       {img.name}
                     </span>
                   </div>
@@ -442,7 +442,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
           {t("chat.message.toolImageGenerate")}
         </span>
         {images.length > 0 && (
-          <span className="ml-auto shrink-0 text-[10px] text-theme-text-secondary">
+          <span className="ml-auto shrink-0 text-10 text-theme-text-secondary">
             {t("chat.message.toolImageImgCount", { count: images.length })}
           </span>
         )}
@@ -486,22 +486,22 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
       {/* Compact tags */}
       <div className="flex flex-wrap gap-1">
         {images.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10">
             {t("chat.message.toolImageCount", { count: images.length })}
           </span>
         )}
         {inputImages.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10">
             {t("chat.message.toolImageRefCount", { count: inputImages.length })}
           </span>
         )}
         {size && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px] font-mono">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10 font-mono">
             {size}
           </span>
         )}
         {quality && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-[10px] capitalize">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary text-10 capitalize">
             {quality}
           </span>
         )}
@@ -526,14 +526,14 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
                   inline
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-[8px] leading-none font-medium">
+                <div className="absolute top-0 left-0 px-0.5 py-px rounded-br bg-black/50 text-white text-8 leading-none font-medium">
                   {i + 1}
                 </div>
               </div>
             );
           })}
           {inputImages.length > 4 && (
-            <div className="shrink-0 w-12 h-12 rounded-md bg-theme-bg-subtle border border-dashed border-theme-border flex items-center justify-center text-theme-text-secondary text-[10px] font-medium">
+            <div className="shrink-0 w-12 h-12 rounded-md bg-theme-bg-subtle border border-dashed border-theme-border flex items-center justify-center text-theme-text-secondary text-10 font-medium">
               +{inputImages.length - 4}
             </div>
           )}
@@ -560,7 +560,7 @@ const ImageGenerateItem = memo(function ImageGenerateItem({
             </div>
           ))}
           {images.length > 4 && (
-            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-[9px]">
+            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-9">
               +{images.length - 4}
             </div>
           )}

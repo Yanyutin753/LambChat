@@ -230,7 +230,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
                     {statusVal && statusVal !== "published" && (
                       <span
                         className={clsx(
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase",
+                          "inline-flex items-center px-2 py-0.5 rounded-full text-10 font-semibold tracking-wide uppercase",
                           statusVal === "draft"
                             ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200/50 dark:ring-amber-800/30"
                             : statusVal === "archived"
@@ -243,7 +243,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
                     )}
                   </div>
                   {description && (
-                    <p className="text-xs sm:text-[13px] text-theme-text-secondary/80 mt-1 leading-relaxed line-clamp-2">
+                    <p className="text-xs sm:text-13 text-theme-text-secondary/80 mt-1 leading-relaxed line-clamp-2">
                       {description}
                     </p>
                   )}
@@ -258,7 +258,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
                       {tags.map((tag, i) => (
                         <span
                           key={i}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-200 bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border hover:ring-theme-border-hover"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-11 font-medium transition-all duration-200 bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border hover:ring-theme-border-hover"
                         >
                           <Tag size={9} className="opacity-40" />
                           {tag}
@@ -272,7 +272,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
                         <span
                           key={i}
                           className={clsx(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium",
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-11 font-medium",
                             "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200/50 dark:ring-emerald-700/30",
                           )}
                         >
@@ -296,7 +296,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
           icon={<Sparkles size={12} />}
           defaultExpanded={false}
           badge={
-            <span className="text-[10px] text-theme-text-tertiary tabular-nums">
+            <span className="text-10 text-theme-text-tertiary tabular-nums">
               {systemPrompt.length > 1000
                 ? `${Math.round(systemPrompt.length / 100) / 10}k`
                 : `${systemPrompt.length}`}
@@ -323,7 +323,7 @@ function PersonaDetail({ args, result }: ToolDetailProps) {
           icon={<MessageSquare size={12} />}
           defaultExpanded={true}
           badge={
-            <span className="text-[10px] text-theme-text-tertiary tabular-nums">
+            <span className="text-10 text-theme-text-tertiary tabular-nums">
               {starterPrompts.length}
             </span>
           }
@@ -513,13 +513,13 @@ const PersonaItem = memo(function PersonaItem({
                     {displayName}
                   </div>
                   {description && (
-                    <div className="text-[10px] text-theme-text-tertiary truncate">
+                    <div className="text-10 text-theme-text-tertiary truncate">
                       {description}
                     </div>
                   )}
                 </div>
                 {skillNames.length > 0 && (
-                  <span className="shrink-0 text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
+                  <span className="shrink-0 text-10 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
                     {t("chat.message.toolPersonaSkillCount", {
                       count: skillNames.length,
                     })}
@@ -532,7 +532,7 @@ const PersonaItem = memo(function PersonaItem({
                 {tags.slice(0, 8).map((tag, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-[10px]"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-10"
                   >
                     <Tag size={7} className="opacity-50" />
                     {tag}

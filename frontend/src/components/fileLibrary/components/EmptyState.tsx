@@ -40,13 +40,13 @@ export function EmptyState({
 
         {/* Text */}
         <div className="text-center space-y-1.5">
-          <p className="text-[14px] font-medium text-theme-text-secondary">
+          <p className="text-14 font-medium text-theme-text-secondary">
             {hasActiveFilters
               ? t("fileLibrary.noResults")
               : t("fileLibrary.empty")}
           </p>
           {hasActiveFilters && (
-            <p className="text-[12px] text-theme-text-tertiary">
+            <p className="text-12 text-theme-text-tertiary">
               {t("fileLibrary.tryDifferent")}
             </p>
           )}

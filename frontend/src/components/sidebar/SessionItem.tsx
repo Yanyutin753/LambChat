@@ -334,12 +334,12 @@ function SessionItemComponent({
               onKeyDown={handleKeyDown}
               onBlur={handleSaveTitle}
               disabled={isSaving}
-              className="w-full text-[13px] bg-transparent text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-stone-400"
+              className="w-full text-13 bg-transparent text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-stone-400"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <div
-              className={`truncate text-[13px] transition-colors ${
+              className={`truncate text-13 transition-colors ${
                 isSelected
                   ? "text-stone-700 dark:text-stone-200"
                   : isActive
@@ -386,7 +386,7 @@ function SessionItemComponent({
           !isActive &&
           (session.unread_count ?? 0) > 0 && (
             <span
-              className={`shrink-0 inline-flex items-center justify-center rounded-full bg-red-500 text-[10px] font-medium leading-none text-white ${
+              className={`shrink-0 inline-flex items-center justify-center rounded-full bg-red-500 text-10 font-medium leading-none text-white ${
                 session.unread_count! <= 9
                   ? "w-4 h-4"
                   : "h-4 min-w-[20px] px-1.5"

@@ -17,7 +17,7 @@ export function StatMetric({
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--usage-icon-bg)] text-[var(--theme-primary)] transition-colors duration-200 sm:h-8 sm:w-8">
           <Icon size={13} strokeWidth={2} />
         </div>
-        <span className="min-w-0 truncate text-[10px] font-medium leading-none uppercase tracking-widest text-theme-text-tertiary sm:text-[11px]">
+        <span className="min-w-0 truncate text-10 font-medium leading-none uppercase tracking-widest text-theme-text-tertiary sm:text-11">
           {label}
         </span>
       </div>
@@ -25,7 +25,7 @@ export function StatMetric({
         {value}
       </p>
       {hint && (
-        <p className="truncate pl-[2.25rem] text-[10px] leading-snug text-theme-text-tertiary sm:pl-[2.5rem] sm:text-[11px]">
+        <p className="truncate pl-[2.25rem] text-10 leading-snug text-theme-text-tertiary sm:pl-[2.5rem] sm:text-11">
           <span className="text-theme-text-tertiary/50">&#x00B7;</span> {hint}
         </p>
       )}

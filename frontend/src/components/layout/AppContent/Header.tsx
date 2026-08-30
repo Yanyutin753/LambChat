@@ -288,7 +288,7 @@ export function Header({
                       </HeaderMenuIcon>
                       <span className="truncate">{t("nav.notifications")}</span>
                       {activeNotifCount > 0 && (
-                        <span className="ml-auto flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white leading-none">
+                        <span className="ml-auto flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-9 font-bold text-white leading-none">
                           {activeNotifCount > 99 ? "99+" : activeNotifCount}
                         </span>
                       )}

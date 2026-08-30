@@ -120,7 +120,7 @@ function MemoryStoreDetail({
                 : t("chat.message.toolMemoryStoreNew")}
           </span>
           {resultMessage && (
-            <span className="text-[10px] text-theme-text-tertiary truncate max-w-[200px]">
+            <span className="text-10 text-theme-text-tertiary truncate max-w-[200px]">
               {resultMessage}
             </span>
           )}
@@ -138,7 +138,7 @@ function MemoryStoreDetail({
               ? t("chat.message.toolMemoryDeleteFailed")
               : t("chat.message.toolMemoryStoreRejected")}
           </span>
-          <span className="text-[10px] text-theme-text-tertiary truncate max-w-[200px]">
+          <span className="text-10 text-theme-text-tertiary truncate max-w-[200px]">
             {errorMessage}
           </span>
         </div>
@@ -151,7 +151,7 @@ function MemoryStoreDetail({
           icon={<Save size={12} />}
           defaultExpanded={true}
           badge={
-            <span className="text-[10px] text-theme-text-tertiary tabular-nums">
+            <span className="text-10 text-theme-text-tertiary tabular-nums">
               {content.length > 1000
                 ? `${Math.round(content.length / 100) / 10}k`
                 : `${content.length}`}
@@ -169,7 +169,7 @@ function MemoryStoreDetail({
                   {memoryType && (
                     <span
                       className={clsx(
-                        "inline-flex items-center gap-1 px-2 py-[3px] rounded-md text-[10px] font-medium shrink-0",
+                        "inline-flex items-center gap-1 px-2 py-[3px] rounded-md text-10 font-medium shrink-0",
                         TYPE_STYLES[memoryType] || TYPE_STYLES.user,
                       )}
                     >
@@ -187,7 +187,7 @@ function MemoryStoreDetail({
                     </span>
                   )}
                   {isUpdate && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-[2px] rounded-md text-[9px] font-medium bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-[2px] rounded-md text-9 font-medium bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                       <RefreshCw size={8} className="opacity-60" />
                       {t("chat.message.toolMemoryStoreUpdated")}
                     </span>
@@ -199,14 +199,14 @@ function MemoryStoreDetail({
             {/* Summary */}
             {summary && (
               <div className="px-3.5 pb-2">
-                <p className="text-[11px] sm:text-xs text-theme-text-secondary/80 leading-relaxed">
+                <p className="text-11 sm:text-xs text-theme-text-secondary/80 leading-relaxed">
                   {summary}
                 </p>
               </div>
             )}
 
             {/* Content body */}
-            <pre className="px-3.5 pb-3 text-[11px] sm:text-xs text-theme-text-secondary leading-relaxed whitespace-pre-wrap break-words overflow-y-auto max-h-60">
+            <pre className="px-3.5 pb-3 text-11 sm:text-xs text-theme-text-secondary leading-relaxed whitespace-pre-wrap break-words overflow-y-auto max-h-60">
               {content.length > 500 ? content.slice(0, 497) + "…" : content}
             </pre>
 
@@ -219,7 +219,7 @@ function MemoryStoreDetail({
                       <span
                         key={i}
                         className={clsx(
-                          "inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-[10px] font-medium",
+                          "inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium",
                           i === 0
                             ? "bg-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-bg-card))] text-theme-text ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_20%,var(--theme-border))]"
                             : "bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border",
@@ -235,14 +235,14 @@ function MemoryStoreDetail({
                       </span>
                     ))}
                     {tags.length > 6 && (
-                      <span className="text-[10px] text-theme-text-tertiary px-1">
+                      <span className="text-10 text-theme-text-tertiary px-1">
                         +{tags.length - 6}
                       </span>
                     )}
                   </div>
                 )}
                 {context && (
-                  <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-[10px] font-medium bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border">
+                  <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border">
                     {context}
                   </span>
                 )}
@@ -257,7 +257,7 @@ function MemoryStoreDetail({
         <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-theme-bg border border-theme-border">
           <Trash2 size={13} className="text-theme-text-tertiary shrink-0" />
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-theme-text-tertiary">
+            <div className="text-10 text-theme-text-tertiary">
               {t("chat.message.toolMemoryDeleteTarget")}
             </div>
             <div className="text-xs font-mono text-theme-text-secondary truncate mt-0.5">
@@ -270,8 +270,8 @@ function MemoryStoreDetail({
       {/* Memory ID (result) */}
       {(resultMemoryId || existingMemoryId) && (
         <div className="flex items-center gap-2 px-3.5">
-          <span className="text-[10px] text-theme-text-tertiary">ID</span>
-          <span className="text-[10px] font-mono text-theme-text-secondary min-w-0 truncate flex-1">
+          <span className="text-10 text-theme-text-tertiary">ID</span>
+          <span className="text-10 font-mono text-theme-text-secondary min-w-0 truncate flex-1">
             {resultMemoryId || existingMemoryId}
           </span>
           <CopyButton
@@ -449,7 +449,7 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
                     {title}
                   </div>
                 )}
-                <div className="text-[10px] text-theme-text-tertiary truncate mt-0.5">
+                <div className="text-10 text-theme-text-tertiary truncate mt-0.5">
                   {summary || content.slice(0, 60)}
                 </div>
                 {(tags.length > 0 || memoryType) && (
@@ -457,7 +457,7 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
                     {memoryType && (
                       <span
                         className={clsx(
-                          "inline-flex items-center px-1.5 py-[1px] rounded text-[9px] font-medium",
+                          "inline-flex items-center px-1.5 py-[1px] rounded text-9 font-medium",
                           TYPE_STYLES[memoryType] || TYPE_STYLES.user,
                         )}
                       >
@@ -465,7 +465,7 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
                       </span>
                     )}
                     {tags.length > 0 && (
-                      <span className="text-[9px] text-theme-text-tertiary">
+                      <span className="text-9 text-theme-text-tertiary">
                         {tags.slice(0, 3).join(", ")}
                         {tags.length > 3 && "…"}
                       </span>
@@ -477,7 +477,7 @@ const MemoryStoreItem = memo(function MemoryStoreItem({
 
             {/* Delete compact */}
             {action === "delete" && memoryIdArg && (
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border text-[10px] font-mono text-theme-text-secondary truncate">
+              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-theme-bg border border-theme-border text-10 font-mono text-theme-text-secondary truncate">
                 <Trash2
                   size={10}
                   className="text-theme-text-tertiary shrink-0"

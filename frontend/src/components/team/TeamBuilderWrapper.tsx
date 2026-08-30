@@ -532,7 +532,7 @@ export function TeamBuilderWrapper() {
                     {t("team.tags", "标签")}
                   </span>
                   {activeTag && (
-                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[10px]">
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-10">
                       1
                     </span>
                   )}
@@ -695,7 +695,7 @@ export function TeamBuilderWrapper() {
                         >
                           {team.name}
                         </h3>
-                        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+                        <div className="mt-1.5 flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
                           <span>
                             {t("team.memberCount_one", {
                               count: team.members.length,
@@ -710,7 +710,7 @@ export function TeamBuilderWrapper() {
                     </div>
 
                     {/* Description */}
-                    <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
+                    <p className="mt-3 text-13 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
                       {team.description || t("team.coordinatedDesc")}
                     </p>
 
@@ -747,7 +747,7 @@ export function TeamBuilderWrapper() {
 
                     {/* Meta & Actions */}
                     <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
-                      <div className="flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+                      <div className="flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
                         <span className="inline-flex items-center gap-1">
                           <Users size={11} />
                           {t("team.rolesCount", { count: team.members.length })}

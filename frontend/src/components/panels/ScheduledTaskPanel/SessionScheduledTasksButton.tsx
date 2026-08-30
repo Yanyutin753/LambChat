@@ -311,7 +311,7 @@ export function SessionScheduledTasksButton({
       title={t("scheduledTask.conversationTasks", "会话定时任务")}
     >
       <CalendarClock size={17} />
-      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-semibold leading-none text-white">
+      <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-10 font-semibold leading-none text-white">
         {count > 99 ? "99+" : count}
       </span>
     </button>

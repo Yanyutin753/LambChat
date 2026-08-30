@@ -122,7 +122,7 @@ function ScoreBar({ score }: { score: number }) {
       </div>
       <span
         className={clsx(
-          "text-[11px] tabular-nums font-semibold w-6 text-right tracking-tight",
+          "text-11 tabular-nums font-semibold w-6 text-right tracking-tight",
           textColor,
         )}
       >
@@ -170,7 +170,7 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
             {resultQuery}
           </span>
           {searchMode && (
-            <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-theme-bg-card ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-theme-text-secondary font-medium">
+            <span className="shrink-0 text-10 px-2 py-0.5 rounded-md bg-theme-bg-card ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-theme-text-secondary font-medium">
               {searchModeLabel}
             </span>
           )}
@@ -186,7 +186,7 @@ function MemoryRecallDetail({ args, result }: ToolDetailProps) {
           icon={<Brain size={12} />}
           defaultExpanded={true}
           badge={
-            <span className="text-[11px] text-theme-text-tertiary tabular-nums">
+            <span className="text-11 text-theme-text-tertiary tabular-nums">
               {memories.length}
             </span>
           }
@@ -449,7 +449,7 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
                     >
                       <span
                         className={clsx(
-                          "inline-flex items-center px-1.5 py-[2px] rounded text-[10px] font-medium",
+                          "inline-flex items-center px-1.5 py-[2px] rounded text-10 font-medium",
                           typeStyle,
                         )}
                       >
@@ -461,7 +461,7 @@ const MemoryRecallItem = memo(function MemoryRecallItem({
                             ? mem.summary.slice(0, 40)
                             : (mem.preview || "").slice(0, 40))}
                       </span>
-                      <span className="text-[10px] tabular-nums text-theme-text-tertiary shrink-0">
+                      <span className="text-10 tabular-nums text-theme-text-tertiary shrink-0">
                         {Math.round(mem.score * 100)}
                       </span>
                     </div>

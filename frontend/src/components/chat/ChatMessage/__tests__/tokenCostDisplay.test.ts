@@ -1,6 +1,17 @@
 // Token 费用明细行构建（纯函数）
+import type { FxRatesDoc } from "../../../utils/currency";
 import type { TokenUsagePart } from "../../../types/message";
-import { buildCostDetailRows, hasPricedCost } from "../tokenCostDisplay";
+import {
+  buildCostDetailRows,
+  formatCostDetailRow,
+  hasPricedCost,
+} from "../tokenCostDisplay";
+
+const fxRates: FxRatesDoc = {
+  base: "USD",
+  rates: { CNY: 7.2 },
+  synced_at: "2026-08-30T00:00:00Z",
+};
 
 function usage(overrides: Partial<TokenUsagePart> = {}): TokenUsagePart {
   return {
@@ -68,5 +79,50 @@ describe("buildCostDetailRows", () => {
 
   test("empty usage returns no rows", () => {
     expect(buildCostDetailRows(undefined)).toEqual([]);
+  });
+});
+
+describe("formatCostDetailRow", () => {
+  test("renders cost and per-million rate in the i18n display currency", () => {
+    const rows = buildCostDetailRows(usage());
+    const input = rows.find((row) => row.key === "input");
+    expect(input).toBeDefined();
+
+    const formatted = formatCostDetailRow(input!, {
+      language: "zh",
+      rates: fxRates,
+    });
+    // 0.007 USD × 7.2 = 0.0504 CNY；2.5 USD/M × 7.2 = 18 CNY/M
+    expect(formatted.cost).toBe("¥0.0504");
+    expect(formatted.rate).toBe("¥18.00/M");
+  });
+
+  test("falls back to USD when fx rates are unavailable", () => {
+    const rows = buildCostDetailRows(usage());
+    const output = rows.find((row) => row.key === "output");
+    expect(output).toBeDefined();
+
+    // zh-CN Intl 格式化 USD 时符号为 US$（既有 formatCostUsd 行为）
+    const formatted = formatCostDetailRow(output!, {
+      language: "zh",
+      rates: null,
+    });
+    expect(formatted.cost).toBe("US$0.03");
+    expect(formatted.rate).toBe("US$10.00/M");
+  });
+
+  test("rate is null when the unit price is unknown", () => {
+    const rows = buildCostDetailRows(
+      usage({ cost_breakdown: undefined, cost_rates: undefined }),
+    );
+    const input = rows.find((row) => row.key === "input");
+    expect(input).toBeDefined();
+
+    const formatted = formatCostDetailRow(input!, {
+      language: "en",
+      rates: null,
+    });
+    expect(formatted.cost).toBe("$0.00");
+    expect(formatted.rate).toBeNull();
   });
 });

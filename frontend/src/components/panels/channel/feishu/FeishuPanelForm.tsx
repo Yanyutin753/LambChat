@@ -568,7 +568,7 @@ export function FeishuPanelForm({
                 <span className="block text-xs font-medium text-[var(--theme-text)]">
                   {t("feishu.groupPolicyMention", "Mention Only")}
                 </span>
-                <span className="text-[10px] text-[var(--theme-text-secondary)]">
+                <span className="text-10 text-[var(--theme-text-secondary)]">
                   {t("feishu.groupPolicyMentionDesc", "Reply when @mentioned")}
                 </span>
               </div>
@@ -595,7 +595,7 @@ export function FeishuPanelForm({
                 <span className="block text-xs font-medium text-[var(--theme-text)]">
                   {t("feishu.groupPolicyOpen", "All Messages")}
                 </span>
-                <span className="text-[10px] text-[var(--theme-text-secondary)]">
+                <span className="text-10 text-[var(--theme-text-secondary)]">
                   {t("feishu.groupPolicyOpenDesc", "Reply to all messages")}
                 </span>
               </div>

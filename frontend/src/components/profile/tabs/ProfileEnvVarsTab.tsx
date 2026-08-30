@@ -284,7 +284,7 @@ export function ProfileEnvVarsTab() {
         )}
 
         {vars.length > 0 && (
-          <div className="mt-2 text-right text-[10px] text-stone-400 dark:text-stone-500">
+          <div className="mt-2 text-right text-10 text-stone-400 dark:text-stone-500">
             {t("envVars.count", { count: vars.length })}
           </div>
         )}

@@ -57,7 +57,7 @@ export function Navbar({
             <button
               key={item.id}
               onClick={() => onScrollToSection(item.id)}
-              className={`landing-nav-pill px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+              className={`landing-nav-pill px-3.5 py-1.5 rounded-lg text-13 font-medium transition-colors ${
                 activeSection === item.id
                   ? "active text-stone-900 dark:text-stone-100"
                   : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"

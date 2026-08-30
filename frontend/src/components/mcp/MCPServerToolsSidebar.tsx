@@ -204,10 +204,10 @@ export function MCPServerToolsSidebar({
     <div className="flex flex-col gap-3 px-4 py-3">
       {/* Server info */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-[var(--theme-text-secondary)]">
+        <span className="text-11 text-[var(--theme-text-secondary)]">
           {transportLabel}
         </span>
-        <span className="text-[11px] text-[var(--theme-text-secondary)]">
+        <span className="text-11 text-[var(--theme-text-secondary)]">
           {server.is_internal
             ? t("mcp.card.internal", "Internal")
             : server.is_system
@@ -217,7 +217,7 @@ export function MCPServerToolsSidebar({
       </div>
 
       {server.url && (
-        <div className="font-mono text-[11px] text-[var(--theme-text-tertiary)] truncate">
+        <div className="font-mono text-11 text-[var(--theme-text-tertiary)] truncate">
           {server.url}
         </div>
       )}
@@ -229,7 +229,7 @@ export function MCPServerToolsSidebar({
             {t("mcp.card.tools")}
           </span>
           {tools.length > 0 && !toolsLoading && (
-            <span className="text-[11px] tabular-nums text-[var(--theme-text-tertiary)]">
+            <span className="text-11 tabular-nums text-[var(--theme-text-tertiary)]">
               {enabledToolCount}/{tools.length}
             </span>
           )}
@@ -288,7 +288,7 @@ export function MCPServerToolsSidebar({
                           {tool.name}
                         </code>
                         {tool.description && (
-                          <p className="text-[11px] text-[var(--theme-text-tertiary)] leading-snug line-clamp-2">
+                          <p className="text-11 text-[var(--theme-text-tertiary)] leading-snug line-clamp-2">
                             {tool.description}
                           </p>
                         )}
@@ -315,10 +315,10 @@ export function MCPServerToolsSidebar({
                       <div className="list-item-card__instructions">
                         <div className="mb-3 flex items-center justify-between gap-3 font-serif rounded-md bg-[var(--theme-bg-subtle)] px-2 py-2">
                           <div className="min-w-0">
-                            <div className="text-[10px] font-medium text-[var(--theme-text-tertiary)]">
+                            <div className="text-10 font-medium text-[var(--theme-text-tertiary)]">
                               {t("mcp.form.inlineExposure")}
                             </div>
-                            <p className="mt-0.5 text-[10px] leading-snug text-[var(--theme-text-quaternary)]">
+                            <p className="mt-0.5 text-10 leading-snug text-[var(--theme-text-quaternary)]">
                               {t("mcp.form.inlineExposureDescription")}
                             </p>
                           </div>
@@ -343,7 +343,7 @@ export function MCPServerToolsSidebar({
                           />
                         </div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[10px] font-medium text-[var(--theme-text-tertiary)]">
+                          <span className="text-10 font-medium text-[var(--theme-text-tertiary)]">
                             {t("mcp.form.allowedRoles")}
                           </span>
                           {savingToolPolicy === tool.name && (
@@ -372,7 +372,7 @@ export function MCPServerToolsSidebar({
                               onClick={() =>
                                 toggleExpanded(`${tool.name}:quotas`)
                               }
-                              className="mt-2.5 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[10px] font-medium text-[var(--theme-text-tertiary)] hover:bg-[var(--theme-bg-hover)] transition-colors"
+                              className="mt-2.5 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-10 font-medium text-[var(--theme-text-tertiary)] hover:bg-[var(--theme-bg-hover)] transition-colors"
                             >
                               <ChevronDown
                                 size={12}
@@ -393,13 +393,13 @@ export function MCPServerToolsSidebar({
                             {expandedTools.has(`${tool.name}:quotas`) && (
                               <div className="mt-1.5 space-y-1">
                                 <div className="grid grid-cols-[1fr_76px_76px] items-center gap-1.5 px-1 pb-0.5">
-                                  <span className="text-[9px] text-[var(--theme-text-quaternary)]">
+                                  <span className="text-9 text-[var(--theme-text-quaternary)]">
                                     {t("mcp.form.role")}
                                   </span>
-                                  <span className="text-[9px] text-[var(--theme-text-quaternary)]">
+                                  <span className="text-9 text-[var(--theme-text-quaternary)]">
                                     {t("mcp.form.dailyLimit")}
                                   </span>
-                                  <span className="text-[9px] text-[var(--theme-text-quaternary)]">
+                                  <span className="text-9 text-[var(--theme-text-quaternary)]">
                                     {t("mcp.form.weeklyLimit")}
                                   </span>
                                 </div>
@@ -410,7 +410,7 @@ export function MCPServerToolsSidebar({
                                       key={role}
                                       className="grid grid-cols-[1fr_76px_76px] items-center gap-1.5 rounded-md px-1 py-1 hover:bg-[var(--theme-bg-hover)] transition-colors"
                                     >
-                                      <span className="truncate text-[10px] text-[var(--theme-text-secondary)]">
+                                      <span className="truncate text-10 text-[var(--theme-text-secondary)]">
                                         {role}
                                       </span>
                                       <input
@@ -431,7 +431,7 @@ export function MCPServerToolsSidebar({
                                           }
                                         }}
                                         placeholder={t("mcp.form.dailyLimit")}
-                                        className="glass-input h-6 px-1.5 text-[10px] tabular-nums"
+                                        className="glass-input h-6 px-1.5 text-10 tabular-nums"
                                       />
                                       <input
                                         type="number"
@@ -451,7 +451,7 @@ export function MCPServerToolsSidebar({
                                           }
                                         }}
                                         placeholder={t("mcp.form.weeklyLimit")}
-                                        className="glass-input h-6 px-1.5 text-[10px] tabular-nums"
+                                        className="glass-input h-6 px-1.5 text-10 tabular-nums"
                                       />
                                     </div>
                                   );

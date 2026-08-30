@@ -713,7 +713,7 @@ export function SettingsPanel() {
                                       setActiveCategory(setting.category);
                                       setSearchQuery("");
                                     }}
-                                    className="rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60"
+                                    className="rounded-md bg-amber-100 px-2 py-0.5 text-11 font-medium text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60"
                                   >
                                     {CATEGORY_LABELS[setting.category]}
                                   </button>
@@ -722,7 +722,7 @@ export function SettingsPanel() {
                                   {setting.key}
                                 </code>
                                 <span
-                                  className={`tag text-[11px] ${
+                                  className={`tag text-11 ${
                                     TYPE_COLORS[setting.type]
                                   }`}
                                 >

@@ -638,7 +638,7 @@ export function MessagePartRenderer({
   if (part.type === "cancelled") {
     return (
       <div
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-13 font-medium"
         style={{
           background:
             "color-mix(in srgb, var(--theme-primary) 8%, transparent)",

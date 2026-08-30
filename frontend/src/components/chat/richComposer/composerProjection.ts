@@ -37,6 +37,10 @@ function projectNode(
     return "";
   }
 
+  if (node.type === "run-mode-reference") {
+    return "";
+  }
+
   const children = node.children ?? [];
   const separator = node.type === "root" ? "\n" : "";
   return children

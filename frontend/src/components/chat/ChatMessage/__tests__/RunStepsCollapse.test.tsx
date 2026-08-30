@@ -174,6 +174,20 @@ describe("RunStepsCollapse", () => {
     expect(span?.className).not.toContain("text-theme-text-secondary");
   });
 
+  test("summary row matches the markdown body font size", () => {
+    render(
+      <RunStepsCollapse
+        steps={2}
+        durationMs={45000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    const span = SummaryRow().querySelector("span");
+    // 与 .markdown-preview 正文一致：桌面 0.9375rem，≤640px 提升到 1rem
+    expect(span?.className).toContain("text-[0.9375rem]");
+    expect(span?.className).toContain("max-sm:text-base");
+  });
+
   test("summary row divider uses the full theme border color", () => {
     render(
       <RunStepsCollapse

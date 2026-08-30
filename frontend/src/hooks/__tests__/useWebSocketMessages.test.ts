@@ -2,7 +2,37 @@ import {
   dispatchWebSocketMessage,
   type RecommendQuestionsNotification,
   type TaskCompleteNotification,
+  type UsageUpdatedNotification,
 } from "../useWebSocket";
+
+test("dispatches usage update notifications to their dedicated callback", () => {
+  const updates: UsageUpdatedNotification[] = [];
+  const message: UsageUpdatedNotification = {
+    type: "usage:updated",
+    data: { trace_id: "trace-1" },
+  };
+
+  dispatchWebSocketMessage(message, {
+    onUsageUpdated: (notification) => updates.push(notification),
+  });
+
+  expect(updates).toEqual([message]);
+});
+
+test("ignores malformed usage update payloads", () => {
+  const updates: UsageUpdatedNotification[] = [];
+
+  dispatchWebSocketMessage(
+    { type: "usage:updated", data: { trace_id: 123 } },
+    { onUsageUpdated: (notification) => updates.push(notification) },
+  );
+  dispatchWebSocketMessage(
+    { type: "usage:updated" },
+    { onUsageUpdated: (notification) => updates.push(notification) },
+  );
+
+  expect(updates).toEqual([]);
+});
 
 test("dispatches recommendation notifications to their dedicated callback", () => {
   const recommendations: RecommendQuestionsNotification[] = [];

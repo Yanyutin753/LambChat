@@ -17,11 +17,14 @@ import {
  * @param isOpen      - Whether the dropdown is currently shown.
  * @param getPosition - Pure function that turns the trigger's bounding rect
  *                      into the desired CSSProperties for the dropdown.
+ * @param retargetKey - Optional; when this value changes while open, position
+ *                      is recomputed (e.g. content expansion changes height).
  */
 export function useStickyDropdownPosition<T extends HTMLElement = HTMLElement>(
   triggerRef: RefObject<T | null>,
   isOpen: boolean,
   getPosition: (rect: DOMRect) => CSSProperties,
+  retargetKey?: unknown,
 ): CSSProperties {
   const [style, setStyle] = useState<CSSProperties>({});
   const posFnRef = useRef(getPosition);
@@ -41,7 +44,7 @@ export function useStickyDropdownPosition<T extends HTMLElement = HTMLElement>(
     }
 
     updatePositionNow();
-  }, [isOpen, triggerRef, updatePositionNow]);
+  }, [isOpen, triggerRef, updatePositionNow, retargetKey]);
 
   useEffect(() => {
     if (!isOpen) return;

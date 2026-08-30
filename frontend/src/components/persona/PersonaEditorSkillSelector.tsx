@@ -354,7 +354,7 @@ export function SkillSelector({
                         {skill.name}
                       </div>
                       {skill.description && (
-                        <div className="text-[11px] text-[var(--theme-text-secondary)] truncate mt-0.5">
+                        <div className="text-11 text-[var(--theme-text-secondary)] truncate mt-0.5">
                           {skill.description}
                         </div>
                       )}

@@ -398,7 +398,7 @@ export function FileRevealItem({
                   {isImage && (fileName || parsed.description) && (
                     <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 transition-opacity z-[2]">
                       <div className="px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent">
-                        <span className="text-[11px] text-white/90 truncate block font-serif">
+                        <span className="text-11 text-white/90 truncate block font-serif">
                           {parsed.description || fileName}
                         </span>
                       </div>

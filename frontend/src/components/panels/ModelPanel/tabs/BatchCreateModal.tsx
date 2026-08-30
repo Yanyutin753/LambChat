@@ -363,7 +363,7 @@ export const BatchCreateModal = ({
                   className="glass-card-subtle rounded-xl p-3 sm:p-4 space-y-2"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-theme-text-secondary font-mono">
+                    <span className="text-11 text-theme-text-secondary font-mono">
                       #{index + 1}
                     </span>
                     {batchRows.length > 1 && (

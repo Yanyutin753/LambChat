@@ -167,6 +167,12 @@ html[data-mobile-keyboard="true"]
   line-height: inherit;
   cursor: default;
 }
+
+/* Run-mode chips sit inline in the composer text; the margin keeps them
+   from crowding neighbouring chips and text beyond the spacer space. */
+.run-mode-chip-node {
+  margin: 0 0.25em;
+}
 .skill-chip-node[role="button"] {
   cursor: pointer;
 }

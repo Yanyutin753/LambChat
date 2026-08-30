@@ -60,7 +60,7 @@ export function MarkAllReadBadge({
       onKeyDown={handleKeyDown}
       title={title}
       className={[
-        "inline-flex items-center justify-center rounded-full bg-red-500 text-[10px] font-medium leading-none text-white cursor-pointer select-none",
+        "inline-flex items-center justify-center rounded-full bg-red-500 text-10 font-medium leading-none text-white cursor-pointer select-none",
         isLoading
           ? "w-4 h-4 badge-scale"
           : isSingleDigit

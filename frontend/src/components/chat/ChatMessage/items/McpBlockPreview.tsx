@@ -570,7 +570,7 @@ function RejectionResult({ data }: { data: Record<string, unknown> }) {
           {/* Schedule info (compact, one line) */}
           {schedule && (
             <p
-              className="text-[11px] font-mono truncate"
+              className="text-11 font-mono truncate"
               style={{ color: "var(--theme-text-tertiary)" }}
             >
               {schedule}
@@ -580,7 +580,7 @@ function RejectionResult({ data }: { data: Record<string, unknown> }) {
           {/* Description (truncated) */}
           {description && !showDetails && (
             <p
-              className="text-[11px] line-clamp-2"
+              className="text-11 line-clamp-2"
               style={{ color: "var(--theme-text-tertiary)" }}
             >
               {description}
@@ -593,7 +593,7 @@ function RejectionResult({ data }: { data: Record<string, unknown> }) {
               {description && (
                 <div>
                   <p
-                    className="text-[10px] font-medium uppercase tracking-wider mb-0.5"
+                    className="text-10 font-medium uppercase tracking-wider mb-0.5"
                     style={{ color: "var(--theme-text-tertiary)" }}
                   >
                     {t("chat.message.description")}
@@ -609,12 +609,12 @@ function RejectionResult({ data }: { data: Record<string, unknown> }) {
               {preview && (
                 <div>
                   <p
-                    className="text-[10px] font-medium uppercase tracking-wider mb-0.5"
+                    className="text-10 font-medium uppercase tracking-wider mb-0.5"
                     style={{ color: "var(--theme-text-tertiary)" }}
                   >
                     {t("chat.message.details")}
                   </p>
-                  <pre className="text-[11px] text-theme-text-tertiary overflow-y-auto whitespace-pre-wrap break-words max-h-48 min-w-0 rounded-lg border border-theme-border bg-theme-bg p-2.5">
+                  <pre className="text-11 text-theme-text-tertiary overflow-y-auto whitespace-pre-wrap break-words max-h-48 min-w-0 rounded-lg border border-theme-border bg-theme-bg p-2.5">
                     {JSON.stringify(preview, null, 2)}
                   </pre>
                 </div>
@@ -627,7 +627,7 @@ function RejectionResult({ data }: { data: Record<string, unknown> }) {
             <button
               onClick={() => setShowDetails((v) => !v)}
               aria-expanded={showDetails}
-              className="flex items-center gap-0.5 text-[11px] transition-colors hover:text-theme-text-secondary"
+              className="flex items-center gap-0.5 text-11 transition-colors hover:text-theme-text-secondary"
               style={{ color: "var(--theme-text-tertiary)" }}
             >
               {showDetails ? (

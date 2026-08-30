@@ -261,7 +261,7 @@ export function NotificationDialog({
                         }}
                       />
                       <p
-                        className="text-[11px]"
+                        className="text-11"
                         style={{
                           color: "var(--theme-text-secondary)",
                           opacity: 0.7,

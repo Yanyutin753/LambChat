@@ -103,12 +103,12 @@ function SkillSearchDetail({ args, result }: ToolDetailProps) {
                 </p>
               )}
               <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="inline-flex items-center gap-1 text-[10px] font-mono text-theme-text-tertiary bg-theme-bg border border-theme-border rounded-md px-1.5 py-0.5 truncate">
+                <span className="inline-flex items-center gap-1 text-10 font-mono text-theme-text-tertiary bg-theme-bg border border-theme-border rounded-md px-1.5 py-0.5 truncate">
                   <BookOpen size={10} className="shrink-0 opacity-60" />
                   {match.path}
                 </span>
                 {match.tags.length > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-theme-text-tertiary truncate">
+                  <span className="inline-flex items-center gap-1 text-10 text-theme-text-tertiary truncate">
                     <Tag size={10} className="shrink-0 opacity-60" />
                     {match.tags.join(" · ")}
                   </span>
@@ -242,7 +242,7 @@ const SkillSearchItem = memo(function SkillSearchItem({
                     {match.name}
                   </span>
                   {match.tags[0] && (
-                    <span className="shrink-0 text-[10px] text-theme-text-tertiary truncate max-w-[96px]">
+                    <span className="shrink-0 text-10 text-theme-text-tertiary truncate max-w-[96px]">
                       {match.tags[0]}
                     </span>
                   )}

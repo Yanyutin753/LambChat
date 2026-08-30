@@ -808,7 +808,8 @@
       "toolUploadUrlToSandbox": "Upload URL To Sandbox",
       "toolVarCount": "{{count}} variables",
       "toolWrite": "Write",
-      "costTotal": "Cost"
+      "costTotal": "Cost",
+      "costDetail": "Cost breakdown"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -1926,6 +1927,11 @@
     "email": "Email",
     "enable": "Enable",
     "enabled": "Enabled",
+    "fontSize": "Font Size",
+    "fontSizeLarge": "Large",
+    "fontSizeSmall": "Small",
+    "fontSizeStandard": "Standard",
+    "fontSizeXLarge": "Extra Large",
     "language": "Language",
     "memoryToggle": "Cross-session memory",
     "languageSynced": "Language preference saved",
@@ -3083,6 +3089,8 @@
     "cacheTokens": "{{count}} tokens",
     "cacheWrite": "Cache Write",
     "completed": "Completed",
+    "cost": "Cost",
+    "costTotal": "Total cost",
     "dashboard": {
       "subtitleAdmin": "Agent execution, consumption, automation & anomaly trends",
       "subtitleUser": "Personal execution, consumption, automation & anomaly trends",
@@ -3151,6 +3159,7 @@
     },
     "refresh": "Refresh",
     "refreshing": "Refreshing",
+    "requestsCount": "Requests",
     "roleOrTeam": "Persona/Team",
     "scheduledBadge": "Scheduled",
     "searchPlaceholder": "Search by username...",
@@ -3165,6 +3174,11 @@
     "time": "Time",
     "title": "Usage Details",
     "today": "Today",
+    "todayShort": "Today {{amount}}",
+    "todaySpend": "Today's usage",
+    "tokenMix": "Token mix",
+    "tokensInput": "Input",
+    "tokensOutput": "Output",
     "tokensValue": "{{count}} tokens",
     "total": "Total",
     "totalDuration": "Total Duration",
@@ -3182,10 +3196,9 @@
       "title": "Daily Execution Trend",
       "tokens": "Tokens"
     },
+    "unpricedHint": "{{count}} unpriced",
     "user": "User",
-    "cost": "Cost",
-    "costTotal": "Total cost",
-    "unpricedHint": "{{count}} unpriced"
+    "viewDetails": "View details"
   },
   "users": {
     "actions": "Actions",

@@ -234,7 +234,7 @@ export function ScheduledTaskPanelSkeleton() {
                 </div>
 
                 {/* Subtle last-run info */}
-                <div className="flex items-center gap-2 text-[11px] mb-2">
+                <div className="flex items-center gap-2 text-11 mb-2">
                   <SkeletonLine width="w-12 sm:w-14" className="!h-3" />
                   <SkeletonLine width="w-20 sm:w-28" className="!h-3" />
                   <SkeletonLine

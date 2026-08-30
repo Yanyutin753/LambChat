@@ -9,6 +9,7 @@ import {
 } from "../../../hooks/useWebSocket";
 import { useBrowserNotification } from "../../../hooks/useBrowserNotification";
 import { sessionApi } from "../../../services/api";
+import { TODAY_USAGE_REFRESH_EVENT } from "../../../hooks/useTodayUsageCost";
 import { appNotificationService } from "../../../services/notifications/appNotificationService";
 import {
   shouldAttemptAppTaskNotification,
@@ -56,6 +57,10 @@ export function useWebSocketNotifications({
   // WebSocket for task completion notifications
   useWebSocket({
     enabled,
+    onUsageUpdated: () => {
+      // 后端 usage_logs 落库后推送，直接触发各处当日用量刷新
+      window.dispatchEvent(new Event(TODAY_USAGE_REFRESH_EVENT));
+    },
     onSessionTaskStatus: (data) => {
       onSessionTaskStatusRef.current?.(data);
     },
@@ -241,7 +246,7 @@ export function useWebSocketNotifications({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="line-clamp-1 text-[13px] font-semibold leading-tight">
+                <div className="line-clamp-1 text-13 font-semibold leading-tight">
                   {notificationCopy.title}
                 </div>
                 <div className="mt-0.5 line-clamp-1 text-xs leading-snug text-stone-500 dark:text-stone-400">

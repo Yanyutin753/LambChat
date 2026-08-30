@@ -19,6 +19,7 @@ import { ToolbarChip } from "./ToolbarChip";
 import { AgentIcon } from "../agent/AgentIcon";
 import { subscribeTeamsChanged } from "../../hooks/teamEvents";
 import { RunModePopover } from "./RunModePopover";
+import { ComposerUsageChip } from "./ComposerUsageChip";
 
 export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
@@ -301,37 +302,8 @@ export function ChatInputToolbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-3 self-end">
-        {/* Mode labels — desktop only (sm:) */}
-        {autoModeEnabled && (
-          <button
-            type="button"
-            onClick={() => onToggleAutoMode?.(false)}
-            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-[11px] font-medium transition-colors duration-200"
-            style={{
-              color: "var(--theme-text-secondary)",
-              background: "var(--theme-bg-card)",
-              border: "1px solid var(--theme-border)",
-            }}
-            title={t("mode.auto", "Auto Mode")}
-          >
-            {t("mode.auto", "Auto")}
-          </button>
-        )}
-        {goalModeEnabled && (
-          <button
-            type="button"
-            onClick={() => onToggleGoalMode?.(false)}
-            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-[11px] font-medium transition-colors duration-200"
-            style={{
-              color: "var(--theme-text-secondary)",
-              background: "var(--theme-bg-card)",
-              border: "1px solid var(--theme-border)",
-            }}
-            title={t("mode.goal", "Goal Mode")}
-          >
-            {t("mode.goal", "Goal")}
-          </button>
-        )}
+        {/* Today's usage — amount chip with usage card */}
+        <ComposerUsageChip />
 
         {/* Settings / Run Mode button */}
         <button
@@ -351,18 +323,6 @@ export function ChatInputToolbar({
           title={t("mode.title", "Run Mode")}
         >
           <Settings2 size={16} />
-          {/* Status dot when modes are active */}
-          {hasActiveMode && (
-            <span
-              className="absolute -top-0 -right-0.5"
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "var(--theme-text)",
-              }}
-            />
-          )}
         </button>
 
         <RunModePopover
@@ -407,7 +367,6 @@ export function ChatInputToolbar({
             className="flex items-center justify-center rounded-full h-9 w-9 transition-all duration-300"
             style={{
               backgroundColor: "transparent",
-              border: "1px solid var(--theme-border)",
               color: "var(--theme-text-secondary)",
             }}
             title={t("chat.waitingForHuman", "等待人工确认后才能发送")}
@@ -471,7 +430,6 @@ export function ChatInputToolbar({
                   }
                 : {
                     backgroundColor: "transparent",
-                    border: "1px solid var(--theme-border)",
                     color: "var(--theme-text-secondary)",
                   }
             }

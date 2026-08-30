@@ -11,7 +11,7 @@ export function createSubagentPanelFooter(subtitle: string | undefined) {
   return (
     <div className="flex justify-end border-t border-theme-border bg-theme-bg-card px-3 py-2 sm:px-4">
       <span
-        className="shrink-0 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-theme-bg-subtle px-1 text-[10px] font-semibold leading-none text-theme-text-secondary"
+        className="shrink-0 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-theme-bg-subtle px-1 text-10 font-semibold leading-none text-theme-text-secondary"
         title={subtitle}
       >
         {subtitle}

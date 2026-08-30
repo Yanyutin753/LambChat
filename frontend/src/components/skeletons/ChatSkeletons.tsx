@@ -80,7 +80,7 @@ function UserMessageSkeleton({
               boxShadow: "var(--shadow-low)",
             }}
           >
-            <div className="leading-relaxed text-[15px] sm:text-base space-y-1.5">
+            <div className="leading-relaxed text-15 sm:text-base space-y-1.5">
               {msg.lines.map((w, li) => (
                 <SkeletonLine key={li} width={w} />
               ))}
@@ -157,7 +157,7 @@ function ChatInputShellSkeleton() {
       <div className="px-2.5 pt-1">
         <div className="relative">
           <div
-            className="bg-transparent w-full pt-[10px] text-[15px] leading-relaxed min-h-[40px] sm:min-h-[44px]"
+            className="bg-transparent w-full pt-[10px] text-15 leading-relaxed min-h-[40px] sm:min-h-[44px]"
             style={{ paddingLeft: 4 }}
           >
             <div className="skeleton-line h-[15px] w-3/5 rounded-full mt-[3px]" />

@@ -23,6 +23,7 @@ import { useInputHistory } from "../../hooks/useInputHistory";
 import { useLongTextConversion } from "../../hooks/useLongTextConversion";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { isSendEnterKey } from "../../hooks/sendModifier";
+import { useNotifyTodayUsageRefresh } from "../../hooks/useTodayUsageCost";
 import { useAuth } from "../../hooks/useAuth";
 import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
@@ -33,6 +34,7 @@ import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
+import { buildRunModesOptions } from "./chatInputRunModes";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
@@ -259,6 +261,8 @@ export const ChatInput = memo(function ChatInput({
     if (!onMentionQueryChange) return;
     onMentionQueryChange(mention.isActive ? mention.query : null);
   }, [mention.isActive, mention.query, onMentionQueryChange]);
+  // 一轮对话结束后通知工具栏用量 chip 刷新当日金额
+  useNotifyTodayUsageRefresh(isLoading);
   useEffect(() => {
     if (!onMentionQueryChange || !selectedPersonaPresetId || !mention.isActive)
       return;
@@ -833,6 +837,12 @@ export const ChatInput = memo(function ChatInput({
                           onCreate: handleLongTextCreate,
                         }}
                         onRetryFileReference={handleRetryFileReference}
+                        runModes={buildRunModesOptions(
+                          autoModeEnabled,
+                          goalModeEnabled,
+                          onToggleAutoMode,
+                          onToggleGoalMode,
+                        )}
                         onKeyDown={handleComposerKeyDown}
                         onArrowKey={handleComposerArrowKey}
                         disabled={disabled || !canSend}

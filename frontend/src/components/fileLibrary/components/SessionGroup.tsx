@@ -52,12 +52,12 @@ export function SessionGroup({
             onClick={() =>
               onGoToSession(sessionId, navigationTarget ?? undefined)
             }
-            className="min-w-0 truncate text-[14px] @md:text-[15px] font-semibold leading-[22px] text-theme-text hover:text-theme-text text-left transition-colors"
+            className="min-w-0 truncate text-14 @md:text-15 font-semibold leading-[22px] text-theme-text hover:text-theme-text text-left transition-colors"
           >
             {sessionName}
           </button>
         </div>
-        <span className="text-[12px] leading-[18px] text-theme-text-tertiary flex-shrink-0 tabular-nums bg-theme-bg-subtle px-2 py-0.5 rounded-md">
+        <span className="text-12 leading-[18px] text-theme-text-tertiary flex-shrink-0 tabular-nums bg-theme-bg-subtle px-2 py-0.5 rounded-md">
           {dateLabel}
         </span>
       </div>
@@ -86,7 +86,7 @@ export function SessionGroup({
       {hiddenCount > 0 && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-1.5 self-start text-[12px] font-medium text-theme-text-tertiary hover:text-theme-text-secondary rounded-lg border border-theme-border bg-theme-bg-subtle hover:bg-theme-bg-subtle transition-all duration-150"
+          className="flex items-center gap-1.5 px-3 py-1.5 self-start text-12 font-medium text-theme-text-tertiary hover:text-theme-text-secondary rounded-lg border border-theme-border bg-theme-bg-subtle hover:bg-theme-bg-subtle transition-all duration-150"
         >
           <span>
             {expanded

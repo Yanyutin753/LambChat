@@ -218,7 +218,7 @@ export function ToolSelector({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[13px] sm:text-sm font-semibold font-serif text-stone-800 dark:text-stone-100">
+                    <span className="text-13 sm:text-sm font-semibold font-serif text-stone-800 dark:text-stone-100">
                       {t(`tools.categories.${cat}`)}
                     </span>
                     <span className="ml-1.5 sm:ml-2 text-xs sm:text-xs text-stone-400 dark:text-stone-500 tabular-nums">
@@ -275,7 +275,7 @@ export function ToolSelector({
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                   <span
-                                    className={`text-[12px] sm:text-[13px] font-medium truncate ${
+                                    className={`text-12 sm:text-13 font-medium truncate ${
                                       tool.enabled
                                         ? "text-stone-700 dark:text-stone-200"
                                         : "text-[var(--theme-primary)] dark:text-[var(--theme-primary)]"
@@ -284,12 +284,12 @@ export function ToolSelector({
                                     {tool.name}
                                   </span>
                                   {tool.server && (
-                                    <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
+                                    <span className="text-9 sm:text-xs px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
                                       {tool.server}
                                     </span>
                                   )}
                                   {tool.system_disabled && (
-                                    <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 font-medium">
+                                    <span className="text-9 sm:text-xs px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 font-medium">
                                       {t("tools.systemDisabled")}
                                     </span>
                                   )}
@@ -348,7 +348,7 @@ export function ToolSelector({
                                                     {param.name}
                                                   </code>
                                                   {param.required && (
-                                                    <span className="text-[8px] px-1 py-0.5 rounded bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 font-medium">
+                                                    <span className="text-8 px-1 py-0.5 rounded bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 font-medium">
                                                       *
                                                     </span>
                                                   )}

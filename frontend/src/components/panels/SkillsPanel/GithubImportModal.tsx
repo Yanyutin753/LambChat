@@ -165,7 +165,7 @@ export function GithubImportModal({
                 <label className="text-sm font-medium text-[var(--theme-text)]">
                   {t("skills.selectSkillsToInstall")}
                 </label>
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 text-[11px] font-semibold text-[var(--theme-primary)]">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 text-11 font-semibold text-[var(--theme-primary)]">
                   {selectedGithubSkills.length}/{githubSkills.length}
                 </span>
               </div>

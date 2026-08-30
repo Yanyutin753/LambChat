@@ -117,7 +117,7 @@ export function MemoryEditor({
         isEdit ? (
           <>
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${typeStyle}`}
+              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-10 font-medium leading-none ${typeStyle}`}
             >
               <span
                 className={`h-1 w-1 rounded-full ${
@@ -127,7 +127,7 @@ export function MemoryEditor({
               {t(`memory.type.${memoryType}`)}
             </span>
             <span
-              className={`ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium ${sourceStyle}`}
+              className={`ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-10 font-medium ${sourceStyle}`}
             >
               <span
                 className={`h-1 w-1 rounded-full ${
@@ -136,7 +136,7 @@ export function MemoryEditor({
               />
               {t(`memory.source.${source}`, source)}
             </span>
-            <span className="ml-1.5 text-[10px] text-theme-text-secondary">
+            <span className="ml-1.5 text-10 text-theme-text-secondary">
               {relativeTime(memory?.updated_at ?? null)}
             </span>
           </>
@@ -196,7 +196,7 @@ export function MemoryEditor({
                     key={opt.value}
                     type="button"
                     onClick={() => setMemoryType(opt.value)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition-all ${
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-11 font-medium transition-all ${
                       selected
                         ? `${
                             TYPE_STYLES[opt.value]
@@ -227,7 +227,7 @@ export function MemoryEditor({
                       key={opt.value}
                       type="button"
                       onClick={() => setSource(opt.value)}
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition-all ${
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-11 font-medium transition-all ${
                         selected
                           ? `${
                               SOURCE_STYLES[opt.value]
