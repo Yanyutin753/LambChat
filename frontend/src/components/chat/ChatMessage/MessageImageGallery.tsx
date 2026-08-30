@@ -62,7 +62,7 @@ export function MessageImageGallery({ images }: MessageImageGalleryProps) {
               {/* File name label on hover */}
               <div className="absolute bottom-0 left-0 right-0 opacity-0 group-hover/img:opacity-100 transition-opacity">
                 <div className="px-2 py-1 bg-gradient-to-t from-black/60 to-transparent">
-                  <span className="text-[11px] text-white/90 truncate block">
+                  <span className="text-11 text-white/90 truncate block">
                     {image.fileName}
                   </span>
                 </div>

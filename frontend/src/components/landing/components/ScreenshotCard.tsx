@@ -37,11 +37,11 @@ export function ScreenshotCard({
       </div>
       <div className="px-4 py-3 border-t border-stone-100/40 dark:border-stone-800/20">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-stone-400 dark:text-stone-500 truncate">
+          <span className="text-11 font-medium text-stone-400 dark:text-stone-500 truncate">
             {alt}
           </span>
           {label && (
-            <span className="text-[9px] text-stone-300 dark:text-stone-600 font-semibold tracking-[0.1em] uppercase shrink-0 ml-3">
+            <span className="text-9 text-stone-300 dark:text-stone-600 font-semibold tracking-[0.1em] uppercase shrink-0 ml-3">
               {label}
             </span>
           )}

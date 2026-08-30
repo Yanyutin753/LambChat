@@ -112,7 +112,7 @@ export function ForgotPassword() {
               <div className="auth-panel rounded-[1.35rem] p-4 sm:rounded-2xl sm:p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-stone-600 dark:text-stone-400">
+                    <label className="mb-1.5 block text-13 font-medium text-stone-600 dark:text-stone-400">
                       {t("auth.email")}
                     </label>
                     <div className="relative">
@@ -149,7 +149,7 @@ export function ForgotPassword() {
               <div className="mt-3 text-center">
                 <button
                   onClick={handleBackToLogin}
-                  className="inline-flex items-center gap-1.5 text-[13px] text-stone-400 transition-colors hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+                  className="inline-flex items-center gap-1.5 text-13 text-stone-400 transition-colors hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
                 >
                   <BackIcon size={12} />
                   {t("auth.backToLogin")}

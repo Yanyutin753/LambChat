@@ -182,7 +182,7 @@ export const FileUploadButton = memo(function FileUploadButton({
                   key={category}
                   type="button"
                   onClick={() => handleCategorySelect(category)}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] transition-colors hover:bg-[var(--theme-bg-subtle)] active:bg-[var(--theme-bg-subtle)]"
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-13 transition-colors hover:bg-[var(--theme-bg-subtle)] active:bg-[var(--theme-bg-subtle)]"
                   style={{ color: "var(--theme-text)" }}
                 >
                   <div
@@ -199,7 +199,7 @@ export const FileUploadButton = memo(function FileUploadButton({
                   </span>
                   {uploadLimits && (
                     <span
-                      className="text-[11px] tabular-nums"
+                      className="text-11 tabular-nums"
                       style={{ color: "var(--theme-text-secondary)" }}
                     >
                       {uploadLimits[category]}MB

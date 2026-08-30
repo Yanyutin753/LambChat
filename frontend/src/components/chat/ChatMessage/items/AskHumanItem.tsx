@@ -564,7 +564,7 @@ const AskHumanItem = memo(function AskHumanItem({
       {/* Fields count badges */}
       {hasFields && (
         <div className="flex flex-wrap gap-1">
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-[#fef3c7] dark:bg-[#451a03] text-amber-700 dark:text-amber-300 ring-1 ring-inset ring-amber-200/50 dark:ring-amber-800/30">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-10 font-medium bg-[#fef3c7] dark:bg-[#451a03] text-amber-700 dark:text-amber-300 ring-1 ring-inset ring-amber-200/50 dark:ring-amber-800/30">
             {t("chat.message.toolAskHumanFieldCount", {
               count: effectiveFields.length,
             })}
@@ -576,7 +576,7 @@ const AskHumanItem = memo(function AskHumanItem({
       {!isPending && parsedResult && (
         <div
           className={clsx(
-            "flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium",
+            "flex items-center gap-1.5 px-2 py-1 rounded-md text-11 font-medium",
             parsedResult.status === "success"
               ? "bg-emerald-50 dark:bg-emerald-950/25 text-emerald-600 dark:text-emerald-400"
               : parsedResult.status === "timeout"
@@ -601,7 +601,7 @@ const AskHumanItem = memo(function AskHumanItem({
 
       {/* Waiting state */}
       {isPending && (
-        <div className="flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400 px-1">
+        <div className="flex items-center gap-1.5 text-10 text-amber-600 dark:text-amber-400 px-1">
           <Clock size={10} className="animate-pulse" />
           <span>{t("chat.message.askHumanWaiting")}</span>
         </div>

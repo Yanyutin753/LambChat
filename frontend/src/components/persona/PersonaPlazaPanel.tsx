@@ -163,7 +163,7 @@ export function PersonaPlazaPanel() {
                     {t("personaPresets.tags", "标签")}
                   </span>
                   {activeTag && (
-                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[10px]">
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-10">
                       1
                     </span>
                   )}

@@ -142,7 +142,7 @@ const ModelItem = memo(function ModelItem({
           />
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span
-              className={`truncate text-[14px] leading-5 font-serif ${
+              className={`truncate text-14 leading-5 font-serif ${
                 isSelected
                   ? "text-[var(--theme-text)]"
                   : "text-stone-700 dark:text-stone-200"
@@ -484,7 +484,7 @@ const ModelSelector = memo(function ModelSelector({
                       type="button"
                       onClick={() => setActiveFilter(option.key)}
                       aria-pressed={selected}
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium leading-5 transition-colors ${
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-11 font-medium leading-5 transition-colors ${
                         selected
                           ? "bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-900"
                           : "bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-700/60 dark:text-stone-300 dark:hover:bg-stone-700"
@@ -514,7 +514,7 @@ const ModelSelector = memo(function ModelSelector({
                   onValueChange={setModelSearch}
                   placeholder={t("profile.searchModels", "搜索模型")}
                   autoComplete="off"
-                  className="min-w-0 flex-1 bg-transparent text-[13px] leading-5 text-stone-700 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"
+                  className="min-w-0 flex-1 bg-transparent text-13 leading-5 text-stone-700 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"
                 />
               </div>
             </div>
@@ -522,7 +522,7 @@ const ModelSelector = memo(function ModelSelector({
             <div className="border-t border-stone-100 dark:border-stone-700/70">
               <div className="max-h-72 overflow-y-auto overscroll-contain py-1">
                 {filteredModels.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-[13px] text-stone-400 dark:text-stone-500">
+                  <div className="px-3 py-6 text-center text-13 text-stone-400 dark:text-stone-500">
                     {t("common.noSearchResults", "没有找到匹配结果")}
                   </div>
                 ) : (

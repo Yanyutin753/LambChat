@@ -689,7 +689,7 @@ export function RolesPanel() {
                 {/* Header badges */}
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-11 font-medium ${
                       role.is_system
                         ? "bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]"
                         : "bg-[var(--glass-bg-subtle)] text-[var(--theme-text-secondary)]"
@@ -700,7 +700,7 @@ export function RolesPanel() {
                       ? t("roles.systemRole")
                       : t("roles.customRole")}
                   </span>
-                  <span className="text-[11px] text-[var(--theme-text-secondary)]">
+                  <span className="text-11 text-[var(--theme-text-secondary)]">
                     {t("roles.permissionCount", {
                       count: role.permissions.length,
                     })}
@@ -722,13 +722,13 @@ export function RolesPanel() {
                   {role.permissions.slice(0, 3).map((perm) => (
                     <span
                       key={perm}
-                      className="inline-flex items-center rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-[11px] text-[var(--theme-text-secondary)]"
+                      className="inline-flex items-center rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-11 text-[var(--theme-text-secondary)]"
                     >
                       {permissionLabels[perm] || perm}
                     </span>
                   ))}
                   {role.permissions.length > 3 && (
-                    <span className="inline-flex items-center rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-[11px] text-[var(--theme-text-secondary)]">
+                    <span className="inline-flex items-center rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-11 text-[var(--theme-text-secondary)]">
                       +{role.permissions.length - 3}
                     </span>
                   )}

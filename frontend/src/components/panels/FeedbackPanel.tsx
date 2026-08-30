@@ -78,7 +78,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
               </span>
             </div>
           </div>
-          <span className="mt-1.5 text-[10px] text-stone-400 dark:text-stone-500 font-medium">
+          <span className="mt-1.5 text-10 text-stone-400 dark:text-stone-500 font-medium">
             {t("feedback.positiveRate")}
           </span>
         </div>
@@ -86,7 +86,7 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
         {/* Right: distribution bars */}
         <div className="flex-1 space-y-2.5 min-w-0">
           <div className="flex items-center gap-2.5">
-            <span className="w-7 text-[11px] text-stone-500 dark:text-stone-400 flex-shrink-0">
+            <span className="w-7 text-11 text-stone-500 dark:text-stone-400 flex-shrink-0">
               {t("feedback.positive")}
             </span>
             <div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-stone-700 overflow-hidden">
@@ -98,12 +98,12 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
                 }}
               />
             </div>
-            <span className="w-8 text-right text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums flex-shrink-0">
+            <span className="w-8 text-right text-11 font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums flex-shrink-0">
               {stats.up_count}
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="w-7 text-[11px] text-stone-500 dark:text-stone-400 flex-shrink-0">
+            <span className="w-7 text-11 text-stone-500 dark:text-stone-400 flex-shrink-0">
               {t("feedback.negative")}
             </span>
             <div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-stone-700 overflow-hidden">
@@ -115,12 +115,12 @@ function RatingSummary({ stats }: { stats: FeedbackStats }) {
                 }}
               />
             </div>
-            <span className="w-8 text-right text-[11px] font-semibold text-red-500 dark:text-red-400 tabular-nums flex-shrink-0">
+            <span className="w-8 text-right text-11 font-semibold text-red-500 dark:text-red-400 tabular-nums flex-shrink-0">
               {stats.down_count}
             </span>
           </div>
           <div className="pt-1 border-t border-stone-100 dark:border-stone-700/60">
-            <span className="text-[11px] text-stone-400 dark:text-stone-500">
+            <span className="text-11 text-stone-400 dark:text-stone-500">
               {t("feedback.totalCount")}&nbsp;
               <span className="font-semibold text-stone-600 dark:text-stone-300">
                 {stats.total_count}
@@ -162,7 +162,7 @@ function FilterTabs({
           <button
             key={tab.key}
             onClick={() => onChange(tab.key)}
-            className={`relative flex items-center gap-1.5 px-3.5 py-[7px] rounded-lg text-[13px] font-medium whitespace-nowrap transition-all duration-200 ${
+            className={`relative flex items-center gap-1.5 px-3.5 py-[7px] rounded-lg text-13 font-medium whitespace-nowrap transition-all duration-200 ${
               isActive
                 ? "bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-sm"
                 : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/5"
@@ -170,7 +170,7 @@ function FilterTabs({
           >
             {tab.label}
             <span
-              className={`min-w-[20px] text-center px-1 py-0.5 rounded-full text-[10px] font-semibold tabular-nums ${
+              className={`min-w-[20px] text-center px-1 py-0.5 rounded-full text-10 font-semibold tabular-nums ${
                 isActive
                   ? "bg-white/20 dark:bg-stone-900/20 text-inherit"
                   : "bg-stone-100 dark:bg-stone-700 text-stone-400 dark:text-stone-500"
@@ -271,17 +271,17 @@ function FeedbackCard({
           <div
             className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full
             bg-gradient-to-br from-stone-200 to-stone-300 dark:from-stone-600 dark:to-stone-700
-            text-stone-500 dark:text-stone-300 text-[11px] font-bold"
+            text-stone-500 dark:text-stone-300 text-11 font-bold"
           >
             {feedback.username.charAt(0).toUpperCase()}
           </div>
-          <span className="text-[13px] font-medium text-stone-800 dark:text-stone-200 truncate">
+          <span className="text-13 font-medium text-stone-800 dark:text-stone-200 truncate">
             {feedback.username}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span
-            className={`inline-flex items-center gap-1 text-[11px] font-medium select-none ${
+            className={`inline-flex items-center gap-1 text-11 font-medium select-none ${
               isUp
                 ? "text-amber-600 dark:text-amber-400"
                 : "text-stone-400 dark:text-stone-500"
@@ -290,7 +290,7 @@ function FeedbackCard({
             {isUp ? <ThumbsUp size={12} /> : <ThumbsDown size={12} />}
             {isUp ? t("feedback.positive") : t("feedback.negative")}
           </span>
-          <span className="text-[11px] text-stone-300 dark:text-stone-600 tabular-nums">
+          <span className="text-11 text-stone-300 dark:text-stone-600 tabular-nums">
             {formatDateTimeShort(feedback.created_at)}
           </span>
         </div>
@@ -308,7 +308,7 @@ function FeedbackCard({
 
       {/* Content: comment */}
       {feedback.comment && (
-        <p className="text-[13px] text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-wrap line-clamp-3">
+        <p className="text-13 text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-wrap line-clamp-3">
           {feedback.comment}
         </p>
       )}
@@ -317,7 +317,7 @@ function FeedbackCard({
       <div className="flex items-center justify-between mt-2.5 pt-0">
         <button
           onClick={onViewDetail}
-          className="flex items-center gap-0.5 text-[11px] text-stone-400 dark:text-stone-500
+          className="flex items-center gap-0.5 text-11 text-stone-400 dark:text-stone-500
             hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
         >
           <span>{t("feedback.viewDetail", "查看详情")}</span>
@@ -330,7 +330,7 @@ function FeedbackCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="flex items-center gap-1 text-[11px] text-stone-300 dark:text-stone-600
+            className="flex items-center gap-1 text-11 text-stone-300 dark:text-stone-600
               hover:text-red-500 dark:hover:text-red-400 transition-colors"
             title={t("feedback.delete")}
           >
@@ -388,7 +388,7 @@ function FeedbackDetailModal({
                 <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
                   {feedback.username}
                 </p>
-                <p className="text-[11px] text-stone-400 dark:text-stone-500">
+                <p className="text-11 text-stone-400 dark:text-stone-500">
                   {formatDateTime(feedback.created_at)}
                 </p>
               </div>
@@ -458,10 +458,10 @@ function FeedbackDetailModal({
             {/* Session & Run IDs */}
             <div className="pt-3 mt-1 border-t border-stone-100 dark:border-stone-700/50 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500 flex-shrink-0 w-[58px]">
+                <span className="text-10 uppercase tracking-wider text-stone-400 dark:text-stone-500 flex-shrink-0 w-[58px]">
                   Session
                 </span>
-                <code className="flex-1 text-[11px] text-stone-400 dark:text-stone-500 font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
+                <code className="flex-1 text-11 text-stone-400 dark:text-stone-500 font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
                   {feedback.session_id}
                 </code>
                 <button
@@ -476,10 +476,10 @@ function FeedbackDetailModal({
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500 flex-shrink-0 w-[58px]">
+                <span className="text-10 uppercase tracking-wider text-stone-400 dark:text-stone-500 flex-shrink-0 w-[58px]">
                   Run
                 </span>
-                <code className="flex-1 text-[11px] text-stone-400 dark:text-stone-500 font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
+                <code className="flex-1 text-11 text-stone-400 dark:text-stone-500 font-mono truncate bg-stone-50 dark:bg-stone-900/50 rounded px-2 py-1">
                   {feedback.run_id}
                 </code>
                 <button

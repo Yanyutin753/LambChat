@@ -138,7 +138,7 @@ function PreviewLine({
   if (!text) return null;
   return (
     <div className="flex items-start gap-1.5 min-w-0">
-      <span className="inline-flex items-center gap-1 shrink-0 text-[10px] font-medium text-theme-text-tertiary uppercase tracking-wide mt-0.5">
+      <span className="inline-flex items-center gap-1 shrink-0 text-10 font-medium text-theme-text-tertiary uppercase tracking-wide mt-0.5">
         {icon}
         {label}
       </span>
@@ -179,12 +179,12 @@ function ConversationHistoryDetail({
                     {item.session_name || item.session_id}
                   </span>
                   {badge && (
-                    <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/40 ring-1 ring-sky-200/60 dark:ring-sky-800/40 text-sky-600 dark:text-sky-400 font-medium">
+                    <span className="shrink-0 text-10 px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/40 ring-1 ring-sky-200/60 dark:ring-sky-800/40 text-sky-600 dark:text-sky-400 font-medium">
                       {badge}
                     </span>
                   )}
                   {item.completed_at && (
-                    <span className="shrink-0 inline-flex items-center gap-1 text-[10px] tabular-nums text-theme-text-tertiary">
+                    <span className="shrink-0 inline-flex items-center gap-1 text-10 tabular-nums text-theme-text-tertiary">
                       <Clock size={10} className="opacity-50" />
                       {formatHistoryDate(item.completed_at)}
                     </span>
@@ -334,7 +334,7 @@ const ConversationHistoryItem = memo(function ConversationHistoryItem({
           <span className="text-xs text-theme-text min-w-0 truncate flex-1 font-medium">
             {item.session_name || item.session_id}
           </span>
-          <span className="text-[10px] text-theme-text-tertiary tabular-nums shrink-0">
+          <span className="text-10 text-theme-text-tertiary tabular-nums shrink-0">
             {formatHistoryDate(item.completed_at)}
           </span>
         </div>

@@ -287,7 +287,7 @@ function RejectionCard({
     return (
       <div className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-border))] bg-[color-mix(in_srgb,var(--theme-bg-card)_72%,transparent)] px-2.5 py-2">
         <Ban size={12} className="shrink-0 mt-0.5 text-theme-text-tertiary" />
-        <span className="text-[11px] text-theme-text-secondary truncate min-w-0">
+        <span className="text-11 text-theme-text-secondary truncate min-w-0">
           {summary.length > 80 ? summary.slice(0, 77) + "…" : summary}
         </span>
       </div>
@@ -329,7 +329,7 @@ function RejectionCard({
 
         {/* Description (collapsed) */}
         {description && !showDetails && (
-          <p className="text-[11px] text-theme-text-tertiary line-clamp-2 pl-[2.75rem]">
+          <p className="text-11 text-theme-text-tertiary line-clamp-2 pl-[2.75rem]">
             {description}
           </p>
         )}
@@ -339,7 +339,7 @@ function RejectionCard({
           <div className="space-y-2 pt-2 mt-2 border-t border-theme-border pl-[2.75rem]">
             {description && (
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-theme-text-tertiary mb-0.5">
+                <p className="text-10 font-medium uppercase tracking-wider text-theme-text-tertiary mb-0.5">
                   {t("chat.message.description")}
                 </p>
                 <p className="text-xs text-theme-text-secondary whitespace-pre-wrap break-words">
@@ -349,10 +349,10 @@ function RejectionCard({
             )}
             {rejection.preview && (
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-wider text-theme-text-tertiary mb-0.5">
+                <p className="text-10 font-medium uppercase tracking-wider text-theme-text-tertiary mb-0.5">
                   {t("chat.message.details")}
                 </p>
-                <pre className="text-[11px] text-theme-text-tertiary overflow-y-auto whitespace-pre-wrap break-words max-h-48 min-w-0 p-2.5 rounded-lg bg-theme-bg border border-theme-border">
+                <pre className="text-11 text-theme-text-tertiary overflow-y-auto whitespace-pre-wrap break-words max-h-48 min-w-0 p-2.5 rounded-lg bg-theme-bg border border-theme-border">
                   {JSON.stringify(rejection.preview, null, 2)}
                 </pre>
               </div>
@@ -365,7 +365,7 @@ function RejectionCard({
           <div className="pl-[2.75rem]">
             <button
               onClick={() => setShowDetails((v) => !v)}
-              className="flex items-center gap-0.5 text-[11px] text-theme-text-tertiary transition-colors hover:text-theme-text-secondary"
+              className="flex items-center gap-0.5 text-11 text-theme-text-tertiary transition-colors hover:text-theme-text-secondary"
             >
               {showDetails ? (
                 <ChevronUp size={11} />
@@ -511,7 +511,7 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
           icon={<CalendarClock size={12} />}
           defaultExpanded={true}
           badge={
-            <span className="text-[10px] text-theme-text-tertiary tabular-nums">
+            <span className="text-10 text-theme-text-tertiary tabular-nums">
               {tasks.length}
             </span>
           }
@@ -547,7 +547,7 @@ function ScheduledTaskDetail({ args, result }: ToolDetailProps) {
                     </div>
                   </div>
                   {tkTrigger && (
-                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-[10px] text-theme-text-tertiary">
+                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-10 text-theme-text-tertiary">
                       {t(`scheduledTask.${tkTrigger}`)}
                     </span>
                   )}
@@ -682,20 +682,20 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
 
       <div className="flex flex-wrap gap-1">
         {trigger && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-[10px] font-medium">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--theme-primary)_8%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-inset ring-[color-mix(in_srgb,var(--theme-primary)_14%,var(--theme-border))] text-10 font-medium">
             <Clock size={8} className="opacity-70" />
             {t(`scheduledTask.${trigger}`)}
           </span>
         )}
         {schedule && (
-          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-[10px] font-mono">
+          <span className="px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10 font-mono">
             {schedule}
           </span>
         )}
         {typeof enabled === "boolean" && (
           <span
             className={clsx(
-              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]",
+              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-10",
               enabled
                 ? "bg-emerald-100/60 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
                 : "bg-theme-bg-subtle text-theme-text-tertiary",
@@ -718,7 +718,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
 
       {/* Compact confirmation */}
       {resultMessage && !isList && (
-        <div className="flex items-center gap-1.5 text-[10px]">
+        <div className="flex items-center gap-1.5 text-10">
           <CheckCircle2
             size={10}
             className="shrink-0 text-emerald-500 dark:text-emerald-400"
@@ -751,11 +751,11 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
                   size={10}
                   className="shrink-0 text-[var(--theme-primary)]"
                 />
-                <span className="text-[10px] text-theme-text min-w-0 truncate flex-1">
+                <span className="text-10 text-theme-text min-w-0 truncate flex-1">
                   {tkName}
                 </span>
                 {tkTrigger && (
-                  <span className="shrink-0 text-[9px] text-theme-text-tertiary">
+                  <span className="shrink-0 text-9 text-theme-text-tertiary">
                     {t(`scheduledTask.${tkTrigger}`)}
                   </span>
                 )}
@@ -763,7 +763,7 @@ const ScheduledTaskItem = memo(function ScheduledTaskItem({
             );
           })}
           {tasks.length > 6 && (
-            <span className="text-[10px] text-theme-text-tertiary pl-2">
+            <span className="text-10 text-theme-text-tertiary pl-2">
               {t("chat.message.toolMoreFiles", { count: tasks.length - 6 })}
             </span>
           )}

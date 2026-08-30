@@ -338,10 +338,10 @@ export function UsagePanel() {
               <LayoutDashboard size={15} strokeWidth={2} />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-[13px] font-bold tracking-tight text-theme-text sm:text-sm">
+              <h2 className="truncate text-13 font-bold tracking-tight text-theme-text sm:text-sm">
                 {dashboardTitle}
               </h2>
-              <p className="mt-0.5 truncate text-[10px] leading-snug text-theme-text-tertiary sm:text-[11px]">
+              <p className="mt-0.5 truncate text-10 leading-snug text-theme-text-tertiary sm:text-11">
                 {dashboardSubtitle}
               </p>
             </div>
@@ -430,7 +430,7 @@ export function UsagePanel() {
         {/* Refreshing pill */}
         {isLoading && logs.length > 0 && (
           <div className="pointer-events-none mb-2 flex justify-center">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--glass-bg-card)] px-3 py-1 text-[11px] text-theme-text-tertiary shadow-sm ring-1 ring-inset ring-[var(--theme-border-faint)]">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--glass-bg-card)] px-3 py-1 text-11 text-theme-text-tertiary shadow-sm ring-1 ring-inset ring-[var(--theme-border-faint)]">
               <RefreshCw size={10} className="animate-spin" />
               {t("usage.refreshing")}
             </div>

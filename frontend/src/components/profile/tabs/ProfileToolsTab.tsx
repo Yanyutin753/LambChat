@@ -200,7 +200,7 @@ export function ProfileToolsTab() {
                   <span className="text-xs font-semibold text-stone-600 dark:text-stone-300 truncate">
                     {serverName}
                   </span>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 tabular-nums shrink-0 ml-2">
+                  <span className="text-10 text-stone-400 dark:text-stone-500 tabular-nums shrink-0 ml-2">
                     {enabledCount}/{serverTools.length}
                   </span>
                 </div>
@@ -257,7 +257,7 @@ export function ProfileToolsTab() {
                             </code>
                           </div>
                           {tool.description && (
-                            <p className="text-[11px] text-stone-400 dark:text-stone-500 truncate mt-0.5">
+                            <p className="text-11 text-stone-400 dark:text-stone-500 truncate mt-0.5">
                               {tool.description}
                             </p>
                           )}

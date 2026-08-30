@@ -11,7 +11,7 @@ function StatusPill({ status, title }: { status: string; title?: string }) {
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums ${
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-10 font-medium tabular-nums ${
         ok
           ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
           : "bg-red-500/10 text-red-500 dark:text-red-400"
@@ -51,12 +51,12 @@ function SectionHeader({
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--usage-icon-bg)] text-[var(--theme-primary)] sm:h-9 sm:w-9">
           <FileText size={15} strokeWidth={2} />
         </div>
-        <h2 className="truncate text-[13px] font-bold tracking-tight text-theme-text sm:text-sm">
+        <h2 className="truncate text-13 font-bold tracking-tight text-theme-text sm:text-sm">
           {title}
         </h2>
       </div>
       {total > 0 && (
-        <span className="shrink-0 text-[11px] tabular-nums text-theme-text-tertiary">
+        <span className="shrink-0 text-11 tabular-nums text-theme-text-tertiary">
           {start}–{end} / {total}
         </span>
       )}
@@ -86,11 +86,11 @@ function DesktopTable({
       ? "9.5rem minmax(9rem,.85fr) minmax(7rem,.9fr) minmax(7rem,.95fr) 5.75rem 5.75rem 5.75rem 6.25rem 5.5rem 5rem 5rem"
       : "9.5rem minmax(9rem,.9fr) minmax(7rem,.9fr) minmax(7rem,1fr) 5.75rem 5.75rem 6.25rem 5.5rem 5rem 5rem";
   const headerCellClass =
-    "whitespace-nowrap px-4 py-3 text-[11px] font-medium uppercase tracking-wider text-theme-text-tertiary";
+    "whitespace-nowrap px-4 py-3 text-11 font-medium uppercase tracking-wider text-theme-text-tertiary";
   const textCellClass =
-    "min-w-0 whitespace-nowrap px-4 py-3 text-[12px] text-theme-text-secondary";
+    "min-w-0 whitespace-nowrap px-4 py-3 text-12 text-theme-text-secondary";
   const numericCellClass =
-    "min-w-0 whitespace-nowrap px-4 py-3 text-right text-[12px] tabular-nums text-theme-text-secondary";
+    "min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 tabular-nums text-theme-text-secondary";
 
   return (
     <div className="hidden lg:block">
@@ -158,10 +158,10 @@ function DesktopTable({
                   {isAdmin && (
                     <div className="min-w-0 whitespace-nowrap px-4 py-3">
                       <div className="flex min-w-0 items-center gap-2">
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--usage-icon-bg)] text-[10px] font-bold text-[var(--theme-primary)] ring-1 ring-inset ring-[var(--usage-border)]">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--usage-icon-bg)] text-10 font-bold text-[var(--theme-primary)] ring-1 ring-inset ring-[var(--usage-border)]">
                           {(log.username || "-").charAt(0).toUpperCase()}
                         </div>
-                        <span className="min-w-0 truncate text-[12px] text-theme-text">
+                        <span className="min-w-0 truncate text-12 text-theme-text">
                           {log.username || "-"}
                         </span>
                       </div>
@@ -177,7 +177,7 @@ function DesktopTable({
                       {log.agent_name || "-"}
                     </span>
                   </div>
-                  <div className="min-w-0 whitespace-nowrap px-4 py-3 text-[12px] text-theme-text-tertiary">
+                  <div className="min-w-0 whitespace-nowrap px-4 py-3 text-12 text-theme-text-tertiary">
                     <span className="block truncate">
                       {personaOrTeam || "-"}
                     </span>
@@ -195,13 +195,13 @@ function DesktopTable({
                       {fmt(log.cache_read_tokens)}
                     </div>
                   )}
-                  <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-[12px] font-semibold tabular-nums text-[var(--theme-primary)]">
+                  <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 font-semibold tabular-nums text-[var(--theme-primary)]">
                     {fmt(log.total_tokens)}
                   </div>
                   <div className={`${numericCellClass} text-theme-text-tertiary`}>
                     {fmtCostUsd(log.cost_usd, Boolean(log.cost_available), costOpts)}
                   </div>
-                  <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-[12px] tabular-nums text-theme-text-tertiary">
+                  <div className="min-w-0 whitespace-nowrap px-4 py-3 text-right text-12 tabular-nums text-theme-text-tertiary">
                     {fmtDur(log.duration)}
                   </div>
                   <div className="min-w-0 whitespace-nowrap px-4 py-3 text-center">
@@ -238,20 +238,20 @@ function TabletRow({
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <code className="min-w-0 truncate font-serif text-[12px] font-semibold text-theme-text tabular-nums">
+            <code className="min-w-0 truncate font-serif text-12 font-semibold text-theme-text tabular-nums">
               {log.model || "-"}
             </code>
             <StatusPill status={log.status} title={log.error_message} />
           </div>
-          <p className="mt-1 truncate text-[11px] font-medium text-theme-text-secondary">
+          <p className="mt-1 truncate text-11 font-medium text-theme-text-secondary">
             {log.agent_name || "-"}
           </p>
-          <p className="mt-0.5 truncate text-[10px] text-theme-text-tertiary">
+          <p className="mt-0.5 truncate text-10 text-theme-text-tertiary">
             {personaOrTeam || "-"}
           </p>
           {log.status !== "completed" && log.error_message && (
             <p
-              className="mt-1 truncate text-[10px] text-red-500 dark:text-red-400"
+              className="mt-1 truncate text-10 text-red-500 dark:text-red-400"
               title={log.error_message}
             >
               {log.error_message}
@@ -259,14 +259,14 @@ function TabletRow({
           )}
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-[12px] font-medium tabular-nums text-theme-text-secondary">
+          <p className="text-12 font-medium tabular-nums text-theme-text-secondary">
             {log.started_at ? formatDateTimeShort(log.started_at) : "-"}
           </p>
-          <p className="text-[10px] tabular-nums text-theme-text-tertiary">
+          <p className="text-10 tabular-nums text-theme-text-tertiary">
             {fmtDur(log.duration)}
           </p>
           {isAdmin && log.username && (
-            <p className="mt-0.5 max-w-28 truncate text-[10px] text-theme-text-tertiary">
+            <p className="mt-0.5 max-w-28 truncate text-10 text-theme-text-tertiary">
               {log.username}
             </p>
           )}
@@ -285,11 +285,11 @@ function TabletRow({
           ],
         ].map(([label, value, strong]) => (
           <div key={String(label)} className="min-w-0">
-            <span className="block text-[9px] text-theme-text-tertiary">
+            <span className="block text-9 text-theme-text-tertiary">
               {label}
             </span>
             <span
-              className={`mt-0.5 block truncate text-[12px] font-semibold tabular-nums ${
+              className={`mt-0.5 block truncate text-12 font-semibold tabular-nums ${
                 strong
                   ? "text-[var(--theme-primary)]"
                   : "text-theme-text-secondary"
@@ -337,22 +337,22 @@ function MobileCard({
               <Bot size={16} strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
-              <code className="block truncate font-serif text-[13px] font-bold text-theme-text tabular-nums">
+              <code className="block truncate font-serif text-13 font-bold text-theme-text tabular-nums">
                 {log.model || "-"}
               </code>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <span className="usage-soft-pill text-[10px] font-medium text-theme-text-secondary">
+                <span className="usage-soft-pill text-10 font-medium text-theme-text-secondary">
                   {log.agent_name || "-"}
                 </span>
                 {personaOrTeam && (
-                  <span className="usage-soft-pill text-[10px] text-theme-text-tertiary">
+                  <span className="usage-soft-pill text-10 text-theme-text-tertiary">
                     {personaOrTeam}
                   </span>
                 )}
               </div>
               {log.status !== "completed" && log.error_message && (
                 <p
-                  className="mt-2 truncate text-[10px] text-red-500 dark:text-red-400"
+                  className="mt-2 truncate text-10 text-red-500 dark:text-red-400"
                   title={log.error_message}
                 >
                   {log.error_message}
@@ -382,11 +382,11 @@ function MobileCard({
                 i > 0 ? "border-l border-[var(--usage-border)]" : ""
               }`}
             >
-              <span className="text-[8px] font-semibold uppercase tracking-widest text-theme-text-tertiary">
+              <span className="text-8 font-semibold uppercase tracking-widest text-theme-text-tertiary">
                 {label}
               </span>
               <span
-                className={`mt-1 text-[14px] tabular-nums ${
+                className={`mt-1 text-14 tabular-nums ${
                   strong
                     ? "font-bold text-[var(--theme-primary)]"
                     : "font-semibold text-theme-text"
@@ -399,7 +399,7 @@ function MobileCard({
         </div>
 
         {/* Metadata footer */}
-        <div className="mt-3 flex items-center justify-between text-[10px] text-theme-text-tertiary">
+        <div className="mt-3 flex items-center justify-between text-10 text-theme-text-tertiary">
           <div className="flex min-w-0 items-center gap-1">
             <Clock size={9} className="shrink-0 opacity-40" />
             <span className="truncate tabular-nums">

@@ -122,7 +122,7 @@ export function SlashDropdownMenu({
         <div key={section.kind}>
           {sections.length > 1 && (
             <div
-              className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider"
+              className="px-3 py-1.5 text-11 font-medium uppercase tracking-wider"
               style={{ color: "var(--theme-text-secondary)" }}
             >
               {t(section.labelKey, section.fallbackLabel)}
@@ -147,7 +147,7 @@ export function SlashDropdownMenu({
                   e.preventDefault();
                   onApplySelection(item);
                 }}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-13 transition-colors"
                 style={{
                   backgroundColor: isHighlighted
                     ? "var(--theme-bg-hover, rgba(128,128,128,0.08))"

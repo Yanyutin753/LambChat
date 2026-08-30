@@ -25,7 +25,7 @@ export function ShortcutRow({
         {displayKeys.map((key) => (
           <kbd
             key={key}
-            className="px-1.5 py-0.5 rounded text-[11px] font-mono"
+            className="px-1.5 py-0.5 rounded text-11 font-mono"
             style={{
               backgroundColor: "var(--theme-bg-hover, rgba(128,128,128,0.1))",
               border: "1px solid var(--theme-border)",
@@ -92,11 +92,11 @@ export function ShortcutDialog({
           </button>
         </div>
         <div
-          className="space-y-3 text-[13px]"
+          className="space-y-3 text-13"
           style={{ color: "var(--theme-text-secondary)" }}
         >
           <div
-            className="pb-2 mb-1 text-[11px] font-medium uppercase tracking-wider"
+            className="pb-2 mb-1 text-11 font-medium uppercase tracking-wider"
             style={{
               color: "var(--theme-text-secondary)",
               opacity: 0.5,
@@ -118,7 +118,7 @@ export function ShortcutDialog({
             keys={["↓"]}
           />
           <div
-            className="pt-2 pb-2 mt-1 text-[11px] font-medium uppercase tracking-wider"
+            className="pt-2 pb-2 mt-1 text-11 font-medium uppercase tracking-wider"
             style={{
               color: "var(--theme-text-secondary)",
               opacity: 0.5,
@@ -151,7 +151,7 @@ export function ShortcutDialog({
             macKeys={["⌘", "T"]}
           />
           <div
-            className="pt-2 pb-2 mt-1 text-[11px] font-medium uppercase tracking-wider"
+            className="pt-2 pb-2 mt-1 text-11 font-medium uppercase tracking-wider"
             style={{
               color: "var(--theme-text-secondary)",
               opacity: 0.5,

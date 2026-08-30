@@ -27,7 +27,7 @@ export function FileTreeItem({
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-1.5 py-[4px] text-[13px] text-left text-stone-500 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5 transition-colors duration-100 select-none"
+          className="w-full flex items-center gap-1.5 py-[4px] text-13 text-left text-stone-500 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5 transition-colors duration-100 select-none"
           style={{ paddingLeft: `${indent}px`, paddingRight: "8px" }}
         >
           <ChevronDown
@@ -63,7 +63,7 @@ export function FileTreeItem({
     <button
       type="button"
       onClick={() => node.fileIndex !== undefined && onSelect(node.fileIndex)}
-      className={`w-full flex items-center gap-2 py-[5px] text-[13px] text-left group transition-colors duration-100 ${
+      className={`w-full flex items-center gap-2 py-[5px] text-13 text-left group transition-colors duration-100 ${
         isActive
           ? "bg-[var(--theme-primary)]/10 text-[var(--theme-text)] font-medium"
           : "text-stone-600 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5"

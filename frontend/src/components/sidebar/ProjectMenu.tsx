@@ -129,7 +129,7 @@ export function ProjectMenu({
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 pb-1.5">
-            <span className="text-[13px] font-medium text-[var(--theme-text)]">
+            <span className="text-13 font-medium text-[var(--theme-text)]">
               {t("sidebar.projectOptions")}
             </span>
             <button
@@ -149,7 +149,7 @@ export function ProjectMenu({
                   onNewSessionInProject(_project.id);
                   onClose();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
                 <MessageSquarePlus size={16} />
                 <span>{t("sidebar.newChat")}</span>
@@ -162,7 +162,7 @@ export function ProjectMenu({
                 onRename();
                 onClose();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
             >
               <Edit2 size={16} />
               <span>{t("sidebar.rename")}</span>
@@ -175,7 +175,7 @@ export function ProjectMenu({
                   onShare();
                   onClose();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
                 <Share2 size={16} />
                 <span>{t("sidebar.shareProject", "分享项目")}</span>
@@ -191,7 +191,7 @@ export function ProjectMenu({
                 onDelete();
                 onClose();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-13 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
             >
               <Trash2 size={16} />
               <span>{t("common.delete")}</span>

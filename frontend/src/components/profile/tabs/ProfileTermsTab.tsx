@@ -52,7 +52,7 @@ export function ProfileTermsTab() {
         ))}
       </div>
 
-      <p className="text-[10px] text-stone-400 dark:text-stone-500 text-center pt-1">
+      <p className="text-10 text-stone-400 dark:text-stone-500 text-center pt-1">
         {t("auth.termsHint")}
       </p>
     </div>

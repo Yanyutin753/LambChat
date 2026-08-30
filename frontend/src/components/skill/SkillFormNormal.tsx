@@ -95,7 +95,7 @@ export function SkillFormNormal(a: SkillFormActions) {
                 {t("adminMarketplace.tags")}
               </label>
               <div className="skill-tag-editor rounded-2xl bg-[var(--theme-bg)] p-3 shadow-sm">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
+                <div className="flex items-center gap-2 text-11 font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
                   <Tag size={12} className="text-[var(--theme-primary)]" />
                   {t("adminMarketplace.tags")}
                 </div>
@@ -167,7 +167,7 @@ export function SkillFormNormal(a: SkillFormActions) {
           <div className="shrink-0 px-3 py-3 sm:px-4">
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between gap-3 font-serif">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]/80">
+                <p className="text-11 font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]/80">
                   {t("skills.form.files", "Files")}
                 </p>
                 <div className="flex items-center gap-1 shrink-0">
@@ -220,7 +220,7 @@ export function SkillFormNormal(a: SkillFormActions) {
               </div>
 
               <div className="skill-file-path rounded-2xl px-3 py-2.5">
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
+                <label className="mb-1 block text-11 font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
                   {t("skills.form.filePath")}
                 </label>
                 <Input

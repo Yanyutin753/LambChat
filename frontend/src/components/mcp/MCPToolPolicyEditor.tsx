@@ -159,7 +159,7 @@ export function MCPToolPolicyEditor({
           />
         ) : (
           tools.length > 0 && (
-            <span className="text-[11px] tabular-nums text-stone-300 dark:text-stone-600">
+            <span className="text-11 tabular-nums text-stone-300 dark:text-stone-600">
               {enabledCount}/{tools.length}
             </span>
           )
@@ -233,13 +233,13 @@ export function MCPToolPolicyEditor({
                     )}
                   </div>
                   {tool.description && (
-                    <p className="mt-0.5 truncate text-[11px] leading-relaxed text-stone-400 dark:text-stone-500">
+                    <p className="mt-0.5 truncate text-11 leading-relaxed text-stone-400 dark:text-stone-500">
                       {tool.description}
                     </p>
                   )}
 
                   <div className="mt-2">
-                    <div className="mb-2 flex items-center justify-between gap-3 font-serif rounded-md bg-stone-50 px-2 py-1.5 text-[11px] text-stone-500 dark:bg-stone-800/70 dark:text-stone-400">
+                    <div className="mb-2 flex items-center justify-between gap-3 font-serif rounded-md bg-stone-50 px-2 py-1.5 text-11 text-stone-500 dark:bg-stone-800/70 dark:text-stone-400">
                       <span>{t("mcp.form.inlineExposure")}</span>
                       <button
                         type="button"
@@ -281,7 +281,7 @@ export function MCPToolPolicyEditor({
                             key={role}
                             className="grid grid-cols-[minmax(0,1fr)_80px_80px] items-center gap-2"
                           >
-                            <span className="truncate text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                            <span className="truncate text-11 font-medium text-stone-500 dark:text-stone-400">
                               {role}
                             </span>
                             <input
@@ -302,7 +302,7 @@ export function MCPToolPolicyEditor({
                                 }
                               }}
                               placeholder={t("mcp.form.dailyLimit")}
-                              className="glass-input h-7 px-2 text-[11px] tabular-nums"
+                              className="glass-input h-7 px-2 text-11 tabular-nums"
                             />
                             <input
                               type="number"
@@ -322,7 +322,7 @@ export function MCPToolPolicyEditor({
                                 }
                               }}
                               placeholder={t("mcp.form.weeklyLimit")}
-                              className="glass-input h-7 px-2 text-[11px] tabular-nums"
+                              className="glass-input h-7 px-2 text-11 tabular-nums"
                             />
                           </div>
                         );

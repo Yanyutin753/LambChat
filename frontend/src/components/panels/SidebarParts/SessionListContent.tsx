@@ -378,7 +378,7 @@ export function SessionListContent({
         >
           <MessageSquarePlus size={20} />
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-stone-400 dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-stone-400 dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             {t("sidebar.newChatShortcut")}
           </kbd>
         </button>
@@ -392,7 +392,7 @@ export function SessionListContent({
             {t("sidebar.searchSessions")}
           </span>
           <kbd
-            className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity"
+            className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity"
             style={{ color: "var(--theme-text-tertiary)" }}
           >
             ⌘K
@@ -443,7 +443,7 @@ export function SessionListContent({
             onClick={onToggleProjectsCollapsed}
             className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
           >
-            <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+            <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
               {t("sidebar.projects")}
             </span>
             <ChevronDown
@@ -551,7 +551,7 @@ export function SessionListContent({
                 className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+                  <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
                     {t("nav.scheduled-tasks")}
                   </span>
                 </div>
@@ -611,7 +611,7 @@ export function SessionListContent({
                   {scheduledTaskTotal > scheduledTasks.length && (
                     <button
                       onClick={() => navigate("/scheduled-tasks")}
-                      className="w-full h-8 rounded-[10px] px-[9px] text-left text-[13px] text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-stone-800/40 dark:hover:text-stone-300"
+                      className="w-full h-8 rounded-[10px] px-[9px] text-left text-13 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-stone-800/40 dark:hover:text-stone-300"
                     >
                       {t("nav.more", "更多")}
                     </button>
@@ -633,7 +633,7 @@ export function SessionListContent({
                 className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+                  <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
                     {isSelectionMode
                       ? t("sidebar.selectedCount", {
                           count: selectedCount,
@@ -708,7 +708,7 @@ export function SessionListContent({
                   ) : (
                     groupedUncategorized.map((group) => (
                       <div key={group.label}>
-                        <div className="px-[9px] h-8 flex items-center text-[13px] font-medium text-stone-400 dark:text-stone-500 select-none">
+                        <div className="px-[9px] h-8 flex items-center text-13 font-medium text-stone-400 dark:text-stone-500 select-none">
                           {group.label}
                         </div>
                         <div className="flex flex-col gap-px">
@@ -785,7 +785,7 @@ export function SessionListContent({
           <div className="relative">
             {isProjectPickerOpen && (
               <div className="absolute bottom-12 left-0 right-0 z-30 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 shadow-xl shadow-stone-900/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/30">
-                <div className="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                <div className="px-3 py-2 text-11 font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
                   {t("sidebar.moveSelectedToProject")}
                 </div>
                 <div className="max-h-56 overflow-y-auto p-1">
@@ -794,7 +794,7 @@ export function SessionListContent({
                       key={project.id}
                       type="button"
                       onClick={() => handleMoveSelected(project.id)}
-                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50"
+                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50"
                     >
                       <FolderInput
                         size={15}
@@ -806,7 +806,7 @@ export function SessionListContent({
                   <button
                     type="button"
                     onClick={() => handleMoveSelected(null)}
-                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50"
+                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-13 font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-50"
                   >
                     <Tag size={15} className="shrink-0 text-stone-400" />
                     <span className="truncate">

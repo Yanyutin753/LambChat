@@ -155,7 +155,7 @@ export function SkillBaseCard({
 
         {description && (
           <p
-            className={`mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp} min-h-[3.25em]`}
+            className={`mt-3 text-13 leading-relaxed text-[var(--theme-text-secondary)] ${lineClamp} min-h-[3.25em]`}
           >
             {description}
           </p>

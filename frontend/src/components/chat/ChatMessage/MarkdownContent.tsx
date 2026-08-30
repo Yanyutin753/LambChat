@@ -265,7 +265,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           "ai-data-table__toolbar flex items-center justify-between px-2.5 py-2 font-serif",
         )}
       >
-        <span className="ai-data-table__title flex items-center gap-1.5 text-[11px] sm:text-xs font-medium select-none">
+        <span className="ai-data-table__title flex items-center gap-1.5 text-11 sm:text-xs font-medium select-none">
           <Table2 size={12} aria-hidden="true" />
           {t("chat.message.table", "Table")}
         </span>
@@ -273,7 +273,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           <button
             onClick={handleCopy}
             className={clsx(
-              "ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] sm:text-xs font-medium transition-colors",
+              "ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-11 sm:text-xs font-medium transition-colors",
               copied
                 ? "ai-data-table__action--copied"
                 : "text-stone-500 dark:text-stone-400",
@@ -288,7 +288,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           </button>
           <button
             onClick={handleExport}
-            className="ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] sm:text-xs font-medium text-stone-500 dark:text-stone-400 transition-colors"
+            className="ai-data-table__action flex items-center gap-1 rounded px-1.5 py-0.5 text-11 sm:text-xs font-medium text-stone-500 dark:text-stone-400 transition-colors"
             aria-label={t("chat.message.exportCsv", "Export CSV")}
             title={t("chat.message.exportCsv", "Export CSV")}
           >

@@ -374,12 +374,12 @@ export function MemoryPanel() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${badge}`}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-11 font-medium ${badge}`}
                       >
                         {t(`memory.type.${memory.memory_type}`)}
                       </span>
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-11 font-medium ${
                           SOURCE_STYLES[memory.source] ?? SOURCE_STYLES.manual
                         }`}
                       >
@@ -390,7 +390,7 @@ export function MemoryPanel() {
                         />
                         {t(`memory.source.${memory.source}`, memory.source)}
                       </span>
-                      <span className="text-[11px] text-[var(--theme-text-secondary)]">
+                      <span className="text-11 text-[var(--theme-text-secondary)]">
                         {memory.updated_at
                           ? formatDateTimeShort(memory.updated_at)
                           : ""}
@@ -424,7 +424,7 @@ export function MemoryPanel() {
 
                   {/* Footer */}
                   <div className="mt-auto flex items-center gap-2 border-t border-[var(--glass-border)] pt-3 mt-3.5">
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--glass-bg)] px-2 py-0.5 text-[11px] text-[var(--theme-text-secondary)]">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--glass-bg)] px-2 py-0.5 text-11 text-[var(--theme-text-secondary)]">
                       <Eye size={12} />
                       {memory.access_count ?? 0} {t("memory.accesses")}
                     </div>

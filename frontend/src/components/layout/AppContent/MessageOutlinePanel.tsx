@@ -48,7 +48,7 @@ function UserAvatar({
 }) {
   const fallback = (
     <div className="flex size-[26px] items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full shadow-[0_2px_6px_rgba(0,0,0,0.18)]">
-      <span className="text-[11px] font-bold text-white leading-none tracking-wide">
+      <span className="text-11 font-bold text-white leading-none tracking-wide">
         {username.charAt(0).toUpperCase() || "U"}
       </span>
     </div>
@@ -114,7 +114,7 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
           <div className="flex items-center gap-1.5">
             <span
               className={clsx(
-                "text-[10.5px] font-semibold leading-none tracking-wide",
+                "text-10.5 font-semibold leading-none tracking-wide",
                 isUser
                   ? "text-stone-500 dark:text-stone-400"
                   : "text-[var(--theme-primary)]",
@@ -127,7 +127,7 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
             )}
           </div>
           <div
-            className="text-[12.5px] text-[var(--theme-text)] line-clamp-2 mt-[5px] leading-[1.5] [&_strong]:font-semibold [&_strong]:text-[var(--theme-primary)] [&_em]:italic [&_code]:text-[11px] [&_code]:rounded [&_code]:bg-[var(--theme-primary-light)] [&_code]:px-0.5 [&_code]:text-[var(--theme-primary)]"
+            className="text-12.5 text-[var(--theme-text)] line-clamp-2 mt-[5px] leading-[1.5] [&_strong]:font-semibold [&_strong]:text-[var(--theme-primary)] [&_em]:italic [&_code]:text-11 [&_code]:rounded [&_code]:bg-[var(--theme-primary-light)] [&_code]:px-0.5 [&_code]:text-[var(--theme-primary)]"
             dangerouslySetInnerHTML={{
               __html: renderInlineMarkdown(data.label),
             }}

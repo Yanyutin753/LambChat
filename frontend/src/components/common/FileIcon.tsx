@@ -72,7 +72,7 @@ export function PreviewHeader({
         <h3
           className={`${
             isSidebar
-              ? "text-[13px] sm:text-sm font-medium"
+              ? "text-13 sm:text-sm font-medium"
               : "font-medium text-sm"
           } text-stone-800 dark:text-stone-100 truncate`}
           title={title}

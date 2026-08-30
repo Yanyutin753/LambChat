@@ -71,7 +71,7 @@ export const ModelIconSelect = React.memo(function ModelIconSelect({
           <ModelIconImg model={selected} icon={selected} size={18} />
         ) : (
           <div className="w-[18px] h-[18px] flex items-center justify-center rounded-full bg-stone-200 dark:bg-stone-600">
-            <span className="text-[10px] font-bold text-stone-500 dark:text-stone-300">
+            <span className="text-10 font-bold text-stone-500 dark:text-stone-300">
               ?
             </span>
           </div>
@@ -105,7 +105,7 @@ export const ModelIconSelect = React.memo(function ModelIconSelect({
               }`}
             >
               <div className="w-[18px] h-[18px] flex items-center justify-center rounded-full bg-stone-200 dark:bg-stone-600 shrink-0">
-                <span className="text-[10px] font-bold text-stone-500 dark:text-stone-300">
+                <span className="text-10 font-bold text-stone-500 dark:text-stone-300">
                   ?
                 </span>
               </div>

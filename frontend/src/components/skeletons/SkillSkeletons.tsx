@@ -76,7 +76,7 @@ function SkillCardsSkeleton({
               </div>
             </div>
 
-            {/* Description — matches mt-3 text-[13px] line-clamp-2 */}
+            {/* Description — matches mt-3 text-13 line-clamp-2 */}
             <div className="mt-3 space-y-1.5">
               <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
               <SkeletonLine

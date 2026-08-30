@@ -244,7 +244,7 @@ export function GlobalAgentTab({
                       key={locale.code}
                       type="button"
                       onClick={() => setActiveLocale(locale.code)}
-                      className={`rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors duration-150 ${
+                      className={`rounded px-1.5 py-0.5 text-11 font-medium transition-colors duration-150 ${
                         activeLocale === locale.code
                           ? "bg-[var(--theme-bg-subtle)] text-[var(--theme-text)]"
                           : "text-theme-text-secondary hover:text-[var(--theme-primary)]"
