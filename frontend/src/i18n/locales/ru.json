@@ -808,7 +808,8 @@
       "toolUploadUrlToSandbox": "Загрузить URL в песочницу",
       "toolVarCount": "{{count}} переменных",
       "toolWrite": "Запись",
-      "costTotal": "Стоимость"
+      "costTotal": "Стоимость",
+      "costDetail": "Детализация стоимости"
     },
     "messageInput": "Поле ввода сообщения",
     "noPermission": "Нет прав для отправки сообщений",

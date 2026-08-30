@@ -808,7 +808,8 @@
       "toolUploadUrlToSandbox": "Upload URL To Sandbox",
       "toolVarCount": "{{count}} variables",
       "toolWrite": "Write",
-      "costTotal": "Cost"
+      "costTotal": "Cost",
+      "costDetail": "Cost breakdown"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",

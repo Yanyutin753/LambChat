@@ -808,7 +808,8 @@
       "toolUploadUrlToSandbox": "URL을 샌드박스로 업로드",
       "toolVarCount": "{{count}}개 변수",
       "toolWrite": "쓰기",
-      "costTotal": "비용"
+      "costTotal": "비용",
+      "costDetail": "비용 내역"
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",

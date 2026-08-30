@@ -808,7 +808,8 @@
       "toolUploadUrlToSandbox": "上传 URL 到沙箱",
       "toolVarCount": "{{count}} 个变量",
       "toolWrite": "写入",
-      "costTotal": "费用"
+      "costTotal": "费用",
+      "costDetail": "费用明细"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",

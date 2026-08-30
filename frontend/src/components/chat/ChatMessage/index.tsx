@@ -2,7 +2,15 @@ import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { Check, Copy, GitBranch, Info, Loader2, Target } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  GitBranch,
+  Info,
+  Loader2,
+  Target,
+} from "lucide-react";
 import { useStickyDropdownPosition } from "../../../hooks/useStickyDropdownPosition";
 import type {
   Message,
@@ -37,13 +45,13 @@ import { useAuth } from "../../../hooks/useAuth";
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { shouldCloseTokenDetailsPopover } from "./tokenDetailsPopoverGuards";
 import { resolveTokenUsageModelDetails } from "./tokenUsageModel";
-import { buildCostDetailRows, hasPricedCost } from "./tokenCostDisplay";
-import { useFxRates } from "../../../hooks/useFxRates";
 import {
-  formatCostUsd,
-  resolveDisplayCurrency,
-  type FxRatesDoc,
-} from "../../../utils/currency";
+  buildCostDetailRows,
+  formatCostDetailRow,
+  hasPricedCost,
+} from "./tokenCostDisplay";
+import { useFxRates } from "../../../hooks/useFxRates";
+import { formatCostUsd, type FxRatesDoc } from "../../../utils/currency";
 import {
   shouldAllowAutoPreviewForPart,
   type AutoPreviewTarget,
@@ -103,6 +111,7 @@ function TokenDetailsButton({
 }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
+  const [costExpanded, setCostExpanded] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const cacheRate =
@@ -111,7 +120,6 @@ function TokenDetailsButton({
       : null;
   const costRows = buildCostDetailRows(tokenUsage);
   const priced = hasPricedCost(tokenUsage);
-  const displayCurrency = resolveDisplayCurrency(language, fxRates ?? null);
   const costRowLabels: Record<string, string> = {
     input: t("chat.message.tokenInput"),
     output: t("chat.message.tokenOutput"),
@@ -123,11 +131,19 @@ function TokenDetailsButton({
     buttonRef,
     showDetails,
     (rect) => {
-      const popupHeight = popupRef.current?.offsetHeight ?? 280;
+      const popupHeight = popupRef.current?.offsetHeight ?? 300;
       const popupWidth = Math.min(popupRef.current?.offsetWidth ?? 280, 360);
       const spaceAbove = rect.top;
       const spaceBelow = window.innerHeight - rect.bottom;
       const flipBelow = spaceAbove < popupHeight + 8 && spaceBelow > spaceAbove;
+      const desiredTop = flipBelow
+        ? rect.bottom + 8
+        : rect.top - 8 - popupHeight;
+      // 钳制在视口内：上方空间不足时绝不溢出顶部，下方同理
+      const top = Math.max(
+        8,
+        Math.min(desiredTop, window.innerHeight - popupHeight - 8),
+      );
       const left = Math.max(
         8,
         Math.min(rect.left, window.innerWidth - popupWidth - 8),
@@ -136,10 +152,10 @@ function TokenDetailsButton({
       return {
         position: "fixed",
         left,
-        top: flipBelow ? rect.bottom + 8 : rect.top - 8,
-        transform: flipBelow ? "translateY(0)" : "translateY(-100%)",
+        top,
       };
     },
+    costExpanded,
   );
 
   // Close details when clicking outside
@@ -179,7 +195,6 @@ function TokenDetailsButton({
       </button>
       {/* ChatGPT style details popup */}
       {showDetails &&
-        Object.keys(popupStyle).length > 0 &&
         createPortal(
           <div
             ref={popupRef}
@@ -195,20 +210,24 @@ function TokenDetailsButton({
               {tokenUsage && (
                 <>
                   <div className="flex justify-between gap-4 text-sky-600 dark:text-sky-400">
-                    <span className="">{t("chat.message.tokenInput")}</span>
+                    <span className="text-theme-text-secondary">
+                      {t("chat.message.tokenInput")}
+                    </span>
                     <span className="font-medium">
                       {tokenUsage.input_tokens?.toLocaleString()} tokens
                     </span>
                   </div>
                   <div className="flex justify-between gap-4 text-violet-600 dark:text-violet-400">
-                    <span className="">{t("chat.message.tokenOutput")}</span>
+                    <span className="text-theme-text-secondary">
+                      {t("chat.message.tokenOutput")}
+                    </span>
                     <span className="font-medium">
                       {tokenUsage.output_tokens?.toLocaleString()} tokens
                     </span>
                   </div>
                   {(tokenUsage.cache_creation_tokens ?? 0) > 0 && (
                     <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400">
-                      <span className="">
+                      <span className="text-theme-text-secondary">
                         {t("chat.message.tokenCacheCreation")}
                       </span>
                       <span className="font-medium">
@@ -221,7 +240,7 @@ function TokenDetailsButton({
                   )}
                   {cacheRate !== null && cacheRate > 0 && (
                     <div className="flex justify-between gap-4 text-fuchsia-600 dark:text-fuchsia-400">
-                      <span className="">
+                      <span className="text-theme-text-secondary">
                         {t("chat.message.tokenCacheRate")}
                       </span>
                       <span className="font-medium">
@@ -231,7 +250,7 @@ function TokenDetailsButton({
                   )}
                   {(tokenUsage.cache_read_tokens ?? 0) > 0 && (
                     <div className="flex justify-between gap-4 text-pink-600 dark:text-pink-400">
-                      <span className="">
+                      <span className="text-theme-text-secondary">
                         {t("chat.message.tokenCacheRead")}
                       </span>
                       <span className="font-medium">
@@ -241,7 +260,9 @@ function TokenDetailsButton({
                     </div>
                   )}
                   <div className="flex justify-between gap-4 border-t border-theme-border pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
-                    <span className="">{t("chat.message.tokenTotal")}</span>
+                    <span className="text-theme-text-secondary">
+                      {t("chat.message.tokenTotal")}
+                    </span>
                     <span className="font-medium">
                       {tokenUsage.total_tokens?.toLocaleString()} tokens
                     </span>
@@ -249,35 +270,54 @@ function TokenDetailsButton({
                   {priced && (
                     <div className="border-t border-theme-border pt-1.5 mt-1.5 space-y-1.5">
                       <div className="flex justify-between gap-4 text-amber-600 dark:text-amber-400">
-                        <span className="">{t("chat.message.costTotal")}</span>
+                        <button
+                          type="button"
+                          onClick={() => setCostExpanded(!costExpanded)}
+                          aria-expanded={costExpanded}
+                          title={t("chat.message.costDetail")}
+                          className="flex items-center gap-0.5 transition-colors hover:text-amber-700 dark:hover:text-amber-300"
+                        >
+                          <span>{t("chat.message.costTotal")}</span>
+                          <ChevronDown
+                            size={12}
+                            className={clsx(
+                              "opacity-50 transition-transform",
+                              costExpanded && "rotate-180",
+                            )}
+                          />
+                        </button>
                         <span className="font-medium tabular-nums">
                           {formatCostUsd(tokenUsage.cost_usd ?? 0, {
                             language,
                             rates: fxRates ?? null,
                           })}
-                          {displayCurrency !== "USD" && (
-                            <span className="ml-1.5 text-stone-400 dark:text-stone-500 font-normal">
-                              (${(tokenUsage.cost_usd ?? 0).toFixed(4)})
-                            </span>
-                          )}
                         </span>
                       </div>
-                      {costRows.map((row) => (
-                        <div
-                          key={row.key}
-                          className="flex justify-between gap-4 text-stone-500 dark:text-stone-400"
-                        >
-                          <span>{costRowLabels[row.key]}</span>
-                          <span className="tabular-nums">
-                            ${row.usd.toFixed(4)}
-                            {row.ratePerMillion !== null && (
-                              <span className="ml-1 text-stone-400 dark:text-stone-500">
-                                @ ${row.ratePerMillion}/M
+                      {costExpanded &&
+                        costRows.map((row) => {
+                          const { cost, rate } = formatCostDetailRow(row, {
+                            language,
+                            rates: fxRates ?? null,
+                          });
+                          return (
+                            <div
+                              key={row.key}
+                              className="flex justify-between gap-4"
+                            >
+                              <span className="text-theme-text-secondary">
+                                {costRowLabels[row.key]}
                               </span>
-                            )}
-                          </span>
-                        </div>
-                      ))}
+                              <span className="text-theme-text font-medium tabular-nums">
+                                {cost}
+                                {rate !== null && (
+                                  <span className="ml-1 text-theme-text-tertiary font-normal">
+                                    @ {rate}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
                     </div>
                   )}
                 </>
@@ -710,7 +750,7 @@ export const ChatMessage = memo(function ChatMessage({
                   steps={countRunSteps(message.parts!)}
                   durationMs={getRunElapsedMs(message)}
                   startedAtMs={getRunStartedAtMs(message)}
-              stateKey={message.id}
+                  stateKey={message.id}
                   active={message.isStreaming}
                   renderExpanded={() => renderPartGroups(runHeadGroups)}
                 />

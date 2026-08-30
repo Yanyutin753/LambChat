@@ -808,7 +808,8 @@
       "toolUploadUrlToSandbox": "URLをサンドボックスへアップロード",
       "toolVarCount": "{{count}} 個の変数",
       "toolWrite": "書込",
-      "costTotal": "費用"
+      "costTotal": "費用",
+      "costDetail": "費用の内訳"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
