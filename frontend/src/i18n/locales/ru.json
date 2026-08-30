@@ -573,7 +573,6 @@
   },
   "chat": {
     "addMoreFiles": "Добавить еще файлы",
-    "aiDisclaimer": "ИИ может ошибаться — проверяйте важную информацию",
     "assistant": "Ассистент",
     "attachFile": "Прикрепить файл",
     "attachments": "Вложения",
@@ -1928,6 +1927,11 @@
     "email": "Эл. почта",
     "enable": "Включить",
     "enabled": "Включено",
+    "fontSize": "Размер шрифта",
+    "fontSizeLarge": "Крупный",
+    "fontSizeSmall": "Мелкий",
+    "fontSizeStandard": "Обычный",
+    "fontSizeXLarge": "Очень крупный",
     "language": "Язык",
     "memoryToggle": "Межсессионная память",
     "languageSynced": "Настройки языка сохранены",
@@ -3085,6 +3089,8 @@
     "cacheTokens": "{{count}} tokens",
     "cacheWrite": "Запись кэша",
     "completed": "Завершено",
+    "cost": "Стоимость",
+    "costTotal": "Общая стоимость",
     "dashboard": {
       "subtitleAdmin": "Выполнение, потребление, автоматизация и аномалии агентов",
       "subtitleUser": "Личное выполнение, потребление, автоматизация и аномалии",
@@ -3153,6 +3159,7 @@
     },
     "refresh": "Обновить",
     "refreshing": "Обновление",
+    "requestsCount": "Запросы",
     "roleOrTeam": "Персона/Команда",
     "scheduledBadge": "Запланировано",
     "searchPlaceholder": "Поиск по имени пользователя...",
@@ -3167,7 +3174,11 @@
     "time": "Время",
     "title": "Детали использования",
     "today": "Сегодня",
-    "todayCost": "Расходы за сегодня {{amount}}",
+    "todayShort": "Сегодня {{amount}}",
+    "todaySpend": "Расходы за сегодня",
+    "tokenMix": "Состав токенов",
+    "tokensInput": "Вход",
+    "tokensOutput": "Выход",
     "tokensValue": "{{count}} tokens",
     "total": "Итого",
     "totalDuration": "Общая длительность",
@@ -3185,10 +3196,9 @@
       "title": "Тренд ежедневных выполнений",
       "tokens": "Tokens"
     },
+    "unpricedHint": "{{count}} без цены",
     "user": "Пользователь",
-    "cost": "Стоимость",
-    "costTotal": "Общая стоимость",
-    "unpricedHint": "{{count}} без цены"
+    "viewDetails": "Подробнее"
   },
   "users": {
     "actions": "Действия",

@@ -573,7 +573,6 @@
   },
   "chat": {
     "addMoreFiles": "더 많은 파일 추가",
-    "aiDisclaimer": "AI 생성 콘텐츠는 틀릴 수 있으니 중요한 정보는 직접 확인하세요",
     "assistant": "어시스턴트",
     "attachFile": "파일 첨부",
     "attachments": "첨부파일",
@@ -1928,6 +1927,11 @@
     "email": "이메일",
     "enable": "활성화",
     "enabled": "활성화됨",
+    "fontSize": "글자 크기",
+    "fontSizeLarge": "크게",
+    "fontSizeSmall": "작게",
+    "fontSizeStandard": "표준",
+    "fontSizeXLarge": "더 크게",
     "language": "언어",
     "memoryToggle": "세션 간 메모리",
     "languageSynced": "언어 환경설정이 저장되었습니다",
@@ -3085,6 +3089,8 @@
     "cacheTokens": "{{count}} tokens",
     "cacheWrite": "캐시 쓰기",
     "completed": "완료",
+    "cost": "비용",
+    "costTotal": "총 비용",
     "dashboard": {
       "subtitleAdmin": "에이전트 실행, 소비, 자동화 및 이상 트렌드",
       "subtitleUser": "개인 실행, 소비, 자동화 및 이상 트렌드",
@@ -3153,6 +3159,7 @@
     },
     "refresh": "새로고침",
     "refreshing": "새로고침 중",
+    "requestsCount": "요청 수",
     "roleOrTeam": "페르소나/팀",
     "scheduledBadge": "예약",
     "searchPlaceholder": "사용자명으로 검색...",
@@ -3167,7 +3174,11 @@
     "time": "시간",
     "title": "사용량 상세",
     "today": "오늘",
-    "todayCost": "오늘 사용 금액 {{amount}}",
+    "todayShort": "오늘 {{amount}}",
+    "todaySpend": "오늘 사용량",
+    "tokenMix": "Token 구성",
+    "tokensInput": "입력",
+    "tokensOutput": "출력",
     "tokensValue": "{{count}} tokens",
     "total": "합계",
     "totalDuration": "총 소요 시간",
@@ -3185,10 +3196,9 @@
       "title": "일일 실행 트렌드",
       "tokens": "Tokens"
     },
+    "unpricedHint": "{{count}}건 가격 미매칭",
     "user": "사용자",
-    "cost": "비용",
-    "costTotal": "총 비용",
-    "unpricedHint": "{{count}}건 가격 미매칭"
+    "viewDetails": "자세히 보기"
   },
   "users": {
     "actions": "작업",

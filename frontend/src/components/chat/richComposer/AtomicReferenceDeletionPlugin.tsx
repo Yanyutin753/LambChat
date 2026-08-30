@@ -14,10 +14,27 @@ import {
 import { useEffect } from "react";
 import { $isFileReferenceNode } from "./nodes/FileReferenceNode";
 import { $isSkillReferenceNode } from "./nodes/SkillReferenceNode";
+import { $isRunModeReferenceNode } from "./nodes/RunModeReferenceNode";
+import type { RunModeKey } from "./composerTypes";
 import { removeReferenceWithSpacer } from "./referenceNodeRemoval";
 
 function isAtomicReference(node: LexicalNode | null | undefined): boolean {
-  return $isFileReferenceNode(node) || $isSkillReferenceNode(node);
+  return (
+    $isFileReferenceNode(node) ||
+    $isSkillReferenceNode(node) ||
+    $isRunModeReferenceNode(node)
+  );
+}
+
+/** Removing a run-mode chip means turning that mode off. */
+function removeAtomicReference(
+  node: LexicalNode,
+  onRunModeRemoved?: (key: RunModeKey) => void,
+): void {
+  if ($isRunModeReferenceNode(node)) {
+    onRunModeRemoved?.(node.getModeKey());
+  }
+  removeReferenceWithSpacer(node);
 }
 
 function getAdjacentNode(direction: "backward" | "forward") {
@@ -60,13 +77,14 @@ function getAdjacentNode(direction: "backward" | "forward") {
 function removeReference(
   event: KeyboardEvent | null,
   direction: "backward" | "forward",
+  onRunModeRemoved?: (key: RunModeKey) => void,
 ) {
   const selection = $getSelection();
   if ($isNodeSelection(selection)) {
     const references = selection.getNodes().filter(isAtomicReference);
     if (references.length === 0) return false;
     event?.preventDefault();
-    references.forEach(removeReferenceWithSpacer);
+    references.forEach((node) => removeAtomicReference(node, onRunModeRemoved));
     return true;
   }
 
@@ -79,16 +97,20 @@ function removeReference(
   ) {
     event?.preventDefault();
     const reference = adjacentNode.getPreviousSibling();
-    if (reference) removeReferenceWithSpacer(reference);
+    if (reference) removeAtomicReference(reference, onRunModeRemoved);
     return true;
   }
   if (!isAtomicReference(adjacentNode)) return false;
   event?.preventDefault();
-  if (adjacentNode) removeReferenceWithSpacer(adjacentNode);
+  if (adjacentNode) removeAtomicReference(adjacentNode, onRunModeRemoved);
   return true;
 }
 
-export function AtomicReferenceDeletionPlugin() {
+export function AtomicReferenceDeletionPlugin({
+  onRunModeRemoved,
+}: {
+  onRunModeRemoved?: (key: RunModeKey) => void;
+}) {
   const [editor] = useLexicalComposerContext();
 
   useEffect(
@@ -96,16 +118,16 @@ export function AtomicReferenceDeletionPlugin() {
       mergeRegister(
         editor.registerCommand(
           KEY_BACKSPACE_COMMAND,
-          (event) => removeReference(event, "backward"),
+          (event) => removeReference(event, "backward", onRunModeRemoved),
           COMMAND_PRIORITY_HIGH,
         ),
         editor.registerCommand(
           KEY_DELETE_COMMAND,
-          (event) => removeReference(event, "forward"),
+          (event) => removeReference(event, "forward", onRunModeRemoved),
           COMMAND_PRIORITY_HIGH,
         ),
       ),
-    [editor],
+    [editor, onRunModeRemoved],
   );
 
   return null;

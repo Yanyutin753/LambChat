@@ -12,7 +12,13 @@
     />
 
     <!-- Self-hosted fonts (woff2 in /fonts, css via src/fonts.css) -->
-    <link rel="preload" href="/fonts/source-sans-3-400-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link
+      rel="preload"
+      href="/fonts/source-sans-3-400-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
 
     <!-- Canonical URL -->
     <link rel="canonical" href="https://lambchat.com/" />
@@ -310,6 +316,18 @@
           "content",
           theme === "dark" ? "black" : "default",
         );
+
+        // 预刷全局字体大小，避免字体缩放首屏闪烁（与 utils/fontScale.ts 同源约定）
+        const fontScaleRoots = {
+          small: "87.5%",
+          large: "112.5%",
+          xlarge: "125%",
+        };
+        const storedFontScale = localStorage.getItem("lambchat-font-scale");
+        if (storedFontScale && fontScaleRoots[storedFontScale]) {
+          document.documentElement.style.fontSize =
+            fontScaleRoots[storedFontScale];
+        }
       })();
     </script>
     <div id="root"></div>

@@ -23,17 +23,18 @@ import { useInputHistory } from "../../hooks/useInputHistory";
 import { useLongTextConversion } from "../../hooks/useLongTextConversion";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { isSendEnterKey } from "../../hooks/sendModifier";
+import { useNotifyTodayUsageRefresh } from "../../hooks/useTodayUsageCost";
 import { useAuth } from "../../hooks/useAuth";
 import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
 import { ActiveGoalBar } from "./ActiveGoalBar";
 import { ChatInputToolbar } from "./ChatInputToolbar";
-import { ComposerFootnote } from "./ComposerFootnote";
 import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
 import { ChatInputDragOverlay } from "./ChatInputDragOverlay";
 import { resolveThinkingPresentation } from "./chatInputThinking";
+import { buildRunModesOptions } from "./chatInputRunModes";
 import { FILE_CATEGORY_PERMISSIONS } from "./chatInputConstants";
 import { getMentionPopupFixedPlacement } from "./chatInputViewport";
 import { useExpandedComposerHost } from "./chatInputExpandedHost";
@@ -140,7 +141,6 @@ export const ChatInput = memo(function ChatInput({
   goalClearLabel,
   showHelpMenu,
   helpMenuClassName,
-  showFootnote = true,
   autoModeEnabled = false,
   goalModeEnabled = false,
   onToggleAutoMode,
@@ -261,6 +261,8 @@ export const ChatInput = memo(function ChatInput({
     if (!onMentionQueryChange) return;
     onMentionQueryChange(mention.isActive ? mention.query : null);
   }, [mention.isActive, mention.query, onMentionQueryChange]);
+  // 一轮对话结束后通知侧边栏用户行刷新当日用量
+  useNotifyTodayUsageRefresh(isLoading);
   useEffect(() => {
     if (!onMentionQueryChange || !selectedPersonaPresetId || !mention.isActive)
       return;
@@ -680,7 +682,7 @@ export const ChatInput = memo(function ChatInput({
   );
   return (
     <div
-      className="chat-input-shell px-2 sm:px-8 pb-0.5 sm:pb-1"
+      className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-5"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       {composerExpanded
@@ -835,6 +837,12 @@ export const ChatInput = memo(function ChatInput({
                           onCreate: handleLongTextCreate,
                         }}
                         onRetryFileReference={handleRetryFileReference}
+                        runModes={buildRunModesOptions(
+                          autoModeEnabled,
+                          goalModeEnabled,
+                          onToggleAutoMode,
+                          onToggleGoalMode,
+                        )}
                         onKeyDown={handleComposerKeyDown}
                         onArrowKey={handleComposerArrowKey}
                         disabled={disabled || !canSend}
@@ -924,8 +932,6 @@ export const ChatInput = memo(function ChatInput({
             )}
         </div>
       </form>
-
-      {showFootnote && <ComposerFootnote isLoading={isLoading} />}
 
       <ChatInputSelectors
         activePanel={activePanel}

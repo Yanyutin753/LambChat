@@ -573,7 +573,6 @@
   },
   "chat": {
     "addMoreFiles": "添加更多文件",
-    "aiDisclaimer": "AI 生成内容可能出错，请注意核实",
     "assistant": "助手",
     "attachFile": "附件",
     "attachments": "附件",
@@ -1928,6 +1927,11 @@
     "email": "邮箱",
     "enable": "启用",
     "enabled": "已启用",
+    "fontSize": "字体大小",
+    "fontSizeLarge": "大",
+    "fontSizeSmall": "小",
+    "fontSizeStandard": "标准",
+    "fontSizeXLarge": "特大",
     "language": "语言",
     "memoryToggle": "跨会话记忆",
     "languageSynced": "语言偏好已保存",
@@ -3085,6 +3089,8 @@
     "cacheTokens": "{{count}} tokens",
     "cacheWrite": "缓存写入",
     "completed": "完成",
+    "cost": "费用",
+    "costTotal": "总费用",
     "dashboard": {
       "subtitleAdmin": "数字员工执行、消耗、自动化与异常趋势",
       "subtitleUser": "个人执行、消耗、自动化与异常趋势",
@@ -3153,6 +3159,7 @@
     },
     "refresh": "刷新",
     "refreshing": "刷新中",
+    "requestsCount": "请求数",
     "roleOrTeam": "角色/团队",
     "scheduledBadge": "定时",
     "searchPlaceholder": "搜索用户名...",
@@ -3167,7 +3174,11 @@
     "time": "时间",
     "title": "使用详情",
     "today": "今天",
-    "todayCost": "今日已用 {{amount}}",
+    "todayShort": "今日 {{amount}}",
+    "todaySpend": "今日用量",
+    "tokenMix": "Token 构成",
+    "tokensInput": "输入",
+    "tokensOutput": "输出",
     "tokensValue": "{{count}} tokens",
     "total": "合计",
     "totalDuration": "总耗时",
@@ -3185,10 +3196,9 @@
       "title": "每日执行趋势",
       "tokens": "Tokens"
     },
+    "unpricedHint": "{{count}} 次未计价",
     "user": "用户",
-    "cost": "费用",
-    "costTotal": "总费用",
-    "unpricedHint": "{{count}} 次未计价"
+    "viewDetails": "查看详情"
   },
   "users": {
     "actions": "操作",

@@ -9,11 +9,19 @@ import {
   $isRangeSelection,
   type EditorState,
 } from "lexical";
-import { forwardRef, useCallback, useImperativeHandle } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { projectComposerSnapshot } from "./composerProjection";
 import type {
   ComposerSnapshot,
   FileReferenceDescriptor,
+  RunModeKey,
+  RunModesOptions,
   SkillReferenceDescriptor,
 } from "./composerTypes";
 import type {
@@ -35,6 +43,8 @@ import {
 import { SkillReferencePlugin } from "./SkillReferencePlugin";
 import { FileReferencePlugin } from "./FileReferencePlugin";
 import { AtomicReferenceDeletionPlugin } from "./AtomicReferenceDeletionPlugin";
+import { RunModeReferencePlugin } from "./RunModeReferencePlugin";
+import { $reconcileRunModeChips } from "./nodes/RunModeReferenceNode";
 import { ArrowKeyPlugin, type ComposerArrowDirection } from "./ArrowKeyPlugin";
 import { FilePastePlugin } from "./FilePastePlugin";
 
@@ -80,6 +90,7 @@ interface RichComposerPluginsProps {
   filePaste?: FilePasteOptions;
   longTextPaste?: LongTextPasteOptions;
   onRetryFileReference?: (referenceId: string) => void;
+  runModes?: RunModesOptions;
   onArrowKey?: (
     direction: ComposerArrowDirection,
     editor: HTMLElement,
@@ -100,11 +111,33 @@ export const RichComposerPlugins = forwardRef<
     filePaste,
     longTextPaste,
     onRetryFileReference,
+    runModes,
     onArrowKey,
   },
   ref,
 ) {
   const [editor] = useLexicalComposerContext();
+  // Draft replacement (setPlainText/restoreSnapshot) destroys leading chips;
+  // re-insert them from the latest modes kept in this ref.
+  const runModesRef = useRef<RunModesOptions | undefined>(runModes);
+  useLayoutEffect(() => {
+    runModesRef.current = runModes;
+  }, [runModes]);
+  const reconcileRunModeChips = useCallback(() => {
+    const modes = runModesRef.current;
+    if (!modes) return;
+    editor.update(
+      () =>
+        $reconcileRunModeChips({
+          auto: modes.autoEnabled,
+          goal: modes.goalEnabled,
+        }),
+      { discrete: true },
+    );
+  }, [editor]);
+  const handleRunModeRemoved = useCallback((key: RunModeKey) => {
+    runModesRef.current?.onToggle(key, false);
+  }, []);
 
   const emitChange = useCallback(
     (editorState: EditorState) => {
@@ -133,9 +166,21 @@ export const RichComposerPlugins = forwardRef<
         });
       },
       setPlainText(text) {
-        editor.update(() => replaceDocumentWithPlainText(text), {
-          discrete: true,
-        });
+        editor.update(
+          () => {
+            replaceDocumentWithPlainText(text);
+            const modes = runModesRef.current;
+            if (modes) {
+              $reconcileRunModeChips({
+                auto: modes.autoEnabled,
+                goal: modes.goalEnabled,
+              });
+            }
+          },
+          {
+            discrete: true,
+          },
+        );
       },
       restoreSnapshot(snapshot) {
         if (snapshot.editorState.root) {
@@ -143,6 +188,7 @@ export const RichComposerPlugins = forwardRef<
             editor.setEditorState(
               editor.parseEditorState(JSON.stringify(snapshot.editorState)),
             );
+            reconcileRunModeChips();
             return;
           } catch (error) {
             onError?.(
@@ -153,7 +199,16 @@ export const RichComposerPlugins = forwardRef<
           }
         }
         editor.update(
-          () => replaceDocumentWithPlainText(snapshot.plainText ?? ""),
+          () => {
+            replaceDocumentWithPlainText(snapshot.plainText ?? "");
+            const modes = runModesRef.current;
+            if (modes) {
+              $reconcileRunModeChips({
+                auto: modes.autoEnabled,
+                goal: modes.goalEnabled,
+              });
+            }
+          },
           { discrete: true },
         );
       },
@@ -191,7 +246,7 @@ export const RichComposerPlugins = forwardRef<
         );
       },
     }),
-    [editor, onError],
+    [editor, onError, reconcileRunModeChips],
   );
 
   return (
@@ -210,7 +265,8 @@ export const RichComposerPlugins = forwardRef<
       />
       <SkillReferencePlugin />
       <FileReferencePlugin onRetry={onRetryFileReference} />
-      <AtomicReferenceDeletionPlugin />
+      <AtomicReferenceDeletionPlugin onRunModeRemoved={handleRunModeRemoved} />
+      {runModes ? <RunModeReferencePlugin runModes={runModes} /> : null}
       <ArrowKeyPlugin onArrowKey={onArrowKey} />
       {filePaste ? <FilePastePlugin options={filePaste} /> : null}
       {longTextPaste ? <LongTextPastePlugin options={longTextPaste} /> : null}

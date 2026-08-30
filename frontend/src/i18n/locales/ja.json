@@ -573,7 +573,6 @@
   },
   "chat": {
     "addMoreFiles": "さらにファイルを追加",
-    "aiDisclaimer": "AI の生成内容は誤りを含む場合があります。重要な情報はご確認ください",
     "assistant": "アシスタント",
     "attachFile": "ファイルを添付",
     "attachments": "添付ファイル",
@@ -1928,6 +1927,11 @@
     "email": "メール",
     "enable": "有効にする",
     "enabled": "有効",
+    "fontSize": "フォントサイズ",
+    "fontSizeLarge": "大",
+    "fontSizeSmall": "小",
+    "fontSizeStandard": "標準",
+    "fontSizeXLarge": "特大",
     "language": "言語",
     "memoryToggle": "セッション横断メモリ",
     "languageSynced": "言語設定を保存しました",
@@ -3085,6 +3089,8 @@
     "cacheTokens": "{{count}} tokens",
     "cacheWrite": "キャッシュ書込",
     "completed": "完了",
+    "cost": "費用",
+    "costTotal": "合計費用",
     "dashboard": {
       "subtitleAdmin": "エージェント実行、消費、自動化と異常トレンド",
       "subtitleUser": "個人実行、消費、自動化と異常トレンド",
@@ -3153,6 +3159,7 @@
     },
     "refresh": "更新",
     "refreshing": "更新中",
+    "requestsCount": "リクエスト数",
     "roleOrTeam": "ペルソナ/チーム",
     "scheduledBadge": "定期",
     "searchPlaceholder": "ユーザー名で検索...",
@@ -3167,7 +3174,11 @@
     "time": "日時",
     "title": "使用状況詳細",
     "today": "今日",
-    "todayCost": "本日の利用額 {{amount}}",
+    "todayShort": "今日 {{amount}}",
+    "todaySpend": "本日の使用量",
+    "tokenMix": "Token 構成",
+    "tokensInput": "入力",
+    "tokensOutput": "出力",
     "tokensValue": "{{count}} tokens",
     "total": "合計",
     "totalDuration": "合計時間",
@@ -3185,10 +3196,9 @@
       "title": "日次実行トレンド",
       "tokens": "Tokens"
     },
+    "unpricedHint": "{{count}} 件は未計価",
     "user": "ユーザー",
-    "cost": "費用",
-    "costTotal": "合計費用",
-    "unpricedHint": "{{count}} 件は未計価"
+    "viewDetails": "詳細を見る"
   },
   "users": {
     "actions": "操作",

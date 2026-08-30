@@ -6,13 +6,18 @@ import { toast } from "react-hot-toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAuth } from "../../../hooks/useAuth";
-import { Brain } from "lucide-react";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { SkeletonLine } from "../../skeletons";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import type { AgentInfo } from "../../../types";
 import type { Theme } from "../../../utils/themeDom";
+import {
+  applyFontScaleToDocument,
+  FONT_SCALE_STORAGE_KEY,
+  parseFontScale,
+  type FontScale,
+} from "../../../utils/fontScale";
 import {
   parseSendModifier,
   SEND_MODIFIER_STORAGE_KEY,
@@ -39,6 +44,13 @@ const THEME_OPTIONS: { key: Theme; labelKey: string }[] = [
   { key: "light", labelKey: "profile.lightTheme" },
   { key: "dark", labelKey: "profile.darkTheme" },
   { key: "sepia", labelKey: "profile.sepiaTheme" },
+];
+
+const FONT_SCALE_OPTIONS: { key: FontScale; labelKey: string }[] = [
+  { key: "small", labelKey: "profile.fontSizeSmall" },
+  { key: "standard", labelKey: "profile.fontSizeStandard" },
+  { key: "large", labelKey: "profile.fontSizeLarge" },
+  { key: "xlarge", labelKey: "profile.fontSizeXLarge" },
 ];
 
 const THINKING_LEVEL_OPTIONS: { key: ThinkingLevel; labelKey: string }[] = [
@@ -175,6 +187,11 @@ export function ProfilePreferencesTab() {
   const [newlineModifier, setNewlineModifier] = useState<SendModifier>(() =>
     parseSendModifier(localStorage.getItem(SEND_MODIFIER_STORAGE_KEY)),
   );
+
+  // Global font scale preference
+  const [fontScale, setFontScale] = useState<FontScale>(() =>
+    parseFontScale(localStorage.getItem(FONT_SCALE_STORAGE_KEY)),
+  );
   const [defaultThinkingLevel, setDefaultThinkingLevel] =
     useState<ThinkingLevel>(() => {
       // "off" 档已下线：历史存量值降级到最低档
@@ -241,6 +258,14 @@ export function ProfilePreferencesTab() {
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
     authApi.updateMetadata({ theme: newTheme }).catch(() => {});
+    setOpenDropdown(null);
+  };
+
+  const handleFontScaleChange = (scale: FontScale) => {
+    setFontScale(scale);
+    localStorage.setItem(FONT_SCALE_STORAGE_KEY, scale);
+    applyFontScaleToDocument(scale);
+    authApi.updateMetadata({ fontScale: scale }).catch(() => {});
     setOpenDropdown(null);
   };
 
@@ -336,8 +361,7 @@ export function ProfilePreferencesTab() {
             onClick={handleMemoryToggle}
             className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left"
           >
-            <span className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
-              <Brain size={15} className="text-amber-500 dark:text-amber-400" />
+            <span className="text-sm text-stone-700 dark:text-stone-200">
               {t("profile.memoryToggle")}
             </span>
             <span
@@ -381,6 +405,15 @@ export function ProfilePreferencesTab() {
           open={openDropdown === "theme"}
           onToggle={() => toggle("theme")}
           onSelect={handleThemeChange}
+        />
+
+        <SelectRow
+          label={t("profile.fontSize")}
+          value={fontScale}
+          options={FONT_SCALE_OPTIONS}
+          open={openDropdown === "fontSize"}
+          onToggle={() => toggle("fontSize")}
+          onSelect={handleFontScaleChange}
         />
 
         <SelectRow

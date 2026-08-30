@@ -2,11 +2,16 @@ import { createCommand } from "lexical";
 import type {
   FileReferenceDescriptor,
   FileReferenceStatus,
+  RunModeKey,
   SkillReferenceDescriptor,
 } from "../composerTypes";
 
 export const INSERT_FILE_REFERENCE_COMMAND =
   createCommand<FileReferenceDescriptor>("INSERT_FILE_REFERENCE_COMMAND");
+
+export const TOGGLE_RUN_MODE_COMMAND = createCommand<RunModeKey>(
+  "TOGGLE_RUN_MODE_COMMAND",
+);
 
 export const INSERT_SKILL_REFERENCE_COMMAND =
   createCommand<SkillReferenceDescriptor>("INSERT_SKILL_REFERENCE_COMMAND");

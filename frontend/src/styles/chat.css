@@ -95,11 +95,11 @@ html[data-mobile-keyboard="true"]
 
 @media (max-width: 639px) {
   .chat-input-shell {
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
   }
 
   html[data-mobile-keyboard="true"] .chat-input-shell {
-    padding-bottom: 0.375rem;
+    padding-bottom: 0.5rem;
   }
 
   html[data-mobile-keyboard="true"] .chat-input-container {
@@ -166,6 +166,12 @@ html[data-mobile-keyboard="true"]
   vertical-align: baseline;
   line-height: inherit;
   cursor: default;
+}
+
+/* Run-mode chips sit inline in the composer text; the margin keeps them
+   from crowding neighbouring chips and text beyond the spacer space. */
+.run-mode-chip-node {
+  margin: 0 0.25em;
 }
 .skill-chip-node[role="button"] {
   cursor: pointer;

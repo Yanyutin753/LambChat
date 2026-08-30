@@ -3,6 +3,11 @@ import {
   normalizeThinkingOptionValue,
 } from "../components/layout/AppContent/useAgentOptions";
 import { SEND_MODIFIER_STORAGE_KEY } from "./sendModifier";
+import {
+  FONT_SCALE_EXTERNAL_CHANGE_EVENT,
+  FONT_SCALE_STORAGE_KEY,
+  isFontScale,
+} from "../utils/fontScale";
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "lamb-sidebar-collapsed";
 export const PROJECTS_COLLAPSED_STORAGE_KEY = "lamb-projects-collapsed";
@@ -24,6 +29,7 @@ type UserMetadataPreferences = {
   scheduledTasksCollapsed?: unknown;
   defaultModelId?: unknown;
   defaultModel?: unknown;
+  fontScale?: unknown;
 };
 
 type StorageLike = Pick<Storage, "setItem">;
@@ -57,6 +63,16 @@ export function applyUserMetadataPreferences({
   if (theme) {
     localStorage.setItem("lambchat-theme", theme);
     dispatchEvent(new CustomEvent("theme:external-change", { detail: theme }));
+  }
+
+  const fontScale = stringValue(metadata.fontScale);
+  if (isFontScale(fontScale)) {
+    localStorage.setItem(FONT_SCALE_STORAGE_KEY, fontScale);
+    dispatchEvent(
+      new CustomEvent(FONT_SCALE_EXTERNAL_CHANGE_EVENT, {
+        detail: fontScale,
+      }),
+    );
   }
 
   const newlineModifier = stringValue(metadata.newlineModifier);
