@@ -26,6 +26,7 @@ from fastapi.responses import Response
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.s3 import S3Provider
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 
@@ -340,13 +341,13 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
     if storage.is_local:
         file_path = storage.get_file_path(key)
         if not await run_blocking_io(_path_exists, file_path):
-            raise HTTPException(status_code=404, detail="File not found")
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
         try:
             stat = await run_blocking_io(file_path.stat)
         except OSError:
-            raise HTTPException(status_code=404, detail="File not found")
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
         if stat.st_size > _RENDER_MAX_SOURCE_BYTES:
-            raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+            raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
 
         def _read_and_render() -> bytes:
             with open(file_path, "rb") as fh:
@@ -356,7 +357,7 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
             body = await run_blocking_io(_read_and_render)
         except Exception as e:
             logger.error(f"Failed to render local {kind} cover for {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to render cover")
+            raise AppError(ErrorCode.COVER_RENDER_FAILED)
         return Response(
             content=body,
             media_type="image/jpeg",
@@ -366,7 +367,7 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
     try:
         if await storage.file_exists(thumb_key):
             return await _serve_cached_cover(storage, thumb_key, expires)
-    except HTTPException:
+    except AppError:
         raise
     except Exception as e:
         logger.warning(f"Failed to check cached {kind} cover for {key}: {e}")
@@ -374,8 +375,8 @@ async def _get_rendered_cover_response(storage: Any, key: str, kind: str, render
     try:
         source_size = await storage.get_size(key)
         if source_size and source_size > _RENDER_MAX_SOURCE_BYTES:
-            raise HTTPException(status_code=404, detail="Cover thumbnail not available")
-    except HTTPException:
+            raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
+    except AppError:
         raise
     except Exception as e:
         logger.warning(f"Failed to stat {kind} for cover {key}: {e}")
@@ -403,7 +404,7 @@ async def _render_and_cache_cover(
         await asyncio.wait_for(semaphore.acquire(), timeout=_RENDER_ACQUIRE_TIMEOUT)
     except asyncio.TimeoutError:
         logger.info(f"Cover render slots saturated for {key}; falling back")
-        raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+        raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
 
     try:
         existing = _render_inflight.get(thumb_key)
@@ -427,13 +428,13 @@ async def _do_render_and_cache(
         data = await storage.download_file(key)
     except Exception as e:
         logger.error(f"Failed to download {kind} for cover {key}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate file URL")
+        raise AppError(ErrorCode.FILE_URL_FAILED)
 
     try:
         body = await run_blocking_io(render, data)
     except Exception as e:
         logger.error(f"Failed to render {kind} cover for {key}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to render cover")
+        raise AppError(ErrorCode.COVER_RENDER_FAILED)
 
     try:
         await storage.upload_to_key(
@@ -492,13 +493,13 @@ async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Resp
     t_ms = t if t is not None else 1000
     process = cover_process_for_key(key, t_ms)
     if not process:
-        raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+        raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
 
     if storage.is_local:
         # Local storage has no server-side processing; resize via Pillow.
         # Videos can't be snapshot without ffmpeg — clients fall back.
         if ext not in _COVER_IMAGE_EXTS:
-            raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+            raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
         return await _get_rendered_cover_response(storage, key, "image", render_cover_jpeg)
 
     provider = getattr(getattr(storage, "_config", None), "provider", None)
@@ -506,8 +507,8 @@ async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Resp
         try:
             exists = await storage.file_exists(key)
             if not exists:
-                raise HTTPException(status_code=404, detail="File not found")
-        except HTTPException:
+                raise AppError(ErrorCode.FILE_NOT_FOUND)
+        except AppError:
             raise
         except Exception as e:
             logger.warning(f"Failed to check file existence for {key}: {e}")
@@ -517,10 +518,10 @@ async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Resp
                 key, cover_signature_expiry(), process=process
             )
         except TypeError:
-            raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+            raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
         except Exception as e:
             logger.error(f"Failed to generate cover URL for {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to generate file URL")
+            raise AppError(ErrorCode.FILE_URL_FAILED)
 
         return Response(
             status_code=302,
@@ -530,5 +531,5 @@ async def get_file_cover_response(storage: Any, key: str, t: int | None) -> Resp
     # Other S3 providers have no x-oss-process: images render and cache
     # like PDF/sheet covers; videos would need server-side ffmpeg — 404.
     if ext not in _COVER_IMAGE_EXTS:
-        raise HTTPException(status_code=404, detail="Cover thumbnail not available")
+        raise AppError(ErrorCode.COVER_THUMBNAIL_NOT_AVAILABLE)
     return await _get_rendered_cover_response(storage, key, "image", render_cover_jpeg)

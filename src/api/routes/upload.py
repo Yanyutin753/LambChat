@@ -872,7 +872,7 @@ async def get_file_proxy(
                 content_disposition_type="inline",
                 headers={"Cache-Control": "public, max-age=86400"},
             )
-        except HTTPException:
+        except AppError:
             raise
         except Exception as e:
             logger.error(f"Failed to serve local file {key}: {e}")
@@ -883,7 +883,7 @@ async def get_file_proxy(
         exists = await storage.file_exists(key)
         if not exists:
             raise AppError(ErrorCode.FILE_NOT_FOUND)
-    except HTTPException:
+    except AppError:
         raise
     except Exception as e:
         logger.warning(f"Failed to check file existence for {key}: {e}")
