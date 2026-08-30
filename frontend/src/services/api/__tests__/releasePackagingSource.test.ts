@@ -108,7 +108,7 @@ test("iOS release builds only the modern package line", () => {
 
   expect(packageJson.dependencies["@capacitor/core"]).toBe("7.6.5");
   expect(packageJson.dependencies["@capacitor/local-notifications"]).toBe(
-    "^7.0.6",
+    "^7.0.7",
   );
   expect(packageJson.devDependencies["@capacitor/cli"]).toBe("7.6.5");
   expect(packageJson.devDependencies["@capacitor/ios"]).toBe("7.6.5");
