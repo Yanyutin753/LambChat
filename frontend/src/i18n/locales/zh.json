@@ -619,7 +619,9 @@
     "taskCancelled": "任务已取消",
     "taskServerRestart": "服务重启导致任务中断",
     "taskExpired": "任务已过期",
-    "forceRelogin": "用户权限已变更，请重新登录"
+    "forceRelogin": "用户权限已变更，请重新登录",
+    "tokenExpired": "登录已过期，请重新登录",
+    "methodNotAllowed": "请求方法不支持"
   },
   "categories": {
     "agent": "代理",

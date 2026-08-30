@@ -619,7 +619,9 @@
     "taskCancelled": "Task cancelled",
     "taskServerRestart": "Interrupted by server restart",
     "taskExpired": "Task expired",
-    "forceRelogin": "User permissions have changed. Please log in again"
+    "forceRelogin": "User permissions have changed. Please log in again",
+    "tokenExpired": "Token has expired",
+    "methodNotAllowed": "Method not allowed"
   },
   "categories": {
     "agent": "Agent",

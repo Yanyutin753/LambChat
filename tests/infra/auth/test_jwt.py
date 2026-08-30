@@ -16,7 +16,7 @@ from src.infra.auth.jwt import (
 )
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
-from src.kernel.exceptions import AuthenticationError
+from src.kernel.errors import AppError
 
 
 @pytest.fixture
@@ -42,24 +42,24 @@ class TestAccessToken:
             settings.JWT_SECRET_KEY,
             algorithm="HS256",
         )
-        with pytest.raises(AuthenticationError, match="sub"):
+        with pytest.raises(AppError, match="sub"):
             verify_token(token)
 
     def test_expired_token_rejected(self, jwt_settings):
         token = create_access_token("user-123", expires_delta=timedelta(seconds=-1))
-        with pytest.raises(AuthenticationError, match="过期"):
+        with pytest.raises(AppError):
             verify_token(token)
 
     def test_tampered_token_rejected(self, jwt_settings):
         token = create_access_token("user-123")
         tampered = token[:-4] + "AAAA"
-        with pytest.raises(AuthenticationError):
+        with pytest.raises(AppError):
             verify_token(tampered)
 
     def test_wrong_secret_rejected(self, jwt_settings, monkeypatch):
         token = create_access_token("user-123")
         monkeypatch.setattr(settings, "JWT_SECRET_KEY", "different-secret")
-        with pytest.raises(AuthenticationError):
+        with pytest.raises(AppError):
             verify_token(token)
 
 
@@ -78,5 +78,5 @@ class TestRefreshToken:
             settings.JWT_SECRET_KEY,
             algorithm="HS256",
         )
-        with pytest.raises(AuthenticationError, match="sub"):
+        with pytest.raises(AppError, match="sub"):
             verify_token(token)

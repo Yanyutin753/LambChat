@@ -619,7 +619,9 @@
     "taskCancelled": "タスクはキャンセルされました",
     "taskServerRestart": "サーバーの再起動によりタスクが中断されました",
     "taskExpired": "タスクの有効期限が切れました",
-    "forceRelogin": "ユーザー権限が変更されました。再ログインしてください"
+    "forceRelogin": "ユーザー権限が変更されました。再ログインしてください",
+    "tokenExpired": "ログインの有効期限が切れました。再ログインしてください",
+    "methodNotAllowed": "許可されていないHTTPメソッドです"
   },
   "categories": {
     "agent": "エージェント",

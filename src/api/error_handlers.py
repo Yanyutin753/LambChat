@@ -25,6 +25,7 @@ _STATUS_FALLBACK_CODE: dict[int, ErrorCode] = {
     401: ErrorCode.UNAUTHORIZED,
     403: ErrorCode.FORBIDDEN,
     404: ErrorCode.NOT_FOUND,
+    405: ErrorCode.METHOD_NOT_ALLOWED,
     409: ErrorCode.CONFLICT,
     413: ErrorCode.PAYLOAD_TOO_LARGE,
     422: ErrorCode.VALIDATION_ERROR,
