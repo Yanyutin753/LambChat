@@ -250,7 +250,7 @@ const SkillSearchItem = memo(function SkillSearchItem({
               ))}
               {matches.length > 4 && (
                 <div className="text-xs text-theme-text-tertiary px-2.5">
-                  {t("chat.message.toolMoreFiles", {
+                  {t("chat.message.toolSkillMore", {
                     count: matches.length - 4,
                   })}
                 </div>

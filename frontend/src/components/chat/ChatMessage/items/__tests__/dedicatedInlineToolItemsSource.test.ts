@@ -170,6 +170,15 @@ test("conversation history item covers both SOP tools with a dedicated icon", ()
   expect(source).toMatch(/ToolInlineDetails/);
 });
 
+test("conversation history item uses domain-specific overflow wording", () => {
+  const source = readSource("../ConversationHistoryItem.tsx");
+
+  // 会话/轮次列表的溢出提示不得复用文件语义的 toolMoreFiles
+  expect(source).toMatch(/toolHistoryMoreSessions/);
+  expect(source).toMatch(/toolHistoryMoreTurns/);
+  expect(source).not.toMatch(/toolMoreFiles/);
+});
+
 test("skill search item presents query and matched skill metadata", () => {
   const source = readSource("../SkillSearchItem.tsx");
 
@@ -177,4 +186,33 @@ test("skill search item presents query and matched skill metadata", () => {
   expect(source).toMatch(/Sparkles size=\{12\}/);
   expect(source).toMatch(/\/skills\//);
   expect(source).toMatch(/ToolInlineDetails/);
+});
+
+test("skill search item uses skill-specific overflow wording", () => {
+  const source = readSource("../SkillSearchItem.tsx");
+
+  // 技能匹配的溢出提示不得复用文件语义的 toolMoreFiles
+  expect(source).toMatch(/toolSkillMore/);
+  expect(source).not.toMatch(/toolMoreFiles/);
+});
+
+test("overflow wording keys exist in every locale", () => {
+  const requiredKeys = [
+    "chat.message.toolHistoryMoreSessions",
+    "chat.message.toolHistoryMoreTurns",
+    "chat.message.toolSkillMore",
+  ];
+  const locales = ["en", "zh", "ja", "ko", "ru"];
+
+  for (const locale of locales) {
+    const localeJson = JSON.parse(
+      readFileSync(resolve(repoRoot, `frontend/src/i18n/locales/${locale}.json`), "utf8"),
+    );
+    const chatMessage = localeJson.chat.message;
+    for (const key of requiredKeys) {
+      const shortKey = key.split(".").pop() as string;
+      expect(chatMessage[shortKey], `${locale}.json ${key}`).toBeTruthy();
+      expect(chatMessage[`${shortKey}_other`], `${locale}.json ${key}_other`).toBeTruthy();
+    }
+  }
 });
