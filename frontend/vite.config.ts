@@ -173,7 +173,7 @@ export default defineConfig({
     proxy: {
       // Long-running chat event stream
       "^/api/chat/sessions/[^/]+/stream$": {
-        target: "http://127.0.0.1:8002",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
         ws: true,
@@ -182,7 +182,7 @@ export default defineConfig({
       },
       // API routes (including /api/chat for SSE)
       "/api": {
-        target: "http://127.0.0.1:8002",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
         ws: true, // Enable WebSocket/SSE support for streaming
@@ -203,7 +203,7 @@ export default defineConfig({
         AGENT_IDS.map((id) => [
           `/${id}`,
           {
-            target: "http://127.0.0.1:8002",
+            target: "http://127.0.0.1:8000",
             changeOrigin: true,
             secure: false,
             ws: true, // Enable WebSocket/SSE support for streaming
@@ -213,28 +213,28 @@ export default defineConfig({
         ]),
       ),
       "/tools": {
-        target: "http://127.0.0.1:8002",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
       },
       "/human": {
-        target: "http://127.0.0.1:8002",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
       },
       "/health": {
-        target: "http://127.0.0.1:8002",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
       },
       "/ws": {
-        target: "http://127.0.0.1:8002",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
         ws: true,
       },
       "/services": {
-        target: "http://127.0.0.1:8002",
+        target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
       },
