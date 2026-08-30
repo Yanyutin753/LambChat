@@ -23,9 +23,7 @@ def _presenter() -> Presenter:
 
 
 def test_present_user_message_includes_run_modes_when_present() -> None:
-    event = _presenter().present_user_message(
-        "ok", run_modes=["auto", "goal"]
-    )
+    event = _presenter().present_user_message("ok", run_modes=["auto", "goal"])
 
     data: dict[str, Any] = event["data"]
     assert data["run_modes"] == ["auto", "goal"]
@@ -56,10 +54,9 @@ async def test_emit_user_message_persists_run_modes(
 
 def test_derive_user_message_run_modes_reflects_auto_and_goal() -> None:
     assert derive_user_message_run_modes(auto_mode=True, goal=None) == ["auto"]
-    assert derive_user_message_run_modes(
-        auto_mode=False, goal={"objective": "win"}
-    ) == ["goal"]
-    assert derive_user_message_run_modes(
-        auto_mode=True, goal={"objective": "win"}
-    ) == ["auto", "goal"]
+    assert derive_user_message_run_modes(auto_mode=False, goal={"objective": "win"}) == ["goal"]
+    assert derive_user_message_run_modes(auto_mode=True, goal={"objective": "win"}) == [
+        "auto",
+        "goal",
+    ]
     assert derive_user_message_run_modes(auto_mode=False, goal=None) == []

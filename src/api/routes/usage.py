@@ -80,9 +80,7 @@ async def list_usage_logs(
 
 @router.get("/stats", response_model=UsageStats)
 async def get_usage_stats(
-    user_id: Optional[str] = Query(
-        None, description="按用户ID过滤（仅管理员，缺省查自己）"
-    ),
+    user_id: Optional[str] = Query(None, description="按用户ID过滤（仅管理员，缺省查自己）"),
     period: Optional[str] = Query("all", description="周期: today, week, month, all"),
     start_date: Optional[str] = Query(
         None, description="起始时间（ISO，含时区），优先于 period 推导"

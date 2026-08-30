@@ -21,9 +21,7 @@ TOOL_START_ARG_MAX_DICT_ITEMS = 100
 TOOL_START_ARG_MAX_DEPTH = 8
 
 
-def derive_user_message_run_modes(
-    auto_mode: bool, goal: Optional[object]
-) -> List[str]:
+def derive_user_message_run_modes(auto_mode: bool, goal: Optional[object]) -> List[str]:
     """按发送时激活的运行模式（自动 / 目标）推导 user:message 事件的 run_modes。"""
     run_modes: List[str] = []
     if auto_mode:
