@@ -21,8 +21,14 @@ test("long content keeps only the last few characters without an ellipsis prefix
   const preview = buildStreamingThinkingPreview(head + tail);
   expect(preview.startsWith("…")).toBe(false);
   expect(preview.endsWith(tail)).toBe(true);
-  // at most 24 chars, no ellipsis prefix
-  expect(preview.length).toBeLessThanOrEqual(24);
+  // at most 80 chars, no ellipsis prefix
+  expect(preview.length).toBeLessThanOrEqual(80);
+});
+
+test("content beyond the cap is trimmed to exactly the last 80 chars", () => {
+  const tail = "甲乙丙丁".repeat(20); // 80 chars
+  const content = "前情提要".repeat(50) + tail;
+  expect(buildStreamingThinkingPreview(content)).toBe(tail);
 });
 
 test("tail window survives content much longer than the preview cap", () => {
