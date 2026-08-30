@@ -348,6 +348,16 @@ class MyAgent(BaseGraphAgent):
         return {"output": "done"}
 ```
 
+### 内置系统工具（Internal Tools）
+
+**规矩：后端每写一个内置系统工具，前端必须同步提供专属 Item，禁止落入通用 Wrench 图标兜底。**
+
+- 工具定义位置：`src/infra/tool/`、`src/infra/memory/tools.py`、`src/infra/skill/skill_search_tool.py`。
+- 前端在 `frontend/src/components/chat/ChatMessage/items/` 新建 `XxxItem.tsx`，参照 `ToolSearchItem` / `MemoryRecallItem` 的既有模式：`CollapsiblePill` + 专属 lucide 图标（size 12、`opacity-50`）+ inline 紧凑预览 + `openToolLivePanel` 实时面板，配色遵循 `themedToolItemsSource.test.ts` 的 accent 约定（风格高级、专业、简约）。
+- 在 `MessagePartRenderer.tsx` 按 `part.name` 路由到该 Item，并在 `ToolCallItem.tsx` re-export。
+- 面向用户的文案同时更新 zh / en / ja / ko / ru 五个 locale。
+- **CI 强制**：`dedicatedInlineToolItemsSource.test.ts` 会自动扫描上述后端目录提取工具名（`@tool` 函数与 BaseTool 子类的 `name` 字段），任何缺少专属路由的新工具都会直接挂测试；新增工具时把名字补进该测试的基线清单。
+
 ### 环境配置
 
 **必须配置的密钥（生产环境）：**

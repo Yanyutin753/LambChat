@@ -123,6 +123,8 @@ export { MemoryStoreItem } from "./items/MemoryStoreItem";
 export { AskHumanItem } from "./items/AskHumanItem";
 export { ToolSearchItem } from "./items/ToolSearchItem";
 export { EvalItem } from "./items/EvalItem";
+export { ConversationHistoryItem } from "./items/ConversationHistoryItem";
+export { SkillSearchItem } from "./items/SkillSearchItem";
 
 /** Derive status from tool props */
 function deriveStatus(props: {
