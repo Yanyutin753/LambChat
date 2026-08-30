@@ -32,6 +32,14 @@ export interface PricingSyncResponse extends PricingStatusResponse {
   error: string | null;
 }
 
+export interface PricingBackfillResponse {
+  scanned: number;
+  priced: number;
+  still_unpriced: number;
+  unpriced_models: Record<string, number>;
+  dry_run: boolean;
+}
+
 const FX_CACHE_TTL_MS = 30 * 60 * 1000;
 
 let fxCache: { doc: FxRatesResponse | null; at: number } | null = null;
@@ -69,6 +77,14 @@ export const pricingApi = {
     });
     void getFxRates(true).catch(() => null);
     return doc;
+  },
+
+  /** 管理员：补算存量 usage_logs 费用（幂等） */
+  async backfillUsage(dryRun = false): Promise<PricingBackfillResponse> {
+    return authFetch<PricingBackfillResponse>(
+      `${API_BASE}/api/pricing/backfill-usage?dry_run=${dryRun}`,
+      { method: "POST" },
+    );
   },
 
   /** 管理员：同步状态 */

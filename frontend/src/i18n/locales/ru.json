@@ -224,7 +224,11 @@
     "pricingSync": "Синхронизировать цены",
     "pricingSyncSuccess": "Цены синхронизированы ({{count}} моделей)",
     "pricingSyncPartial": "Синхронизация завершена (частичная ошибка: {{error}})",
-    "pricingSyncFailed": "Не удалось синхронизировать цены"
+    "pricingSyncFailed": "Не удалось синхронизировать цены",
+    "pricingBackfill": "Пересчитать расходы",
+    "pricingBackfillSuccess": "Пересчитано: {{priced}}/{{scanned}} записей",
+    "pricingBackfillUnpriced": "{{count}} без цены",
+    "pricingBackfillFailed": "Не удалось пересчитать расходы"
   },
   "agentOptions": {
     "enableCodeInterpreter": {

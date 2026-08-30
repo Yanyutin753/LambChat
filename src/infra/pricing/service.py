@@ -24,33 +24,54 @@ class ResolvedPrice:
     matched_model_id: str = ""
 
 
-# ── 进程内运行时缓存 ──────────────────────────────────────────────
+# ── 进程内运行时缓存（带 TTL，多副本下兜底自愈） ──────────────────
+# 正常失效路径是 PricingPubSub 广播；TTL 保证广播丢失时副本最终也能
+# 读到最后一次快照。
+
+CACHE_TTL_SECONDS = 600
 
 _runtime_index: Optional[PriceIndex] = None
+_runtime_index_loaded_at: float = 0.0
 _runtime_fx: Optional[dict] = None
+_runtime_fx_loaded_at: float = 0.0
+_cache_clock: float = 0.0  # 单调时钟（秒），测试可用 _advance_cache_clock 快进
+
+
+def _advance_cache_clock(seconds: float) -> None:
+    """测试专用：快进缓存时钟。"""
+    global _cache_clock
+    _cache_clock += seconds
 
 
 def reset_runtime_cache() -> None:
-    """清空进程内缓存（测试与手动同步后使用）。"""
-    global _runtime_index, _runtime_fx
+    """清空进程内缓存（本实例同步后 / 收到广播后 / 测试使用）。"""
+    global _runtime_index, _runtime_fx, _runtime_index_loaded_at, _runtime_fx_loaded_at
     _runtime_index = None
     _runtime_fx = None
+    _runtime_index_loaded_at = 0.0
+    _runtime_fx_loaded_at = 0.0
+
+
+def _cache_fresh(loaded_at: float) -> bool:
+    return (_cache_clock - loaded_at) < CACHE_TTL_SECONDS
 
 
 async def get_price_index() -> PriceIndex:
-    """获取价格索引；首次访问从持久化快照加载。"""
-    global _runtime_index
-    if _runtime_index is None:
+    """获取价格索引；首次访问或缓存过期时从持久化快照加载。"""
+    global _runtime_index, _runtime_index_loaded_at
+    if _runtime_index is None or not _cache_fresh(_runtime_index_loaded_at):
         snapshot = await get_pricing_storage().load_price_snapshot() or {}
         _runtime_index = restore_price_index(snapshot)
+        _runtime_index_loaded_at = _cache_clock
     return _runtime_index
 
 
 async def get_fx_rates() -> Optional[dict]:
     """获取汇率文档 {base, rates, synced_at}；无数据返回 None。"""
-    global _runtime_fx
-    if _runtime_fx is None:
+    global _runtime_fx, _runtime_fx_loaded_at
+    if _runtime_fx is None or not _cache_fresh(_runtime_fx_loaded_at):
         _runtime_fx = await get_pricing_storage().load_fx_rates()
+        _runtime_fx_loaded_at = _cache_clock
     return _runtime_fx
 
 

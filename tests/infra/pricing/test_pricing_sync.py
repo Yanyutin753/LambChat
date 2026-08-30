@@ -26,6 +26,20 @@ FX_PAYLOAD = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _no_distributed_lock(monkeypatch):
+    """单进程语义测试：锁恒获取成功，且不触碰真实 Redis。"""
+
+    async def _acquire(lock_key, ttl):
+        return "test-token"
+
+    async def _release(lock_key, token):
+        return None
+
+    monkeypatch.setattr(pricing_sync, "acquire_pricing_lock", _acquire)
+    monkeypatch.setattr(pricing_sync, "release_pricing_lock", _release)
+
+
 class _FakeCollection:
     def __init__(self):
         self.docs: dict = {}

@@ -224,7 +224,11 @@
     "pricingSync": "価格を同期",
     "pricingSyncSuccess": "価格を同期しました（{{count}} モデル）",
     "pricingSyncPartial": "同期完了（一部失敗：{{error}}）",
-    "pricingSyncFailed": "価格の同期に失敗しました"
+    "pricingSyncFailed": "価格の同期に失敗しました",
+    "pricingBackfill": "履歴費用を再計算",
+    "pricingBackfillSuccess": "再計算完了：{{priced}}/{{scanned}} 件",
+    "pricingBackfillUnpriced": "{{count}} 件は未計価",
+    "pricingBackfillFailed": "履歴費用の再計算に失敗しました"
   },
   "agentOptions": {
     "enableCodeInterpreter": {

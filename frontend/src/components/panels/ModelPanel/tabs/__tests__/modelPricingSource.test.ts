@@ -79,3 +79,32 @@ test("api format selector is hidden for native anthropic/google protocols", () =
   expect(source).toMatch(/showsApiFormat\(modelProtocol\) && \(/);
   expect(source).toMatch(/resolveModelProtocol\(\{/);
 });
+
+test("model config toolbar has a usage cost backfill action", () => {
+  const source = readFileSync(
+    resolve(currentDir, "../ModelConfigTab.tsx"),
+    "utf8",
+  );
+
+  expect(source).toMatch(/pricingApi\.backfillUsage\(/);
+  expect(source).toMatch(/agentConfig\.pricingBackfillSuccess/);
+  expect(source).toMatch(/agentConfig\.pricingBackfillUnpriced/);
+});
+
+test("backfill labels are available in every locale", () => {
+  for (const locale of ["en", "zh", "ja", "ko", "ru"]) {
+    const messages = readJson(
+      resolve(frontendSrc, "i18n", "locales", `${locale}.json`),
+    ).agentConfig;
+
+    for (const key of [
+      "pricingBackfill",
+      "pricingBackfillSuccess",
+      "pricingBackfillUnpriced",
+      "pricingBackfillFailed",
+    ]) {
+      expect(typeof messages[key]).toBe("string");
+      expect(messages[key].trim()).not.toBe("");
+    }
+  }
+});
