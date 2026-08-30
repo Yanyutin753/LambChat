@@ -46,6 +46,9 @@ class _FakeHeartbeat:
     async def check_exists(self, run_id: str) -> bool:
         return self.exists
 
+    async def is_stale(self, run_id: str) -> bool:
+        return not self.exists
+
 
 @pytest.mark.asyncio
 async def test_cancel_session_persists_cancelled_status_without_local_run_info() -> None:
@@ -509,7 +512,6 @@ async def test_cleanup_stale_tasks_attempts_auto_recovery_for_failed_recoverable
     storage.collection = _FakeCollection(
         [
             [],
-            [],
             [
                 {
                     "_id": "mongo-1",
@@ -522,6 +524,7 @@ async def test_cleanup_stale_tasks_attempts_auto_recovery_for_failed_recoverable
                     },
                 }
             ],
+            [],
         ]
     )
     manager._storage = storage
