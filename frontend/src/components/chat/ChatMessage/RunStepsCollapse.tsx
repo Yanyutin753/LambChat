@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 import clsx from "clsx";
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatElapsedCompact, formatElapsedHuman } from "./runStepsCollapseUtils";
+import {
+  formatElapsedCompact,
+  formatElapsedHuman,
+} from "./runStepsCollapseUtils";
 import { useUiExpansionState } from "./uiExpansionStore";
 
 /**
@@ -94,7 +97,7 @@ export function RunStepsCollapse({
           "cursor-pointer",
         )}
       >
-        <span className="min-w-0 truncate text-[0.9375rem] leading-6 text-gray-700 dark:text-gray-300">
+        <span className="min-w-0 truncate leading-6 text-[0.9375rem] max-sm:text-base text-gray-700 dark:text-gray-300">
           {active
             ? durationLabel
               ? t("chat.message.runStepsWorking", { duration: durationLabel })
