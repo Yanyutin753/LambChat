@@ -119,3 +119,50 @@ async def test_lookup_not_found(monkeypatch):
     response = await pricing_routes.lookup_price(value="mystery", user=_admin())
     assert response.found is False
     assert response.rates is None
+
+
+@pytest.mark.asyncio
+async def test_backfill_usage_calls_backfill_module(monkeypatch):
+    from src.infra.pricing import backfill as backfill_module
+
+    calls = {}
+
+    async def _fake_backfill(**kwargs):
+        calls.update(kwargs)
+        return {
+            "scanned": 10,
+            "priced": 8,
+            "still_unpriced": 2,
+            "unpriced_models": {"mystery": 2},
+            "dry_run": kwargs.get("dry_run", False),
+        }
+
+    monkeypatch.setattr(backfill_module, "backfill_usage_costs", _fake_backfill)
+    response = await pricing_routes.backfill_usage_costs(dry_run=True, user=_admin())
+    assert calls == {"dry_run": True}
+    assert response.scanned == 10
+    assert response.priced == 8
+    assert response.unpriced_models == {"mystery": 2}
+    assert response.dry_run is True
+
+
+@pytest.mark.asyncio
+async def test_backfill_usage_returns_409_when_lock_contended(monkeypatch):
+    from src.infra.pricing import backfill as backfill_module
+
+    async def _fake_backfill(**kwargs):
+        return {
+            "scanned": 0,
+            "priced": 0,
+            "still_unpriced": 0,
+            "unpriced_models": {},
+            "dry_run": False,
+            "lock_contended": True,
+        }
+
+    monkeypatch.setattr(backfill_module, "backfill_usage_costs", _fake_backfill)
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await pricing_routes.backfill_usage_costs(dry_run=False, user=_admin())
+    assert exc_info.value.status_code == 409

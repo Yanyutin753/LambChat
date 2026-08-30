@@ -224,7 +224,11 @@
     "pricingSync": "가격 동기화",
     "pricingSyncSuccess": "가격 동기화 완료 ({{count}}개 모델)",
     "pricingSyncPartial": "동기화 완료 (일부 실패: {{error}})",
-    "pricingSyncFailed": "가격 동기화 실패"
+    "pricingSyncFailed": "가격 동기화 실패",
+    "pricingBackfill": "과거 비용 재계산",
+    "pricingBackfillSuccess": "재계산 완료: {{priced}}/{{scanned}}건",
+    "pricingBackfillUnpriced": "{{count}}건 가격 미매칭",
+    "pricingBackfillFailed": "과거 비용 재계산 실패"
   },
   "agentOptions": {
     "enableCodeInterpreter": {

@@ -224,7 +224,11 @@
     "pricingSync": "Sync prices",
     "pricingSyncSuccess": "Prices synced ({{count}} models)",
     "pricingSyncPartial": "Sync finished (partial failure: {{error}})",
-    "pricingSyncFailed": "Failed to sync prices"
+    "pricingSyncFailed": "Failed to sync prices",
+    "pricingBackfill": "Backfill costs",
+    "pricingBackfillSuccess": "Backfilled {{priced}}/{{scanned}} records",
+    "pricingBackfillUnpriced": "{{count}} unpriced",
+    "pricingBackfillFailed": "Failed to backfill costs"
   },
   "agentOptions": {
     "enableCodeInterpreter": {

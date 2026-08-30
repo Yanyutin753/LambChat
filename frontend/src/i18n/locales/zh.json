@@ -224,7 +224,11 @@
     "pricingSync": "同步价格",
     "pricingSyncSuccess": "价格已同步（{{count}} 个模型）",
     "pricingSyncPartial": "同步完成（部分失败：{{error}}）",
-    "pricingSyncFailed": "同步价格失败"
+    "pricingSyncFailed": "同步价格失败",
+    "pricingBackfill": "补算历史费用",
+    "pricingBackfillSuccess": "补算完成：{{priced}}/{{scanned}} 条",
+    "pricingBackfillUnpriced": "{{count}} 条未计价",
+    "pricingBackfillFailed": "补算历史费用失败"
   },
   "agentOptions": {
     "enableCodeInterpreter": {

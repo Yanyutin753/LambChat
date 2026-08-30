@@ -15,6 +15,7 @@ from src.infra.monitoring.event_loop import (
     start_event_loop_lag_monitor,
     stop_event_loop_lag_monitor,
 )
+from src.infra.pricing.pubsub import get_pricing_pubsub
 from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.service import ScheduledTaskService
 from src.infra.scheduler.storage import get_scheduled_task_storage
@@ -223,6 +224,7 @@ async def start_runtime_services() -> None:
     channel_pubsub = get_channel_config_pubsub()
     tool_cache_pubsub = get_tool_cache_pubsub()
     mcp_cache_pubsub = get_mcp_cache_pubsub()
+    pricing_pubsub = get_pricing_pubsub()
     websocket_manager = get_connection_manager()
 
     listeners = [
@@ -231,6 +233,7 @@ async def start_runtime_services() -> None:
         channel_pubsub.start_listener(),
         tool_cache_pubsub.start_listener(),
         mcp_cache_pubsub.start_listener(),
+        pricing_pubsub.start_listener(),
         websocket_manager.start_pubsub_listener(),
     ]
     if settings.ENABLE_MEMORY:

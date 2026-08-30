@@ -574,6 +574,34 @@ class UsageStorage:
             logger.error(f"Failed to fetch usage items: {e}")
             return []
 
+    async def list_unpriced_usage_logs(self, *, limit: int = 500) -> List[Dict[str, Any]]:
+        """读取未计价（cost_available != True）的记录，按时间升序分批。
+
+        回填用：已回填的记录不再命中查询，重复执行天然幂等。
+        """
+        try:
+            cursor = (
+                self.collection.find({"cost_available": {"$ne": True}}, {"_id": 0})
+                .sort("started_at", 1)
+                .limit(limit)
+            )
+            return await cursor.to_list(length=limit)
+        except Exception as e:
+            logger.error(f"Failed to list unpriced usage logs: {e}")
+            return []
+
+    async def update_usage_cost(self, trace_id: str, cost_usd: float) -> bool:
+        """回填单条记录的 USD 费用快照。"""
+        try:
+            await self.collection.update_one(
+                {"trace_id": trace_id},
+                {"$set": {"cost_usd": cost_usd, "cost_available": True}},
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update usage cost for trace {trace_id}: {e}")
+            return False
+
     async def get_user_usage_summary(self, user_id: str) -> Dict[str, Any]:
         """获取单个用户的用量汇总"""
         query = {"user_id": user_id}

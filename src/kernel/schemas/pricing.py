@@ -52,3 +52,14 @@ class PricingLookupResponse(BaseModel):
     rates: Optional[dict[str, Optional[float]]] = None
     matched_provider: str = ""
     matched_model_id: str = ""
+
+
+class PricingBackfillResponse(BaseModel):
+    """存量 usage_logs 费用回填结果。"""
+
+    scanned: int = 0
+    priced: int = 0
+    still_unpriced: int = 0
+    unpriced_models: dict[str, int] = Field(default_factory=dict)
+    dry_run: bool = False
+    lock_contended: bool = False

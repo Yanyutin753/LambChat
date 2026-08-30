@@ -15,3 +15,6 @@ SETTINGS_CHANNEL = "settings:changed"
 
 # Model config sync channel (distributed instances)
 MODEL_CONFIG_CHANNEL = "model_config:changed"
+
+# Pricing snapshot/cache invalidation across replicas
+PRICING_CACHE_CHANNEL = "pricing:cache_invalidate"
