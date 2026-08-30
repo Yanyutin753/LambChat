@@ -158,7 +158,12 @@ def ensure_imports(source: str) -> str:
         if "ErrorCode" not in names:
             names.append("ErrorCode")
         names = sorted(set(names))
-        source = source[: m.start()] + "from src.kernel.errors import " + ", ".join(names) + source[m.end() :]
+        source = (
+            source[: m.start()]
+            + "from src.kernel.errors import "
+            + ", ".join(names)
+            + source[m.end() :]
+        )
     else:
         # 用 AST 定位 fastapi 导入块结束行号之后插入（兼容括号多行导入）
         tree = ast.parse(source)
@@ -193,11 +198,15 @@ def codemod_file(path: Path, dry: bool) -> int:
         nonlocal count
         detail_raw = m.group("det")
         try:
-            detail = ast.literal_eval('"' + detail_raw + '"') if m.group("q") == '"' else ast.literal_eval("'" + detail_raw + "'")
+            detail = (
+                ast.literal_eval('"' + detail_raw + '"')
+                if m.group("q") == '"'
+                else ast.literal_eval("'" + detail_raw + "'")
+            )
         except (ValueError, SyntaxError):
             return m.group(0)
         if detail not in MAPPING:
-            print(f"  !! 未映射: {path.name}:{source[:m.start()].count(chr(10))+1} {detail!r}")
+            print(f"  !! 未映射: {path.name}:{source[: m.start()].count(chr(10)) + 1} {detail!r}")
             return m.group(0)
         member, args_lit = MAPPING[detail]
         count += 1

@@ -15,7 +15,6 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
-    HTTPException,
     Request,
     Response,
     UploadFile,

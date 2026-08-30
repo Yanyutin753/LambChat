@@ -37,6 +37,7 @@
 
 ```python
 """tests/kernel/test_errors.py"""
+
 import pytest
 
 from src.kernel.errors import AppError, ErrorCode
@@ -77,6 +78,7 @@ Expected: FAIL（`ModuleNotFoundError: src.kernel.errors`）
 
 ```python
 """统一错误码与业务异常。唯一事实源：前端 backendErrors.* locale key 与此对齐。"""
+
 from enum import Enum
 from typing import Any
 
@@ -144,6 +146,7 @@ Commit: `feat(kernel): 统一错误码枚举与 AppError 基类`
 ```python
 def test_retrofit_not_found_default_code():
     from src.kernel.exceptions import NotFoundError
+
     err = NotFoundError("whatever message")
     assert err.error_code.code == "not_found"
     assert err.http_status == 404
@@ -152,6 +155,7 @@ def test_retrofit_not_found_default_code():
 
 def test_retrofit_not_found_explicit_code():
     from src.kernel.exceptions import NotFoundError
+
     err = NotFoundError(ErrorCode.MESSAGE_NOT_FOUND)
     assert err.error_code is ErrorCode.MESSAGE_NOT_FOUND
     assert err.args_data == {}
@@ -159,6 +163,7 @@ def test_retrofit_not_found_explicit_code():
 
 def test_retrofit_email_not_verified_keeps_email():
     from src.kernel.exceptions import EmailNotVerifiedError
+
     err = EmailNotVerifiedError("verify first", "a@b.c")
     assert err.email == "a@b.c"
     assert err.error_code.code == "email_not_verified"
@@ -202,6 +207,7 @@ Commit: `refactor(kernel): 异常类继承 AppError 携带错误码`
 
 ```python
 """tests/api/test_error_handlers.py"""
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -220,6 +226,7 @@ def _client() -> TestClient:
     @app.get("/http-error")
     async def http_error():
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="legacy message")
 
     @app.get("/validate")
@@ -270,6 +277,7 @@ def test_unhandled_error_shape():
 
 ```python
 """全局异常处理器：统一错误响应契约 {"detail": {code, message, args}}。"""
+
 import logging
 
 from fastapi import FastAPI, Request
@@ -282,10 +290,14 @@ from src.kernel.errors import AppError, ErrorCode
 logger = logging.getLogger(__name__)
 
 _STATUS_FALLBACK_CODE = {
-    400: ErrorCode.BAD_REQUEST, 401: ErrorCode.UNAUTHORIZED,
-    403: ErrorCode.FORBIDDEN, 404: ErrorCode.NOT_FOUND,
-    409: ErrorCode.CONFLICT, 413: ErrorCode.PAYLOAD_TOO_LARGE,
-    422: ErrorCode.VALIDATION_ERROR, 429: ErrorCode.RATE_LIMITED,
+    400: ErrorCode.BAD_REQUEST,
+    401: ErrorCode.UNAUTHORIZED,
+    403: ErrorCode.FORBIDDEN,
+    404: ErrorCode.NOT_FOUND,
+    409: ErrorCode.CONFLICT,
+    413: ErrorCode.PAYLOAD_TOO_LARGE,
+    422: ErrorCode.VALIDATION_ERROR,
+    429: ErrorCode.RATE_LIMITED,
     503: ErrorCode.SERVICE_UNAVAILABLE,
 }
 
@@ -322,7 +334,11 @@ def register_error_handlers(app: FastAPI) -> None:
         ]
         return JSONResponse(
             status_code=422,
-            content={"detail": _payload("validation_error", "Request validation failed", {"fields": fields})},
+            content={
+                "detail": _payload(
+                    "validation_error", "Request validation failed", {"fields": fields}
+                )
+            },
         )
 
     @app.exception_handler(Exception)

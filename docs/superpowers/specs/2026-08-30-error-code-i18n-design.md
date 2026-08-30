@@ -74,6 +74,7 @@ data: {"error": "<原文>", "code": "<稳定码>", "type": "<异常类型>",
 ```python
 class ErrorCode(Enum):
     """每码携带 (snake_case 码名, 默认 HTTP 状态码)，按域注释分组。"""
+
     SESSION_NOT_FOUND = ("session_not_found", 404)
     MESSAGE_NOT_FOUND = ("message_not_found", 404)
     SESSION_DELETE_IN_PROGRESS = ("session_delete_in_progress", 409)
@@ -87,9 +88,10 @@ class ErrorCode(Enum):
 
 class AppError(Exception):
     """统一业务异常。code 必填；args 供前端插值；message 可选覆盖英文兜底。"""
-    def __init__(self, code: ErrorCode, *,
-                 args: dict[str, Any] | None = None,
-                 message: str | None = None): ...
+
+    def __init__(
+        self, code: ErrorCode, *, args: dict[str, Any] | None = None, message: str | None = None
+    ): ...
 ```
 
 - 码名规则：`<域>_<语义>`，全 snake_case。现有 11 处机器码（`team_not_found`、`persona_preset_not_found`、`model_not_found` 等）**原样吸收**进枚举，不破坏已渗入测试的约定。

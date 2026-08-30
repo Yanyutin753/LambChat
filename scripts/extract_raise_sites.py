@@ -49,7 +49,11 @@ def visit_file(path: Path) -> list[dict]:
             continue
         call = node.exc
         func = call.func
-        name = func.id if isinstance(func, ast.Name) else (func.attr if isinstance(func, ast.Attribute) else None)
+        name = (
+            func.id
+            if isinstance(func, ast.Name)
+            else (func.attr if isinstance(func, ast.Attribute) else None)
+        )
         if name is None:
             continue
         entry = {
@@ -62,7 +66,9 @@ def visit_file(path: Path) -> list[dict]:
             detail_expr = None
             for kw in call.keywords:
                 if kw.arg == "status_code":
-                    status = ast.literal_eval(kw.value) if isinstance(kw.value, ast.Constant) else "?"
+                    status = (
+                        ast.literal_eval(kw.value) if isinstance(kw.value, ast.Constant) else "?"
+                    )
                 elif kw.arg == "detail":
                     detail_expr = kw.value
             if detail_expr is None and len(call.args) >= 2:
@@ -71,7 +77,9 @@ def visit_file(path: Path) -> list[dict]:
                     status = call.args[0].value
             entry["kind"] = "http"
             entry["status"] = status
-            entry["detail_class"] = classify_detail(detail_expr) if detail_expr is not None else "none"
+            entry["detail_class"] = (
+                classify_detail(detail_expr) if detail_expr is not None else "none"
+            )
             try:
                 if detail_expr is not None:
                     entry["detail_preview"] = ast.get_source_segment(
@@ -82,7 +90,11 @@ def visit_file(path: Path) -> list[dict]:
         elif name in KERNEL_EXCEPTIONS:
             entry["kind"] = "kernel"
             entry["args_count"] = len(call.args)
-            if call.args and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str):
+            if (
+                call.args
+                and isinstance(call.args[0], ast.Constant)
+                and isinstance(call.args[0].value, str)
+            ):
                 entry["message_preview"] = call.args[0].value[:120]
         else:
             continue

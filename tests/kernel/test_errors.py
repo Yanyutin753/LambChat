@@ -58,6 +58,7 @@ def test_legacy_machine_codes_absorbed():
 
 # ---------- kernel 异常类改造 ----------
 
+
 def test_retrofit_not_found_default_code():
     from src.kernel.exceptions import NotFoundError
 
@@ -108,4 +109,3 @@ def test_retrofit_account_not_active():
     assert err.email == "a@b.c"
     assert err.error_code.code == "account_not_active"
     assert err.http_status == 403
-

@@ -26,7 +26,9 @@ class _RetrofittedError(AppError):
         if isinstance(code_or_message, ErrorCode):
             super().__init__(code_or_message)
         else:
-            super().__init__(self._default_code, message=code_or_message or self._default_code.default_message)
+            super().__init__(
+                self._default_code, message=code_or_message or self._default_code.default_message
+            )
 
 
 class AgentError(_RetrofittedError):

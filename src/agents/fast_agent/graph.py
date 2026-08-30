@@ -248,7 +248,9 @@ class FastAgent(BaseGraphAgent):
 
         except Exception as e:
             err_code = getattr(e, "error_code", None)
-            yield presenter.error(str(e), type(e).__name__, code=err_code.code if err_code else None)
+            yield presenter.error(
+                str(e), type(e).__name__, code=err_code.code if err_code else None
+            )
             raise
 
         # interrupt 模式挂起（issue #218）：通知前端运行暂停等待人工输入

@@ -23,4 +23,6 @@ def test_no_http_exception_raises_in_routes() -> None:
                 continue
             if pattern.search(line):
                 violations.append(f"{rel}:{lineno}: {line.strip()}")
-    assert not violations, "路由层禁止 raise HTTPException，请改用 AppError:\n" + "\n".join(violations)
+    assert not violations, "路由层禁止 raise HTTPException，请改用 AppError:\n" + "\n".join(
+        violations
+    )

@@ -5,8 +5,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request, status
-from src.kernel.errors import AppError, ErrorCode
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.infra.async_utils import run_blocking_io
@@ -15,6 +14,7 @@ from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
 from src.infra.user.manager import UserManager
 from src.infra.user.storage import UserStorage
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 security = HTTPBearer(auto_error=False)

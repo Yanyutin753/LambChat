@@ -66,7 +66,11 @@ def register_error_handlers(app: FastAPI) -> None:
         ]
         return JSONResponse(
             status_code=422,
-            content={"detail": error_payload("validation_error", "Request validation failed", {"fields": fields})},
+            content={
+                "detail": error_payload(
+                    "validation_error", "Request validation failed", {"fields": fields}
+                )
+            },
         )
 
     @app.exception_handler(Exception)

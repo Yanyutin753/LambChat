@@ -20,7 +20,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
 from fastapi.responses import Response
 
 from src.infra.async_utils import run_blocking_io

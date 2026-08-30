@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi import HTTPException
 from fastapi.responses import Response
 
 from src.api.routes.upload_cover import (
