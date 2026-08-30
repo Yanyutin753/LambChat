@@ -793,7 +793,11 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         fallback_model=fallback_model_value,
         thinking=thinking_config,
     )
-    user_middleware.extend(create_code_interpreter_middleware(agent_options))
+    user_middleware.extend(
+        create_code_interpreter_middleware(
+            agent_options, sandbox_active=sandbox_backend is not None
+        )
+    )
     if rubric_middleware is not None:
         user_middleware.append(rubric_middleware)
 

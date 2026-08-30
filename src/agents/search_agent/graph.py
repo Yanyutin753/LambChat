@@ -83,7 +83,7 @@ class SearchAgent(BaseGraphAgent):
         },
         "enable_code_interpreter": {
             "type": "boolean",
-            "default": False,
+            "default": True,
             "label": "Code Interpreter",
             "label_key": "agentOptions.enableCodeInterpreter.label",
             "description": "Run lightweight JavaScript/TypeScript in an isolated interpreter",

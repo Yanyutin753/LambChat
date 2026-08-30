@@ -10,4 +10,4 @@ def test_agents_expose_code_interpreter_option() -> None:
         option = agent_cls._options["enable_code_interpreter"]
 
         assert option["type"] == "boolean"
-        assert option["default"] is False
+        assert option["default"] is True
