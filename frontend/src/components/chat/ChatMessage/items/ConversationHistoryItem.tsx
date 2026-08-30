@@ -386,9 +386,14 @@ const ConversationHistoryItem = memo(function ConversationHistoryItem({
           {inlineRows}
           {count > inlinePreviewLimit && (
             <div className="text-xs text-theme-text-tertiary px-2.5">
-              {t("chat.message.toolMoreFiles", {
-                count: count - inlinePreviewLimit,
-              })}
+              {t(
+                isSearch
+                  ? "chat.message.toolHistoryMoreSessions"
+                  : "chat.message.toolHistoryMoreTurns",
+                {
+                  count: count - inlinePreviewLimit,
+                },
+              )}
             </div>
           )}
         </ToolInlineDetails>
