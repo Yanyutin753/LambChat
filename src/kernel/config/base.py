@@ -144,7 +144,8 @@ class Settings(BaseSettings):
     ARQ_WORKER_MAX_JOBS: int = 128
     ARQ_JOB_TIMEOUT_SECONDS: int = 86400
     TASK_STARTUP_CLEANUP_CONCURRENCY: int = 16
-    TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 120
+    # 周期孤儿接管间隔：缩短实例死亡后对话自动恢复的停顿（心跳按龄判死 ~30s + 扫描间隔）
+    TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 15
     # 流式分片的时间维 flush 间隔（秒）：正文/思考/工具参数攒不够大小阈值时，
     # 每隔该时长也强制下发一次，避免小尾巴要等流结束才出来（<=0 禁用）。
     STREAM_CHUNK_FLUSH_INTERVAL: float = 1.0

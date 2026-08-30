@@ -39,6 +39,9 @@ class _FakeHeartbeat:
     async def check_exists(self, run_id: str) -> bool:
         return self.exists
 
+    async def is_stale(self, run_id: str) -> bool:
+        return not self.exists
+
 
 class _FakeRedis:
     def __init__(self, acquired: bool = True) -> None:
@@ -638,7 +641,6 @@ async def test_startup_cleanup_service_recovers_latest_explicit_system_restart_f
     storage.collection = _FakeCollection(
         [
             [],
-            [],
             [
                 {
                     "_id": "mongo-1",
@@ -652,6 +654,7 @@ async def test_startup_cleanup_service_recovers_latest_explicit_system_restart_f
                     },
                 }
             ],
+            [],
         ]
     )
     heartbeat = _FakeHeartbeat(exists=False)

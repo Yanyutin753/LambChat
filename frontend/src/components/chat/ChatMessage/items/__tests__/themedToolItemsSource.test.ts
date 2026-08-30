@@ -14,6 +14,8 @@ const themedItems = [
   { file: "../EnvVarItem.tsx", accent: "emerald" },
   { file: "../PersonaItem.tsx", accent: "amber" },
   { file: "../TeamItem.tsx", accent: "emerald" },
+  { file: "../ConversationHistoryItem.tsx", accent: "sky" },
+  { file: "../SkillSearchItem.tsx", accent: "violet" },
 ];
 
 test("internal tool items keep accents while using theme surfaces", () => {

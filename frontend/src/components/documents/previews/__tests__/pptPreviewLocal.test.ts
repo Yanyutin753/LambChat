@@ -37,7 +37,7 @@ test("PPT preview does not let placeholder text content bypass storage bytes", (
 });
 
 test("PPT preview dependency is declared for bundled local rendering", () => {
-  expect(frontendPackage.dependencies["@jvmr/pptx-to-html"]).toBe("^1.0.1");
+  expect(frontendPackage.dependencies["@jvmr/pptx-to-html"]).toBe("^1.1.1");
   expect(frontendPackage.dependencies["pptx-preview"]).toBe(undefined);
 });
 
