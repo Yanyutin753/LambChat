@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from src.api.error_handlers import register_error_handlers
 from src.api.middleware.auth import AuthMiddleware
 from src.api.middleware.tracing import TracingMiddleware
 from src.api.middleware.user_context import UserContextMiddleware
@@ -803,6 +804,9 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(TracingMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware)
+
+    # 全局异常处理器：统一 {"detail": {code, message, args}} 错误契约
+    register_error_handlers(app)
 
     # 注册路由
     app.include_router(health.router, tags=["Health"])
