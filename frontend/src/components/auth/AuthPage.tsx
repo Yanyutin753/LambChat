@@ -303,7 +303,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
           (err as Error).message || t("auth.operationFailed");
 
         // 检查是否是邮箱未验证或账户未激活错误，跳转到验证页面
+        // 优先用后端稳定错误码判断（消息文案随 locale 变化，不可靠）
+        const errCode = (err as Error & { code?: string }).code;
         if (
+          errCode === "email_verification_required" ||
+          errCode === "account_not_active" ||
           errorMessage.includes("请先验证邮箱") ||
           errorMessage.includes("账户未激活")
         ) {
