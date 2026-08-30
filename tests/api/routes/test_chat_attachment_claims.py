@@ -114,6 +114,7 @@ class _Presenter:
         enabled_skills: list[str] | None = None,
         attachment_references_claimed: bool = False,
         schedule_search_index: bool = True,
+        run_modes: list[str] | None = None,
     ) -> None:
         self.calls.append(
             (
@@ -122,6 +123,7 @@ class _Presenter:
                 enabled_skills,
                 attachment_references_claimed,
                 schedule_search_index,
+                run_modes,
             )
         )
         if self.fail_emit:
@@ -331,6 +333,7 @@ async def test_queued_chat_passes_preclaimed_flag_to_presenter(
             None,
             True,
             True,
+            [],
         )
     ]
     assert file_records.releases == []

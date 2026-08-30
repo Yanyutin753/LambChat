@@ -93,3 +93,28 @@ test("ExecuteItem panel content refreshes when the streamed result lands", async
     "streamed output",
   );
 });
+
+test("ReadFileItem pill shows the line range so chunked reads are distinguishable", () => {
+  const view = render(
+    <ReadFileItem
+      id="read-range-1"
+      args={{ file_path: "/tmp/a.txt", offset: 99, limit: 200 }}
+      isPending
+      startedAt="2026-08-29T10:00:00.000Z"
+    />,
+  );
+  // 折叠态的 pill 上就能看出读取的是哪一段
+  expect(view.getByText(":L100-299")).toBeTruthy();
+});
+
+test("ReadFileItem pill omits the line range when reading without offset or limit", () => {
+  const view = render(
+    <ReadFileItem
+      id="read-range-2"
+      args={{ file_path: "/tmp/a.txt" }}
+      isPending
+      startedAt="2026-08-29T10:00:00.000Z"
+    />,
+  );
+  expect(view.queryByText(/:L\d/)).toBe(null);
+});

@@ -23,10 +23,12 @@ const MODE_CHIP_META: Record<
 interface RunModeChipProps {
   modeKey: RunModeKey;
   onClick?: () => void;
+  /** Read-only display (e.g. on sent user messages): no button semantics. */
+  readOnly?: boolean;
 }
 
 /** Active run-mode chip rendered inline in the composer, styled like a skill chip. */
-export function RunModeChip({ modeKey, onClick }: RunModeChipProps) {
+export function RunModeChip({ modeKey, onClick, readOnly }: RunModeChipProps) {
   const { t } = useTranslation();
   const meta = MODE_CHIP_META[modeKey];
   const label = t(meta.labelKey, meta.fallback);
@@ -34,18 +36,23 @@ export function RunModeChip({ modeKey, onClick }: RunModeChipProps) {
   return (
     <span
       className="skill-chip-node run-mode-chip-node"
-      role="button"
-      tabIndex={0}
+      {...(readOnly
+        ? {}
+        : { role: "button", tabIndex: 0 })}
       aria-label={label}
       title={label}
       contentEditable={false}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick?.();
-        }
-      }}
+      onClick={readOnly ? undefined : onClick}
+      onKeyDown={
+        readOnly
+          ? undefined
+          : (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+      }
     >
       <span
         className="skill-chip-node-avatar"

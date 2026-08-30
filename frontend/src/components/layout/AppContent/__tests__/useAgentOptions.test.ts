@@ -1,8 +1,22 @@
 import {
+  buildAgentOptionValues,
   getAgentOptionSyncMode,
   normalizeAgentOptionValues,
   normalizeAgentOptions,
 } from "../useAgentOptions";
+
+test("applies backend boolean option defaults to initial values", () => {
+  // 代码解释器默认开启：后端 schema 的 default 流转到初始选项值（并随 agent_options 提交）
+  expect(
+    buildAgentOptionValues({
+      enable_code_interpreter: {
+        type: "boolean",
+        default: true,
+        label: "Code Interpreter",
+      },
+    }),
+  ).toEqual({ enable_code_interpreter: true });
+});
 
 test("normalizes legacy thinking off values to low", () => {
   // "off" 档已下线：思考常开，历史 off 值（含旧布尔 false）统一降级到最低档

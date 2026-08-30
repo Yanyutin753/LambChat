@@ -30,6 +30,20 @@ test("file operation pills render full file paths without path-breaking formatti
   expect(lsItem).toMatch(/formatLabel=\{false\}/);
 });
 
+test("read file pill renders the line range in the suffix so it survives path truncation", () => {
+  const readFileItem = readSource("../ReadFileItem.tsx");
+
+  // 行号范围必须放 suffix（在 truncate 的 label 之外），同一文件分段读取才能区分
+  expect(readFileItem).toMatch(
+    /const lineRange = readLineRangeLabel\(offset, limit\);/,
+  );
+  expect(readFileItem).toMatch(/suffix=\{\n\s*lineRange \? \(\n\s*<span className="shrink-0/);
+  // 面板标题同样带行号，侧栏里同文件的多个标签页可区分
+  expect(readFileItem).toMatch(
+    /title: `\$\{t\("chat\.message\.toolRead"\)\} \$\{fileName \|\| filePath\}\$\{lineRange\}`/,
+  );
+});
+
 test("collapsible pill always truncates labels to prevent overflow", () => {
   const source = readFileSync(
     new URL("../../../../common/CollapsiblePill.tsx", import.meta.url),

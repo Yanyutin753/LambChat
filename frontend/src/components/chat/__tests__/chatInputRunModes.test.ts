@@ -1,5 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
-import { buildRunModesOptions } from "../chatInputRunModes";
+import {
+  buildRunModesOptions,
+  collectActiveRunModes,
+} from "../chatInputRunModes";
 
 describe("buildRunModesOptions", () => {
   test("passes the enabled flags through", () => {
@@ -38,5 +41,14 @@ describe("buildRunModesOptions", () => {
 
     expect(onToggleGoalMode).toHaveBeenCalledWith(true);
     expect(onToggleAutoMode).not.toHaveBeenCalled();
+  });
+});
+
+describe("collectActiveRunModes", () => {
+  test("derives send-time run modes from the toggle booleans", () => {
+    expect(collectActiveRunModes(true, false)).toEqual(["auto"]);
+    expect(collectActiveRunModes(false, true)).toEqual(["goal"]);
+    expect(collectActiveRunModes(true, true)).toEqual(["auto", "goal"]);
+    expect(collectActiveRunModes(false, false)).toEqual([]);
   });
 });

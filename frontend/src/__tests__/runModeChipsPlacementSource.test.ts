@@ -66,3 +66,15 @@ test("运行模式 chip 与相邻内容保留呼吸间距", () => {
   const css = readRepoFile("src/styles/chat.css");
   expect(css).toMatch(/\.run-mode-chip-node\s*\{[^}]*margin/);
 });
+
+test("发送后的用户消息携带运行模式 chip", () => {
+  const bubble = readRepoFile(
+    "src/components/chat/ChatMessage/UserMessageBubble.tsx",
+  );
+  expect(bubble).toMatch(/RunModeChip/);
+  // 只读展示：不渲染交互语义（role=button）
+  expect(bubble).not.toMatch(/role="button"/);
+
+  const messageView = readRepoFile("src/components/chat/ChatMessage/index.tsx");
+  expect(messageView).toMatch(/runModes=\{message\.runModes\}/);
+});
