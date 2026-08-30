@@ -460,6 +460,9 @@ export function processMessageEvent(
         cache_read_tokens: data.cache_read_tokens || 0,
         model_id: data.model_id,
         model: data.model,
+        cost_usd: data.cost_usd,
+        cost_breakdown: data.cost_breakdown,
+        cost_rates: data.cost_rates,
       };
       if (data.duration) result.duration = data.duration * 1000;
       break;

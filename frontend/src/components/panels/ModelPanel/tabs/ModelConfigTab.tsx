@@ -9,6 +9,8 @@ import {
   FileJson,
   Layers,
   ChevronDown,
+  RefreshCw,
+  History,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -18,6 +20,7 @@ import { EmptyState } from "../../../common/EmptyState";
 import { ToggleSwitch } from "../../AgentPanel/shared";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import { modelApi } from "../../../../services/api";
+import { pricingApi } from "../../../../services/api/pricing";
 import type { ModelConfig } from "../../../../services/api/model";
 import { ModelFormModal } from "./ModelFormModal";
 import { BatchCreateModal } from "./BatchCreateModal";
@@ -389,6 +392,8 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
   const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [isSyncingPrices, setIsSyncingPrices] = useState(false);
+  const [isBackfillingCosts, setIsBackfillingCosts] = useState(false);
   const [batchInitialTab, setBatchInitialTab] = useState<
     "addOneByOne" | "jsonImport"
   >("addOneByOne");
@@ -572,6 +577,81 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
               <Layers size={16} />
               <span className="hidden sm:inline">
                 {t("agentConfig.batchCreate")}
+              </span>
+            </button>
+            <button
+              onClick={async () => {
+                setIsSyncingPrices(true);
+                try {
+                  const result = await pricingApi.sync();
+                  if (result.error) {
+                    toast.error(
+                      t("agentConfig.pricingSyncPartial", {
+                        defaultValue: "同步完成（部分失败：{{error}}）",
+                        error: result.error,
+                      }),
+                    );
+                  } else {
+                    toast.success(
+                      t("agentConfig.pricingSyncSuccess", {
+                        defaultValue: "价格已同步（{{count}} 个模型）",
+                        count: result.prices.entry_count,
+                      }),
+                    );
+                  }
+                } catch (err) {
+                  toast.error(
+                    (err as Error).message ||
+                      t("agentConfig.pricingSyncFailed", "同步价格失败"),
+                  );
+                } finally {
+                  setIsSyncingPrices(false);
+                }
+              }}
+              disabled={isSyncingPrices}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors disabled:opacity-50"
+            >
+              <RefreshCw
+                size={16}
+                className={isSyncingPrices ? "animate-spin" : ""}
+              />
+              <span className="hidden sm:inline">
+                {t("agentConfig.pricingSync", "同步价格")}
+              </span>
+            </button>
+            <button
+              onClick={async () => {
+                setIsBackfillingCosts(true);
+                try {
+                  const result = await pricingApi.backfillUsage();
+                  const base = t("agentConfig.pricingBackfillSuccess", {
+                    defaultValue: "补算完成：{{priced}}/{{scanned}} 条",
+                    priced: result.priced,
+                    scanned: result.scanned,
+                  });
+                  toast.success(
+                    result.still_unpriced > 0
+                      ? `${base} · ${t("agentConfig.pricingBackfillUnpriced", {
+                          defaultValue: "{{count}} 条未计价",
+                          count: result.still_unpriced,
+                        })}`
+                      : base,
+                  );
+                } catch (err) {
+                  toast.error(
+                    (err as Error).message ||
+                      t("agentConfig.pricingBackfillFailed", "补算历史费用失败"),
+                  );
+                } finally {
+                  setIsBackfillingCosts(false);
+                }
+              }}
+              disabled={isBackfillingCosts}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--glass-border)] text-stone-700 dark:text-stone-300 hover:bg-[var(--glass-bg-subtle)] transition-colors disabled:opacity-50"
+            >
+              <History size={16} className={isBackfillingCosts ? "animate-spin" : ""} />
+              <span className="hidden sm:inline">
+                {t("agentConfig.pricingBackfill", "补算历史费用")}
               </span>
             </button>
             <Button

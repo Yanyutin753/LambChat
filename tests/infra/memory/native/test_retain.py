@@ -165,3 +165,108 @@ async def test_retain_updates_existing_memory_and_refreshes_embedding():
     assert result["updated_existing"] is True
     assert seen["query"] == {"user_id": "u1", "memory_id": "m1"}
     assert seen["payload"]["$set"]["embedding"] == [58.0]
+
+
+class _RetainFakeCursor:
+    def __init__(self, docs):
+        self._docs = docs
+
+    async def to_list(self, length):
+        return self._docs[:length]
+
+
+class _SemanticDedupFakeCollection:
+    """find() 按 query 形状分流：含 embedding 键的是语义候选查询，否则是摘要匹配查询。"""
+
+    def __init__(self, summary_docs, semantic_docs):
+        self._summary_docs = summary_docs
+        self._semantic_docs = semantic_docs
+        self.updated: list[tuple[dict, dict]] = []
+        self.inserted: list[dict] = []
+
+    def find(self, query, _projection):
+        if "embedding" in query:
+            return _RetainFakeCursor(self._semantic_docs)
+        return _RetainFakeCursor(self._summary_docs)
+
+    async def find_one(self, *_args, **_kwargs):
+        return {"content_storage_mode": "inline", "content_store_key": None, "source_refs": []}
+
+    async def update_one(self, query, payload):
+        self.updated.append((query, payload))
+
+    async def insert_one(self, doc):
+        self.inserted.append(doc)
+
+
+def _backend_with_collection(collection, embed_value):
+    backend = NativeMemoryBackend()
+
+    async def fake_invalidate(_user_id):
+        return None
+
+    async def fake_embed(_text):
+        return embed_value
+
+    backend._collection = collection
+    backend._invalidate_cache = fake_invalidate  # type: ignore[method-assign]
+    backend._maybe_embed = fake_embed  # type: ignore[method-assign]
+    return backend
+
+
+@pytest.mark.asyncio
+async def test_retain_merges_into_semantically_similar_memory_without_explicit_id():
+    now = datetime.now(timezone.utc)
+    existing = {
+        "memory_id": "m9",
+        "memory_type": "user",
+        "summary": "User is writing a book about React.",
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": now,
+    }
+    collection = _SemanticDedupFakeCollection(summary_docs=[existing], semantic_docs=[existing])
+    backend = _backend_with_collection(collection, embed_value=[0.99, 0.141, 0.0])
+
+    result = await backend.retain(
+        "u1",
+        "The user has been writing a book about React patterns since 2025.",
+        context="user_identity",
+        title="Writing a React book",
+        summary="Third chapter of the book is done.",
+        tags=["react", "book"],
+    )
+
+    assert result["success"] is True
+    assert result["updated_existing"] is True
+    assert result["memory_id"] == "m9"
+    assert len(collection.updated) == 1
+    assert collection.updated[0][0] == {"user_id": "u1", "memory_id": "m9"}
+    assert not collection.inserted
+
+
+@pytest.mark.asyncio
+async def test_retain_inserts_new_memory_when_semantically_distinct():
+    now = datetime.now(timezone.utc)
+    existing = {
+        "memory_id": "m9",
+        "memory_type": "user",
+        "summary": "User is writing a book about React.",
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": now,
+    }
+    collection = _SemanticDedupFakeCollection(summary_docs=[existing], semantic_docs=[existing])
+    backend = _backend_with_collection(collection, embed_value=[0.0, 1.0, 0.0])
+
+    result = await backend.retain(
+        "u1",
+        "The user keeps three cats and a dog at home.",
+        context="user_identity",
+        title="Pets at home",
+        summary="Has three cats and a dog.",
+        tags=["pets"],
+    )
+
+    assert result["success"] is True
+    assert "updated_existing" not in result
+    assert not collection.updated
+    assert len(collection.inserted) == 1

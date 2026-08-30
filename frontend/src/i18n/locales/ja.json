@@ -211,7 +211,24 @@
     "tempTag": "温度: {{value}}",
     "temperature": "温度",
     "title": "エージェント設定",
-    "valueAndLabelRequired": "値とラベルは必須です"
+    "valueAndLabelRequired": "値とラベルは必須です",
+    "pricingLabel": "価格オーバーライド（USD / 100万トークン）",
+    "pricingInput": "入力",
+    "pricingOutput": "出力",
+    "pricingCacheRead": "キャッシュ読み取り",
+    "pricingCacheWrite": "キャッシュ書き込み",
+    "pricingMatched": "models.dev 一致：入力 ${{input}} · 出力 ${{output}}（{{match}}）",
+    "pricingUnmatched": "models.dev に一致なし。空欄の場合は費用計算されません",
+    "pricingHint": "空欄は同期価格に従います。リレー価格が異なる場合は上書きできます",
+    "pricingInvalid": "価格は 0 以上の数値で入力してください",
+    "pricingSync": "価格を同期",
+    "pricingSyncSuccess": "価格を同期しました（{{count}} モデル）",
+    "pricingSyncPartial": "同期完了（一部失敗：{{error}}）",
+    "pricingSyncFailed": "価格の同期に失敗しました",
+    "pricingBackfill": "履歴費用を再計算",
+    "pricingBackfillSuccess": "再計算完了：{{priced}}/{{scanned}} 件",
+    "pricingBackfillUnpriced": "{{count}} 件は未計価",
+    "pricingBackfillFailed": "履歴費用の再計算に失敗しました"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -773,7 +790,8 @@
       "toolTransferPath": "ディレクトリ転送",
       "toolUploadUrlToSandbox": "URLをサンドボックスへアップロード",
       "toolVarCount": "{{count}} 個の変数",
-      "toolWrite": "書込"
+      "toolWrite": "書込",
+      "costTotal": "費用"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
@@ -3147,7 +3165,10 @@
       "title": "日次実行トレンド",
       "tokens": "Tokens"
     },
-    "user": "ユーザー"
+    "user": "ユーザー",
+    "cost": "費用",
+    "costTotal": "合計費用",
+    "unpricedHint": "{{count}} 件は未計価"
   },
   "users": {
     "actions": "操作",

@@ -124,6 +124,8 @@ class FakePresenter:
         cache_read_tokens: int = 0,
         model_id: str | None = None,
         model: str | None = None,
+        cost: Any = None,
+        rates: Any = None,
     ) -> dict[str, Any]:
         data: dict[str, Any] = {
             "input_tokens": input_tokens,

@@ -211,7 +211,24 @@
     "tempTag": "темп: {{value}}",
     "temperature": "Температура",
     "title": "Конфигурация агентов",
-    "valueAndLabelRequired": "Значение и метка обязательны"
+    "valueAndLabelRequired": "Значение и метка обязательны",
+    "pricingLabel": "Переопределение цен (USD / 1 млн токенов)",
+    "pricingInput": "Ввод",
+    "pricingOutput": "Вывод",
+    "pricingCacheRead": "Чтение кэша",
+    "pricingCacheWrite": "Запись кэша",
+    "pricingMatched": "Совпадение models.dev: ввод ${{input}} · вывод ${{output}} ({{match}})",
+    "pricingUnmatched": "Нет совпадения в models.dev; оставьте пустым, чтобы не считать стоимость",
+    "pricingHint": "Пустые поля берутся из синхронизированных цен; переопределяйте для реле с другими ценами",
+    "pricingInvalid": "Цены должны быть неотрицательными числами",
+    "pricingSync": "Синхронизировать цены",
+    "pricingSyncSuccess": "Цены синхронизированы ({{count}} моделей)",
+    "pricingSyncPartial": "Синхронизация завершена (частичная ошибка: {{error}})",
+    "pricingSyncFailed": "Не удалось синхронизировать цены",
+    "pricingBackfill": "Пересчитать расходы",
+    "pricingBackfillSuccess": "Пересчитано: {{priced}}/{{scanned}} записей",
+    "pricingBackfillUnpriced": "{{count}} без цены",
+    "pricingBackfillFailed": "Не удалось пересчитать расходы"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -773,7 +790,8 @@
       "toolTransferPath": "Перенести путь",
       "toolUploadUrlToSandbox": "Загрузить URL в песочницу",
       "toolVarCount": "{{count}} переменных",
-      "toolWrite": "Запись"
+      "toolWrite": "Запись",
+      "costTotal": "Стоимость"
     },
     "messageInput": "Поле ввода сообщения",
     "noPermission": "Нет прав для отправки сообщений",
@@ -3147,7 +3165,10 @@
       "title": "Тренд ежедневных выполнений",
       "tokens": "Tokens"
     },
-    "user": "Пользователь"
+    "user": "Пользователь",
+    "cost": "Стоимость",
+    "costTotal": "Общая стоимость",
+    "unpricedHint": "{{count}} без цены"
   },
   "users": {
     "actions": "Действия",

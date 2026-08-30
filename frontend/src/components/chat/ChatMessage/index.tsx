@@ -37,6 +37,13 @@ import { useAuth } from "../../../hooks/useAuth";
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { shouldCloseTokenDetailsPopover } from "./tokenDetailsPopoverGuards";
 import { resolveTokenUsageModelDetails } from "./tokenUsageModel";
+import { buildCostDetailRows, hasPricedCost } from "./tokenCostDisplay";
+import { useFxRates } from "../../../hooks/useFxRates";
+import {
+  formatCostUsd,
+  resolveDisplayCurrency,
+  type FxRatesDoc,
+} from "../../../utils/currency";
 import {
   shouldAllowAutoPreviewForPart,
   type AutoPreviewTarget,
@@ -79,6 +86,8 @@ function TokenDetailsButton({
   duration,
   timestamp,
   modelDetails,
+  fxRates,
+  language,
 }: {
   tokenUsage?: TokenUsagePart;
   duration?: number;
@@ -89,6 +98,8 @@ function TokenDetailsButton({
     provider?: string;
     icon?: string;
   } | null;
+  fxRates?: FxRatesDoc | null;
+  language?: string;
 }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
@@ -98,6 +109,15 @@ function TokenDetailsButton({
     tokenUsage && tokenUsage.input_tokens > 0
       ? (tokenUsage.cache_read_tokens ?? 0) / tokenUsage.input_tokens
       : null;
+  const costRows = buildCostDetailRows(tokenUsage);
+  const priced = hasPricedCost(tokenUsage);
+  const displayCurrency = resolveDisplayCurrency(language, fxRates ?? null);
+  const costRowLabels: Record<string, string> = {
+    input: t("chat.message.tokenInput"),
+    output: t("chat.message.tokenOutput"),
+    cache_read: t("chat.message.tokenCacheRead"),
+    cache_write: t("chat.message.tokenCacheCreation"),
+  };
 
   const popupStyle = useStickyDropdownPosition(
     buttonRef,
@@ -226,6 +246,40 @@ function TokenDetailsButton({
                       {tokenUsage.total_tokens?.toLocaleString()} tokens
                     </span>
                   </div>
+                  {priced && (
+                    <div className="border-t border-theme-border pt-1.5 mt-1.5 space-y-1.5">
+                      <div className="flex justify-between gap-4 text-amber-600 dark:text-amber-400">
+                        <span className="">{t("chat.message.costTotal")}</span>
+                        <span className="font-medium tabular-nums">
+                          {formatCostUsd(tokenUsage.cost_usd ?? 0, {
+                            language,
+                            rates: fxRates ?? null,
+                          })}
+                          {displayCurrency !== "USD" && (
+                            <span className="ml-1.5 text-stone-400 dark:text-stone-500 font-normal">
+                              (${(tokenUsage.cost_usd ?? 0).toFixed(4)})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {costRows.map((row) => (
+                        <div
+                          key={row.key}
+                          className="flex justify-between gap-4 text-stone-500 dark:text-stone-400"
+                        >
+                          <span>{costRowLabels[row.key]}</span>
+                          <span className="tabular-nums">
+                            ${row.usd.toFixed(4)}
+                            {row.ratePerMillion !== null && (
+                              <span className="ml-1 text-stone-400 dark:text-stone-500">
+                                @ ${row.ratePerMillion}/M
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
               {duration && (
@@ -504,12 +558,14 @@ export const ChatMessage = memo(function ChatMessage({
   activeGoal,
   isFirst,
 }: ChatMessageProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { availableModels } = useSettingsContext();
   const { isAuthenticated } = useAuth();
+  const fxRates = useFxRates();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
   const [copied, setCopied] = useState(false);
+  const [isForking, setIsForking] = useState(false);
   const modelDetails = resolveTokenUsageModelDetails({
     modelId: message.tokenUsage?.model_id,
     model: message.tokenUsage?.model,
@@ -729,15 +785,29 @@ export const ChatMessage = memo(function ChatMessage({
             </button>
             {sessionId && onForkMessage && (
               <button
-                onClick={() => void onForkMessage(message.id)}
+                onClick={async () => {
+                  if (isForking) return;
+                  setIsForking(true);
+                  try {
+                    await onForkMessage(message.id);
+                  } finally {
+                    setIsForking(false);
+                  }
+                }}
+                disabled={isForking}
                 className={clsx(
                   "p-1.5 rounded-md transition-colors",
                   "hover:bg-stone-200 dark:hover:bg-stone-700",
                   "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
+                  isForking && "opacity-60 cursor-wait",
                 )}
                 title={t("chat.message.fork")}
               >
-                <GitBranch size={16} />
+                {isForking ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <GitBranch size={16} />
+                )}
               </button>
             )}
             {/* Token usage statistics button */}
@@ -747,6 +817,8 @@ export const ChatMessage = memo(function ChatMessage({
                 duration={message.duration}
                 timestamp={message.timestamp}
                 modelDetails={modelDetails}
+                fxRates={fxRates}
+                language={i18n.language}
               />
             )}
             {showFeedbackAndShareActions && (

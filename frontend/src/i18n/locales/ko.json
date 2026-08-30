@@ -211,7 +211,24 @@
     "tempTag": "온도: {{value}}",
     "temperature": "온도",
     "title": "에이전트 구성",
-    "valueAndLabelRequired": "값과 라벨은 필수입니다"
+    "valueAndLabelRequired": "값과 라벨은 필수입니다",
+    "pricingLabel": "가격 재정의 (USD / 100만 토큰)",
+    "pricingInput": "입력",
+    "pricingOutput": "출력",
+    "pricingCacheRead": "캐시 읽기",
+    "pricingCacheWrite": "캐시 쓰기",
+    "pricingMatched": "models.dev 일치: 입력 ${{input}} · 출력 ${{output}} ({{match}})",
+    "pricingUnmatched": "models.dev 일치 없음. 비워 두면 비용이 계산되지 않습니다",
+    "pricingHint": "빈 칸은 동기화 가격을 따릅니다. 리레이 가격이 다르면 재정의하세요",
+    "pricingInvalid": "가격은 0 이상의 숫자여야 합니다",
+    "pricingSync": "가격 동기화",
+    "pricingSyncSuccess": "가격 동기화 완료 ({{count}}개 모델)",
+    "pricingSyncPartial": "동기화 완료 (일부 실패: {{error}})",
+    "pricingSyncFailed": "가격 동기화 실패",
+    "pricingBackfill": "과거 비용 재계산",
+    "pricingBackfillSuccess": "재계산 완료: {{priced}}/{{scanned}}건",
+    "pricingBackfillUnpriced": "{{count}}건 가격 미매칭",
+    "pricingBackfillFailed": "과거 비용 재계산 실패"
   },
   "agentOptions": {
     "enableCodeInterpreter": {
@@ -773,7 +790,8 @@
       "toolTransferPath": "경로 전송",
       "toolUploadUrlToSandbox": "URL을 샌드박스로 업로드",
       "toolVarCount": "{{count}}개 변수",
-      "toolWrite": "쓰기"
+      "toolWrite": "쓰기",
+      "costTotal": "비용"
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -3147,7 +3165,10 @@
       "title": "일일 실행 트렌드",
       "tokens": "Tokens"
     },
-    "user": "사용자"
+    "user": "사용자",
+    "cost": "비용",
+    "costTotal": "총 비용",
+    "unpricedHint": "{{count}}건 가격 미매칭"
   },
   "users": {
     "actions": "작업",

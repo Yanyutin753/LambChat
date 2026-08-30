@@ -32,6 +32,8 @@ class UsageLog(BaseModel):
     total_tokens: int = 0
     cache_creation_tokens: int = 0
     cache_read_tokens: int = 0
+    cost_usd: float = 0.0
+    cost_available: bool = False
     duration: float = 0.0
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -51,6 +53,8 @@ class UsageStats(BaseModel):
     total_tokens: int = 0
     total_cache_creation_tokens: int = 0
     total_cache_read_tokens: int = 0
+    total_cost_usd: float = 0.0
+    unpriced_requests: int = 0
     total_duration: float = 0.0
 
 
@@ -68,6 +72,8 @@ class UsageDashboardSummary(BaseModel):
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cache_read_tokens: int = 0
+    total_cost_usd: float = 0.0
+    unpriced_requests: int = 0
     total_duration: float = 0.0
     total_tool_calls: int = 0
     scheduled_runs: int = 0
@@ -86,6 +92,7 @@ class UsageDailyPoint(BaseModel):
     date: str
     requests: int = 0
     tokens: int = 0
+    cost_usd: float = 0.0
     duration: float = 0.0
     scheduled_runs: int = 0
     failed_requests: int = 0
@@ -97,6 +104,7 @@ class UsageRankingItem(BaseModel):
     name: str
     requests: int = 0
     tokens: int = 0
+    cost_usd: float = 0.0
     duration: float = 0.0
     input_tokens: int = 0
     cache_creation_tokens: int = 0

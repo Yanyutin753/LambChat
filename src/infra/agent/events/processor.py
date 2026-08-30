@@ -29,6 +29,7 @@ from src.infra.agent.events.tool_outputs import (
 from src.infra.agent.events.types import TOOL_TASK, StreamEvent
 from src.infra.agent.first_event_timing import FirstEventTiming
 from src.infra.logging import get_logger
+from src.infra.pricing.service import compute_usage_cost
 from src.infra.writer.present import Presenter
 from src.kernel.config import settings
 
@@ -163,6 +164,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             return False
 
         total_tokens = self.total_tokens or self.total_input_tokens + self.total_output_tokens
+        cost, rates = await self._resolve_usage_cost(model=model, model_id=model_id)
         event = self.presenter.present_token_usage(
             input_tokens=self.total_input_tokens,
             output_tokens=self.total_output_tokens,
@@ -172,10 +174,33 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             cache_read_tokens=self.total_cache_read_tokens,
             model_id=model_id,
             model=model,
+            cost=cost,
+            rates=rates,
         )
         await self._presenter_emit(event)
         self._token_usage_emitted = True
         return True
+
+    async def _resolve_usage_cost(
+        self, *, model: str | None, model_id: str | None
+    ) -> tuple[Any, Any]:
+        """best-effort 计算本次用量成本；失败或未匹配价格时返回 (None, None)。"""
+        try:
+            result = await compute_usage_cost(
+                model_value=model,
+                model_config_id=model_id,
+                input_tokens=self.total_input_tokens,
+                output_tokens=self.total_output_tokens,
+                cache_read_tokens=self.total_cache_read_tokens,
+                cache_creation_tokens=self.total_cache_creation_tokens,
+            )
+        except Exception as e:
+            logger.debug(f"Pricing: usage cost computation failed: {e}")
+            return None, None
+        if result is None:
+            return None, None
+        breakdown, rates, _source = result
+        return breakdown, rates
 
     def clear(self) -> None:
         """Release memory held by this session while preserving token counters."""
