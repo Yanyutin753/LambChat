@@ -106,3 +106,8 @@ export function formatDuration(ms: number): string {
 export function getTimeMs(input: TimeInput): number {
   return toDate(input).getTime();
 }
+
+/** 同一天本地 0 点（"今日"按自然日而非滚动 24 小时计算时使用） */
+export function startOfLocalDay(now: Date): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}

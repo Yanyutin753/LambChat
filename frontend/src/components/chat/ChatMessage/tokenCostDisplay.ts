@@ -1,5 +1,6 @@
 // Token 费用明细行构建：把 TokenUsagePart 的金额分解为可渲染的行数据。
 import type { TokenUsagePart } from "../../../types/message";
+import { formatCostUsd, type FxRatesDoc } from "../../../utils/currency";
 
 export type CostRowKey = "input" | "output" | "cache_read" | "cache_write";
 
@@ -22,7 +23,9 @@ export function hasPricedCost(usage: TokenUsagePart | undefined): boolean {
  * 构建费用明细行。
  * 输入行 token 数为计费口径：input_tokens - cache_read - cache_creation。
  */
-export function buildCostDetailRows(usage: TokenUsagePart | undefined): CostDetailRow[] {
+export function buildCostDetailRows(
+  usage: TokenUsagePart | undefined,
+): CostDetailRow[] {
   if (!usage) return [];
   const cacheRead = usage.cache_read_tokens ?? 0;
   const cacheCreation = usage.cache_creation_tokens ?? 0;
@@ -61,4 +64,23 @@ export function buildCostDetailRows(usage: TokenUsagePart | undefined): CostDeta
     });
   }
   return rows;
+}
+
+export interface FormatCostRowOpts {
+  language?: string;
+  rates?: FxRatesDoc | null;
+}
+
+/** 明细行金额与单价格式化为 i18n 对应货币（USD 底价换算，汇率缺失回落 USD） */
+export function formatCostDetailRow(
+  row: CostDetailRow,
+  opts: FormatCostRowOpts,
+): { cost: string; rate: string | null } {
+  return {
+    cost: formatCostUsd(row.usd, opts),
+    rate:
+      row.ratePerMillion === null
+        ? null
+        : `${formatCostUsd(row.ratePerMillion, opts)}/M`,
+  };
 }

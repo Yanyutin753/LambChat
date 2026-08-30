@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "さらにファイルを追加",
+    "aiDisclaimer": "AI の生成内容は誤りを含む場合があります。重要な情報はご確認ください",
     "assistant": "アシスタント",
     "attachFile": "ファイルを添付",
     "attachments": "添付ファイル",
@@ -808,7 +809,8 @@
       "toolUploadUrlToSandbox": "URLをサンドボックスへアップロード",
       "toolVarCount": "{{count}} 個の変数",
       "toolWrite": "書込",
-      "costTotal": "費用"
+      "costTotal": "費用",
+      "costDetail": "費用の内訳"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
@@ -3165,6 +3167,7 @@
     "time": "日時",
     "title": "使用状況詳細",
     "today": "今日",
+    "todayCost": "本日の利用額 {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "合計",
     "totalDuration": "合計時間",

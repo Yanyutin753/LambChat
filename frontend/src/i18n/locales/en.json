@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "Add more files",
+    "aiDisclaimer": "AI can make mistakes — double-check important info",
     "assistant": "Assistant",
     "attachFile": "Attach file",
     "attachments": "Attachments",
@@ -808,7 +809,8 @@
       "toolUploadUrlToSandbox": "Upload URL To Sandbox",
       "toolVarCount": "{{count}} variables",
       "toolWrite": "Write",
-      "costTotal": "Cost"
+      "costTotal": "Cost",
+      "costDetail": "Cost breakdown"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -3165,6 +3167,7 @@
     "time": "Time",
     "title": "Usage Details",
     "today": "Today",
+    "todayCost": "Today's spend {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "Total",
     "totalDuration": "Total Duration",

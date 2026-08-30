@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "添加更多文件",
+    "aiDisclaimer": "AI 生成内容可能出错，请注意核实",
     "assistant": "助手",
     "attachFile": "附件",
     "attachments": "附件",
@@ -808,7 +809,8 @@
       "toolUploadUrlToSandbox": "上传 URL 到沙箱",
       "toolVarCount": "{{count}} 个变量",
       "toolWrite": "写入",
-      "costTotal": "费用"
+      "costTotal": "费用",
+      "costDetail": "费用明细"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",
@@ -3165,6 +3167,7 @@
     "time": "时间",
     "title": "使用详情",
     "today": "今天",
+    "todayCost": "今日已用 {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "合计",
     "totalDuration": "总耗时",

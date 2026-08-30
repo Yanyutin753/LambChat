@@ -28,6 +28,7 @@ import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
 import { ActiveGoalBar } from "./ActiveGoalBar";
 import { ChatInputToolbar } from "./ChatInputToolbar";
+import { ComposerFootnote } from "./ComposerFootnote";
 import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
@@ -139,6 +140,7 @@ export const ChatInput = memo(function ChatInput({
   goalClearLabel,
   showHelpMenu,
   helpMenuClassName,
+  showFootnote = true,
   autoModeEnabled = false,
   goalModeEnabled = false,
   onToggleAutoMode,
@@ -678,7 +680,7 @@ export const ChatInput = memo(function ChatInput({
   );
   return (
     <div
-      className="chat-input-shell px-2 sm:px-8 pb-3 sm:pb-5"
+      className="chat-input-shell px-2 sm:px-8 pb-0.5 sm:pb-1"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       {composerExpanded
@@ -922,6 +924,8 @@ export const ChatInput = memo(function ChatInput({
             )}
         </div>
       </form>
+
+      {showFootnote && <ComposerFootnote isLoading={isLoading} />}
 
       <ChatInputSelectors
         activePanel={activePanel}

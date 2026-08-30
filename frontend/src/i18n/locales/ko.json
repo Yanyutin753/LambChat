@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "더 많은 파일 추가",
+    "aiDisclaimer": "AI 생성 콘텐츠는 틀릴 수 있으니 중요한 정보는 직접 확인하세요",
     "assistant": "어시스턴트",
     "attachFile": "파일 첨부",
     "attachments": "첨부파일",
@@ -808,7 +809,8 @@
       "toolUploadUrlToSandbox": "URL을 샌드박스로 업로드",
       "toolVarCount": "{{count}}개 변수",
       "toolWrite": "쓰기",
-      "costTotal": "비용"
+      "costTotal": "비용",
+      "costDetail": "비용 내역"
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -3165,6 +3167,7 @@
     "time": "시간",
     "title": "사용량 상세",
     "today": "오늘",
+    "todayCost": "오늘 사용 금액 {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "합계",
     "totalDuration": "총 소요 시간",

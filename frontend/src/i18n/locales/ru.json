@@ -573,6 +573,7 @@
   },
   "chat": {
     "addMoreFiles": "Добавить еще файлы",
+    "aiDisclaimer": "ИИ может ошибаться — проверяйте важную информацию",
     "assistant": "Ассистент",
     "attachFile": "Прикрепить файл",
     "attachments": "Вложения",
@@ -808,7 +809,8 @@
       "toolUploadUrlToSandbox": "Загрузить URL в песочницу",
       "toolVarCount": "{{count}} переменных",
       "toolWrite": "Запись",
-      "costTotal": "Стоимость"
+      "costTotal": "Стоимость",
+      "costDetail": "Детализация стоимости"
     },
     "messageInput": "Поле ввода сообщения",
     "noPermission": "Нет прав для отправки сообщений",
@@ -3165,6 +3167,7 @@
     "time": "Время",
     "title": "Детали использования",
     "today": "Сегодня",
+    "todayCost": "Расходы за сегодня {{amount}}",
     "tokensValue": "{{count}} tokens",
     "total": "Итого",
     "totalDuration": "Общая длительность",

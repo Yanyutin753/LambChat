@@ -95,11 +95,11 @@ html[data-mobile-keyboard="true"]
 
 @media (max-width: 639px) {
   .chat-input-shell {
-    padding-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
   }
 
   html[data-mobile-keyboard="true"] .chat-input-shell {
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.375rem;
   }
 
   html[data-mobile-keyboard="true"] .chat-input-container {

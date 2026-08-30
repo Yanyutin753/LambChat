@@ -23,11 +23,15 @@ export interface UsageLogsParams {
 export interface UsageStatsParams {
   user_id?: string;
   period?: "today" | "week" | "month" | "all";
+  /** ISO 起始时间（含时区），优先于 period 推导；今日按客户端本地 0 点传 */
+  start_date?: string;
 }
 
 export interface UsageDashboardParams extends UsageStatsParams {
   model?: string;
   search?: string;
+  /** ISO 起始时间（含时区），优先于 period 推导 */
+  start_date?: string;
 }
 
 export const usageApi = {
@@ -59,6 +63,7 @@ export const usageApi = {
     if (params.user_id) searchParams.append("user_id", params.user_id);
     if (params.period && params.period !== "all")
       searchParams.append("period", params.period);
+    if (params.start_date) searchParams.append("start_date", params.start_date);
     const query = searchParams.toString() ? `?${searchParams}` : "";
     return authFetch<UsageStats>(`${API_BASE}/api/usage/stats${query}`);
   },
@@ -74,6 +79,7 @@ export const usageApi = {
     if (params.period) searchParams.append("period", params.period);
     if (params.model) searchParams.append("model", params.model);
     if (params.search) searchParams.append("search", params.search);
+    if (params.start_date) searchParams.append("start_date", params.start_date);
     const query = searchParams.toString() ? `?${searchParams}` : "";
     return authFetch<UsageDashboardResponse>(
       `${API_BASE}/api/usage/dashboard${query}`,
