@@ -82,6 +82,9 @@ async def list_usage_logs(
 async def get_usage_stats(
     user_id: Optional[str] = Query(None, description="按用户ID过滤（仅管理员）"),
     period: Optional[str] = Query("all", description="周期: today, week, month, all"),
+    start_date: Optional[str] = Query(
+        None, description="起始时间（ISO，含时区），优先于 period 推导"
+    ),
     user: TokenPayload = Depends(get_current_user_required),
 ) -> UsageStats:
     """
@@ -93,11 +96,11 @@ async def get_usage_stats(
     if _is_admin(user):
         effective_user_id = user_id
 
-    start_date = _compute_start_date(period or "all")
+    start = start_date or _compute_start_date(period or "all")
 
     _, _, stats = await storage.list_usage_logs(
         user_id=effective_user_id,
-        start_date=start_date,
+        start_date=start,
         skip=0,
         limit=1,  # 只需要 stats，不需要 items
     )
@@ -110,6 +113,9 @@ async def get_usage_dashboard(
     period: Optional[str] = Query("week", description="周期: today, week, month, all"),
     model: Optional[str] = Query(None, description="按模型名称过滤"),
     search: Optional[str] = Query(None, description="搜索用户名（仅管理员）"),
+    start_date: Optional[str] = Query(
+        None, description="起始时间（ISO，含时区），优先于 period 推导"
+    ),
     user: TokenPayload = Depends(get_current_user_required),
 ) -> UsageDashboardResponse:
     """获取数字员工运营看板聚合数据。"""
@@ -123,7 +129,7 @@ async def get_usage_dashboard(
 
     data = await storage.get_usage_dashboard(
         user_id=effective_user_id,
-        start_date=_compute_start_date(period or "week"),
+        start_date=start_date or _compute_start_date(period or "week"),
         model=model,
         search=effective_search,
     )

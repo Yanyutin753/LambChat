@@ -130,15 +130,18 @@ export function UsagePanel() {
   const fetchDashboard = useCallback(async () => {
     try {
       const search = isAdmin && debouncedSearch ? debouncedSearch : undefined;
+      // 与日志列表共用同一时间窗（今日为客户端本地 0 点），保证 KPI 与看板口径一致
+      const dateRange = computeDateRange(period);
       const data = await usageApi.getDashboard({
         period: period as "today" | "week" | "month" | "all",
         search,
+        ...dateRange,
       });
       setDashboard(data);
     } catch {
       setDashboard(null);
     }
-  }, [period, debouncedSearch, isAdmin]);
+  }, [period, debouncedSearch, isAdmin, computeDateRange]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
