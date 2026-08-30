@@ -650,7 +650,6 @@ test("settings panel generic controls use shared primitives", () => {
   expect(source).toMatch(
     /import \{[\s\S]*Button[\s\S]*Input[\s\S]*Select[\s\S]*Textarea/,
   );
-  expect(source).toMatch(/<Select[\s\S]*CATEGORY_ORDER/);
   expect(source).toMatch(/<Select[\s\S]*DEFAULT_AGENT/);
   expect(source).toMatch(/setting\.type === "text"[\s\S]*<Textarea/);
   expect(source).toMatch(/<Input[\s\S]*setting\.type === "number"/);

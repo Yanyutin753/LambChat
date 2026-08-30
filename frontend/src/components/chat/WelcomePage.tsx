@@ -510,7 +510,7 @@ export const WelcomePage = memo(function WelcomePage({
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-11 sm:text-12 md:text-12 font-medium transition-all duration-300 cursor-pointer font-serif"
                   style={{
                     color: "var(--theme-primary)",
-                    backgroundColor: "var(--theme-primary-light)",
+                    backgroundColor: "transparent",
                   }}
                 >
                   <Plus size={12} />

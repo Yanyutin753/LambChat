@@ -172,67 +172,70 @@ export function PersonaPresetSelector({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            className="rounded-lg p-2 hover:bg-stone-100 dark:hover:bg-stone-800"
-            onClick={() => onOpenChange(false)}
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1">
+            {canManagePresets && onManagePresets && (
+              <button
+                type="button"
+                title={t("personaPresets.manage", "管理角色")}
+                aria-label={t("personaPresets.manage", "管理角色")}
+                onClick={() => {
+                  onOpenChange(false);
+                  onManagePresets();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg p-2 text-xs font-medium transition-colors hover:bg-stone-100 dark:hover:bg-stone-800 sm:px-2.5"
+                style={{ color: "var(--theme-text-secondary)" }}
+              >
+                <Settings2 size={18} className="shrink-0" />
+                <span className="hidden sm:inline">
+                  {t("personaPresets.manage", "管理角色")}
+                </span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="rounded-lg p-2 hover:bg-stone-100 dark:hover:bg-stone-800"
+              onClick={() => onOpenChange(false)}
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3 border-b px-5 py-3 border-stone-200/70 dark:border-stone-700/70">
-          {(canManagePresets && onManagePresets) || selectedPresetId ? (
-            <div className="flex items-center gap-2">
-              {selectedPresetId && (
-                <button
-                  type="button"
-                  onClick={onClearPreset}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:border-[var(--theme-text-secondary)]"
-                  style={{
-                    borderColor: "var(--theme-border)",
-                    color: "var(--theme-text-secondary)",
-                  }}
-                >
-                  {t("personaPresets.clear", "清除当前角色")}
-                </button>
-              )}
-              {canManagePresets && onManagePresets && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenChange(false);
-                    onManagePresets();
-                  }}
-                  className="ml-auto rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:border-[var(--theme-text-secondary)]"
-                  style={{
-                    borderColor: "var(--theme-border)",
-                    color: "var(--theme-text-secondary)",
-                  }}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <Settings2 size={13} />
-                    {t("personaPresets.manage", "管理")}
-                  </span>
-                </button>
-              )}
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+              />
+              <PanelSearchInput
+                value={query}
+                onValueChange={setQuery}
+                placeholder={t("personaPresets.search", "搜索角色")}
+                className="h-10 w-full rounded-lg border bg-transparent pl-9 pr-3 text-sm outline-none"
+                style={{
+                  borderColor: "var(--theme-border)",
+                  color: "var(--theme-text)",
+                }}
+              />
             </div>
-          ) : null}
-          <div className="relative">
-            <Search
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
-            />
-            <PanelSearchInput
-              value={query}
-              onValueChange={setQuery}
-              placeholder={t("personaPresets.search", "搜索角色")}
-              className="w-full rounded-lg border bg-transparent py-2 pl-9 pr-3 text-sm outline-none"
-              style={{
-                borderColor: "var(--theme-border)",
-                color: "var(--theme-text)",
-              }}
-            />
+            {selectedPresetId && (
+              <button
+                type="button"
+                onClick={onClearPreset}
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors hover:border-[var(--theme-text-secondary)]"
+                style={{
+                  borderColor: "var(--theme-border)",
+                  color: "var(--theme-text-secondary)",
+                }}
+              >
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{ background: "var(--theme-primary)" }}
+                />
+                {t("personaPresets.clear", "清除使用")}
+              </button>
+            )}
           </div>
           {tags.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1">

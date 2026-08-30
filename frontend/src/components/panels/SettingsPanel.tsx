@@ -295,6 +295,29 @@ export function SettingsPanel() {
     return groups;
   }, [filteredSettings, SUBCATEGORY_LABELS, CATEGORY_LABELS, searchQuery]);
 
+  // Categories that still expose visible settings; shared by the desktop
+  // sidebar nav and the mobile chip strip so both stay in sync
+  const visibleCategories = useMemo(() => {
+    return CATEGORY_ORDER.map((category) => {
+      const count = (settings?.settings[category] ?? []).filter((s) =>
+        isSettingVisible(s),
+      ).length;
+      return { category, count };
+    }).filter(({ count }) => count > 0);
+  }, [settings, isSettingVisible]);
+
+  // Keep the active category chip visible on mobile. scrollIntoView loses to
+  // the strip's scroll-snap/scroll-smooth CSS in some webviews (the scroll is
+  // reverted), so compute the offset and jump instantly.
+  const activeCategoryTabRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const chip = activeCategoryTabRef.current;
+    const strip = chip?.parentElement;
+    if (!chip || !strip) return;
+    const target = chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: "instant" });
+  }, [activeCategory]);
+
   // Handle value change
   const handleValueChange = useCallback(
     (key: string, value: string, type: SettingType) => {
@@ -505,12 +528,7 @@ export function SettingsPanel() {
 
           {/* Category List */}
           <nav className="flex-1 overflow-y-auto px-3 py-2">
-            {CATEGORY_ORDER.map((category) => {
-              const categoryItems = settings?.settings[category] ?? [];
-              const visibleCount = categoryItems.filter((s) =>
-                isSettingVisible(s),
-              ).length;
-              if (visibleCount === 0) return null;
+            {visibleCategories.map(({ category, count }) => {
               const isActive = activeCategory === category;
               return (
                 <button
@@ -525,7 +543,7 @@ export function SettingsPanel() {
                   <span className="flex items-center justify-between">
                     {CATEGORY_LABELS[category]}
                     <span className="ml-2 text-xs tabular-nums opacity-40">
-                      {visibleCount}
+                      {count}
                     </span>
                   </span>
                 </button>
@@ -560,18 +578,38 @@ export function SettingsPanel() {
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Header with Category Dropdown (mobile) and Search */}
           <div className="flex-shrink-0 border-b border-[var(--glass-border)] p-3 sm:p-4">
-            {/* Mobile Category Selector */}
+            {/* Mobile Category Chips */}
             <div className="mb-2 sm:hidden">
-              <Select
-                value={activeCategory}
-                onChange={(v) => setActiveCategory(v as SettingCategory)}
-                options={CATEGORY_ORDER.map((category) => ({
-                  value: category,
-                  label: `${CATEGORY_LABELS[category]} (${
-                    settings?.settings[category]?.length ?? 0
-                  })`,
-                }))}
-              />
+              <div
+                className="flex gap-1 overflow-x-auto scrollbar-none scroll-smooth pb-0.5"
+                style={{ scrollSnapType: "x mandatory" }}
+              >
+                {visibleCategories.map(({ category, count }) => {
+                  const isActive = activeCategory === category;
+                  return (
+                    <button
+                      key={category}
+                      ref={isActive ? activeCategoryTabRef : undefined}
+                      onClick={() => setActiveCategory(category)}
+                      style={{ scrollSnapAlign: "start" }}
+                      className={`relative flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                        isActive
+                          ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
+                          : "bg-[var(--glass-bg-subtle)] text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+                      }`}
+                    >
+                      {CATEGORY_LABELS[category]}
+                      <span
+                        className={`text-11 tabular-nums ${
+                          isActive ? "opacity-60" : "opacity-40"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Search and Export/Import */}
@@ -867,7 +905,7 @@ export function SettingsPanel() {
                                 }
                                 disabled={!canManage}
                                 rows={20}
-                                className="bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-xs text-stone-900 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:text-stone-100"
+                                className="max-h-[45vh] overflow-y-auto bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-xs text-stone-900 disabled:cursor-not-allowed disabled:opacity-60 sm:max-h-none sm:text-sm dark:text-stone-100"
                               />
                             )}
                             {!isSelect &&
