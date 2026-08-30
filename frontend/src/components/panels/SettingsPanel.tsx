@@ -35,10 +35,14 @@ import type {
 } from "../../types";
 
 import {
-  CATEGORY_ORDER,
   MODEL_CONFIG_SETTING_KEYS,
   TYPE_COLORS,
 } from "./SettingsPanel.constants";
+import { buildCategoryLabels, buildSubcategoryLabels } from "./settingsPanelLabels";
+import {
+  buildVisibleCategories,
+  groupFilteredSettings,
+} from "./settingsPanelGrouping";
 
 export function SettingsPanel() {
   const { t } = useTranslation();
@@ -57,32 +61,7 @@ export function SettingsPanel() {
   const { hasPermission } = useAuth();
 
   const CATEGORY_LABELS = useMemo<Record<SettingCategory, string>>(
-    () => ({
-      frontend: t("categories.frontend"),
-      agent: t("categories.agent"),
-      llm: t("categories.llm"),
-      session: t("categories.session"),
-      skills: t("categories.skills"),
-      mongodb: t("categories.mongodb"),
-      redis: t("categories.redis"),
-      checkpoint: t("categories.checkpoint"),
-      long_term_storage: t("categories.long_term_storage"),
-      memory: t("categories.memory"),
-      memory_embedding: t("categories.memory_embedding"),
-      memory_search: t("categories.memory_search"),
-      memory_storage: t("categories.memory_storage"),
-      security: t("categories.security"),
-      email: t("categories.email"),
-      captcha: t("categories.captcha"),
-      sandbox: t("categories.sandbox"),
-      s3: t("categories.s3"),
-      file_upload: t("categories.file_upload"),
-      tools: t("categories.tools"),
-      audio_transcription: t("categories.audio_transcription"),
-      tracing: t("categories.tracing"),
-      user: t("categories.user"),
-      oauth: t("categories.oauth"),
-    }),
+    () => buildCategoryLabels((key) => t(key)),
     [t],
   );
 
@@ -164,39 +143,7 @@ export function SettingsPanel() {
   }, [hasPermission]);
 
   const SUBCATEGORY_LABELS = useMemo<Record<string, string>>(
-    () => ({
-      display: t("subcategories.display"),
-      contact: t("subcategories.contact"),
-      general: t("subcategories.general"),
-      retry: t("subcategories.retry"),
-      cache: t("subcategories.cache"),
-      title: t("subcategories.title"),
-      events: t("subcategories.events"),
-      daytona: t("subcategories.daytona"),
-      e2b: t("subcategories.e2b"),
-      mcp: t("subcategories.mcp"),
-      deferred: t("subcategories.deferred"),
-      connection: t("subcategories.connection"),
-      langsmith: t("subcategories.langsmith"),
-      jwt: t("subcategories.jwt"),
-      service: t("subcategories.service"),
-      turnstile: t("subcategories.turnstile"),
-      bucket: t("subcategories.bucket"),
-      limits: t("subcategories.limits"),
-      storage: t("subcategories.storage"),
-      pool: t("subcategories.pool"),
-      postgres: t("subcategories.postgres"),
-      registration: t("subcategories.registration"),
-      google: t("subcategories.google"),
-      github: t("subcategories.github"),
-      apple: t("subcategories.apple"),
-      api: t("subcategories.api"),
-      index: t("subcategories.index"),
-      rerank: t("subcategories.rerank"),
-      llm: t("subcategories.llm"),
-      model: t("subcategories.model"),
-      policy: t("subcategories.policy"),
-    }),
+    () => buildSubcategoryLabels((key) => t(key)),
     [t],
   );
 
@@ -259,52 +206,22 @@ export function SettingsPanel() {
   }, [searchQuery, settings, activeCategory, isSettingVisible, t]);
 
   // Group filtered settings by category (when searching globally) or subcategory (when browsing a single category)
-  const groupedSettings = useMemo(() => {
-    const groups: {
-      subcategory: string;
-      label: string;
-      settings: typeof filteredSettings;
-    }[] = [];
-    const map = new Map<string, typeof filteredSettings>();
-    const isGlobalSearch = searchQuery.trim().length > 0;
-
-    for (const s of filteredSettings) {
-      // When searching globally, group by category; otherwise group by subcategory
-      const key = isGlobalSearch
-        ? `__cat__:${s.category}`
-        : s.subcategory || "";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
-    }
-    for (const [key, items] of map) {
-      if (isGlobalSearch && key.startsWith("__cat__:")) {
-        const catKey = key.slice("__cat__:".length) as SettingCategory;
-        groups.push({
-          subcategory: key,
-          label: CATEGORY_LABELS[catKey] || catKey,
-          settings: items,
-        });
-      } else {
-        groups.push({
-          subcategory: key,
-          label: key ? SUBCATEGORY_LABELS[key] || key : "",
-          settings: items,
-        });
-      }
-    }
-    return groups;
-  }, [filteredSettings, SUBCATEGORY_LABELS, CATEGORY_LABELS, searchQuery]);
+  const groupedSettings = useMemo(
+    () =>
+      groupFilteredSettings(filteredSettings, {
+        isGlobalSearch: searchQuery.trim().length > 0,
+        categoryLabels: CATEGORY_LABELS,
+        subcategoryLabels: SUBCATEGORY_LABELS,
+      }),
+    [filteredSettings, CATEGORY_LABELS, SUBCATEGORY_LABELS, searchQuery],
+  );
 
   // Categories that still expose visible settings; shared by the desktop
   // sidebar nav and the mobile chip strip so both stay in sync
-  const visibleCategories = useMemo(() => {
-    return CATEGORY_ORDER.map((category) => {
-      const count = (settings?.settings[category] ?? []).filter((s) =>
-        isSettingVisible(s),
-      ).length;
-      return { category, count };
-    }).filter(({ count }) => count > 0);
-  }, [settings, isSettingVisible]);
+  const visibleCategories = useMemo(
+    () => buildVisibleCategories(settings?.settings, isSettingVisible),
+    [settings, isSettingVisible],
+  );
 
   // Keep the active category chip visible on mobile. scrollIntoView loses to
   // the strip's scroll-snap/scroll-smooth CSS in some webviews (the scroll is
