@@ -167,3 +167,12 @@ def test_settings_default_scan_interval_is_15s():
     from src.kernel.config import settings as settings_module
 
     assert settings_module.TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS == 15
+
+
+def test_setting_definition_default_is_15s():
+    """定义层（管理设置 UI 的默认值）也要是 15s——运行时以定义默认覆盖代码默认。"""
+    from src.kernel.config.definitions import SETTING_DEFINITIONS
+
+    definition = SETTING_DEFINITIONS.get("TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS")
+    assert definition is not None
+    assert definition.get("default") == 15
