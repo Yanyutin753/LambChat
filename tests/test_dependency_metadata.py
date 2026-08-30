@@ -32,4 +32,4 @@ def test_deepagents_targets_supported_v0_7_line() -> None:
     dependencies = pyproject["project"]["dependencies"]
     deepagents = next(item for item in dependencies if item.startswith("deepagents"))
 
-    assert deepagents == "deepagents>=0.7.5,<0.8"
+    assert deepagents == "deepagents>=0.7.11,<0.8"
