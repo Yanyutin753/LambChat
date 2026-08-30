@@ -110,9 +110,7 @@ class TaskHeartbeat:
         值缺失 → 过期；解析失败 → 按存活处理（避免误接管活任务）。
         """
         threshold = (
-            max_age_seconds
-            if max_age_seconds is not None
-            else HEARTBEAT_STALE_THRESHOLD_SECONDS
+            max_age_seconds if max_age_seconds is not None else HEARTBEAT_STALE_THRESHOLD_SECONDS
         )
         try:
             value = await get_redis_client().get(f"{HEARTBEAT_PREFIX}{run_id}")
