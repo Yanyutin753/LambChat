@@ -160,3 +160,10 @@ def test_default_scan_interval_is_fast(monkeypatch: pytest.MonkeyPatch):
         raising=False,
     )
     assert orphan_recovery.DEFAULT_ORPHAN_RECOVERY_INTERVAL_SECONDS == 15
+
+
+def test_settings_default_scan_interval_is_15s():
+    """settings 默认值（真正生效的配置源）也要是 15s。"""
+    from src.kernel.config import settings as settings_module
+
+    assert settings_module.TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS == 15
