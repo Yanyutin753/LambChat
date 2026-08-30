@@ -12,6 +12,13 @@ from src.kernel.exceptions import AuthorizationError
 from src.kernel.schemas.model import ModelConfig
 
 
+@pytest.fixture(autouse=True)
+def _pin_llm_timeout_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 本地 .env 的 LLM_* 超时覆盖会泄漏进单例 settings；钉在默认值让断言与机器无关
+    monkeypatch.setattr(settings, "LLM_REQUEST_TIMEOUT", 0.0)
+    monkeypatch.setattr(settings, "LLM_FIRST_EVENT_TIMEOUT", 30.0)
+
+
 class _ModelStorage:
     def __init__(self, model: ModelConfig | None) -> None:
         self.model = model

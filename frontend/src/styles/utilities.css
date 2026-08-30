@@ -131,6 +131,15 @@
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 }
 
+/* 隐藏滚动条但保持可滚动（横向 tab 条等） */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* 强制 lining 数字：回退字体（如含老式数字的衬线体）须与文本共用同一基线 */
 .font-serif {
   font-variant-numeric: lining-nums;

@@ -98,6 +98,7 @@ export function buildSubmitChatBody({
   userTimezone,
   teamId,
   goal,
+  autoMode,
 }: {
   message: string;
   sessionId?: string;
@@ -111,6 +112,7 @@ export function buildSubmitChatBody({
   userTimezone?: string;
   teamId?: string | null;
   goal?: RunGoalSpec | null;
+  autoMode?: boolean;
 }): Record<string, unknown> {
   const attachments = inputAttachments
     ? filterSendableAttachments(inputAttachments)
@@ -137,6 +139,9 @@ export function buildSubmitChatBody({
   }
   if (goal) {
     body.goal = goal;
+  }
+  if (autoMode) {
+    body.auto_mode = true;
   }
   return body;
 }
@@ -425,6 +430,7 @@ export const sessionApi = {
     enabledSkills?: string[],
     teamId?: string | null,
     goal?: RunGoalSpec | null,
+    autoMode?: boolean,
   ): Promise<{
     session_id: string;
     run_id: string;
@@ -444,6 +450,7 @@ export const sessionApi = {
       userTimezone: getBrowserTimezone(),
       teamId,
       goal,
+      autoMode,
     });
     return authFetch(`${API_BASE}/api/chat/stream?agent_id=${agentId}`, {
       method: "POST",

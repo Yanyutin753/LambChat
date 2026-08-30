@@ -6,15 +6,21 @@ import pytest
 
 from src.kernel.config import service as config_service
 from src.kernel.config import settings
+from src.kernel.config.base import Settings
 from src.kernel.config.definitions import SETTING_DEFINITIONS, SettingCategory, SettingType
 
 
-def test_llm_timeout_settings_are_admin_settings() -> None:
+def test_llm_timeout_settings_are_admin_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     request_definition = SETTING_DEFINITIONS["LLM_REQUEST_TIMEOUT"]
     first_event_definition = SETTING_DEFINITIONS["LLM_FIRST_EVENT_TIMEOUT"]
 
-    assert settings.LLM_REQUEST_TIMEOUT == 0.0
-    assert settings.LLM_FIRST_EVENT_TIMEOUT == 30.0
+    # 本地 .env 可能覆盖 LLM_* 超时；用纯净实例校验 base 默认值本身
+    monkeypatch.delenv("LLM_REQUEST_TIMEOUT", raising=False)
+    monkeypatch.delenv("LLM_FIRST_EVENT_TIMEOUT", raising=False)
+    pristine = Settings(_env_file=None)
+
+    assert pristine.LLM_REQUEST_TIMEOUT == 0.0
+    assert pristine.LLM_FIRST_EVENT_TIMEOUT == 30.0
     for definition in (request_definition, first_event_definition):
         assert definition["type"] == SettingType.NUMBER
         assert definition["category"] == SettingCategory.LLM

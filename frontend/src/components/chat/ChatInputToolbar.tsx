@@ -152,8 +152,6 @@ export function ChatInputToolbar({
     prevActivePanel.current = activePanel;
   }, [activePanel]);
 
-  const hasActiveMode = autoModeEnabled || goalModeEnabled;
-
   useEffect(() => {
     let cancelled = false;
     const loadTeams = () => {
@@ -315,11 +313,6 @@ export function ChatInputToolbar({
             setModePopoverOpen((v) => !v);
           }}
           className="chat-tool-btn group shrink-0 relative"
-          style={{
-            color: hasActiveMode
-              ? "var(--theme-text-secondary)"
-              : "var(--theme-text-tertiary)",
-          }}
           title={t("mode.title", "Run Mode")}
         >
           <Settings2 size={16} />

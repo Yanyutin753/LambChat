@@ -6,6 +6,7 @@ import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorView
 import {
   stripLineNumbers,
   readFileStartLine,
+  readLineRangeLabel,
   extractText,
   type McpMultiModalResult,
   type McpContentBlock,
@@ -28,6 +29,7 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
   const limit = args.limit as number | undefined;
   const startLine = readFileStartLine(offset);
   const endLine = limit ? startLine + limit - 1 : undefined;
+  const lineRange = readLineRangeLabel(offset, limit);
 
   const displayContent = useMemo(() => {
     const raw = extractText(result);
@@ -63,11 +65,8 @@ function ReadFileDetail({ args, result }: ToolDetailProps) {
     <div className="p-4 sm:p-5 space-y-3 tool-panel-content">
       <ToolArgsBlock size="detail">
         <span className="truncate">{filePath}</span>
-        {(offset !== undefined || limit !== undefined) && (
-          <span className="shrink-0 text-theme-text-tertiary">
-            :L{startLine}
-            {endLine ? `-${endLine}` : ""}
-          </span>
+        {lineRange && (
+          <span className="shrink-0 text-theme-text-tertiary">{lineRange}</span>
         )}
       </ToolArgsBlock>
       {imageBlocks.length > 0 && (
@@ -132,6 +131,7 @@ const ReadFileItem = memo(function ReadFileItem({
   const limit = args.limit as number | undefined;
   const startLine = readFileStartLine(offset);
   const endLine = limit ? startLine + limit - 1 : undefined;
+  const lineRange = readLineRangeLabel(offset, limit);
 
   const displayContent = useMemo(() => {
     const raw = extractText(result);
@@ -191,6 +191,13 @@ const ReadFileItem = memo(function ReadFileItem({
         status={status}
         icon={<FileText size={12} className="shrink-0 opacity-50" />}
         label={`${t("chat.message.toolRead")} ${filePath || ""}`}
+        suffix={
+          lineRange ? (
+            <span className="shrink-0 font-mono font-medium opacity-60 leading-none">
+              {lineRange}
+            </span>
+          ) : undefined
+        }
         variant="tool"
         formatLabel={false}
         expandable={canOpenPanel}
@@ -198,7 +205,7 @@ const ReadFileItem = memo(function ReadFileItem({
           if (!canOpenPanel) return;
           openToolLivePanel({
             id,
-            title: `${t("chat.message.toolRead")} ${fileName || filePath}`,
+            title: `${t("chat.message.toolRead")} ${fileName || filePath}${lineRange}`,
             icon: <FileText size={16} />,
             status,
             subtitle: filePath,
@@ -215,10 +222,9 @@ const ReadFileItem = memo(function ReadFileItem({
             {filePath && (
               <ToolArgsBlock size="compact">
                 <span className="truncate">{filePath}</span>
-                {(offset !== undefined || limit !== undefined) && (
+                {lineRange && (
                   <span className="shrink-0 text-theme-text-tertiary">
-                    :L{startLine}
-                    {endLine ? `-${endLine}` : ""}
+                    {lineRange}
                   </span>
                 )}
               </ToolArgsBlock>

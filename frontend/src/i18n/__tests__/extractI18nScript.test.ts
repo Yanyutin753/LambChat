@@ -36,3 +36,39 @@ test("reports each newly extracted locale key once", () => {
     rmSync(fixtureDir, { recursive: true, force: true });
   }
 });
+
+test("extracts keys from .ts hook files but skips __tests__ fixtures", () => {
+  const fixtureDir = mkdtempSync(resolve(tmpdir(), "lambchat-i18n-extract-"));
+
+  try {
+    const localesDir = resolve(fixtureDir, "src/i18n/locales");
+    mkdirSync(resolve(fixtureDir, "src/hooks"), { recursive: true });
+    mkdirSync(resolve(fixtureDir, "src/hooks/__tests__"), { recursive: true });
+    mkdirSync(localesDir, { recursive: true });
+
+    writeFileSync(
+      resolve(fixtureDir, "src/hooks/useExample.ts"),
+      'export function useExample() { return t("example.fromTs"); }\n',
+    );
+    writeFileSync(
+      resolve(fixtureDir, "src/hooks/__tests__/useExample.test.ts"),
+      'test("mock", () => { const t = (k: string) => k; t("example.testOnly"); });\n',
+    );
+
+    for (const locale of ["en", "ja", "ko", "ru", "zh"]) {
+      writeFileSync(resolve(localesDir, `${locale}.json`), "{}\n");
+    }
+
+    const output = execFileSync(tsxPath, [extractorPath], {
+      cwd: fixtureDir,
+      encoding: "utf8",
+    });
+
+    expect(
+      output.match(/➕ Added to en\.json: example\.fromTs/g) ?? [],
+    ).toHaveLength(1);
+    expect(output).not.toContain("example.testOnly");
+  } finally {
+    rmSync(fixtureDir, { recursive: true, force: true });
+  }
+});

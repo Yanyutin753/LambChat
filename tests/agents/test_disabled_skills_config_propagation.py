@@ -791,11 +791,13 @@ async def test_team_agent_node_adds_code_interpreter_middleware_when_enabled(
     monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
 
     code_middleware = object()
+    captured_sandbox_active = []
     monkeypatch.setattr(
         team_nodes,
         "create_code_interpreter_middleware",
-        lambda agent_options: (
-            [code_middleware] if agent_options.get("enable_code_interpreter") is True else []
+        lambda agent_options, *, sandbox_active=False: (
+            captured_sandbox_active.append(sandbox_active)
+            or ([code_middleware] if agent_options.get("enable_code_interpreter") is True else [])
         ),
     )
 
@@ -822,6 +824,7 @@ async def test_team_agent_node_adds_code_interpreter_middleware_when_enabled(
 
     assert fake_graph.captured_create_kwargs is not None
     assert code_middleware in fake_graph.captured_create_kwargs["middleware"]
+    assert captured_sandbox_active == [False]
 
 
 @pytest.mark.asyncio

@@ -30,6 +30,8 @@ export interface Message {
   cancelled?: boolean;
   // 用户消息发送时启用的技能名称列表
   enabledSkills?: string[];
+  // 用户消息发送时激活的运行模式（自动 / 目标），用于消息内 chip 回显
+  runModes?: Array<"auto" | "goal">;
   // 消息级元数据（如运行中插话 steered 标记）
   metadata?: Record<string, unknown>;
 }

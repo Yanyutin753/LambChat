@@ -243,6 +243,7 @@ export interface HistoryEventData {
   }>;
   message_id?: string;
   enabled_skills?: string[];
+  run_modes?: unknown[];
   // steer:message 事件字段：用户发送时刻（区别于事件信封的注入时刻）
   created_at?: string;
 }
@@ -285,7 +286,10 @@ export interface UseAgentReturn {
     content: string,
     agentOptions?: Record<string, boolean | string | number>,
     attachments?: MessageAttachment[],
-    runOptions?: { enabledSkills?: string[] },
+    runOptions?: {
+      enabledSkills?: string[];
+      runModes?: Array<"auto" | "goal">;
+    },
     submissionCallbacks?: ChatSubmissionCallbacks,
   ) => Promise<void>;
   steerMessage: (

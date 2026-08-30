@@ -51,6 +51,17 @@ export function readFileStartLine(offset: number | undefined): number {
   return Math.max(1, (offset ?? 0) + 1);
 }
 
+// 读取范围标记（":L1-100" / ":L51"），同一文件分段读取时靠它区分；无范围参数返回空串
+export function readLineRangeLabel(
+  offset: number | undefined,
+  limit: number | undefined,
+): string {
+  if (offset === undefined && limit === undefined) return "";
+  const startLine = readFileStartLine(offset);
+  const endLine = limit ? startLine + limit - 1 : undefined;
+  return `:L${startLine}${endLine ? `-${endLine}` : ""}`;
+}
+
 // 从工具结果中提取纯文本（兼容 LangChain 原生格式）
 export function extractText(
   result: string | Record<string, unknown> | undefined,

@@ -84,6 +84,17 @@ test("includes user_timezone in the submit chat body when available", () => {
   });
 });
 
+test("includes auto_mode in the submit chat body when auto mode is on", () => {
+  expect(
+    buildSubmitChatBody({
+      message: "hello",
+      autoMode: true,
+    }).auto_mode,
+  ).toBe(true);
+
+  expect(buildSubmitChatBody({ message: "hello" }).auto_mode).toBeUndefined();
+});
+
 test("includes persona preset fields in the submit chat body", () => {
   expect(
     buildSubmitChatBody({
@@ -100,6 +111,7 @@ test("includes persona preset fields in the submit chat body", () => {
     enabled_skills: ["planning"],
     persona_preset_id: "preset-1",
     disabled_mcp_tools: undefined,
+    auto_mode: undefined,
   });
 });
 

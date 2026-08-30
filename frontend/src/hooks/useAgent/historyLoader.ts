@@ -464,6 +464,12 @@ export function reconstructMessagesFromEvents(
       const enabledSkills = Array.isArray(eventData.enabled_skills)
         ? eventData.enabled_skills
         : undefined;
+      const runModes = Array.isArray(eventData.run_modes)
+        ? eventData.run_modes.filter(
+            (mode): mode is "auto" | "goal" =>
+              mode === "auto" || mode === "goal",
+          )
+        : undefined;
       pushMessage({
         id: userMessageId,
         role: "user",
@@ -472,6 +478,7 @@ export function reconstructMessagesFromEvents(
         attachments: userAttachments,
         runId: event.run_id,
         enabledSkills,
+        runModes,
       });
       continue;
     }

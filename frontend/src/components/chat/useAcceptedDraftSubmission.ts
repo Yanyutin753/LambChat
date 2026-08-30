@@ -22,6 +22,7 @@ interface UseAcceptedDraftSubmissionOptions
   enabled: boolean;
   input: string;
   enabledSkillNames: string[] | null;
+  runModes?: Array<"auto" | "goal">;
   composerRef: { current: RichChatComposerHandle | null };
   longTextResourcesRef: { current: Map<string, LongTextPastePayload> };
   visibleAttachments: MessageAttachment[];
@@ -39,6 +40,7 @@ export function useAcceptedDraftSubmission({
   enabled,
   input,
   enabledSkillNames,
+  runModes,
   composerRef,
   inputValueRef,
   longTextResourcesRef,
@@ -81,11 +83,17 @@ export function useAcceptedDraftSubmission({
         draftState,
       );
       if (historyEntry) pushHistory(historyEntry);
+      const runOptions: {
+        enabledSkills?: string[];
+        runModes?: Array<"auto" | "goal">;
+      } = {};
+      if (enabledSkillNames) runOptions.enabledSkills = enabledSkillNames;
+      if (runModes && runModes.length > 0) runOptions.runModes = runModes;
       onSend(
         prepared.message,
         agentOptionValues,
         prepared.attachments,
-        enabledSkillNames ? { enabledSkills: enabledSkillNames } : undefined,
+        Object.keys(runOptions).length > 0 ? runOptions : undefined,
         {
           onAccepted: () => undefined,
           onRejected: () => restoreRejectedDraft(submittedDraft, draftState),
@@ -104,6 +112,7 @@ export function useAcceptedDraftSubmission({
       onSend,
       prepareSubmit,
       pushHistory,
+      runModes,
       setActiveReferenceIds,
       setAttachments,
       setComposerExpanded,
