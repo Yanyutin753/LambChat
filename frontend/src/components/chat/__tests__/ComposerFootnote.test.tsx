@@ -95,12 +95,20 @@ test("chat input renders the footnote below the composer form", () => {
     "utf8",
   );
 
-  expect(source).toMatch(/<ComposerFootnote isLoading=\{isLoading\} \/>/);
+  expect(source).toMatch(
+    /\{showFootnote && <ComposerFootnote isLoading=\{isLoading\} \/>/,
+  );
   // 渲染位置在 </form> 之后（输入框下方）
   expect(source.indexOf("</form>")).toBeLessThan(
     source.indexOf("<ComposerFootnote"),
   );
   expect(toolbarSource).not.toMatch(/ComposerFootnote|DailyUsage/);
+});
+
+test("welcome page hides the composer footnote", () => {
+  const chatDir = dirname(fileURLToPath(import.meta.url));
+  const source = readFileSync(resolve(chatDir, "../WelcomePage.tsx"), "utf8");
+  expect(source).toMatch(/showFootnote=\{false\}/);
 });
 
 test("footnote labels are defined in every locale", () => {

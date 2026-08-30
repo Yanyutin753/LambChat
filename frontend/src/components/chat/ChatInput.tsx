@@ -140,6 +140,7 @@ export const ChatInput = memo(function ChatInput({
   goalClearLabel,
   showHelpMenu,
   helpMenuClassName,
+  showFootnote = true,
   autoModeEnabled = false,
   goalModeEnabled = false,
   onToggleAutoMode,
@@ -924,7 +925,7 @@ export const ChatInput = memo(function ChatInput({
         </div>
       </form>
 
-      <ComposerFootnote isLoading={isLoading} />
+      {showFootnote && <ComposerFootnote isLoading={isLoading} />}
 
       <ChatInputSelectors
         activePanel={activePanel}
