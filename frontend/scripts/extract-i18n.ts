@@ -99,8 +99,12 @@ function checkTranslations(
 async function extractI18nKeys() {
   console.log("🔍 Scanning for translation keys...\n");
 
-  // Find all TSX files
-  const files = await glob("src/**/*.tsx", { cwd: process.cwd() });
+  // Find all TSX/TS source files (hooks in .ts files use t() too);
+  // skip test fixtures so mocked t() helpers don't leak into locales
+  const files = await glob("src/**/*.{ts,tsx}", {
+    cwd: process.cwd(),
+    ignore: ["**/__tests__/**"],
+  });
   const extractedKeys = new Set<string>();
   const dynamicKeyPrefixes = new Set<string>();
 
