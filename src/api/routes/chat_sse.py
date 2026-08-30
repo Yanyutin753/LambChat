@@ -32,7 +32,13 @@ def _estimated_json_data_bytes(data: object) -> int:
 
 def _chat_sse_payload_too_large_event(event_id: object | None) -> str:
     id_line = f"id: {event_id}\n" if event_id is not None else ""
-    return f'event: error\ndata: {{"error":"event_payload_too_large"}}\n{id_line}\n'
+    # 标准错误事件形状：error 为原文、code 为稳定错误码
+    payload = json.dumps(
+        {"error": "event_payload_too_large", "code": "event_payload_too_large"},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return f"event: error\ndata: {payload}\n{id_line}\n"
 
 
 def _json_dumps_chat_sse_data_limited(data: object) -> str | None:

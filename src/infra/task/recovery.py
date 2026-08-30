@@ -13,6 +13,7 @@ from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
+from src.kernel.errors import ErrorCode
 from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import ConcurrencyResult, get_concurrency_limiter, get_registered_executor
@@ -159,7 +160,11 @@ class TaskRecoveryService:
                     await dual_writer.write_event(
                         session_id=session.id,
                         event_type="error",
-                        data={"error": reason, "error_code": "server_restart", "run_id": run_id},
+                        data={
+                            "error": reason,
+                            "code": ErrorCode.TASK_SERVER_RESTART.code,
+                            "run_id": run_id,
+                        },
                         trace_id=trace_id,
                         run_id=run_id,
                     )

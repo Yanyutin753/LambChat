@@ -6,7 +6,7 @@ Supports multiple channel types and multiple instances per channel type.
 
 import inspect
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.infra.agent.config_storage import get_agent_config_storage
@@ -16,6 +16,7 @@ from src.infra.channel.pubsub import publish_channel_config_changed
 from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.channel import (
     ChannelConfigCreate,
@@ -49,7 +50,7 @@ async def _validate_agent_id(agent_id: str | None, user: TokenPayload) -> None:
 
     # Check agent is globally enabled
     if not await agent_storage.is_agent_enabled(agent_id):
-        raise HTTPException(status_code=400, detail=f"Agent '{agent_id}' is not available")
+        raise AppError(ErrorCode.CHANNEL_AGENT_UNAVAILABLE, args={"agent_id": agent_id})
 
     # Check agent is allowed for user's roles
     if user.roles:
@@ -59,10 +60,7 @@ async def _validate_agent_id(agent_id: str | None, user: TokenPayload) -> None:
             if role.allowed_agents:
                 allowed.update(role.allowed_agents)
         if allowed and agent_id not in allowed:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Agent '{agent_id}' is not allowed for your role",
-            )
+            raise AppError(ErrorCode.CHANNEL_AGENT_NOT_ALLOWED, args={"agent_id": agent_id})
 
 
 async def _validate_project_id(project_id: str | None, user: TokenPayload) -> None:
@@ -75,7 +73,7 @@ async def _validate_project_id(project_id: str | None, user: TokenPayload) -> No
     project_storage = get_project_storage()
     project = await project_storage.get_by_id(project_id, user.sub)
     if not project:
-        raise HTTPException(status_code=400, detail=f"Project '{project_id}' does not exist")
+        raise AppError(ErrorCode.PROJECT_NOT_FOUND, args={"project_id": project_id})
 
 
 async def _validate_persona_preset_id(persona_preset_id: str | None, user: TokenPayload) -> None:
@@ -92,9 +90,9 @@ async def _validate_persona_preset_id(persona_preset_id: str | None, user: Token
             is_admin=Permission.PERSONA_PRESET_ADMIN in (user.permissions or []),
         )
     except NotFoundError:
-        raise HTTPException(status_code=400, detail="Persona preset does not exist")
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)
     except AuthorizationError:
-        raise HTTPException(status_code=403, detail="Persona preset is not allowed")
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_ALLOWED)
 
 
 async def _is_manager_connected(manager, user_id: str, instance_id: str) -> bool:
@@ -131,10 +129,7 @@ async def start_feishu_registration():
         session = await run_blocking_io(start_registration, timeout=5.0)
         return session.to_dict(include_secret=False)
     except ImportError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"lark-oapi register_app is unavailable: {e}",
-        )
+        raise AppError(ErrorCode.CHANNEL_LARK_UNAVAILABLE, message=str(e))
 
 
 @router.get(
@@ -147,7 +142,7 @@ async def get_feishu_registration(session_id: str):
 
     session = await run_blocking_io(get_registration, session_id, timeout=5.0)
     if not session:
-        raise HTTPException(status_code=404, detail="Registration session not found")
+        raise AppError(ErrorCode.REGISTRATION_SESSION_NOT_FOUND)
     return session.to_dict(include_secret=session.status == "success")
 
 
@@ -160,7 +155,7 @@ async def cancel_feishu_registration(session_id: str):
     from src.infra.channel.feishu.registration import cancel_registration
 
     if not await run_blocking_io(cancel_registration, session_id, timeout=5.0):
-        raise HTTPException(status_code=404, detail="Registration session not found")
+        raise AppError(ErrorCode.REGISTRATION_SESSION_NOT_FOUND)
     return {"cancelled": True}
 
 
@@ -177,10 +172,7 @@ async def list_user_channels(
     registry = get_registry()
     total_configs = await storage.count_user_configs(user.sub)
     if total_configs > CHANNEL_LIST_MAX_ITEMS:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Too many channel configurations to list at once (max {CHANNEL_LIST_MAX_ITEMS})",
-        )
+        raise AppError(ErrorCode.CHANNEL_LIST_LIMIT, args={"max": CHANNEL_LIST_MAX_ITEMS})
     configs = await storage.list_user_configs(user.sub)
 
     responses = []
@@ -239,14 +231,11 @@ async def list_channel_instances(
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
-        raise HTTPException(status_code=404, detail=f"Unknown channel type: {channel_type}")
+        raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     total_configs = await storage.count_user_configs_by_type(user.sub, channel_type)
     if total_configs > CHANNEL_LIST_MAX_ITEMS:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Too many channel configurations to list at once (max {CHANNEL_LIST_MAX_ITEMS})",
-        )
+        raise AppError(ErrorCode.CHANNEL_LIST_LIMIT, args={"max": CHANNEL_LIST_MAX_ITEMS})
 
     configs = await storage.list_user_configs_by_type(user.sub, channel_type)
 
@@ -300,11 +289,11 @@ async def get_channel_instance(
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
-        raise HTTPException(status_code=404, detail=f"Unknown channel type: {channel_type}")
+        raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     config = await storage.get_config(user.sub, channel_type, instance_id)
     if not config:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_NOT_FOUND)
 
     metadata = channel_class.get_metadata()
     return storage.build_response_from_config(config, channel_type, user.sub, metadata)
@@ -324,13 +313,13 @@ async def create_channel_instance(
 ):
     """Create a new channel instance"""
     if data.channel_type != channel_type:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Channel type mismatch: expected {channel_type}, got {data.channel_type}",
+        raise AppError(
+            ErrorCode.CHANNEL_TYPE_MISMATCH,
+            args={"expected": channel_type, "actual": data.channel_type},
         )
 
     if not data.name or not data.name.strip():
-        raise HTTPException(status_code=400, detail="Instance name is required")
+        raise AppError(ErrorCode.INSTANCE_NAME_REQUIRED)
 
     # Check channel limit from user roles
     max_channels = None  # Default: no limit
@@ -345,15 +334,12 @@ async def create_channel_instance(
     if max_channels is not None and max_channels >= 0:
         existing_channel_count = await storage.count_user_configs(user.sub)
         if existing_channel_count >= max_channels:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Maximum channel limit ({max_channels}) reached. Please delete an existing channel before creating a new one.",
-            )
+            raise AppError(ErrorCode.CHANNEL_LIMIT_REACHED, args={"max": max_channels})
 
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
-        raise HTTPException(status_code=404, detail=f"Unknown channel type: {channel_type}")
+        raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     metadata = channel_class.get_metadata()
 
@@ -395,7 +381,7 @@ async def create_channel_instance(
             user.sub, channel_type, config.get("instance_id"), metadata
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.CHANNEL_ERROR, message=str(e))
 
 
 @router.put(
@@ -414,14 +400,14 @@ async def update_channel_instance(
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
-        raise HTTPException(status_code=404, detail=f"Unknown channel type: {channel_type}")
+        raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     metadata = channel_class.get_metadata()
 
     # Get existing config to merge with updates
     existing = await storage.get_config(user.sub, channel_type, instance_id)
     if not existing:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_NOT_FOUND)
 
     # Merge configs: keep existing values for empty sensitive fields
     merged_config = {**existing, **data.config}
@@ -482,7 +468,7 @@ async def update_channel_instance(
     )
 
     if not config:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_NOT_FOUND)
 
     # Reload the channel client
     manager_class = registry.get_manager_class(channel_type)
@@ -517,18 +503,18 @@ async def delete_channel_instance(
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
-        raise HTTPException(status_code=404, detail=f"Unknown channel type: {channel_type}")
+        raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     # Check if instance exists
     existing = await storage.get_config(user.sub, channel_type, instance_id)
     if not existing:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_NOT_FOUND)
 
     # Delete config first, then stop the running channel
     # (must delete before reload, otherwise reload sees the config and restarts it)
     deleted = await storage.delete_config(user.sub, channel_type, instance_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_NOT_FOUND)
 
     # Stop the channel client after config is removed
     manager_class = registry.get_manager_class(channel_type)
@@ -567,12 +553,12 @@ async def get_channel_instance_status(
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
-        raise HTTPException(status_code=404, detail=f"Unknown channel type: {channel_type}")
+        raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     # Check if instance exists
     config = await storage.get_config(user.sub, channel_type, instance_id)
     if not config:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_NOT_FOUND)
 
     status = await storage.get_status(user.sub, channel_type, instance_id)
 
@@ -609,14 +595,14 @@ async def test_channel_instance_connection(
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
-        raise HTTPException(status_code=404, detail=f"Unknown channel type: {channel_type}")
+        raise AppError(ErrorCode.UNKNOWN_CHANNEL_TYPE, args={"type": channel_type})
 
     config = await storage.get_config(user.sub, channel_type, instance_id)
     if not config:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_NOT_FOUND)
 
     if not config.get("enabled", True):
-        raise HTTPException(status_code=400, detail="Channel instance is disabled")
+        raise AppError(ErrorCode.CHANNEL_INSTANCE_DISABLED)
 
     # Check if connected; if not, attempt to start the channel
     manager_class = registry.get_manager_class(channel_type)
@@ -639,7 +625,9 @@ async def test_channel_instance_connection(
                     "success": False,
                     "message": f"{channel_type} channel is not connected. Check logs for errors.",
                 }
+        except AppError:
+            raise
         except Exception as e:
-            return {"success": False, "message": str(e)}
+            raise AppError(ErrorCode.CHANNEL_ERROR, message=str(e)) from e
 
-    return {"success": False, "message": "Channel manager not available"}
+    raise AppError(ErrorCode.CHANNEL_ERROR, message="Channel manager not available")

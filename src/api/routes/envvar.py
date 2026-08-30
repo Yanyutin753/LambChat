@@ -6,12 +6,13 @@ Environment Variable API router
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from src.api.deps import require_permissions
 from src.infra.envvar.storage import EnvVarStorage
 from src.infra.envvar.sync import sync_envvar_change
 from src.infra.logging import get_logger
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.envvar import (
     EnvVarBulkUpdateRequest,
     EnvVarBulkUpdateResponse,
@@ -36,10 +37,7 @@ async def get_envvar_storage() -> EnvVarStorage:
 
 def _validate_key(key: str) -> None:
     if not _ENV_KEY_PATTERN.match(key):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid key format. Must match: ^[A-Za-z_][A-Za-z0-9_]*$",
-        )
+        raise AppError(ErrorCode.INVALID_ENV_KEY_FORMAT)
 
 
 # ==========================================
@@ -69,7 +67,7 @@ async def create_env_var(
         await sync_envvar_change(user.sub)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.ENVVAR_ERROR, message=str(e))
 
 
 @router.put("/bulk", response_model=EnvVarBulkUpdateResponse)
@@ -91,7 +89,7 @@ async def bulk_update_env_vars(
             message=f"Updated {count} environment variable(s)",
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.ENVVAR_ERROR, message=str(e))
 
 
 @router.delete("/all")
@@ -119,7 +117,7 @@ async def get_env_var(
     """获取单个环境变量（明文）"""
     result = await storage.get_var(user.sub, key)
     if not result:
-        raise HTTPException(status_code=404, detail=f"Environment variable '{key}' not found")
+        raise AppError(ErrorCode.ENVVAR_NOT_FOUND, args={"key": key})
     return result
 
 
@@ -137,7 +135,7 @@ async def update_env_var(
         await sync_envvar_change(user.sub)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.ENVVAR_ERROR, message=str(e))
 
 
 @router.delete("/{key}")
@@ -149,6 +147,6 @@ async def delete_env_var(
     """删除单个环境变量"""
     deleted = await storage.delete_var(user.sub, key)
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"Environment variable '{key}' not found")
+        raise AppError(ErrorCode.ENVVAR_NOT_FOUND, args={"key": key})
     await sync_envvar_change(user.sub)
     return {"message": f"Environment variable '{key}' deleted"}

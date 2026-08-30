@@ -97,6 +97,7 @@ YubbChat/
 !/scripts/verify_trace_event_chunks.py
 !/scripts/pre_deploy_db_checks.py
 !/scripts/extract_raise_sites.py
+!/scripts/codemod_error_literals.py
 docs/docs/.vitepress/
 k8s/lambchat-secret.yaml
 k8s/lambchat.yaml

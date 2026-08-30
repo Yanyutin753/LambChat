@@ -514,12 +514,18 @@ class TaskExecutor:
         if presenter is not None:
             await presenter.complete("error")
 
-        # 写入错误事件（包含 trace_id 以写入 MongoDB）
+        # 写入错误事件（包含 trace_id 以写入 MongoDB）；code 为稳定错误码供前端翻译
         trace_id = presenter.trace_id if presenter else None
+        error_code = getattr(error, "error_code", None)
         await dual_writer.write_event(
             session_id=session_id,
             event_type="error",
-            data={"error": str(error), "type": type(error).__name__, "run_id": run_id},
+            data={
+                "error": str(error),
+                "code": error_code.code if error_code else "internal_error",
+                "type": type(error).__name__,
+                "run_id": run_id,
+            },
             trace_id=trace_id,
             run_id=run_id,
         )

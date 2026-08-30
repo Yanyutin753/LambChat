@@ -7,7 +7,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
@@ -19,6 +19,7 @@ from src.infra.skill.types import (
     MarketplaceSkillCreate,
     MarketplaceSkillResponse,
 )
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -60,33 +61,27 @@ class SetActiveRequest(BaseModel):
 
 def _validate_marketplace_files_payload(files: dict[str, str]) -> None:
     if len(files) > MARKETPLACE_SKILL_MAX_FILES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Marketplace skill contains too many files (max {MARKETPLACE_SKILL_MAX_FILES})",
+        raise AppError(
+            ErrorCode.MARKETPLACE_FILE_COUNT_LIMIT,
+            args={"max": MARKETPLACE_SKILL_MAX_FILES},
         )
 
     total_chars = 0
     for path, content in files.items():
         safe_path = sanitize_file_path(path)
         if safe_path != path:
-            raise HTTPException(status_code=400, detail=f"Invalid file path: {path}")
+            raise AppError(ErrorCode.INVALID_FILE_PATH, args={"path": path})
         content_chars = len(str(content))
         if content_chars > MARKETPLACE_SKILL_MAX_FILE_CHARS:
-            raise HTTPException(
-                status_code=413,
-                detail=(
-                    "Marketplace skill file is too large "
-                    f"(max {MARKETPLACE_SKILL_MAX_FILE_CHARS} characters)"
-                ),
+            raise AppError(
+                ErrorCode.MARKETPLACE_FILE_TOO_LARGE,
+                args={"max": MARKETPLACE_SKILL_MAX_FILE_CHARS},
             )
         total_chars += content_chars
         if total_chars > MARKETPLACE_SKILL_MAX_TOTAL_CHARS:
-            raise HTTPException(
-                status_code=413,
-                detail=(
-                    "Marketplace skill files are too large "
-                    f"(max {MARKETPLACE_SKILL_MAX_TOTAL_CHARS} total characters)"
-                ),
+            raise AppError(
+                ErrorCode.MARKETPLACE_TOTAL_TOO_LARGE,
+                args={"max": MARKETPLACE_SKILL_MAX_TOTAL_CHARS},
             )
 
 
@@ -101,10 +96,7 @@ async def _load_marketplace_files_payload(
         files.update(batch)
     missing_paths = set(expected_paths) - set(files)
     if missing_paths:
-        raise HTTPException(
-            status_code=500,
-            detail="Marketplace skill files are incomplete",
-        )
+        raise AppError(ErrorCode.MARKETPLACE_FILES_INCOMPLETE)
     _validate_marketplace_files_payload(files)
     return files
 
@@ -154,7 +146,7 @@ async def create_marketplace_skill(
 ):
     """在商店创建 Skill（仅发布，不写入用户本地）"""
     if not data.files:
-        raise HTTPException(status_code=400, detail="Skill must have at least one file")
+        raise AppError(ErrorCode.SKILL_FILE_REQUIRED)
     _validate_marketplace_files_payload(data.files)
 
     from src.infra.skill.parser import sanitize_skill_name
@@ -170,15 +162,13 @@ async def create_marketplace_skill(
         )
         await marketplace.create_marketplace_skill(create_data, user_id=user.sub)
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise AppError(ErrorCode.CONFLICT, message=str(e))
 
     try:
         await marketplace.sync_marketplace_files(safe_name, data.files)
     except Exception:
         await marketplace.delete_marketplace_skill(safe_name)
-        raise HTTPException(
-            status_code=500, detail="Failed to sync files, marketplace entry rolled back"
-        )
+        raise AppError(ErrorCode.MARKETPLACE_SYNC_ROLLED_BACK)
 
     response = await marketplace.get_marketplace_skill_response(safe_name, viewer_id=user.sub)
     return response
@@ -193,7 +183,7 @@ async def get_marketplace_skill(
     """预览商城 Skill"""
     skill = await marketplace.get_marketplace_skill_response(name, viewer_id=user.sub)
     if not skill:
-        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NOT_FOUND, args={"name": name})
     return skill
 
 
@@ -207,12 +197,12 @@ async def update_marketplace_skill(
     """直接更新商店 Skill（仅创建者可操作）"""
     skill = await marketplace.get_marketplace_skill(name)
     if not skill:
-        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NOT_FOUND, args={"name": name})
     if skill.created_by != user.sub:
-        raise HTTPException(status_code=403, detail="Only creator can update")
+        raise AppError(ErrorCode.ONLY_CREATOR_CAN_UPDATE)
 
     if not data.files:
-        raise HTTPException(status_code=400, detail="Skill must have at least one file")
+        raise AppError(ErrorCode.SKILL_FILE_REQUIRED)
     _validate_marketplace_files_payload(data.files)
 
     # 更新元数据
@@ -244,7 +234,7 @@ async def list_marketplace_skill_files(
     if not paths:
         skill = await marketplace.get_marketplace_skill(name)
         if not skill:
-            raise HTTPException(status_code=404, detail="Skill not found")
+            raise AppError(ErrorCode.SKILL_NOT_FOUND)
     return {"files": paths}
 
 
@@ -258,10 +248,10 @@ async def get_marketplace_file(
     """读取商城 Skill 的单个文件"""
     safe_path = sanitize_file_path(path)
     if safe_path != path:
-        raise HTTPException(status_code=400, detail="Invalid file path")
+        raise AppError(ErrorCode.INVALID_FILE_PATH)
     content = await marketplace.get_marketplace_file(name, safe_path)
     if content is None:
-        raise HTTPException(status_code=404, detail="File not found")
+        raise AppError(ErrorCode.FILE_NOT_FOUND)
 
     # 检查是否为二进制文件引用
     binary_ref = parse_binary_ref(content)
@@ -289,20 +279,20 @@ async def install_marketplace_skill(
     # 1. 检查商城 Skill 是否存在且激活（创建者可安装自己已停用的 skill）
     marketplace_skill = await marketplace.get_marketplace_skill(name)
     if not marketplace_skill:
-        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NOT_FOUND, args={"name": name})
     if not marketplace_skill.is_active and marketplace_skill.created_by != user.sub:
-        raise HTTPException(status_code=403, detail="This skill has been deactivated")
+        raise AppError(ErrorCode.SKILL_DEACTIVATED)
 
     # 2. 检查用户是否已安装（检查 __meta__ 或文件是否存在）
     existing_meta = await storage.get_skill_meta(name, user.sub)
     if existing_meta:
         if existing_meta.installed_from == InstalledFrom.MARKETPLACE:
-            raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
+            raise AppError(ErrorCode.SKILL_ALREADY_INSTALLED, args={"name": name})
 
     # 3. 获取商城文件数量
     file_paths = await marketplace.list_marketplace_file_paths(name)
     if not file_paths:
-        raise HTTPException(status_code=400, detail="Marketplace skill has no files")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NO_FILES)
 
     # 4. 先完整读取商城文件，再替换用户本地副本；避免读取失败时删除本地手动技能。
     try:
@@ -321,7 +311,7 @@ async def install_marketplace_skill(
     except Exception as e:
         err_msg = str(e).lower()
         if "duplicate" in err_msg or "already" in err_msg:
-            raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
+            raise AppError(ErrorCode.SKILL_ALREADY_INSTALLED, args={"name": name})
         raise
 
     return {
@@ -341,25 +331,20 @@ async def update_from_marketplace(
     """从商城更新用户的 Skill（覆盖）"""
     marketplace_skill = await marketplace.get_marketplace_skill(name)
     if not marketplace_skill:
-        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NOT_FOUND, args={"name": name})
     if not marketplace_skill.is_active and marketplace_skill.created_by != user.sub:
-        raise HTTPException(status_code=403, detail="This skill has been deactivated")
+        raise AppError(ErrorCode.SKILL_DEACTIVATED)
 
     # Check if skill is installed by checking __meta__
     meta = await storage.get_skill_meta(name, user.sub)
     if not meta:
-        raise HTTPException(
-            status_code=400, detail=f"Skill '{name}' not installed. Install it first."
-        )
+        raise AppError(ErrorCode.SKILL_NOT_INSTALLED, args={"name": name})
     if meta.installed_from != InstalledFrom.MARKETPLACE:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Skill '{name}' is a manual skill and cannot be updated from marketplace.",
-        )
+        raise AppError(ErrorCode.SKILL_MANUAL_NO_UPDATE, args={"name": name})
 
     file_paths = await marketplace.list_marketplace_file_paths(name)
     if not file_paths:
-        raise HTTPException(status_code=400, detail="Marketplace skill has no files")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NO_FILES)
 
     files = await _load_marketplace_files_payload(
         name=name,
@@ -400,9 +385,9 @@ async def set_marketplace_active(
     """激活或停用商城 Skill（admin 或创建者可操作）"""
     skill = await marketplace.get_marketplace_skill(name)
     if not skill:
-        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NOT_FOUND, args={"name": name})
     if "marketplace:admin" not in (user.permissions or []) and skill.created_by != user.sub:
-        raise HTTPException(status_code=403, detail="Only admin or creator can activate/deactivate")
+        raise AppError(ErrorCode.ONLY_ADMIN_OR_CREATOR_CAN_ACTIVATE)
 
     await marketplace.set_marketplace_active(name, data.is_active)
     response = await marketplace.get_marketplace_skill_response(name, viewer_id=user.sub)
@@ -418,11 +403,11 @@ async def delete_marketplace_skill(
     """删除商城 Skill（admin 或创建者可操作，不影响已安装用户的本地副本）"""
     skill = await marketplace.get_marketplace_skill(name)
     if not skill:
-        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NOT_FOUND, args={"name": name})
     if "marketplace:admin" not in (user.permissions or []) and skill.created_by != user.sub:
-        raise HTTPException(status_code=403, detail="Only admin or creator can delete")
+        raise AppError(ErrorCode.ONLY_ADMIN_OR_CREATOR_CAN_DELETE)
 
     deleted = await marketplace.delete_marketplace_skill(name)
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NOT_FOUND, args={"name": name})
     return {"message": f"Marketplace skill '{name}' deleted"}

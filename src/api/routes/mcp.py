@@ -4,11 +4,12 @@ MCP (Model Context Protocol) API router
 Provides endpoints for managing MCP server configurations.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import require_permissions
 from src.infra.logging import get_logger
 from src.infra.mcp.storage import MCPStorage
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.mcp import (
     MCPExportResponse,
     MCPImportRequest,
@@ -132,21 +133,18 @@ async def create_server(
     """Create a new MCP server (requires transport-specific permission)"""
     # Check permission for specific transport type
     if not _has_permission_for_transport(user, data.transport.value):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Permission denied. Requires 'mcp:write_{data.transport.value}' or 'mcp:admin' permission.",
+        raise AppError(
+            ErrorCode.MCP_WRITE_PERMISSION_DENIED,
+            args={"permission": f"mcp:write_{data.transport.value}"},
         )
 
     # Check if name already exists in user's servers
     if await storage.user_server_name_exists(data.name, user.sub):
-        raise HTTPException(status_code=400, detail=f"Server '{data.name}' already exists")
+        raise AppError(ErrorCode.MCP_SERVER_EXISTS, args={"name": data.name})
 
     # Also check system servers (users can't override with same name unless admin)
     if await storage.system_server_name_exists(data.name):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Server '{data.name}' already exists as a system server",
-        )
+        raise AppError(ErrorCode.MCP_SERVER_EXISTS_AS_SYSTEM, args={"name": data.name})
 
     server = await storage.create_user_server(data, user.sub)
     return MCPServerResponse(
@@ -172,19 +170,16 @@ async def import_servers(
     # Check permissions for each server's transport type
     servers = data.get_servers()
     if len(servers) > MCP_IMPORT_MAX_SERVERS:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Import contains too many MCP servers (max {MCP_IMPORT_MAX_SERVERS})",
-        )
+        raise AppError(ErrorCode.MCP_IMPORT_LIMIT, args={"max": MCP_IMPORT_MAX_SERVERS})
 
     for server_name, server_config in servers.items():
         transport = server_config.get("transport", "streamable_http")
         if not isinstance(transport, str) or transport not in {item.value for item in MCPTransport}:
             continue
         if not _has_permission_for_transport(user, transport):
-            raise HTTPException(
-                status_code=403,
-                detail=f"Permission denied for server '{server_name}'. Requires 'mcp:write_{transport}' or 'mcp:admin' permission.",
+            raise AppError(
+                ErrorCode.MCP_SERVER_PERMISSION_DENIED,
+                args={"name": server_name, "permission": f"mcp:write_{transport}"},
             )
 
     imported, skipped, errors = await storage.import_servers(data, user.sub, is_admin=False)
@@ -226,7 +221,7 @@ async def get_server(
     """Get a specific MCP server"""
     if _is_internal_server(name):
         if not _is_admin(user):
-            raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+            raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
         from src.infra.tool.internal_registry import build_internal_server_response
 
         return build_internal_server_response()
@@ -252,7 +247,7 @@ async def get_server(
         # Role-based access control: check if user can see this system server
         if system_server.allowed_roles and not _is_admin(user):
             if not set(user.roles).intersection(system_server.allowed_roles):
-                raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+                raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
         # Only the creator can see sensitive fields (url and headers)
         is_creator = (system_server.created_by or system_server.updated_by) == user.sub
@@ -270,7 +265,7 @@ async def get_server(
             updated_at=system_server.updated_at,
         )
 
-    raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+    raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
 
 @router.put("/{name}", response_model=MCPServerResponse)
@@ -283,16 +278,14 @@ async def update_server(
     """Update a user-owned MCP server"""
     # If changing transport, check permission for the new transport type
     if data.transport is not None and not _has_permission_for_transport(user, data.transport.value):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Permission denied. Requires 'mcp:write_{data.transport.value}' or 'mcp:admin' permission.",
+        raise AppError(
+            ErrorCode.MCP_WRITE_PERMISSION_DENIED,
+            args={"permission": f"mcp:write_{data.transport.value}"},
         )
 
     server = await storage.update_user_server(name, data, user.sub)
     if not server:
-        raise HTTPException(
-            status_code=404, detail=f"Server '{name}' not found or not owned by user"
-        )
+        raise AppError(ErrorCode.MCP_SERVER_NOT_OWNED, args={"name": name})
 
     return MCPServerResponse(
         name=server.name,
@@ -316,9 +309,7 @@ async def delete_server(
     """Delete a user-owned MCP server"""
     deleted = await storage.delete_user_server(name, user.sub)
     if not deleted:
-        raise HTTPException(
-            status_code=404, detail=f"Server '{name}' not found or not owned by user"
-        )
+        raise AppError(ErrorCode.MCP_SERVER_NOT_OWNED, args={"name": name})
 
     return {"message": f"Server '{name}' deleted successfully"}
 
@@ -338,7 +329,7 @@ async def toggle_server(
     )
 
     if not server:
-        raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+        raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
     status_text = "enabled" if server.enabled else "disabled"
     return MCPServerToggleResponse(
@@ -366,7 +357,7 @@ async def discover_server_tools(
     """
     if _is_internal_server(name):
         if not _is_admin(user):
-            raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+            raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
         from src.infra.tool.internal_registry import get_internal_tool_infos
 
         internal_tools = await get_internal_tool_infos(
@@ -415,7 +406,7 @@ async def toggle_tool(
     """
     if _is_internal_server(name):
         if not _is_admin(user):
-            raise HTTPException(status_code=403, detail="Admin permission required")
+            raise AppError(ErrorCode.ADMIN_PERMISSION_REQUIRED)
         await storage.set_tool_policy(
             server_name=name,
             tool_name=tool_name,
@@ -429,7 +420,7 @@ async def toggle_tool(
             user_roles=user.roles,
             is_admin=_is_admin(user),
         ):
-            raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+            raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
         # User-level preference: works for any server
         await storage.set_tool_preference(tool_name, name, user.sub, data.enabled)
@@ -440,7 +431,7 @@ async def toggle_tool(
             user_roles=user.roles,
             is_admin=_is_admin(user),
         ):
-            raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+            raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
         # System-level: only creators can toggle
         user_server = await storage.get_user_server(name, user.sub)
@@ -450,22 +441,20 @@ async def toggle_tool(
                     name, tool_name, user.sub, not data.enabled
                 )
             except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+                raise AppError(ErrorCode.MCP_SERVER_ERROR, message=str(e))
         else:
             system_server = await storage.get_system_server(name)
             if not system_server:
-                raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+                raise AppError(ErrorCode.MCP_SERVER_NOT_FOUND, args={"name": name})
 
             is_creator = (system_server.created_by or system_server.updated_by) == user.sub
             if not is_creator:
-                raise HTTPException(
-                    status_code=403, detail="Only the creator can toggle tools on this server"
-                )
+                raise AppError(ErrorCode.ONLY_CREATOR_CAN_TOGGLE_TOOLS)
 
             try:
                 await storage.set_system_tool_disabled(name, tool_name, not data.enabled)
             except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+                raise AppError(ErrorCode.MCP_SERVER_ERROR, message=str(e))
 
     status_text = "enabled" if data.enabled else "disabled"
     return MCPToolToggleResponse(
@@ -511,7 +500,7 @@ async def admin_create_server(
 ):
     """Create a new system MCP server (admin only)"""
     if await storage.system_server_name_exists(data.name):
-        raise HTTPException(status_code=400, detail=f"System server '{data.name}' already exists")
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_EXISTS, args={"name": data.name})
 
     server = await storage.create_system_server(data, user.sub)
     return MCPServerResponse(
@@ -595,7 +584,7 @@ async def admin_get_server(
 
     server = await storage.get_system_server(name)
     if not server:
-        raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
     return MCPServerResponse(
         name=server.name,
@@ -622,7 +611,7 @@ async def admin_update_server(
     """Update a system MCP server (admin only)"""
     server = await storage.update_system_server(name, data, user.sub)
     if not server:
-        raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
     return MCPServerResponse(
         name=server.name,
@@ -648,7 +637,7 @@ async def admin_delete_server(
     """Delete a system MCP server (admin only)"""
     deleted = await storage.delete_system_server(name)
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
     return {"message": f"System server '{name}' deleted successfully"}
 
@@ -663,7 +652,7 @@ async def admin_toggle_server(
     server = await storage.toggle_system_server(name)
 
     if not server:
-        raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
     status_text = "enabled" if server.enabled else "disabled"
     return MCPServerToggleResponse(
@@ -696,11 +685,11 @@ async def admin_toggle_tool(
     else:
         server = await storage.get_system_server(name)
         if not server:
-            raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
+            raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
         try:
             await storage.set_system_tool_disabled(name, tool_name, not data.enabled)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise AppError(ErrorCode.MCP_SERVER_ERROR, message=str(e))
 
     status_text = "enabled" if data.enabled else "disabled"
     return MCPToolToggleResponse(
@@ -723,7 +712,7 @@ async def admin_update_tool_policy(
     if not _is_internal_server(name):
         server = await storage.get_system_server(name)
         if not server:
-            raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
+            raise AppError(ErrorCode.MCP_SYSTEM_SERVER_NOT_FOUND, args={"name": name})
 
     return await storage.set_tool_policy(
         server_name=name,
@@ -754,18 +743,12 @@ async def promote_server(
     Requires the owner's user_id in request body to identify which user's server to promote.
     """
     if not data.target_user_id:
-        raise HTTPException(
-            status_code=400,
-            detail="target_user_id is required to identify the user server",
-        )
+        raise AppError(ErrorCode.TARGET_USER_REQUIRED)
 
     server = await storage.promote_to_system_server(name, data.target_user_id, user.sub)
 
     if not server:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User server '{name}' not found or system server with same name exists",
-        )
+        raise AppError(ErrorCode.MCP_USER_SERVER_NOT_FOUND, args={"name": name})
 
     return MCPServerMoveResponse(
         server=MCPServerResponse(
@@ -800,18 +783,12 @@ async def demote_server(
     Requires target_user_id in request body to specify who will own the server.
     """
     if not data.target_user_id:
-        raise HTTPException(
-            status_code=400,
-            detail="target_user_id is required to specify the new owner",
-        )
+        raise AppError(ErrorCode.TARGET_OWNER_REQUIRED)
 
     server = await storage.demote_to_user_server(name, data.target_user_id, user.sub)
 
     if not server:
-        raise HTTPException(
-            status_code=404,
-            detail=f"System server '{name}' not found or user already has server with same name",
-        )
+        raise AppError(ErrorCode.MCP_SYSTEM_SERVER_CONFLICT, args={"name": name})
 
     return MCPServerMoveResponse(
         server=MCPServerResponse(

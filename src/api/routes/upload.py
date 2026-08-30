@@ -54,6 +54,7 @@ from src.infra.storage.s3 import (
 from src.infra.storage.s3.base import BinaryReadFile
 from src.infra.upload.file_record import FileRecordStorage
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
@@ -246,10 +247,7 @@ async def _read_upload_file_limited(
 
         total_size += len(chunk)
         if total_size > max_size_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{purpose} size exceeds maximum of {max_size_mb}MB",
-            )
+            raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
         data.extend(chunk)
 
     return bytes(data)
@@ -290,15 +288,12 @@ async def _spool_upload_file_limited(
 
             total_size += len(chunk)
             if total_size > max_size_bytes:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{purpose} size exceeds maximum of {max_size_mb}MB",
-                )
+                raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
             digest.update(chunk)
             await run_blocking_io(spooled.write, chunk)
 
         if total_size == 0:
-            raise HTTPException(status_code=400, detail=f"{purpose} is empty")
+            raise AppError(ErrorCode.EMPTY_FILE)
 
         await run_blocking_io(spooled.seek, 0)
         return SpooledUpload(file=spooled, sha256_hex=digest.hexdigest(), size=total_size)
@@ -469,10 +464,7 @@ async def upload_file(
 
     if not (has_specific or has_general):
         category_label = category.value if category != FileCategory.UNKNOWN else "未知"
-        raise HTTPException(
-            status_code=403,
-            detail=f"No permission to upload {category_label} files",
-        )
+        raise AppError(ErrorCode.FILE_UPLOAD_NO_PERMISSION, args={"category": category_label})
 
     # Resolve per-role upload limits
     upload_limits = await resolve_upload_limits(current_user.roles)
@@ -490,10 +482,7 @@ async def upload_file(
     if content_length:
         try:
             if int(content_length) > max_size_bytes:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"File size exceeds maximum of {max_size_mb}MB",
-                )
+                raise AppError(ErrorCode.FILE_TOO_LARGE, args={"max": max_size_mb})
         except ValueError:
             pass
 
@@ -501,9 +490,8 @@ async def upload_file(
     ext = (file.filename or "").lower().split(".")[-1]
     allowed_exts = FILE_EXTENSIONS.get(category, set())
     if category != FileCategory.UNKNOWN and ext not in allowed_exts:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File extension '.{ext}' is not allowed for {category.value} files",
+        raise AppError(
+            ErrorCode.FILE_EXTENSION_NOT_ALLOWED, args={"ext": ext, "category": category.value}
         )
 
     spooled_upload: SpooledUpload | None = None
@@ -593,11 +581,11 @@ async def upload_file(
                 exists=True,
             )
 
-        raise HTTPException(status_code=500, detail="Upload failed: duplicate record conflict")
-    except HTTPException:
+        raise AppError(ErrorCode.UPLOAD_DUPLICATE_CONFLICT)
+    except AppError:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        raise AppError(ErrorCode.UPLOAD_FAILED, message=str(e))
     finally:
         if spooled_upload is not None:
             spooled_upload.close()
@@ -651,9 +639,9 @@ async def upload_avatar(
         else ""
     )
     if ext not in allowed_image_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File type '.{ext}' is not allowed. Allowed types: {', '.join(allowed_image_extensions)}",
+        raise AppError(
+            ErrorCode.FILE_TYPE_NOT_ALLOWED,
+            args={"ext": ext, "allowed": ", ".join(allowed_image_extensions)},
         )
 
     # Validate file size (max 2MB for avatar)
@@ -710,7 +698,7 @@ async def upload_avatar(
         }
     except Exception as e:
         logger.exception("Avatar upload failed")
-        raise HTTPException(status_code=500, detail=f"Avatar upload failed: {str(e)}")
+        raise AppError(ErrorCode.AVATAR_UPLOAD_FAILED, message=str(e))
     finally:
         spooled_upload.close()
 
@@ -754,7 +742,7 @@ async def delete_avatar(
         return {"deleted": True}
     except Exception as e:
         logger.exception("Avatar deletion failed")
-        raise HTTPException(status_code=500, detail=f"Avatar deletion failed: {str(e)}")
+        raise AppError(ErrorCode.AVATAR_DELETE_FAILED, message=str(e))
 
 
 @router.delete("/{key:path}", dependencies=[Depends(require_permissions("file:upload"))])
@@ -776,14 +764,14 @@ async def delete_file(
     """
     record = await _file_record_storage.find_by_key(key, current_user.sub)
     if record is None:
-        raise HTTPException(status_code=404, detail="File not found")
+        raise AppError(ErrorCode.FILE_NOT_FOUND)
 
     if record.get("reference_count", 0) > 0:
         logger.info("Preserving referenced file %s during delete request", key)
         return {"deleted": False, "key": key, "status": "preserved"}
 
     if not await _file_record_storage.schedule_owned_cleanup(key, current_user.sub):
-        raise HTTPException(status_code=404, detail="File not found")
+        raise AppError(ErrorCode.FILE_NOT_FOUND)
 
     logger.info("Scheduled unreferenced file %s for delayed cleanup", key)
     return {"deleted": False, "key": key, "status": "scheduled"}
@@ -873,7 +861,7 @@ async def get_file_proxy(
         try:
             file_path = storage.get_file_path(key)
             if not await run_blocking_io(_path_exists, file_path):
-                raise HTTPException(status_code=404, detail="File not found")
+                raise AppError(ErrorCode.FILE_NOT_FOUND)
 
             filename_for_disposition, content_type = await _get_file_response_metadata(key)
 
@@ -888,13 +876,13 @@ async def get_file_proxy(
             raise
         except Exception as e:
             logger.error(f"Failed to serve local file {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to read file")
+            raise AppError(ErrorCode.FILE_READ_FAILED)
 
     # S3 storage: redirect to presigned URL
     try:
         exists = await storage.file_exists(key)
         if not exists:
-            raise HTTPException(status_code=404, detail="File not found")
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
     except HTTPException:
         raise
     except Exception as e:
@@ -919,7 +907,7 @@ async def get_file_proxy(
             url = await storage.get_presigned_url(key, 300)
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {key}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate file URL")
+        raise AppError(ErrorCode.FILE_URL_FAILED)
 
     if direct:
         return JSONResponse({"url": url})

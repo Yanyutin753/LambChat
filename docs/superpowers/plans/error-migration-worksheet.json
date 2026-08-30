@@ -52,7 +52,7 @@
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 39,
+  "line": 40,
   "exception": "HTTPException",
   "kind": "http",
   "status": 413,
@@ -61,51 +61,42 @@
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 139,
+  "line": 140,
   "exception": "NotFoundError",
   "kind": "kernel",
   "args_count": 1
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 228,
+  "line": 229,
   "exception": "NotFoundError",
   "kind": "kernel",
   "args_count": 1
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 262,
+  "line": 263,
   "exception": "NotFoundError",
   "kind": "kernel",
   "args_count": 1
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 287,
+  "line": 288,
   "exception": "NotFoundError",
   "kind": "kernel",
   "args_count": 1
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 339,
+  "line": 340,
   "exception": "NotFoundError",
   "kind": "kernel",
   "args_count": 1
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 398,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"models must be a non-empty list\""
- },
- {
-  "file": "src/api/routes/agent/model.py",
-  "line": 249,
+  "line": 250,
   "exception": "ValidationError",
   "kind": "kernel",
   "args_count": 1,
@@ -113,14 +104,14 @@
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 254,
+  "line": 255,
   "exception": "ValidationError",
   "kind": "kernel",
   "args_count": 1
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 406,
+  "line": 407,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -129,41 +120,14 @@
  },
  {
   "file": "src/api/routes/agent/model.py",
-  "line": 159,
+  "line": 160,
   "exception": "ValidationError",
   "kind": "kernel",
   "args_count": 1
  },
  {
   "file": "src/api/routes/auth/core.py",
-  "line": 36,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"注册已关闭\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 212,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"用户不存在\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 47,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"人机验证失败，请重试\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 99,
+  "line": 94,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -172,61 +136,7 @@
  },
  {
   "file": "src/api/routes/auth/core.py",
-  "line": 114,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"人机验证失败，请重试\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 123,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"用户名或密码错误\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 151,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"缺少刷新令牌\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 160,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"无效的刷新令牌\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
   "line": 169,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"无效的令牌内容\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 178,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"用户不存在\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 198,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -234,26 +144,8 @@
   "detail_preview": "f\"无效的刷新令牌: {str(e)}\""
  },
  {
-  "file": "src/api/routes/auth/core.py",
-  "line": 131,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"请先验证邮箱后再登录\""
- },
- {
-  "file": "src/api/routes/auth/core.py",
-  "line": 137,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"账户未激活，请验证邮箱后登录\""
- },
- {
   "file": "src/api/routes/auth/oauth.py",
-  "line": 85,
+  "line": 86,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -261,44 +153,8 @@
   "detail_preview": "f\"OAuth provider '{provider}' is not enabled\""
  },
  {
-  "file": "src/api/routes/auth/oauth.py",
-  "line": 104,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to create authorization URL\""
- },
- {
-  "file": "src/api/routes/auth/oauth.py",
-  "line": 203,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid OAuth state. Please try logging in again.\""
- },
- {
-  "file": "src/api/routes/auth/oauth.py",
-  "line": 221,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"OAuth authentication failed\""
- },
- {
-  "file": "src/api/routes/auth/oauth.py",
-  "line": 187,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid OAuth callback payload\""
- },
- {
   "file": "src/api/routes/auth/profile.py",
-  "line": 47,
+  "line": 48,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -307,7 +163,7 @@
  },
  {
   "file": "src/api/routes/auth/profile.py",
-  "line": 52,
+  "line": 53,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -316,25 +172,7 @@
  },
  {
   "file": "src/api/routes/auth/profile.py",
-  "line": 72,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"用户不存在\""
- },
- {
-  "file": "src/api/routes/auth/profile.py",
-  "line": 98,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"用户不存在\""
- },
- {
-  "file": "src/api/routes/auth/profile.py",
-  "line": 122,
+  "line": 117,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -343,7 +181,7 @@
  },
  {
   "file": "src/api/routes/auth/profile.py",
-  "line": 148,
+  "line": 143,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -352,7 +190,7 @@
  },
  {
   "file": "src/api/routes/auth/profile.py",
-  "line": 157,
+  "line": 152,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -360,89 +198,8 @@
   "detail_preview": "f\"Invalid theme: {theme}. Must be 'light', 'dark' or 'sepia'.\""
  },
  {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 51,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"请求过于频繁，请稍后再试\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 62,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"该邮箱请求过于频繁，请稍后再试\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 69,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"邮件服务未启用\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 132,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"无效的重置令牌\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 183,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"无效或过期的验证令牌\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 238,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"请求过于频繁，请稍后再试\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 249,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"该邮箱请求过于频繁，请稍后再试\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 256,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"邮件服务未启用\""
- },
- {
-  "file": "src/api/routes/auth/verification.py",
-  "line": 143,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"重置令牌已过期\""
- },
- {
   "file": "src/api/routes/channels.py",
-  "line": 52,
+  "line": 53,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -451,7 +208,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 78,
+  "line": 79,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -460,25 +217,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 150,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Registration session not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 163,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Registration session not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 180,
+  "line": 181,
   "exception": "HTTPException",
   "kind": "http",
   "status": 413,
@@ -487,7 +226,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 242,
+  "line": 243,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -496,7 +235,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 246,
+  "line": 247,
   "exception": "HTTPException",
   "kind": "http",
   "status": 413,
@@ -505,7 +244,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 303,
+  "line": 304,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -514,16 +253,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 307,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 327,
+  "line": 328,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -532,16 +262,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 333,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Instance name is required\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 356,
+  "line": 357,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -550,7 +271,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 417,
+  "line": 418,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -559,25 +280,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 424,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 485,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 520,
+  "line": 521,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -586,25 +289,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 525,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 531,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 570,
+  "line": 571,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -613,16 +298,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 575,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 612,
+  "line": 613,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -631,25 +307,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 616,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance not found\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 619,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Channel instance is disabled\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 62,
+  "line": 63,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -658,25 +316,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 95,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Persona preset does not exist\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 97,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"Persona preset is not allowed\""
- },
- {
-  "file": "src/api/routes/channels.py",
-  "line": 134,
+  "line": 135,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -685,7 +325,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 348,
+  "line": 349,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -694,7 +334,7 @@
  },
  {
   "file": "src/api/routes/channels.py",
-  "line": 398,
+  "line": 399,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -703,7 +343,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 152,
+  "line": 153,
   "exception": "AuthorizationError",
   "kind": "kernel",
   "args_count": 1,
@@ -711,7 +351,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 161,
+  "line": 162,
   "exception": "AuthorizationError",
   "kind": "kernel",
   "args_count": 1,
@@ -719,7 +359,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 167,
+  "line": 168,
   "exception": "AuthorizationError",
   "kind": "kernel",
   "args_count": 1,
@@ -727,7 +367,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 535,
+  "line": 536,
   "exception": "HTTPException",
   "kind": "http",
   "status": 429,
@@ -736,61 +376,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 725,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 784,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 825,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 857,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 887,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 892,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 422,
-  "detail_class": "literal",
-  "detail_preview": "\"插话内容不能为空\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 897,
+  "line": 898,
   "exception": "HTTPException",
   "kind": "http",
   "status": 409,
@@ -799,34 +385,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 930,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 963,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 439,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"角色预设不存在\""
- },
- {
-  "file": "src/api/routes/chat.py",
-  "line": 441,
+  "line": 442,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -835,7 +394,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 517,
+  "line": 518,
   "exception": "HTTPException",
   "kind": "http",
   "status": 422,
@@ -844,16 +403,7 @@
  },
  {
   "file": "src/api/routes/envvar.py",
-  "line": 39,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid key format. Must match: ^[A-Za-z_][A-Za-z0-9_]*$\""
- },
- {
-  "file": "src/api/routes/envvar.py",
-  "line": 122,
+  "line": 120,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -862,7 +412,7 @@
  },
  {
   "file": "src/api/routes/envvar.py",
-  "line": 152,
+  "line": 150,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -871,7 +421,7 @@
  },
  {
   "file": "src/api/routes/envvar.py",
-  "line": 72,
+  "line": 70,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -880,7 +430,7 @@
  },
  {
   "file": "src/api/routes/envvar.py",
-  "line": 94,
+  "line": 92,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -889,7 +439,7 @@
  },
  {
   "file": "src/api/routes/envvar.py",
-  "line": 140,
+  "line": 138,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -898,43 +448,7 @@
  },
  {
   "file": "src/api/routes/feedback.py",
-  "line": 71,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"缺少权限: feedback:write\""
- },
- {
-  "file": "src/api/routes/feedback.py",
-  "line": 144,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"缺少权限: feedback:write\""
- },
- {
-  "file": "src/api/routes/feedback.py",
-  "line": 196,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Feedback not found\""
- },
- {
-  "file": "src/api/routes/feedback.py",
-  "line": 52,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid feedback ID format\""
- },
- {
-  "file": "src/api/routes/feedback.py",
-  "line": 85,
+  "line": 80,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -943,16 +457,7 @@
  },
  {
   "file": "src/api/routes/github.py",
-  "line": 459,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"No skills found in repository\""
- },
- {
-  "file": "src/api/routes/github.py",
-  "line": 76,
+  "line": 77,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -961,7 +466,7 @@
  },
  {
   "file": "src/api/routes/github.py",
-  "line": 199,
+  "line": 200,
   "exception": "HTTPException",
   "kind": "http",
   "status": 429,
@@ -970,7 +475,7 @@
  },
  {
   "file": "src/api/routes/github.py",
-  "line": 446,
+  "line": 447,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -979,7 +484,7 @@
  },
  {
   "file": "src/api/routes/github.py",
-  "line": 453,
+  "line": 454,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -988,7 +493,7 @@
  },
  {
   "file": "src/api/routes/github.py",
-  "line": 456,
+  "line": 457,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -997,7 +502,7 @@
  },
  {
   "file": "src/api/routes/github.py",
-  "line": 481,
+  "line": 482,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1006,7 +511,7 @@
  },
  {
   "file": "src/api/routes/github.py",
-  "line": 492,
+  "line": 493,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -1014,44 +519,8 @@
   "detail_preview": "f\"Failed to scan repository: {str(e)}\""
  },
  {
-  "file": "src/api/routes/github.py",
-  "line": 452,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Repository or branch not found\""
- },
- {
   "file": "src/api/routes/human.py",
-  "line": 299,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"审批请求不存在\""
- },
- {
-  "file": "src/api/routes/human.py",
-  "line": 307,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"审批请求已处理\""
- },
- {
-  "file": "src/api/routes/human.py",
-  "line": 447,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"审批请求不存在\""
- },
- {
-  "file": "src/api/routes/human.py",
-  "line": 343,
+  "line": 344,
   "exception": "HTTPException",
   "kind": "http",
   "status": 503,
@@ -1060,25 +529,7 @@
  },
  {
   "file": "src/api/routes/human.py",
-  "line": 354,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"审批请求已处理\""
- },
- {
-  "file": "src/api/routes/human.py",
-  "line": 361,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"审批请求已处理\""
- },
- {
-  "file": "src/api/routes/human.py",
-  "line": 374,
+  "line": 375,
   "exception": "HTTPException",
   "kind": "http",
   "status": 503,
@@ -1087,7 +538,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 63,
+  "line": 64,
   "exception": "HTTPException",
   "kind": "http",
   "status": 413,
@@ -1096,25 +547,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 104,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Marketplace skill files are incomplete\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 157,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Skill must have at least one file\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 196,
+  "line": 192,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1123,7 +556,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 210,
+  "line": 206,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1132,43 +565,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 212,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"Only creator can update\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 215,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Skill must have at least one file\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 261,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid file path\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 264,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 292,
+  "line": 288,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1177,25 +574,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 294,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"This skill has been deactivated\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 305,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Marketplace skill has no files\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 344,
+  "line": 340,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1204,16 +583,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 346,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"This skill has been deactivated\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 351,
+  "line": 347,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1222,7 +592,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 355,
+  "line": 351,
   "exception": "HTTPException",
   "kind": "http",
   "status": 409,
@@ -1231,16 +601,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 362,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Marketplace skill has no files\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 403,
+  "line": 399,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1249,16 +610,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 405,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"Only admin or creator can activate/deactivate\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 421,
+  "line": 417,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1270,22 +622,13 @@
   "line": 423,
   "exception": "HTTPException",
   "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"Only admin or creator can delete\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 427,
-  "exception": "HTTPException",
-  "kind": "http",
   "status": 404,
   "detail_class": "fstring",
   "detail_preview": "f\"Marketplace skill '{name}' not found\""
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 72,
+  "line": 73,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1294,7 +637,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 75,
+  "line": 76,
   "exception": "HTTPException",
   "kind": "http",
   "status": 413,
@@ -1303,7 +646,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 84,
+  "line": 85,
   "exception": "HTTPException",
   "kind": "http",
   "status": 413,
@@ -1312,7 +655,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 173,
+  "line": 171,
   "exception": "HTTPException",
   "kind": "http",
   "status": 409,
@@ -1321,25 +664,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 179,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to sync files, marketplace entry rolled back\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 247,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Skill not found\""
- },
- {
-  "file": "src/api/routes/marketplace.py",
-  "line": 300,
+  "line": 296,
   "exception": "HTTPException",
   "kind": "http",
   "status": 409,
@@ -1348,7 +673,7 @@
  },
  {
   "file": "src/api/routes/marketplace.py",
-  "line": 324,
+  "line": 320,
   "exception": "HTTPException",
   "kind": "http",
   "status": 409,
@@ -1357,7 +682,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 273,
+  "line": 274,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1366,7 +691,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 135,
+  "line": 136,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -1375,7 +700,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 142,
+  "line": 143,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1384,7 +709,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 146,
+  "line": 147,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1393,7 +718,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 175,
+  "line": 176,
   "exception": "HTTPException",
   "kind": "http",
   "status": 413,
@@ -1402,7 +727,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 286,
+  "line": 287,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -1411,7 +736,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 293,
+  "line": 294,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1420,7 +745,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 319,
+  "line": 320,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1429,7 +754,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 341,
+  "line": 342,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1438,7 +763,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 514,
+  "line": 513,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1447,7 +772,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 598,
+  "line": 597,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1456,7 +781,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 625,
+  "line": 624,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1465,7 +790,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 651,
+  "line": 650,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1474,7 +799,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 666,
+  "line": 665,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1483,16 +808,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 757,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"target_user_id is required to identify the user server\""
- },
- {
-  "file": "src/api/routes/mcp.py",
-  "line": 765,
+  "line": 761,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1501,16 +817,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 803,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"target_user_id is required to specify the new owner\""
- },
- {
-  "file": "src/api/routes/mcp.py",
-  "line": 811,
+  "line": 804,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1519,7 +826,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 185,
+  "line": 186,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -1528,7 +835,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 229,
+  "line": 230,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1537,7 +844,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 369,
+  "line": 370,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1546,16 +853,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 418,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"Admin permission required\""
- },
- {
-  "file": "src/api/routes/mcp.py",
-  "line": 699,
+  "line": 698,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1564,7 +862,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 726,
+  "line": 725,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1573,7 +871,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 255,
+  "line": 256,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1582,7 +880,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 432,
+  "line": 433,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1591,7 +889,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 443,
+  "line": 444,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1600,7 +898,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 703,
+  "line": 702,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1609,7 +907,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 457,
+  "line": 458,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -1618,16 +916,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 461,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 403,
-  "detail_class": "literal",
-  "detail_preview": "\"Only the creator can toggle tools on this server\""
- },
- {
-  "file": "src/api/routes/mcp.py",
-  "line": 453,
+  "line": 454,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1636,7 +925,7 @@
  },
  {
   "file": "src/api/routes/mcp.py",
-  "line": 468,
+  "line": 467,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1645,7 +934,7 @@
  },
  {
   "file": "src/api/routes/memory.py",
-  "line": 101,
+  "line": 102,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1654,7 +943,7 @@
  },
  {
   "file": "src/api/routes/memory.py",
-  "line": 187,
+  "line": 188,
   "exception": "HTTPException",
   "kind": "http",
   "status": 422,
@@ -1663,16 +952,7 @@
  },
  {
   "file": "src/api/routes/memory.py",
-  "line": 266,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory backend not available\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 270,
+  "line": 271,
   "exception": "HTTPException",
   "kind": "http",
   "status": 422,
@@ -1681,133 +961,7 @@
  },
  {
   "file": "src/api/routes/memory.py",
-  "line": 277,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory content must be at least 5 characters\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 342,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory backend not available\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 353,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory not found\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 441,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory backend not available\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 510,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory backend not available\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 514,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"memories must be a list\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 516,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Cannot import more than 1000 memories at once\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 639,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory backend not available\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 661,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory not found\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 690,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory backend not available\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 694,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory not found\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 708,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"memory_ids must be a non-empty list\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 711,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Cannot delete more than 100 memories at once\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 715,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory backend not available\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 115,
+  "line": 116,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -1816,7 +970,7 @@
  },
  {
   "file": "src/api/routes/memory.py",
-  "line": 362,
+  "line": 363,
   "exception": "HTTPException",
   "kind": "http",
   "status": 422,
@@ -1825,7 +979,7 @@
  },
  {
   "file": "src/api/routes/memory.py",
-  "line": 372,
+  "line": 373,
   "exception": "HTTPException",
   "kind": "http",
   "status": 422,
@@ -1834,25 +988,7 @@
  },
  {
   "file": "src/api/routes/memory.py",
-  "line": 386,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory content must be at least 5 characters\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 525,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Each memory must be an object\""
- },
- {
-  "file": "src/api/routes/memory.py",
-  "line": 529,
+  "line": 528,
   "exception": "HTTPException",
   "kind": "http",
   "status": 422,
@@ -1860,35 +996,8 @@
   "detail_preview": "f\"Invalid memory_type. Must be one of: {', '.join(sorted(_VALID_MEMORY_TYPES))}\""
  },
  {
-  "file": "src/api/routes/memory.py",
-  "line": 536,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Memory content must be at least 5 characters\""
- },
- {
-  "file": "src/api/routes/notification.py",
-  "line": 76,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Notification not found\""
- },
- {
-  "file": "src/api/routes/notification.py",
-  "line": 91,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Notification not found\""
- },
- {
   "file": "src/api/routes/persona_preset.py",
-  "line": 89,
+  "line": 90,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -1897,25 +1006,7 @@
  },
  {
   "file": "src/api/routes/persona_preset.py",
-  "line": 118,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"persona_preset_not_found\""
- },
- {
-  "file": "src/api/routes/persona_preset.py",
-  "line": 136,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"persona_preset_not_found\""
- },
- {
-  "file": "src/api/routes/persona_preset.py",
-  "line": 138,
+  "line": 139,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -1924,214 +1015,25 @@
  },
  {
   "file": "src/api/routes/persona_preset.py",
-  "line": 155,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"persona_preset_not_found\""
- },
- {
-  "file": "src/api/routes/persona_preset.py",
-  "line": 157,
+  "line": 158,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
-  "detail_class": "exc_pass",
-  "detail_preview": "str(e)"
- },
- {
-  "file": "src/api/routes/persona_preset.py",
-  "line": 173,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"persona_preset_not_found\""
- },
- {
-  "file": "src/api/routes/persona_preset.py",
-  "line": 189,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"persona_preset_not_found\""
- },
- {
-  "file": "src/api/routes/persona_preset.py",
-  "line": 208,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"persona_preset_not_found\""
- },
- {
-  "file": "src/api/routes/pricing.py",
-  "line": 105,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 409,
-  "detail_class": "literal",
-  "detail_preview": "\"Another replica is running the backfill\""
- },
- {
-  "file": "src/api/routes/project.py",
-  "line": 69,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"不能创建收藏项目\""
- },
- {
-  "file": "src/api/routes/project.py",
-  "line": 94,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"项目不存在\""
- },
- {
-  "file": "src/api/routes/project.py",
-  "line": 101,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"更新失败\""
- },
- {
-  "file": "src/api/routes/project.py",
-  "line": 127,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"项目不存在\""
- },
- {
-  "file": "src/api/routes/project.py",
-  "line": 134,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"不能删除收藏项目\""
- },
- {
-  "file": "src/api/routes/project.py",
-  "line": 194,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"删除失败\""
- },
- {
-  "file": "src/api/routes/project.py",
-  "line": 149,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"删除项目内会话失败\""
- },
- {
-  "file": "src/api/routes/push.py",
-  "line": 26,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Push notifications are not available (VAPID key generation failed)\""
- },
- {
-  "file": "src/api/routes/push.py",
-  "line": 41,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Push subscription endpoint must use HTTPS\""
- },
- {
-  "file": "src/api/routes/push.py",
-  "line": 46,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"Push subscription keys are required\""
- },
- {
-  "file": "src/api/routes/revealed_file.py",
-  "line": 108,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
   "detail_class": "exc_pass",
   "detail_preview": "str(e)"
  },
  {
   "file": "src/api/routes/revealed_file.py",
-  "line": 112,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid file ID format\""
- },
- {
-  "file": "src/api/routes/role.py",
-  "line": 52,
+  "line": 109,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"角色不存在\""
+  "detail_class": "exc_pass",
+  "detail_preview": "str(e)"
  },
  {
   "file": "src/api/routes/role.py",
-  "line": 69,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"角色不存在\""
- },
- {
-  "file": "src/api/routes/role.py",
-  "line": 88,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"角色不存在\""
- },
- {
-  "file": "src/api/routes/role.py",
-  "line": 102,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"角色不存在\""
- },
- {
-  "file": "src/api/routes/role.py",
-  "line": 78,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"不能修改自己所属角色的权限\""
- },
- {
-  "file": "src/api/routes/role.py",
-  "line": 86,
+  "line": 84,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -2140,286 +1042,34 @@
  },
  {
   "file": "src/api/routes/role.py",
-  "line": 106,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "exc_pass",
-  "detail_preview": "str(e)"
- },
- {
-  "file": "src/api/routes/scheduled_task.py",
-  "line": 38,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Task not found\""
- },
- {
-  "file": "src/api/routes/scheduled_task.py",
-  "line": 106,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Task not found\""
- },
- {
-  "file": "src/api/routes/scheduled_task.py",
-  "line": 123,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Task not found\""
- },
- {
-  "file": "src/api/routes/scheduled_task.py",
-  "line": 137,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Task not found\""
- },
- {
-  "file": "src/api/routes/scheduled_task.py",
-  "line": 55,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "exc_pass",
-  "detail_preview": "str(exc)"
- },
- {
-  "file": "src/api/routes/scheduled_task.py",
   "line": 104,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
   "detail_class": "exc_pass",
+  "detail_preview": "str(e)"
+ },
+ {
+  "file": "src/api/routes/scheduled_task.py",
+  "line": 56,
+  "exception": "HTTPException",
+  "kind": "http",
+  "status": 400,
+  "detail_class": "exc_pass",
+  "detail_preview": "str(exc)"
+ },
+ {
+  "file": "src/api/routes/scheduled_task.py",
+  "line": 105,
+  "exception": "HTTPException",
+  "kind": "http",
+  "status": 400,
+  "detail_class": "exc_pass",
   "detail_preview": "str(exc)"
  },
  {
   "file": "src/api/routes/session.py",
-  "line": 65,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"无权访问此会话\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 214,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 233,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 248,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"删除失败\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 336,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 453,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 532,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 567,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 604,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"状态必须是 active 或 archived\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 609,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 619,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"更新失败\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 636,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 658,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 664,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"更新失败\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 680,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 705,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 730,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 769,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 780,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"收藏状态更新失败\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 804,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 811,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"置顶状态更新失败\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 845,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 928,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 947,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"移动失败\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 246,
+  "line": 244,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -2428,16 +1078,7 @@
  },
  {
   "file": "src/api/routes/session.py",
-  "line": 275,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 688,
+  "line": 686,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -2446,7 +1087,7 @@
  },
  {
   "file": "src/api/routes/session.py",
-  "line": 691,
+  "line": 689,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -2455,7 +1096,7 @@
  },
  {
   "file": "src/api/routes/session.py",
-  "line": 717,
+  "line": 715,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -2464,7 +1105,7 @@
  },
  {
   "file": "src/api/routes/session.py",
-  "line": 747,
+  "line": 745,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -2473,7 +1114,7 @@
  },
  {
   "file": "src/api/routes/session.py",
-  "line": 755,
+  "line": 753,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -2481,62 +1122,8 @@
   "detail_preview": "str(exc)"
  },
  {
-  "file": "src/api/routes/session.py",
-  "line": 942,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"项目不存在\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 958,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"移动后收藏状态同步失败\""
- },
- {
-  "file": "src/api/routes/session.py",
-  "line": 358,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"无效的 before_trace_started_at\""
- },
- {
   "file": "src/api/routes/settings.py",
-  "line": 44,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Setting not found\""
- },
- {
-  "file": "src/api/routes/settings.py",
-  "line": 111,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Setting not found\""
- },
- {
-  "file": "src/api/routes/settings.py",
-  "line": 59,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Setting not found\""
- },
- {
-  "file": "src/api/routes/settings.py",
-  "line": 73,
+  "line": 74,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -2545,7 +1132,7 @@
  },
  {
   "file": "src/api/routes/share.py",
-  "line": 60,
+  "line": 61,
   "exception": "HTTPException",
   "kind": "http",
   "status": "?",
@@ -2554,16 +1141,7 @@
  },
  {
   "file": "src/api/routes/share.py",
-  "line": 70,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"部分分享需要指定 run_ids\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 75,
+  "line": 73,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -2572,187 +1150,7 @@
  },
  {
   "file": "src/api/routes/share.py",
-  "line": 92,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"项目分享需要 project_id\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 113,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"项目分享需要 project_id\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 117,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"项目不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 312,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"分享不存在或已过期\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 457,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"分享不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 460,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"只能编辑自己创建的分享\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 538,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"更新失败\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 557,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 560,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"只能查看自己会话的分享\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 586,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"项目不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 613,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"分享不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 616,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"只能删除自己创建的分享\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 623,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"删除失败\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 658,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"分享不存在或已过期\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 690,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"分享不存在或已过期\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 700,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"分享不存在或已过期\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 704,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"会话不在此分享中\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 708,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"原会话已不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 85,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"会话分享需要 session_id\""
- },
- {
-  "file": "src/api/routes/share.py",
   "line": 95,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"部分项目分享需要 session_ids\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 100,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -2761,133 +1159,7 @@
  },
  {
   "file": "src/api/routes/share.py",
-  "line": 123,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"部分项目分享需要 session_ids\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 128,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"部分会话不属于该项目\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 255,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"原会话已不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 258,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"原会话已不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 395,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"会话分享需要 session_id\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 399,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 401,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"只能分享自己的会话\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 470,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"分享不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 506,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 510,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"会话不存在\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 513,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"只能分享自己的会话\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 663,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"需要登录才能查看此分享\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 694,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": "?",
-  "detail_class": "literal",
-  "detail_preview": "\"需要登录才能查看此分享\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 476,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"部分项目分享需要 session_ids\""
- },
- {
-  "file": "src/api/routes/share.py",
-  "line": 481,
+  "line": 461,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -2896,7 +1168,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 88,
+  "line": 89,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -2905,25 +1177,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 136,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"File must be a ZIP archive\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 176,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"File must be a ZIP archive\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 230,
+  "line": 231,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -2932,7 +1186,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 355,
+  "line": 356,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -2941,61 +1195,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 424,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid file path\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 427,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 455,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid file path\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 485,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid file path\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 496,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Empty file\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 538,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Invalid file path\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 542,
+  "line": 543,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -3004,7 +1204,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 544,
+  "line": 545,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -3013,7 +1213,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 609,
+  "line": 610,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -3022,7 +1222,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 688,
+  "line": 689,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -3031,25 +1231,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 694,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"User not found\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 732,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"User not found\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 784,
+  "line": 785,
   "exception": "HTTPException",
   "kind": "http",
   "status": 404,
@@ -3058,34 +1240,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 794,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Marketplace skill name is required\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 840,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to publish skill\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 147,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to read file content\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 152,
+  "line": 153,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3094,16 +1249,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 187,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to read file content\""
- },
- {
-  "file": "src/api/routes/skill.py",
-  "line": 192,
+  "line": 193,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3112,7 +1258,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 510,
+  "line": 511,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -3121,7 +1267,7 @@
  },
  {
   "file": "src/api/routes/skill.py",
-  "line": 799,
+  "line": 800,
   "exception": "HTTPException",
   "kind": "http",
   "status": 409,
@@ -3129,17 +1275,8 @@
   "detail_preview": "f\"Marketplace skill name '{target_name}' is already taken\""
  },
  {
-  "file": "src/api/routes/skill.py",
-  "line": 836,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to sync files to marketplace\""
- },
- {
   "file": "src/api/routes/team.py",
-  "line": 59,
+  "line": 60,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3148,61 +1285,16 @@
  },
  {
   "file": "src/api/routes/team.py",
-  "line": 71,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"team_not_found\""
- },
- {
-  "file": "src/api/routes/team.py",
-  "line": 84,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"team_not_found\""
- },
- {
-  "file": "src/api/routes/team.py",
-  "line": 86,
+  "line": 87,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
   "detail_class": "exc_pass",
   "detail_preview": "str(e)"
- },
- {
-  "file": "src/api/routes/team.py",
-  "line": 103,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"team_not_found\""
- },
- {
-  "file": "src/api/routes/team.py",
-  "line": 115,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"team_not_found\""
- },
- {
-  "file": "src/api/routes/team.py",
-  "line": 127,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"team_not_found\""
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 472,
+  "line": 473,
   "exception": "HTTPException",
   "kind": "http",
   "status": 403,
@@ -3211,7 +1303,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 504,
+  "line": 505,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3220,7 +1312,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 654,
+  "line": 655,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3229,25 +1321,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 779,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload.py",
-  "line": 786,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload.py",
-  "line": 249,
+  "line": 250,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3256,7 +1330,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 301,
+  "line": 302,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3265,16 +1339,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 596,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Upload failed: duplicate record conflict\""
- },
- {
-  "file": "src/api/routes/upload.py",
-  "line": 600,
+  "line": 601,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -3283,7 +1348,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 713,
+  "line": 714,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -3292,7 +1357,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 757,
+  "line": 758,
   "exception": "HTTPException",
   "kind": "http",
   "status": 500,
@@ -3301,25 +1366,7 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 897,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload.py",
-  "line": 922,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to generate file URL\""
- },
- {
-  "file": "src/api/routes/upload.py",
-  "line": 293,
+  "line": 294,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
@@ -3328,272 +1375,11 @@
  },
  {
   "file": "src/api/routes/upload.py",
-  "line": 493,
+  "line": 494,
   "exception": "HTTPException",
   "kind": "http",
   "status": 400,
   "detail_class": "fstring",
   "detail_preview": "f\"File size exceeds maximum of {max_size_mb}MB\""
- },
- {
-  "file": "src/api/routes/upload.py",
-  "line": 876,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload.py",
-  "line": 891,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to read file\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 495,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Cover thumbnail not available\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 533,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Cover thumbnail not available\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 343,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 349,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Cover thumbnail not available\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 377,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Cover thumbnail not available\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 406,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Cover thumbnail not available\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 430,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to generate file URL\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 436,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to render cover\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 501,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Cover thumbnail not available\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 347,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 359,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to render cover\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 509,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 520,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Cover thumbnail not available\""
- },
- {
-  "file": "src/api/routes/upload_cover.py",
-  "line": 523,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to generate file URL\""
- },
- {
-  "file": "src/api/routes/upload_signed_urls.py",
-  "line": 121,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 400,
-  "detail_class": "literal",
-  "detail_preview": "\"expires must be between 60 and 86400 seconds\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 86,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Thumb not available\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 91,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 138,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Thumb not available\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 159,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"Thumb not available\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 179,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to generate file URL\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 185,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to render thumb\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 101,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to render thumb\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 109,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"File not found\""
- },
- {
-  "file": "src/api/routes/upload_thumb.py",
-  "line": 121,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 500,
-  "detail_class": "literal",
-  "detail_preview": "\"Failed to generate file URL\""
- },
- {
-  "file": "src/api/routes/user.py",
-  "line": 51,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"用户不存在\""
- },
- {
-  "file": "src/api/routes/user.py",
-  "line": 65,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"用户不存在\""
- },
- {
-  "file": "src/api/routes/user.py",
-  "line": 91,
-  "exception": "HTTPException",
-  "kind": "http",
-  "status": 404,
-  "detail_class": "literal",
-  "detail_preview": "\"用户不存在\""
  }
 ]

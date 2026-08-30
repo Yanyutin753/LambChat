@@ -7,7 +7,7 @@ Simplified architecture: files + metadata (stored in __meta__ doc), enabled/disa
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, Form, Query, UploadFile
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
@@ -30,6 +30,7 @@ from src.infra.skill.types import (
 )
 from src.infra.user.storage import UserStorage
 from src.kernel.config import settings  # noqa: F401 - compatibility for route tests/patching
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -85,10 +86,7 @@ def _count_unique_skill_names(values: list[str]) -> int:
 
 def _reject_oversized_skill_batch(values: list[str]) -> None:
     if _count_unique_skill_names(values) > SKILL_BATCH_OPERATION_MAX_NAMES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot process more than {SKILL_BATCH_OPERATION_MAX_NAMES} skills at once",
-        )
+        raise AppError(ErrorCode.SKILL_BATCH_LIMIT, args={"max": SKILL_BATCH_OPERATION_MAX_NAMES})
 
 
 def _merge_disabled_skill_names(
@@ -133,7 +131,7 @@ async def preview_zip_skills(
 ):
     """预览 ZIP 文件中的 skills（不创建，返回 skill 列表供用户选择）"""
     if not file.filename or not file.filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+        raise AppError(ErrorCode.ZIP_REQUIRED)
 
     try:
         max_size_bytes, max_size_mb = _get_skill_upload_max_size()
@@ -144,12 +142,12 @@ async def preview_zip_skills(
             purpose="ZIP file",
         )
     except Exception:
-        raise HTTPException(status_code=400, detail="Failed to read file content")
+        raise AppError(ErrorCode.FILE_READ_FAILED)
 
     try:
         skill_list = await run_blocking_io(_parse_zip_skill_preview, content)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.SKILL_ERROR, message=str(e))
 
     # 批量检查哪些已存在
     user_skills = await storage.list_user_skills(user.sub)
@@ -173,7 +171,7 @@ async def upload_skill_from_zip(
 ):
     """从 ZIP 文件上传创建技能（支持多个 SKILL.md，可选择性安装）"""
     if not file.filename or not file.filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+        raise AppError(ErrorCode.ZIP_REQUIRED)
 
     try:
         max_size_bytes, max_size_mb = _get_skill_upload_max_size()
@@ -184,12 +182,12 @@ async def upload_skill_from_zip(
             purpose="ZIP file",
         )
     except Exception:
-        raise HTTPException(status_code=400, detail="Failed to read file content")
+        raise AppError(ErrorCode.FILE_READ_FAILED)
 
     try:
         skills = await run_blocking_io(_parse_zip_skills, content)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.SKILL_ERROR, message=str(e))
 
     # 如果指定了 skill_names，只安装选中的
     if skill_names:
@@ -227,7 +225,9 @@ async def upload_skill_from_zip(
             errors.append({"name": skill_name, "reason": str(e)})
 
     if not created and errors:
-        raise HTTPException(status_code=400, detail=f"All skills failed: {errors[0]['reason']}")
+        raise AppError(
+            ErrorCode.SKILL_BATCH_ALL_FAILED, message=f"All skills failed: {errors[0]['reason']}"
+        )
 
     return {
         "message": f"Created {len(created)} skill(s)",
@@ -352,7 +352,7 @@ async def get_user_skill(
     """获取用户某个 Skill 的详细信息"""
     file_paths = await storage.list_skill_file_paths(name, user.sub)
     if not file_paths:
-        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+        raise AppError(ErrorCode.SKILL_NOT_FOUND, args={"name": name})
 
     # Get disabled_skills from user metadata
     user_storage = UserStorage()
@@ -421,10 +421,10 @@ async def get_skill_file(
     """读取 Skill 的单个文件（文本内容或二进制文件元数据）"""
     safe_path = sanitize_file_path(path)
     if safe_path != path:
-        raise HTTPException(status_code=400, detail="Invalid file path")
+        raise AppError(ErrorCode.INVALID_FILE_PATH)
     content = await storage.get_skill_file(name, safe_path, user.sub)
     if content is None:
-        raise HTTPException(status_code=404, detail="File not found")
+        raise AppError(ErrorCode.FILE_NOT_FOUND)
 
     # 检查是否为二进制文件引用
     binary_ref = await parse_binary_ref_async(content)
@@ -452,7 +452,7 @@ async def update_skill_file(
     """更新 Skill 的单个文件"""
     safe_path = sanitize_file_path(path)
     if safe_path != path:
-        raise HTTPException(status_code=400, detail="Invalid file path")
+        raise AppError(ErrorCode.INVALID_FILE_PATH)
     content = body.content
 
     # 检查 __meta__ 是否已存在，以决定是否是新 skill
@@ -482,7 +482,7 @@ async def upload_skill_binary_file(
     """上传二进制文件到 Skill（自动存储到 S3/本地存储）"""
     safe_path = sanitize_file_path(path)
     if safe_path != path:
-        raise HTTPException(status_code=400, detail="Invalid file path")
+        raise AppError(ErrorCode.INVALID_FILE_PATH)
 
     max_file_size, max_file_size_mb = _get_skill_upload_max_size()
     data = await _read_upload_file_limited(
@@ -493,7 +493,7 @@ async def upload_skill_binary_file(
     )
 
     if len(data) == 0:
-        raise HTTPException(status_code=400, detail="Empty file")
+        raise AppError(ErrorCode.EMPTY_FILE)
 
     # 检测 MIME 类型
     mime_type = file.content_type or guess_mime_type(safe_path)
@@ -507,7 +507,7 @@ async def upload_skill_binary_file(
             name, safe_path, data, user.sub, mime_type=mime_type
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload binary file: {e}")
+        raise AppError(ErrorCode.SKILL_BINARY_UPLOAD_FAILED, message=str(e))
 
     # 新 skill 自动创建 __meta__
     if is_new:
@@ -535,13 +535,13 @@ async def delete_skill_file(
     """删除 Skill 的单个文件"""
     safe_path = sanitize_file_path(path)
     if safe_path != path:
-        raise HTTPException(status_code=400, detail="Invalid file path")
+        raise AppError(ErrorCode.INVALID_FILE_PATH)
     # 检查 skill 和文件是否存在
     existing_paths = await storage.list_skill_file_paths(name, user.sub)
     if not existing_paths:
-        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+        raise AppError(ErrorCode.SKILL_NOT_FOUND, args={"name": name})
     if safe_path not in existing_paths:
-        raise HTTPException(status_code=404, detail=f"File '{path}' not found in skill '{name}'")
+        raise AppError(ErrorCode.SKILL_FILE_NOT_FOUND, args={"path": path, "skill": name})
 
     await storage.delete_skill_file(name, safe_path, user.sub)
 
@@ -606,7 +606,7 @@ async def _ensure_skill_exists(storage: SkillStorage, skill_name: str, user_id: 
     """Reject toggle operations for non-existent skills to avoid ghost disabled state."""
     paths = await storage.list_skill_file_paths(skill_name, user_id)
     if not paths:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+        raise AppError(ErrorCode.SKILL_NOT_FOUND, args={"name": skill_name})
 
 
 @router.patch("/{name}/preference", response_model=UserSkillPreferenceResponse)
@@ -680,18 +680,18 @@ async def batch_toggle_skills(
     for name in names:
         try:
             await _ensure_skill_exists(storage, name, user.sub)
-        except HTTPException:
+        except AppError:
             missing_names.append(name)
 
     if missing_names:
         missing = ", ".join(sorted(missing_names))
-        raise HTTPException(status_code=404, detail=f"Skill(s) not found: {missing}")
+        raise AppError(ErrorCode.SKILLS_NOT_FOUND, args={"missing": str(missing)})
 
     # Get current disabled_skills from user metadata
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)
     if user_doc is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise AppError(ErrorCode.USER_NOT_FOUND)
 
     if body.enabled:
         disabled = _merge_disabled_skill_names(
@@ -729,7 +729,7 @@ async def toggle_user_skill(
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)
     if user_doc is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise AppError(ErrorCode.USER_NOT_FOUND)
     current_disabled = normalize_skill_name_list(
         (user_doc.metadata or {}).get("disabled_skills", [])
     )
@@ -781,7 +781,7 @@ async def publish_skill_to_marketplace(
     """将用户的 Skill 发布到商店（支持多次发布更新）"""
     user_files = await storage.get_skill_files(name, user.sub)
     if not user_files:
-        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+        raise AppError(ErrorCode.SKILL_NOT_FOUND, args={"name": name})
 
     from src.infra.skill.parser import parse_skill_md as _parse_md
     from src.infra.skill.parser import sanitize_skill_name
@@ -791,15 +791,12 @@ async def publish_skill_to_marketplace(
         (data.skill_name if data and data.skill_name else name).strip()
     )
     if not target_name:
-        raise HTTPException(status_code=400, detail="Marketplace skill name is required")
+        raise AppError(ErrorCode.MARKETPLACE_SKILL_NAME_REQUIRED)
 
     existing = await marketplace.get_marketplace_skill(target_name)
     if existing:
         if existing.created_by != user.sub:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Marketplace skill name '{target_name}' is already taken",
-            )
+            raise AppError(ErrorCode.MARKETPLACE_NAME_TAKEN, args={"name": target_name})
         update_data = MarketplaceSkillUpdate(
             description=(
                 data.description if data and data.description is not None else default_description
@@ -833,9 +830,9 @@ async def publish_skill_to_marketplace(
     except Exception:
         if not existing:
             await marketplace.delete_marketplace_skill(target_name)
-        raise HTTPException(status_code=500, detail="Failed to sync files to marketplace")
+        raise AppError(ErrorCode.MARKETPLACE_SYNC_FAILED)
 
     response = await marketplace.get_marketplace_skill_response(target_name)
     if not response:
-        raise HTTPException(status_code=500, detail="Failed to publish skill")
+        raise AppError(ErrorCode.PUBLISH_SKILL_FAILED)
     return response
