@@ -15,6 +15,7 @@ from arq.connections import create_pool
 
 from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
+from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 
 from .arq_payloads import TaskArqPayloadStore, UserMessageSearchIndexPayloadStore
@@ -130,6 +131,7 @@ class BackgroundTaskManager:
         enabled_skills: Optional[List[str]] = None,
         attachment_references_claimed: bool = False,
         schedule_search_index: bool = True,
+        run_modes: Optional[List[str]] = None,
     ) -> str:
         """Persist the user message before the background worker starts."""
         from src.agents.core import resolve_agent_name
@@ -161,6 +163,7 @@ class BackgroundTaskManager:
             enabled_skills=enabled_skills,
             attachment_references_claimed=attachment_references_claimed,
             schedule_search_index=schedule_search_index,
+            run_modes=run_modes,
         )
         return presenter.trace_id
 
@@ -357,6 +360,7 @@ class BackgroundTaskManager:
                     attachments=attachments,
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
+                    run_modes=derive_user_message_run_modes(auto_mode, active_goal),
                 )
                 user_message_written = True
 
@@ -488,6 +492,7 @@ class BackgroundTaskManager:
                     enabled_skills=enabled_skills,
                     attachment_references_claimed=attachment_references_claimed,
                     schedule_search_index=False,
+                    run_modes=derive_user_message_run_modes(auto_mode, active_goal),
                 )
                 user_message_written = True
 
