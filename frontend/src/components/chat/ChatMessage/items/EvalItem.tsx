@@ -210,7 +210,7 @@ const EvalItem = memo(function EvalItem({
       label={pillLabel}
       suffix={
         codePreview?.language ? (
-          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/35 dark:bg-black/25 opacity-75 font-medium truncate max-w-[120px] uppercase tracking-normal">
+          <span className="text-9 px-1.5 py-0.5 rounded-md bg-white/35 dark:bg-black/25 opacity-75 font-medium truncate max-w-[120px] uppercase tracking-normal">
             {codePreview.language}
           </span>
         ) : undefined

@@ -153,7 +153,7 @@ export function UserMessageBubble({
               }}
             >
               <div
-                className="user-message-inline-markdown leading-relaxed text-[15px] sm:text-base"
+                className="user-message-inline-markdown leading-relaxed text-15 sm:text-base"
                 style={{ color: "var(--theme-text)" }}
               >
                 {/* Skill chips - inline with content */}

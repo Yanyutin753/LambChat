@@ -136,7 +136,7 @@ export function PersonaPresetCard({
             >
               {preset.name}
             </h3>
-            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+            <div className="mt-1.5 flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
               <span>
                 {preset.scope === "global"
                   ? t("personaPresets.official", "官方")
@@ -168,7 +168,7 @@ export function PersonaPresetCard({
         </div>
 
         {/* Description */}
-        <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
+        <p className="mt-3 text-13 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
           {preset.description || preset.system_prompt}
         </p>
 
@@ -209,7 +209,7 @@ export function PersonaPresetCard({
 
         {/* Meta & Actions */}
         <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
-          <div className="flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+          <div className="flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
             {preset.skill_names.length > 0 && (
               <span className="inline-flex items-center gap-1">
                 <Sparkles size={11} />

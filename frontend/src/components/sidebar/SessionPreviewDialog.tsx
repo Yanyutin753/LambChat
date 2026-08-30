@@ -173,12 +173,12 @@ export function SessionPreviewDialog({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-medium text-stone-400 dark:text-stone-500 mb-1">
+                    <div className="text-11 font-medium text-stone-400 dark:text-stone-500 mb-1">
                       {msg.role === "user"
                         ? t("chat.user") || "You"
                         : t("chat.assistant") || "Assistant"}
                     </div>
-                    <div className="text-[13px] text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words leading-relaxed">
+                    <div className="text-13 text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words leading-relaxed">
                       {msg.content}
                     </div>
                   </div>

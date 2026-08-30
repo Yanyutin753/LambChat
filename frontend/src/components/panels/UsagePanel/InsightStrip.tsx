@@ -90,18 +90,18 @@ export function InsightStrip({
               strokeWidth={2}
               className="shrink-0 text-theme-text-tertiary"
             />
-            <span className="min-w-0 truncate text-[10px] font-medium uppercase tracking-wider text-theme-text-tertiary sm:text-[11px]">
+            <span className="min-w-0 truncate text-10 font-medium uppercase tracking-wider text-theme-text-tertiary sm:text-11">
               {item.label}
             </span>
           </div>
           <p
-            className={`truncate text-[15px] font-extrabold font-serif tabular-nums leading-tight text-theme-text sm:text-base ${
+            className={`truncate text-15 font-extrabold font-serif tabular-nums leading-tight text-theme-text sm:text-base ${
               item.tone ?? ""
             }`}
           >
             {item.value}
           </p>
-          <p className="mt-1 truncate text-[10px] leading-snug text-theme-text-tertiary">
+          <p className="mt-1 truncate text-10 leading-snug text-theme-text-tertiary">
             {item.detail}
           </p>
         </div>

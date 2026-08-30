@@ -434,11 +434,11 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-center gap-2.5 px-3 pt-2 pb-1.5 font-serif">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--theme-text-secondary)]">
+      <span className="text-11 font-semibold uppercase tracking-wider text-[var(--theme-text-secondary)]">
         {children}
       </span>
       <span className="h-px flex-1 bg-gradient-to-r from-[var(--theme-border)]/80 to-transparent" />
-      <span className="flex min-w-[20px] items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--theme-primary)]">
+      <span className="flex min-w-[20px] items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 py-0.5 text-10 font-bold tabular-nums text-[var(--theme-primary)]">
         {count}
       </span>
     </div>
@@ -508,7 +508,7 @@ function DownloadAllButton({ artifacts }: { artifacts: RevealArtifact[] }) {
       }}
       disabled={isDownloading}
       aria-busy={isDownloading}
-      className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] transition-colors disabled:opacity-50"
+      className="flex items-center gap-1 rounded-md px-2 py-0.5 text-11 font-medium text-[var(--theme-text-secondary)] hover:bg-[var(--theme-bg-subtle)] transition-colors disabled:opacity-50"
       title={t("chat.message.downloadAll", "下载全部")}
     >
       {isDownloading ? (
@@ -614,12 +614,12 @@ export function RevealArtifactsSummary({
         <div className="flex min-h-full flex-col bg-[var(--theme-bg-card)]">
           <div className="shrink-0 border-b border-[var(--theme-border)] bg-gradient-to-b from-[var(--theme-bg)] to-[var(--theme-bg-card)] px-4 py-2">
             <div className="flex items-center justify-between gap-3 font-serif">
-              <span className="text-[11px] font-medium text-[var(--theme-text-secondary)]">
+              <span className="text-11 font-medium text-[var(--theme-text-secondary)]">
                 {subtitle}
               </span>
               <div className="flex items-center gap-2">
                 <DownloadAllButton artifacts={artifacts} />
-                <span className="shrink-0 rounded-md bg-[var(--theme-primary)]/10 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[var(--theme-primary)]">
+                <span className="shrink-0 rounded-md bg-[var(--theme-primary)]/10 px-2 py-0.5 text-11 font-bold tabular-nums text-[var(--theme-primary)]">
                   {stats.totalCount}
                 </span>
               </div>

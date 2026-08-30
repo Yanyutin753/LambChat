@@ -75,19 +75,19 @@ export function RegistrationPending() {
         </h2>
         <ol className="space-y-1.5 text-xs text-stone-500 dark:text-stone-400">
           <li className="flex items-start gap-2">
-            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-medium">
+            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-10 font-medium">
               1
             </span>
             <span>{t("auth.checkInboxStep")}</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-medium">
+            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-10 font-medium">
               2
             </span>
             <span>{t("auth.clickVerifyLinkStep")}</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-medium">
+            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-10 font-medium">
               3
             </span>
             <span>{t("auth.loginAfterVerifyStep")}</span>

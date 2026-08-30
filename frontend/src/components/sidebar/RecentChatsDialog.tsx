@@ -266,7 +266,7 @@ export function RecentChatsDialog({
                 >
                   <div className="min-w-0 flex-1">
                     <div
-                      className={`truncate text-[13px] ${
+                      className={`truncate text-13 ${
                         session.id === currentSessionId
                           ? "text-stone-800 dark:text-stone-100 font-medium"
                           : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
@@ -274,7 +274,7 @@ export function RecentChatsDialog({
                     >
                       {getSessionTitle(session, t)}
                     </div>
-                    <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+                    <div className="text-11 text-stone-400 dark:text-stone-500 mt-0.5">
                       {formatDateTime(session.updated_at)}
                     </div>
                   </div>
@@ -306,7 +306,7 @@ export function RecentChatsDialog({
                     </span>
                   )}
                   {session.unread_count != null && session.unread_count > 0 && (
-                    <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+                    <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-10 font-medium leading-none text-white">
                       {session.unread_count}
                     </span>
                   )}

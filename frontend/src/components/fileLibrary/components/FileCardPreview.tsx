@@ -114,7 +114,7 @@ function DocCover({ p }: { p: FileCardPreviewModel }) {
   return (
     <PaperCanvas>
       <div className="flex h-full flex-col px-3.5 pb-3.5 pt-3">
-        <p className="truncate text-[12px] font-semibold leading-snug text-stone-800 dark:text-stone-200">
+        <p className="truncate text-12 font-semibold leading-snug text-stone-800 dark:text-stone-200">
           {p.title}
         </p>
         <div className="mt-1.5 h-px w-9 bg-stone-300 dark:bg-stone-700" />
@@ -150,10 +150,10 @@ function SheetCover({ p }: { p: FileCardPreviewModel }) {
     <PaperCanvas>
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-1.5 border-b border-stone-200 px-3 py-1 dark:border-stone-800">
-          <span className="truncate text-[9px] font-medium text-stone-500 dark:text-stone-400">
+          <span className="truncate text-9 font-medium text-stone-500 dark:text-stone-400">
             {p.title}
           </span>
-          <span className="shrink-0 rounded bg-stone-100 px-1 text-[8px] font-semibold text-stone-400 dark:bg-stone-800 dark:text-stone-500">
+          <span className="shrink-0 rounded bg-stone-100 px-1 text-8 font-semibold text-stone-400 dark:bg-stone-800 dark:text-stone-500">
             {p.badge}
           </span>
         </div>
@@ -163,7 +163,7 @@ function SheetCover({ p }: { p: FileCardPreviewModel }) {
             {SHEET_COLS.map((col) => (
               <span
                 key={col}
-                className="flex-1 border-r border-stone-200 py-[3px] text-center font-mono text-[8px] font-semibold text-stone-400 last:border-r-0 dark:border-stone-800 dark:text-stone-500"
+                className="flex-1 border-r border-stone-200 py-[3px] text-center font-mono text-8 font-semibold text-stone-400 last:border-r-0 dark:border-stone-800 dark:text-stone-500"
               >
                 {col}
               </span>
@@ -180,7 +180,7 @@ function SheetCover({ p }: { p: FileCardPreviewModel }) {
                   <span
                     key={col}
                     className={clsx(
-                      "flex-1 truncate border-r border-stone-100 px-1.5 py-1 text-[8.5px] text-stone-500 last:border-r-0 dark:border-stone-800/60 dark:text-stone-400",
+                      "flex-1 truncate border-r border-stone-100 px-1.5 py-1 text-8.5 text-stone-500 last:border-r-0 dark:border-stone-800/60 dark:text-stone-400",
                       r === 0 && c === 0 && "font-medium text-stone-600 dark:text-stone-300",
                       c === 0 && "w-1/4 flex-none",
                     )}
@@ -209,14 +209,14 @@ function CodeCover({ p }: { p: FileCardPreviewModel }) {
             <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
             <span className="h-[5px] w-[5px] rounded-full bg-stone-300 dark:bg-stone-700" />
           </span>
-          <span className="truncate font-serif text-[9px] leading-none text-stone-500 dark:text-stone-400">
+          <span className="truncate font-serif text-9 leading-none text-stone-500 dark:text-stone-400">
             {p.title}
           </span>
         </div>
-        <div className="flex flex-1 flex-col justify-evenly overflow-hidden px-3 py-2 font-mono text-[10px] leading-[1.65]">
+        <div className="flex flex-1 flex-col justify-evenly overflow-hidden px-3 py-2 font-mono text-10 leading-[1.65]">
           {p.lines.slice(0, 4).map((line, i) => (
             <div key={i} className="flex items-baseline gap-2 overflow-hidden">
-              <span className="w-2.5 shrink-0 text-right text-[9px] text-stone-300 select-none dark:text-stone-600">
+              <span className="w-2.5 shrink-0 text-right text-9 text-stone-300 select-none dark:text-stone-600">
                 {i + 1}
               </span>
               <span className="truncate text-stone-700 dark:text-stone-300">
@@ -252,7 +252,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
     return (
       <PaperCanvas>
         <div className="flex h-full flex-col px-3 pb-3 pt-3">
-          <p className="mb-1.5 truncate text-[11px] font-medium text-stone-700 dark:text-stone-300">
+          <p className="mb-1.5 truncate text-11 font-medium text-stone-700 dark:text-stone-300">
             {p.title}
           </p>
           <div className="overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
@@ -260,7 +260,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
               {header.slice(0, 3).map((cell, i) => (
                 <span
                   key={i}
-                  className="flex-1 truncate px-1.5 py-1.5 text-[9px] font-semibold text-stone-600 dark:text-stone-300"
+                  className="flex-1 truncate px-1.5 py-1.5 text-9 font-semibold text-stone-600 dark:text-stone-300"
                 >
                   {cell}
                 </span>
@@ -274,7 +274,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
                 {Array.from({ length: Math.min(3, header.length) }, (_, c) => (
                   <span
                     key={c}
-                    className="flex-1 truncate px-1.5 py-1.5 font-mono text-[9px] text-stone-500 dark:text-stone-400"
+                    className="flex-1 truncate px-1.5 py-1.5 font-mono text-9 text-stone-500 dark:text-stone-400"
                   >
                     {row[c] ?? ""}
                   </span>
@@ -289,7 +289,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
 
   return (
     <PaperCanvas>
-      <div className="flex h-full flex-col justify-evenly overflow-hidden px-3.5 py-3 font-mono text-[10px] leading-[1.7]">
+      <div className="flex h-full flex-col justify-evenly overflow-hidden px-3.5 py-3 font-mono text-10 leading-[1.7]">
         {p.lines.slice(0, 5).map((line, i) => (
           <p key={i} className="truncate text-stone-600 dark:text-stone-400">
             {tokenizeCodeLine(line).map((tok, j) => (
@@ -316,7 +316,7 @@ function DataCover({ p }: { p: FileCardPreviewModel }) {
 function ProjectCover({ p }: { p: FileCardPreviewModel }) {
   return (
     <PaperCanvas>
-      <div className="flex h-full flex-col justify-evenly px-3.5 pb-3 pt-3 font-mono text-[10px] leading-[1.9]">
+      <div className="flex h-full flex-col justify-evenly px-3.5 pb-3 pt-3 font-mono text-10 leading-[1.9]">
         {p.lines.slice(0, 4).map((line, i) => (
           <p
             key={i}
@@ -357,7 +357,7 @@ function OtherCover({
 function badgeChip(badge?: string) {
   if (!badge) return null;
   return (
-    <span className="absolute left-2.5 top-2 z-10 rounded bg-black/45 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
+    <span className="absolute left-2.5 top-2 z-10 rounded bg-black/45 px-1.5 py-0.5 text-9 font-bold uppercase tracking-wider text-white backdrop-blur-sm">
       {badge}
     </span>
   );

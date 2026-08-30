@@ -87,7 +87,7 @@ export function FileContextMenu({
         <button
           key={item.label}
           onClick={item.action}
-          className="flex items-center gap-2 w-full p-2 rounded-lg hover:bg-theme-bg-subtle cursor-pointer text-[13px] text-theme-text transition-colors"
+          className="flex items-center gap-2 w-full p-2 rounded-lg hover:bg-theme-bg-subtle cursor-pointer text-13 text-theme-text transition-colors"
         >
           <div className="size-5 flex items-center justify-center shrink-0">
             <item.icon size={16} className="text-theme-text-secondary" />

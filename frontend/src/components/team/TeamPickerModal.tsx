@@ -268,7 +268,7 @@ export function TeamPickerModal({
                           <h3 className="truncate text-base font-semibold font-serif  text-[var(--theme-text)] leading-tight">
                             {team.name}
                           </h3>
-                          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+                          <div className="mt-1.5 flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
                             <span>
                               {t("team.memberCount", "{{count}} 人", {
                                 count: activeCount,
@@ -278,7 +278,7 @@ export function TeamPickerModal({
                         </div>
                       </div>
 
-                      <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
+                      <p className="mt-3 text-13 leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
                         {team.description ||
                           t("team.defaultDescription", "协同工作的角色团队")}
                       </p>

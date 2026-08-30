@@ -28,7 +28,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
           {/* Desktop sidebar */}
           <div className="skill-file-sidebar hidden w-52 shrink-0 flex-col sm:flex lg:w-60">
             <div className="flex items-center justify-between px-3 py-1.5">
-              <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]/80 select-none">
+              <div className="flex items-center gap-1 text-11 font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]/80 select-none">
                 <ChevronDown size={12} />
                 {t("skills.form.files", "Files")}
               </div>

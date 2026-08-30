@@ -346,7 +346,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               <DynamicIcon
                 name={project.icon}
                 size={20}
-                className="text-primary text-[20px]"
+                className="text-primary text-20"
               />
             </button>
           )}
@@ -366,7 +366,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <div className="truncate text-[13px] text-stone-600 dark:text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors">
+              <div className="truncate text-13 text-stone-600 dark:text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors">
                 {isFavorites ? t("sidebar.favorites") : project.name}
               </div>
             )}

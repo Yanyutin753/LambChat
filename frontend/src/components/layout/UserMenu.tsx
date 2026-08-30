@@ -194,7 +194,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
           <>
             <div className="mx-4 my-1.5 border-t border-[var(--theme-border)]" />
             <div className="px-4 pt-1 pb-1">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-40">
+              <span className="text-10 font-semibold uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-40">
                 {t("nav.groupAdmin")}
               </span>
             </div>
@@ -220,7 +220,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
           <>
             <div className="mx-4 my-1.5 border-t border-[var(--theme-border)]" />
             <div className="px-4 pt-1 pb-1">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-40">
+              <span className="text-10 font-semibold uppercase tracking-widest text-[var(--theme-text-secondary)] opacity-40">
                 {t("nav.groupSystem")}
               </span>
             </div>

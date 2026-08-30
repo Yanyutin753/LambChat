@@ -107,7 +107,7 @@ export function BinaryFilePreview({
           <p className="text-sm font-medium text-[var(--theme-text)] truncate">
             {fileName}
           </p>
-          <p className="text-[11px] text-[var(--theme-text-secondary)]">
+          <p className="text-11 text-[var(--theme-text-secondary)]">
             {mime_type} · {formatSize(size)}
           </p>
         </div>

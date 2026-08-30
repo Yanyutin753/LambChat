@@ -175,7 +175,7 @@ export const AttachmentCard = memo(function AttachmentCard({
 
         {/* 文件信息：文件名 + 大小/操作左右布局 */}
         <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate leading-tight">
+          <span className="text-13 font-medium text-stone-800 dark:text-stone-100 truncate leading-tight">
             {attachment.name}
           </span>
           <div className="mt-0.5 flex items-center justify-between gap-2 min-w-0">
@@ -200,7 +200,7 @@ export const AttachmentCard = memo(function AttachmentCard({
                     className={clsx(
                       "h-5 px-1.5 rounded-md flex items-center gap-1",
                       "text-stone-400 dark:text-stone-500",
-                      "transition-all duration-200 text-[10px] font-medium",
+                      "transition-all duration-200 text-10 font-medium",
                       "hover:bg-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)]",
                       "hover:text-[var(--theme-primary)]",
                     )}
@@ -241,7 +241,7 @@ export const AttachmentCard = memo(function AttachmentCard({
                         }}
                         className={clsx(
                           "h-5 px-1.5 rounded-md flex items-center gap-1",
-                          "text-red-500 dark:text-red-400 text-[10px] font-medium",
+                          "text-red-500 dark:text-red-400 text-10 font-medium",
                           "hover:bg-red-100/80 dark:hover:bg-red-900/40",
                         )}
                         title={t("fileUpload.composerRetry", "Retry")}
@@ -358,10 +358,10 @@ export const AttachmentCard = memo(function AttachmentCard({
 
       {/* 文件信息 */}
       <div className="flex flex-col justify-center px-3 sm:px-3.5 py-2 min-w-0 flex-1">
-        <div className="text-[13px] sm:text-sm font-medium truncate text-stone-800 dark:text-stone-100 leading-tight">
+        <div className="text-13 sm:text-sm font-medium truncate text-stone-800 dark:text-stone-100 leading-tight">
           {attachment.name}
         </div>
-        <div className="flex items-center justify-between mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-stone-400 dark:text-stone-500">
+        <div className="flex items-center justify-between mt-0.5 sm:mt-1 text-11 sm:text-xs text-stone-400 dark:text-stone-500">
           <span className="capitalize truncate">{displayLabel}</span>
           <span className="shrink-0 ml-2">
             {isUploading

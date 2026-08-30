@@ -521,7 +521,7 @@ export function NotificationPanel() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-nowrap items-center gap-2 sm:gap-3">
                           <span
-                            className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none ${
+                            className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-11 font-semibold uppercase leading-none ${
                               notification.type === "info"
                                 ? "bg-blue-500/15 text-blue-600 dark:text-blue-300"
                                 : notification.type === "success"
@@ -538,7 +538,7 @@ export function NotificationPanel() {
                               }`,
                             )}
                           </span>
-                          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-6 text-stone-900 dark:text-stone-100 sm:text-[15px]">
+                          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-6 text-stone-900 dark:text-stone-100 sm:text-15">
                             {getLocalizedTitle(notification)}
                           </p>
                           <StatusBadge

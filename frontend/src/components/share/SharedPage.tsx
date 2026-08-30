@@ -603,7 +603,7 @@ export function SharedPage({
           <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0 animate-in fade-in duration-800">
             {/* Overline label */}
             <div className="text-center mb-5">
-              <span className="inline-block text-[11px] font-semibold font-serif tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
+              <span className="inline-block text-11 font-semibold font-serif tracking-[0.15em] uppercase text-stone-400 dark:text-stone-500">
                 {t("share.sharedConversation")}
               </span>
             </div>
@@ -635,11 +635,11 @@ export function SharedPage({
                   <BrandLogo className="size-12 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800" />
                 )}
                 <div className="space-y-1">
-                  <div className="text-[13px] font-semibold text-stone-800 dark:text-stone-200">
+                  <div className="text-13 font-semibold text-stone-800 dark:text-stone-200">
                     {data.owner.username}
                   </div>
                   {data.session.created_at && (
-                    <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5 tracking-wide">
+                    <div className="text-11 text-stone-400 dark:text-stone-500 mt-0.5 tracking-wide">
                       {formatDateTimeShort(data.session.created_at)}
                     </div>
                   )}
@@ -649,18 +649,18 @@ export function SharedPage({
               {/* Meta chips row */}
               <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 px-6">
                 {messages.length > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
                     <MessageSquare size={11} />
                     {messages.length} {t("share.messages")}
                   </span>
                 )}
                 {data.session.agent_name && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
                     {data.session.agent_name}
                   </span>
                 )}
                 {data.session.persona_preset_name && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
                     {data.session.persona_avatar &&
                     !data.session.persona_avatar.startsWith("icon:") &&
                     !isEmojiAvatar(data.session.persona_avatar) ? (
@@ -683,12 +683,12 @@ export function SharedPage({
                   </span>
                 )}
                 {data.session.team_name && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
                     {data.session.team_name}
                   </span>
                 )}
                 {data.session.model && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium">
                     {(() => {
                       const iconUrl = getModelIconUrl(
                         data.session.model,
@@ -715,7 +715,7 @@ export function SharedPage({
                     {data.session.model}
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium capitalize">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-11 text-stone-500 dark:text-stone-400 font-medium capitalize">
                   {readingTime}
                 </span>
               </div>
@@ -726,7 +726,7 @@ export function SharedPage({
               data.session.task_status !== "completed" && (
                 <div className="mt-5 flex justify-center">
                   <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-11 font-medium ${
                       data.session.task_status === "failed"
                         ? "bg-red-50 dark:bg-red-950/30 text-red-500"
                         : data.session.task_status === "running"
@@ -757,7 +757,7 @@ export function SharedPage({
             className="flex items-center gap-3 px-4 py-8 sm:px-6 sm:py-12"
           >
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
-            <span className="flex-shrink-0 text-[10px] font-semibold tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 font-mono tabular-nums select-none">
+            <span className="flex-shrink-0 text-10 font-semibold tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500 font-mono tabular-nums select-none">
               {t("share.conversationHistory")}
             </span>
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-stone-200/80 dark:via-stone-700/50 to-transparent" />
@@ -815,10 +815,10 @@ export function SharedPage({
             <div className="flex flex-col items-center gap-5 px-5 py-7 sm:flex-row sm:gap-6 sm:px-7 sm:py-8">
               {/* Left text */}
               <div className="min-w-0 flex-1 text-center sm:text-left">
-                <p className="font-serif text-[15px] font-semibold tracking-tight text-theme-text">
+                <p className="font-serif text-15 font-semibold tracking-tight text-theme-text">
                   {t("share.createYourOwn")}
                 </p>
-                <p className="mt-1.5 font-serif text-[12px] text-stone-500 dark:text-stone-500">
+                <p className="mt-1.5 font-serif text-12 text-stone-500 dark:text-stone-500">
                   {APP_NAME} &middot; Open Source &middot; MIT
                 </p>
               </div>
@@ -827,7 +827,7 @@ export function SharedPage({
               <Link
                 to="/"
                 aria-label={t("share.createYourOwn")}
-                className="group inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 font-serif text-[13px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-stone-800 active:scale-[0.98] dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white"
+                className="group inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-xl bg-stone-950 px-4 py-2.5 font-serif text-13 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-stone-800 active:scale-[0.98] dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white"
               >
                 <BrandLogo className="size-6" />
                 <BrandWordmark
@@ -854,7 +854,7 @@ export function SharedPage({
 
           {/* Bottom meta bar */}
           <div className="pb-6 sm:pb-8 flex flex-col sm:flex-row items-center justify-between gap-2.5 font-serif">
-            <div className="flex items-center gap-2 text-[11px] text-stone-300 dark:text-stone-600 font-serif">
+            <div className="flex items-center gap-2 text-11 text-stone-300 dark:text-stone-600 font-serif">
               {data.session.created_at && (
                 <>
                   <span>{formatDate(data.session.created_at)}</span>

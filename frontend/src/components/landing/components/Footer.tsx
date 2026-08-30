@@ -49,7 +49,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
           {/* Link columns */}
           <div className="sm:col-span-7 grid grid-cols-3 gap-10 sm:gap-12">
             <div>
-              <h4 className="text-[10px] font-bold tracking-[0.14em] uppercase text-stone-400 dark:text-stone-500 mb-5">
+              <h4 className="text-10 font-bold tracking-[0.14em] uppercase text-stone-400 dark:text-stone-500 mb-5">
                 {t("landing.coreFeatures")}
               </h4>
               <ul className="space-y-3">
@@ -57,7 +57,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
                   <li key={item.id}>
                     <button
                       onClick={() => onScrollToSection(item.id)}
-                      className="text-[13px] text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200"
+                      className="text-13 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200"
                     >
                       {t(`landing.${item.labelKey}`)}
                     </button>
@@ -66,7 +66,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
                 <li>
                   <button
                     onClick={() => onScrollToSection("responsive")}
-                    className="text-[13px] text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200"
+                    className="text-13 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200"
                   >
                     {t("landing.responsiveDesign")}
                   </button>
@@ -74,7 +74,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
               </ul>
             </div>
             <div>
-              <h4 className="text-[10px] font-bold tracking-[0.14em] uppercase text-stone-400 dark:text-stone-500 mb-5">
+              <h4 className="text-10 font-bold tracking-[0.14em] uppercase text-stone-400 dark:text-stone-500 mb-5">
                 {t("footer.resources")}
               </h4>
               <ul className="space-y-3">
@@ -83,7 +83,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
                     href={GITHUB_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[13px] text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200 inline-flex items-center gap-1.5"
+                    className="text-13 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200 inline-flex items-center gap-1.5"
                   >
                     <GitHubIcon className="h-3.5 w-3.5" /> GitHub
                   </a>
@@ -93,7 +93,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
                     href={GITHUB_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[13px] text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200"
+                    className="text-13 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-50 transition-colors duration-200"
                   >
                     {t("footer.mitLicense")}
                   </a>
@@ -101,14 +101,14 @@ export function Footer({ onScrollToSection }: FooterProps) {
               </ul>
             </div>
             <div>
-              <h4 className="text-[10px] font-bold tracking-[0.14em] uppercase text-stone-400 dark:text-stone-500 mb-5">
+              <h4 className="text-10 font-bold tracking-[0.14em] uppercase text-stone-400 dark:text-stone-500 mb-5">
                 {t("landing.footerBuiltWith")}
               </h4>
               <div className="flex flex-col gap-2.5">
                 {TECH_STACK.map((tech) => (
                   <span
                     key={tech.label}
-                    className={`inline-flex items-center self-start rounded-full px-3 py-1 text-[11px] font-medium ${tech.color} border border-stone-100/80 dark:border-stone-700/30`}
+                    className={`inline-flex items-center self-start rounded-full px-3 py-1 text-11 font-medium ${tech.color} border border-stone-100/80 dark:border-stone-700/30`}
                   >
                     {tech.label}
                   </span>

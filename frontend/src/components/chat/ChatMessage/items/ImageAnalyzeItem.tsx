@@ -208,7 +208,7 @@ const ImageAnalyzeItem = memo(function ImageAnalyzeItem({
             </ToolArgsBlock>
           ))}
           {imageUrls.length > 3 && (
-            <div className="text-[11px] text-theme-text-tertiary">
+            <div className="text-11 text-theme-text-tertiary">
               {t("chat.message.toolMoreFiles", { count: imageUrls.length - 3 })}
             </div>
           )}

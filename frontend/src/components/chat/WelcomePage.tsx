@@ -418,7 +418,7 @@ export const WelcomePage = memo(function WelcomePage({
         </h1>
         {/* Subtle subtitle prompt */}
         <p
-          className="welcome-subtitle mt-1.5 sm:mt-2 md:mt-2.5 xl:mt-3 2xl:mt-3 text-sm sm:text-base md:text-[17px] xl:text-lg 2xl:text-lg text-center font-serif"
+          className="welcome-subtitle mt-1.5 sm:mt-2 md:mt-2.5 xl:mt-3 2xl:mt-3 text-sm sm:text-base md:text-17 xl:text-lg 2xl:text-lg text-center font-serif"
           style={{ color: "var(--theme-text-secondary)" }}
         >
           {subtitle}
@@ -458,7 +458,7 @@ export const WelcomePage = memo(function WelcomePage({
         >
           <div className="welcome-suggestions-header flex items-center justify-between mb-2 sm:mb-2.5 md:mb-2.5 xl:mb-3 2xl:mb-3">
             <div
-              className="flex items-center gap-1.5 text-xs sm:text-[13px] md:text-[13px] font-medium font-serif"
+              className="flex items-center gap-1.5 text-xs sm:text-13 md:text-13 font-medium font-serif"
               style={{ color: "var(--theme-text-secondary)" }}
             >
               <Sparkles
@@ -482,7 +482,7 @@ export const WelcomePage = memo(function WelcomePage({
               {showTeamCards && isTeamEmpty && (
                 <button
                   onClick={() => navigate("/team")}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-11 sm:text-12 md:text-12 font-medium transition-all duration-300 cursor-pointer font-serif"
                   style={{
                     color: "var(--theme-primary)",
                     backgroundColor: "var(--theme-primary-light)",
@@ -495,7 +495,7 @@ export const WelcomePage = memo(function WelcomePage({
               {showTeamCards && !isTeamEmpty && (
                 <button
                   onClick={() => navigate("/team")}
-                  className="flex items-center gap-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                  className="flex items-center gap-2 py-1 rounded-lg text-11 sm:text-12 md:text-12 font-medium transition-all duration-300 cursor-pointer font-serif"
                   style={{
                     color: "var(--theme-text-secondary)",
                     backgroundColor: "transparent",
@@ -508,7 +508,7 @@ export const WelcomePage = memo(function WelcomePage({
               {showPersonaCards && isPersonaEmpty && (
                 <button
                   onClick={() => navigate("/persona")}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-11 sm:text-12 md:text-12 font-medium transition-all duration-300 cursor-pointer font-serif"
                   style={{
                     color: "var(--theme-primary)",
                     backgroundColor: "var(--theme-primary-light)",
@@ -521,7 +521,7 @@ export const WelcomePage = memo(function WelcomePage({
               {showPersonaCards && !isPersonaEmpty && (
                 <button
                   onClick={() => navigate("/persona")}
-                  className="flex items-center gap-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                  className="flex items-center gap-2 py-1 rounded-lg text-11 sm:text-12 md:text-12 font-medium transition-all duration-300 cursor-pointer font-serif"
                   style={{
                     color: "var(--theme-text-secondary)",
                     backgroundColor: "transparent",
@@ -536,7 +536,7 @@ export const WelcomePage = memo(function WelcomePage({
                   onClick={
                     canChangeTeam ? handleChangeTeam : handleChangePersona
                   }
-                  className="welcome-refresh-btn flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                  className="welcome-refresh-btn flex items-center gap-1.5 px-2 py-1 rounded-lg text-11 sm:text-12 md:text-12 font-medium transition-all duration-300 cursor-pointer font-serif"
                   style={{
                     color: "var(--theme-text-secondary)",
                     backgroundColor: "transparent",
@@ -635,14 +635,14 @@ export const WelcomePage = memo(function WelcomePage({
                         <div className="flex items-center justify-between gap-2">
                           <span className="welcome-persona-name-row relative flex items-center gap-1.5 min-w-0">
                             <span
-                              className="welcome-persona-name truncate text-[13px] sm:text-[14px] font-bold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
+                              className="welcome-persona-name truncate text-13 sm:text-14 font-bold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
                               style={{ color: "var(--theme-text)" }}
                             >
                               {team.name}
                             </span>
                           </span>
                           <span
-                            className="welcome-persona-tag shrink-0 inline-flex rounded-full px-1.5 py-[1px] text-[10px] leading-none font-medium"
+                            className="welcome-persona-tag shrink-0 inline-flex rounded-full px-1.5 py-[1px] text-10 leading-none font-medium"
                             style={{
                               backgroundColor: "var(--theme-primary-light)",
                               color: "var(--theme-primary)",
@@ -654,7 +654,7 @@ export const WelcomePage = memo(function WelcomePage({
                           </span>
                         </div>
                         <span
-                          className="welcome-persona-description block mt-1 text-[12px] leading-[1.5]"
+                          className="welcome-persona-description block mt-1 text-12 leading-[1.5]"
                           style={{
                             color:
                               "var(--theme-text-tertiary, var(--theme-text-secondary))",
@@ -720,7 +720,7 @@ export const WelcomePage = memo(function WelcomePage({
                       <span className="welcome-persona-info min-w-0 flex-1">
                         <span className="welcome-persona-name-row relative flex items-center gap-1.5">
                           <span
-                            className="welcome-persona-name truncate text-[13px] sm:text-[14px] font-bold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
+                            className="welcome-persona-name truncate text-13 sm:text-14 font-bold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
                             style={{ color: "var(--theme-text)" }}
                           >
                             {preset.name}
@@ -728,7 +728,7 @@ export const WelcomePage = memo(function WelcomePage({
                         </span>
                         {preset.description && (
                           <span
-                            className="welcome-persona-description block mt-1 text-[12px] leading-[1.5]"
+                            className="welcome-persona-description block mt-1 text-12 leading-[1.5]"
                             style={{
                               color:
                                 "var(--theme-text-tertiary, var(--theme-text-secondary))",
@@ -771,7 +771,7 @@ export const WelcomePage = memo(function WelcomePage({
                     {/* Hover shimmer layer */}
                     <span className="welcome-card-shimmer" aria-hidden="true" />
                     <span
-                      className="relative flex items-center justify-center size-6 sm:size-7 xl:size-8 2xl:size-8 rounded-lg text-[13px] sm:text-[15px] xl:text-lg 2xl:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
+                      className="relative flex items-center justify-center size-6 sm:size-7 xl:size-8 2xl:size-8 rounded-lg text-13 sm:text-15 xl:text-lg 2xl:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
                       style={{
                         backgroundColor: "var(--theme-primary-light)",
                         color: "var(--theme-primary)",
@@ -780,7 +780,7 @@ export const WelcomePage = memo(function WelcomePage({
                       {suggestion.icon || "✨"}
                     </span>
                     <span
-                      className="relative text-[12.5px] sm:text-[13.5px] leading-[1.4] sm:leading-[1.45] truncate transition-colors duration-300 group-hover:text-[var(--theme-text)]"
+                      className="relative text-12.5 sm:text-13.5 leading-[1.4] sm:leading-[1.45] truncate transition-colors duration-300 group-hover:text-[var(--theme-text)]"
                       style={{ color: "var(--theme-text-secondary)" }}
                     >
                       {suggestion.text}

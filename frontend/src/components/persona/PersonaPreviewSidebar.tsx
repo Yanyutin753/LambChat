@@ -167,14 +167,14 @@ export function PersonaPreviewSidebar({
         <div className="pt-9">
           {preset.description ? (
             <p
-              className="text-[13px] leading-relaxed"
+              className="text-13 leading-relaxed"
               style={{ color: "var(--theme-text-secondary)" }}
             >
               {preset.description}
             </p>
           ) : (
             <p
-              className="text-[13px] italic"
+              className="text-13 italic"
               style={{
                 color:
                   "var(--theme-text-tertiary, var(--theme-text-secondary))",
@@ -229,11 +229,11 @@ export function PersonaPreviewSidebar({
             </div>
           </div>
           <div
-            className="rounded-lg bg-[var(--theme-bg)]/60 p-2 overflow-y-auto max-h-[40rem] text-[13px]"
+            className="rounded-lg bg-[var(--theme-bg)]/60 p-2 overflow-y-auto max-h-[40rem] text-13"
             style={{ color: "var(--theme-text)" }}
           >
             {viewSource ? (
-              <pre className="font-mono text-[12px] leading-[1.6]">
+              <pre className="font-mono text-12 leading-[1.6]">
                 {preset.system_prompt}
               </pre>
             ) : (
@@ -248,7 +248,7 @@ export function PersonaPreviewSidebar({
             <div className="es-section-title">
               <Zap />
               {t("personaPresets.skills", "技能")}
-              <span className="ml-auto font-mono text-[10px] opacity-60">
+              <span className="ml-auto font-mono text-10 opacity-60">
                 {preset.skill_names.length}
               </span>
             </div>

@@ -85,7 +85,7 @@ function EnvVarDetail({ args, result }: ToolDetailProps) {
             <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
               {t("chat.message.toolVarCount", { count: allKeys.length })}
             </span>
-            <span className="text-[10px] text-emerald-600/60 dark:text-emerald-400/50 ml-auto">
+            <span className="text-10 text-emerald-600/60 dark:text-emerald-400/50 ml-auto">
               {t("chat.message.envMasked", "Values masked")}
             </span>
           </div>
@@ -105,7 +105,7 @@ function EnvVarDetail({ args, result }: ToolDetailProps) {
                 <span className="text-sm font-mono text-theme-text min-w-0 truncate flex-1">
                   {k}
                 </span>
-                <span className="text-[11px] text-theme-text-tertiary font-mono shrink-0 tracking-widest">
+                <span className="text-11 text-theme-text-tertiary font-mono shrink-0 tracking-widest">
                   ••••••••
                 </span>
               </div>
@@ -267,7 +267,7 @@ const EnvVarItem = memo(function EnvVarItem({
                   {allKeys.slice(0, 12).map((k, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-[10px] text-theme-text-secondary font-mono hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-colors"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-10 text-theme-text-secondary font-mono hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-colors"
                     >
                       <KeyRound
                         size={9}
@@ -277,7 +277,7 @@ const EnvVarItem = memo(function EnvVarItem({
                     </span>
                   ))}
                   {allKeys.length > 12 && (
-                    <span className="text-[10px] text-theme-text-tertiary px-1">
+                    <span className="text-10 text-theme-text-tertiary px-1">
                       +{allKeys.length - 12}
                     </span>
                   )}

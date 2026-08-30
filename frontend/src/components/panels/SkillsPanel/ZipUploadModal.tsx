@@ -155,7 +155,7 @@ export function ZipUploadModal({
                 <label className="text-sm font-medium text-[var(--theme-text)]">
                   {t("skills.selectSkillsToInstall")}
                 </label>
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 text-[11px] font-semibold text-[var(--theme-primary)]">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 text-11 font-semibold text-[var(--theme-primary)]">
                   {selectedZipSkills.length}/{newCount}
                 </span>
               </div>
@@ -211,12 +211,12 @@ export function ZipUploadModal({
                           {skill.name}
                         </p>
                         {skill.already_exists && (
-                          <span className="shrink-0 rounded-full bg-[var(--theme-primary)]/8 px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-primary)]/70">
+                          <span className="shrink-0 rounded-full bg-[var(--theme-primary)]/8 px-1.5 py-0.5 text-10 font-medium text-[var(--theme-primary)]/70">
                             {t("skills.installed")}
                           </span>
                         )}
                         {!skill.already_exists && skill.file_count > 1 && (
-                          <span className="shrink-0 text-[10px] text-[var(--theme-text-secondary)]">
+                          <span className="shrink-0 text-10 text-[var(--theme-text-secondary)]">
                             {skill.file_count} files
                           </span>
                         )}

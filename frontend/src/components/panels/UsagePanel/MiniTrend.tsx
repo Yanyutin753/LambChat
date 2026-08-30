@@ -28,7 +28,7 @@ function ChartTooltip({
   return (
     <div className="rounded-lg border border-[var(--usage-border)] bg-[var(--theme-bg-card)] px-4 py-2.5 shadow-lg">
       <div className="h-0.5 mb-2 rounded-full bg-[var(--theme-primary)]" />
-      <p className="mb-1 text-[11px] font-medium text-theme-text-tertiary">
+      <p className="mb-1 text-11 font-medium text-theme-text-tertiary">
         {label}
       </p>
       {payload.map((entry) => (
@@ -88,15 +88,15 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
             <LineChart size={15} strokeWidth={2} />
           </div>
           <div>
-            <h3 className="text-[13px] font-bold tracking-tight text-theme-text sm:text-sm">
+            <h3 className="text-13 font-bold tracking-tight text-theme-text sm:text-sm">
               {t("usage.trend.title")}
             </h3>
-            <p className="text-[10px] text-theme-text-tertiary sm:text-[11px]">
+            <p className="text-10 text-theme-text-tertiary sm:text-11">
               {t("usage.trend.subtitle")}
             </p>
           </div>
         </div>
-        <div className="hidden flex-wrap justify-end gap-1.5 text-[10px] sm:flex">
+        <div className="hidden flex-wrap justify-end gap-1.5 text-10 sm:flex">
           <span className="usage-soft-pill">
             {t("usage.trend.scheduledSuffix", { count: totalScheduled })}
           </span>
@@ -246,26 +246,26 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
       {/* Summary — Mobile (3 cols) */}
       <div className="grid grid-cols-3 gap-1.5 border-t border-[var(--usage-border)] px-3 py-2.5 sm:hidden">
         <div className="flex flex-col">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-theme-text-tertiary">
+          <span className="text-9 font-medium uppercase tracking-wide text-theme-text-tertiary">
             {t("usage.trend.tokens")}
           </span>
-          <span className="text-[13px] font-bold tabular-nums text-theme-text">
+          <span className="text-13 font-bold tabular-nums text-theme-text">
             {fmt(totalTokens)}
           </span>
         </div>
         <div className="flex flex-col">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-theme-text-tertiary">
+          <span className="text-9 font-medium uppercase tracking-wide text-theme-text-tertiary">
             {t("usage.trend.activeDays")}
           </span>
-          <span className="text-[13px] font-bold tabular-nums text-theme-text">
+          <span className="text-13 font-bold tabular-nums text-theme-text">
             {activeDays}/14
           </span>
         </div>
         <div className="flex flex-col">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-theme-text-tertiary">
+          <span className="text-9 font-medium uppercase tracking-wide text-theme-text-tertiary">
             {t("usage.trend.peak")}
           </span>
-          <span className="text-[13px] font-bold tabular-nums text-theme-text">
+          <span className="text-13 font-bold tabular-nums text-theme-text">
             {hasData ? shortDate(peakPoint.date) : "-"}
           </span>
         </div>
@@ -303,11 +303,11 @@ export function MiniTrend({ points }: { points: UsageDailyPoint[] }) {
                 size={10}
                 className="shrink-0 text-theme-text-tertiary"
               />
-              <span className="text-[10px] text-theme-text-tertiary">
+              <span className="text-10 text-theme-text-tertiary">
                 {item.label}
               </span>
             </div>
-            <span className="text-[13px] font-bold tabular-nums text-theme-text">
+            <span className="text-13 font-bold tabular-nums text-theme-text">
               {item.value}
             </span>
           </div>

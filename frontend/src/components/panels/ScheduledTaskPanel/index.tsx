@@ -476,7 +476,7 @@ export function ScheduledTaskPanel({
 
                       {/* Last run / never run */}
                       {task.last_run_at && (
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--theme-text-secondary)] mb-2">
+                        <div className="flex flex-wrap items-center gap-2 text-11 text-[var(--theme-text-secondary)] mb-2">
                           <span>{t("scheduledTask.lastRun")}:</span>
                           <span>{formatDateTimeShort(task.last_run_at)}</span>
                           {task.last_run_status && (
@@ -485,7 +485,7 @@ export function ScheduledTaskPanel({
                         </div>
                       )}
                       {!task.last_run_at && (
-                        <p className="text-[11px] text-[var(--theme-text-secondary)]">
+                        <p className="text-11 text-[var(--theme-text-secondary)]">
                           {t("scheduledTask.neverRun")}
                         </p>
                       )}

@@ -50,7 +50,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
           className="flex items-center justify-center gap-2.5 sm:gap-3 mb-8 sm:mb-12"
         >
           <span className="block w-6 sm:w-8 h-px bg-gradient-to-r from-transparent to-stone-300 dark:to-stone-600" />
-          <span className="relative text-[10px] sm:text-xs font-semibold tracking-[0.16em] sm:tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500">
+          <span className="relative text-10 sm:text-xs font-semibold tracking-[0.16em] sm:tracking-[0.18em] uppercase text-stone-400 dark:text-stone-500">
             {t("landing.badge")}
             <span className="blog-pulse-dot absolute -top-1.5 -right-2.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
           </span>
@@ -73,7 +73,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
         <p
           data-reveal
           data-reveal-delay="3"
-          className="blog-prose text-[15px] sm:text-lg lg:text-xl text-stone-500 dark:text-stone-400 max-w-[20rem] sm:max-w-lg mx-auto leading-[1.8] sm:leading-[1.85] mb-11 sm:mb-16"
+          className="blog-prose text-15 sm:text-lg lg:text-xl text-stone-500 dark:text-stone-400 max-w-[20rem] sm:max-w-lg mx-auto leading-[1.8] sm:leading-[1.85] mb-11 sm:mb-16"
         >
           {t("landing.heroDescription")}
         </p>
@@ -111,13 +111,13 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
           className="mt-12 sm:mt-24 pt-6 sm:pt-8 border-t border-stone-200/40 dark:border-stone-800/30"
         >
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:gap-x-5 sm:gap-y-2.5">
-            <span className="text-[10px] font-semibold tracking-[0.14em] uppercase text-stone-300 dark:text-stone-600">
+            <span className="text-10 font-semibold tracking-[0.14em] uppercase text-stone-300 dark:text-stone-600">
               {t("landing.footerBuiltWith")}
             </span>
             {TECH_STACK.map((tech) => (
               <span
                 key={tech.label}
-                className={`blog-tech-pill inline-flex items-center rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium ${tech.color} border border-stone-100/60 dark:border-stone-700/20`}
+                className={`blog-tech-pill inline-flex items-center rounded-full px-3 py-1 text-11 sm:text-xs font-medium ${tech.color} border border-stone-100/60 dark:border-stone-700/20`}
               >
                 {tech.label}
               </span>

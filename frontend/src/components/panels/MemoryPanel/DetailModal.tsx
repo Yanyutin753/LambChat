@@ -78,12 +78,12 @@ export function DetailModal({
         {/* Type badge & time */}
         <div className="flex items-center gap-2 mb-3">
           <span
-            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none ${style}`}
+            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-11 font-semibold uppercase leading-none ${style}`}
           >
             {t(`memory.type.${memory.memory_type}`)}
           </span>
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-11 font-medium ${
               SOURCE_STYLES[memory.source] ?? SOURCE_STYLES.manual
             }`}
           >
@@ -94,7 +94,7 @@ export function DetailModal({
             />
             {t(`memory.source.${memory.source}`, memory.source)}
           </span>
-          <span className="text-[11px] text-theme-text-secondary">
+          <span className="text-11 text-theme-text-secondary">
             {relativeTime(memory.updated_at)}
           </span>
         </div>

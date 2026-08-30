@@ -71,7 +71,7 @@ export function MobileMoreMenuSheet({
           />
         </div>
         <div className="flex items-center justify-between px-4 pb-1.5">
-          <span className="text-[13px] font-medium text-[var(--theme-text)]">
+          <span className="text-13 font-medium text-[var(--theme-text)]">
             {t("nav.more", "更多")}
           </span>
           <button

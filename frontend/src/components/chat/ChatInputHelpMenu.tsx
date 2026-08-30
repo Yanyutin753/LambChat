@@ -27,7 +27,7 @@ const panelStyle: React.CSSProperties = {
 };
 
 const menuItemClass =
-  "flex gap-2 sm:gap-2.5 items-center w-full px-2.5 py-1.5 sm:px-3 sm:py-2 text-[12px] sm:text-[13px] rounded-lg cursor-pointer transition-colors";
+  "flex gap-2 sm:gap-2.5 items-center w-full px-2.5 py-1.5 sm:px-3 sm:py-2 text-12 sm:text-13 rounded-lg cursor-pointer transition-colors";
 
 const hover: React.DOMAttributes<HTMLElement> = {
   onMouseEnter: (e) => {

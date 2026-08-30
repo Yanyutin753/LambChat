@@ -70,7 +70,7 @@ function ArgRow({
       <div
         className={`group/arg flex items-center gap-2 rounded-[var(--radius-sm)] px-2 transition-colors duration-[var(--duration-fast)] ${
           compact
-            ? "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)] py-1 text-[11px]"
+            ? "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)] py-1 text-11"
             : "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)] py-1.5 text-xs"
         }`}
       >
@@ -136,7 +136,7 @@ function ComplexArgRow({
           expanded
             ? "bg-[var(--theme-bg-elevated)]"
             : "bg-[var(--theme-bg-subtle)] hover:bg-[var(--theme-bg-elevated)]"
-        } ${compact ? "py-1 text-[11px]" : "py-1.5 text-xs"}`}
+        } ${compact ? "py-1 text-11" : "py-1.5 text-xs"}`}
         onClick={() => setExpanded((v) => !v)}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
@@ -165,7 +165,7 @@ function ComplexArgRow({
 
       {expanded && (
         <pre
-          className={`mt-1 ml-3 pl-3 border-l-2 border-[var(--theme-border)] overflow-x-auto max-h-60 overflow-y-auto rounded-[var(--radius-sm)] bg-[var(--theme-bg-subtle)] p-2.5 font-mono text-[11px] leading-relaxed text-[var(--theme-text-secondary)] animate-[fade-in_150ms_ease-out] ${
+          className={`mt-1 ml-3 pl-3 border-l-2 border-[var(--theme-border)] overflow-x-auto max-h-60 overflow-y-auto rounded-[var(--radius-sm)] bg-[var(--theme-bg-subtle)] p-2.5 font-mono text-11 leading-relaxed text-[var(--theme-text-secondary)] animate-[fade-in_150ms_ease-out] ${
             compact ? "" : ""
           }`}
         >
@@ -186,8 +186,8 @@ function ArgKey({ name, compact }: { name: string; compact: boolean }) {
     <span
       className={`shrink-0 font-medium tracking-wide uppercase ${
         compact
-          ? "text-[9px] text-[var(--theme-text-tertiary)]"
-          : "text-[10px] text-[var(--theme-text-tertiary)]"
+          ? "text-9 text-[var(--theme-text-tertiary)]"
+          : "text-10 text-[var(--theme-text-tertiary)]"
       }`}
     >
       {formatKeyName(name)}

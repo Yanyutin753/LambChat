@@ -164,13 +164,13 @@ export function RoleSelector({ selectedRoles, onChange }: RoleSelectorProps) {
                       {role.name}
                     </span>
                     {role.description && (
-                      <span className="ml-1.5 text-[10px] text-stone-400 dark:text-stone-500 truncate">
+                      <span className="ml-1.5 text-10 text-stone-400 dark:text-stone-500 truncate">
                         {role.description}
                       </span>
                     )}
                   </div>
                   {role.is_system && (
-                    <span className="text-[9px] px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-400 dark:text-stone-500">
+                    <span className="text-9 px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-400 dark:text-stone-500">
                       {t("mcp.card.system")}
                     </span>
                   )}

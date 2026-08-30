@@ -282,13 +282,13 @@ export const ScheduledTaskSidebarItem = forwardRef<
         title={task.name}
       >
         <span
-          className="shrink-0 inline-flex items-center justify-center overflow-hidden text-[20px]"
+          className="shrink-0 inline-flex items-center justify-center overflow-hidden text-20"
           style={{ width: 20, height: 20, fontSize: 20, lineHeight: 1 }}
         >
           {task.status === "active" ? "⏰" : "🕐"}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] text-stone-600 transition-colors group-hover:text-stone-700 dark:text-stone-400 dark:group-hover:text-stone-300">
+          <div className="truncate text-13 text-stone-600 transition-colors group-hover:text-stone-700 dark:text-stone-400 dark:group-hover:text-stone-300">
             {task.name}
           </div>
         </div>
@@ -354,7 +354,7 @@ export const ScheduledTaskSidebarItem = forwardRef<
               )}
             </>
           ) : (
-            <div className="rounded-lg px-[9px] py-2 text-[12px] text-stone-400 dark:text-stone-500">
+            <div className="rounded-lg px-[9px] py-2 text-12 text-stone-400 dark:text-stone-500">
               {t("sidebar.noSessions", "暂无会话")}
             </div>
           )}

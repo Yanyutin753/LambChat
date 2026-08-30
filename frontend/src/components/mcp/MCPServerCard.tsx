@@ -102,12 +102,12 @@ export function MCPServerCard({
             </h3>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-medium tracking-wide ${transportColor}`}
+                className={`rounded-full px-2 py-0.5 text-11 font-medium tracking-wide ${transportColor}`}
               >
                 {transportLabel}
               </span>
               {toolCount !== undefined && toolCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-[var(--theme-text-secondary)]">
+                <span className="inline-flex items-center gap-1 text-11 text-[var(--theme-text-secondary)]">
                   <Wrench size={11} />
                   {toolCount}
                 </span>

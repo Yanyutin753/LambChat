@@ -319,14 +319,14 @@ export function SubagentBlock({
         <div className="flex-1 min-w-0">
           <span
             className={clsx(
-              "text-[13px] font-medium truncate block",
+              "text-13 font-medium truncate block",
               "text-theme-text",
             )}
           >
             {formattedAgentName}
           </span>
           {input && (
-            <p className="text-[11px] text-theme-text-tertiary truncate font-serif mt-px">
+            <p className="text-11 text-theme-text-tertiary truncate font-serif mt-px">
               {input}
             </p>
           )}

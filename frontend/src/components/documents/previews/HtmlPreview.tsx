@@ -46,7 +46,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
           <span className="text-xs text-stone-500 dark:text-stone-400">
             {t("documents.htmlDocument")}
           </span>
-          <span className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">
+          <span className="text-11 text-stone-400 dark:text-stone-500 tabular-nums">
             {content.length.toLocaleString()} chars
           </span>
         </div>

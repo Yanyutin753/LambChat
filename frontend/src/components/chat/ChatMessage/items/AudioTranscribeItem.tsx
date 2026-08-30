@@ -161,13 +161,13 @@ const AudioTranscribeItem = memo(function AudioTranscribeItem({
 
             <div className="flex flex-wrap gap-1">
               {language && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-[10px]">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10">
                   <Languages size={8} className="opacity-60" />
                   {language.toUpperCase()}
                 </span>
               )}
               {model && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-[10px] font-mono">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-tertiary text-10 font-mono">
                   {model}
                 </span>
               )}

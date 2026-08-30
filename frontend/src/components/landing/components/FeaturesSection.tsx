@@ -37,10 +37,10 @@ export function FeaturesSection() {
               >
                 {f.icon}
               </div>
-              <h3 className="text-[15px] sm:text-base font-bold text-stone-900 dark:text-stone-100 mb-2.5 leading-snug">
+              <h3 className="text-15 sm:text-base font-bold text-stone-900 dark:text-stone-100 mb-2.5 leading-snug">
                 {t(`landing.${f.titleKey}`, f.titleKey)}
               </h3>
-              <p className="text-[13px] sm:text-sm leading-[1.7] text-stone-400 dark:text-stone-500">
+              <p className="text-13 sm:text-sm leading-[1.7] text-stone-400 dark:text-stone-500">
                 {t(`landing.${f.descKey}`, f.descKey)}
               </p>
             </div>

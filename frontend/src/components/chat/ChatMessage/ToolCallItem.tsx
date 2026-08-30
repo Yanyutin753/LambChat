@@ -415,7 +415,7 @@ export function ToolCallItem({
         label={pillLabel}
         suffix={
           serverName ? (
-            <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-black/20 opacity-70 font-medium truncate max-w-[120px]">
+            <span className="shrink-0 text-9 px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-black/20 opacity-70 font-medium truncate max-w-[120px]">
               {serverName}
             </span>
           ) : undefined

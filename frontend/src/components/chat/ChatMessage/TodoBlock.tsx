@@ -110,7 +110,7 @@ export function TodoBlock({ items, isStreaming, stateKey }: TodoBlockProps) {
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-[11px] tabular-nums text-stone-400 dark:text-stone-500">
+          <span className="text-11 tabular-nums text-stone-400 dark:text-stone-500">
             {Math.round(progress)}%
           </span>
           <ChevronRight
@@ -152,7 +152,7 @@ function TodoItemRow({ item }: { item: TodoItem }) {
       <div className="min-w-0 flex-1">
         <p
           className={clsx(
-            "text-[13px] leading-snug truncate",
+            "text-13 leading-snug truncate",
             config.textClass,
             item.status === "in_progress" &&
               "text-stone-800 dark:text-stone-100",

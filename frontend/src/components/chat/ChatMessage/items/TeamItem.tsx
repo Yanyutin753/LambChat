@@ -210,7 +210,7 @@ function TeamDetail({
                           {pStatus && pStatus !== "published" && (
                             <span
                               className={clsx(
-                                "shrink-0 inline-flex items-center px-1.5 py-[2px] rounded-full text-[9px] font-semibold tracking-wide uppercase",
+                                "shrink-0 inline-flex items-center px-1.5 py-[2px] rounded-full text-9 font-semibold tracking-wide uppercase",
                                 pStatus === "draft"
                                   ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200/50 dark:ring-amber-800/30"
                                   : "bg-theme-bg-subtle text-theme-text-tertiary ring-1 ring-theme-border",
@@ -221,7 +221,7 @@ function TeamDetail({
                           )}
                         </div>
                         {desc && (
-                          <p className="text-[11px] text-theme-text-secondary/80 mt-1 leading-relaxed line-clamp-2 min-h-[2.75em]">
+                          <p className="text-11 text-theme-text-secondary/80 mt-1 leading-relaxed line-clamp-2 min-h-[2.75em]">
                             {desc}
                           </p>
                         )}
@@ -234,7 +234,7 @@ function TeamDetail({
                           <span
                             key={j}
                             className={clsx(
-                              "inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-[10px] font-medium",
+                              "inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium",
                               j === 0
                                 ? "bg-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,var(--theme-border))]"
                                 : "bg-theme-bg text-theme-text-secondary ring-1 ring-theme-border",
@@ -245,7 +245,7 @@ function TeamDetail({
                           </span>
                         ))}
                         {pSkills.length > 0 && (
-                          <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-[10px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200/50 dark:ring-emerald-700/30">
+                          <span className="inline-flex items-center gap-1 px-2 py-[2px] rounded-lg text-10 font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200/50 dark:ring-emerald-700/30">
                             <Zap size={8} className="opacity-60" />
                             {pSkills.length}
                           </span>
@@ -256,7 +256,7 @@ function TeamDetail({
                     {(pScope || pUsage > 0) && (
                       <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-theme-border/60">
                         {pScope && (
-                          <span className="text-[10px] text-theme-text-tertiary">
+                          <span className="text-10 text-theme-text-tertiary">
                             {pScope === "global"
                               ? t("personaPresets.official", "官方")
                               : t("personaPresets.mine", "我的")}
@@ -266,7 +266,7 @@ function TeamDetail({
                           <span className="inline-block h-1 w-1 rounded-full bg-theme-border" />
                         )}
                         {pUsage > 0 && (
-                          <span className="text-[10px] text-theme-text-tertiary">
+                          <span className="text-10 text-theme-text-tertiary">
                             {pUsage}
                             {t("personaPresets.usageCount", "次使用")}
                           </span>
@@ -396,7 +396,7 @@ function TeamDetail({
                         {resultTeamName}
                       </h3>
                       {resultId && (
-                        <div className="text-[10px] sm:text-xs text-theme-text-tertiary/70 font-mono truncate mt-0.5 flex items-center gap-1">
+                        <div className="text-10 sm:text-xs text-theme-text-tertiary/70 font-mono truncate mt-0.5 flex items-center gap-1">
                           <span className="min-w-0 truncate block">
                             {resultId.slice(0, 12)}…
                           </span>
@@ -406,7 +406,7 @@ function TeamDetail({
                   </div>
 
                   {resultDescription && (
-                    <p className="text-xs sm:text-[13px] text-theme-text-secondary/80 mt-3 line-clamp-2 leading-relaxed">
+                    <p className="text-xs sm:text-13 text-theme-text-secondary/80 mt-3 line-clamp-2 leading-relaxed">
                       {resultDescription}
                     </p>
                   )}
@@ -417,7 +417,7 @@ function TeamDetail({
                         <span
                           key={i}
                           className={clsx(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium",
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-11 font-medium",
                             "transition-all duration-200",
                             i === 0
                               ? "bg-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-bg-card))] text-theme-text-secondary ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,var(--theme-border))]"
@@ -516,7 +516,7 @@ function TeamDetail({
                               {mTags.slice(0, 3).map((tag, j) => (
                                 <span
                                   key={j}
-                                  className="inline-flex items-center px-1.5 py-[1px] rounded-md text-[10px] font-medium bg-theme-bg ring-1 ring-theme-border text-theme-text-secondary"
+                                  className="inline-flex items-center px-1.5 py-[1px] rounded-md text-10 font-medium bg-theme-bg ring-1 ring-theme-border text-theme-text-secondary"
                                 >
                                   {tag}
                                 </span>
@@ -527,7 +527,7 @@ function TeamDetail({
                       </div>
                       {instructions && (
                         <div className="px-3.5 pb-3 pt-0">
-                          <p className="text-[11px] text-theme-text-tertiary/80 line-clamp-3 leading-relaxed">
+                          <p className="text-11 text-theme-text-tertiary/80 line-clamp-3 leading-relaxed">
                             {instructions}
                           </p>
                           {instructions.length > 150 && (
@@ -720,7 +720,7 @@ const TeamItem = memo(function TeamItem({
                     return (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-[10px] text-theme-text-secondary hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg border border-theme-border text-10 text-theme-text-secondary hover:border-[color-mix(in_srgb,var(--theme-text-secondary)_12%,var(--theme-border))] transition-colors"
                       >
                         <span className="inline-flex w-3.5 h-3.5 items-center justify-center overflow-hidden rounded shrink-0">
                           <RenderAvatar
@@ -739,7 +739,7 @@ const TeamItem = memo(function TeamItem({
                     );
                   })}
                   {personas.length > 8 && (
-                    <span className="text-[10px] text-theme-text-tertiary px-1">
+                    <span className="text-10 text-theme-text-tertiary px-1">
                       +{personas.length - 8}
                     </span>
                   )}
@@ -767,7 +767,7 @@ const TeamItem = memo(function TeamItem({
                   </div>
                 </div>
                 {resultMembers.length > 0 && (
-                  <span className="shrink-0 text-[10px] text-theme-text-tertiary">
+                  <span className="shrink-0 text-10 text-theme-text-tertiary">
                     {t("chat.message.toolMemberCount", {
                       count: resultMembers.length,
                     })}

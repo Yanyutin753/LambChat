@@ -84,7 +84,7 @@ export function SkillCard({
         </>
       }
       statusPills={
-        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+        <div className="mt-1.5 flex items-center gap-2 text-11 text-[var(--theme-text-secondary)]">
           {skill.updated_at && <span>{formatDate(skill.updated_at)}</span>}
           {skill.updated_at && skill.created_by_username && (
             <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
@@ -129,7 +129,7 @@ export function SkillCard({
         ) : undefined
       }
       meta={
-        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+        <div className="flex items-center justify-between gap-2 text-11 text-[var(--theme-text-secondary)]">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1">
               <FileText size={11} />

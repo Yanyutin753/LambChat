@@ -175,7 +175,7 @@ export function NotificationBanner() {
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p
-                    className="text-sm sm:text-[15px] font-semibold font-serif leading-[20px] truncate tracking-[-0.01em]"
+                    className="text-sm sm:text-15 font-semibold font-serif leading-[20px] truncate tracking-[-0.01em]"
                     style={{ color: "var(--theme-text)" }}
                     title={title}
                   >
@@ -183,7 +183,7 @@ export function NotificationBanner() {
                   </p>
                   {content && (
                     <p
-                      className="text-xs sm:text-[13px] leading-[18px] line-clamp-1"
+                      className="text-xs sm:text-13 leading-[18px] line-clamp-1"
                       style={{ color: "var(--theme-text-secondary)" }}
                     >
                       {content}

@@ -13,7 +13,7 @@ function RankBadge({ rank }: { rank: number }) {
   ];
   return (
     <span
-      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[9px] font-bold ring-1 ring-inset ${
+      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-9 font-bold ring-1 ring-inset ${
         styles[rank - 1]
       }`}
     >
@@ -61,11 +61,11 @@ export function RankingList({
           strokeWidth={2}
           className="shrink-0 text-theme-text-tertiary"
         />
-        <h3 className="min-w-0 flex-1 truncate text-[13px] font-bold text-theme-text sm:text-sm">
+        <h3 className="min-w-0 flex-1 truncate text-13 font-bold text-theme-text sm:text-sm">
           {title}
         </h3>
         {items.length > 0 && (
-          <span className="shrink-0 text-[10px] tabular-nums text-theme-text-tertiary">
+          <span className="shrink-0 text-10 tabular-nums text-theme-text-tertiary">
             {t("usage.ranking.top", { n: Math.min(items.length, 5) })}
           </span>
         )}
@@ -85,17 +85,17 @@ export function RankingList({
             >
               <div className="mb-1 flex items-center gap-1.5 sm:gap-2">
                 <RankBadge rank={idx + 1} />
-                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-theme-text-secondary sm:text-xs">
+                <span className="min-w-0 flex-1 truncate text-11 font-medium text-theme-text-secondary sm:text-xs">
                   {item.name || item.id || "-"}
                 </span>
-                <span className="shrink-0 text-[11px] font-bold tabular-nums text-theme-text sm:text-xs">
+                <span className="shrink-0 text-11 font-bold tabular-nums text-theme-text sm:text-xs">
                   {fmt(item.tokens)}
                 </span>
               </div>
               <CustomProgressBar
                 percentage={Math.max(4, (item.tokens / maxTokens) * 100)}
               />
-              <div className="mt-1 flex justify-between gap-2 text-[10px] text-theme-text-tertiary">
+              <div className="mt-1 flex justify-between gap-2 text-10 text-theme-text-tertiary">
                 <span>
                   {t("usage.ranking.countSuffix", { count: item.requests })}
                 </span>
@@ -112,7 +112,7 @@ export function RankingList({
                 </span>
               </div>
               {showCacheMetrics && (
-                <div className="mt-1 flex flex-wrap justify-between gap-x-2 text-[10px] text-theme-text-tertiary">
+                <div className="mt-1 flex flex-wrap justify-between gap-x-2 text-10 text-theme-text-tertiary">
                   <span>
                     {t("usage.cacheHitRate")}: {pct(item.cache_read_share)}
                   </span>
@@ -151,7 +151,7 @@ export function DistributionList({
           strokeWidth={2}
           className="shrink-0 text-theme-text-tertiary"
         />
-        <h3 className="min-w-0 flex-1 truncate text-[13px] font-bold text-theme-text sm:text-sm">
+        <h3 className="min-w-0 flex-1 truncate text-13 font-bold text-theme-text sm:text-sm">
           {title}
         </h3>
       </div>
@@ -170,15 +170,15 @@ export function DistributionList({
                 className="min-w-0 transition-transform duration-200 hover:-translate-y-px"
               >
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-[11px] font-medium text-theme-text-secondary sm:text-xs">
+                  <span className="min-w-0 truncate text-11 font-medium text-theme-text-secondary sm:text-xs">
                     {item.name || item.id || "-"}
                   </span>
-                  <span className="shrink-0 text-[11px] font-bold tabular-nums text-theme-text sm:text-xs">
+                  <span className="shrink-0 text-11 font-bold tabular-nums text-theme-text sm:text-xs">
                     {pct(share)}
                   </span>
                 </div>
                 <CustomProgressBar percentage={Math.max(5, share * 100)} />
-                <div className="mt-1 flex justify-between text-[10px] text-theme-text-tertiary">
+                <div className="mt-1 flex justify-between text-10 text-theme-text-tertiary">
                   <span>
                     {t("usage.ranking.countSuffix", { count: item.requests })}
                   </span>

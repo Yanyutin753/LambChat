@@ -306,7 +306,7 @@ export function ChatInputToolbar({
           <button
             type="button"
             onClick={() => onToggleAutoMode?.(false)}
-            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-[11px] font-medium transition-colors duration-200"
+            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-11 font-medium transition-colors duration-200"
             style={{
               color: "var(--theme-text-secondary)",
               background: "var(--theme-bg-card)",
@@ -321,7 +321,7 @@ export function ChatInputToolbar({
           <button
             type="button"
             onClick={() => onToggleGoalMode?.(false)}
-            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-[11px] font-medium transition-colors duration-200"
+            className="hidden sm:inline-flex items-center gap-1 shrink-0 cursor-pointer rounded-full h-9 px-2.5 text-11 font-medium transition-colors duration-200"
             style={{
               color: "var(--theme-text-secondary)",
               background: "var(--theme-bg-card)",

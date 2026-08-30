@@ -263,7 +263,7 @@ export function SearchDialog({
             value={searchQuery}
             onValueChange={setSearchQuery}
             placeholder={t("sidebar.searchSessions") + "..."}
-            className="flex-1 min-w-0 text-[15px] bg-transparent text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
+            className="flex-1 min-w-0 text-15 bg-transparent text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none"
           />
           {searchQuery && (
             <button
@@ -273,7 +273,7 @@ export function SearchDialog({
               <X size={12} strokeWidth={2.5} />
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 rounded-md border border-stone-200/80 dark:border-stone-700/60">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-10 font-medium font-serif text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800 rounded-md border border-stone-200/80 dark:border-stone-700/60">
             ESC
           </kbd>
         </div>
@@ -373,7 +373,7 @@ export function SearchDialog({
                       )}
                     </span>
                     {projectName && (
-                      <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 px-1.5 py-0.5 rounded-md">
+                      <span className="flex-shrink-0 flex items-center gap-1 text-11 text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 px-1.5 py-0.5 rounded-md">
                         <Hash size={9} strokeWidth={2} />
                         {projectName}
                       </span>
@@ -401,22 +401,22 @@ export function SearchDialog({
         {!isLoading && hasQuery && allSessions.length > 0 && (
           <>
             <div className="mx-4 h-px bg-stone-100 dark:bg-stone-800/60" />
-            <div className="flex items-center justify-between px-4 py-2 text-[11px] text-stone-400 dark:text-stone-500">
+            <div className="flex items-center justify-between px-4 py-2 text-11 text-stone-400 dark:text-stone-500">
               <span>
                 {allSessions.length} {hasMore ? "..." : ""}
               </span>
               <div className="flex items-center gap-2">
                 <span className="flex items-center gap-0.5">
-                  <kbd className="px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-[10px]">
+                  <kbd className="px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-10">
                     ↑
                   </kbd>
-                  <kbd className="px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-[10px]">
+                  <kbd className="px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-10">
                     ↓
                   </kbd>
                   <span className="ml-0.5">{t("sidebar.navigate")}</span>
                 </span>
                 <span className="flex items-center gap-0.5">
-                  <kbd className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-[10px]">
+                  <kbd className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200/60 dark:border-stone-700/50 text-10">
                     ↵
                   </kbd>
                   <span className="ml-0.5">{t("sidebar.open")}</span>

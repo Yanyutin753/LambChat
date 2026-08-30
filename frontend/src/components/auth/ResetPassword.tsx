@@ -176,14 +176,14 @@ export function ResetPassword() {
             <h1 className="text-2xl font-bold tracking-[-0.02em] text-stone-900 dark:text-stone-100 mb-1 font-serif">
               {t("auth.resetPassword")}
             </h1>
-            <p className="text-[13px] leading-relaxed text-stone-400 dark:text-stone-500">
+            <p className="text-13 leading-relaxed text-stone-400 dark:text-stone-500">
               {t("auth.resetPasswordDesc")}
             </p>
           </div>
           <div className="auth-panel rounded-[1.35rem] p-4 sm:rounded-2xl sm:p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-stone-600 dark:text-stone-400">
+                <label className="mb-1.5 block text-13 font-medium text-stone-600 dark:text-stone-400">
                   {t("auth.newPassword")}
                 </label>
                 <PasswordInput
@@ -196,7 +196,7 @@ export function ResetPassword() {
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-stone-600 dark:text-stone-400">
+                <label className="mb-1.5 block text-13 font-medium text-stone-600 dark:text-stone-400">
                   {t("auth.confirmNewPassword")}
                 </label>
                 <PasswordInput

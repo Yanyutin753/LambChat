@@ -38,7 +38,7 @@ export function CTASection({ onLogin }: CTASectionProps) {
         <p
           data-reveal
           data-reveal-delay="1"
-          className="blog-prose text-stone-400 dark:text-stone-500 mb-12 sm:mb-14 text-sm sm:text-[15px] max-w-md mx-auto leading-[1.8] px-2"
+          className="blog-prose text-stone-400 dark:text-stone-500 mb-12 sm:mb-14 text-sm sm:text-15 max-w-md mx-auto leading-[1.8] px-2"
         >
           {t("landing.ctaDescription")}
         </p>

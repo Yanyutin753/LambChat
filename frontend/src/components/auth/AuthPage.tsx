@@ -893,7 +893,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   className="auth-footer-divider w-32 sm:w-40"
                   aria-hidden="true"
                 />
-                <div className="flex flex-wrap items-center justify-center gap-x-2 text-[10px] text-stone-400 dark:text-stone-500 sm:gap-x-3 sm:text-xs">
+                <div className="flex flex-wrap items-center justify-center gap-x-2 text-10 text-stone-400 dark:text-stone-500 sm:gap-x-3 sm:text-xs">
                   <a
                     href={GITHUB_URL}
                     target="_blank"
