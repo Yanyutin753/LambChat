@@ -28,6 +28,8 @@ import {
   MemoryStoreItem,
   AskHumanItem,
   ToolSearchItem,
+  ConversationHistoryItem,
+  SkillSearchItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { parsePartialToolArgs } from "./items/partialToolArgs";
@@ -474,6 +476,40 @@ export function MessagePartRenderer({
     if (part.name === "search_tools") {
       return (
         <ToolSearchItem
+          id={part.id}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    // Detect conversation history SOP tools, use dedicated component
+    if (
+      part.name === "search_conversation_history" ||
+      part.name === "get_conversation_detail"
+    ) {
+      return (
+        <ConversationHistoryItem
+          id={part.id}
+          toolName={part.name}
+          args={toolArgs}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    // Detect skill search, use dedicated component (shows matched skill metadata as cards)
+    if (part.name === "search_skills") {
+      return (
+        <SkillSearchItem
           id={part.id}
           args={toolArgs}
           result={part.result}
