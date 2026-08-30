@@ -108,6 +108,9 @@ class ErrorCode(Enum):
 
     # ---------- user / role：用户与角色 ----------
     USER_NOT_FOUND = ("user_not_found", 404, "User not found")
+    USERNAME_EXISTS = ("username_exists", 409, "Username '{{username}}' already exists")
+    EMAIL_EXISTS = ("email_exists", 409, "Email '{{email}}' is already registered")
+    USERNAME_OR_EMAIL_EXISTS = ("username_or_email_exists", 409, "Username or email already exists")
     INVALID_PROFILE_FIELD_LIST = (
         "invalid_profile_field_list",
         400,
@@ -125,6 +128,8 @@ class ErrorCode(Enum):
         "Invalid theme: {{theme}}. Must be 'light', 'dark' or 'sepia'",
     )
     ROLE_NOT_FOUND = ("role_not_found", 404, "Role not found")
+    ROLE_NAME_EXISTS = ("role_name_exists", 409, "Role name '{{name}}' already exists")
+    SYSTEM_ROLE_PROTECTED = ("system_role_protected", 400, "System roles cannot be modified or deleted")
     CANNOT_CHANGE_OWN_ROLE_PERMISSIONS = (
         "cannot_change_own_role_permissions",
         403,
@@ -622,6 +627,7 @@ class ErrorCode(Enum):
 
     # ---------- chat / agent：对话与执行 ----------
     INVALID_ATTACHMENTS = ("invalid_attachments", 400, "Invalid attachments")
+    AGENT_NOT_REGISTERED = ("agent_not_registered", 422, "Agent '{{agent}}' is not registered")
     AGENT_ERROR = ("agent_error", 500, "Agent execution failed")
     LLM_ERROR = ("llm_error", 500, "LLM call failed")
     TOOL_ERROR = ("tool_error", 500, "Tool execution failed")

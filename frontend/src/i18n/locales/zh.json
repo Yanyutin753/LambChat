@@ -621,7 +621,13 @@
     "taskExpired": "任务已过期",
     "forceRelogin": "用户权限已变更，请重新登录",
     "tokenExpired": "登录已过期，请重新登录",
-    "methodNotAllowed": "请求方法不支持"
+    "methodNotAllowed": "请求方法不支持",
+    "usernameExists": "用户名 {{username}} 已存在",
+    "emailExists": "邮箱 {{email}} 已被注册",
+    "usernameOrEmailExists": "用户名或邮箱已存在",
+    "roleNameExists": "角色名 {{name}} 已存在",
+    "systemRoleProtected": "系统角色不可修改或删除",
+    "agentNotRegistered": "Agent '{{agent}}' 未注册"
   },
   "categories": {
     "agent": "代理",

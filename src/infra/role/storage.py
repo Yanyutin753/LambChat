@@ -15,6 +15,7 @@ from src.infra.logging import get_logger
 from src.infra.storage.redis import create_redis_client
 from src.infra.utils.datetime import to_iso, utc_now
 from src.kernel.config import settings
+from src.kernel.errors import ErrorCode
 from src.kernel.exceptions import NotFoundError, ValidationError
 from src.kernel.schemas.role import Role, RoleCreate, RoleLimits, RoleUpdate
 from src.kernel.types import Permission
@@ -186,7 +187,7 @@ class RoleStorage:
         # 检查角色名是否存在
         existing = await self.get_by_name(role_data.name)
         if existing:
-            raise ValidationError(f"角色 '{role_data.name}' 已存在")
+            raise ValidationError(ErrorCode.ROLE_NAME_EXISTS, args={"name": role_data.name})
 
         now = utc_now()
         role_dict: dict[str, Any] = {
@@ -320,10 +321,10 @@ class RoleStorage:
         # 获取现有角色
         existing = await self.get_by_id(role_id)
         if not existing:
-            raise NotFoundError(f"角色 '{role_id}' 不存在")
+            raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
         if existing.is_system:
-            raise ValidationError("系统角色不可修改")
+            raise ValidationError(ErrorCode.SYSTEM_ROLE_PROTECTED, message="System roles cannot be modified")
 
         update_dict: dict = {"updated_at": utc_now()}
 
@@ -331,7 +332,7 @@ class RoleStorage:
             # 检查新名称是否已存在
             name_check = await self.get_by_name(role_data.name)
             if name_check and name_check.id != role_id:
-                raise ValidationError(f"角色名 '{role_data.name}' 已存在")
+                raise ValidationError(ErrorCode.ROLE_NAME_EXISTS, args={"name": role_data.name})
             update_dict["name"] = role_data.name
 
         if role_data.description is not None:
@@ -352,7 +353,7 @@ class RoleStorage:
         )
 
         if not result:
-            raise NotFoundError(f"角色 '{role_id}' 不存在")
+            raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
         result["id"] = str(result.pop("_id"))
         role = Role(**_normalize_role_dict(result))
@@ -386,7 +387,7 @@ class RoleStorage:
         # 检查是否为系统角色
         existing = await self.get_by_id(role_id)
         if existing and existing.is_system:
-            raise ValidationError("系统角色不可删除")
+            raise ValidationError(ErrorCode.SYSTEM_ROLE_PROTECTED, message="System roles cannot be deleted")
 
         from bson import ObjectId
 

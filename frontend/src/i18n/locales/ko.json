@@ -621,7 +621,13 @@
     "taskExpired": "작업이 만료되었습니다",
     "forceRelogin": "사용자 권한이 변경되었습니다. 다시 로그인해 주세요",
     "tokenExpired": "로그인이 만료되었습니다. 다시 로그인해 주세요",
-    "methodNotAllowed": "지원하지 않는 요청 메서드입니다"
+    "methodNotAllowed": "지원하지 않는 요청 메서드입니다",
+    "usernameExists": "사용자 이름 {{username}}이(가) 이미 존재합니다",
+    "emailExists": "이메일 {{email}}이(가) 이미 등록되어 있습니다",
+    "usernameOrEmailExists": "사용자 이름 또는 이메일이 이미 존재합니다",
+    "roleNameExists": "역할 이름 {{name}}이(가) 이미 존재합니다",
+    "systemRoleProtected": "시스템 역할은 수정하거나 삭제할 수 없습니다",
+    "agentNotRegistered": "에이전트 '{{agent}}'이(가) 등록되어 있지 않습니다"
   },
   "categories": {
     "agent": "에이전트",

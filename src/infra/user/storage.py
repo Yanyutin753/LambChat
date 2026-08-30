@@ -14,6 +14,7 @@ from src.infra.auth.password import hash_password, verify_password
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
+from src.kernel.errors import ErrorCode
 from src.kernel.exceptions import NotFoundError, ValidationError
 from src.kernel.schemas.user import User, UserCreate, UserInDB, UserUpdate
 
@@ -216,12 +217,12 @@ class UserStorage:
             # 解析哪个字段重复
             error_msg = str(e)
             if "username" in error_msg or "username_1" in error_msg:
-                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
+                raise ValidationError(ErrorCode.USERNAME_EXISTS, args={"username": user_data.username})
             elif "email" in error_msg or "email_1" in error_msg:
-                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+                raise ValidationError(ErrorCode.EMAIL_EXISTS, args={"email": user_data.email})
             else:
                 # 未知重复键错误
-                raise ValidationError("用户名或邮箱已存在")
+                raise ValidationError(ErrorCode.USERNAME_OR_EMAIL_EXISTS)
 
     async def get_by_id(self, user_id: str) -> Optional[UserInDB]:
         """
@@ -374,7 +375,7 @@ class UserStorage:
             )
 
             if not result:
-                raise NotFoundError(f"用户 '{user_id}' 不存在")
+                raise NotFoundError(ErrorCode.USER_NOT_FOUND)
 
             result["id"] = str(result.pop("_id"))
             try:
@@ -388,12 +389,12 @@ class UserStorage:
             # 解析哪个字段重复
             error_msg = str(e)
             if "username" in error_msg or "username_1" in error_msg:
-                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
+                raise ValidationError(ErrorCode.USERNAME_EXISTS, args={"username": user_data.username})
             elif "email" in error_msg or "email_1" in error_msg:
-                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+                raise ValidationError(ErrorCode.EMAIL_EXISTS, args={"email": user_data.email})
             else:
                 # 未知重复键错误
-                raise ValidationError("用户名或邮箱已存在")
+                raise ValidationError(ErrorCode.USERNAME_OR_EMAIL_EXISTS)
 
     async def delete(self, user_id: str) -> bool:
         """
@@ -662,7 +663,7 @@ class UserStorage:
         )
 
         if not result:
-            raise NotFoundError(f"用户 '{user_id}' 不存在")
+            raise NotFoundError(ErrorCode.USER_NOT_FOUND)
 
         result["id"] = str(result.pop("_id"))
         try:

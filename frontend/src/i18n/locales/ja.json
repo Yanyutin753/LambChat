@@ -621,7 +621,13 @@
     "taskExpired": "タスクの有効期限が切れました",
     "forceRelogin": "ユーザー権限が変更されました。再ログインしてください",
     "tokenExpired": "ログインの有効期限が切れました。再ログインしてください",
-    "methodNotAllowed": "許可されていないHTTPメソッドです"
+    "methodNotAllowed": "許可されていないHTTPメソッドです",
+    "usernameExists": "ユーザー名 {{username}} は既に存在します",
+    "emailExists": "メールアドレス {{email}} は既に登録されています",
+    "usernameOrEmailExists": "ユーザー名またはメールアドレスが既に存在します",
+    "roleNameExists": "ロール名 {{name}} は既に存在します",
+    "systemRoleProtected": "システムロールは変更・削除できません",
+    "agentNotRegistered": "エージェント '{{agent}}' は登録されていません"
   },
   "categories": {
     "agent": "エージェント",

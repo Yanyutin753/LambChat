@@ -621,7 +621,13 @@
     "taskExpired": "Срок задачи истёк",
     "forceRelogin": "Права пользователя изменены, войдите заново",
     "tokenExpired": "Срок действия входа истёк, войдите заново",
-    "methodNotAllowed": "Метод запроса не поддерживается"
+    "methodNotAllowed": "Метод запроса не поддерживается",
+    "usernameExists": "Имя пользователя {{username}} уже занято",
+    "emailExists": "Адрес {{email}} уже зарегистрирован",
+    "usernameOrEmailExists": "Имя пользователя или почта уже существуют",
+    "roleNameExists": "Роль с именем {{name}} уже существует",
+    "systemRoleProtected": "Системные роли нельзя изменять или удалять",
+    "agentNotRegistered": "Агент «{{agent}}» не зарегистрирован"
   },
   "categories": {
     "agent": "Агент",

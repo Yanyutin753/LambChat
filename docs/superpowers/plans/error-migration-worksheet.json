@@ -100,7 +100,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 153,
+  "line": 154,
   "exception": "AuthorizationError",
   "kind": "kernel",
   "args_count": 1,
@@ -108,7 +108,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 162,
+  "line": 163,
   "exception": "AuthorizationError",
   "kind": "kernel",
   "args_count": 1,
@@ -116,7 +116,7 @@
  },
  {
   "file": "src/api/routes/chat.py",
-  "line": 168,
+  "line": 169,
   "exception": "AuthorizationError",
   "kind": "kernel",
   "args_count": 1,

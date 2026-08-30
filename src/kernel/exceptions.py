@@ -22,12 +22,20 @@ class _RetrofittedError(AppError):
 
     _default_code: ErrorCode
 
-    def __init__(self, code_or_message: CodeOrMessage = None):
+    def __init__(
+        self,
+        code_or_message: CodeOrMessage = None,
+        *,
+        args: dict | None = None,
+        message: str | None = None,
+    ):
         if isinstance(code_or_message, ErrorCode):
-            super().__init__(code_or_message)
+            super().__init__(code_or_message, args=args, message=message)
         else:
             super().__init__(
-                self._default_code, message=code_or_message or self._default_code.default_message
+                self._default_code,
+                args=args,
+                message=code_or_message or message or self._default_code.default_message,
             )
 
 

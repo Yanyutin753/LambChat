@@ -621,7 +621,13 @@
     "taskExpired": "Task expired",
     "forceRelogin": "User permissions have changed. Please log in again",
     "tokenExpired": "Token has expired",
-    "methodNotAllowed": "Method not allowed"
+    "methodNotAllowed": "Method not allowed",
+    "usernameExists": "Username '{{username}}' already exists",
+    "emailExists": "Email '{{email}}' is already registered",
+    "usernameOrEmailExists": "Username or email already exists",
+    "roleNameExists": "Role name '{{name}}' already exists",
+    "systemRoleProtected": "System roles cannot be modified or deleted",
+    "agentNotRegistered": "Agent '{{agent}}' is not registered"
   },
   "categories": {
     "agent": "Agent",
