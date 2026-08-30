@@ -142,7 +142,7 @@ INFRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.REDIS,
         "subcategory": "task",
         "description": "settingDesc.TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS",
-        "default": 120,
+        "default": 15,
         "depends_on": {"key": "TASK_BACKEND", "value": "arq"},
         "frontend_visible": False,
     },
