@@ -1,10 +1,11 @@
 """Team CRUD routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_current_user_required
 from src.api.server_timing import timed_server_phase
 from src.infra.team.manager import TeamManager
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import NotFoundError
 from src.kernel.schemas.team import (
     TeamCreate,
@@ -56,7 +57,7 @@ async def create_team(
     try:
         return await manager.create_team(body, owner_user_id=user.sub, user=user)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.TEAM_ERROR, message=str(e))
 
 
 @router.get("/{team_id}", response_model=TeamResponse)
@@ -68,7 +69,7 @@ async def get_team(
     try:
         return await manager.get_team(team_id, owner_user_id=user.sub)
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="team_not_found")
+        raise AppError(ErrorCode.TEAM_NOT_FOUND)
 
 
 @router.put("/{team_id}", response_model=TeamResponse)
@@ -81,9 +82,9 @@ async def update_team(
     try:
         return await manager.update_team(team_id, body, owner_user_id=user.sub, user=user)
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="team_not_found")
+        raise AppError(ErrorCode.TEAM_NOT_FOUND)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.TEAM_ERROR, message=str(e))
 
 
 @router.patch("/{team_id}/preference", response_model=TeamResponse)
@@ -100,7 +101,7 @@ async def update_team_preference(
             owner_user_id=user.sub,
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="team_not_found")
+        raise AppError(ErrorCode.TEAM_NOT_FOUND)
 
 
 @router.delete("/{team_id}", status_code=204)
@@ -112,7 +113,7 @@ async def delete_team(
     try:
         await manager.delete_team(team_id, owner_user_id=user.sub)
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="team_not_found")
+        raise AppError(ErrorCode.TEAM_NOT_FOUND)
 
 
 @router.post("/{team_id}/clone", response_model=TeamResponse, status_code=201)
@@ -124,4 +125,4 @@ async def clone_team(
     try:
         return await manager.clone_team(team_id, owner_user_id=user.sub)
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="team_not_found")
+        raise AppError(ErrorCode.TEAM_NOT_FOUND)

@@ -2,11 +2,12 @@
 Signed URL API routes for upload-backed files.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.infra.logging import get_logger
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
@@ -118,10 +119,7 @@ async def get_single_signed_url(
     """
     del current_user
     if expires < 60 or expires > 86400:
-        raise HTTPException(
-            status_code=400,
-            detail="expires must be between 60 and 86400 seconds",
-        )
+        raise AppError(ErrorCode.INVALID_EXPIRES_RANGE)
 
     from src.api.routes import upload as upload_route
 

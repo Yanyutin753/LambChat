@@ -141,6 +141,8 @@ async def preview_zip_skills(
             max_size_mb=max_size_mb,
             purpose="ZIP file",
         )
+    except AppError:
+        raise
     except Exception:
         raise AppError(ErrorCode.FILE_READ_FAILED)
 
@@ -181,6 +183,8 @@ async def upload_skill_from_zip(
             max_size_mb=max_size_mb,
             purpose="ZIP file",
         )
+    except AppError:
+        raise
     except Exception:
         raise AppError(ErrorCode.FILE_READ_FAILED)
 

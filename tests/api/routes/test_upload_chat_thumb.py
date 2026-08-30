@@ -15,6 +15,7 @@ import pytest
 from PIL import Image
 
 from src.api.routes import upload
+from src.kernel.errors import AppError
 
 
 @pytest.fixture(autouse=True)
@@ -108,9 +109,10 @@ async def test_thumb_404s_for_unsupported_types_without_traffic(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     for key in ("a/b/anim.gif", "a/b/icon.svg", "a/b/archive.zip", "a/b/clip.mp4"):
-        with pytest.raises(upload.HTTPException) as exc:
+        with pytest.raises(AppError) as exc:
             await upload.get_file_proxy(key, _fake_request(), thumb=True)
-        assert exc.value.status_code == 404
+        assert exc.value.error_code.code == "thumb_not_available"
+        assert exc.value.http_status == 404
 
     assert storage.presigned_calls == []
 
@@ -195,9 +197,10 @@ async def test_thumb_local_missing_file_404s(monkeypatch: pytest.MonkeyPatch, tm
         _async_of(_FakeLocalStorage(tmp_path / "nope.jpg")),
     )
 
-    with pytest.raises(upload.HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await upload.get_file_proxy("revealed_files/nope.jpg", _fake_request(), thumb=True)
-    assert exc.value.status_code == 404
+    assert exc.value.error_code.code == "file_not_found"
+    assert exc.value.http_status == 404
 
 
 # ── 其他 S3 厂商：渲染一次 + 缓存到原文件旁边 ────────────────────────────
@@ -277,9 +280,10 @@ async def test_thumb_non_aliyun_skips_oversized_sources(
     storage = _FakeRenderStorage(size=80 * 1024 * 1024)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    with pytest.raises(upload.HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await upload.get_file_proxy("revealed_files/huge.jpg", _fake_request(), thumb=True)
-    assert exc.value.status_code == 404
+    assert exc.value.error_code.code == "thumb_not_available"
+    assert exc.value.http_status == 404
     assert storage.downloads == []
 
 

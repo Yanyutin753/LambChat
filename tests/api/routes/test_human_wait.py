@@ -4,10 +4,10 @@ import asyncio
 import json
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes import human
 from src.infra.storage.mongodb import ApprovalResponse
+from src.kernel.errors import AppError
 
 
 @pytest.mark.asyncio
@@ -140,14 +140,15 @@ async def test_respond_to_approval_uses_atomic_pending_update(
     monkeypatch.setattr(human, "_approval_storage", _FakeApprovalStorage())
     monkeypatch.setattr(human, "notify_approval_response", fake_notify)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await human.respond_to_approval(
             "approval-1",
             approved=True,
             response="{}",
         )
 
-    assert exc.value.status_code == 400
+    assert exc.value.error_code.code == "approval_already_handled"
+    assert exc.value.http_status == 400
     assert notified == []
 
 
@@ -185,10 +186,11 @@ async def test_interrupt_resume_failure_restores_pending_approval(
     monkeypatch.setattr(human, "notify_approval_response", fake_notify)
     monkeypatch.setattr("src.infra.task.hitl.submit_hitl_resume_run", fake_submit)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await human.respond_to_approval("approval-1", approved=True, response="{}")
 
-    assert exc.value.status_code == 503
+    assert exc.value.error_code.code == "human_resume_submit_failed"
+    assert exc.value.http_status == 503
     assert restored == [("approval-1", "approved")]
 
 
@@ -346,10 +348,11 @@ async def test_concurrent_arq_responses_activate_only_the_atomic_winner(
     )
 
     successes = [result for result in results if isinstance(result, dict)]
-    conflicts = [result for result in results if isinstance(result, HTTPException)]
+    conflicts = [result for result in results if isinstance(result, AppError)]
     assert len(successes) == 1
     assert len(conflicts) == 1
-    assert conflicts[0].status_code == 400
+    assert conflicts[0].error_code.code == "approval_already_handled"
+    assert conflicts[0].http_status == 400
     assert prepare_count == 2
     assert len(activated) == 1
 

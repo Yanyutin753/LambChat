@@ -3,10 +3,11 @@
 from functools import lru_cache
 
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.infra.notification.manager import NotificationManager
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.notification import (
     Notification,
     NotificationCreate,
@@ -73,10 +74,7 @@ async def update_notification(
     except (InvalidId, ValueError):
         result = None
     if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notification not found",
-        )
+        raise AppError(ErrorCode.NOTIFICATION_NOT_FOUND)
     return result
 
 
@@ -88,10 +86,7 @@ async def delete_notification(
 ) -> dict:
     success = await manager.delete(notification_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notification not found",
-        )
+        raise AppError(ErrorCode.NOTIFICATION_NOT_FOUND)
     return {"status": "deleted"}
 
 

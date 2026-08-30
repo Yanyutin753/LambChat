@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import require_permissions
 from src.infra.scheduler.service import ScheduledTaskService
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.scheduled_task import (
     ScheduledTask,
     ScheduledTaskCreate,
@@ -35,7 +36,7 @@ async def _require_owned_task(
     """Load task and verify ownership. Raises 404 if not found or forbidden."""
     task = await service.get_task(task_id)
     if task is None or task.owner_id != user.sub:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise AppError(ErrorCode.TASK_NOT_FOUND)
     return task
 
 
@@ -52,7 +53,7 @@ async def create_scheduled_task(
     try:
         task = await service.create_task(body, owner_id=user.sub)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise AppError(ErrorCode.SCHEDULED_TASK_ERROR, message=str(exc)) from exc
     return await service.get_task_response(task)
 
 
@@ -101,9 +102,9 @@ async def update_scheduled_task(
     try:
         updated = await service.update_task(task_id, body)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise AppError(ErrorCode.SCHEDULED_TASK_ERROR, message=str(exc)) from exc
     if updated is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise AppError(ErrorCode.TASK_NOT_FOUND)
     return await service.get_task_response(updated)
 
 
@@ -120,7 +121,7 @@ async def pause_scheduled_task(
     await _require_owned_task(task_id, user, service)
     updated = await service.pause_task(task_id)
     if updated is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise AppError(ErrorCode.TASK_NOT_FOUND)
     return await service.get_task_response(updated)
 
 
@@ -134,7 +135,7 @@ async def resume_scheduled_task(
     await _require_owned_task(task_id, user, service)
     updated = await service.resume_task(task_id)
     if updated is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise AppError(ErrorCode.TASK_NOT_FOUND)
     return await service.get_task_response(updated)
 
 

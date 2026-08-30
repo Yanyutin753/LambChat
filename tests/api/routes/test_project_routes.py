@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.api.routes import project as project_route
+from src.kernel.errors import AppError
 
 
 class _FakeProjectStorage:
@@ -168,15 +169,15 @@ async def test_delete_project_with_delete_sessions_stops_when_session_delete_fai
     monkeypatch.setattr(project_route, "SessionStorage", lambda: session_storage)
     monkeypatch.setattr(project_route, "SessionManager", lambda: session_manager)
 
-    with pytest.raises(project_route.HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await project_route.delete_project(
             "project-1",
             delete_sessions=True,
             user=SimpleNamespace(sub="user-1"),
         )
 
-    assert exc_info.value.status_code == 500
-    assert exc_info.value.detail == "删除项目内会话失败"
+    assert exc_info.value.error_code.code == "delete_project_sessions_failed"
+    assert exc_info.value.http_status == 500
     assert session_manager.deleted_sessions == ["session-a"]
     assert project_storage.deleted == []
 

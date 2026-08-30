@@ -4,11 +4,12 @@ import io
 import zipfile
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.api import deps as api_deps
 from src.api.routes import skill as skill_route
+from src.kernel.errors import AppError
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -349,15 +350,15 @@ async def test_preview_zip_rejects_oversized_upload_before_parsing(
         ),
     )
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await skill_route.preview_zip_skills(
             file=_ChunkedUpload(filename="skills.zip", data=b"x" * (1024 * 1024 + 1)),
             user=_fake_user(),
             storage=_StorageShouldNotBeCalled(),
         )
 
-    assert exc.value.status_code == 400
-    assert exc.value.detail == "Failed to read file content"
+    assert exc.value.error_code.code == "file_too_large"
+    assert exc.value.http_status == 413
 
 
 def test_skill_upload_size_treats_string_false_as_local(
@@ -662,15 +663,16 @@ async def test_batch_delete_skills_rejects_large_name_lists_before_storage() -> 
         async def delete_skill_and_meta(self, *args, **kwargs):
             raise AssertionError("large batch should be rejected before storage access")
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await skill_route.batch_delete_skills(
             skill_route.BatchDeleteRequest(names=[f"skill-{index}" for index in range(101)]),
             user=_fake_user(),
             storage=_StorageShouldNotBeCalled(),
         )
 
-    assert exc.value.status_code == 400
-    assert exc.value.detail == "Cannot process more than 100 skills at once"
+    assert exc.value.error_code.code == "skill_batch_limit"
+    assert exc.value.args_data == {"max": 100}
+    assert exc.value.http_status == 400
 
 
 @pytest.mark.asyncio
@@ -679,7 +681,7 @@ async def test_batch_toggle_skills_rejects_large_name_lists_before_storage() -> 
         async def list_skill_file_paths(self, *args, **kwargs):
             raise AssertionError("large batch should be rejected before storage access")
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await skill_route.batch_toggle_skills(
             skill_route.BatchToggleRequest(
                 names=[f"skill-{index}" for index in range(101)],
@@ -689,8 +691,9 @@ async def test_batch_toggle_skills_rejects_large_name_lists_before_storage() -> 
             storage=_StorageShouldNotBeCalled(),
         )
 
-    assert exc.value.status_code == 400
-    assert exc.value.detail == "Cannot process more than 100 skills at once"
+    assert exc.value.error_code.code == "skill_batch_limit"
+    assert exc.value.args_data == {"max": 100}
+    assert exc.value.http_status == 400
 
 
 @pytest.mark.asyncio

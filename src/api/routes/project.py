@@ -4,12 +4,13 @@
 所有项目操作都需要认证，用户只能访问自己的项目。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from src.api.deps import get_current_user_required
 from src.infra.folder.storage import get_project_storage
 from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.project import Project, ProjectCreate, ProjectUpdate
 from src.kernel.schemas.user import TokenPayload
 
@@ -66,10 +67,7 @@ async def create_project(
 
     # Prevent creating favorites project manually
     if project_data.type == "favorites":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="不能创建收藏项目",
-        )
+        raise AppError(ErrorCode.CANNOT_CREATE_FAVORITES_PROJECT)
 
     project = await storage.create(project_data, user.sub)
     return project
@@ -91,17 +89,11 @@ async def update_project(
     # Check if project exists and belongs to user
     project = await storage.get_by_id(project_id, user.sub)
     if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="项目不存在",
-        )
+        raise AppError(ErrorCode.PROJECT_NOT_FOUND)
 
     updated_project = await storage.update(project_id, user.sub, project_data)
     if not updated_project:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="更新失败",
-        )
+        raise AppError(ErrorCode.UPDATE_FAILED)
 
     return updated_project
 
@@ -124,17 +116,11 @@ async def delete_project(
     # Check if project exists and belongs to user
     project = await storage.get_by_id(project_id, user.sub)
     if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="项目不存在",
-        )
+        raise AppError(ErrorCode.PROJECT_NOT_FOUND)
 
     # Prevent deleting favorites project
     if project.type == "favorites":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="不能删除收藏项目",
-        )
+        raise AppError(ErrorCode.CANNOT_DELETE_FAVORITES_PROJECT)
 
     session_storage = SessionStorage()
 
@@ -146,10 +132,7 @@ async def delete_project(
         for session_id in session_ids:
             deleted = await _delete_session_with_related_records(session_manager, session_id)
             if not deleted:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="删除项目内会话失败",
-                )
+                raise AppError(ErrorCode.DELETE_PROJECT_SESSIONS_FAILED)
     else:
         # Clear project_id for all sessions in this project
         await session_storage.clear_project_id(project_id, user.sub)
@@ -191,9 +174,6 @@ async def delete_project(
     # Delete the project
     success = await storage.delete(project_id, user.sub)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="删除失败",
-        )
+        raise AppError(ErrorCode.DELETE_FAILED)
 
     return {"status": "deleted"}

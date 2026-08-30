@@ -16,7 +16,7 @@ import uuid
 from collections import OrderedDict
 from typing import Callable, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import require_permissions
 from src.infra.async_utils import run_blocking_io
@@ -31,6 +31,7 @@ from src.infra.storage.mongodb import (
 )
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
@@ -296,7 +297,7 @@ async def respond_to_approval(
     )
     approval = await _approval_storage.get(approval_id)
     if not approval:
-        raise HTTPException(status_code=404, detail="审批请求不存在")
+        raise AppError(ErrorCode.APPROVAL_NOT_FOUND)
 
     if approval.status != "pending":
         logger.info(
@@ -304,7 +305,7 @@ async def respond_to_approval(
             approval_id,
             approval.status,
         )
-        raise HTTPException(status_code=400, detail="审批请求已处理")
+        raise AppError(ErrorCode.APPROVAL_ALREADY_HANDLED)
 
     # 解析 JSON 响应数据
     try:
@@ -340,9 +341,10 @@ async def respond_to_approval(
             prepare_only=True,
         )
         if not resume_result.get("submitted"):
-            raise HTTPException(
-                status_code=503,
-                detail=resume_result.get("message") or "恢复任务提交失败，请重试",
+            resume_message = resume_result.get("message")
+            raise AppError(
+                ErrorCode.HUMAN_RESUME_SUBMIT_FAILED,
+                message=resume_message or "Failed to submit resume task, please retry",
             )
         updated_approval = await respond_with_metadata(
             approval_id,
@@ -351,14 +353,14 @@ async def respond_to_approval(
             {"resume_attempt_id": resume_attempt_id},
         )
         if updated_approval is None:
-            raise HTTPException(status_code=400, detail="审批请求已处理")
+            raise AppError(ErrorCode.APPROVAL_ALREADY_HANDLED)
         await activate_hitl_resume_attempt(approval_id, resume_attempt_id)
     else:
         respond_if_pending = getattr(_approval_storage, "respond_if_pending", None)
         if callable(respond_if_pending):
             updated_approval = await respond_if_pending(approval_id, status, approval_response)
             if updated_approval is None:
-                raise HTTPException(status_code=400, detail="审批请求已处理")
+                raise AppError(ErrorCode.APPROVAL_ALREADY_HANDLED)
         else:
             await _approval_storage.update_status(approval_id, status, approval_response)
 
@@ -371,9 +373,10 @@ async def respond_to_approval(
                 restore_pending = getattr(_approval_storage, "restore_pending_if_status", None)
                 if callable(restore_pending):
                     await restore_pending(approval_id, status)
-                raise HTTPException(
-                    status_code=503,
-                    detail=resume_result.get("message") or "恢复任务提交失败，请重试",
+                resume_message = resume_result.get("message")
+                raise AppError(
+                    ErrorCode.HUMAN_RESUME_SUBMIT_FAILED,
+                    message=resume_message or "Failed to submit resume task, please retry",
                 )
 
     # interrupt 审批创建时不过期（无超时），响应成功后设置 GC 过期时间
@@ -444,7 +447,7 @@ async def cancel_approval(approval_id: str):
     """取消审批请求"""
     approval = await _approval_storage.get(approval_id)
     if not approval:
-        raise HTTPException(status_code=404, detail="审批请求不存在")
+        raise AppError(ErrorCode.APPROVAL_NOT_FOUND)
 
     # 删除 MongoDB 记录
     await _approval_storage.delete(approval_id)

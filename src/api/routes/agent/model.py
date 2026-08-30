@@ -10,11 +10,12 @@ Model 配置路由
 - 批量导入模型
 """
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends
 
 from src.api.deps import require_permissions
 from src.infra.agent.model_storage import ModelStorage, get_model_storage
 from src.infra.logging import get_logger
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.model import (
     AvailableModel,
     AvailableModelListResponse,
@@ -36,10 +37,7 @@ MODEL_BATCH_MAX_ITEMS = 200
 
 def _reject_oversized_model_batch(count: int) -> None:
     if count > MODEL_BATCH_MAX_ITEMS:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Cannot process more than {MODEL_BATCH_MAX_ITEMS} models at once",
-        )
+        raise AppError(ErrorCode.MODEL_BATCH_LIMIT, args={"max": MODEL_BATCH_MAX_ITEMS})
 
 
 async def _clear_deleted_compaction_model_reference(
@@ -395,7 +393,7 @@ async def batch_create_models(
     models = body.get("models", [])
 
     if not models or not isinstance(models, list):
-        raise HTTPException(status_code=400, detail="models must be a non-empty list")
+        raise AppError(ErrorCode.MODELS_REQUIRED)
     _reject_oversized_model_batch(len(models))
 
     # Validate provider if provided
@@ -403,10 +401,7 @@ async def batch_create_models(
     provider = None
     if raw_provider:
         if not isinstance(raw_provider, str) or not raw_provider.strip():
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid provider '{raw_provider}'. Must be a non-empty string.",
-            )
+            raise AppError(ErrorCode.INVALID_PROVIDER, args={"provider": raw_provider})
         provider = raw_provider.strip()
 
     storage = get_model_storage()

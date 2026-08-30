@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes import share as share_route
+from src.kernel.errors import AppError
 from src.kernel.schemas.share import (
     ShareCreate,
     ShareScope,
@@ -166,11 +166,11 @@ async def test_create_share_rejects_partial_share_with_too_many_run_ids(
         visibility=ShareVisibility.PUBLIC,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await share_route.create_share(share_data, user=user)
 
-    assert exc_info.value.status_code == 400
-    assert "run_ids" in exc_info.value.detail
+    assert exc_info.value.error_code.code == "share_run_ids_limit"
+    assert exc_info.value.http_status == 400
 
 
 @pytest.mark.asyncio
