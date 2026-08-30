@@ -348,6 +348,16 @@ class MyAgent(BaseGraphAgent):
         return {"output": "done"}
 ```
 
+### 统一错误码（Error Codes）
+
+**规矩：后端所有面向前端的错误必须走 `src/kernel/errors.py` 的 `ErrorCode` 枚举 + `AppError`，禁止在路由层 `raise HTTPException`，禁止硬编码中文错误消息。**
+
+- 错误响应契约：`{"detail": {"code": "<snake_case>", "message": "<英文兜底>", "args": {...}}}`，由 `src/api/error_handlers.py` 的全局处理器序列化；SSE 错误事件统一带 `code` 字段。
+- 新增错误：在 `ErrorCode` 加 `(code, http_status, default_message)` 成员（消息用英文，插值写 `{{param}}` 并通过 `args={"param": value}` 传值），raise 处用 `raise AppError(ErrorCode.XXX, args={...})`；动态原文透传用 `message=str(e)`。
+- 前端翻译：i18n key 为 `backendErrors.<camelCase(code)>`（如 `session_not_found` → `backendErrors.sessionNotFound`），**必须同步更新 zh / en / ja / ko / ru 五个 locale**，可运行 `uv run python scripts/sync_error_locales.py` 生成骨架后补翻。
+- **CI 强制**：`frontend/src/i18n/__tests__/backendErrorCodeCoverage.test.ts` 校验五语全覆盖；`tests/api/test_no_http_exception.py` 禁止路由层 `raise HTTPException`。漏翻或绕过都会直接挂测试。
+- 前端消费：`translateApiError(code, message, args, t)`（`frontend/src/utils/backendErrors.ts`），优先级「码翻译 > 原文映射/正则 > 原文」；error 对象带 `.code` / `.status` / `.args`。
+
 ### 内置系统工具（Internal Tools）
 
 **规矩：后端每写一个内置系统工具，前端必须同步提供专属 Item，禁止落入通用 Wrench 图标兜底。**
