@@ -117,6 +117,7 @@ class _FakePresenter:
         enabled_skills=None,
         attachment_references_claimed: bool = False,
         schedule_search_index: bool = True,
+        run_modes=None,
     ) -> None:
         self.calls.append(
             (
@@ -126,6 +127,7 @@ class _FakePresenter:
                 enabled_skills,
                 attachment_references_claimed,
                 schedule_search_index,
+                run_modes,
             )
         )
 
@@ -504,7 +506,7 @@ async def test_submit_persists_user_message_before_background_task_starts(
     assert (run_id, trace_id) == ("run-1", "trace-1")
     assert _FakePresenter.calls[1:] == [
         ("ensure_trace", "trace-1"),
-        ("emit_user_message", "hello", [{"name": "a.txt"}], ["planning"], True, True),
+        ("emit_user_message", "hello", [{"name": "a.txt"}], ["planning"], True, True, []),
     ]
 
 
@@ -704,7 +706,7 @@ async def test_submit_arq_can_persist_user_message_before_enqueue(
 
     assert _FakePresenter.calls[1:] == [
         ("ensure_trace", "trace-1"),
-        ("emit_user_message", "hello", None, None, True, False),
+        ("emit_user_message", "hello", None, None, True, False, []),
     ]
     assert payload_store.saved[0][1]["user_message_written"] is True
     assert payload_store.saved[0][1]["attachment_references_claimed"] is True
@@ -750,7 +752,7 @@ async def test_submit_arq_persists_scheduled_task_message_with_enabled_skills(
 
     assert _FakePresenter.calls[1:] == [
         ("ensure_trace", "trace-1"),
-        ("emit_user_message", "hello", None, ["planning"], False, False),
+        ("emit_user_message", "hello", None, ["planning"], False, False, ["auto"]),
     ]
     assert fake_executor.ensure_calls[0][1]["session_metadata"] == session_metadata
     assert payload_store.saved[0][1]["enabled_skills"] == ["planning"]
