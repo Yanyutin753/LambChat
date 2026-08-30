@@ -29,9 +29,17 @@ export interface RecommendQuestionsNotification {
   };
 }
 
+export interface UsageUpdatedNotification {
+  type: "usage:updated";
+  data: {
+    trace_id: string;
+  };
+}
+
 export interface WebSocketMessageHandlers {
   onTaskComplete?: (notification: TaskCompleteNotification) => void;
   onRecommendQuestions?: (notification: RecommendQuestionsNotification) => void;
+  onUsageUpdated?: (notification: UsageUpdatedNotification) => void;
   onSessionTaskStatus?: (data: {
     session_id: string;
     task_status: string;
@@ -63,6 +71,12 @@ export function dispatchWebSocketMessage(
       return;
     }
     handlers.onRecommendQuestions?.(message as RecommendQuestionsNotification);
+  } else if (typedMessage.type === "usage:updated") {
+    const data = (message as { data?: unknown }).data;
+    if (!data || typeof data !== "object") return;
+    const payload = data as Record<string, unknown>;
+    if (typeof payload.trace_id !== "string") return;
+    handlers.onUsageUpdated?.(message as UsageUpdatedNotification);
   } else if (typedMessage.type === "session:task_status") {
     const data = (message as { data?: unknown }).data;
     if (data && typeof data === "object") {
@@ -91,6 +105,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
     onTaskComplete,
     onRecommendQuestions,
+    onUsageUpdated,
     onSessionTaskStatus,
     enabled = true,
   } = options;
@@ -100,6 +115,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   );
   const onTaskCompleteRef = useRef(onTaskComplete);
   const onRecommendQuestionsRef = useRef(onRecommendQuestions);
+  const onUsageUpdatedRef = useRef(onUsageUpdated);
   const onSessionTaskStatusRef = useRef(onSessionTaskStatus);
   const isMountedRef = useRef(true);
   const [isConnected, setIsConnected] = useState(false);
@@ -121,6 +137,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   useEffect(() => {
     onRecommendQuestionsRef.current = onRecommendQuestions;
   }, [onRecommendQuestions]);
+
+  useEffect(() => {
+    onUsageUpdatedRef.current = onUsageUpdated;
+  }, [onUsageUpdated]);
 
   useEffect(() => {
     onSessionTaskStatusRef.current = onSessionTaskStatus;
@@ -219,6 +239,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           dispatchWebSocketMessage(message, {
             onTaskComplete: onTaskCompleteRef.current,
             onRecommendQuestions: onRecommendQuestionsRef.current,
+            onUsageUpdated: onUsageUpdatedRef.current,
             onSessionTaskStatus: onSessionTaskStatusRef.current,
           });
         } catch (e) {

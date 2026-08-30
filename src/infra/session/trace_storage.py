@@ -90,40 +90,6 @@ class SessionEventsSnapshot:
     oldest_trace_id: Optional[str] = None
 
 
-async def _write_usage_log(trace_id: str) -> None:
-    """在 trace 完成后，异步将 token 用量写入独立的 usage_logs 集合。"""
-    try:
-        from src.infra.usage.storage import get_usage_storage
-
-        storage = get_usage_storage()
-        collection = storage.collection
-
-        # 只读取 trace 元数据；usage 事件通过兼容读路径从 chunk/legacy 中查询。
-        trace_doc = await collection.database[settings.MONGODB_TRACES_COLLECTION].find_one(
-            {"trace_id": trace_id},
-            {"_id": 0, "events": 0},
-        )
-        if trace_doc:
-            trace_storage = get_trace_storage()
-            usage_event = await trace_storage.get_last_trace_event(
-                trace_id,
-                ["token:usage"],
-            )
-            # 失败的任务也要记录原因（最后一个 error 事件），供用量面板展示
-            error_event = await trace_storage.get_last_trace_event(
-                trace_id,
-                ["error"],
-            )
-            await storage.upsert_usage_log_from_trace_metadata(
-                trace_doc,
-                (usage_event or {}).get("data", {}),
-                error_data=(error_event or {}).get("data", {}),
-            )
-    except Exception as e:
-        # 写入 usage_logs 失败不应影响主流程
-        logger.warning(f"Failed to write usage log for trace {trace_id}: {e}")
-
-
 class TraceStorage(
     TraceStorageWriteMixin,
     TraceEventChunkMixin,

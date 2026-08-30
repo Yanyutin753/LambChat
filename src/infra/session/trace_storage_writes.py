@@ -380,7 +380,7 @@ class TraceStorageWriteMixin:
                 result = await self._complete_trace_after_marker_release(trace_id, update)
             # 异步写入 usage_logs 集合（fire-and-forget，失败不影响主流程）
             if _USAGE_LOGS_ENABLED and result.modified_count > 0:
-                from src.infra.session.trace_storage import _write_usage_log
+                from src.infra.session.trace_usage_log import _write_usage_log
 
                 asyncio.create_task(_write_usage_log(trace_id))
             if result.modified_count > 0 and self._merger is not None:
