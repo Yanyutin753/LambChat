@@ -396,6 +396,29 @@ class TraceStorageWriteMixin:
             logger.error(f"Failed to complete trace {trace_id}: {e}")
             return False
 
+    async def reopen_interrupted_trace(self, trace_id: str) -> bool:
+        """Reopen an error-finalized trace so a seamless resume can append events.
+
+        只允许 error → running：旧关停路径把被中断的 run 终结成了 error，同 run
+        无缝续跑需要 trace 回到 running（running 是历史读取判定"活跃 run"的前置）。
+        completed trace 永不重开，与 complete_trace 的终态保护同一原则。
+        """
+        try:
+            result = await self.collection.update_one(
+                {"trace_id": trace_id, "status": "error"},
+                {
+                    "$set": {"status": "running", "updated_at": utc_now()},
+                    "$unset": {"completed_at": ""},
+                },
+            )
+            if result.modified_count:
+                logger.info("Reopened interrupted trace %s for seamless resume", trace_id)
+                return True
+            return False
+        except Exception as e:
+            logger.warning("Failed to reopen trace %s: %s", trace_id, e)
+            return False
+
     async def _complete_trace_after_marker_release(
         self,
         trace_id: str,

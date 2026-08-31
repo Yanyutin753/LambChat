@@ -183,6 +183,42 @@ class TaskRecoveryService:
         except Exception as e:
             logger.warning("Failed to mark trace failed for run %s: %s", run_id, e)
 
+    async def _strip_terminal_stream_events(self, session_id: str, run_id: str) -> int:
+        """删除 Redis Stream 中残留的终态事件，恢复后 SSE 重放才不会提前断开。
+
+        SSE 读循环遇 error/done/complete 即断流；旧关停路径或跨版本升级可能已经
+        写入了终态事件，同 run 续跑前必须清掉，非终态事件（半截输出）一律保留。
+        """
+        try:
+            from src.infra.session.dual_writer import get_dual_writer
+
+            dual_writer = get_dual_writer()
+            stream_key = dual_writer._stream_key(session_id, run_id)
+            terminal_types = {"error", "done", "complete"}
+            removed = 0
+            entries = await dual_writer.redis.xrange(stream_key, min="-", max="+")
+            for entry_id, fields in entries:
+                if fields.get("event_type") in terminal_types:
+                    await dual_writer.redis.xdel(stream_key, entry_id)
+                    removed += 1
+            if removed:
+                logger.info(
+                    "Stripped %d terminal stream events before seamless resume: "
+                    "session=%s, run_id=%s",
+                    removed,
+                    session_id,
+                    run_id,
+                )
+            return removed
+        except Exception as e:
+            logger.warning(
+                "Failed to strip terminal stream events (session=%s run=%s): %s",
+                session_id,
+                run_id,
+                e,
+            )
+            return 0
+
     async def mark_run_recoverable_failure(
         self,
         session_id: str,
