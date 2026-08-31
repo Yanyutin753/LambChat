@@ -28,9 +28,7 @@ class LangfuseTracer:
         if self._enabled is not None:
             return
         enabled = os.getenv("LANGFUSE_ENABLED", "false").lower() == "true"
-        has_keys = bool(os.getenv("LANGFUSE_PUBLIC_KEY")) and bool(
-            os.getenv("LANGFUSE_SECRET_KEY")
-        )
+        has_keys = bool(os.getenv("LANGFUSE_PUBLIC_KEY")) and bool(os.getenv("LANGFUSE_SECRET_KEY"))
         self._enabled = enabled and has_keys
 
     @property

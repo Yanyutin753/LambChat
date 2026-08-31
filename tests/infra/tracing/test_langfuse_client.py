@@ -97,7 +97,12 @@ async def test_settings_env_sync_for_langfuse(monkeypatch):
         assert os.environ.get("LANGFUSE_HOST") == "http://127.0.0.1:33000"
     finally:
         # Settings 验证器直接写 os.environ，必须手动清理避免污染其他测试。
-        for key in ("LANGFUSE_ENABLED", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST"):
+        for key in (
+            "LANGFUSE_ENABLED",
+            "LANGFUSE_PUBLIC_KEY",
+            "LANGFUSE_SECRET_KEY",
+            "LANGFUSE_HOST",
+        ):
             os.environ.pop(key, None)
 
 
@@ -105,13 +110,9 @@ def test_agent_base_wires_langfuse_handler():
     """结构测试：BaseGraphAgent 必须在 Langfuse 启用时注入 CallbackHandler。"""
     from pathlib import Path
 
-    src = (
-        Path(__file__).resolve().parents[3]
-        / "src"
-        / "agents"
-        / "core"
-        / "base.py"
-    ).read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parents[3] / "src" / "agents" / "core" / "base.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "langfuse" in src
     assert "callback_handler" in src
