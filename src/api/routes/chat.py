@@ -18,6 +18,7 @@ from src.agents.core import resolve_agent_name
 from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
+from src.api.routes.chat_language import apply_response_language
 from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测试导入
     CHAT_SSE_DATA_MAX_BYTES,
     _format_sse_event,
@@ -445,6 +446,9 @@ async def chat_stream(
     active_goal_data = active_goal.model_dump() if active_goal else None
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
+    # 界面 locale 固定回复语言；随 agent_options 全链路透传（task_context /
+    # submit / submit_arq / scheduler 均携带 agent_options）
+    apply_response_language(request.agent_options, http_request.headers.get("accept-language"))
 
     formatted_message = await build_model_facing_message(
         agent_message,

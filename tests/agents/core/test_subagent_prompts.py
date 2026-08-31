@@ -17,6 +17,7 @@ from src.agents.core.subagent_prompts import (
     SUBAGENT_TASK_GUIDE,
     VERIFICATION_RUNNER_PROMPT,
     WORKFLOW_SECTION,
+    build_response_language_section,
 )
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import (
@@ -225,3 +226,42 @@ def test_authored_prompt_sections_place_runtime_before_goal_and_mode() -> None:
         assert "auto_section" not in source
         assert "TurnContextPromptMiddleware" not in source
         assert "VolatileSectionPromptMiddleware" not in source
+
+
+def test_build_response_language_section_pins_ui_locale_with_exceptions() -> None:
+    section = build_response_language_section("zh")
+
+    assert "Simplified Chinese" in section
+    # 界面语言优先于消息/引用内容语言（中文用户贴英文报错仍是中文回复），
+    # 但保留显式例外（OpenAI 提示词指南：给出语言及其改变条件）
+    assert "regardless of the language of the user's message or any quoted content" in section
+    assert "explicitly requests" in section
+    # 代码与报错原文不翻译
+    assert "technical identifiers" in section
+
+
+def test_build_response_language_section_covers_every_frontend_locale() -> None:
+    for language in ("en", "zh", "ja", "ko", "ru"):
+        assert build_response_language_section(language)
+
+
+def test_build_response_language_section_ignores_unknown_or_missing_locale() -> None:
+    # 无法识别界面语言时不注入提示段，保留模型跟随用户消息语言的默认行为
+    assert build_response_language_section(None) == ""
+    assert build_response_language_section("") == ""
+    assert build_response_language_section("fr") == ""
+
+
+def test_main_agent_nodes_wire_response_language_into_prompt_sections() -> None:
+    from inspect import getsource
+
+    from src.agents.fast_agent.nodes import fast_agent_node
+    from src.agents.search_agent.nodes import agent_node
+    from src.agents.team_agent.nodes import team_router_node
+
+    for node in (fast_agent_node, agent_node, team_router_node):
+        source = getsource(node)
+        assert "build_response_language_section" in source, (
+            f"{node.__name__} must inject the response language prompt section"
+        )
+        assert 'agent_options.get("response_language")' in source

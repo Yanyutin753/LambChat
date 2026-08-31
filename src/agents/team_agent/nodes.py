@@ -35,6 +35,7 @@ from src.agents.core.subagent_prompts import (
     SPECIALIZED_SUBAGENT_DESCRIPTIONS,
     SUBAGENT_PROMPT,
     VERIFICATION_RUNNER_PROMPT,
+    build_response_language_section,
     build_role_subagent_section,
     get_memory_guide,
 )
@@ -752,6 +753,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             *MAIN_AGENT_PROMPT_SECTIONS,
             *persona_sections,
             memory_guide,
+            build_response_language_section(agent_options.get("response_language")),
         )
         if s
     ]
@@ -980,17 +982,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         and settings.ENABLE_RECOMMEND_QUESTIONS
         and not getattr(presenter, "hitl_suspended", False)
     ):
-        try:
-            from src.agents.core.recommendations import schedule_recommend_questions_from_state
+        from src.agents.core.recommendations import schedule_recommendations_best_effort
 
-            schedule_recommend_questions_from_state(
-                presenter,
-                recommendation_input,
-                output_text,
-                inner_graph,
-                inner_config,
-            )
-        except Exception as exc:
-            logger.debug("Failed to schedule recommended questions: %s", exc)
+        schedule_recommendations_best_effort(
+            presenter, recommendation_input, output_text, inner_graph, inner_config, agent_options
+        )
 
     return {"output": output_text}
