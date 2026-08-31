@@ -347,6 +347,20 @@ export const sessionApi = {
   },
 
   /**
+   * Get live queue position for a queued run (poll while waiting)
+   */
+  async getQueuePosition(sessionId: string): Promise<{
+    session_id: string;
+    run_id: string | null;
+    task_status: string;
+    position: number;
+  }> {
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${sessionId}/queue-position`,
+    );
+  },
+
+  /**
    * Cancel running task for a session
    */
   async cancel(sessionId: string): Promise<{
