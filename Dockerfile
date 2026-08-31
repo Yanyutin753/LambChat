@@ -1,12 +1,20 @@
 # Stage 1: Build frontend
-FROM node:20-alpine AS frontend-builder
+# bookworm-slim（glibc）而非 alpine（musl）：字体分包依赖 cn-font-split
+# 的原生 FFI（koffi + libffi），musl 下无预编译且 glibc 的 libffi 无法加载
+FROM node:20-bookworm-slim AS frontend-builder
+
+# cn-font-split 的 postinstall 用 curl 下载 libffi 内核，slim 镜像缺 curl
+# 时下载会被静默跳过，到 pnpm run build 才报 ERR_FFI
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app/frontend
 
 # Copy package files
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc ./
+# pnpm-workspace.yaml：onlyBuiltDependencies 放行 cn-font-split/koffi 的
+# 安装脚本（Rust 字体切割内核），缺失会导致 pnpm run build 失败
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile

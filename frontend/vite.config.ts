@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import Font from "vite-plugin-font";
 import { VitePWA } from "vite-plugin-pwa";
 import {
   createPerformanceManifestTransform,
@@ -87,6 +88,26 @@ const cacheStableIconsPlugin = {
 export default defineConfig({
   plugins: [
     react(),
+    // CJK 网页字体全量分包（cn-font-split languageAreas 按字频/语言区域
+    // 打包，常用字集中在少数分片，按需加载；覆盖全部汉字与全部字重，
+    // 聊天内容同样统一）。字体源用可变字体 TTF：一个分片服务所有字重，
+    // 实测静态多字重方案首屏流量反而更高且 dist/仓库体积翻倍。TTF 见
+    // src/assets/fonts/（CI 大小检查豁免）。可变字体 name 表默认实例是
+    // Thin/ExtraLight，必须用 css.fontFamily 覆盖家族名、fontWeight 声明
+    // 全区间，否则字体栈匹配不上。注意：分包缓存（node_modules/.vite/
+    // 下）哈希不含 css 配置——改动下方选项后需手动清缓存才会重新切割。
+    ...[
+      { file: "NotoSansSC-VF", family: "Noto Sans SC" },
+      { file: "NotoSerifSC-VF", family: "Noto Serif SC" },
+    ].map((f) =>
+      Font.vite({
+        include: [new RegExp(`${f.file}\\.ttf`)],
+        css: { fontFamily: f.family, fontWeight: "100 900" },
+        testHtml: false,
+        reporter: false,
+        previewImage: false,
+      }),
+    ),
     VitePWA({
       strategies: "injectManifest",
       srcDir: "src",

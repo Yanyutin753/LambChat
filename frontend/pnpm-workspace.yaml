@@ -1,1 +1,6 @@
 approveBuilds: esbuild,es5-ext
+# cn-font-split 靠 postinstall 下载 Rust 切割内核，koffi 装载原生绑定；
+# pnpm v10 默认拦截安装脚本，必须显式放行，否则 CI 全新安装后字体分包失败。
+onlyBuiltDependencies:
+  - cn-font-split
+  - koffi

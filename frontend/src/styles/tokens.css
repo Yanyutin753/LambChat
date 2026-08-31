@@ -3,7 +3,10 @@
    ═══════════════════════════════════════════ */
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Noto Sans SC 为构建期子集化网页字体（vite-plugin-font），仅覆盖
+     界面文案字符；未命中的字符（聊天内容等）继续走系统字体。 */
+  font-family: Inter, "Noto Sans SC", system-ui, Avenir, Helvetica, Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
