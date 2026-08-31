@@ -1,5 +1,7 @@
 # Stage 1: Build frontend
-FROM node:20-alpine AS frontend-builder
+# bookworm-slim（glibc）而非 alpine（musl）：字体分包依赖 cn-font-split
+# 的原生 FFI（koffi + libffi），musl 下无预编译且 glibc 的 libffi 无法加载
+FROM node:20-bookworm-slim AS frontend-builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
