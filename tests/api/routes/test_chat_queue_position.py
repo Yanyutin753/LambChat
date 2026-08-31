@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from src.api.routes.chat import get_session_queue_position
+from src.api.routes.session_queue import get_session_queue_position
 from src.kernel.errors import AppError
 
 
@@ -43,7 +43,7 @@ def _session(metadata: dict[str, Any]) -> SimpleNamespace:
 
 async def _invoke(monkeypatch: pytest.MonkeyPatch, session: Any, limiter: _FakeLimiter):
     monkeypatch.setattr(
-        "src.api.routes.chat.SessionManager", lambda: _FakeSessionManager(session)
+        "src.api.routes.session_queue.SessionManager", lambda: _FakeSessionManager(session)
     )
     monkeypatch.setattr(
         "src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter
@@ -88,7 +88,7 @@ async def test_non_queued_run_skips_redis_lookup(
 @pytest.mark.asyncio
 async def test_missing_session_raises_session_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "src.api.routes.chat.SessionManager", lambda: _FakeSessionManager(None)
+        "src.api.routes.session_queue.SessionManager", lambda: _FakeSessionManager(None)
     )
 
     with pytest.raises(AppError) as exc_info:
