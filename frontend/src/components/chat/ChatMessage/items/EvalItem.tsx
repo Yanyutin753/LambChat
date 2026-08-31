@@ -2,10 +2,7 @@ import { memo } from "react";
 import { Code2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
-import {
-  isProminentEvalValue,
-  parseEvalWireResult,
-} from "./evalWireResult";
+import { parseEvalWireResult } from "./evalWireResult";
 import {
   openToolLivePanel,
   toolDetailPropsFromPanelData,
@@ -144,7 +141,7 @@ function EvalResultContent({
     );
   }
 
-  const { stdout, kind, value, error } = parsed;
+  const { stdout, value, error } = parsed;
 
   return (
     <div className="space-y-3 min-w-0">
@@ -171,19 +168,6 @@ function EvalResultContent({
           <p className="text-xs font-mono italic text-theme-text-tertiary">
             undefined
           </p>
-        ) : isProminentEvalValue(value) ? (
-          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-            <span
-              className={`font-serif tabular-nums tracking-tight text-theme-text ${
-                compact
-                  ? "text-base font-semibold"
-                  : "text-2xl font-semibold leading-tight"
-              }`}
-            >
-              {value}
-            </span>
-            {kind && <span className={evalKindBadgeClassName}>{kind}</span>}
-          </div>
         ) : (
           <pre
             className={

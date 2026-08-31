@@ -51,9 +51,3 @@ export function parseEvalWireResult(raw: string): EvalWireResult | null {
   }
   return parsed;
 }
-
-/** 数字/短值走醒目展示，长文本与多行值走代码块展示 */
-export function isProminentEvalValue(value: string | undefined): boolean {
-  if (!value || value === "undefined") return false;
-  return value.length <= 32 && !value.includes("\n");
-}
