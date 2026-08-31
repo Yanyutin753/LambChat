@@ -30,9 +30,9 @@ export default {
         "20": "1.25rem",
       },
       fontFamily: {
-        // CJK 界面文字落到构建期子集化的 Noto Sans SC（vite-plugin-font），
-        // 未覆盖的字符（聊天内容等）继续走系统字体。
-        sans: ["'Source Sans 3'", "'Noto Sans SC'", "system-ui", "sans-serif"],
+        // CJK 界面黑体走系统字体（苹方/雅黑等）：网页字体 Noto Sans SC
+        // 的 600/700 比系统黑体重一截，接管后粗体观感发黑，已回退。
+        sans: ["'Source Sans 3'", "system-ui", "sans-serif"],
         // 排除 Georgia/ui-serif：默认老式数字（old-style figures）会低于基线，
         // 导致数字与文本不在同一水平线；Source Serif 4 默认 lining figures。
         serif: [
