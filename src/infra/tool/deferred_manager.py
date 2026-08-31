@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
@@ -27,6 +28,22 @@ DEFERRED_TOOL_SEARCH_GUIDE = (
 
 def _tool_sort_key(tool: "BaseTool") -> tuple[str, str]:
     return (getattr(tool, "server", "") or "", getattr(tool, "name", "") or "")
+
+
+def merge_discovered_names(restored: Sequence[str], in_memory: Iterable[str]) -> list[str]:
+    """按「先恢复顺序、后内存新增」合并已发现工具名。
+
+    顺序就是语义：恢复名回放持久化的发现顺序，内存新增名按在线追加顺序
+    接在后面——与 tool_interception 中间件的在线追加保持一致。排序会与
+    重启前的线上 tools 前缀不一致，造成整段 prompt-cache 失效。
+    """
+    merged = list(restored)
+    seen = set(merged)
+    for name in in_memory:
+        if name not in seen:
+            merged.append(name)
+            seen.add(name)
+    return merged
 
 
 @dataclass

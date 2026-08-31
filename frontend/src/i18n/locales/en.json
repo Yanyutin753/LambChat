@@ -2527,6 +2527,7 @@
     "LLM_FIRST_EVENT_TIMEOUT": "Seconds allowed for the first provider event of a streaming response (0 or negative = disabled; no total or chunk idle timeout after it)",
     "LLM_MAX_RETRIES": "Retries after the initial LLM call for timeout, network, rate-limit, and 5xx failures",
     "LLM_MODEL_CACHE_SIZE": "LLM model instance cache size (~10-30MB per instance). Default 50, supports multi-user/multi-parameter scenarios. Too small causes frequent create/destroy, too large consumes more memory.",
+    "LLM_KV_CACHE": "Send Codex-style KV-cache routing on OpenAI-protocol requests: session-level prompt_cache_key on both /v1/responses and /v1/chat/completions (plus encrypted-reasoning replay and stateless store on responses). Disable only if a provider rejects these standard fields.",
     "LLM_OPENAI_API_FORMAT": "Default wire format for OpenAI-compatible endpoints: chat_completions (/v1/chat/completions) or responses (/v1/responses). Only switch to responses when the upstream supports it; the per-model API format overrides this default.",
     "LLM_REQUEST_HEADERS": "Global request-header overrides for model calls, as a JSON object (e.g. {\"User-Agent\": \"...\"}). Merged over the built-in anti-ban defaults (Claude Code / opencode style User-Agent etc.); per-model overrides take precedence.",
     "LLM_REQUEST_TIMEOUT": "Total seconds allowed for a complete non-streaming response (0 or negative = no LambChat total timeout)",

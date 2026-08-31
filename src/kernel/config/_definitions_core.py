@@ -229,6 +229,13 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LLM_MODEL_CACHE_SIZE",
         "default": 50,
     },
+    "LLM_KV_CACHE": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.LLM,
+        "subcategory": "cache",
+        "description": "settingDesc.LLM_KV_CACHE",
+        "default": True,
+    },
     "LLM_REQUEST_HEADERS": {
         "type": SettingType.STRING,
         "category": SettingCategory.LLM,

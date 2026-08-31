@@ -74,3 +74,78 @@ def test_input_messages_are_not_mutated() -> None:
     originals = [m.content for m in messages]
     _apply_prompt_cache_control(messages)
     assert [m.content for m in messages] == originals
+
+
+# ── tools 块缓存断点（跨会话/子代理复用 system+tools 前缀）──────────────
+
+
+def _bind(tools):
+    from pydantic import SecretStr
+
+    from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
+
+    model = LambChatAnthropicChatModel(model_name="claude-sonnet-4-5", api_key=SecretStr("sk-test"))
+    return model.bind_tools(tools)
+
+
+def _tool(name: str, description: str):
+    from langchain_core.tools import tool
+
+    @tool(description=description)
+    def sample(payload: str) -> str:
+        return payload
+
+    sample.name = name
+    return sample
+
+
+BIG_DESC = "x" * 4000
+
+
+def test_bind_tools_marks_last_tool_with_cache_control() -> None:
+    bound = _bind([_tool("alpha", BIG_DESC), _tool("beta", BIG_DESC)])
+    tools = bound.kwargs["tools"]
+    assert len(tools) == 2
+    assert tools[-1].get("cache_control") == {"type": "ephemeral"}
+    assert all("cache_control" not in t for t in tools[:-1])
+
+
+def test_bind_tools_skips_breakpoint_when_tools_segment_too_small() -> None:
+    # tools 序列化后不足最小可缓存段（~1024 token），加断点只会被服务端忽略
+    bound = _bind([_tool("alpha", "tiny")])
+    assert all("cache_control" not in t for t in bound.kwargs["tools"])
+
+
+def test_bind_tools_preserves_explicit_cache_control() -> None:
+    from langchain_core.tools import tool
+
+    @tool
+    def marked(payload: str) -> str:
+        """Explicitly marked tool."""
+
+    marked.name = "marked"
+    explicit = [
+        {
+            "name": "marked",
+            "description": BIG_DESC,
+            "input_schema": {"type": "object", "properties": {}},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+        }
+    ]
+    bound = _bind(explicit)
+    last = bound.kwargs["tools"][-1]
+    assert last["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+
+
+def test_bind_tools_respects_enable_prompt_cache_disabled() -> None:
+    from pydantic import SecretStr
+
+    from src.infra.llm.anthropic_chat import LambChatAnthropicChatModel
+
+    model = LambChatAnthropicChatModel(
+        model_name="claude-sonnet-4-5",
+        api_key=SecretStr("sk-test"),
+        enable_prompt_cache=False,
+    )
+    bound = model.bind_tools([_tool("alpha", BIG_DESC)])
+    assert all("cache_control" not in t for t in bound.kwargs["tools"])

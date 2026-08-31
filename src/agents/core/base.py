@@ -17,6 +17,11 @@ from langgraph.graph import END, START, StateGraph
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.async_utils import run_blocking_io
+from src.infra.llm.responses_cache import (
+    reset_responses_prompt_cache_key,
+    session_prompt_cache_key,
+    set_responses_prompt_cache_key,
+)
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.infra.writer.present import Presenter, PresenterConfig
@@ -312,7 +317,27 @@ class BaseGraphAgent(ABC):
         """
         if session_id is None:
             session_id = str(uuid.uuid4())
-        return self._stream(message, session_id, user_id=user_id, **kwargs)
+        return self._stream_with_cache_key(message, session_id, user_id=user_id, **kwargs)
+
+    async def _stream_with_cache_key(
+        self,
+        message: str,
+        session_id: str,
+        user_id: Optional[str] = None,
+        **kwargs,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """绑定会话级 prompt_cache_key 后执行 _stream。
+
+        fast/search/team 各自重写 _stream，因此绑定放在这个未被重写的公共
+        入口：graph 任务（ensure_future/create_task 复制当前上下文）与嵌套
+        子 agent 都继承同一个 key，对齐 Codex 的会话级缓存路由语义。
+        """
+        cache_key_token = set_responses_prompt_cache_key(session_id)
+        try:
+            async for event in self._stream(message, session_id, user_id=user_id, **kwargs):
+                yield event
+        finally:
+            reset_responses_prompt_cache_key(cache_key_token)
 
     async def _stream(
         self,
@@ -604,10 +629,11 @@ class BaseGraphAgent(ABC):
             "recursion_limit": self.recursion_limit,
         }
 
-        result = await self._graph.ainvoke(
-            {"input": message, "session_id": session_id, "messages": []},
-            config,
-        )
+        with session_prompt_cache_key(session_id):
+            result = await self._graph.ainvoke(
+                {"input": message, "session_id": session_id, "messages": []},
+                config,
+            )
         return result.get("output", "")
 
 
