@@ -115,16 +115,10 @@ class TaskHeartbeat:
             try:
                 from src.kernel.config import settings
 
-                configured = int(
-                    getattr(settings, "TASK_HEARTBEAT_STALE_SECONDS", 0) or 0
-                )
+                configured = int(getattr(settings, "TASK_HEARTBEAT_STALE_SECONDS", 0) or 0)
             except Exception:
                 configured = 0
-            max_age_seconds = (
-                configured
-                if configured > 0
-                else HEARTBEAT_STALE_THRESHOLD_SECONDS
-            )
+            max_age_seconds = configured if configured > 0 else HEARTBEAT_STALE_THRESHOLD_SECONDS
         threshold = max_age_seconds
         try:
             value = await get_redis_client().get(f"{HEARTBEAT_PREFIX}{run_id}")

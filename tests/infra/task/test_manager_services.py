@@ -283,9 +283,7 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
     monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
-    monkeypatch.setattr(
-        recovery_module, "get_concurrency_limiter", lambda: _SeamlessFakeLimiter()
-    )
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _SeamlessFakeLimiter())
     monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
     monkeypatch.setattr(
         recovery_module,

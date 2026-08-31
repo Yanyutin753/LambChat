@@ -260,7 +260,9 @@ async def test_resume_session_submits_localized_recovery_message(
     monkeypatch.setattr(
         recovery_module,
         "get_trace_storage",
-        lambda: SimpleNamespace(collection=SimpleNamespace(find=lambda q, p=None: _EmptyTraceCursor())),
+        lambda: SimpleNamespace(
+            collection=SimpleNamespace(find=lambda q, p=None: _EmptyTraceCursor())
+        ),
     )
     monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
     monkeypatch.setattr(manager, "submit", _fake_submit)
@@ -1044,5 +1046,3 @@ async def test_shutdown_awaits_cancelled_tasks_to_finish_cleanup(
     await shutdown_task
     assert task.done()
     assert cleanup_finished is True
-
-

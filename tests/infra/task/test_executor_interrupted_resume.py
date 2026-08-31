@@ -127,9 +127,7 @@ async def _agent_stream_raising(exc: BaseException):
 @pytest.mark.asyncio
 async def test_shutdown_cancel_writes_no_terminal_events(monkeypatch: pytest.MonkeyPatch) -> None:
     """无 interrupt 标志的取消（系统关停）：不写终态事件、不终结 trace、不过期 stream。"""
-    executor, writer, holder, status_updates = _executor_fixture(
-        monkeypatch, interrupt_flag=False
-    )
+    executor, writer, holder, status_updates = _executor_fixture(monkeypatch, interrupt_flag=False)
 
     with pytest.raises(asyncio.CancelledError):
         await executor.run_task(
@@ -194,13 +192,9 @@ async def test_interrupted_resume_emits_run_resumed_first(monkeypatch: pytest.Mo
 
     presenter = holder["presenter"]
     first_agent_event_index = next(
-        i
-        for i, event in enumerate(presenter.saved_events)
-        if event["event"] == "message:chunk"
+        i for i, event in enumerate(presenter.saved_events) if event["event"] == "message:chunk"
     )
-    resumed_events = [
-        event for event in presenter.saved_events if event["event"] == "run:resumed"
-    ]
+    resumed_events = [event for event in presenter.saved_events if event["event"] == "run:resumed"]
     assert len(resumed_events) == 1
     assert presenter.saved_events.index(resumed_events[0]) < first_agent_event_index
     assert resumed_events[0]["data"]["run_id"] == "run-1"

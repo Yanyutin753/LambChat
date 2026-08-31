@@ -54,9 +54,7 @@ class _FakeTraceCursor:
 class _FakeTraceStorage:
     def __init__(self) -> None:
         self.reopened: list[str] = []
-        self.collection = SimpleNamespace(
-            find=lambda query, projection=None: _FakeTraceCursor()
-        )
+        self.collection = SimpleNamespace(find=lambda query, projection=None: _FakeTraceCursor())
 
     async def reopen_interrupted_trace(self, trace_id: str) -> bool:
         self.reopened.append(trace_id)
@@ -131,6 +129,7 @@ def _fixture(
 
     async def _stale_flag(run_id: str) -> bool:
         return stale_holder["stale"]
+
     redis_stream = _FakeRedisStream(
         [
             ("1-1", {"event_type": "thinking", "data": "{}"}),
@@ -258,9 +257,7 @@ async def test_resume_skips_when_heartbeat_still_fresh(monkeypatch: pytest.Monke
 async def test_resume_failure_restores_recoverable_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    service, session, artifacts = _fixture(
-        monkeypatch, limiter=_FakeLimiter(acquire=False)
-    )
+    service, session, artifacts = _fixture(monkeypatch, limiter=_FakeLimiter(acquire=False))
 
     result = await service.resume_interrupted_run(session, "run-old", "server_restart")
 

@@ -790,9 +790,7 @@ class UserConcurrencyLimiter:
     async def get_queue_position(self, user_id: str, run_id: str) -> int:
         """Get current queue position for a run_id. Returns 0 if not in queue."""
         try:
-            result = await self.redis.eval(
-                _QUEUE_POSITION_LUA, 1, self._queue_key(user_id), run_id
-            )
+            result = await self.redis.eval(_QUEUE_POSITION_LUA, 1, self._queue_key(user_id), run_id)
             return int(result or 0)
         except Exception:
             return 0
@@ -906,9 +904,7 @@ class UserConcurrencyLimiter:
 
         锁仍保留：mark 与随后的 dequeue 判定必须互斥（脚本只保证 LIST 变更原子）。
         """
-        result = await self.redis.eval(
-            _QUEUE_MARK_READY_LUA, 1, self._queue_key(user_id), run_id
-        )
+        result = await self.redis.eval(_QUEUE_MARK_READY_LUA, 1, self._queue_key(user_id), run_id)
         return bool(result)
 
 

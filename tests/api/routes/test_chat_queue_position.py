@@ -45,9 +45,7 @@ async def _invoke(monkeypatch: pytest.MonkeyPatch, session: Any, limiter: _FakeL
     monkeypatch.setattr(
         "src.api.routes.session_queue.SessionManager", lambda: _FakeSessionManager(session)
     )
-    monkeypatch.setattr(
-        "src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter
-    )
+    monkeypatch.setattr("src.infra.task.concurrency.get_concurrency_limiter", lambda: limiter)
     return await get_session_queue_position("session-1", user=_user())
 
 

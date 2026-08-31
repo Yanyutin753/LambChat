@@ -164,9 +164,7 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
         from .heartbeat import TaskHeartbeat
 
         if not await TaskHeartbeat().is_stale(run_id):
-            logger.info(
-                "Interrupted resume deferred, heartbeat fresh again: run_id=%s", run_id
-            )
+            logger.info("Interrupted resume deferred, heartbeat fresh again: run_id=%s", run_id)
             raise Retry(defer=5)
         limiter = get_concurrency_limiter()
         if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):

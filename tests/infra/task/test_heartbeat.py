@@ -158,9 +158,7 @@ async def test_is_stale_threshold_honors_settings_override(monkeypatch):
             self.age = 21.0
 
         def __call__(self):
-            value = (
-                datetime.now(timezone.utc) - timedelta(seconds=self.age)
-            ).isoformat()
+            value = (datetime.now(timezone.utc) - timedelta(seconds=self.age)).isoformat()
 
             class _Client:
                 async def get(self, key):
