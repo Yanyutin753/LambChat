@@ -904,3 +904,45 @@ async def test_team_role_subagent_inherits_global_skills_when_role_skills_are_em
 
     router_sections = _section_prompt(fake_graph.captured_create_kwargs["middleware"])
     assert "redbook-publish" not in router_sections
+
+
+@pytest.mark.asyncio
+async def test_fast_agent_node_language_section_bytes_stable_across_turns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """语言段是 agent_options 的纯函数：连续两轮字节一致，前缀缓存不失效。"""
+    _reset_fake_event_processor()
+    from src.agents.fast_agent import nodes as fast_nodes
+
+    async def run_turn(agent_options: dict) -> str:
+        fake_graph = _FakeDeepAgent()
+        _patch_common(monkeypatch, fast_nodes, fake_graph)
+        context = SimpleNamespace(user_id="user-1", skills=[], deferred_manager=None)
+        await fast_nodes.fast_agent_node(
+            {"input": "hello", "session_id": "session-1", "attachments": []},
+            {
+                "configurable": {
+                    "context": context,
+                    "presenter": object(),
+                    "base_url": "",
+                    "agent_options": dict(agent_options),
+                }
+            },
+        )
+        return _section_prompt(fake_graph.captured_create_kwargs["middleware"])
+
+    first_turn = await run_turn({"response_language": "zh"})
+    second_turn = await run_turn({"response_language": "zh"})
+
+    assert first_turn == second_turn
+    assert "Simplified Chinese" in first_turn
+
+    # 未带语言的请求：段落与历史字节一致，零缓存影响
+    without_language = await run_turn({})
+    assert "Response Language" not in without_language
+    assert without_language == first_turn.replace(
+        "\n\n### Response Language\n- Respond in Simplified Chinese unless the user"
+        " explicitly asks for another language.\n- Keep code, commands, error messages,"
+        " file paths, and technical identifiers unchanged.",
+        "",
+    )
