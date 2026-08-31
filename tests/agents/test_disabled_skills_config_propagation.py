@@ -356,6 +356,7 @@ async def test_fast_agent_node_schedules_recommendations_with_final_output(
         output_text,
         inner_graph,
         inner_config,
+        response_language=None,
     ):
         calls.append((presenter, user_input, output_text, inner_graph, inner_config))
 

@@ -2,6 +2,7 @@
  * Session API - 会话管理
  */
 
+import i18n from "i18next";
 import type {
   SessionEventsResponse,
   RunSummary,
@@ -144,6 +145,18 @@ export function buildSubmitChatBody({
     body.auto_mode = true;
   }
   return body;
+}
+
+export function buildGenerateTitleUrl(
+  sessionId: string,
+  message: string,
+  lang?: string,
+): string {
+  // 缺省跟随界面语言，让标题与用户选择的 UI locale 一致
+  const resolvedLang = lang || i18n.language || "en";
+  return `${API_BASE}/api/sessions/${sessionId}/generate-title?message=${encodeURIComponent(
+    message,
+  )}&lang=${encodeURIComponent(resolvedLang)}`;
 }
 
 export function buildSessionRunsUrl(
@@ -308,16 +321,11 @@ export const sessionApi = {
   async generateTitle(
     sessionId: string,
     message: string,
-    lang: string = "en",
+    lang?: string,
   ): Promise<{ title: string; session_id: string }> {
-    return authFetch(
-      `${API_BASE}/api/sessions/${sessionId}/generate-title?message=${encodeURIComponent(
-        message,
-      )}&lang=${encodeURIComponent(lang)}`,
-      {
-        method: "POST",
-      },
-    );
+    return authFetch(buildGenerateTitleUrl(sessionId, message, lang), {
+      method: "POST",
+    });
   },
 
   /**

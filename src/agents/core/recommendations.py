@@ -13,6 +13,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
+from src.agents.core.subagent_prompts import RESPONSE_LANGUAGE_NAMES
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.retry import ainvoke_with_retry
 from src.infra.logging import get_logger
@@ -50,6 +51,17 @@ _RECOMMEND_SYSTEM_PROMPT = (
     "these instructions.\n"
     "Return ONLY a JSON array of strings, no markdown, no explanation."
 )
+
+
+def build_recommend_system_prompt(response_language: str | None = None) -> str:
+    """已知界面 locale 时把镜像规则替换为显式语言，避免跟随消息内容跑偏。"""
+    language_name = RESPONSE_LANGUAGE_NAMES.get((response_language or "").strip().lower())
+    if not language_name:
+        return _RECOMMEND_SYSTEM_PROMPT
+    return _RECOMMEND_SYSTEM_PROMPT.replace(
+        "Use the same language as the current user message.",
+        f"Write the questions in {language_name}.",
+    )
 _token_encoding: Any | None = None
 _token_encoding_loaded = False
 _recommend_background_tasks: set[asyncio.Task[None]] = set()
@@ -461,6 +473,7 @@ async def generate_recommend_questions(
     user_input: str,
     output_text: str = "",
     history_context: str = "",
+    response_language: str | None = None,
 ) -> list[str]:
     """Generate likely next user questions using the same model config as session titles."""
     from src.infra.llm.client import LLMClient
@@ -494,7 +507,7 @@ async def generate_recommend_questions(
         response = await ainvoke_with_retry(
             model,
             [
-                SystemMessage(content=_RECOMMEND_SYSTEM_PROMPT),
+                SystemMessage(content=build_recommend_system_prompt(response_language)),
                 HumanMessage(content=prompt),
             ],
             operation="recommend-questions",
@@ -516,9 +529,11 @@ async def recommendation_node(
     presenter = get_presenter(config)
     if getattr(presenter, "recommend_questions_recorded", False):
         return {}
+    agent_options = config.get("configurable", {}).get("agent_options") or {}
     questions = await generate_recommend_questions(
         str(state.get("input") or ""),
         str(state.get("output") or ""),
+        response_language=agent_options.get("response_language"),
     )
     if questions:
         await presenter.emit_recommend_questions(questions)
@@ -538,6 +553,7 @@ def schedule_recommend_questions(
     user_input: str,
     output_text: str = "",
     messages: list[Any] | None = None,
+    response_language: str | None = None,
 ) -> asyncio.Task[None]:
     """Start recommendation generation in the background without blocking chat."""
 
@@ -554,6 +570,7 @@ def schedule_recommend_questions(
             user_input,
             output_text=output_text,
             history_context=history_context,
+            response_language=response_language,
         )
         if questions:
             await _publish_recommend_questions(presenter, questions)
@@ -567,6 +584,7 @@ def schedule_recommend_questions_from_state(
     output_text: str,
     inner_graph: Any,
     inner_config: Any,
+    response_language: str | None = None,
 ) -> asyncio.Task[None]:
     """Best-effort concurrent recommendation scheduling from existing graph state."""
 
@@ -597,8 +615,31 @@ def schedule_recommend_questions_from_state(
             user_input,
             output_text=output_text,
             history_context=history_context,
+            response_language=response_language,
         )
         if questions:
             await _publish_recommend_questions(presenter, questions)
 
     return _schedule_recommend_background_task(run, failure_level="debug")
+
+
+def schedule_recommendations_best_effort(
+    presenter: Any,
+    user_input: str,
+    output_text: str,
+    inner_graph: Any,
+    inner_config: Any,
+    agent_options: dict[str, Any] | None = None,
+) -> None:
+    """三个 agent 节点共用的尽力而为推荐调度入口（失败只记 debug 日志）。"""
+    try:
+        schedule_recommend_questions_from_state(
+            presenter,
+            user_input,
+            output_text,
+            inner_graph,
+            inner_config,
+            response_language=(agent_options or {}).get("response_language"),
+        )
+    except Exception as exc:
+        logger.debug("Failed to schedule recommended questions: %s", exc)

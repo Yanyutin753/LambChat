@@ -30,8 +30,14 @@ from src.kernel.schemas.user import TokenPayload
 router = APIRouter()
 logger = get_logger(__name__)
 
-# 支持的语言白名单
-SUPPORTED_LANGUAGES = frozenset(["en", "zh", "ja", "ko"])
+# 支持的语言白名单（与前端 i18n 的 en/zh/ja/ko/ru 保持一致）
+SUPPORTED_LANGUAGES = frozenset(["en", "zh", "ja", "ko", "ru"])
+
+
+def normalize_title_language(lang: str) -> str:
+    """规范化标题语言参数，接受 zh-CN / en-US 等区域形式；不支持的语言回落 en。"""
+    normalized = (lang or "").split(",")[0].split("-")[0].strip().lower()
+    return normalized if normalized in SUPPORTED_LANGUAGES else "en"
 SESSION_EVENT_TYPE_FILTER_LIMIT = 100
 SESSION_EVENT_RESPONSE_LIMIT_MAX = 10000
 SESSION_RAW_TRACE_RESPONSE_LIMIT_MAX = 20
@@ -829,7 +835,7 @@ async def toggle_session_pin(
 async def generate_session_title(
     session_id: str,
     message: str = Query(..., description="用户消息内容，用于生成标题"),
-    lang: str = Query("en", description="语言代码: en, zh, ja, ko"),
+    lang: str = Query("en", description="语言代码: en, zh, ja, ko, ru（支持 zh-CN 等区域形式）"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -841,10 +847,8 @@ async def generate_session_title(
     from src.infra.llm.client import LLMClient
     from src.infra.llm.models_service import resolve_model_reference
 
-    # 验证语言参数白名单
-    if lang not in SUPPORTED_LANGUAGES:
-        logger.warning(f"Unsupported language code: {lang}, falling back to 'en'")
-        lang = "en"
+    # 规范化并验证语言参数白名单（zh-CN → zh 等）
+    lang = normalize_title_language(lang)
 
     manager = SessionManager()
     session = await manager.get_session(session_id)

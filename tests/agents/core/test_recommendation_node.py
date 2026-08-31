@@ -10,11 +10,13 @@ from src.agents.core.recommendations import (
     MAX_RECOMMEND_PROMPT_TOKENS,
     build_recommend_prompt,
     build_recommend_questions,
+    build_recommend_system_prompt,
     count_recommend_prompt_tokens,
     drain_recommend_background_tasks,
     format_history_context,
     format_history_from_messages,
     generate_recommend_questions,
+    recommendation_node,
     schedule_recommend_questions,
     schedule_recommend_questions_from_state,
 )
@@ -326,6 +328,7 @@ async def test_schedule_recommend_questions_offloads_history_formatting(monkeypa
         user_input: str,
         output_text: str = "",
         history_context: str = "",
+        response_language: str | None = None,
     ):
         assert history_context
         return ["问题一？", "问题二？", "问题三？"]
@@ -369,6 +372,7 @@ async def test_schedule_from_state_uses_final_output_without_blocking_caller(mon
         user_input: str,
         output_text: str = "",
         history_context: str = "",
+        response_language: str | None = None,
     ):
         captured.update(
             user_input=user_input,
@@ -592,6 +596,7 @@ async def test_recommendation_node_emits_llm_followup_questions(monkeypatch) -> 
         user_input: str,
         output_text: str = "",
         history_context: str = "",
+        response_language: str | None = None,
     ):
         return ["执行步骤一", "执行步骤二", "执行步骤三"]
 
@@ -621,6 +626,7 @@ async def test_recommendation_background_tasks_are_bounded(monkeypatch) -> None:
         user_input: str,
         output_text: str = "",
         history_context: str = "",
+        response_language: str | None = None,
     ):
         calls.append(user_input)
         first_started.set()
@@ -661,6 +667,7 @@ async def test_drain_recommend_background_tasks_cancels_pending_tasks(monkeypatc
         user_input: str,
         output_text: str = "",
         history_context: str = "",
+        response_language: str | None = None,
     ):
         nonlocal cleanup_finished
         started.set()
@@ -690,3 +697,73 @@ def test_langgraph_agents_do_not_block_on_recommendation_node() -> None:
 
         assert [name for name, _ in builder.nodes] == ["agent"]
         assert ("agent", "END") in builder.edges
+
+
+def test_build_recommend_system_prompt_pins_ui_locale_when_known() -> None:
+    prompt = build_recommend_system_prompt("zh")
+
+    assert "Write the questions in Simplified Chinese." in prompt
+    assert "Use the same language as the current user message." not in prompt
+
+
+def test_build_recommend_system_prompt_keeps_mirror_rule_without_locale() -> None:
+    mirror_rule = "Use the same language as the current user message."
+    assert mirror_rule in build_recommend_system_prompt(None)
+    assert mirror_rule in build_recommend_system_prompt("fr")
+
+
+async def test_recommendation_node_passes_ui_language_to_generator(monkeypatch) -> None:
+    captured: dict = {}
+
+    async def fake_generate(
+        user_input: str,
+        output_text: str = "",
+        history_context: str = "",
+        response_language: str | None = None,
+    ):
+        captured["response_language"] = response_language
+        return ["接下来该做什么？"]
+
+    monkeypatch.setattr(
+        "src.agents.core.recommendations.generate_recommend_questions",
+        fake_generate,
+    )
+
+    await recommendation_node(
+        {"input": "帮我看看", "output": "已完成"},
+        {
+            "configurable": {
+                "presenter": _FakePresenter(),
+                "agent_options": {"response_language": "zh"},
+            }
+        },
+    )
+
+    assert captured["response_language"] == "zh"
+
+
+async def test_recommendation_node_defaults_to_mirror_without_language_option(
+    monkeypatch,
+) -> None:
+    captured: dict = {}
+
+    async def fake_generate(
+        user_input: str,
+        output_text: str = "",
+        history_context: str = "",
+        response_language: str | None = None,
+    ):
+        captured["response_language"] = response_language
+        return ["接下来该做什么？"]
+
+    monkeypatch.setattr(
+        "src.agents.core.recommendations.generate_recommend_questions",
+        fake_generate,
+    )
+
+    await recommendation_node(
+        {"input": "帮我看看", "output": "已完成"},
+        {"configurable": {"presenter": _FakePresenter()}},
+    )
+
+    assert captured["response_language"] is None

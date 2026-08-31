@@ -24,6 +24,34 @@ MAIN_AGENT_PROMPT_SECTIONS: tuple[str, ...] = (
     SUBAGENT_DISPATCH_POLICY,
 )
 
+# 前端 i18n 支持的界面语言 → 提示词用语名（zh 为简体）
+RESPONSE_LANGUAGE_NAMES: dict[str, str] = {
+    "en": "English",
+    "zh": "Simplified Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "ru": "Russian",
+}
+
+
+def build_response_language_section(language: str | None) -> str:
+    """把用户界面 locale 固定为模型回复语言。
+
+    只在能识别界面语言时注入；识别不了返回空串（不改变模型跟随用户
+    消息语言的默认行为）。按 OpenAI 提示词指南显式给出例外条件而非
+    一刀切规则：用户贴英文报错提问时，镜像策略会跟错对象。
+    """
+    language_name = RESPONSE_LANGUAGE_NAMES.get((language or "").strip().lower())
+    if not language_name:
+        return ""
+    return (
+        "### Response Language\n"
+        f"- Respond in {language_name} unless the user explicitly asks for "
+        "another language.\n"
+        "- Keep code, commands, error messages, file paths, and technical "
+        "identifiers unchanged."
+    )
+
 AUTO_MODE_PROMPT_SECTION = """### Auto Mode
 Work autonomously with reasonable assumptions; `ask_human` is unavailable. Preserve safety boundaries, and report decisions and verification."""
 
