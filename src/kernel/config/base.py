@@ -274,6 +274,10 @@ class Settings(BaseSettings):
     LANGSMITH_PROJECT: str = "lambchat"
     LANGSMITH_API_URL: str = "https://api.smith.langchain.com"
     LANGSMITH_SAMPLE_RATE: float = 1.0
+    LANGFUSE_ENABLED: bool = False
+    LANGFUSE_PUBLIC_KEY: Optional[str] = None
+    LANGFUSE_SECRET_KEY: Optional[str] = None
+    LANGFUSE_HOST: str = "http://localhost:3000"
 
     # JWT Authentication Settings
     JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
@@ -546,6 +550,16 @@ class Settings(BaseSettings):
             os.environ["LANGSMITH_API_URL"] = self.LANGSMITH_API_URL
         if self.LANGSMITH_SAMPLE_RATE:
             os.environ["LANGSMITH_SAMPLE_RATE"] = str(self.LANGSMITH_SAMPLE_RATE)
+
+        # Sync Langfuse settings to os.environ (required by langfuse SDK)
+        if self.LANGFUSE_ENABLED:
+            os.environ["LANGFUSE_ENABLED"] = "true"
+        if self.LANGFUSE_PUBLIC_KEY:
+            os.environ["LANGFUSE_PUBLIC_KEY"] = self.LANGFUSE_PUBLIC_KEY
+        if self.LANGFUSE_SECRET_KEY:
+            os.environ["LANGFUSE_SECRET_KEY"] = self.LANGFUSE_SECRET_KEY
+        if self.LANGFUSE_HOST:
+            os.environ["LANGFUSE_HOST"] = self.LANGFUSE_HOST
 
     @field_validator("DEBUG", mode="before")
     @classmethod

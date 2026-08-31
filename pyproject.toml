@@ -63,6 +63,7 @@ dependencies = [
     "qdrant-client>=1.19",
     "pypdfium2>=5.13.0",
     "openpyxl>=3.1.5",
+    "langfuse>=3.0.0",
 ]
 
 [dependency-groups]
