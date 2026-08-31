@@ -66,6 +66,7 @@ from src.infra.session.trace_attachment_cleanup import (
 )
 from src.infra.session.trace_attachment_cleanup import TraceAttachmentCleanupMixin
 from src.infra.session.trace_event_chunks import TraceEventChunkMixin
+from src.infra.session.trace_event_read import TraceEventReadCompatMixin
 from src.infra.session.trace_storage_writes import TraceStorageWriteMixin
 from src.infra.storage.mongodb import get_mongo_client
 from src.infra.utils.datetime import ensure_utc, parse_iso, utc_now
@@ -93,6 +94,7 @@ class SessionEventsSnapshot:
 class TraceStorage(
     TraceStorageWriteMixin,
     TraceEventChunkMixin,
+    TraceEventReadCompatMixin,
     TraceAttachmentCleanupMixin,
 ):
     """

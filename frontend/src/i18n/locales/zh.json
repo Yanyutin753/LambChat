@@ -627,7 +627,8 @@
     "usernameOrEmailExists": "用户名或邮箱已存在",
     "roleNameExists": "角色名 {{name}} 已存在",
     "systemRoleProtected": "系统角色不可修改或删除",
-    "agentNotRegistered": "Agent '{{agent}}' 未注册"
+    "agentNotRegistered": "Agent '{{agent}}' 未注册",
+    "bookmarkUpdateFailed": "书签状态更新失败"
   },
   "categories": {
     "agent": "代理",
@@ -949,7 +950,12 @@
       "toolTransferPath": "传输目录",
       "toolUploadUrlToSandbox": "上传 URL 到沙箱",
       "toolVarCount": "{{count}} 个变量",
-      "toolWrite": "写入"
+      "toolWrite": "写入",
+      "addBookmark": "添加书签",
+      "bookmarkAdded": "已加入书签",
+      "bookmarkRemoved": "已移除书签",
+      "bookmarkToggleFailed": "书签操作失败",
+      "removeBookmark": "移除书签"
     },
     "messageInput": "消息输入框",
     "noPermission": "没有发送消息的权限",
@@ -1897,7 +1903,8 @@
     "team": "团队构建",
     "usage": "控制台",
     "userSettings": "用户管理",
-    "users": "用户"
+    "users": "用户",
+    "bookmarks": "书签"
   },
   "navDesc": {
     "agents": "配置和管理 AI 助手",
@@ -2418,6 +2425,10 @@
     "users": {
       "description": "管理用户账户、角色和访问权限。管理多租户用户生命周期和安全设置。",
       "title": "用户管理"
+    },
+    "bookmarks": {
+      "description": "收藏会话中的重要消息（大纲、总结、方案），随时一键跳转回顾。",
+      "title": "消息书签"
     }
   },
   "session": {
@@ -2524,6 +2535,10 @@
     "LANGSMITH_PROJECT": "LangSmith 项目名称",
     "LANGSMITH_SAMPLE_RATE": "LangSmith 采样率（0.0-1.0）",
     "LANGSMITH_TRACING": "启用 LangSmith 追踪",
+    "LANGFUSE_ENABLED": "启用 Langfuse 追踪（自托管）",
+    "LANGFUSE_PUBLIC_KEY": "Langfuse Public Key",
+    "LANGFUSE_SECRET_KEY": "Langfuse Secret Key",
+    "LANGFUSE_HOST": "Langfuse 服务地址",
     "LLM_FALLBACK_MODEL": "主模型重试后仍失败且未配置模型级 fallback 时切换到的兜底模型（留空则禁用）",
     "LLM_FIRST_EVENT_TIMEOUT": "等待流式响应首个 provider 事件的秒数（0 或负数禁用；首事件后无总时限或 chunk 空闲超时）",
     "LLM_MAX_RETRIES": "首次 LLM 调用失败后的重试次数（超时、网络、限流和 5xx）",
@@ -3436,5 +3451,21 @@
   "version": {
     "checkFailed": "检查更新失败",
     "fetchFailed": "获取版本失败"
+  },
+  "bookmarks": {
+    "empty": "还没有书签",
+    "emptyHint": "把鼠标悬停在任意消息上，点书签图标即可收藏大纲、总结等重要内容",
+    "loadFailed": "书签加载失败",
+    "loading": "正在加载书签…",
+    "refresh": "刷新",
+    "remove": "移除书签",
+    "subtitle": "收藏的重要消息，点击直达",
+    "title": "书签",
+    "untitled": "未命名消息",
+    "archivedSession": "已归档",
+    "jump": "跳转",
+    "sessionTitle": "本会话书签",
+    "locating": "正在定位书签…",
+    "messageMissing": "书签指向的消息不在历史中，可能已被删除"
   }
 }

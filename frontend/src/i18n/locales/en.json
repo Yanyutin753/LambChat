@@ -627,7 +627,8 @@
     "usernameOrEmailExists": "Username or email already exists",
     "roleNameExists": "Role name '{{name}}' already exists",
     "systemRoleProtected": "System roles cannot be modified or deleted",
-    "agentNotRegistered": "Agent '{{agent}}' is not registered"
+    "agentNotRegistered": "Agent '{{agent}}' is not registered",
+    "bookmarkUpdateFailed": "Failed to update bookmark state"
   },
   "categories": {
     "agent": "Agent",
@@ -949,7 +950,12 @@
       "toolTransferPath": "Transfer Path",
       "toolUploadUrlToSandbox": "Upload URL To Sandbox",
       "toolVarCount": "{{count}} variables",
-      "toolWrite": "Write"
+      "toolWrite": "Write",
+      "addBookmark": "Add bookmark",
+      "bookmarkAdded": "Bookmarked",
+      "bookmarkRemoved": "Bookmark removed",
+      "bookmarkToggleFailed": "Bookmark operation failed",
+      "removeBookmark": "Remove bookmark"
     },
     "messageInput": "Message",
     "noPermission": "No permission to send messages",
@@ -1897,7 +1903,8 @@
     "team": "Team Builder",
     "usage": "Console",
     "userSettings": "User Management",
-    "users": "Users"
+    "users": "Users",
+    "bookmarks": "Bookmarks"
   },
   "navDesc": {
     "agents": "Configure and manage AI agents",
@@ -2418,6 +2425,10 @@
     "users": {
       "description": "Manage user accounts, roles, and access permissions. Administer multi-tenant user lifecycle and security settings.",
       "title": "User Management"
+    },
+    "bookmarks": {
+      "description": "Save important chat messages such as outlines and summaries, and jump back to them anytime.",
+      "title": "Message Bookmarks"
     }
   },
   "session": {
@@ -2524,6 +2535,10 @@
     "LANGSMITH_PROJECT": "LangSmith project name",
     "LANGSMITH_SAMPLE_RATE": "LangSmith sample rate (0.0-1.0)",
     "LANGSMITH_TRACING": "Enable LangSmith tracing",
+    "LANGFUSE_ENABLED": "Enable Langfuse tracing (self-hosted)",
+    "LANGFUSE_PUBLIC_KEY": "Langfuse public key",
+    "LANGFUSE_SECRET_KEY": "Langfuse secret key",
+    "LANGFUSE_HOST": "Langfuse server URL",
     "LLM_FALLBACK_MODEL": "Model to switch to when the primary model fails after all retries and no per-model fallback is configured (empty = disabled)",
     "LLM_FIRST_EVENT_TIMEOUT": "Seconds allowed for the first provider event of a streaming response (0 or negative = disabled; no total or chunk idle timeout after it)",
     "LLM_MAX_RETRIES": "Retries after the initial LLM call for timeout, network, rate-limit, and 5xx failures",
@@ -3436,5 +3451,21 @@
   "version": {
     "checkFailed": "Failed to check for updates",
     "fetchFailed": "Failed to fetch version"
+  },
+  "bookmarks": {
+    "empty": "No bookmarks yet",
+    "emptyHint": "Hover over any message and click the bookmark icon to save outlines, summaries and other important replies",
+    "loadFailed": "Failed to load bookmarks",
+    "loading": "Loading bookmarks…",
+    "refresh": "Refresh",
+    "remove": "Remove bookmark",
+    "subtitle": "Saved messages, one click away",
+    "title": "Bookmarks",
+    "untitled": "Untitled message",
+    "archivedSession": "Archived",
+    "jump": "Jump",
+    "sessionTitle": "Session bookmarks",
+    "locating": "Locating the bookmarked message…",
+    "messageMissing": "The bookmarked message is no longer in the history; it may have been deleted"
   }
 }

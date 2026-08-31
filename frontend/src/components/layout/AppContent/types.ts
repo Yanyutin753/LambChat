@@ -11,6 +11,7 @@ export type TabType =
   | "channels"
   | "agents"
   | "files"
+  | "bookmarks"
   | "notifications"
   | "memory"
   | "team"

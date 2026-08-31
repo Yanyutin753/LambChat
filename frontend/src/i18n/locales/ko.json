@@ -627,7 +627,8 @@
     "usernameOrEmailExists": "사용자 이름 또는 이메일이 이미 존재합니다",
     "roleNameExists": "역할 이름 {{name}}이(가) 이미 존재합니다",
     "systemRoleProtected": "시스템 역할은 수정하거나 삭제할 수 없습니다",
-    "agentNotRegistered": "에이전트 '{{agent}}'이(가) 등록되어 있지 않습니다"
+    "agentNotRegistered": "에이전트 '{{agent}}'이(가) 등록되어 있지 않습니다",
+    "bookmarkUpdateFailed": "북마크 상태 업데이트에 실패했습니다"
   },
   "categories": {
     "agent": "에이전트",
@@ -949,7 +950,12 @@
       "toolTransferPath": "경로 전송",
       "toolUploadUrlToSandbox": "URL을 샌드박스로 업로드",
       "toolVarCount": "{{count}}개 변수",
-      "toolWrite": "쓰기"
+      "toolWrite": "쓰기",
+      "addBookmark": "북마크 추가",
+      "bookmarkAdded": "북마크에 추가했습니다",
+      "bookmarkRemoved": "북마크를 제거했습니다",
+      "bookmarkToggleFailed": "북마크 작업에 실패했습니다",
+      "removeBookmark": "북마크 제거"
     },
     "messageInput": "메시지 입력",
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -1897,7 +1903,8 @@
     "team": "팀 빌더",
     "usage": "콘솔",
     "userSettings": "사용자 관리",
-    "users": "사용자"
+    "users": "사용자",
+    "bookmarks": "북마크"
   },
   "navDesc": {
     "agents": "AI 에이전트 설정 및 관리",
@@ -2418,6 +2425,10 @@
     "users": {
       "description": "사용자 계정, 역할 및 액세스 권한을 관리하세요. 멀티테넌트 사용자 라이프사이클 및 보안 설정을 관리합니다.",
       "title": "사용자 관리"
+    },
+    "bookmarks": {
+      "description": "개요·요약 등 중요한 메시지를 저장하고 언제든 바로 이동할 수 있습니다.",
+      "title": "메시지 북마크"
     }
   },
   "session": {
@@ -2524,6 +2535,10 @@
     "LANGSMITH_PROJECT": "LangSmith 프로젝트 이름",
     "LANGSMITH_SAMPLE_RATE": "LangSmith 샘플링 비율(0.0-1.0)",
     "LANGSMITH_TRACING": "LangSmith 추적 활성화",
+    "LANGFUSE_ENABLED": "Langfuse 트레이싱 활성화 (셀프 호스팅)",
+    "LANGFUSE_PUBLIC_KEY": "Langfuse 퍼블릭 키",
+    "LANGFUSE_SECRET_KEY": "Langfuse 시크릿 키",
+    "LANGFUSE_HOST": "Langfuse 서버 주소",
     "LLM_FALLBACK_MODEL": "기본 모델이 재시도 후에도 실패했고 모델별 폴백이 없을 때 전환할 모델 (비워두면 비활성화)",
     "LLM_FIRST_EVENT_TIMEOUT": "스트리밍 응답의 첫 provider 이벤트 대기 시간(초, 0 이하는 비활성화, 이후 총 시간 또는 chunk 유휴 시간 제한 없음)",
     "LLM_MAX_RETRIES": "첫 LLM 호출 실패 후 재시도 횟수(시간 초과, 네트워크, 속도 제한, 5xx)",
@@ -3436,5 +3451,21 @@
   "version": {
     "checkFailed": "업데이트 확인에 실패했습니다",
     "fetchFailed": "버전을 가져오지 못했습니다"
+  },
+  "bookmarks": {
+    "empty": "아직 북마크가 없습니다",
+    "emptyHint": "메시지에 마우스를 올리고 북마크 아이콘을 클릭하면 개요·요약 등을 저장할 수 있습니다",
+    "loadFailed": "북마크를 불러오지 못했습니다",
+    "loading": "북마크를 불러오는 중…",
+    "refresh": "새로고침",
+    "remove": "북마크 제거",
+    "subtitle": "저장한 중요 메시지를 한 번에 열기",
+    "title": "북마크",
+    "untitled": "제목 없는 메시지",
+    "archivedSession": "보관됨",
+    "jump": "이동",
+    "sessionTitle": "이 대화의 북마크",
+    "locating": "북마크를 찾는 중…",
+    "messageMissing": "북마크한 메시지를 기록에서 찾을 수 없습니다. 삭제되었을 수 있습니다"
   }
 }

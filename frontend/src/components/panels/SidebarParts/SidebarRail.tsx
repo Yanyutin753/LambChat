@@ -5,6 +5,7 @@ import {
   History,
   MoreHorizontal,
   FolderOpen,
+  Bookmark,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
@@ -26,6 +27,7 @@ interface SidebarRailProps {
   onOpenSearch: () => void;
   onOpenRecentChats: () => void;
   onOpenFileLibrary: () => void;
+  onOpenBookmarks: () => void;
   onOpenScheduledTasks: () => void;
   hasMoreMenuItems: boolean;
   onToggleMoreMenu: () => void;
@@ -44,6 +46,7 @@ export function SidebarRail({
   onOpenSearch,
   onOpenRecentChats,
   onOpenFileLibrary,
+  onOpenBookmarks,
   onOpenScheduledTasks,
   hasMoreMenuItems,
   onToggleMoreMenu,
@@ -131,6 +134,15 @@ export function SidebarRail({
           aria-label={t("fileLibrary.title")}
         >
           <FolderOpen size={20} />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenBookmarks}
+          className={railBtn}
+          title={t("bookmarks.title")}
+          aria-label={t("bookmarks.title")}
+        >
+          <Bookmark size={20} />
         </button>
         <button
           type="button"

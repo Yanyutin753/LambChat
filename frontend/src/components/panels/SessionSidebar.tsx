@@ -671,6 +671,7 @@ export const SessionSidebar = forwardRef<
             onOpenSearch={() => setIsSearchOpen(true)}
             onOpenRecentChats={() => setIsRecentChatsOpen(true)}
             onOpenFileLibrary={() => navigate("/files")}
+            onOpenBookmarks={() => navigate("/bookmarks")}
             onOpenScheduledTasks={() => navigate("/scheduled-tasks")}
             hasMoreMenuItems={moreMenu.hasMoreMenuItems}
             onToggleMoreMenu={() => moreMenu.setIsMoreMenuOpen((prev) => !prev)}

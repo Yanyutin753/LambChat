@@ -51,6 +51,11 @@ const RevealedFilesPage = lazy(() =>
     default: m.RevealedFilesPanel,
   })),
 );
+const BookmarksPanel = lazy(() =>
+  import("../../panels/BookmarksPanel").then((m) => ({
+    default: m.BookmarksPanel,
+  })),
+);
 const NotificationPanel = lazy(() =>
   import("../../panels/NotificationPanel").then((m) => ({
     default: m.NotificationPanel,
@@ -96,6 +101,7 @@ const panelMap: Record<
   channels: ChannelsPage,
   agents: AgentModelPanel,
   files: RevealedFilesPage,
+  bookmarks: BookmarksPanel,
   persona: PersonaPlazaPanel,
   team: TeamBuilderPanel,
   notifications: NotificationPanel,

@@ -476,6 +476,15 @@ wheels = [
 ]
 
 [[package]]
+name = "backoff"
+version = "2.2.1"
+source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple" }
+sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/47/d7/5bbeb12c44d7c4f2fb5b56abce497eb5ed9f34d85701de869acedd602619/backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8" },
+]
+
+[[package]]
 name = "bcrypt"
 version = "5.0.0"
 source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple" }
@@ -2035,6 +2044,7 @@ dependencies = [
     { name = "langchain-mongodb" },
     { name = "langchain-openai" },
     { name = "langchain-quickjs" },
+    { name = "langfuse" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-mongodb" },
     { name = "langgraph-checkpoint-postgres" },
@@ -2102,6 +2112,7 @@ requires-dist = [
     { name = "langchain-mongodb", specifier = ">=0.12.0" },
     { name = "langchain-openai", specifier = ">=1.6.0" },
     { name = "langchain-quickjs", specifier = ">=0.3.5" },
+    { name = "langfuse", specifier = ">=3.0.0" },
     { name = "langgraph", specifier = ">=1.2.11" },
     { name = "langgraph-checkpoint-mongodb", specifier = ">=0.4.0" },
     { name = "langgraph-checkpoint-postgres", specifier = ">=3.1.2" },
@@ -2311,6 +2322,26 @@ dependencies = [
 sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/26/9f/6c545900fefb7b00ddfa3f16b80d61338a0ec68c31c5451eeeab99082760/langchain_text_splitters-1.1.2.tar.gz", hash = "sha256:782a723db0a4746ac91e251c7c1d57fd23636e4f38ed733074e28d7a86f41627" }
 wheels = [
     { url = "https://mirrors.cloud.tencent.com/pypi/packages/d3/26/1ef06f56198d631296d646a6223de35bcc6cf9795ceb2442816bc963b84c/langchain_text_splitters-1.1.2-py3-none-any.whl", hash = "sha256:a2de0d799ff31886429fd6e2e0032df275b60ec817c19059a7b46181cc1c2f10" },
+]
+
+[[package]]
+name = "langfuse"
+version = "4.15.1"
+source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple" }
+dependencies = [
+    { name = "backoff" },
+    { name = "httpx" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
+    { name = "packaging" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/c2/51/ed5569bc2dcc8fe767e3b315207a7511ad23d00d811f02bbf0d6f80bf906/langfuse-4.15.1.tar.gz", hash = "sha256:70cb47529a6ba78383c4f2a197eb3d3ab9d39529c9e6b568d392150c1f40dbb9" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/2a/f9/7160bafcfe9797575359a9e77f810cf26f57f55a7c5ceda602fd9e353ddf/langfuse-4.15.1-py3-none-any.whl", hash = "sha256:795760693a62895157b6f5d6c80f1ad524fd12380995f06f82fc3a627b88c8d4" },
 ]
 
 [[package]]
@@ -4030,6 +4061,9 @@ dependencies = [
     { name = "requests" },
 ]
 sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/54/ff/db9efe7454d329bfa6fe433e0f881eb9d28489fc4b8427ee2fbaedc5f42b/pywebpush-2.5.0.tar.gz", hash = "sha256:8260f8e42d70ed95a3bd00527ffcb43b5b3df8983a4a48b059fe29b06dc3d92c" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/65/fc/32c8902ce796e8b21c229fa50478fd70e2be2fe7c3ac2259771cf1d5aa07/pywebpush-2.5.0-py3-none-any.whl", hash = "sha256:b5f5d45024223a04e73fe17f7a8e62540f35bbcc62b49e64d0a1080ff2dc26f2" },
+]
 
 [[package]]
 name = "pywin32"

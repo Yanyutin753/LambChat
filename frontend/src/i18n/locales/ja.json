@@ -627,7 +627,8 @@
     "usernameOrEmailExists": "ユーザー名またはメールアドレスが既に存在します",
     "roleNameExists": "ロール名 {{name}} は既に存在します",
     "systemRoleProtected": "システムロールは変更・削除できません",
-    "agentNotRegistered": "エージェント '{{agent}}' は登録されていません"
+    "agentNotRegistered": "エージェント '{{agent}}' は登録されていません",
+    "bookmarkUpdateFailed": "ブックマーク状態の更新に失敗しました"
   },
   "categories": {
     "agent": "エージェント",
@@ -949,7 +950,12 @@
       "toolTransferPath": "ディレクトリ転送",
       "toolUploadUrlToSandbox": "URLをサンドボックスへアップロード",
       "toolVarCount": "{{count}} 個の変数",
-      "toolWrite": "書込"
+      "toolWrite": "書込",
+      "addBookmark": "ブックマークに追加",
+      "bookmarkAdded": "ブックマークに追加しました",
+      "bookmarkRemoved": "ブックマークを削除しました",
+      "bookmarkToggleFailed": "ブックマーク操作に失敗しました",
+      "removeBookmark": "ブックマークを削除"
     },
     "messageInput": "メッセージ入力",
     "noPermission": "メッセージを送信する権限がありません",
@@ -1897,7 +1903,8 @@
     "team": "チームビルダー",
     "usage": "コンソール",
     "userSettings": "ユーザー管理",
-    "users": "ユーザー"
+    "users": "ユーザー",
+    "bookmarks": "ブックマーク"
   },
   "navDesc": {
     "agents": "AIエージェントの設定と管理",
@@ -2418,6 +2425,10 @@
     "users": {
       "description": "ユーザーアカウント、ロール、アクセス権限の管理。マルチテナントユーザーライフサイクルとセキュリティ設定の管理。",
       "title": "ユーザー管理"
+    },
+    "bookmarks": {
+      "description": "アウトラインやまとめなど重要なメッセージを保存し、いつでもワンクリックで戻れます。",
+      "title": "メッセージブックマーク"
     }
   },
   "session": {
@@ -2524,6 +2535,10 @@
     "LANGSMITH_PROJECT": "LangSmithプロジェクト名",
     "LANGSMITH_SAMPLE_RATE": "LangSmithサンプリングレート（0.0-1.0）",
     "LANGSMITH_TRACING": "LangSmithトレースを有効化",
+    "LANGFUSE_ENABLED": "Langfuse トレーシングを有効化（セルフホスト）",
+    "LANGFUSE_PUBLIC_KEY": "Langfuse パブリックキー",
+    "LANGFUSE_SECRET_KEY": "Langfuse シークレットキー",
+    "LANGFUSE_HOST": "Langfuse サーバーアドレス",
     "LLM_FALLBACK_MODEL": "プライマリモデルが再試行後も失敗した場合（モデルごとのフォールバック未設定時）に切り替えるモデル（空欄で無効）",
     "LLM_FIRST_EVENT_TIMEOUT": "ストリーミング応答の最初のproviderイベントを待つ秒数（0以下で無効。以降は合計時間やchunkアイドルのタイムアウトなし）",
     "LLM_MAX_RETRIES": "最初のLLM呼び出し失敗後の再試行回数（タイムアウト、ネットワーク、レート制限、5xx）",
@@ -3436,5 +3451,21 @@
   "version": {
     "checkFailed": "アップデートの確認に失敗しました",
     "fetchFailed": "バージョンの取得に失敗しました"
+  },
+  "bookmarks": {
+    "empty": "ブックマークはまだありません",
+    "emptyHint": "メッセージにカーソルを合わせ、ブックマークアイコンをクリックするとアウトラインやまとめなどを保存できます",
+    "loadFailed": "ブックマークの読み込みに失敗しました",
+    "loading": "ブックマークを読み込み中…",
+    "refresh": "更新",
+    "remove": "ブックマークを削除",
+    "subtitle": "保存した重要メッセージにワンクリックで移動",
+    "title": "ブックマーク",
+    "untitled": "無題のメッセージ",
+    "archivedSession": "アーカイブ済み",
+    "jump": "移動",
+    "sessionTitle": "この会話のブックマーク",
+    "locating": "ブックマークを定位しています…",
+    "messageMissing": "ブックマークのメッセージが履歴に見つかりません。削除された可能性があります"
   }
 }

@@ -23,6 +23,7 @@ from src.infra.llm.responses_cache import (
     set_responses_prompt_cache_key,
 )
 from src.infra.logging import get_logger
+from src.infra.tracing.langfuse_client import build_langfuse_metadata, langfuse_tracer
 from src.infra.utils.datetime import utc_now
 from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
@@ -417,6 +418,17 @@ class BaseGraphAgent(ABC):
                 presenter,
                 langsmith_context,
             )
+            run_metadata = langsmith_metadata
+            langfuse_handler = None
+            if langfuse_tracer.enabled:
+                langfuse_handler = langfuse_tracer.callback_handler()
+                if langfuse_handler is not None:
+                    run_metadata = build_langfuse_metadata(
+                        langsmith_metadata,
+                        session_id=presenter.config.session_id,
+                        user_id=presenter.config.user_id,
+                        trace_name=self._agent_name,
+                    )
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": session_id,
@@ -425,9 +437,11 @@ class BaseGraphAgent(ABC):
                     "trace_id": presenter.trace_id,
                     **kwargs,
                 },
-                "metadata": langsmith_metadata,
+                "metadata": run_metadata,
                 "recursion_limit": self.recursion_limit,
             }
+            if langfuse_handler is not None:
+                config["callbacks"] = [langfuse_handler]
 
             # 初始状态
             initial_state = {

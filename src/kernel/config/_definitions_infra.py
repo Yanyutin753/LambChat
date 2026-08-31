@@ -197,4 +197,40 @@ INFRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 1.0,
         "depends_on": "LANGSMITH_TRACING",
     },
+    # ============================================
+    # Langfuse Tracing Settings (self-hosted)
+    # ============================================
+    "LANGFUSE_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.TRACING,
+        "subcategory": "langfuse",
+        "description": "settingDesc.LANGFUSE_ENABLED",
+        "default": False,
+    },
+    "LANGFUSE_PUBLIC_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TRACING,
+        "subcategory": "langfuse",
+        "description": "settingDesc.LANGFUSE_PUBLIC_KEY",
+        "default": "",
+        "depends_on": "LANGFUSE_ENABLED",
+        "is_sensitive": True,
+    },
+    "LANGFUSE_SECRET_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TRACING,
+        "subcategory": "langfuse",
+        "description": "settingDesc.LANGFUSE_SECRET_KEY",
+        "default": "",
+        "depends_on": "LANGFUSE_ENABLED",
+        "is_sensitive": True,
+    },
+    "LANGFUSE_HOST": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.TRACING,
+        "subcategory": "langfuse",
+        "description": "settingDesc.LANGFUSE_HOST",
+        "default": "http://localhost:3000",
+        "depends_on": "LANGFUSE_ENABLED",
+    },
 }

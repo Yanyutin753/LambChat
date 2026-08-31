@@ -2,6 +2,9 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "katex/dist/katex.min.css";
 import "./fonts.css";
+// CJK 字体异步加载（约 940 条 @font-face 拆独立 chunk，不阻塞首屏，
+// 也不占 PWA 预缓存预算），见 src/fonts-cjk.ts。
+void import("./fonts-cjk");
 import "./i18n";
 import App from "./App.tsx";
 import "./styles/tailwind.css";
