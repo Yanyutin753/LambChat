@@ -119,7 +119,7 @@ function SelectRow<T extends string>({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-5 pt-4 pb-2">
-                <h4 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                <h4 className="text-sm font-semibold font-serif text-stone-900 dark:text-stone-100">
                   {label}
                 </h4>
               </div>

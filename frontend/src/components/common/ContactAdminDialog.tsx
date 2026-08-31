@@ -72,7 +72,7 @@ export function ContactAdminDialog({
             <ShieldCheck className="h-7 w-7 text-amber-500 dark:text-amber-400" />
           </div>
           <div className="text-center">
-            <h3 className="text-base font-semibold tracking-tight text-stone-900 dark:text-stone-50">
+            <h3 className="text-base font-semibold font-serif tracking-tight text-stone-900 dark:text-stone-50">
               {title}
             </h3>
             <p className="mt-2 text-sm leading-relaxed text-stone-500 dark:text-stone-400">

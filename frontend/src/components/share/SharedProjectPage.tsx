@@ -186,7 +186,7 @@ export function SharedProjectPage({
       <div className="min-h-dvh bg-theme-bg text-theme-text flex items-center justify-center p-4">
         <div className="bg-theme-bg-card rounded-2xl shadow-xl border border-theme-border px-8 py-10 max-w-md text-center">
           <AlertCircle className="h-10 w-10 mx-auto mb-4 text-theme-text-secondary" />
-          <h1 className="text-xl font-semibold mb-2">
+          <h1 className="text-xl font-semibold font-serif mb-2">
             {error === "not_project"
               ? "这不是一个项目分享链接"
               : "分享不存在或已失效"}

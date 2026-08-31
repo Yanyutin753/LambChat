@@ -147,7 +147,7 @@ export default function CadPreview(props: CadPreviewProps) {
                     className="text-cyan-700 dark:text-cyan-300"
                   />
                 </div>
-                <h3 className="mb-4 text-base font-medium text-[var(--theme-text)]">
+                <h3 className="mb-4 text-base font-medium font-serif text-[var(--theme-text)]">
                   {formatPhase(phase, t)}
                 </h3>
                 <div

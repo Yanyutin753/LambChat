@@ -198,7 +198,7 @@ export function RolesModelTab({
                         size={20}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-stone-950 dark:text-stone-100">
+                        <div className="truncate text-sm font-medium font-serif text-stone-950 dark:text-stone-100">
                           {model.label}
                         </div>
                         <div className="text-xs font-mono text-stone-400 dark:text-stone-500 truncate sm:hidden mt-0.5">
