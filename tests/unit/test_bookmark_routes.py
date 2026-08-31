@@ -120,14 +120,14 @@ async def test_toggle_message_bookmark_passes_body_fields():
 async def test_toggle_message_bookmark_session_not_found():
     user = _make_user()
 
-    with patch(
-        "src.api.routes.session.SessionManager",
-        return_value=MagicMock(get_session=AsyncMock(return_value=None)),
-    ):
+    manager = MagicMock(get_session=AsyncMock(return_value=None))
+    with patch("src.api.routes.bookmark.SessionManager", return_value=manager):
         handler = _find_route("POST", "/bookmark")
         with pytest.raises(AppError) as exc_info:
             await handler("missing", "message-1", user=user)
 
+    # 断言走的是 mock，防止 patch 目标失效后真实 SessionManager 意外通过
+    manager.get_session.assert_awaited_once_with("missing")
     assert exc_info.value.error_code is ErrorCode.SESSION_NOT_FOUND
 
 
