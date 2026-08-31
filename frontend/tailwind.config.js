@@ -30,15 +30,17 @@ export default {
         "20": "1.25rem",
       },
       fontFamily: {
-        sans: ["'Source Sans 3'", "system-ui", "sans-serif"],
+        // CJK 界面文字落到构建期子集化的 Noto Sans SC（vite-plugin-font），
+        // 未覆盖的字符（聊天内容等）继续走系统字体。
+        sans: ["'Source Sans 3'", "'Noto Sans SC'", "system-ui", "sans-serif"],
         // 排除 Georgia/ui-serif：默认老式数字（old-style figures）会低于基线，
         // 导致数字与文本不在同一水平线；Source Serif 4 默认 lining figures。
         serif: [
           "'Source Serif 4'",
+          "'Noto Serif SC'",
           "Cambria",
           "'Times New Roman'",
           "Times",
-          "'Noto Serif SC'",
           "'Source Han Serif SC'",
           "'Songti SC'",
           "SimSun",
