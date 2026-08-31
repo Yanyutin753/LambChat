@@ -33,6 +33,34 @@ def _marker_recovery_expired(recovery_after: Any, now: Any) -> bool:
         return True
 
 
+async def _release_claimed_marker(collection: Any, trace_id: str, operation_id: str) -> None:
+    """Best-effort release of a marker this coroutine just claimed.
+
+    Task cancellation (user stop button) can land on the claim await after
+    the server already installed the marker; the caller never learns the
+    claim, so nothing else releases it before the 5-minute lease expires.
+    The unset is scoped to our operation id: if the claim never reached the
+    server it matches nothing, and a foreign marker is never touched.
+    """
+    try:
+        await collection.update_one(
+            {
+                "trace_id": trace_id,
+                f"{ATTACHMENT_CHUNK_WRITE_FIELD}.id": operation_id,
+            },
+            {
+                "$unset": {ATTACHMENT_CHUNK_WRITE_FIELD: ""},
+                "$set": {"updated_at": utc_now()},
+            },
+        )
+    except BaseException as exc:  # noqa: BLE001 - best-effort cleanup only
+        logger.warning(
+            "Failed to release claimed chunk marker for trace %s after cancellation: %s",
+            trace_id,
+            exc,
+        )
+
+
 def _replacement_digest(
     events: List[Dict[str, Any]],
     *,
@@ -117,17 +145,21 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
         )
         if trace_doc.get("_id") is not None:
             query["_id"] = trace_doc["_id"]
-        claimed = await self.collection.find_one_and_update(
-            query,
-            {
-                "$inc": {TRACE_EVENT_REVISION_FIELD: 1},
-                "$set": {
-                    ATTACHMENT_CHUNK_WRITE_FIELD: marker,
-                    "updated_at": now,
+        try:
+            claimed = await self.collection.find_one_and_update(
+                query,
+                {
+                    "$inc": {TRACE_EVENT_REVISION_FIELD: 1},
+                    "$set": {
+                        ATTACHMENT_CHUNK_WRITE_FIELD: marker,
+                        "updated_at": now,
+                    },
                 },
-            },
-            return_document=ReturnDocument.AFTER,
-        )
+                return_document=ReturnDocument.AFTER,
+            )
+        except BaseException:
+            await _release_claimed_marker(self.collection, trace_id, operation_id)
+            raise
         return (operation_id, claimed) if claimed else None
 
     async def _set_replacement_phase(
@@ -769,27 +801,30 @@ class TraceEventChunkMixin(TraceChunkRollbackMixin):
                 expected_revision if raw_revision is not None else {"$exists": False}
             ),
         }
-        return await self.collection.find_one_and_update(
-            query,
-            {
-                "$inc": {
-                    "event_count": event_count,
-                    TRACE_EVENT_REVISION_FIELD: 1,
-                },
-                "$set": {
-                    ATTACHMENT_CHUNK_WRITE_FIELD: {
-                        "id": operation_id,
-                        "kind": "append",
-                        "revision": claimed_revision,
-                        "recovery_after": now + timedelta(minutes=5),
+        try:
+            return await self.collection.find_one_and_update(
+                query,
+                {
+                    "$inc": {
+                        "event_count": event_count,
+                        TRACE_EVENT_REVISION_FIELD: 1,
                     },
-                    "updated_at": now,
+                    "$set": {
+                        ATTACHMENT_CHUNK_WRITE_FIELD: {
+                            "id": operation_id,
+                            "kind": "append",
+                            "revision": claimed_revision,
+                            "recovery_after": now + timedelta(minutes=5),
+                        },
+                        "updated_at": now,
+                    },
                 },
-            },
-            projection={"_id": 0},
-            return_document=ReturnDocument.AFTER,
-        )
-
+                projection={"_id": 0},
+                return_document=ReturnDocument.AFTER,
+            )
+        except BaseException:
+            await _release_claimed_marker(self.collection, trace_id, operation_id)
+            raise
     async def append_events_to_chunks(
         self,
         trace_doc: Dict[str, Any],
