@@ -2527,6 +2527,7 @@
     "LLM_FIRST_EVENT_TIMEOUT": "等待流式响应首个 provider 事件的秒数（0 或负数禁用；首事件后无总时限或 chunk 空闲超时）",
     "LLM_MAX_RETRIES": "首次 LLM 调用失败后的重试次数（超时、网络、限流和 5xx）",
     "LLM_MODEL_CACHE_SIZE": "LLM 模型实例缓存大小（每个实例约 10-30MB）。默认 50，支持多用户/多参数场景。设置过小会频繁创建/销毁实例，设置过大会占用更多内存。",
+    "LLM_KV_CACHE": "在 OpenAI 协议请求上启用 Codex 同款 KV 缓存路由：/v1/responses 与 /v1/chat/completions 均携带会话级 prompt_cache_key（responses 另含加密推理回传与无状态 store）。仅当提供商拒绝这些标准字段时才需关闭。",
     "LLM_OPENAI_API_FORMAT": "OpenAI 兼容接口的默认线格式：chat_completions（/v1/chat/completions）或 responses（/v1/responses）。仅在上游支持 /v1/responses 时才切换；模型级「API 格式」配置优先于此设置。",
     "LLM_REQUEST_HEADERS": "全局模型请求头覆盖，JSON 对象（如 {\"User-Agent\": \"...\"}）。会合并进内置防封默认头（Claude Code / opencode 风格 User-Agent 等）；模型级「请求头覆盖」优先于此设置。",
     "LLM_REQUEST_TIMEOUT": "完整非流式响应的总时限（秒；0 或负数表示不施加 LambChat 总超时）",

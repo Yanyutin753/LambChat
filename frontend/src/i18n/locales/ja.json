@@ -2527,6 +2527,7 @@
     "LLM_FIRST_EVENT_TIMEOUT": "ストリーミング応答の最初のproviderイベントを待つ秒数（0以下で無効。以降は合計時間やchunkアイドルのタイムアウトなし）",
     "LLM_MAX_RETRIES": "最初のLLM呼び出し失敗後の再試行回数（タイムアウト、ネットワーク、レート制限、5xx）",
     "LLM_MODEL_CACHE_SIZE": "LLMモデルインスタンスキャッシュサイズ（各インスタンス約10-30MB）。デフォルト50、マルチユーザー/マルチパラメータシナリオに対応。小さすぎると頻繁な作成/破棄、大きすぎるとメモリ消費増加。",
+    "LLM_KV_CACHE": "OpenAI 互換リクエストに Codex と同じ KV キャッシュルーティングを適用します：/v1/responses と /v1/chat/completions の両方にセッション単位の prompt_cache_key を付与（responses では暗号化推論コンテンツの再生とステートレス store も含む）。プロバイダがこれらの標準フィールドを拒否する場合のみ無効化してください。",
     "LLM_OPENAI_API_FORMAT": "OpenAI 互換エンドポイントのデフォルト通信形式：chat_completions（/v1/chat/completions）または responses（/v1/responses）。上流が /v1/responses をサポートする場合のみ切り替えてください。モデルごとの「API フォーマット」設定が優先されます。",
     "LLM_REQUEST_HEADERS": "モデル呼び出しのグローバルリクエストヘッダー上書き（JSON オブジェクト、例: {\"User-Agent\": \"...\"}）。内蔵の防止用デフォルトヘッダー（Claude Code / opencode 風の User-Agent など）にマージされます。モデル単位の上書きが優先されます。",
     "LLM_REQUEST_TIMEOUT": "完全な非ストリーミング応答の合計待機時間（秒。0以下ではLambChatの合計タイムアウトを無効化）",

@@ -1,5 +1,39 @@
 # Changelog
 
+## v2.8.0 (2026-08-31)
+
+### ✨ New Features
+
+- Align all LLM channels with Codex-style prompt-cache (KV) request shaping: session-level `prompt_cache_key` on both /v1/responses and /v1/chat/completions, encrypted-reasoning replay with a stateless store on responses, an Anthropic tools-block cache breakpoint shared across sessions/sub-agents, and deterministic deferred-tool restore order; measured 86-90% cache hits on gpt-5.6-terra (37% for the bare-parameter control) and 98%+ on GLM channels, recorded via `token:usage` cache_read_tokens (#328).
+- Chat replies and session titles now follow the UI locale, with a prompt-cache stability contract on the language section (#327).
+- Unify the error-code system end to end: kernel `ErrorCode`/`AppError` everywhere (no route-level HTTPException), SSE error events carry codes, and the frontend translates all backend codes into five locales (#325, #326).
+- Add model pricing: per-model price management, live cost display on usage events, historical usage backfill, and distributed-safe syncing (#306, #307, #308, #309).
+- Add run modes: agent-mode selection with per-message badges, usage-chip popover with live refresh, and task-manager run-mode support (#318, #320, #321, #322, #323, #324).
+- Give every built-in system tool a dedicated inline Item (code interpreter and 10+ tools) instead of the generic wrench fallback (#310, #317).
+- Stream tool call arguments as they arrive with a live tool sidebar panel (#294, #300, #301, #303, #304).
+- Redesign the thinking-intensity control into four always-on levels gated by model capability (#286), and stream the latest reasoning fragment into the thinking label (#291).
+- Extend conversation thumbnails and file covers across all providers (#275, #283).
+- Add usage-backfill auto-entry with dimension validation and cache bounds, resolving issue #278 (#280).
+- Add font-size scale levels and the user info page (#319, #320).
+
+### 🐛 Bug Fixes
+
+- Fix the v2.7.0 client build (explicit .tsx import) (#272); fix document-preview copy-link and patrol findings (#288, #289).
+- Add a stall watchdog for streaming runs and flush poison events (#296, #297).
+- Fix memory code-marker false positives (#305); fix tool-overflow i18n (#314).
+- Speed up orphan-task takeover and fix its interval definition/settings (#311, #313, #316).
+- Fix distributed-runtime issues promoted with the file-cover and memory batches (#277).
+
+### ♻️ Refactors
+
+- Upgrade the full dependency set (#312).
+
+### 🧪 Tests & Infrastructure
+
+- Add a k8s/Qdrant deployment example (#315) and distributed pricing-backfill coverage (#308).
+
+---
+
 ## v2.7.0 (2026-08-28)
 
 ### ✨ New Features

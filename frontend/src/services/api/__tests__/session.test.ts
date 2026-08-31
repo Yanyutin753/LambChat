@@ -1,5 +1,6 @@
 import {
   buildCheckpointForkUrl,
+  buildGenerateTitleUrl,
   buildMessageCheckpointUrl,
   buildMessageForkUrl,
   buildSessionRunsUrl,
@@ -255,4 +256,33 @@ test("omits unusable attachments from the submit body", () => {
       size: 1,
     },
   ]);
+});
+
+test("generate title url defaults lang to the active ui language", async () => {
+  const { default: i18n } = await import("i18next");
+  const previous = i18n.language;
+  i18n.language = "zh";
+
+  try {
+    expect(buildGenerateTitleUrl("session-1", "你好世界")).toBe(
+      `/api/sessions/session-1/generate-title?message=${encodeURIComponent(
+        "你好世界",
+      )}&lang=zh`,
+    );
+  } finally {
+    i18n.language = previous;
+  }
+});
+
+test("generate title url keeps explicit lang and falls back to english", async () => {
+  expect(buildGenerateTitleUrl("session-1", "hi", "ru")).toContain("&lang=ru");
+
+  const { default: i18n } = await import("i18next");
+  const previous = i18n.language;
+  i18n.language = "";
+  try {
+    expect(buildGenerateTitleUrl("session-1", "hi")).toContain("&lang=en");
+  } finally {
+    i18n.language = previous;
+  }
 });

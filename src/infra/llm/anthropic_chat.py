@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -105,6 +106,29 @@ class LambChatAnthropicChatModel(ChatAnthropic):
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
     # Inject Anthropic prompt-cache breakpoints (system prefix + final message).
     enable_prompt_cache: bool = Field(default=True, exclude=True)
+
+    def bind_tools(
+        self, tools, *, tool_choice=None, parallel_tool_calls=None, strict=None, **kwargs
+    ):
+        bound = super().bind_tools(
+            tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            strict=strict,
+            **kwargs,
+        )
+        # Tools 块断点（4 个配额中的第 4 个）：消息级断点只能让「同一会话」
+        # 复用前缀，tools 断点让不同会话/子代理（同一套工具、不同消息）也
+        # 能直接命中 system+tools 前缀，冷启动免整段重填充。tools 段太小
+        # （< ~1024 token）时服务端只会忽略断点，主动跳过以保持干净。
+        if self.enable_prompt_cache:
+            bound_tools = getattr(bound, "kwargs", {}).get("tools")
+            if bound_tools and isinstance(bound_tools[-1], dict):
+                serialized_chars = sum(len(json.dumps(t, default=str)) for t in bound_tools)
+                last = bound_tools[-1]
+                if serialized_chars >= _MIN_CACHE_SEGMENT_CHARS and "cache_control" not in last:
+                    last["cache_control"] = dict(_CACHE_CONTROL)
+        return bound
 
     def _prepare(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         if self.enable_prompt_cache:

@@ -162,14 +162,16 @@ class SearchAgentContext:
             ):
                 from src.infra.tool.deferred_manager import (
                     DeferredToolManager,
+                    merge_discovered_names,
                     restore_discovered_tools,
                 )
 
-                # 恢复上次已发现的工具名（跨 turn 持久化）
+                # 恢复上次已发现的工具名（跨 turn 持久化，按发现顺序回放，
+                # 与在线追加顺序保持一致以稳定 tools 缓存前缀）
                 pre_discovered = await restore_discovered_tools(self.session_id)
                 if self.deferred_manager is not None:
-                    pre_discovered = sorted(
-                        set(pre_discovered).union(self.deferred_manager.discovered_names)
+                    pre_discovered = merge_discovered_names(
+                        pre_discovered, self.deferred_manager.discovered_names
                     )
 
                 direct_names = {getattr(tool, "name", "") for tool in self.tools}
