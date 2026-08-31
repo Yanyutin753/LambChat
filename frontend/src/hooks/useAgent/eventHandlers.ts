@@ -304,6 +304,36 @@ export function handleStreamEvent(
       return;
     }
 
+    case "run:resumed": {
+      // 系统中断后同 run 无缝续跑：清空气泡里的半截输出/错误/取消状态，
+      // 回到流式空态接收重新生成的完整回答（模型会重跑这一轮）。
+      ctx.setMessages((prev) => {
+        const reset = {
+          parts: [],
+          content: "",
+          toolCalls: [],
+          cancelled: false,
+          isStreaming: true,
+        };
+        if (prev.some((message) => message.id === messageId)) {
+          return prev.map((message) =>
+            message.id === messageId ? { ...message, ...reset } : message,
+          );
+        }
+        return [
+          ...prev,
+          {
+            id: messageId,
+            role: "assistant" as const,
+            timestamp: new Date(),
+            runId: typeof data.run_id === "string" ? data.run_id : undefined,
+            ...reset,
+          },
+        ];
+      });
+      return;
+    }
+
     case "complete":
     case "done": {
       ctx.setMessages((prev) =>

@@ -521,6 +521,22 @@ export function reconstructMessagesFromEvents(
       continue;
     }
 
+    // Handle seamless run resume
+    if (eventType === "run:resumed") {
+      // 中断后同 run 恢复：丢弃半截/错误累积，同一气泡从空态继续折叠
+      // 后续事件（模型重新生成完整回答）
+      if (currentAssistantMessage) {
+        currentAssistantMessage = {
+          ...currentAssistantMessage,
+          parts: [],
+          content: "",
+          toolCalls: [],
+          cancelled: false,
+        };
+      }
+      continue;
+    }
+
     if (
       !currentAssistantMessage &&
       canAttachEventTypeToPreviousAssistant(eventType)
