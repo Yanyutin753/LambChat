@@ -27,7 +27,7 @@ export function AgentModelPanel() {
   ];
 
   const sectionSwitcher = (
-    <div className="agent-model-section-switcher inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1">
+    <div className="agent-model-section-switcher inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 font-serif">
       {sections.map((section) => {
         const Icon = section.icon;
         const isActive = activeSection === section.id;

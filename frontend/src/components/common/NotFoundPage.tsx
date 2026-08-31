@@ -11,7 +11,7 @@ export function NotFoundPage() {
     <div className="safe-area-viewport-padding flex h-screen w-full flex-col items-center justify-center bg-theme-bg dark:bg-stone-900 px-4">
       <div className="flex flex-col items-center max-w-md text-center">
         {/* Title */}
-        <h1 className="text-2xl font-semibold text-stone-900 dark:text-stone-100 mb-2">
+        <h1 className="text-2xl font-semibold font-serif text-stone-900 dark:text-stone-100 mb-2">
           {t("errors.pageNotFound")}
         </h1>
 
