@@ -15,6 +15,12 @@ on:
 env:
   REGISTRY: ghcr.io
 
+# 同分支构建串行化：两次 develop（或 main）连续合并时，arch 镜像与
+# manifest 的拼接不能并发进行，否则后推的 run 会覆盖共享引用
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
@@ -82,7 +88,10 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.meta.outputs.version }}-${{ matrix.suffix }}
+          # arch 镜像必须用 run 唯一 tag：metadata 的 version 输出是分支名
+          # （develop/main），拼上 -amd64 后是共享可变 tag，两次并发构建
+          # 会互相覆盖，导致 merge job 拼出混入另一次 run 内容的 manifest
+          tags: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:run-${{ github.run_id }}-${{ matrix.suffix }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
@@ -131,13 +140,13 @@ jobs:
       - name: Create and push manifest
         run: |
           TAGS="${{ steps.meta.outputs.tags }}"
-          VERSION="${{ steps.meta.outputs.version }}"
           IMAGE_NAME="${{ steps.image.outputs.name }}"
 
+          # 只从本 run 的 arch 镜像拼 manifest（run-<id> 唯一，见 build job）
           for TAG in $TAGS; do
             echo "Creating manifest for $TAG"
             docker buildx imagetools create \
               --tag $TAG \
-              ${{ env.REGISTRY }}/$IMAGE_NAME:$VERSION-amd64 \
-              ${{ env.REGISTRY }}/$IMAGE_NAME:$VERSION-arm64
+              ${{ env.REGISTRY }}/$IMAGE_NAME:run-${{ github.run_id }}-amd64 \
+              ${{ env.REGISTRY }}/$IMAGE_NAME:run-${{ github.run_id }}-arm64
           done
