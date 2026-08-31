@@ -14,7 +14,7 @@ from src.kernel.config import settings
 from src.kernel.errors import ErrorCode
 from src.kernel.schemas.session import SessionUpdate
 
-from .concurrency import ConcurrencyResult, get_concurrency_limiter, get_registered_executor
+from .concurrency import get_concurrency_limiter, get_registered_executor
 from .recovery_texts import build_recovery_message, normalize_recovery_language
 from .state_machine import TaskStateMachine
 from .status import TaskStatus

@@ -19,8 +19,8 @@ from src.infra.writer.presenter_events import derive_user_message_run_modes
 from src.kernel.config import settings
 from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
-from .exceptions import TaskInterruptedError
 from .cancellation import TaskCancellation
+from .exceptions import TaskInterruptedError
 from .heartbeat import TaskHeartbeat
 from .stall_watchdog import aiter_with_stall_timeout
 from .state_machine import TaskStateMachine

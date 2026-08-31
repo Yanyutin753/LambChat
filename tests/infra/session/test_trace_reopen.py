@@ -12,7 +12,6 @@ from typing import Any
 import pytest
 
 from src.infra.session import trace_storage as trace_storage_module
-from src.infra.session import trace_storage_writes as writes_module
 from src.infra.session.trace_storage import TraceStorage
 
 

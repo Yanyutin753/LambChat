@@ -34,7 +34,74 @@ USER_LOCK_WAIT_SECONDS = 5.0
 USER_LOCK_POLL_INTERVAL = 0.05
 QUEUE_SCAN_PAGE_SIZE = 100
 QUEUE_ENTRY_MAX_BYTES = 2 * 1024 * 1024
-QUEUE_REWRITE_CHUNK_SIZE = 100
+
+# 队列 LIST 的原子变更脚本：此前"客户端分页扫描 + 临时 key 整表重写"在用户锁内
+# 产生 O(队列长度) 次网络往返；脚本在 Redis 服务端单次原子执行，客户端零重写。
+# 队列长度受 max_queued（默认 10）约束，脚本执行时间可忽略。
+_QUEUE_REMOVE_LUA = """
+local queue_key = KEYS[1]
+local field = ARGV[1]
+local value = ARGV[2]
+local entries = redis.call('LRANGE', queue_key, 0, -1)
+local kept = {}
+local removed = 0
+local removed_run_ids = {}
+for _, entry in ipairs(entries) do
+  local ok, data = pcall(cjson.decode, entry)
+  if ok and type(data) == 'table' and data[field] == value then
+    removed = removed + 1
+    if data['run_id'] ~= nil then
+      table.insert(removed_run_ids, tostring(data['run_id']))
+    end
+  else
+    table.insert(kept, entry)
+  end
+end
+if removed == 0 then
+  return 0
+end
+redis.call('DEL', queue_key)
+if #kept > 0 then
+  redis.call('RPUSH', queue_key, unpack(kept))
+end
+return cjson.encode({removed = removed, run_ids = removed_run_ids})
+"""
+
+_QUEUE_MARK_READY_LUA = """
+local queue_key = KEYS[1]
+local run_id = ARGV[1]
+local entries = redis.call('LRANGE', queue_key, 0, -1)
+local found = 0
+for index, entry in ipairs(entries) do
+  local ok, data = pcall(cjson.decode, entry)
+  if ok and type(data) == 'table' and tostring(data['run_id'] or '') == run_id then
+    local context = data['task_context']
+    if type(context) ~= 'table' then
+      context = {}
+    end
+    context['queue_ready'] = true
+    data['task_context'] = context
+    entries[index] = cjson.encode(data)
+    found = 1
+  end
+end
+if found == 1 then
+  redis.call('DEL', queue_key)
+  redis.call('RPUSH', queue_key, unpack(entries))
+end
+return found
+"""
+
+_QUEUE_POSITION_LUA = """
+local entries = redis.call('LRANGE', KEYS[1], 0, -1)
+for index, entry in ipairs(entries) do
+  local ok, data = pcall(cjson.decode, entry)
+  if ok and type(data) == 'table' and tostring(data['run_id'] or '') == ARGV[1] then
+    return index
+  end
+end
+return 0
+"""
 
 
 async def _queue_json_dumps(value: Any) -> str:
@@ -723,28 +790,43 @@ class UserConcurrencyLimiter:
     async def get_queue_position(self, user_id: str, run_id: str) -> int:
         """Get current queue position for a run_id. Returns 0 if not in queue."""
         try:
-            queue_key = self._queue_key(user_id)
-            position = 0
-            async for entry in self._iter_queue_entries(queue_key):
-                position += 1
-                data = await _queue_json_loads(entry)
-                if data.get("run_id") == run_id:
-                    return position
-            return 0
+            result = await self.redis.eval(
+                _QUEUE_POSITION_LUA, 1, self._queue_key(user_id), run_id
+            )
+            return int(result or 0)
         except Exception:
             return 0
+
+    async def _remove_queue_entries_atomic(
+        self,
+        user_id: str,
+        *,
+        field: str,
+        value: str,
+    ) -> tuple[int, list[Any]]:
+        """Atomically drop queue entries matching one exact field (server-side Lua)."""
+        result = await self.redis.eval(
+            _QUEUE_REMOVE_LUA, 1, self._queue_key(user_id), field, str(value)
+        )
+        if not result or result == 0:
+            return 0, []
+        raw = result.decode() if isinstance(result, bytes) else result
+        payload = json.loads(raw)
+        removed = int(payload.get("removed") or 0)
+        run_ids = payload.get("run_ids") or []
+        if isinstance(run_ids, dict):
+            # cjson 把空数组编码成空对象
+            run_ids = list(run_ids.values())
+        return removed, list(run_ids)
 
     async def remove_from_queue(self, user_id: str, session_id: str) -> int:
         """Remove queued tasks matching session_id. Returns count removed."""
         try:
-            lock_key, token = await self._acquire_user_lock(user_id)
-            try:
-                removed, removed_run_ids = await self._remove_from_queue_locked(
-                    user_id,
-                    session_id,
-                )
-            finally:
-                await self._release_user_lock(lock_key, token)
+            removed, removed_run_ids = await self._remove_queue_entries_atomic(
+                user_id,
+                field="session_id",
+                value=session_id,
+            )
 
             if removed:
                 logger.info(f"Removed {removed} queued tasks for session {session_id}")
@@ -780,15 +862,11 @@ class UserConcurrencyLimiter:
     async def remove_queued_run(self, user_id: str, run_id: str) -> int:
         """Remove only the queued entry for ``run_id`` without cancelling sibling runs."""
         try:
-            lock_key, token = await self._acquire_user_lock(user_id)
-            try:
-                removed, _ = await self._rewrite_queue_without_matches(
-                    user_id,
-                    match_field="run_id",
-                    match_value=run_id,
-                )
-            finally:
-                await self._release_user_lock(lock_key, token)
+            removed, _ = await self._remove_queue_entries_atomic(
+                user_id,
+                field="run_id",
+                value=run_id,
+            )
             if removed:
                 logger.info("Removed queued run %s for user %s", run_id, user_id)
             return removed
@@ -824,108 +902,14 @@ class UserConcurrencyLimiter:
             return False
 
     async def _mark_queued_run_ready_locked(self, user_id: str, run_id: str) -> bool:
-        """Rewrite one exact queue entry as ready while holding the user lock."""
-        queue_key = self._queue_key(user_id)
-        tmp_key = f"{queue_key}:ready:{uuid.uuid4().hex}"
-        keep_buffer: list[str] = []
-        found = False
-        wrote_entries = False
+        """Flip one queue entry to ready via server-side Lua while holding the user lock.
 
-        async def _flush() -> None:
-            nonlocal wrote_entries
-            if not keep_buffer:
-                return
-            await self.redis.rpush(tmp_key, *keep_buffer)
-            keep_buffer.clear()
-            wrote_entries = True
-
-        try:
-            async for entry in self._iter_queue_entries(queue_key):
-                data = await _queue_json_loads(entry)
-                if data.get("run_id") == run_id:
-                    task_context = dict(data.get("task_context") or {})
-                    task_context["queue_ready"] = True
-                    data["task_context"] = task_context
-                    entry = await _queue_json_dumps(data)
-                    found = True
-                keep_buffer.append(entry)
-                if len(keep_buffer) >= QUEUE_REWRITE_CHUNK_SIZE:
-                    await _flush()
-
-            if not found:
-                return False
-            await _flush()
-            if wrote_entries:
-                await self.redis.rename(tmp_key, queue_key)
-                tmp_key = ""
-            return True
-        finally:
-            if tmp_key:
-                try:
-                    await self.redis.delete(tmp_key)
-                except Exception:
-                    pass
-
-    async def _remove_from_queue_locked(
-        self, user_id: str, session_id: str
-    ) -> tuple[int, list[Any]]:
-        """Remove queued tasks while the caller holds the per-user lock."""
-        return await self._rewrite_queue_without_matches(
-            user_id,
-            match_field="session_id",
-            match_value=session_id,
+        锁仍保留：mark 与随后的 dequeue 判定必须互斥（脚本只保证 LIST 变更原子）。
+        """
+        result = await self.redis.eval(
+            _QUEUE_MARK_READY_LUA, 1, self._queue_key(user_id), run_id
         )
-
-    async def _rewrite_queue_without_matches(
-        self,
-        user_id: str,
-        *,
-        match_field: str,
-        match_value: str,
-    ) -> tuple[int, list[Any]]:
-        """Rewrite a user queue while omitting entries matching one exact field."""
-        tmp_key: str | None = None
-        try:
-            queue_key = self._queue_key(user_id)
-            removed = 0
-            removed_run_ids = []
-            tmp_key = f"{queue_key}:rewrite:{uuid.uuid4().hex}"
-            keep_buffer: list[str] = []
-            wrote_keep_entries = False
-
-            async def _flush_keep_buffer() -> None:
-                nonlocal wrote_keep_entries
-                if not keep_buffer:
-                    return
-                await self.redis.rpush(tmp_key, *keep_buffer)
-                keep_buffer.clear()
-                wrote_keep_entries = True
-
-            async for entry in self._iter_queue_entries(queue_key):
-                data = await _queue_json_loads(entry)
-                if data.get(match_field) == match_value:
-                    removed += 1
-                    removed_run_ids.append(data.get("run_id"))
-                else:
-                    keep_buffer.append(entry)
-                    if len(keep_buffer) >= QUEUE_REWRITE_CHUNK_SIZE:
-                        await _flush_keep_buffer()
-            if removed:
-                await _flush_keep_buffer()
-                if wrote_keep_entries:
-                    await self.redis.rename(tmp_key, queue_key)
-                    tmp_key = None
-                else:
-                    await self.redis.delete(queue_key)
-                    tmp_key = None
-            return removed, removed_run_ids
-        except Exception:
-            if tmp_key:
-                try:
-                    await self.redis.delete(tmp_key)
-                except Exception:
-                    pass
-            raise
+        return bool(result)
 
 
 # Singleton
