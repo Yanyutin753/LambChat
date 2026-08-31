@@ -167,19 +167,15 @@ class FastAgentContext:
             ):
                 from src.infra.tool.deferred_manager import (
                     DeferredToolManager,
+                    merge_discovered_names,
                     restore_discovered_tools,
                 )
 
                 pre_discovered = await restore_discovered_tools(self.session_id)
                 if self.deferred_manager is not None:
-                    # Preserve order: restored discovery order first, then any
-                    # names only the in-memory manager knows about. Sorting
-                    # here would disagree with the online append order and
-                    # cost a full prefix cache miss after restart.
-                    seen = set(pre_discovered)
-                    pre_discovered = pre_discovered + [
-                        name for name in self.deferred_manager.discovered_names if name not in seen
-                    ]
+                    pre_discovered = merge_discovered_names(
+                        pre_discovered, self.deferred_manager.discovered_names
+                    )
 
                 direct_names = {getattr(tool, "name", "") for tool in self.tools}
                 deferred_mcp_tools = [

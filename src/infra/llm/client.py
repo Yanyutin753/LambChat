@@ -584,6 +584,17 @@ class LLMClient:
         # /v1/responses 线格式开关（模型级 api_format > 全局默认）。
         # 显式传 bool：None 会让 langchain-openai 自动探测，不满足确定性。
         openai_kwargs["use_responses_api"] = _resolve_use_responses(protocol, api_format)
+        # Codex 同款 KV 缓存默认值（对齐 codex-rs ResponsesApiRequest）：
+        # - include reasoning.encrypted_content：推理内容加密回传，重放历史时
+        #   前缀与生成时 token 级一致，缓存可跨轮/跨工具循环命中；
+        # - store=False：无状态全量重放，不依赖服务端会话存储（ChatGPT
+        #   codex 后端中转更是强制要求 store=false）。
+        # 调用方显式传参优先；LLM_KV_CACHE=False 可整体关闭。
+        if openai_kwargs["use_responses_api"] and getattr(settings, "LLM_KV_CACHE", True):
+            if "include" not in kwargs:
+                openai_kwargs["include"] = ["reasoning.encrypted_content"]
+            if "store" not in kwargs:
+                openai_kwargs["store"] = False
         # OpenAI 协议：按 provider/模型家族门控思考参数（issue #211）
         # - openai/xai 推理模型收到 reasoning_effort；responses 模式下
         #   langchain-openai 会自动映射为 reasoning.effort
