@@ -3,10 +3,10 @@
    ═══════════════════════════════════════════ */
 
 :root {
-  /* Noto Sans SC 为构建期子集化网页字体（vite-plugin-font），仅覆盖
-     界面文案字符；未命中的字符（聊天内容等）继续走系统字体。 */
-  font-family: Inter, "Noto Sans SC", system-ui, Avenir, Helvetica, Arial,
-    sans-serif;
+  /* CJK 界面黑体走系统字体（苹方/雅黑等）：Noto Sans SC 网页字体的
+     600/700 明显重于系统黑体，接管后粗体发黑，已回退（衬线展示区
+     仍用子集化的 Noto Serif SC，见 fonts-cjk.ts）。 */
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
