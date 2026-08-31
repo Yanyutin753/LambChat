@@ -232,8 +232,10 @@ def test_build_response_language_section_pins_ui_locale_with_exceptions() -> Non
     section = build_response_language_section("zh")
 
     assert "Simplified Chinese" in section
-    # 显式指定例外条件，避免一刀切规则（OpenAI 提示词指南）
-    assert "unless the user explicitly asks for another language" in section
+    # 界面语言优先于消息/引用内容语言（中文用户贴英文报错仍是中文回复），
+    # 但保留显式例外（OpenAI 提示词指南：给出语言及其改变条件）
+    assert "regardless of the language of the user's message or any quoted content" in section
+    assert "explicitly requests" in section
     # 代码与报错原文不翻译
     assert "technical identifiers" in section
 

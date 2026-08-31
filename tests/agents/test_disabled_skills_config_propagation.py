@@ -941,8 +941,9 @@ async def test_fast_agent_node_language_section_bytes_stable_across_turns(
     without_language = await run_turn({})
     assert "Response Language" not in without_language
     assert without_language == first_turn.replace(
-        "\n\n### Response Language\n- Respond in Simplified Chinese unless the user"
-        " explicitly asks for another language.\n- Keep code, commands, error messages,"
-        " file paths, and technical identifiers unchanged.",
+        "\n\n### Response Language\n- Always respond in Simplified Chinese regardless of"
+        " the language of the user's message or any quoted content.\n- Switch to another"
+        " language only when the user explicitly requests it.\n- Keep code, commands,"
+        " error messages, file paths, and technical identifiers unchanged.",
         "",
     )

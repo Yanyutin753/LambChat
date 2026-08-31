@@ -78,7 +78,7 @@ def test_locale_switch_only_alters_the_language_block() -> None:
 
     marker = "### Response Language"
     assert zh_prompt.split(marker)[0] == en_prompt.split(marker)[0]
-    assert zh_prompt.rsplit("Respond in ", 1)[0] == en_prompt.rsplit("Respond in ", 1)[0]
+    assert zh_prompt.rsplit("respond in ", 1)[0] == en_prompt.rsplit("respond in ", 1)[0]
     assert zh_prompt != en_prompt
 
 

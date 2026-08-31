@@ -39,15 +39,19 @@ def build_response_language_section(language: str | None) -> str:
 
     只在能识别界面语言时注入；识别不了返回空串（不改变模型跟随用户
     消息语言的默认行为）。按 OpenAI 提示词指南显式给出例外条件而非
-    一刀切规则：用户贴英文报错提问时，镜像策略会跟错对象。
+    一刀切规则。实测（GLM-5.3）中文消息的先验会压过宽松的例外措辞
+    （"unless the user asks"会被解读成"用户用中文提问=要求中文"），
+    因此必须显式声明界面语言优先于消息/引用内容语言。
     """
     language_name = RESPONSE_LANGUAGE_NAMES.get((language or "").strip().lower())
     if not language_name:
         return ""
     return (
         "### Response Language\n"
-        f"- Respond in {language_name} unless the user explicitly asks for "
-        "another language.\n"
+        "- Always respond in "
+        f"{language_name} regardless of the language of the user's message "
+        "or any quoted content.\n"
+        "- Switch to another language only when the user explicitly requests it.\n"
         "- Keep code, commands, error messages, file paths, and technical "
         "identifiers unchanged."
     )
