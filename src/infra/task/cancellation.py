@@ -283,6 +283,16 @@ class TaskCancellation:
         return run_id in _interrupted_runs
 
     @staticmethod
+    def set_local_interrupt(run_id: str) -> None:
+        """在执行副本本地标记中断（跨副本 pubsub 取消时先于 task.cancel 调用）。
+
+        executor 的取消路径靠该标志区分「用户取消」与「系统中断」；pubsub
+        监听器收到取消消息后必须先设置本地标志，否则用户取消会被误判为
+        系统中断而吞掉终态事件。
+        """
+        _interrupted_runs[run_id] = time.time()
+
+    @staticmethod
     async def check_interrupt(run_id: str) -> None:
         """
         检查是否有中断信号，如果有则抛出 TaskInterruptedError

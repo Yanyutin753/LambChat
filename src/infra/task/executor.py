@@ -305,11 +305,18 @@ class TaskExecutor:
         presenter: Any,
     ) -> None:
         """处理任务取消错误"""
-        # 无 interrupt 标志的取消是系统中断（优雅关停/部署），不是用户操作：
+        # 无中断信号的取消是系统中断（优雅关停/部署），不是用户操作：
         # 不写 user:cancel/error/done 终态事件、不终结 trace、不过期 stream，
         # 只 flush 缓冲让半截事件落库。recoverable 元数据由调用方标记
         # （manager.shutdown / arq_worker），随后同 run_id 无缝续跑。
-        if not TaskCancellation.check_interrupt_fast(run_id):
+        # 用户取消判定用权威信号（内存 + Redis）：跨副本取消时本副本内存标志
+        # 可能尚未同步，Redis 中断键才是可靠依据（系统中断从不设置）。
+        user_cancelled = False
+        try:
+            await TaskCancellation.check_interrupt(run_id)
+        except TaskInterruptedError:
+            user_cancelled = True
+        if not user_cancelled:
             if dual_writer is None:
                 dual_writer = get_dual_writer()
             try:
