@@ -104,6 +104,12 @@ class TaskPubSub:
                     f"Received cancel signal for run_id={run_id}, agent_id={agent_id}, session_id={session_id}"
                 )
 
+                # 先设本地中断标志再取消：executor 靠它区分「用户取消」与
+                # 「系统中断」（跨副本时本副本内存标志尚未同步会被误判）。
+                from .cancellation import TaskCancellation
+
+                TaskCancellation.set_local_interrupt(run_id)
+
                 # 调用自定义回调
                 if on_message:
                     try:

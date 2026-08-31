@@ -86,3 +86,35 @@ async def test_cancel_pubsub_flushes_event_buffer_before_completing_trace(
     )
 
     assert call_order == ["on_message", "flush_mongo_buffer", "complete_trace"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_pubsub_sets_local_interrupt_flag_before_cancelling(monkeypatch):
+    """跨副本取消：执行副本收到 pubsub 消息必须先设本地中断标志再取消任务。
+
+    否则 executor 的取消路径会把用户取消误判为系统中断（无缝续跑分支），
+    吞掉 user:cancel/error 终态事件（回归 R1-跨副本取消）。
+    """
+    from src.infra.task.cancellation import TaskCancellation, _interrupted_runs
+
+    _interrupted_runs.pop("run-local-flag", None)
+
+    cancelled_at: list[float | None] = [{"flag_age": None}]
+
+    class _Task:
+        def __init__(self):
+            self._done = False
+
+        def done(self):
+            return self._done
+
+        def cancel(self):
+            age = TaskCancellation.check_interrupt_fast("run-local-flag")
+            cancelled_at[0]["flag_age"] = age
+
+    pubsub = TaskPubSub(asyncio.Lock(), {"run-local-flag": _Task()})
+
+    await pubsub._handle_cancel_message({"data": json.dumps({"run_id": "run-local-flag"})})
+
+    assert cancelled_at[0]["flag_age"] is True, "cancel() 前本地中断标志必须已设置"
+    _interrupted_runs.pop("run-local-flag", None)

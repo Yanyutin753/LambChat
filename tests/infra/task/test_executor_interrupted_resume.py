@@ -88,9 +88,13 @@ def _executor_fixture(
         return None
 
     monkeypatch.setattr(cancellation.TaskCancellation, "clear_interrupt", _no_op)
-    monkeypatch.setattr(
-        cancellation.TaskCancellation, "check_interrupt_fast", lambda run_id: interrupt_flag
-    )
+
+    async def _check_interrupt(run_id: str) -> None:
+        # 权威判定（内存 + Redis）：用户取消时抛 TaskInterruptedError
+        if interrupt_flag:
+            raise cancellation.TaskInterruptedError(f"Task interrupted: {run_id}")
+
+    monkeypatch.setattr(cancellation.TaskCancellation, "check_interrupt", _check_interrupt)
 
     status_updates: list[str] = []
 
