@@ -246,9 +246,7 @@ async def test_reserve_cancelled_after_claim_releases_marker(monkeypatch):
 
     assert ATTACHMENT_MARKER not in collection.doc
     # The release must be scoped to this operation only.
-    release_queries = [
-        q for q in collection.update_one_queries if f"{ATTACHMENT_MARKER}.id" in q
-    ]
+    release_queries = [q for q in collection.update_one_queries if f"{ATTACHMENT_MARKER}.id" in q]
     assert len(release_queries) == 1
 
 
@@ -271,9 +269,7 @@ async def test_claim_chunk_write_cancelled_after_claim_releases_marker(monkeypat
         await storage._claim_chunk_write(deepcopy(trace_doc), kind="replace")
 
     assert ATTACHMENT_MARKER not in collection.doc
-    release_queries = [
-        q for q in collection.update_one_queries if f"{ATTACHMENT_MARKER}.id" in q
-    ]
+    release_queries = [q for q in collection.update_one_queries if f"{ATTACHMENT_MARKER}.id" in q]
     assert len(release_queries) == 1
 
 
