@@ -42,3 +42,19 @@ test("message part renderer routes eval tools to the dedicated item for all agen
   expect(source).toMatch(/<EvalItem/);
   expect(source).toMatch(/<ToolCallItem/);
 });
+
+test("eval item renders the parsed wire result instead of raw tags", () => {
+  const source = readSource("../EvalItem.tsx");
+
+  expect(source).toMatch(/parseEvalWireResult/);
+  expect(source).toMatch(/EvalResultContent/);
+  expect(source).toMatch(/consoleOutput/);
+  expect(source).not.toMatch(/<ToolResultContent/);
+});
+
+test("numeric eval results render prominently with serif lining digits", () => {
+  const source = readSource("../EvalItem.tsx");
+
+  expect(source).toMatch(/font-serif/);
+  expect(source).toMatch(/tabular-nums/);
+});

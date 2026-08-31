@@ -122,7 +122,7 @@ export function SkillPreviewModal({
             </div>
           ) : previewFiles ? (
             <div>
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--theme-text)]">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold font-serif text-[var(--theme-text)]">
                 <FileText size={16} className="text-[var(--theme-primary)]" />
                 {t("marketplace.skillFiles")} ({previewFiles.files.length})
               </h3>

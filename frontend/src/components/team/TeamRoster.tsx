@@ -28,7 +28,7 @@ export function TeamRoster({
         <div className="team-pane-header">
           <div>
             <p className="team-pane-eyebrow">{t("team.rosterView")}</p>
-            <h2 className="team-pane-title">
+            <h2 className="team-pane-title font-serif">
               {t("team.rosterTitle")}
               <span className="team-pane-count">0</span>
             </h2>
@@ -49,7 +49,7 @@ export function TeamRoster({
       <div className="team-pane-header">
         <div>
           <p className="team-pane-eyebrow">{t("team.rosterView")}</p>
-          <h2 className="team-pane-title">
+          <h2 className="team-pane-title font-serif">
             {t("team.rosterTitle")}
             <span className="team-pane-count">{members.length}</span>
           </h2>

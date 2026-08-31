@@ -459,7 +459,7 @@ export function ChannelPanel({
 
       {/* Configuration Card */}
       <div className="glass-card rounded-xl p-4">
-        <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
+        <h3 className="mb-4 text-sm font-semibold font-serif text-stone-900 dark:text-stone-100">
           {t("channel.configuration", "Configuration")}
         </h3>
 
