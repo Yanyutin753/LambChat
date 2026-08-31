@@ -52,9 +52,10 @@ test("eval item renders the parsed wire result instead of raw tags", () => {
   expect(source).not.toMatch(/<ToolResultContent/);
 });
 
-test("numeric eval results render prominently with serif lining digits", () => {
+test("eval result values render in the standard mono block without oversized display", () => {
   const source = readSource("../EvalItem.tsx");
 
-  expect(source).toMatch(/font-serif/);
-  expect(source).toMatch(/tabular-nums/);
+  expect(source).not.toMatch(/text-2xl/);
+  expect(source).not.toMatch(/isProminentEvalValue/);
+  expect(source).toMatch(/evalCodePreviewClassName/);
 });
