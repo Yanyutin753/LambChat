@@ -56,6 +56,7 @@ def build_response_language_section(language: str | None) -> str:
         "identifiers unchanged."
     )
 
+
 AUTO_MODE_PROMPT_SECTION = """### Auto Mode
 Work autonomously with reasonable assumptions; `ask_human` is unavailable. Preserve safety boundaries, and report decisions and verification."""
 

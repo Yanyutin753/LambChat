@@ -38,6 +38,8 @@ def normalize_title_language(lang: str) -> str:
     """规范化标题语言参数，接受 zh-CN / en-US 等区域形式；不支持的语言回落 en。"""
     normalized = (lang or "").split(",")[0].split("-")[0].strip().lower()
     return normalized if normalized in SUPPORTED_LANGUAGES else "en"
+
+
 SESSION_EVENT_TYPE_FILTER_LIMIT = 100
 SESSION_EVENT_RESPONSE_LIMIT_MAX = 10000
 SESSION_RAW_TRACE_RESPONSE_LIMIT_MAX = 20

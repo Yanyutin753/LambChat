@@ -56,16 +56,12 @@ def test_absent_locale_keeps_pre_feature_prompt_bytes() -> None:
     # 未带 Accept-Language 的客户端：语言段缺失，其余段落与历史字节一致
     legacy_middleware = SectionPromptMiddleware(
         sections=[
-            s
-            for s in (*MAIN_AGENT_PROMPT_SECTIONS, *build_persona_prompt_sections(_PERSONA))
-            if s
+            s for s in (*MAIN_AGENT_PROMPT_SECTIONS, *build_persona_prompt_sections(_PERSONA)) if s
         ]
     )
     legacy_prompt = legacy_middleware._prompt
 
-    current_prompt = SectionPromptMiddleware(
-        sections=_node_sections(_PERSONA, None)
-    )._prompt
+    current_prompt = SectionPromptMiddleware(sections=_node_sections(_PERSONA, None))._prompt
 
     assert "Response Language" not in current_prompt
     assert current_prompt == legacy_prompt

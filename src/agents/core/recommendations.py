@@ -62,6 +62,8 @@ def build_recommend_system_prompt(response_language: str | None = None) -> str:
         "Use the same language as the current user message.",
         f"Write the questions in {language_name}.",
     )
+
+
 _token_encoding: Any | None = None
 _token_encoding_loaded = False
 _recommend_background_tasks: set[asyncio.Task[None]] = set()
