@@ -120,11 +120,17 @@ def _fixture(
     *,
     resume_attempts: int = 0,
     limiter: _FakeLimiter | None = None,
+    stale: bool = True,
 ) -> tuple[TaskRecoveryService, SimpleNamespace, dict[str, Any]]:
     session = _make_session(resume_attempts)
     storage = _FakeStorage(session)
     limiter = limiter or _FakeLimiter()
     trace_storage = _FakeTraceStorage()
+    # is_stale 可被个别测试覆盖；默认 stale=True（执行者已死，允许恢复）
+    stale_holder = {"stale": stale}
+
+    async def _stale_flag(run_id: str) -> bool:
+        return stale_holder["stale"]
     redis_stream = _FakeRedisStream(
         [
             ("1-1", {"event_type": "thinking", "data": "{}"}),
@@ -136,7 +142,10 @@ def _fixture(
     service = TaskRecoveryService(
         storage=storage,
         run_info={},
-        heartbeat=SimpleNamespace(check_exists=lambda run_id: False),
+        heartbeat=SimpleNamespace(
+            check_exists=lambda run_id: False,
+            is_stale=_stale_flag,
+        ),
         ensure_executor=lambda: SimpleNamespace(),
         submit_task=submit_task,
         mark_run_failed=mark_run_failed,
@@ -226,6 +235,23 @@ async def test_resume_caps_attempts_at_three(monkeypatch: pytest.MonkeyPatch) ->
     assert "上限" in result["message"]
     assert artifacts["submit_task"].await_count == 0
     artifacts["mark_run_failed"].assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_resume_skips_when_heartbeat_still_fresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """心跳未过期（实例可能仍活着）时不得恢复，防同 run 并发执行。"""
+    service, session, artifacts = _fixture(monkeypatch)
+
+    async def _fresh_heartbeat(run_id: str) -> bool:
+        return False  # is_stale=False → 仍存活
+
+    monkeypatch.setattr(service._heartbeat, "is_stale", _fresh_heartbeat)
+
+    result = await service.resume_interrupted_run(session, "run-old", "server_restart")
+
+    assert result["success"] is False
+    assert "仍在其他实例" in result["message"]
+    assert artifacts["submit_task"].await_count == 0
 
 
 @pytest.mark.asyncio

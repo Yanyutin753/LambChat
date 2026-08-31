@@ -159,6 +159,15 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     elif interrupted_resume:
         # 系统中断后的同 run 无缝续跑：源执行者已死（恢复入口校验过心跳），
         # 只需原子重占并发槽；占不到就 defer 重试，避免排队复制语义。
+        # 提交到 worker 拾取之间若心跳又变新鲜（误判死活），defer 等真死，
+        # 防止与原执行者并发写同一条流。
+        from .heartbeat import TaskHeartbeat
+
+        if not await TaskHeartbeat().is_stale(run_id):
+            logger.info(
+                "Interrupted resume deferred, heartbeat fresh again: run_id=%s", run_id
+            )
+            raise Retry(defer=5)
         limiter = get_concurrency_limiter()
         if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
             raise Retry(defer=1)

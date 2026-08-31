@@ -143,3 +143,37 @@ async def test_heartbeat_stop_all_limits_parallel_redis_cleanup(
         "task:heartbeat:run-3",
         "task:heartbeat:run-4",
     ]
+
+
+@pytest.mark.asyncio
+async def test_is_stale_threshold_honors_settings_override(monkeypatch):
+    """TASK_HEARTBEAT_STALE_SECONDS 生效：20s 阈值下 21s 旧心跳判死、19s 判活。"""
+    from datetime import datetime, timedelta, timezone
+
+    from src.infra.task import heartbeat as heartbeat_module
+    from src.infra.task.heartbeat import TaskHeartbeat
+
+    class _ClientProvider:
+        def __init__(self):
+            self.age = 21.0
+
+        def __call__(self):
+            value = (
+                datetime.now(timezone.utc) - timedelta(seconds=self.age)
+            ).isoformat()
+
+            class _Client:
+                async def get(self, key):
+                    return value
+
+            return _Client()
+
+    provider = _ClientProvider()
+    monkeypatch.setattr(heartbeat_module, "get_redis_client", provider)
+    monkeypatch.setattr("src.kernel.config.settings.TASK_HEARTBEAT_STALE_SECONDS", 20)
+
+    heartbeat = TaskHeartbeat()
+    provider.age = 21.0
+    assert await heartbeat.is_stale("run-1") is True
+    provider.age = 19.0
+    assert await heartbeat.is_stale("run-1") is False

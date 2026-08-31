@@ -431,6 +431,17 @@ class TaskRecoveryService:
                     "message": "该任务已由其他恢复流程接管",
                 }
 
+            # 分布式安全闸：心跳仍新鲜说明原执行者可能未死（30s 无心跳才判死）。
+            # 此时恢复会造成同 run 双执行者并发写同一条流，必须跳过。
+            if not await self._heartbeat.is_stale(source_run_id):
+                await self.release_recovery_lock(lock_key, lock_token)
+                return {
+                    "success": False,
+                    "run_id": None,
+                    "resumed_from_run_id": source_run_id,
+                    "message": "任务仍在其他实例运行中，跳过恢复",
+                }
+
             attempts = int(session_metadata.get("resume_attempts") or 0)
             if attempts >= MAX_SEAMLESS_RESUME_ATTEMPTS:
                 # 毒消息防护：同 run 反复中断说明重跑本身在触发崩溃，

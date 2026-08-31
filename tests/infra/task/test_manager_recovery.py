@@ -444,7 +444,7 @@ async def test_seamless_resume_falls_back_from_legacy_default_agent(
     service = recovery_module.TaskRecoveryService(
         storage=storage,
         run_info=manager._run_info,
-        heartbeat=SimpleNamespace(check_exists=lambda run_id: False),
+        heartbeat=SimpleNamespace(check_exists=lambda run_id: False, is_stale=_always_stale),
         ensure_executor=lambda: SimpleNamespace(),
         submit_task=_fake_submit,
         mark_run_failed=_stub_noop,
@@ -470,6 +470,10 @@ class _EmptyTraceCursorStub:
 
 async def _stub_noop(*_args, **_kwargs):
     return None
+
+
+async def _always_stale(_run_id: str) -> bool:
+    return True
 
 
 @pytest.mark.asyncio
@@ -696,6 +700,7 @@ async def test_resume_interrupted_run_releases_lock_when_cancelled(
     manager = BackgroundTaskManager()
     manager._storage = _FakeStorage(session)
 
+    manager._heartbeat = _FakeHeartbeat(exists=False)
     redis = _FakeRedis(acquired=True)
     lookup_started = asyncio.Event()
 
@@ -777,6 +782,7 @@ async def test_resume_interrupted_run_restores_recoverable_failure_when_submissi
     storage = _FakeStorage(session)
     manager = BackgroundTaskManager()
     manager._storage = storage
+    manager._heartbeat = _FakeHeartbeat(exists=False)
 
     redis = _FakeRedis(acquired=True)
     recoverable_failures = []
