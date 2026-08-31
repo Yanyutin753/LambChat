@@ -37,7 +37,7 @@ export function ToolbarChip({
             )}
           </span>
         )}
-        <span className="max-w-40 sm:max-w-52 truncate text-sm font-semibold text-blue-600 dark:text-blue-400 font-serif">
+        <span className="text-box-trim max-w-40 sm:max-w-52 truncate text-sm font-semibold text-blue-600 dark:text-blue-400 font-serif">
           {label}
         </span>
       </div>

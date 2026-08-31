@@ -376,7 +376,7 @@ export function SessionListContent({
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
         >
           <MessageSquarePlus size={20} />
-          <span className="flex-1 text-left">{t("sidebar.newChat")}</span>
+          <span className="text-box-trim flex-1 text-left">{t("sidebar.newChat")}</span>
           <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-10 font-medium text-stone-400 dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             {t("sidebar.newChatShortcut")}
           </kbd>
@@ -387,7 +387,7 @@ export function SessionListContent({
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
         >
           <Search size={20} />
-          <span className="flex-1 text-left">
+          <span className="text-box-trim flex-1 text-left">
             {t("sidebar.searchSessions")}
           </span>
           <kbd
@@ -404,7 +404,7 @@ export function SessionListContent({
             className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
           >
             <CalendarClock size={20} />
-            <span>{t("nav.scheduled-tasks")}</span>
+            <span className="text-box-trim">{t("nav.scheduled-tasks")}</span>
           </button>
         )}
 
@@ -413,7 +413,7 @@ export function SessionListContent({
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
         >
           <FolderOpen size={20} />
-          <span>{t("fileLibrary.title")}</span>
+          <span className="text-box-trim">{t("fileLibrary.title")}</span>
         </button>
 
         {hasMoreMenuItems && (
@@ -424,7 +424,7 @@ export function SessionListContent({
               className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
             >
               <MoreHorizontal size={20} />
-              <span className="flex-1 text-left">{t("nav.more", "更多")}</span>
+              <span className="text-box-trim flex-1 text-left">{t("nav.more", "更多")}</span>
             </button>
           </div>
         )}
@@ -442,7 +442,7 @@ export function SessionListContent({
             onClick={onToggleProjectsCollapsed}
             className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
           >
-            <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+            <span className="text-box-trim text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
               {t("sidebar.projects")}
             </span>
             <ChevronDown
@@ -459,7 +459,7 @@ export function SessionListContent({
               className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors cursor-pointer"
             >
               <FolderPlus size={20} />
-              <span>{t("sidebar.newProject")}</span>
+              <span className="text-box-trim">{t("sidebar.newProject")}</span>
             </button>
           )}
 
@@ -550,7 +550,7 @@ export function SessionListContent({
                 className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+                  <span className="text-box-trim text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
                     {t("nav.scheduled-tasks")}
                   </span>
                 </div>
@@ -569,7 +569,7 @@ export function SessionListContent({
                     className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors cursor-pointer"
                   >
                     <Clock size={20} />
-                    <span>{t("scheduledTask.create")}</span>
+                    <span className="text-box-trim">{t("scheduledTask.create")}</span>
                   </button>
 
                   {isScheduledTasksLoading ? (
@@ -632,7 +632,7 @@ export function SessionListContent({
                 className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+                  <span className="text-box-trim text-13 font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
                     {isSelectionMode
                       ? t("sidebar.selectedCount", {
                           count: selectedCount,

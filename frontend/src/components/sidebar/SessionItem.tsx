@@ -339,7 +339,7 @@ function SessionItemComponent({
             />
           ) : (
             <div
-              className={`truncate text-13 transition-colors ${
+              className={`text-box-trim truncate text-13 transition-colors ${
                 isSelected
                   ? "text-stone-700 dark:text-stone-200"
                   : isActive

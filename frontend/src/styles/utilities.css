@@ -144,3 +144,13 @@
 .font-serif {
   font-variant-numeric: lining-nums;
 }
+
+/*
+ * 图标旁的文字按墨迹居中：源字体（Source Sans/Serif）与 CJK 回退字体
+ * 的基线度量不同，会把汉字抬高于行盒中心；text-box 把行盒裁到文字
+ * 墨迹边缘，flex items-center 才能真正居中。不支持的浏览器忽略即降级。
+ */
+.text-box-trim {
+  text-box-trim: trim-both;
+  text-box-edge: text;
+}

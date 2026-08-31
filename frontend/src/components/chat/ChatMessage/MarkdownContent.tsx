@@ -284,7 +284,9 @@ function TableBlock({ children }: { children: React.ReactNode }) {
             title={copied ? t("chat.message.copied") : t("chat.message.copy")}
           >
             {copied ? <Check size={12} /> : <Copy size={12} />}
-            {copied ? t("chat.message.copied") : t("chat.message.copy")}
+            <span className="text-box-trim">
+              {copied ? t("chat.message.copied") : t("chat.message.copy")}
+            </span>
           </button>
           <button
             onClick={handleExport}
@@ -293,7 +295,9 @@ function TableBlock({ children }: { children: React.ReactNode }) {
             title={t("chat.message.exportCsv", "Export CSV")}
           >
             <Download size={12} />
-            {t("chat.message.exportCsv", "CSV")}
+            <span className="text-box-trim">
+              {t("chat.message.exportCsv", "CSV")}
+            </span>
           </button>
         </div>
       </div>
