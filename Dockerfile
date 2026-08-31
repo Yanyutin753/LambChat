@@ -6,7 +6,9 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app/frontend
 
 # Copy package files
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc ./
+# pnpm-workspace.yaml：onlyBuiltDependencies 放行 cn-font-split/koffi 的
+# 安装脚本（Rust 字体切割内核），缺失会导致 pnpm run build 失败
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.npmrc ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
