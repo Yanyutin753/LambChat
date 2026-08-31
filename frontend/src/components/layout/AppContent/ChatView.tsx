@@ -41,7 +41,9 @@ import type { ChatViewProps } from "./ChatViewProps";
 import { useCurrentTeam, resolveChatAssistantIdentity } from "./ChatViewProps";
 import { useChatOutline } from "./useChatOutline";
 import { resolveAgentDisplayName } from "../../agent/agentCatalog";
-import { shouldShowMessageOutline } from "./messageOutline";
+import { shouldShowMessageOutline, createMessageAnchorId } from "./messageOutline";
+import { SessionBookmarksButton } from "../../chat/SessionBookmarksButton";
+import { loadHistoryUntilMessageFound } from "../../../utils/bookmarkHistoryPaging";
 import {
   MessageTimelineRail,
   updateTimelineRange,
@@ -435,6 +437,43 @@ export function ChatView({
       });
     },
     [dataIndexVirtuosoRef],
+  );
+
+  // 本会话书签快捷入口：按消息 id 在当前列表内定位并高亮；
+  // 目标在更早的历史分页里时，先自动向前翻页加载再跳转
+  const messagesForBookmarkRef = useRef(messages);
+  messagesForBookmarkRef.current = messages;
+  const hasMoreTracesRef = useRef(hasMoreHistoryTraces);
+  hasMoreTracesRef.current = hasMoreHistoryTraces;
+
+  const handleNavigateToBookmark = useCallback(
+    async (messageId: string) => {
+      const findIndex = () =>
+        messagesForBookmarkRef.current.findIndex((m) => m.id === messageId);
+
+      if (findIndex() === -1) {
+        if (!hasMoreTracesRef.current) {
+          toast.error(t("bookmarks.messageMissing"));
+          return;
+        }
+        toast(t("bookmarks.locating"), { icon: "⏳" });
+        await loadHistoryUntilMessageFound({
+          isFound: () => findIndex() !== -1,
+          hasMore: () => hasMoreTracesRef.current,
+          loadOlder: () => onLoadOlderHistory?.(),
+        });
+        const index = findIndex();
+        if (index === -1) {
+          toast.error(t("bookmarks.messageMissing"));
+          return;
+        }
+        handleTimelineNavigate(createMessageAnchorId(messageId), index);
+        return;
+      }
+
+      handleTimelineNavigate(createMessageAnchorId(messageId), findIndex());
+    },
+    [handleTimelineNavigate, onLoadOlderHistory, t],
   );
 
   // --- Reveal preview ---
@@ -842,6 +881,11 @@ export function ChatView({
               <SessionScheduledTasksButton
                 sessionId={sessionId}
                 refreshKey={scheduledTasksRefreshKey}
+                className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text active:scale-95 sm:h-10 sm:w-10"
+              />
+              <SessionBookmarksButton
+                sessionId={sessionId}
+                onNavigateToMessage={handleNavigateToBookmark}
                 className="group/btn flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text active:scale-95 sm:h-10 sm:w-10"
               />
               <button

@@ -155,6 +155,11 @@ class ErrorCode(Enum):
     SESSION_ERROR = ("session_error", 500, "Session operation failed")
     INVALID_SESSION_STATUS = ("invalid_session_status", 422, "Status must be active or archived")
     PIN_UPDATE_FAILED = ("pin_update_failed", 500, "Failed to update pin state")
+    BOOKMARK_UPDATE_FAILED = (
+        "bookmark_update_failed",
+        500,
+        "Failed to update bookmark state",
+    )
     STEER_CONTENT_REQUIRED = ("steer_content_required", 422, "Steer content must not be empty")
     STEER_SESSION_NOT_RUNNING = (
         "steer_session_not_running",

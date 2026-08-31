@@ -23,6 +23,8 @@ import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallItem } from "./ToolCallItem";
 import { UserMessageBubble } from "./UserMessageBubble";
+import { BookmarkButton } from "./BookmarkButton";
+import { buildBookmarkLabel } from "../../../utils/bookmarks";
 import { MessagePartRenderer } from "./MessagePartRenderer";
 import {
   isRevealFileImagePart,
@@ -637,6 +639,16 @@ export const ChatMessage = memo(function ChatMessage({
           deferred={message.metadata?.deferred === true}
           failed={message.metadata?.steerStatus === "failed"}
           messageId={message.id}
+          extraActions={
+            isAuthenticated && sessionId && !message.isStreaming ? (
+              <BookmarkButton
+                sessionId={sessionId}
+                messageId={message.id}
+                runId={message.runId || runId}
+                label={buildBookmarkLabel(message.content || "")}
+              />
+            ) : undefined
+          }
         />
       </div>
     );
@@ -824,6 +836,14 @@ export const ChatMessage = memo(function ChatMessage({
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
+            {isAuthenticated && sessionId && (
+              <BookmarkButton
+                sessionId={sessionId}
+                messageId={message.id}
+                runId={message.runId || runId}
+                label={buildBookmarkLabel(getAssistantTextContent())}
+              />
+            )}
             {sessionId && onForkMessage && (
               <button
                 onClick={async () => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { clsx } from "clsx";
 import { Copy, Check, GitBranch, Clock, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -28,6 +28,7 @@ export function UserMessageBubble({
   deferred,
   failed,
   messageId,
+  extraActions,
 }: {
   content?: string;
   attachments?: MessageAttachment[];
@@ -43,6 +44,8 @@ export function UserMessageBubble({
   /** steer API failed; retain the draft instead of silently sending it later */
   failed?: boolean;
   messageId?: string;
+  /** 追加到 hover 操作栏的自定义按钮（如书签） */
+  extraActions?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -231,6 +234,7 @@ export function UserMessageBubble({
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
+            {extraActions}
           </div>
         </div>
       </div>

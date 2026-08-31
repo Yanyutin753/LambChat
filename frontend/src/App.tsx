@@ -219,6 +219,15 @@ function FilesPage() {
   return <AppContent key="files" activeTab="files" />;
 }
 
+function BookmarksPage() {
+  useSEO({
+    title: "seo.bookmarks.title",
+    description: "seo.bookmarks.description",
+    path: "/bookmarks",
+  });
+  return <AppContent key="bookmarks" activeTab="bookmarks" />;
+}
+
 function TeamPage() {
   useSEO({
     title: "seo.team.title",
@@ -592,6 +601,14 @@ function App() {
               element={
                 <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
                   <FilesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bookmarks"
+              element={
+                <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
+                  <BookmarksPage />
                 </ProtectedRoute>
               }
             />
