@@ -21,6 +21,7 @@ from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 
@@ -728,7 +729,11 @@ class AgentFactory:
                 discover_agents()
 
             if agent_id not in _AGENT_REGISTRY:
-                raise ValueError(f"Agent '{agent_id}' 未注册。可用: {list(_AGENT_REGISTRY.keys())}")
+                raise AppError(
+                    ErrorCode.AGENT_NOT_REGISTERED,
+                    args={"agent": agent_id},
+                    message=f"Available agents: {list(_AGENT_REGISTRY.keys())}",
+                )
 
             agent_cls = _AGENT_REGISTRY[agent_id]
             agent = agent_cls()
@@ -883,7 +888,7 @@ class AgentFactory:
 def get_agent_class(agent_id: str) -> Type[BaseGraphAgent]:
     """获取已注册的 Agent 类"""
     if agent_id not in _AGENT_REGISTRY:
-        raise ValueError(f"Agent '{agent_id}' 未注册")
+        raise AppError(ErrorCode.AGENT_NOT_REGISTERED, args={"agent": agent_id})
     return _AGENT_REGISTRY[agent_id]
 
 
