@@ -133,7 +133,9 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
     task_manager = get_task_manager()
     task_executor = task_manager._ensure_executor()
 
+    interrupted_resume = bool(payload.get("interrupted_resume"))
     hitl_slot_acquired = False
+    resume_slot_acquired = False
     if payload.get("hitl_resume"):
         startup_token = await _acquire_hitl_resume_startup_lock(run_id)
         if startup_token is None:
@@ -154,12 +156,26 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
                 raise
         finally:
             await _release_hitl_resume_startup_lock(run_id, startup_token)
+    elif interrupted_resume:
+        # 系统中断后的同 run 无缝续跑：源执行者已死（恢复入口校验过心跳），
+        # 只需原子重占并发槽；占不到就 defer 重试，避免排队复制语义。
+        limiter = get_concurrency_limiter()
+        if not await limiter.try_acquire_run_slot(payload["user_id"], run_id):
+            raise Retry(defer=1)
+        resume_slot_acquired = True
+        try:
+            await task_executor._update_session_status(
+                payload["session_id"], TaskStatus.PENDING, run_id=run_id
+            )
+        except BaseException:
+            await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
+            raise
 
     executor_key = str(payload["executor_key"])
     try:
         executor_fn = _resolve_executor(executor_key)
     except BaseException:
-        if hitl_slot_acquired:
+        if hitl_slot_acquired or resume_slot_acquired:
             await _release_concurrency_slot(payload.get("user_id"), run_id, dequeue=False)
         raise
     if executor_fn is None:
@@ -208,6 +224,7 @@ async def run_agent_task(ctx: dict[str, Any], dispatch_id: str) -> None:
             auto_mode=bool(payload.get("auto_mode", False)),
             attachment_references_claimed=bool(payload.get("attachment_references_claimed", False)),
             hitl_resume=payload.get("hitl_resume"),
+            interrupted_resume=interrupted_resume,
         )
     except TaskInterruptedError:
         await payload_store.delete(dispatch_id)

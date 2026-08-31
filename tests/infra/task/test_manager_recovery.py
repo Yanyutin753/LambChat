@@ -220,13 +220,12 @@ async def test_resume_session_submits_localized_recovery_message(
     redis = _FakeRedis(acquired=True)
     submit_calls = []
 
-    async def _fake_submit(**kwargs):
-        submit_calls.append(kwargs)
+    async def _fake_submit(*args, **kwargs):
+        submit_calls.append({"args": args, **kwargs})
         return kwargs["run_id"], ""
 
     async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
-        assert run_id == "run-old"
-        assert loaded_session.id == "session-1"
+        raise AssertionError("seamless resume must not mark the run failed")
 
     class _FakeUserStorage:
         async def get_by_id(self, user_id: str):
@@ -237,9 +236,32 @@ async def test_resume_session_submits_localized_recovery_message(
         if False:
             yield None
 
+    class _FakeLimiter:
+        async def try_acquire_run_slot(self, user_id: str, run_id: str) -> bool:
+            return True
+
+        async def release(self, *args, **kwargs):
+            return None
+
+    class _EmptyTraceCursor:
+        def sort(self, key, direction=None):
+            return self
+
+        def limit(self, limit):
+            return self
+
+        async def to_list(self, length=None):
+            return []
+
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
     monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
+    monkeypatch.setattr(
+        recovery_module,
+        "get_trace_storage",
+        lambda: SimpleNamespace(collection=SimpleNamespace(find=lambda q, p=None: _EmptyTraceCursor())),
+    )
     monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
     monkeypatch.setattr(manager, "submit", _fake_submit)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
@@ -247,15 +269,22 @@ async def test_resume_session_submits_localized_recovery_message(
     result = await manager.resume_session("session-1")
 
     assert result["success"] is True
+    assert result["run_id"] == "run-old"
     assert result["resumed_from_run_id"] == "run-old"
     assert len(submit_calls) == 1
-    assert submit_calls[0]["session_id"] == "session-1"
-    assert submit_calls[0]["project_id"] == "project-1"
-    assert submit_calls[0]["disabled_tools"] == ["bash"]
-    assert submit_calls[0]["auto_mode"] is True
-    assert submit_calls[0]["message"] == "请继续处理当前会话中未完成的内容。"
+    call = submit_calls[0]
+    assert call["args"][0] == "session-1"
+    assert call["args"][2] == "请继续处理当前会话中未完成的内容。"
+    assert call["project_id"] == "project-1"
+    assert call["disabled_tools"] == ["bash"]
+    assert call["auto_mode"] is True
+    # 无缝续跑契约：复用原 run_id、不写新用户消息事件、带 resume 标记
+    assert call["run_id"] == "run-old"
+    assert call["user_message_written"] is True
+    assert call["interrupted_resume"] is True
     assert redis.set_calls
     assert storage.updates[-1][0] == "session-1"
+    assert storage.updates[-1][1].metadata["resume_attempts"] == 1
 
 
 @pytest.mark.asyncio
@@ -287,17 +316,12 @@ async def test_resume_session_uses_arq_submission_when_task_backend_is_arq(
     local_submit_calls = []
     arq_submit_calls = []
 
-    async def _fake_submit(**kwargs):
-        local_submit_calls.append(kwargs)
-        return kwargs["run_id"], ""
-
     async def _fake_submit_arq(**kwargs):
         arq_submit_calls.append(kwargs)
         return kwargs["run_id"], kwargs.get("trace_id") or ""
 
     async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
-        assert run_id == "run-old"
-        assert loaded_session.id == "session-1"
+        raise AssertionError("seamless resume must not mark the run failed")
 
     class _FakeUserStorage:
         async def get_by_id(self, user_id: str):
@@ -308,36 +332,56 @@ async def test_resume_session_uses_arq_submission_when_task_backend_is_arq(
         if False:
             yield None
 
-    class _FakeLimiter:
-        async def claim_recovery_slot(self, **kwargs):
-            return SimpleNamespace(result=recovery_module.ConcurrencyResult.STARTED)
+    class _TraceCursor:
+        def sort(self, key, direction=None):
+            return self
 
-        async def release(self, *args, **kwargs):
-            return None
+        def limit(self, limit):
+            return self
+
+        async def to_list(self, length=None):
+            return [{"trace_id": "trace-old"}]
+
+    class _FakeTraceStorage:
+        reopened: list[str] = []
+
+        collection = SimpleNamespace(find=lambda q, p=None: _TraceCursor())
+
+        async def reopen_interrupted_trace(self, trace_id: str) -> bool:
+            self.reopened.append(trace_id)
+            return True
+
+    trace_storage = _FakeTraceStorage()
 
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
     monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
-    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
+    monkeypatch.setattr(recovery_module, "get_trace_storage", lambda: trace_storage)
     monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "arq")
-    monkeypatch.setattr(manager, "submit", _fake_submit)
     monkeypatch.setattr(manager, "submit_arq", _fake_submit_arq)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
 
     result = await manager.resume_session("session-1")
 
     assert result["success"] is True
+    assert result["run_id"] == "run-old"
     assert local_submit_calls == []
     assert len(arq_submit_calls) == 1
-    assert arq_submit_calls[0]["executor_key"] == "agent_stream"
-    assert arq_submit_calls[0]["trace_id"]
-    assert arq_submit_calls[0]["auto_mode"] is True
-    assert arq_submit_calls[0].get("user_message_written") is not True
-    assert arq_submit_calls[0]["message"] == "请继续处理当前会话中未完成的内容。"
+    call = arq_submit_calls[0]
+    assert call["executor_key"] == "agent_stream"
+    assert call["run_id"] == "run-old"
+    assert call["trace_id"] == "trace-old"
+    assert call["auto_mode"] is True
+    assert call["user_message_written"] is True
+    assert call["interrupted_resume"] is True
+    assert call["initial_status"].value == "pending"
+    assert call["dispatch_id"].startswith("resume:run-old:")
+    assert call["message"] == "请继续处理当前会话中未完成的内容。"
+    assert trace_storage.reopened == ["trace-old"]
 
 
 @pytest.mark.asyncio
-async def test_submit_recovery_run_falls_back_from_legacy_default_agent(
+async def test_seamless_resume_falls_back_from_legacy_default_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from src.agents.core import base as base_module
@@ -363,8 +407,8 @@ async def test_submit_recovery_run_falls_back_from_legacy_default_agent(
 
     submit_calls = []
 
-    async def _fake_submit(**kwargs):
-        submit_calls.append(kwargs)
+    async def _fake_submit(*args, **kwargs):
+        submit_calls.append({"args": args, **kwargs})
         return kwargs["run_id"], kwargs.get("trace_id") or ""
 
     async def _fake_executor(*args, **kwargs):
@@ -372,8 +416,8 @@ async def test_submit_recovery_run_falls_back_from_legacy_default_agent(
             yield None
 
     class _FakeLimiter:
-        async def claim_recovery_slot(self, **kwargs):
-            return SimpleNamespace(result=recovery_module.ConcurrencyResult.STARTED)
+        async def try_acquire_run_slot(self, user_id: str, run_id: str) -> bool:
+            return True
 
         async def release(self, *args, **kwargs):
             return None
@@ -388,13 +432,44 @@ async def test_submit_recovery_run_falls_back_from_legacy_default_agent(
     monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
     monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
     monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
-    monkeypatch.setattr(manager, "_submit_recovery_task", _fake_submit)
+    monkeypatch.setattr(
+        recovery_module,
+        "get_trace_storage",
+        lambda: SimpleNamespace(
+            collection=SimpleNamespace(find=lambda q, p=None: _EmptyTraceCursorStub())
+        ),
+    )
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
 
-    result = await manager._submit_recovery_run(session, "run-old", "server_restart")
+    service = recovery_module.TaskRecoveryService(
+        storage=storage,
+        run_info=manager._run_info,
+        heartbeat=SimpleNamespace(check_exists=lambda run_id: False),
+        ensure_executor=lambda: SimpleNamespace(),
+        submit_task=_fake_submit,
+        mark_run_failed=_stub_noop,
+    )
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: _FakeRedis(acquired=True))
+
+    result = await service.resume_interrupted_run(session, "run-old", "server_restart")
 
     assert result["success"] is True
-    assert submit_calls[0]["agent_id"] == "search"
-    assert storage.updates[-1][1].metadata["agent_id"] == "search"
+    assert submit_calls[0]["args"][1] == "search"
+
+
+class _EmptyTraceCursorStub:
+    def sort(self, key, direction=None):
+        return self
+
+    def limit(self, limit):
+        return self
+
+    async def to_list(self, length=None):
+        return []
+
+
+async def _stub_noop(*_args, **_kwargs):
+    return None
 
 
 @pytest.mark.asyncio
@@ -585,15 +660,15 @@ async def test_resume_interrupted_run_releases_lock_after_failed_recovery(
     async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
         return None
 
-    async def _fake_submit_recovery_run(self, *args, **kwargs):
+    async def _fake_submit_seamless_resume(self, *args, **kwargs):
         raise RuntimeError("submit failed")
 
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
     monkeypatch.setattr(
         recovery_module.TaskRecoveryService,
-        "submit_recovery_run",
-        _fake_submit_recovery_run,
+        "submit_seamless_resume",
+        _fake_submit_seamless_resume,
     )
 
     result = await manager._resume_interrupted_run(session, "run-old", "manual_resume")
@@ -622,17 +697,17 @@ async def test_resume_interrupted_run_releases_lock_when_cancelled(
     manager._storage = _FakeStorage(session)
 
     redis = _FakeRedis(acquired=True)
-    mark_failed_started = asyncio.Event()
+    lookup_started = asyncio.Event()
 
-    async def _blocking_mark_failed(run_id: str, reason: str, loaded_session) -> None:
-        mark_failed_started.set()
+    async def _blocking_lookup(run_id: str):
+        lookup_started.set()
         await asyncio.Event().wait()
 
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
-    monkeypatch.setattr(manager, "_mark_run_failed", _blocking_mark_failed)
+    monkeypatch.setattr(recovery_module, "_lookup_trace_id_for_run", _blocking_lookup)
 
     task = asyncio.create_task(manager._resume_interrupted_run(session, "run-old", "manual_resume"))
-    await asyncio.wait_for(mark_failed_started.wait(), timeout=1)
+    await asyncio.wait_for(lookup_started.wait(), timeout=1)
 
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -666,13 +741,17 @@ async def test_resume_interrupted_run_skips_when_recovery_lock_is_held(
     async def _fake_mark_failed(*args, **kwargs):
         mark_failed_calls.append((args, kwargs))
 
-    async def _fake_submit_recovery_run(*args, **kwargs):
+    async def _fake_submit_seamless_resume(*args, **kwargs):
         submit_calls.append((args, kwargs))
         return {"success": True}
 
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
-    monkeypatch.setattr(manager, "_submit_recovery_run", _fake_submit_recovery_run)
+    monkeypatch.setattr(
+        recovery_module.TaskRecoveryService,
+        "submit_seamless_resume",
+        _fake_submit_seamless_resume,
+    )
 
     result = await manager._resume_interrupted_run(session, "run-old", "server_restart")
 
@@ -705,27 +784,22 @@ async def test_resume_interrupted_run_restores_recoverable_failure_when_submissi
     async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
         recoverable_failures.append((run_id, reason, loaded_session.id))
 
-    async def _fake_submit_recovery_run(*args, **kwargs):
-        return {"success": False, "message": "恢复任务失败：当前恢复队列已满"}
-
-    class _FakeLimiter:
-        async def claim_recovery_slot(self, **kwargs):
-            return recovery_module.ConcurrencyResponse(
-                result=recovery_module.ConcurrencyResult.REJECTED_QUEUE
-            )
+    async def _fake_submit_seamless_resume(*args, **kwargs):
+        return {"success": False, "message": "当前并发任务已满，稍后将自动重试恢复"}
 
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
-    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda _key: object())
-    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
-    monkeypatch.setattr(manager, "_submit_recovery_run", _fake_submit_recovery_run)
+    monkeypatch.setattr(
+        recovery_module.TaskRecoveryService,
+        "submit_seamless_resume",
+        _fake_submit_seamless_resume,
+    )
 
     result = await manager._resume_interrupted_run(session, "run-old", "server_restart")
 
     assert result["success"] is False
-    assert recoverable_failures == [
-        ("run-old", "Task interrupted (instance unavailable)", "session-1")
-    ]
+    # 无缝恢复失败不 mark_run_failed（trace 保持可续跑），只恢复 recoverable 元数据
+    assert recoverable_failures == []
     assert storage.updates[-1][0] == "session-1"
     assert storage.updates[-1][1].metadata["task_status"] == "failed"
     assert storage.updates[-1][1].metadata["task_recoverable"] is True
@@ -966,91 +1040,3 @@ async def test_shutdown_awaits_cancelled_tasks_to_finish_cleanup(
     assert cleanup_finished is True
 
 
-@pytest.mark.asyncio
-async def test_submit_recovery_run_reuses_trace_for_queued_recovery(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    session = SimpleNamespace(
-        id="session-1",
-        user_id="user-1",
-        agent_id="search",
-        name="Queued Recovery Session",
-        metadata={
-            "current_run_id": "run-old",
-            "task_status": "failed",
-            "agent_id": "search",
-            "executor_key": "agent_stream",
-            "agent_options": {"model": "gpt-test"},
-            "disabled_tools": ["bash"],
-            "disabled_skills": ["demo-skill"],
-            "disabled_mcp_tools": ["mcp.tool"],
-            "project_id": "project-1",
-            "team_id": "team-1",
-        },
-    )
-    storage = _FakeStorage(session)
-    manager = BackgroundTaskManager()
-    manager._storage = storage
-
-    captured_task_context = {}
-
-    class _FakeLimiter:
-        async def claim_recovery_slot(
-            self,
-            *,
-            user_id: str,
-            roles: list[str],
-            old_run_id: str,
-            new_run_id: str,
-            session_id: str,
-            task_context,
-        ):
-            captured_task_context.update(task_context)
-            return SimpleNamespace(result=recovery_module.ConcurrencyResult.QUEUED)
-
-    class _FakeExecutor:
-        async def ensure_session(self, *args, **kwargs):
-            return None
-
-        async def _update_session_status(self, *args, **kwargs):
-            return None
-
-    presenter_calls = []
-
-    class _FakePresenter:
-        def __init__(self, config):
-            self.trace_id = config.trace_id or "generated-trace"
-            presenter_calls.append(config)
-
-        async def _ensure_trace(self):
-            return None
-
-        async def emit_user_message(self, message: str):
-            presenter_calls.append(message)
-
-    class _FakeUserStorage:
-        async def get_by_id(self, user_id: str):
-            return SimpleNamespace(metadata={"language": "zh-CN"}, roles=["admin"])
-
-    async def _fake_executor(*args, **kwargs):
-        if False:
-            yield None
-
-    monkeypatch.setattr(recovery_module, "Presenter", _FakePresenter)
-    monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
-    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
-    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
-    manager._executor = _FakeExecutor()
-
-    result = await manager._submit_recovery_run(session, "run-old", "server_restart")
-
-    assert result["success"] is True
-    assert result["message"] == "任务恢复已加入队列"
-    assert captured_task_context["team_id"] == "team-1"
-    assert captured_task_context["user_message_written"] is True
-    assert captured_task_context["trace_id"] == "generated-trace"
-    assert storage.updates[-1][1].metadata["team_id"] == "team-1"
-    assert manager._run_info[result["run_id"]]["trace_id"] == "generated-trace"
-    assert (
-        presenter_calls[-1] == "由于系统重启，上一轮任务已中断。请继续处理当前会话中未完成的内容。"
-    )

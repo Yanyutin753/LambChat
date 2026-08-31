@@ -5,20 +5,17 @@ import inspect
 import uuid
 from typing import Any, Awaitable, Callable
 
-from src.agents.core import resolve_agent_name
 from src.infra.logging import get_logger
 from src.infra.session.trace_storage import get_trace_storage
 from src.infra.storage.redis import get_redis_client
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
-from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
 from src.kernel.errors import ErrorCode
 from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import ConcurrencyResult, get_concurrency_limiter, get_registered_executor
 from .recovery_texts import build_recovery_message, normalize_recovery_language
-from .run_ids import generate_run_id
 from .state_machine import TaskStateMachine
 from .status import TaskStatus
 
@@ -26,6 +23,8 @@ logger = get_logger(__name__)
 
 RECOVERY_LOCK_PREFIX = "task:recovery:"
 RECOVERY_LOCK_TTL_SECONDS = 300
+# 同一 run 的无缝恢复提交次数上限：超限视为毒消息，落终态 FAILED 防止无限重跑。
+MAX_SEAMLESS_RESUME_ATTEMPTS = 3
 
 
 def _get_enabled_skills_from_metadata(session_metadata: dict[str, Any]) -> list[str] | None:
@@ -34,6 +33,24 @@ def _get_enabled_skills_from_metadata(session_metadata: dict[str, Any]) -> list[
         return None
     enabled_skills = session_metadata.get("enabled_skills")
     return enabled_skills if isinstance(enabled_skills, list) else None
+
+
+async def _lookup_trace_id_for_run(run_id: str) -> str | None:
+    """按 run_id 查最新 trace，无缝续跑复用它继续追加事件。"""
+    try:
+        trace_storage = get_trace_storage()
+        cursor = (
+            trace_storage.collection.find({"run_id": run_id}, {"trace_id": 1, "_id": 0})
+            .sort("started_at", -1)
+            .limit(1)
+        )
+        traces = await cursor.to_list(length=1)
+        if traces:
+            trace_id = traces[0].get("trace_id")
+            return str(trace_id) if trace_id else None
+    except Exception as e:
+        logger.warning("Failed to lookup trace_id for run %s: %s", run_id, e)
+    return None
 
 
 def _registered_agent_ids() -> set[str]:
@@ -85,14 +102,14 @@ class TaskRecoveryService:
         ensure_executor: Callable[[], Any],
         submit_task: Callable[..., Awaitable[tuple[str, str]]],
         mark_run_failed: Callable[[str, str, Any], Awaitable[None]],
-        submit_recovery_task: Callable[..., Awaitable[tuple[str, str]]] | None = None,
+        submit_arq_task: Callable[..., Awaitable[tuple[str, str]]] | None = None,
     ) -> None:
         self._storage = storage
         self._run_info = run_info
         self._heartbeat = heartbeat
         self._ensure_executor = ensure_executor
         self._submit_task = submit_task
-        self._submit_recovery_task = submit_recovery_task or submit_task
+        self._submit_arq_task = submit_arq_task or submit_task
         self._mark_run_failed = mark_run_failed
         self._state_machine = TaskStateMachine()
 
@@ -245,16 +262,27 @@ class TaskRecoveryService:
             ),
         )
 
-    async def submit_recovery_run(
+    async def submit_seamless_resume(
         self,
         session: Any,
         source_run_id: str,
+        trace_id: str | None,
         reason: str,
     ) -> dict[str, Any]:
-        """Submit a new run that resumes the session from the latest checkpoint."""
+        """以原 run_id/trace_id 提交无缝续跑（模板：submit_hitl_resume_run）。
+
+        恢复指令只面向模型（作为新 HumanMessage 进入 checkpoint），不写
+        user:message UI 事件；executor 端 interrupted_resume=True 会先发
+        run:resumed 标记事件，前端据此清空原气泡后续接新生成的内容。
+        """
         session_metadata = getattr(session, "metadata", None) or {}
-        executor_key = session_metadata.get("executor_key") or "agent_stream"
-        executor_fn = get_registered_executor(str(executor_key))
+        executor_key = str(session_metadata.get("executor_key") or "agent_stream")
+        executor_fn = get_registered_executor(executor_key)
+        if executor_fn is None and executor_key == "agent_stream":
+            from importlib import import_module
+
+            import_module("src.api.routes.chat")
+            executor_fn = get_registered_executor(executor_key)
         if executor_fn is None:
             return {
                 "success": False,
@@ -264,162 +292,79 @@ class TaskRecoveryService:
             }
 
         language = await self.get_preferred_language(session.user_id, session)
-        recovery_message = build_recovery_message(reason, language)
+        hidden_instruction = build_recovery_message(reason, language)
         agent_id = _resolve_recovery_agent_id(session_metadata, session)
-        new_run_id = generate_run_id()
-        recovery_trace = Presenter(
-            PresenterConfig(
-                session_id=session.id,
-                agent_id=agent_id,
-                agent_name=resolve_agent_name(agent_id),
-                user_id=session.user_id,
-                run_id=new_run_id,
-                enable_storage=False,
-            )
-        )
-        recovery_trace_id = recovery_trace.trace_id
-        user_roles = await self.get_user_roles(session.user_id)
-        limiter = get_concurrency_limiter()
-        enabled_skills = _get_enabled_skills_from_metadata(session_metadata)
-        task_context = {
-            "executor_key": executor_key,
-            "agent_id": agent_id,
-            "message": recovery_message,
+        common_kwargs: dict[str, Any] = {
             "disabled_tools": session_metadata.get("disabled_tools") or None,
             "agent_options": session_metadata.get("agent_options") or None,
-            "attachments": None,
-            "trace_id": recovery_trace_id,
-            "user_message_written": True,
             "disabled_skills": session_metadata.get("disabled_skills") or None,
-            "enabled_skills": enabled_skills,
+            "enabled_skills": _get_enabled_skills_from_metadata(session_metadata),
             "persona_system_prompt": (
                 (session_metadata.get("persona_snapshot") or {}).get("system_prompt")
                 if isinstance(session_metadata.get("persona_snapshot"), dict)
                 else None
             ),
             "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or None,
+            "project_id": session_metadata.get("project_id"),
+            "session_name": getattr(session, "name", None),
+            "user_message_written": True,
+            "run_id": source_run_id,
+            "trace_id": trace_id or None,
+            "interrupted_resume": True,
             "team_id": session_metadata.get("team_id"),
-            "recommendation_input": recovery_message,
+            "recommendation_input": hidden_instruction,
             "auto_mode": bool(session_metadata.get("auto_mode", False)),
         }
 
-        concurrency_result = await limiter.claim_recovery_slot(
-            user_id=session.user_id,
-            roles=user_roles,
-            old_run_id=source_run_id,
-            new_run_id=new_run_id,
-            session_id=session.id,
-            task_context=task_context,
-        )
-
-        if concurrency_result.result == ConcurrencyResult.REJECTED_QUEUE:
-            return {
-                "success": False,
-                "run_id": None,
-                "resumed_from_run_id": source_run_id,
-                "message": "恢复失败：当前恢复队列已满",
-            }
-
-        if concurrency_result.result == ConcurrencyResult.STARTED:
+        if getattr(settings, "TASK_BACKEND", "local") == "arq":
+            # arq：新 dispatch_id（旧 job 可能仍留档），run_id 沿用原值；
+            # 并发槽由 worker 侧（run_agent_task）获取。
+            dispatch_id = f"resume:{source_run_id}:{uuid.uuid4().hex}"
+            run_id, _ = await self._submit_arq_task(
+                session_id=session.id,
+                agent_id=agent_id,
+                message=hidden_instruction,
+                user_id=str(session.user_id),
+                executor_key=executor_key,
+                dispatch_id=dispatch_id,
+                initial_status=TaskStatus.PENDING,
+                **common_kwargs,
+            )
+        else:
+            limiter = get_concurrency_limiter()
+            if not await limiter.try_acquire_run_slot(str(session.user_id), source_run_id):
+                return {
+                    "success": False,
+                    "run_id": None,
+                    "resumed_from_run_id": source_run_id,
+                    "message": "当前并发任务已满，稍后将自动重试恢复",
+                }
             try:
-                await self._submit_recovery_task(
-                    session_id=session.id,
-                    agent_id=agent_id,
-                    message=recovery_message,
-                    user_id=session.user_id,
-                    executor=executor_fn,
-                    executor_key=executor_key,
-                    disabled_tools=session_metadata.get("disabled_tools") or None,
-                    agent_options=session_metadata.get("agent_options") or None,
-                    attachments=None,
-                    run_id=new_run_id,
-                    trace_id=recovery_trace_id,
-                    project_id=session_metadata.get("project_id"),
-                    disabled_skills=session_metadata.get("disabled_skills") or None,
-                    enabled_skills=enabled_skills,
-                    persona_system_prompt=(
-                        (session_metadata.get("persona_snapshot") or {}).get("system_prompt")
-                        if isinstance(session_metadata.get("persona_snapshot"), dict)
-                        else None
-                    ),
-                    disabled_mcp_tools=session_metadata.get("disabled_mcp_tools") or None,
-                    session_name=getattr(session, "name", None),
-                    team_id=session_metadata.get("team_id"),
-                    auto_mode=bool(session_metadata.get("auto_mode", False)),
+                run_id, _ = await self._submit_task(
+                    session.id,
+                    agent_id,
+                    hidden_instruction,
+                    str(session.user_id),
+                    executor_fn,
+                    **common_kwargs,
                 )
             except Exception:
-                await limiter.release(session.user_id, new_run_id, dequeue=False)
+                await limiter.release(str(session.user_id), source_run_id, dequeue=False)
                 raise
-        else:
-            executor = self._ensure_executor()
-            await executor.ensure_session(
-                session.id,
-                agent_id,
-                session.user_id,
-                project_id=session_metadata.get("project_id"),
-                session_name=getattr(session, "name", None),
-            )
-            await executor._update_session_status(
-                session.id,
-                TaskStatus.QUEUED,
-                run_id=new_run_id,
-            )
-            trace_presenter = Presenter(
-                PresenterConfig(
-                    session_id=session.id,
-                    agent_id=agent_id,
-                    agent_name=resolve_agent_name(agent_id),
-                    user_id=session.user_id,
-                    run_id=new_run_id,
-                    trace_id=recovery_trace_id,
-                    enable_storage=True,
-                )
-            )
-            await trace_presenter._ensure_trace()
-            await trace_presenter.emit_user_message(recovery_message)
-            self._run_info[new_run_id] = {
-                "session_id": session.id,
-                "agent_id": agent_id,
-                "user_id": session.user_id,
-                "trace_id": recovery_trace_id,
-                "user_message_written": True,
-            }
 
-        await self._storage.update(
+        logger.info(
+            "Seamless resume submitted: session=%s run_id=%s trace_id=%s reason=%s",
             session.id,
-            SessionUpdate(
-                metadata={
-                    "current_run_id": new_run_id,
-                    "agent_id": agent_id,
-                    "executor_key": executor_key,
-                    "agent_options": session_metadata.get("agent_options") or {},
-                    "disabled_tools": session_metadata.get("disabled_tools") or [],
-                    "disabled_skills": session_metadata.get("disabled_skills") or [],
-                    "enabled_skills": enabled_skills,
-                    "persona_preset_id": session_metadata.get("persona_preset_id"),
-                    "persona_preset_name": session_metadata.get("persona_preset_name"),
-                    "persona_snapshot": session_metadata.get("persona_snapshot"),
-                    "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or [],
-                    "language": language,
-                    "project_id": session_metadata.get("project_id"),
-                    "team_id": session_metadata.get("team_id"),
-                    "auto_mode": bool(session_metadata.get("auto_mode", False)),
-                    "recovery_of_run_id": source_run_id,
-                    "recovery_reason": reason,
-                    "recovery_requested_at": utc_now_iso(),
-                    "task_recoverable": False,
-                    "task_error_code": None,
-                }
-            ),
+            run_id,
+            trace_id,
+            reason,
         )
-
         return {
             "success": True,
-            "run_id": new_run_id,
+            "run_id": run_id,
             "resumed_from_run_id": source_run_id,
-            "message": "任务恢复已开始"
-            if concurrency_result.result == ConcurrencyResult.STARTED
-            else "任务恢复已加入队列",
+            "seamless": True,
+            "message": "任务已在原对话中恢复",
         }
 
     async def _restore_recoverable_failure(
@@ -448,7 +393,7 @@ class TaskRecoveryService:
         source_run_id: str,
         reason: str,
     ) -> dict[str, Any]:
-        """Resume an interrupted run in a distributed-safe way."""
+        """Resume an interrupted run in-place (same run_id/trace, seamless to the user)."""
         if not source_run_id:
             return {
                 "success": False,
@@ -486,11 +431,27 @@ class TaskRecoveryService:
                     "message": "该任务已由其他恢复流程接管",
                 }
 
-            await self._mark_run_failed(
-                source_run_id,
-                "Task interrupted (instance unavailable)",
-                session,
-            )
+            attempts = int(session_metadata.get("resume_attempts") or 0)
+            if attempts >= MAX_SEAMLESS_RESUME_ATTEMPTS:
+                # 毒消息防护：同 run 反复中断说明重跑本身在触发崩溃，
+                # 终态失败（写 error 事件 + trace 终结），扫描器不再接管。
+                await self._mark_run_failed(
+                    source_run_id,
+                    f"Resume attempts exhausted ({attempts})",
+                    session,
+                )
+                return {
+                    "success": False,
+                    "run_id": None,
+                    "resumed_from_run_id": source_run_id,
+                    "message": "恢复次数已达上限，任务已终止",
+                }
+
+            trace_id = await _lookup_trace_id_for_run(source_run_id)
+            if trace_id:
+                await get_trace_storage().reopen_interrupted_trace(trace_id)
+            await self._strip_terminal_stream_events(session.id, source_run_id)
+
             await self._storage.update(
                 session.id,
                 SessionUpdate(
@@ -500,13 +461,31 @@ class TaskRecoveryService:
                     )
                 ),
             )
-            recovery_result = await self.submit_recovery_run(session, source_run_id, reason)
+            recovery_result = await self.submit_seamless_resume(
+                session, source_run_id, trace_id, reason
+            )
             if not recovery_result.get("success"):
                 await self._restore_recoverable_failure(
                     session.id,
                     source_run_id,
                     recovery_result.get("message") or "恢复任务失败",
                 )
+                # 提交失败释放锁，让下一轮扫描/手动重试可以立即接手
+                await self.release_recovery_lock(lock_key, lock_token)
+                return recovery_result
+
+            await self._storage.update(
+                session.id,
+                SessionUpdate(
+                    metadata={
+                        "resume_attempts": attempts + 1,
+                        "recovery_reason": reason,
+                        "recovery_requested_at": utc_now_iso(),
+                        "task_recoverable": False,
+                        "task_error_code": None,
+                    }
+                ),
+            )
             return recovery_result
         except asyncio.CancelledError:
             await self.release_recovery_lock(lock_key, lock_token)
