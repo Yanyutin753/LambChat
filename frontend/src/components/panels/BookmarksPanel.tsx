@@ -157,7 +157,7 @@ export function BookmarksPanel() {
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <span className="glass-tag">
                     <MessageSquare size={12} />
-                    <span className="text-box-trim max-w-44 truncate">
+                    <span className="max-w-44 truncate">
                       {bookmark.session_name ||
                         t("fileLibrary.untitledSession")}
                     </span>
@@ -165,16 +165,12 @@ export function BookmarksPanel() {
                   {!bookmark.session_is_active && (
                     <span className="glass-tag">
                       <Archive size={12} />
-                      <span className="text-box-trim">
-                        {t("bookmarks.archivedSession")}
-                      </span>
+                      {t("bookmarks.archivedSession")}
                     </span>
                   )}
                   <span className="glass-tag">
                     <Clock size={12} />
-                    <span className="text-box-trim">
-                      {formatDateTimeShort(bookmark.created_at)}
-                    </span>
+                    {formatDateTimeShort(bookmark.created_at)}
                   </span>
                 </div>
               </div>
