@@ -2,7 +2,10 @@ import { memo } from "react";
 import { Code2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton } from "../../../common";
-import { ToolResultContent } from "./McpBlockPreview";
+import {
+  isProminentEvalValue,
+  parseEvalWireResult,
+} from "./evalWireResult";
 import {
   openToolLivePanel,
   toolDetailPropsFromPanelData,
@@ -101,6 +104,113 @@ const evalCodePreviewClassName =
 const evalInlineCodePreviewClassName =
   "eval-code-preview rounded-md border border-theme-border bg-[color-mix(in_srgb,var(--theme-bg)_78%,var(--theme-bg-card)_22%)] px-2.5 py-2 text-xs text-theme-text-secondary shadow-inner overflow-x-auto max-h-48 overflow-y-auto min-w-0 font-mono";
 
+const evalKindBadgeClassName =
+  "rounded-md bg-[color-mix(in_srgb,var(--theme-bg)_60%,var(--theme-bg-card)_40%)] px-1.5 py-0.5 text-9 font-medium uppercase tracking-wide text-theme-text-tertiary";
+
+const evalStdoutPreviewClassName =
+  "eval-code-preview rounded-lg border border-dashed border-theme-border bg-theme-bg px-3 py-2.5 text-xs text-theme-text-secondary overflow-x-auto max-h-40 overflow-y-auto min-w-0 font-mono whitespace-pre";
+
+/** 结果视图：剥掉 wire 标签，直接呈现返回值/错误/控制台输出 */
+function EvalResultContent({
+  result,
+  variant = "panel",
+}: {
+  result?: string | Record<string, unknown>;
+  variant?: "panel" | "inline";
+}) {
+  const { t } = useTranslation();
+  const compact = variant === "inline";
+  const parsed =
+    typeof result === "string" ? parseEvalWireResult(result) : null;
+
+  if (!parsed) {
+    const rawText =
+      typeof result === "string"
+        ? result
+        : result === undefined
+          ? ""
+          : JSON.stringify(result, null, 2);
+    if (!rawText) return null;
+    return (
+      <pre
+        className={
+          compact
+            ? evalInlineCodePreviewClassName
+            : evalCodePreviewClassName
+        }
+      >
+        <code>{rawText}</code>
+      </pre>
+    );
+  }
+
+  const { stdout, kind, value, error } = parsed;
+
+  return (
+    <div className="space-y-3 min-w-0">
+      {error ? (
+        <div
+          className={
+            compact
+              ? "rounded-md border border-red-200/70 bg-red-50/60 px-2.5 py-2 dark:border-red-900/50 dark:bg-red-950/20"
+              : "rounded-xl border border-red-200/70 bg-red-50/60 px-3.5 py-3 dark:border-red-900/50 dark:bg-red-950/20"
+          }
+        >
+          {error.type && (
+            <span className={`${evalKindBadgeClassName} mb-1.5 inline-block bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300`}>
+              {error.type}
+            </span>
+          )}
+          <pre className="overflow-x-auto text-xs font-mono leading-relaxed text-red-700 dark:text-red-300">
+            <code>{error.message}</code>
+          </pre>
+        </div>
+      ) : (
+        value !== undefined &&
+        (value === "undefined" ? (
+          <p className="text-xs font-mono italic text-theme-text-tertiary">
+            undefined
+          </p>
+        ) : isProminentEvalValue(value) ? (
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <span
+              className={`font-serif tabular-nums tracking-tight text-theme-text ${
+                compact
+                  ? "text-base font-semibold"
+                  : "text-2xl font-semibold leading-tight"
+              }`}
+            >
+              {value}
+            </span>
+            {kind && <span className={evalKindBadgeClassName}>{kind}</span>}
+          </div>
+        ) : (
+          <pre
+            className={
+              compact
+                ? evalInlineCodePreviewClassName
+                : evalCodePreviewClassName
+            }
+          >
+            <code>{value}</code>
+          </pre>
+        ))
+      )}
+
+      {stdout && (
+        <div className="min-w-0">
+          <div className="mb-1 text-xs font-medium text-theme-text-tertiary">
+            {t("chat.message.consoleOutput")}
+          </div>
+          <pre className={evalStdoutPreviewClassName}>
+            <code>{stdout}</code>
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** 面板详情：独立于 pill 渲染，实时跟随 toolCallPanelStore 数据重建 */
 function EvalDetail({ args, result }: ToolDetailProps) {
   const { t } = useTranslation();
@@ -147,7 +257,7 @@ function EvalDetail({ args, result }: ToolDetailProps) {
               size={12}
             />
           </div>
-          <ToolResultContent result={result} hideCopyButton />
+          <EvalResultContent result={result} variant="panel" />
         </section>
       )}
     </div>
@@ -255,7 +365,7 @@ const EvalItem = memo(function EvalItem({
             </pre>
           )}
 
-          {hasResult && <ToolResultContent result={result} hideCopyButton />}
+          {hasResult && <EvalResultContent result={result} variant="inline" />}
         </ToolInlineDetails>
       )}
     </CollapsiblePill>
