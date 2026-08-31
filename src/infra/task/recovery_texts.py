@@ -1,8 +1,8 @@
 """
-Localized recovery user messages for task resumption.
+Localized recovery instructions for task resumption.
 
-These messages are emitted as normal ``user:message`` events so the frontend
-can keep rendering them without any protocol changes.
+同 run 无缝续跑时这些文案只作为模型面指令注入（新 HumanMessage 进入
+checkpoint），不写 ``user:message`` UI 事件，用户在界面上看不到。
 """
 
 from __future__ import annotations

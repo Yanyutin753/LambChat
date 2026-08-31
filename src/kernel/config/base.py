@@ -147,8 +147,12 @@ class Settings(BaseSettings):
     ARQ_WORKER_MAX_JOBS: int = 128
     ARQ_JOB_TIMEOUT_SECONDS: int = 86400
     TASK_STARTUP_CLEANUP_CONCURRENCY: int = 16
-    # 周期孤儿接管间隔：缩短实例死亡后对话自动恢复的停顿（心跳按龄判死 ~30s + 扫描间隔）
+    # 周期孤儿接管间隔：缩短实例死亡后对话自动恢复的停顿（心跳按龄判死 + 扫描间隔）
     TASK_ORPHAN_RECOVERY_INTERVAL_SECONDS: int = 15
+    # 心跳按龄判死阈值（秒）：实例死亡后允许接管的前置等待。恢复入口与 arq
+    # worker 侧均有同款活性复核兜底，20s（2 个心跳周期）不会误接管活任务。
+    # <=0 时回退到内置公式 max(30, 3×心跳间隔)。
+    TASK_HEARTBEAT_STALE_SECONDS: int = 20
     # 流式分片的时间维 flush 间隔（秒）：正文/思考/工具参数攒不够大小阈值时，
     # 每隔该时长也强制下发一次，避免小尾巴要等流结束才出来（<=0 禁用）。
     STREAM_CHUNK_FLUSH_INTERVAL: float = 1.0

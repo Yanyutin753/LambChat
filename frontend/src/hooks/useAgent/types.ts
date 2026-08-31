@@ -14,6 +14,7 @@ export type EventType =
   | "user:message"
   | "steer:message"
   | "user:cancel"
+  | "run:resumed"
   | "thinking"
   | "tool:start"
   | "tool:result"

@@ -106,12 +106,20 @@ class TaskHeartbeat:
         """按时间戳判断心跳是否过期。
 
         与 check_exists（等 Redis key 120s TTL 自然消失）相比，按「距最后一次
-        心跳的时长」判定可以把实例死亡后的接管检测从 ~2 分钟缩到 ~30 秒。
+        心跳的时长」判定可以把实例死亡后的接管检测从 ~2 分钟缩到几十秒。
         值缺失 → 过期；解析失败 → 按存活处理（避免误接管活任务）。
+        恢复入口与 arq worker 侧都有同款复核兜底，短阈值不会误接管活任务。
         """
-        threshold = (
-            max_age_seconds if max_age_seconds is not None else HEARTBEAT_STALE_THRESHOLD_SECONDS
-        )
+        if max_age_seconds is None:
+            # settings 优先（TASK_HEARTBEAT_STALE_SECONDS，<=0 回退内置公式）
+            try:
+                from src.kernel.config import settings
+
+                configured = int(getattr(settings, "TASK_HEARTBEAT_STALE_SECONDS", 0) or 0)
+            except Exception:
+                configured = 0
+            max_age_seconds = configured if configured > 0 else HEARTBEAT_STALE_THRESHOLD_SECONDS
+        threshold = max_age_seconds
         try:
             value = await get_redis_client().get(f"{HEARTBEAT_PREFIX}{run_id}")
         except Exception as e:

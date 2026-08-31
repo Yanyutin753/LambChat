@@ -36,6 +36,7 @@ import {
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
+import { startQueuePositionPolling } from "./useAgent/queuePolling";
 import {
   promoteSteerFollowUps,
   selectSteersForFollowUp,
@@ -611,6 +612,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             i18n.t("chat.queued", { position: submitData.queue_position }),
             { id: "chat-queue", duration: Infinity },
           );
+          // 轮询刷新实时排队位置（自终止：出队/换轮次/网络错误即停）
+          startQueuePositionPolling(newSessionId, newRunId);
         }
 
         if (!sessionId && newSessionId) {

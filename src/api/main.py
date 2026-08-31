@@ -42,6 +42,7 @@ from src.api.routes import (
     role,
     scheduled_task,
     session,
+    session_queue,
     share,
     skill,
     team,
@@ -821,6 +822,8 @@ def create_app() -> FastAPI:
     app.include_router(version.router, prefix="/api", tags=["Version"])
     # Chat 路由: /api/chat/stream 后台执行, /api/chat/sessions/{id}/stream SSE
     app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
+    # 会话排队状态查询（与 chat 会话路由同前缀，独立模块控制单文件规模）
+    app.include_router(session_queue.router, prefix="/api/chat", tags=["Chat"])
     # Agent 路由: /api/agents 列表, /api/{agent_id}/stream 和 /api/{agent_id}/chat
     app.include_router(agent.router, prefix="/api", tags=["Agents"])
     # Agent 配置路由: /api/agent/config 全局配置和用户偏好

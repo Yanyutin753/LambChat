@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import pytest
@@ -143,6 +144,88 @@ class _RaceLockRedis:
         return 0
 
 
+class _AtomicEvalRedis:
+    """模拟队列 Lua 脚本在 Redis 服务端的语义（接线测试用；真实语义见集成测试）。"""
+
+    def __init__(self, entries: list[str]) -> None:
+        self.entries = list(entries)
+        self.eval_calls: list[tuple[str, int, str, tuple[str, ...]]] = []
+
+    async def eval(self, script: str, numkeys: int, key: str, *args: str):
+        self.eval_calls.append((script, numkeys, key, args))
+        if "removed_run_ids" in script:  # remove 脚本
+            field, value = args[0], args[1]
+            kept: list[str] = []
+            removed = 0
+            run_ids: list[str] = []
+            for entry in self.entries:
+                try:
+                    data = json.loads(entry)
+                except json.JSONDecodeError:
+                    kept.append(entry)
+                    continue
+                if data.get(field) == value:
+                    removed += 1
+                    run_ids.append(data.get("run_id"))
+                else:
+                    kept.append(entry)
+            self.entries = kept
+            if removed == 0:
+                return 0
+            return json.dumps({"removed": removed, "run_ids": run_ids})
+        if "queue_ready" in script:  # mark-ready 脚本
+            found = 0
+            for index, entry in enumerate(self.entries):
+                data = json.loads(entry)
+                if str(data.get("run_id", "")) == args[0]:
+                    context = dict(data.get("task_context") or {})
+                    context["queue_ready"] = True
+                    data["task_context"] = context
+                    self.entries[index] = json.dumps(data)
+                    found = 1
+            return found
+        # position 脚本
+        for index, entry in enumerate(self.entries):
+            data = json.loads(entry)
+            if str(data.get("run_id", "")) == args[0]:
+                return index + 1
+        return 0
+
+
+class _MarkReadyRedis(_AtomicEvalRedis):
+    """mark_queued_run_ready 还需要用户锁与空队列 dequeue 的最小支持。"""
+
+    def __init__(self, entries: list[str]) -> None:
+        super().__init__(entries)
+        self.token: str | None = None
+
+    async def set(self, key: str, token: str, **kwargs):
+        del key, kwargs
+        self.token = token
+        return True
+
+    async def get(self, key: str):
+        del key
+        return self.token
+
+    async def delete(self, key: str):
+        del key
+
+    async def llen(self, key: str) -> int:
+        del key
+        return len(self.entries)
+
+    async def lpop(self, key: str):
+        del key
+        if not self.entries:
+            return None
+        return self.entries.pop(0)
+
+    async def lpush(self, key: str, entry: str):
+        del key
+        self.entries.insert(0, entry)
+
+
 class _QueueRedis:
     def __init__(self) -> None:
         self.pushed: list[tuple[str, tuple[str, ...]]] = []
@@ -206,21 +289,25 @@ class _ResumeSlotLimiter(UserConcurrencyLimiter):
 
 
 @pytest.mark.asyncio
-async def test_get_queue_position_scans_queue_in_pages() -> None:
+async def test_get_queue_position_uses_atomic_lua() -> None:
     entries = [
         json.dumps({"run_id": f"run-{index}", "session_id": f"session-{index}"})
         for index in range(5)
     ]
-    redis = _PagedRedis(entries)
+    redis = _AtomicEvalRedis(entries)
     limiter = UserConcurrencyLimiter()
     limiter._redis = redis
 
     position = await limiter.get_queue_position("user-1", "run-3")
 
     assert position == 4
-    assert redis.lrange_calls == [
-        ("chat:queue:user-1", 0, 99),
-    ]
+    assert len(redis.eval_calls) == 1
+    script, numkeys, key, args = redis.eval_calls[0]
+    assert numkeys == 1
+    assert key == "chat:queue:user-1"
+    assert args == ("run-3",)
+
+    assert await limiter.get_queue_position("user-1", "run-missing") == 0
 
 
 @pytest.mark.asyncio
@@ -248,13 +335,15 @@ async def test_resume_slot_reacquire_is_idempotent_and_respects_capacity(
 
 
 @pytest.mark.asyncio
-async def test_remove_from_queue_scans_queue_in_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_remove_from_queue_uses_atomic_lua_without_client_rewrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     entries = [
         json.dumps({"run_id": "run-1", "session_id": "keep"}),
         json.dumps({"run_id": "run-2", "session_id": "remove"}),
         json.dumps({"run_id": "run-3", "session_id": "keep"}),
     ]
-    redis = _PagedRedis(entries)
+    redis = _AtomicEvalRedis(entries)
     limiter = UserConcurrencyLimiter()
     limiter._redis = redis
 
@@ -274,16 +363,15 @@ async def test_remove_from_queue_scans_queue_in_pages(monkeypatch: pytest.Monkey
     removed = await limiter.remove_from_queue("user-1", "remove")
 
     assert removed == 1
-    assert redis.lrange_calls == [("chat:queue:user-1", 0, 99)]
-    assert "chat:queue:user-1" not in redis.deleted
     assert len(redis.eval_calls) == 1
-    assert redis.eval_calls[0][2] == "chat:lock:user-1"
-    assert len(redis.pushed) == 1
-    tmp_key, kept_entries = redis.pushed[0]
-    assert kept_entries == (entries[0], entries[2])
-    assert redis.renamed == [(tmp_key, "chat:queue:user-1")]
-    assert redis.events == ["lock_acquired", "rpush", "rename", "lock_released"]
+    script, numkeys, key, args = redis.eval_calls[0]
+    assert numkeys == 1
+    assert key == "chat:queue:user-1"
+    assert args == ("session_id", "remove")
     assert fake_storage.updates[0][0] == "remove"
+    metadata = fake_storage.updates[0][1].metadata
+    assert metadata["task_status"] == "cancelled"
+    assert metadata["current_run_id"] == "run-2"
 
 
 @pytest.mark.asyncio
@@ -293,16 +381,15 @@ async def test_remove_queued_run_keeps_other_runs_for_same_session() -> None:
         json.dumps({"run_id": "run-remove", "session_id": "session-1"}),
         json.dumps({"run_id": "run-other", "session_id": "session-2"}),
     ]
-    redis = _PagedRedis(entries)
+    redis = _AtomicEvalRedis(entries)
     limiter = UserConcurrencyLimiter()
     limiter._redis = redis
 
     removed = await limiter.remove_queued_run("user-1", "run-remove")
 
     assert removed == 1
-    assert len(redis.pushed) == 1
-    _tmp_key, kept_entries = redis.pushed[0]
-    assert kept_entries == (entries[0], entries[2])
+    remaining_runs = [json.loads(entry)["run_id"] for entry in redis.entries]
+    assert remaining_runs == ["run-keep", "run-other"]
 
 
 @pytest.mark.asyncio
@@ -327,43 +414,48 @@ async def test_unready_queued_run_cannot_dispatch_before_user_message_persists()
 
 
 @pytest.mark.asyncio
-async def test_remove_from_queue_rewrites_kept_entries_in_chunks(
+async def test_mark_queued_run_ready_flips_flag_via_atomic_lua(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(concurrency, "QUEUE_REWRITE_CHUNK_SIZE", 2, raising=False)
-    entries = [json.dumps({"run_id": f"run-{index}", "session_id": "keep"}) for index in range(5)]
-    entries.insert(2, json.dumps({"run_id": "run-remove", "session_id": "remove"}))
-    redis = _PagedRedis(entries)
+    entries = [
+        json.dumps(
+            {
+                "run_id": "run-1",
+                "session_id": "session-1",
+                "queued_at": time.time(),
+                "task_context": {"queue_ready": False},
+            }
+        ),
+        json.dumps(
+            {
+                "run_id": "run-2",
+                "session_id": "session-1",
+                "queued_at": time.time(),
+                "task_context": {"queue_ready": False},
+            }
+        ),
+    ]
+    redis = _MarkReadyRedis(entries)
     limiter = UserConcurrencyLimiter()
     limiter._redis = redis
 
-    class _FakeSessionStorage:
-        async def update(self, session_id, update):
-            del session_id, update
+    async def _no_dispatch(*_args, **_kwargs):
+        return None
 
-    monkeypatch.setattr(
-        "src.infra.session.storage.SessionStorage",
-        lambda: _FakeSessionStorage(),
-    )
+    monkeypatch.setattr(limiter, "_dispatch_queued_task", _no_dispatch)
+    monkeypatch.setattr(limiter, "get_user_limits_from_cache", lambda _uid: (None, 10))
 
-    removed = await limiter.remove_from_queue("user-1", "remove")
+    marked = await limiter.mark_queued_run_ready("user-1", "run-2")
 
-    assert removed == 1
-    assert len(redis.eval_calls) == 1
-    assert redis.eval_calls[0][2] == "chat:lock:user-1"
-    assert [len(batch) for _, batch in redis.pushed] == [2, 2, 1]
-    tmp_keys = {key for key, _ in redis.pushed}
-    assert len(tmp_keys) == 1
-    tmp_key = next(iter(tmp_keys))
-    assert redis.renamed == [(tmp_key, "chat:queue:user-1")]
-    assert redis.events == [
-        "lock_acquired",
-        "rpush",
-        "rpush",
-        "rpush",
-        "rename",
-        "lock_released",
-    ]
+    assert marked is True
+    eval_targets = [(key, args) for _, _, key, args in redis.eval_calls]
+    assert ("chat:queue:user-1", ("run-2",)) in eval_targets
+    entries_after = [json.loads(entry) for entry in redis.entries]
+    assert entries_after[0]["task_context"]["queue_ready"] is False
+    assert entries_after[1]["task_context"]["queue_ready"] is True
+
+    # 目标不在队列时幂等返回 False
+    assert await limiter.mark_queued_run_ready("user-1", "run-missing") is False
 
 
 @pytest.mark.asyncio
