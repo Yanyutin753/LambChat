@@ -20,6 +20,7 @@ from src.kernel.config import settings
 from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
 from .exceptions import TaskInterruptedError
+from .cancellation import TaskCancellation
 from .heartbeat import TaskHeartbeat
 from .stall_watchdog import aiter_with_stall_timeout
 from .state_machine import TaskStateMachine
@@ -94,6 +95,7 @@ class TaskExecutor:
         auto_mode: bool = False,
         attachment_references_claimed: bool = False,
         hitl_resume: Optional[Dict[str, Any]] = None,
+        interrupted_resume: bool = False,
     ) -> bool | None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -181,6 +183,20 @@ class TaskExecutor:
             self._run_info[run_id] = run_info_entry
 
             dual_writer = get_dual_writer()
+
+            # 系统中断后的同 run 无缝续跑：先发 run:resumed 标记事件，前端据此
+            # 清空原气泡的半截内容再接收重新生成的输出（不写新的 user:message）。
+            if interrupted_resume:
+                await presenter.save_event(
+                    {
+                        "event": "run:resumed",
+                        "data": {
+                            "run_id": run_id,
+                            "trace_id": presenter.trace_id,
+                            "timestamp": utc_now_iso(),
+                        },
+                    }
+                )
 
             if hitl_resume is not None:
                 resolved = hitl_resume.get("approval_resolved")
@@ -275,8 +291,6 @@ class TaskExecutor:
         finally:
             # 无论成功、取消还是失败，都停止心跳并清除中断信号
             await self._heartbeat.stop(run_id)
-            from .cancellation import TaskCancellation
-
             await TaskCancellation.clear_interrupt(run_id)
             # 清除请求上下文，防止 contextvars 泄漏到后续任务
             TraceContext.clear_request_context()
@@ -291,6 +305,23 @@ class TaskExecutor:
         presenter: Any,
     ) -> None:
         """处理任务取消错误"""
+        # 无 interrupt 标志的取消是系统中断（优雅关停/部署），不是用户操作：
+        # 不写 user:cancel/error/done 终态事件、不终结 trace、不过期 stream，
+        # 只 flush 缓冲让半截事件落库。recoverable 元数据由调用方标记
+        # （manager.shutdown / arq_worker），随后同 run_id 无缝续跑。
+        if not TaskCancellation.check_interrupt_fast(run_id):
+            if dual_writer is None:
+                dual_writer = get_dual_writer()
+            try:
+                await dual_writer._flush_redis_buffer()
+                await dual_writer.flush_mongo_buffer()
+            except Exception as e:
+                logger.warning(f"Failed to flush events on system interruption: {e}")
+            logger.info(
+                f"Task interrupted by system shutdown (resumable): "
+                f"session={session_id}, run_id={run_id}"
+            )
+            return
 
         await self._update_session_status(
             session_id, TaskStatus.CANCELLED, "Task cancelled", run_id=run_id
