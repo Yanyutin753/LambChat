@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.api.routes import upload as upload_route
+from src.kernel.errors import AppError
 
 
 class _ChunkedUpload:
@@ -292,11 +293,12 @@ async def test_upload_avatar_rejects_bad_extension_before_reading_file() -> None
     upload = _ChunkedUpload([b"should-not-read"])
     upload.filename = "avatar.txt"
 
-    with pytest.raises(upload_route.HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload_route.upload_avatar(
             file=upload,
             current_user=SimpleNamespace(sub="user-1"),
         )
 
-    assert exc_info.value.status_code == 400
+    assert exc_info.value.error_code.code == "file_type_not_allowed"
+    assert exc_info.value.http_status == 400
     assert upload._chunks == [b"should-not-read"]

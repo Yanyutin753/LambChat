@@ -1,0 +1,125 @@
+[
+ {
+  "file": "src/api/routes/agent/config.py",
+  "line": 212,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/config.py",
+  "line": 237,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/config.py",
+  "line": 266,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/config.py",
+  "line": 292,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/config.py",
+  "line": 137,
+  "exception": "ValidationError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/config.py",
+  "line": 176,
+  "exception": "ValidationError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 137,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 226,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 260,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 285,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 337,
+  "exception": "NotFoundError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 247,
+  "exception": "ValidationError",
+  "kind": "kernel",
+  "args_count": 1,
+  "message_preview": "A model cannot be its own fallback"
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 252,
+  "exception": "ValidationError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/agent/model.py",
+  "line": 157,
+  "exception": "ValidationError",
+  "kind": "kernel",
+  "args_count": 1
+ },
+ {
+  "file": "src/api/routes/chat.py",
+  "line": 154,
+  "exception": "AuthorizationError",
+  "kind": "kernel",
+  "args_count": 1,
+  "message_preview": "model_disabled"
+ },
+ {
+  "file": "src/api/routes/chat.py",
+  "line": 163,
+  "exception": "AuthorizationError",
+  "kind": "kernel",
+  "args_count": 1,
+  "message_preview": "model_disabled"
+ },
+ {
+  "file": "src/api/routes/chat.py",
+  "line": 169,
+  "exception": "AuthorizationError",
+  "kind": "kernel",
+  "args_count": 1,
+  "message_preview": "model_not_allowed"
+ }
+]

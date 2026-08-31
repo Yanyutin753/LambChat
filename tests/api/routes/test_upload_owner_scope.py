@@ -3,9 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes import upload
+from src.kernel.errors import AppError
 
 
 @pytest.mark.asyncio
@@ -127,14 +127,15 @@ async def test_duplicate_upload_conflict_removes_new_object_when_conflicting_rec
 
     monkeypatch.setattr(upload, "get_or_init_storage", _get_storage)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload.upload_file(
             request=SimpleNamespace(headers={}, base_url="https://app.example.com/"),
             file=_Upload(),
             current_user=SimpleNamespace(sub="owner-a", permissions=["file:upload"], roles=[]),
         )
 
-    assert exc_info.value.status_code == 500
+    assert exc_info.value.error_code.code == "upload_duplicate_conflict"
+    assert exc_info.value.http_status == 409
     assert objects.deleted == ["documents/owner-a/new.txt"]
 
 
@@ -179,14 +180,15 @@ async def test_duplicate_key_index_collision_never_deletes_existing_object_stora
 
     monkeypatch.setattr(upload, "get_or_init_storage", _get_storage)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload.upload_file(
             request=SimpleNamespace(headers={}, base_url="https://app.example.com/"),
             file=_Upload(),
             current_user=SimpleNamespace(sub="owner-a", permissions=["file:upload"], roles=[]),
         )
 
-    assert exc_info.value.status_code == 500
+    assert exc_info.value.error_code.code == "upload_duplicate_conflict"
+    assert exc_info.value.http_status == 409
     assert objects.deleted == []
 
 
@@ -209,10 +211,11 @@ async def test_delete_rejects_unknown_or_foreign_key_without_touching_object_sto
     monkeypatch.setattr(upload, "_file_record_storage", _Records())
     monkeypatch.setattr(upload, "get_or_init_storage", _storage)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload.delete_file("docs/owner-b/private.txt", SimpleNamespace(sub="owner-a"))
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code.code == "file_not_found"
+    assert exc_info.value.http_status == 404
 
 
 @pytest.mark.asyncio

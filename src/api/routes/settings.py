@@ -2,11 +2,12 @@
 Settings API router
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.server_timing import timed_server_phase
 from src.infra.settings.service import SettingsService, get_settings_service
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.setting import (
     SettingItem,
     SettingResetResponse,
@@ -41,7 +42,7 @@ async def get_setting(
     """Get single setting by key"""
     setting = await service._storage.get(key)
     if not setting:
-        raise HTTPException(status_code=404, detail="Setting not found")
+        raise AppError(ErrorCode.SETTING_NOT_FOUND)
     return setting
 
 
@@ -56,7 +57,7 @@ async def update_setting(
     try:
         setting = await service.set(key, data.value, user.sub)
         if not setting:
-            raise HTTPException(status_code=404, detail="Setting not found")
+            raise AppError(ErrorCode.SETTING_NOT_FOUND)
 
         requires_restart = SettingsService.requires_restart(key)
 
@@ -70,7 +71,7 @@ async def update_setting(
             requires_restart=requires_restart,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.BAD_REQUEST, message=str(e))
 
 
 @router.post("/init", response_model=SettingResetResponse)
@@ -108,7 +109,7 @@ async def reset_setting(
     """Reset single setting to default value"""
     count = await service.reset(key)
     if count == 0:
-        raise HTTPException(status_code=404, detail="Setting not found")
+        raise AppError(ErrorCode.SETTING_NOT_FOUND)
     return SettingResetResponse(
         message=f"Setting {key} reset to default",
         reset_count=count,

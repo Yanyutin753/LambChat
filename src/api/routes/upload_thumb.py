@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi import HTTPException
 from fastapi.responses import Response
 
 from src.api.routes.upload_cover import (
@@ -26,6 +25,7 @@ from src.api.routes.upload_cover import (
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.storage.s3 import S3Provider
+from src.kernel.errors import AppError, ErrorCode
 
 logger = get_logger(__name__)
 
@@ -83,12 +83,12 @@ async def get_file_thumb_response(storage: Any, key: str) -> Response:
     if not thumb_process_for_key(key):
         # Unsupported formats (gif/svg/video/…) 404 so the <img> falls back
         # to the original URL without downloading anything extra.
-        raise HTTPException(status_code=404, detail="Thumb not available")
+        raise AppError(ErrorCode.THUMB_NOT_AVAILABLE)
 
     if storage.is_local:
         file_path = storage.get_file_path(key)
         if not await run_blocking_io(_path_exists, file_path):
-            raise HTTPException(status_code=404, detail="File not found")
+            raise AppError(ErrorCode.FILE_NOT_FOUND)
 
         def _read_and_render() -> bytes:
             with open(file_path, "rb") as fh:
@@ -98,7 +98,7 @@ async def get_file_thumb_response(storage: Any, key: str) -> Response:
             body = await run_blocking_io(_read_and_render)
         except Exception as e:
             logger.error(f"Failed to render local thumb for {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to render thumb")
+            raise AppError(ErrorCode.THUMB_RENDER_FAILED)
         return _thumb_cache_response(body)
 
     provider = getattr(getattr(storage, "_config", None), "provider", None)
@@ -106,8 +106,8 @@ async def get_file_thumb_response(storage: Any, key: str) -> Response:
         try:
             exists = await storage.file_exists(key)
             if not exists:
-                raise HTTPException(status_code=404, detail="File not found")
-        except HTTPException:
+                raise AppError(ErrorCode.FILE_NOT_FOUND)
+        except AppError:
             raise
         except Exception as e:
             logger.warning(f"Failed to check file existence for thumb {key}: {e}")
@@ -118,7 +118,7 @@ async def get_file_thumb_response(storage: Any, key: str) -> Response:
             )
         except Exception as e:
             logger.error(f"Failed to generate thumb URL for {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to generate file URL")
+            raise AppError(ErrorCode.FILE_URL_FAILED)
         return Response(
             status_code=302,
             headers={"Location": url, "Cache-Control": "public, max-age=86400"},
@@ -135,8 +135,8 @@ async def get_file_thumb_response(storage: Any, key: str) -> Response:
     try:
         source_size = await storage.get_size(key)
         if source_size and source_size > _RENDER_MAX_SOURCE_BYTES:
-            raise HTTPException(status_code=404, detail="Thumb not available")
-    except HTTPException:
+            raise AppError(ErrorCode.THUMB_NOT_AVAILABLE)
+    except AppError:
         raise
     except Exception as e:
         logger.warning(f"Failed to stat source for thumb {key}: {e}")
@@ -156,7 +156,7 @@ async def _render_and_cache_thumb(storage: Any, key: str, thumb_key: str) -> Res
         await asyncio.wait_for(semaphore.acquire(), timeout=_RENDER_ACQUIRE_TIMEOUT)
     except asyncio.TimeoutError:
         logger.info(f"Thumb render slots saturated for {key}; falling back")
-        raise HTTPException(status_code=404, detail="Thumb not available")
+        raise AppError(ErrorCode.THUMB_NOT_AVAILABLE)
 
     try:
         existing = _thumb_inflight.get(thumb_key)
@@ -176,13 +176,13 @@ async def _do_render_and_cache_thumb(storage: Any, key: str, thumb_key: str) -> 
         data = await storage.download_file(key)
     except Exception as e:
         logger.error(f"Failed to download source for thumb {key}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate file URL")
+        raise AppError(ErrorCode.FILE_URL_FAILED)
 
     try:
         body = await run_blocking_io(render_chat_thumb, data)
     except Exception as e:
         logger.error(f"Failed to render thumb for {key}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to render thumb")
+        raise AppError(ErrorCode.THUMB_RENDER_FAILED)
 
     try:
         await storage.upload_to_key(

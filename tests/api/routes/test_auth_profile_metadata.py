@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.api import deps as api_deps
+from src.api.error_handlers import register_error_handlers
 from src.api.routes.auth import profile as profile_route
 from src.infra.user import storage as user_storage
 from src.kernel.schemas.user import TokenPayload
@@ -60,6 +61,7 @@ async def test_update_profile_metadata_rejects_unknown_theme(
 
     app = FastAPI()
     app.include_router(profile_route.router, prefix="/api/auth")
+    register_error_handlers(app)
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
 
     transport = ASGITransport(app=app)
@@ -70,7 +72,7 @@ async def test_update_profile_metadata_rejects_unknown_theme(
         )
 
     assert response.status_code == 400
-    assert "Invalid theme" in response.json()["detail"]
+    assert response.json()["detail"]["code"] == "invalid_theme"
 
 
 @pytest.mark.asyncio
@@ -85,6 +87,7 @@ async def test_update_profile_metadata_rejects_too_many_favorite_presets(
 
     app = FastAPI()
     app.include_router(profile_route.router, prefix="/api/auth")
+    register_error_handlers(app)
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
 
     transport = ASGITransport(app=app)
@@ -95,7 +98,7 @@ async def test_update_profile_metadata_rejects_too_many_favorite_presets(
         )
 
     assert response.status_code == 400
-    assert "maximum 100" in response.json()["detail"]
+    assert response.json()["detail"]["code"] == "profile_field_too_many"
 
 
 @pytest.mark.asyncio
@@ -114,6 +117,7 @@ async def test_update_profile_metadata_rejects_too_many_skill_lists(
 
     app = FastAPI()
     app.include_router(profile_route.router, prefix="/api/auth")
+    register_error_handlers(app)
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
 
     transport = ASGITransport(app=app)
@@ -124,4 +128,4 @@ async def test_update_profile_metadata_rejects_too_many_skill_lists(
         )
 
     assert response.status_code == 400
-    assert "maximum 100" in response.json()["detail"]
+    assert response.json()["detail"]["code"] == "profile_field_too_many"

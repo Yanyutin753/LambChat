@@ -115,10 +115,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # All other paths require an Authorization header
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
+            # 统一错误契约 {"detail": {code, message}}
             return self._cors_response(
                 request,
                 status_code=401,
-                content={"detail": "Not authenticated"},
+                content={
+                    "detail": {
+                        "code": "unauthorized",
+                        "message": "Authentication credentials not provided",
+                    }
+                },
             )
 
         return await call_next(request)

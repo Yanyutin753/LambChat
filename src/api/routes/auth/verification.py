@@ -5,12 +5,13 @@ Email verification and password reset routes
 import hashlib
 from datetime import timezone
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request
 
 from src.infra.logging import get_logger
 from src.infra.user.manager import UserManager
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import (
     ForgotPasswordRequest,
     ResendVerificationRequest,
@@ -48,10 +49,7 @@ async def forgot_password(
     ip_key = limiter.build_key("ratelimit:forgot-password:ip", client_ip)
     ip_allowed, _ = await limiter.check_rate_limit(ip_key, max_requests=5, window_seconds=3600)
     if not ip_allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="请求过于频繁，请稍后再试",
-        )
+        raise AppError(ErrorCode.TOO_MANY_REQUESTS)
 
     # Email-based rate limit (3 per hour)
     email_key = limiter.build_key("ratelimit:forgot-password:email", email)
@@ -59,17 +57,11 @@ async def forgot_password(
         email_key, max_requests=3, window_seconds=3600
     )
     if not email_allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="该邮箱请求过于频繁，请稍后再试",
-        )
+        raise AppError(ErrorCode.EMAIL_RATE_LIMITED)
 
     email_service = await get_email_service()
     if not email_service.is_enabled():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="邮件服务未启用",
-        )
+        raise AppError(ErrorCode.EMAIL_SERVICE_DISABLED)
 
     manager = UserManager()
 
@@ -129,10 +121,7 @@ async def reset_password(request_data: ResetPasswordRequest):
     user = await manager.storage.get_by_reset_token(token)
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="无效的重置令牌",
-        )
+        raise AppError(ErrorCode.INVALID_RESET_TOKEN)
 
     # 检查令牌是否过期
     if user.reset_token_expires:
@@ -140,10 +129,7 @@ async def reset_password(request_data: ResetPasswordRequest):
         if expires_dt.tzinfo is None:
             expires_dt = expires_dt.replace(tzinfo=timezone.utc)
         if utc_now() > expires_dt:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="重置令牌已过期",
-            )
+            raise AppError(ErrorCode.RESET_TOKEN_EXPIRED)
 
     # 更新密码并清除重置令牌
     await manager.storage.update(
@@ -180,10 +166,7 @@ async def verify_email(request_data: VerifyEmailRequest):
     user = await manager.storage.get_by_verification_token(token)
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="无效或过期的验证令牌",
-        )
+        raise AppError(ErrorCode.INVALID_VERIFICATION_TOKEN)
 
     # 如果用户已有角色（如第一个管理员用户），保留；否则赋予默认角色
     default_role = settings.DEFAULT_USER_ROLE or "user"
@@ -235,10 +218,7 @@ async def resend_verification(
     ip_key = limiter.build_key("ratelimit:resend-verification:ip", client_ip)
     ip_allowed, _ = await limiter.check_rate_limit(ip_key, max_requests=5, window_seconds=3600)
     if not ip_allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="请求过于频繁，请稍后再试",
-        )
+        raise AppError(ErrorCode.TOO_MANY_REQUESTS)
 
     # Email-based rate limit (3 per hour)
     email_key = limiter.build_key("ratelimit:resend-verification:email", email)
@@ -246,17 +226,11 @@ async def resend_verification(
         email_key, max_requests=3, window_seconds=3600
     )
     if not email_allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="该邮箱请求过于频繁，请稍后再试",
-        )
+        raise AppError(ErrorCode.EMAIL_RATE_LIMITED)
 
     email_service = await get_email_service()
     if not email_service.is_enabled():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="邮件服务未启用",
-        )
+        raise AppError(ErrorCode.EMAIL_SERVICE_DISABLED)
 
     manager = UserManager()
     user = await manager.storage.get_by_email(email)

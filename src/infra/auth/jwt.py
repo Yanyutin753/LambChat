@@ -11,7 +11,7 @@ import jwt
 
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings
-from src.kernel.exceptions import AuthenticationError
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -106,9 +106,9 @@ def decode_token(token: str) -> Dict[str, Any]:
         )
         return payload
     except jwt.ExpiredSignatureError:
-        raise AuthenticationError("Token 已过期")
+        raise AppError(ErrorCode.TOKEN_EXPIRED)
     except jwt.InvalidTokenError as e:
-        raise AuthenticationError(f"无效的 Token: {str(e)}")
+        raise AppError(ErrorCode.INVALID_TOKEN, message=f"Invalid token: {e}")
 
 
 def verify_token(token: str) -> TokenPayload:
@@ -128,11 +128,11 @@ def verify_token(token: str) -> TokenPayload:
 
     # 验证必要字段存在
     if "sub" not in payload:
-        raise AuthenticationError("Token 缺少 sub 字段")
+        raise AppError(ErrorCode.INVALID_TOKEN, message="Token missing sub field")
     if "exp" not in payload:
-        raise AuthenticationError("Token 缺少 exp 字段")
+        raise AppError(ErrorCode.INVALID_TOKEN, message="Token missing exp field")
     if "iat" not in payload:
-        raise AuthenticationError("Token 缺少 iat 字段")
+        raise AppError(ErrorCode.INVALID_TOKEN, message="Token missing iat field")
 
     return TokenPayload(
         sub=payload["sub"],

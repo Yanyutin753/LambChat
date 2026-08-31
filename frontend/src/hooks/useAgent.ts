@@ -44,7 +44,7 @@ import {
 import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
 import { planGoalSubmission } from "./useAgent/goalCommands";
-import { translateBackendError } from "../utils/backendErrors";
+import { translateApiError } from "../utils/backendErrors";
 import { dispatchSessionTitleUpdated } from "../utils/sessionTitleEvents";
 import { useAgentList } from "./useAgent/agentList";
 import {
@@ -730,9 +730,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         if (err instanceof Error && err.name === "AbortError") {
           return;
         }
+        const errWithMeta = err as Error & { code?: string };
         const errorMessage =
           err instanceof Error
-            ? translateBackendError(err.message, i18n.t.bind(i18n))
+            ? translateApiError(errWithMeta.code, err.message, undefined, i18n.t.bind(i18n))
             : i18n.t("chat.unknownError");
         setError(errorMessage);
         setMessages((prev) =>

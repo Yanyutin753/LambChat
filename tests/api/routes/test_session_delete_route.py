@@ -6,8 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
+from src.kernel.errors import AppError
 from src.kernel.exceptions import SessionError
 
 
@@ -127,26 +127,29 @@ class _ManagerRaisingOnDelete:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("error_code", "expected_status"),
+    ("error_code", "expected_app_code", "expected_status"),
     [
-        ("session_delete_in_progress", 409),
-        ("session_delete_has_trace_survivors", 500),
-        ("session_delete_fence_unavailable", 500),
+        ("session_delete_in_progress", "session_delete_in_progress", 409),
+        ("session_delete_has_trace_survivors", "session_error", 500),
+        ("session_delete_fence_unavailable", "session_error", 500),
     ],
 )
 async def test_delete_session_maps_session_error_to_status_code(
-    monkeypatch: pytest.MonkeyPatch, error_code: str, expected_status: int
+    monkeypatch: pytest.MonkeyPatch,
+    error_code: str,
+    expected_app_code: str,
+    expected_status: int,
 ) -> None:
     session_routes = _load_session_routes_module(monkeypatch)
     manager = _ManagerRaisingOnDelete(SessionError(error_code))
     monkeypatch.setattr(session_routes, "SessionManager", lambda: manager)
     user = SimpleNamespace(sub="user-1", role="user")
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await session_routes.delete_session("session-1", user=user)
 
-    assert exc_info.value.status_code == expected_status
-    assert exc_info.value.detail == error_code
+    assert exc_info.value.error_code.code == expected_app_code
+    assert exc_info.value.http_status == expected_status
 
 
 @pytest.mark.asyncio

@@ -2,13 +2,13 @@
 User profile routes (password change, avatar, profile, username)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required
 from src.infra.logging import get_logger
 from src.infra.user.manager import UserManager
-from src.kernel.exceptions import ValidationError
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload, User, UserUpdate
 
 router = APIRouter()
@@ -44,14 +44,11 @@ def _validate_bounded_string_list(
     max_items: int = MAX_USER_METADATA_LIST_ITEMS,
 ) -> None:
     if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid {field_name}: must be a list of strings.",
-        )
+        raise AppError(ErrorCode.INVALID_PROFILE_FIELD_LIST, args={"field": field_name})
     if len(values) > max_items:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Too many {field_name}: maximum {max_items} allowed.",
+        raise AppError(
+            ErrorCode.PROFILE_FIELD_TOO_MANY,
+            args={"field": field_name, "max": max_items},
         )
 
 
@@ -69,10 +66,7 @@ async def update_avatar(
     user = await manager.get_user(current_user.sub)
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在",
-        )
+        raise AppError(ErrorCode.USER_NOT_FOUND)
 
     # Update avatar_url
     from src.infra.user.storage import UserStorage
@@ -95,10 +89,7 @@ async def get_user_profile(
     manager = UserManager()
     user = await manager.get_user(current_user.sub)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在",
-        )
+        raise AppError(ErrorCode.USER_NOT_FOUND)
     return user
 
 
@@ -115,14 +106,7 @@ async def update_username(
     from src.infra.user.storage import UserStorage
 
     storage = UserStorage()
-    try:
-        updated_user = await storage.update(current_user.sub, UserUpdate(username=request.username))
-        return updated_user
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+    return await storage.update(current_user.sub, UserUpdate(username=request.username))
 
 
 @router.put("/profile/metadata")
@@ -145,19 +129,13 @@ async def update_user_metadata(
     if "language" in request.metadata:
         lang = request.metadata["language"]
         if lang not in supported_languages:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported language: {lang}. Supported: {', '.join(sorted(supported_languages))}",
-            )
+            raise AppError(ErrorCode.UNSUPPORTED_LANGUAGE, args={"lang": lang})
 
     # Validate theme if provided
     if "theme" in request.metadata:
         theme = request.metadata["theme"]
         if theme not in ("light", "dark", "sepia"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid theme: {theme}. Must be 'light', 'dark' or 'sepia'.",
-            )
+            raise AppError(ErrorCode.INVALID_THEME, args={"theme": theme})
 
     # Validate disabled_tools if provided
     if "disabled_tools" in request.metadata:

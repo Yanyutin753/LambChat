@@ -9,7 +9,7 @@ import asyncio
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
@@ -22,6 +22,7 @@ from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import parse_iso, to_iso
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.exceptions import NotFoundError, SessionError
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 from src.kernel.schemas.user import TokenPayload
@@ -62,10 +63,7 @@ def _parse_event_types_filter(event_types: str | None) -> list[str] | None:
 def verify_session_ownership(session: Session, user: TokenPayload) -> None:
     """验证会话所有权，仅允许会话所有者访问"""
     if session.user_id != user.sub:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="无权访问此会话",
-        )
+        raise AppError(ErrorCode.SESSION_ACCESS_DENIED)
 
 
 async def _get_favorites_project_id(user_id: str) -> str | None:
@@ -211,7 +209,7 @@ async def get_session(
             _get_favorites_project_id(user.sub),
         )
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
     return _normalize_session(session, favorites_project_id)
@@ -230,7 +228,7 @@ async def delete_session(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -238,14 +236,14 @@ async def delete_session(
         success = await manager.delete_session(session_id)
     except SessionError as exc:
         logger.error("Delete session %s failed: %s", session_id, exc)
-        status_code = (
-            status.HTTP_409_CONFLICT
-            if str(exc) == "session_delete_in_progress"
-            else status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+        if (
+            exc.error_code is ErrorCode.SESSION_DELETE_IN_PROGRESS
+            or str(exc) == "session_delete_in_progress"
+        ):
+            raise AppError(ErrorCode.SESSION_DELETE_IN_PROGRESS) from exc
+        raise AppError(ErrorCode.SESSION_ERROR, message=str(exc)) from exc
     if not success:
-        raise HTTPException(status_code=500, detail="删除失败")
+        raise AppError(ErrorCode.DELETE_FAILED)
 
     # 清理延迟工具发现记录
     try:
@@ -272,7 +270,7 @@ async def mark_session_read(
         # Keep the previous 404/403 distinction on the uncommon miss path.
         session = await manager.get_session(session_id)
         if not session:
-            raise HTTPException(status_code=404, detail="会话不存在")
+            raise AppError(ErrorCode.SESSION_NOT_FOUND)
         verify_session_ownership(session, user)
         await manager.mark_read(session_id)
     return {"status": "ok"}
@@ -333,7 +331,7 @@ async def get_session_events(
     async with timed_server_phase("session_detail"):
         session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -355,7 +353,7 @@ async def get_session_events(
         try:
             before_trace_started_at_dt = parse_iso(before_trace_started_at_param)
         except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="无效的 before_trace_started_at")
+            raise AppError(ErrorCode.INVALID_BEFORE_TRACE_STARTED_AT)
 
     current_run_id = session.metadata.get("current_run_id") if session.metadata else None
     events_probe_limit = (limit + 1) if limit is not None else None
@@ -450,7 +448,7 @@ async def get_session_runs(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -529,7 +527,7 @@ async def get_session_traces(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -564,7 +562,7 @@ async def get_session_raw_traces(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -601,12 +599,12 @@ async def update_session_status(
     只能更新自己拥有的会话状态。
     """
     if status not in ["active", "archived"]:
-        raise HTTPException(status_code=400, detail="状态必须是 active 或 archived")
+        raise AppError(ErrorCode.INVALID_SESSION_STATUS)
 
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -616,7 +614,7 @@ async def update_session_status(
         SessionUpdate(metadata={"is_active": is_active}),
     )
     if not updated_session:
-        raise HTTPException(status_code=500, detail="更新失败")
+        raise AppError(ErrorCode.UPDATE_FAILED)
     return {"status": "updated", "session": updated_session}
 
 
@@ -633,7 +631,7 @@ async def clear_session_messages(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -655,13 +653,13 @@ async def update_session(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
     updated_session = await manager.update_session(session_id, session_data)
     if not updated_session:
-        raise HTTPException(status_code=500, detail="更新失败")
+        raise AppError(ErrorCode.UPDATE_FAILED)
     favorites_project_id = await _get_favorites_project_id(user.sub)
     updated_session = _normalize_session(updated_session, favorites_project_id)
     return {"status": "updated", "session": updated_session}
@@ -677,18 +675,21 @@ async def fork_session_from_message(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
     verify_session_ownership(session, user)
 
     try:
         return await manager.fork_session_from_message(session_id, message_id, user.sub)
     except NotFoundError as exc:
-        detail = "消息不存在" if "message" in str(exc) else "资源不存在"
         logger.warning("Fork 404: session=%s message=%s exc=%s", session_id, message_id, exc)
-        raise HTTPException(status_code=404, detail=detail) from exc
+        if "message" in str(exc):
+            raise AppError(ErrorCode.MESSAGE_NOT_FOUND) from exc
+        if "session" in str(exc):
+            raise AppError(ErrorCode.SESSION_NOT_FOUND) from exc
+        raise AppError(ErrorCode.NOT_FOUND) from exc
     except SessionError as exc:
         logger.error("Fork 500: session=%s message=%s exc=%s", session_id, message_id, exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise AppError(ErrorCode.SESSION_ERROR, message=str(exc)) from exc
 
 
 @router.post("/{session_id}/messages/{message_id}/checkpoints")
@@ -702,7 +703,7 @@ async def create_message_checkpoint(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
     verify_session_ownership(session, user)
 
     try:
@@ -713,8 +714,11 @@ async def create_message_checkpoint(
             name=payload.name,
         )
     except NotFoundError as exc:
-        detail = "消息不存在" if "message" in str(exc) else "资源不存在"
-        raise HTTPException(status_code=404, detail=detail) from exc
+        if "message" in str(exc):
+            raise AppError(ErrorCode.MESSAGE_NOT_FOUND) from exc
+        if "session" in str(exc):
+            raise AppError(ErrorCode.SESSION_NOT_FOUND) from exc
+        raise AppError(ErrorCode.NOT_FOUND) from exc
 
 
 @router.post("/{session_id}/checkpoints/{checkpoint_id}/fork")
@@ -727,7 +731,7 @@ async def fork_session_from_checkpoint(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
     verify_session_ownership(session, user)
 
     try:
@@ -737,14 +741,17 @@ async def fork_session_from_checkpoint(
             user_id=user.sub,
         )
     except NotFoundError as exc:
-        detail = "检查点不存在" if "checkpoint" in str(exc) else "资源不存在"
         logger.warning(
             "Fork checkpoint 404: session=%s checkpoint=%s exc=%s",
             session_id,
             checkpoint_id,
             exc,
         )
-        raise HTTPException(status_code=404, detail=detail) from exc
+        if "message" in str(exc):
+            raise AppError(ErrorCode.MESSAGE_NOT_FOUND) from exc
+        if "session" in str(exc):
+            raise AppError(ErrorCode.SESSION_NOT_FOUND) from exc
+        raise AppError(ErrorCode.NOT_FOUND) from exc
     except SessionError as exc:
         logger.error(
             "Fork checkpoint 500: session=%s checkpoint=%s exc=%s",
@@ -752,7 +759,7 @@ async def fork_session_from_checkpoint(
             checkpoint_id,
             exc,
         )
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise AppError(ErrorCode.SESSION_ERROR, message=str(exc)) from exc
 
 
 @router.post("/{session_id}/favorite")
@@ -766,7 +773,7 @@ async def toggle_session_favorite(
     storage = SessionStorage()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -777,7 +784,7 @@ async def toggle_session_favorite(
         favorites_project_id=favorites_project_id,
     )
     if not updated_session:
-        raise HTTPException(status_code=500, detail="收藏状态更新失败")
+        raise AppError(ErrorCode.FAVORITE_UPDATE_FAILED)
 
     updated_session = _normalize_session(updated_session, favorites_project_id)
     return {
@@ -801,14 +808,14 @@ async def toggle_session_pin(
     storage = SessionStorage()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
     favorites_project_id = await _get_favorites_project_id(user.sub)
     updated_session = await storage.toggle_pin(session_id, user.sub)
     if not updated_session:
-        raise HTTPException(status_code=500, detail="置顶状态更新失败")
+        raise AppError(ErrorCode.PIN_UPDATE_FAILED)
 
     updated_session = _normalize_session(updated_session, favorites_project_id)
     return {
@@ -842,7 +849,7 @@ async def generate_session_title(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
 
@@ -925,7 +932,7 @@ async def move_session(
     # Verify session exists and belongs to user
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     verify_session_ownership(session, user)
     favorites_project_id = await _get_favorites_project_id(user.sub)
@@ -939,12 +946,12 @@ async def move_session(
         project_storage = get_project_storage()
         project = await project_storage.get_by_id(project_id, user.sub)
         if not project:
-            raise HTTPException(status_code=404, detail="项目不存在")
+            raise AppError(ErrorCode.PROJECT_NOT_FOUND)
 
     # Move session
     updated_session = await storage.move_to_project(session_id, user.sub, project_id)
     if not updated_session:
-        raise HTTPException(status_code=500, detail="移动失败")
+        raise AppError(ErrorCode.MOVE_FAILED)
 
     if was_favorite and not is_session_favorite(
         updated_session.metadata,
@@ -955,7 +962,7 @@ async def move_session(
             SessionUpdate(metadata={"is_favorite": True}),
         )
         if not updated_session:
-            raise HTTPException(status_code=500, detail="移动后收藏状态同步失败")
+            raise AppError(ErrorCode.MOVE_FAVORITE_SYNC_FAILED)
 
     # Sync revealed files' project_id
     try:

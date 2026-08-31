@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.api.routes import upload as upload_route
@@ -15,6 +14,7 @@ from src.api.routes.upload import (
     _read_upload_file_limited,
     _spool_upload_file_limited,
 )
+from src.kernel.errors import AppError
 
 
 class ChunkedUpload:
@@ -67,11 +67,11 @@ class _BlockingOnlySpooledFile:
 async def test_read_upload_file_limited_rejects_oversize_without_reading_rest() -> None:
     upload = ChunkedUpload([b"abcd", b"efgh", b"this-should-not-be-read"])
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _read_upload_file_limited(upload, max_size_bytes=5, max_size_mb=1, purpose="File")
 
-    assert exc_info.value.status_code == 400
-    assert "File size exceeds maximum" in exc_info.value.detail
+    assert exc_info.value.error_code.code == "file_too_large"
+    assert exc_info.value.http_status == 413
     assert upload.read_calls == 2
 
 
@@ -185,22 +185,22 @@ async def test_spool_upload_file_limited_rejects_empty_file_and_closes_spool(
 
     monkeypatch.setattr(upload_route, "SpooledTemporaryFile", make_spool)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _spool_upload_file_limited(
             ChunkedUpload([b""]),
             max_size_bytes=6,
             max_size_mb=1,
         )
 
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "File is empty"
+    assert exc_info.value.error_code.code == "empty_file"
+    assert exc_info.value.http_status == 400
     assert len(created) == 1
     assert created[0].closed is True
 
 
 @pytest.mark.asyncio
 async def test_spool_upload_file_limited_names_empty_avatar_uploads() -> None:
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _spool_upload_file_limited(
             ChunkedUpload([b""]),
             max_size_bytes=6,
@@ -208,19 +208,18 @@ async def test_spool_upload_file_limited_names_empty_avatar_uploads() -> None:
             purpose="Avatar file",
         )
 
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Avatar file is empty"
+    assert exc_info.value.error_code.code == "empty_file"
 
 
 @pytest.mark.asyncio
 async def test_spool_upload_file_limited_rejects_oversize_and_closes_file() -> None:
     upload = ChunkedUpload([b"abcd", b"efgh", b"this-should-not-be-read"])
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _spool_upload_file_limited(upload, max_size_bytes=5, max_size_mb=1, purpose="File")
 
-    assert exc_info.value.status_code == 400
-    assert "File size exceeds maximum" in exc_info.value.detail
+    assert exc_info.value.error_code.code == "file_too_large"
+    assert exc_info.value.http_status == 413
     assert upload.read_calls == 2
 
 
@@ -374,10 +373,11 @@ async def test_upload_delete_unknown_key_never_starts_background_object_deletion
     monkeypatch.setattr(upload_route, "get_or_init_storage", fake_get_or_init_storage)
     monkeypatch.setattr(upload_route, "_file_record_storage", _FakeRecordStorage())
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload_route.delete_file(
             "uploads/one.txt", current_user=SimpleNamespace(sub="owner-a")
         )
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code.code == "file_not_found"
+    assert exc_info.value.http_status == 404
     assert calls == []

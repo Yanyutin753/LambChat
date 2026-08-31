@@ -14,6 +14,7 @@ from src.api.deps import require_permissions
 from src.infra.agent.config_storage import get_agent_config_storage
 from src.infra.logging import get_logger
 from src.infra.role.manager import get_role_manager
+from src.kernel.errors import ErrorCode
 from src.kernel.schemas.agent import (
     AgentCatalogConfig,
     AgentCatalogConfigResponse,
@@ -134,7 +135,7 @@ async def update_global_agent_config(
         if agent.id not in registered_ids:
             from src.kernel.exceptions import ValidationError
 
-            raise ValidationError(f"Agent '{agent.id}' 未注册")
+            raise ValidationError(ErrorCode.AGENT_NOT_REGISTERED, args={"agent": agent.id})
 
     registered_agents = {agent["id"]: agent for agent in AgentFactory.list_agents()}
     catalog_agents = [
@@ -173,7 +174,7 @@ async def update_agent_catalog_config(
         if agent.id not in registered_ids:
             from src.kernel.exceptions import ValidationError
 
-            raise ValidationError(f"Agent '{agent.id}' 未注册")
+            raise ValidationError(ErrorCode.AGENT_NOT_REGISTERED, args={"agent": agent.id})
 
     registered_agents = {agent["id"]: agent for agent in AgentFactory.list_agents()}
     agents = [
@@ -209,7 +210,7 @@ async def get_role_agents(
     if not role:
         from src.kernel.exceptions import NotFoundError
 
-        raise NotFoundError(f"角色 '{role_id}' 不存在")
+        raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
     allowed_agents = await storage.get_role_agents(role_id) or []
 
@@ -234,7 +235,7 @@ async def update_role_agents(
     if not role:
         from src.kernel.exceptions import NotFoundError
 
-        raise NotFoundError(f"角色 '{role_id}' 不存在")
+        raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
     allowed_agents = await storage.set_role_agents(role_id, role.name, assignment.allowed_agents)
 
@@ -263,7 +264,7 @@ async def get_role_models(
     if not role:
         from src.kernel.exceptions import NotFoundError
 
-        raise NotFoundError(f"角色 '{role_id}' 不存在")
+        raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
     allowed_models = await storage.get_role_models(role_id)
 
@@ -289,7 +290,7 @@ async def update_role_models(
     if not role:
         from src.kernel.exceptions import NotFoundError
 
-        raise NotFoundError(f"角色 '{role_id}' 不存在")
+        raise NotFoundError(ErrorCode.ROLE_NOT_FOUND)
 
     allowed_models = await storage.set_role_models(role_id, role.name, assignment.allowed_models)
 

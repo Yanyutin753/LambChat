@@ -10,7 +10,7 @@ import {
   refreshAccessToken,
   clearAuthState,
 } from "./tokenManager";
-import { translateBackendError } from "../../utils/backendErrors";
+import { parseErrorDetail, translateApiError } from "../../utils/backendErrors";
 
 // ============================================
 // 带认证的 fetch 封装
@@ -63,7 +63,7 @@ export async function authFetch<T>(
   // 检查当前用户是否被修改（需要重新登录）
   if (!skipAuth && response.headers.get("X-Force-Relogin") === "true") {
     clearAuthState();
-    throw new Error("用户权限已变更，请重新登录");
+    throw new Error(i18n.t("backendErrors.forceRelogin", "用户权限已变更，请重新登录"));
   }
 
   // 处理 401 未授权响应
@@ -86,24 +86,20 @@ export async function authFetch<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    // 处理 detail 为对象或字符串的情况
-    let errorMessage: string;
-    if (typeof errorData.detail === "object" && errorData.detail !== null) {
-      // Structured API errors use either a human message or a stable error code.
-      errorMessage =
-        errorData.detail.message ||
-        errorData.detail.error ||
-        JSON.stringify(errorData.detail);
-    } else {
-      errorMessage =
-        errorData.detail || `Request failed: ${response.statusText}`;
-    }
+    // 统一契约 {"detail": {code, message, args}}；兼容旧字符串 detail
+    const { code, message, args } = parseErrorDetail(errorData);
+    const errorMessage =
+      message || `Request failed: ${response.statusText}`;
     const error = new Error(
-      translateBackendError(errorMessage, i18n.t.bind(i18n)),
+      translateApiError(code, errorMessage, args, i18n.t.bind(i18n)),
     ) as Error & {
       status?: number;
+      code?: string;
+      args?: Record<string, unknown>;
     };
     error.status = response.status;
+    error.code = code;
+    error.args = args;
     throw error;
   }
 

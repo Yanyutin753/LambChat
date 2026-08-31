@@ -4,10 +4,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes import marketplace as marketplace_routes
 from src.infra.skill.types import InstalledFrom, SkillMeta
+from src.kernel.errors import AppError
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -82,7 +82,7 @@ async def test_create_marketplace_skill_rejects_too_many_files_before_sync(
 ) -> None:
     monkeypatch.setattr(marketplace_routes, "MARKETPLACE_SKILL_MAX_FILES", 2)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await marketplace_routes.create_marketplace_skill(
             marketplace_routes.MarketplaceCreateRequest(
                 skill_name="too-many",
@@ -96,8 +96,8 @@ async def test_create_marketplace_skill_rejects_too_many_files_before_sync(
             marketplace=_MarketplaceShouldNotSync(),
         )
 
-    assert exc.value.status_code == 413
-    assert "too many files" in exc.value.detail
+    assert exc.value.error_code.code == "marketplace_file_count_limit"
+    assert exc.value.http_status == 413
 
 
 @pytest.mark.asyncio
@@ -106,7 +106,7 @@ async def test_create_marketplace_skill_rejects_total_file_content_before_sync(
 ) -> None:
     monkeypatch.setattr(marketplace_routes, "MARKETPLACE_SKILL_MAX_TOTAL_CHARS", 10)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await marketplace_routes.create_marketplace_skill(
             marketplace_routes.MarketplaceCreateRequest(
                 skill_name="too-large",
@@ -119,8 +119,8 @@ async def test_create_marketplace_skill_rejects_total_file_content_before_sync(
             marketplace=_MarketplaceShouldNotSync(),
         )
 
-    assert exc.value.status_code == 413
-    assert "too large" in exc.value.detail
+    assert exc.value.error_code.code == "marketplace_total_too_large"
+    assert exc.value.http_status == 413
 
 
 @pytest.mark.asyncio

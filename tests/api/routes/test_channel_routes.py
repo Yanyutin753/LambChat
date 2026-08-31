@@ -3,10 +3,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes import channels as channels_route
 from src.infra.channel.feishu import registration as feishu_registration
+from src.kernel.errors import AppError
 from src.kernel.schemas.channel import ChannelConfigCreate, ChannelConfigUpdate, ChannelType
 
 
@@ -235,7 +235,7 @@ async def test_create_channel_rejects_unknown_project_id(
     )
     monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await channels_route.create_channel_instance(
             ChannelType.FEISHU,
             ChannelConfigCreate(
@@ -248,7 +248,8 @@ async def test_create_channel_rejects_unknown_project_id(
             storage=storage,
         )
 
-    assert exc_info.value.status_code == 400
+    assert exc_info.value.error_code.code == "project_not_found"
+    assert exc_info.value.http_status == 404
     assert storage.create_calls == 0
 
 
@@ -264,7 +265,7 @@ async def test_update_channel_rejects_unknown_project_id(
     )
     monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await channels_route.update_channel_instance(
             ChannelType.FEISHU,
             "instance-1",
@@ -273,7 +274,8 @@ async def test_update_channel_rejects_unknown_project_id(
             storage=storage,
         )
 
-    assert exc_info.value.status_code == 400
+    assert exc_info.value.error_code.code == "project_not_found"
+    assert exc_info.value.http_status == 404
     assert storage.update_calls == 0
 
 
@@ -335,7 +337,7 @@ async def test_create_channel_limit_counts_configs_without_loading_all(
     monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
     monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await channels_route.create_channel_instance(
             ChannelType.FEISHU,
             ChannelConfigCreate(
@@ -347,7 +349,8 @@ async def test_create_channel_limit_counts_configs_without_loading_all(
             storage=storage,
         )
 
-    assert exc_info.value.status_code == 400
+    assert exc_info.value.error_code.code == "channel_limit_reached"
+    assert exc_info.value.http_status == 400
     assert storage.count_calls == ["user-1"]
     assert storage.list_calls == 0
 
@@ -374,13 +377,14 @@ async def test_list_user_channels_rejects_oversized_lists_before_loading(
     monkeypatch.setattr(channels_route, "CHANNEL_LIST_MAX_ITEMS", 2, raising=False)
     storage = _FakeListLimitStorage(count=3)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await channels_route.list_user_channels(
             user=SimpleNamespace(sub="user-1"),
             storage=storage,
         )
 
-    assert exc_info.value.status_code == 413
+    assert exc_info.value.error_code.code == "channel_list_limit"
+    assert exc_info.value.http_status == 413
     assert storage.count_calls == ["user-1"]
     assert storage.list_calls == 0
 
@@ -392,14 +396,15 @@ async def test_list_channel_instances_rejects_oversized_lists_before_loading(
     monkeypatch.setattr(channels_route, "CHANNEL_LIST_MAX_ITEMS", 2, raising=False)
     storage = _FakeListLimitStorage(count=0, typed_count=3)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await channels_route.list_channel_instances(
             ChannelType.FEISHU,
             user=SimpleNamespace(sub="user-1"),
             storage=storage,
         )
 
-    assert exc_info.value.status_code == 413
+    assert exc_info.value.error_code.code == "channel_list_limit"
+    assert exc_info.value.http_status == 413
     assert storage.typed_count_calls == [("user-1", ChannelType.FEISHU)]
     assert storage.typed_list_calls == 0
 

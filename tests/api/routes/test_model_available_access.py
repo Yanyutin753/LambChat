@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes.agent import model as model_routes
+from src.kernel.errors import AppError
 from src.kernel.schemas.model import ModelConfig, ModelProfile
 from src.kernel.schemas.user import TokenPayload
 
@@ -294,7 +294,7 @@ async def test_import_models_rejects_large_batches_before_storage(
 
     monkeypatch.setattr(model_routes, "get_model_storage", lambda: _StorageShouldNotBeCalled())
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await model_routes.import_models(
             [
                 {
@@ -306,7 +306,8 @@ async def test_import_models_rejects_large_batches_before_storage(
             TokenPayload(sub="admin", username="admin", roles=["admin"]),
         )
 
-    assert exc.value.status_code == 413
+    assert exc.value.error_code.code == "model_batch_limit"
+    assert exc.value.http_status == 413
 
 
 @pytest.mark.asyncio
@@ -319,7 +320,7 @@ async def test_batch_create_models_rejects_large_batches_before_storage(
 
     monkeypatch.setattr(model_routes, "get_model_storage", lambda: _StorageShouldNotBeCalled())
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await model_routes.batch_create_models(
             {
                 "shared": {},
@@ -331,4 +332,5 @@ async def test_batch_create_models_rejects_large_batches_before_storage(
             TokenPayload(sub="admin", username="admin", roles=["admin"]),
         )
 
-    assert exc.value.status_code == 413
+    assert exc.value.error_code.code == "model_batch_limit"
+    assert exc.value.http_status == 413

@@ -269,7 +269,10 @@ class SearchAgent(BaseGraphAgent):
 
         except Exception as e:
             # 错误事件由 agent_node 内部处理，这里只 yield 给 manager
-            yield presenter.error(str(e), type(e).__name__)
+            err_code = getattr(e, "error_code", None)
+            yield presenter.error(
+                str(e), type(e).__name__, code=err_code.code if err_code else None
+            )
             raise
 
         finally:

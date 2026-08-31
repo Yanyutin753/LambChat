@@ -11,7 +11,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Optional, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from src.agents.core.base import AgentFactory
@@ -20,7 +20,6 @@ from src.api.routes.chat import validate_agent_model_access
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
-from src.kernel.exceptions import AuthorizationError
 from src.kernel.schemas.agent import (
     AgentRequest,
     ToolInfo,
@@ -108,7 +107,11 @@ def _estimated_json_data_bytes(data: object) -> int:
 
 
 def _agent_sse_payload_too_large_event() -> str:
-    return 'event: error\ndata: {"error":"event_payload_too_large"}\n\n'
+    payload = json.dumps(
+        {"error": "event_payload_too_large", "code": "event_payload_too_large"},
+        separators=(",", ":"),
+    )
+    return f"event: error\ndata: {payload}\n\n"
 
 
 def _json_dumps_agent_sse_data_limited(data: object) -> str | None:
@@ -450,10 +453,7 @@ async def chat_stream(
     logger.info(f"[API] agent_options to pass: {agent_options}")
     logger.info(f"[API] disabled_tools: {request_body.disabled_tools}")
 
-    try:
-        await validate_agent_model_access(agent_options, user)
-    except AuthorizationError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    await validate_agent_model_access(agent_options, user)
 
     async def event_generator():
         try:

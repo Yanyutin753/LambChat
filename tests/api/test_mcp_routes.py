@@ -6,6 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import ValidationError
 
 from src.api import deps as api_deps
+from src.api.error_handlers import register_error_handlers
 from src.api.routes import mcp as mcp_route
 from src.kernel.schemas.mcp import (
     MCPServerCreate,
@@ -171,6 +172,7 @@ async def test_import_mcp_servers_rejects_oversized_payload_before_storage(
             raise AssertionError("oversized import should be rejected before storage")
 
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(mcp_route.router, prefix="/api/mcp")
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_mcp_import_user
     app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
@@ -190,7 +192,7 @@ async def test_import_mcp_servers_rejects_oversized_payload_before_storage(
         response = await client.post("/api/mcp/import", json=payload)
 
     assert response.status_code == 413
-    assert "too many MCP servers" in response.json()["detail"]
+    assert response.json()["detail"]["code"] == "mcp_import_limit"
 
 
 @pytest.mark.asyncio
@@ -273,6 +275,7 @@ async def test_admin_toggle_tool_returns_bad_request_for_disabled_tool_overflow(
             raise ValueError("Too many disabled tools: maximum 100 allowed.")
 
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
     app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
@@ -285,7 +288,8 @@ async def test_admin_toggle_tool_returns_bad_request_for_disabled_tool_overflow(
         )
 
     assert response.status_code == 400
-    assert "maximum 100" in response.json()["detail"]
+    assert response.json()["detail"]["code"] == "mcp_server_error"
+    assert "maximum 100" in response.json()["detail"]["message"]
 
 
 @pytest.mark.asyncio
@@ -299,6 +303,7 @@ async def test_admin_toggle_tool_returns_not_found_for_hidden_legacy_server() ->
             raise AssertionError("hidden legacy server must not be mutated")
 
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(mcp_route.admin_router, prefix="/api/admin/mcp")
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_admin
     app.dependency_overrides[mcp_route.get_mcp_storage] = lambda: _FakeStorage()
@@ -311,6 +316,7 @@ async def test_admin_toggle_tool_returns_not_found_for_hidden_legacy_server() ->
         )
 
     assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "mcp_system_server_not_found"
 
 
 @pytest.mark.asyncio

@@ -1,11 +1,12 @@
 """Push 订阅路由"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from src.api.deps import get_current_user_required
 from src.infra.logging import get_logger
 from src.infra.push.manager import get_push_manager
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.push_subscription import (
     PushSubscription,
     PushSubscriptionCreate,
@@ -23,10 +24,7 @@ router = APIRouter()
 async def get_vapid_public_key() -> VapidPublicKeyResponse:
     """Get VAPID public key for push subscription (no auth required)."""
     if not settings.VAPID_PUBLIC_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Push notifications are not available (VAPID key generation failed)",
-        )
+        raise AppError(ErrorCode.PUSH_UNAVAILABLE)
     return VapidPublicKeyResponse(public_key=settings.VAPID_PUBLIC_KEY)
 
 
@@ -38,15 +36,9 @@ async def subscribe_push(
 ) -> PushSubscription:
     """Save a push subscription from the browser."""
     if not data.endpoint.startswith("https://"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Push subscription endpoint must use HTTPS",
-        )
+        raise AppError(ErrorCode.PUSH_ENDPOINT_HTTPS_REQUIRED)
     if not data.keys.p256dh or not data.keys.auth:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Push subscription keys are required",
-        )
+        raise AppError(ErrorCode.PUSH_SUBSCRIPTION_KEYS_REQUIRED)
     subscription = await manager.save_subscription(
         user_id=user.sub,
         data=data.model_dump(),

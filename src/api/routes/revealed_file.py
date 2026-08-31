@@ -3,10 +3,11 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_current_user_required
 from src.infra.revealed_file.storage import get_revealed_file_storage
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -105,10 +106,10 @@ async def toggle_revealed_file_favorite(
     try:
         new_val = await storage.toggle_favorite(user.sub, file_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise AppError(ErrorCode.FILE_NOT_FOUND, message=str(e)) from e
     except Exception as e:
         # Catch InvalidId and other BSON errors for malformed file_id
         if "InvalidId" in type(e).__name__ or "bson" in type(e).__module__:
-            raise HTTPException(status_code=400, detail="Invalid file ID format")
+            raise AppError(ErrorCode.INVALID_FILE_ID)
         raise
     return {"is_favorite": new_val}

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.api import deps as api_deps
+from src.api.error_handlers import register_error_handlers
 from src.api.routes import push as push_route
 from src.kernel.schemas.user import TokenPayload
 
@@ -63,6 +64,7 @@ async def test_vapid_public_key_returns_503_when_not_configured(
     monkeypatch.setattr(push_route.settings, "VAPID_PUBLIC_KEY", "")
 
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(push_route.router, prefix="/api/push")
 
     transport = ASGITransport(app=app)
@@ -70,6 +72,7 @@ async def test_vapid_public_key_returns_503_when_not_configured(
         resp = await client.get("/api/push/vapid-public-key")
 
     assert resp.status_code == 503
+    assert resp.json()["detail"]["code"] == "push_unavailable"
 
 
 # ── Subscribe endpoint ──
@@ -140,6 +143,7 @@ async def test_subscribe_log_omits_subscription_endpoint(
 @pytest.mark.asyncio
 async def test_subscribe_rejects_non_https_endpoint() -> None:
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(push_route.router, prefix="/api/push")
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
 
@@ -154,11 +158,13 @@ async def test_subscribe_rejects_non_https_endpoint() -> None:
         )
 
     assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "push_endpoint_https_required"
 
 
 @pytest.mark.asyncio
 async def test_subscribe_rejects_empty_keys() -> None:
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(push_route.router, prefix="/api/push")
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
 
@@ -173,6 +179,7 @@ async def test_subscribe_rejects_empty_keys() -> None:
         )
 
     assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "push_subscription_keys_required"
 
 
 # ── Unsubscribe endpoint ──
