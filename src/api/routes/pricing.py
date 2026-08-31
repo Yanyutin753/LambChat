@@ -15,6 +15,7 @@ from src.infra.logging import get_logger
 from src.infra.pricing import service as pricing_service
 from src.infra.pricing.storage import get_pricing_storage
 from src.infra.pricing.sync import sync_pricing
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.pricing import (
     FxRatesResponse,
     PricingBackfillResponse,
@@ -96,11 +97,10 @@ async def backfill_usage_costs(
     user: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
 ) -> PricingBackfillResponse:
     """用当前价格快照补算存量 usage_logs 的费用（幂等，可重复执行）。"""
-    from fastapi import HTTPException
 
     from src.infra.pricing.backfill import backfill_usage_costs as run_backfill
 
     summary = await run_backfill(dry_run=dry_run)
     if summary.get("lock_contended"):
-        raise HTTPException(status_code=409, detail="Another replica is running the backfill")
+        raise AppError(ErrorCode.BACKFILL_IN_PROGRESS)
     return PricingBackfillResponse(**summary)

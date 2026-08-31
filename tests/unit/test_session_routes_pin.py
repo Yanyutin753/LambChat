@@ -71,7 +71,7 @@ async def test_toggle_pin_success():
 @pytest.mark.asyncio
 async def test_toggle_pin_session_not_found():
     """Route raises 404 when the session does not exist."""
-    from fastapi import HTTPException
+    from src.kernel.errors import AppError
 
     user = _make_user()
 
@@ -87,17 +87,18 @@ async def test_toggle_pin_session_not_found():
         handler = _find_pin_route()
         if handler is None:
             pytest.fail("No /pin POST route found")
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppError) as exc_info:
             await handler("missing", user=user)
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code.code == "session_not_found"
+    assert exc_info.value.http_status == 404
     mock_storage.toggle_pin.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_toggle_pin_storage_failure():
     """Route raises 500 when the storage toggle returns None."""
-    from fastapi import HTTPException
+    from src.kernel.errors import AppError
 
     user = _make_user()
 
@@ -123,10 +124,11 @@ async def test_toggle_pin_storage_failure():
         handler = _find_pin_route()
         if handler is None:
             pytest.fail("No /pin POST route found")
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AppError) as exc_info:
             await handler("abc123", user=user)
 
-    assert exc_info.value.status_code == 500
+    assert exc_info.value.error_code.code == "pin_update_failed"
+    assert exc_info.value.http_status == 500
 
 
 @pytest.mark.asyncio

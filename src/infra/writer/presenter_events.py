@@ -646,12 +646,14 @@ class EventPresenterMixin:
         message: str,
         error_type: str = "Error",
         details: Optional[Dict] = None,
+        code: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """输出错误"""
+        """输出错误。code 为稳定错误码（snake_case），前端据此翻译；动态原文放 message。"""
         return self._build_event(
             "error",
             {
                 "error": message,
+                "code": code or "internal_error",
                 "type": error_type,
                 "trace_id": self.trace_id,
                 "details": details,

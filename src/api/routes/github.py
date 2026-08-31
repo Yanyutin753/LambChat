@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Optional, TypeVar
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
@@ -22,6 +22,7 @@ from src.infra.logging import get_logger
 from src.infra.skill.parser import parse_skill_md
 from src.infra.skill.storage import SkillStorage
 from src.infra.skill.types import InstalledFrom
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
@@ -73,10 +74,7 @@ def _bounded_requested_skill_names(skill_names: list[str]) -> list[str]:
         seen.add(normalized)
         bounded.append(normalized)
         if len(bounded) > GITHUB_INSTALL_MAX_SKILLS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot install more than {GITHUB_INSTALL_MAX_SKILLS} skills at once",
-            )
+            raise AppError(ErrorCode.GITHUB_INSTALL_LIMIT, args={"max": GITHUB_INSTALL_MAX_SKILLS})
     return bounded
 
 
@@ -196,7 +194,7 @@ async def fetch_github_dir(
                 except (ValueError, OSError):
                     pass
             logger.warning(f"GitHub API rate limit: {detail}")
-            raise HTTPException(status_code=429, detail=detail)
+            raise AppError(ErrorCode.GITHUB_RATE_LIMITED, message=detail)
         resp.raise_for_status()
         return resp.json()
 
@@ -443,20 +441,20 @@ async def preview_github_skills(
     try:
         owner, repo = parse_github_url(request.repo_url)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.GITHUB_ERROR, message=str(e))
 
     try:
         skills = await scan_for_skills(owner, repo, request.branch)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            raise HTTPException(status_code=404, detail="Repository or branch not found")
-        raise HTTPException(status_code=500, detail=f"GitHub API error: {e.response.status_code}")
+            raise AppError(ErrorCode.REPOSITORY_OR_BRANCH_NOT_FOUND)
+        raise AppError(ErrorCode.GITHUB_API_ERROR, args={"status": e.response.status_code})
     except Exception as e:
         logger.error(f"Failed to preview GitHub skills: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch repository: {str(e)}")
+        raise AppError(ErrorCode.GITHUB_FETCH_FAILED, message=str(e))
 
     if not skills:
-        raise HTTPException(status_code=404, detail="No skills found in repository")
+        raise AppError(ErrorCode.NO_SKILLS_FOUND_IN_REPOSITORY)
 
     return GitHubPreviewResponse(
         repo_url=request.repo_url,
@@ -478,7 +476,7 @@ async def install_github_skills(
     try:
         owner, repo = parse_github_url(request.repo_url)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.GITHUB_ERROR, message=str(e))
 
     requested_skill_names = _bounded_requested_skill_names(request.skill_names)
     storage = SkillStorage()
@@ -489,7 +487,7 @@ async def install_github_skills(
     try:
         all_skills = await scan_for_skills(owner, repo, request.branch)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to scan repository: {str(e)}")
+        raise AppError(ErrorCode.GITHUB_SCAN_FAILED, message=str(e))
 
     for skill_name in requested_skill_names:
         try:

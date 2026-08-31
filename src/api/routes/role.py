@@ -2,14 +2,14 @@
 角色路由
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import (
     get_current_user_required,
     require_permissions,
 )
 from src.infra.role.manager import RoleManager
-from src.kernel.exceptions import ValidationError
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.role import Role, RoleCreate, RoleListResponse, RoleUpdate
 from src.kernel.schemas.user import TokenPayload
 
@@ -49,7 +49,7 @@ async def get_role(
     manager = RoleManager()
     role = await manager.get_role(role_id)
     if not role:
-        raise HTTPException(status_code=404, detail="角色不存在")
+        raise AppError(ErrorCode.ROLE_NOT_FOUND)
     return role
 
 
@@ -66,7 +66,7 @@ async def update_role(
     # 获取目标角色
     target_role = await manager.get_role(role_id)
     if not target_role:
-        raise HTTPException(status_code=404, detail="角色不存在")
+        raise AppError(ErrorCode.ROLE_NOT_FOUND)
 
     # 如果是系统角色，检查当前用户是否拥有该角色
     if target_role.is_system:
@@ -75,17 +75,11 @@ async def update_role(
         user_manager = UserManager()
         user = await user_manager.get_user(current_user.sub)
         if user and user.roles and target_role.name in user.roles:
-            raise HTTPException(
-                status_code=400,
-                detail="不能修改自己所属角色的权限",
-            )
+            raise AppError(ErrorCode.CANNOT_CHANGE_OWN_ROLE_PERMISSIONS)
 
-    try:
-        role = await manager.update_role(role_id, role_data)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    role = await manager.update_role(role_id, role_data)
     if not role:
-        raise HTTPException(status_code=404, detail="角色不存在")
+        raise AppError(ErrorCode.ROLE_NOT_FOUND)
     return role
 
 
@@ -99,9 +93,6 @@ async def delete_role(
     # 先获取角色名用于缓存失效
     target_role = await manager.get_role(role_id)
     if not target_role:
-        raise HTTPException(status_code=404, detail="角色不存在")
-    try:
-        await manager.delete_role(role_id)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(ErrorCode.ROLE_NOT_FOUND)
+    await manager.delete_role(role_id)
     return {"status": "deleted"}

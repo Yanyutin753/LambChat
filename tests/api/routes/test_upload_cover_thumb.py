@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from src.api.routes import upload, upload_cover
 from src.api.routes.upload_cover import render_sheet_cover
+from src.kernel.errors import AppError
 
 
 @pytest.fixture(autouse=True)
@@ -101,9 +102,10 @@ async def test_cover_returns_404_for_unsupported_types(
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
     for key in ("a/b/archive.zip", "a/b/anim.gif", "a/b/icon.svg"):
-        with pytest.raises(upload.HTTPException) as exc:
+        with pytest.raises(AppError) as exc:
             await upload.get_file_proxy(key, _fake_request(), cover=True)
-        assert exc.value.status_code == 404
+        assert exc.value.error_code.code == "cover_thumbnail_not_available"
+        assert exc.value.http_status == 404
 
     assert storage.presigned_calls == []
 
@@ -137,9 +139,10 @@ async def test_cover_video_non_aliyun_still_404s(
     storage._config = SimpleNamespace(provider="minio", public_bucket=False)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    with pytest.raises(upload.HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await upload.get_file_proxy("a/b/clip.mp4", _fake_request(), cover=True)
-    assert exc.value.status_code == 404
+    assert exc.value.error_code.code == "cover_thumbnail_not_available"
+    assert exc.value.http_status == 404
     assert storage.downloaded == []
     assert storage.uploads == []
 
@@ -343,9 +346,10 @@ async def test_cover_pdf_skips_oversized_sources(
     storage = _FakePdfStorage(size=80 * 1024 * 1024)
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    with pytest.raises(upload.HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await upload.get_file_proxy("revealed_files/huge.pdf", _fake_request(), cover=True)
-    assert exc.value.status_code == 404
+    assert exc.value.error_code.code == "cover_thumbnail_not_available"
+    assert exc.value.http_status == 404
     assert storage.downloaded == []
 
 
@@ -523,9 +527,10 @@ async def test_cover_legacy_xls_falls_back_without_render(
     storage = _FakePdfStorage()
     monkeypatch.setattr(upload, "get_or_init_storage", _async_of(storage))
 
-    with pytest.raises(upload.HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await upload.get_file_proxy("revealed_files/old.xls", _fake_request(), cover=True)
-    assert exc.value.status_code == 404
+    assert exc.value.error_code.code == "cover_thumbnail_not_available"
+    assert exc.value.http_status == 404
     assert storage.downloaded == []
 
 
@@ -604,9 +609,10 @@ async def test_render_burst_degrades_to_404_instead_of_pool_starvation(
     ]
     await asyncio.sleep(0.05)
 
-    with pytest.raises(upload.HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await upload.get_file_proxy("revealed_files/burst.pdf", _fake_request(), cover=True)
-    assert exc.value.status_code == 404
+    assert exc.value.error_code.code == "cover_thumbnail_not_available"
+    assert exc.value.http_status == 404
 
     done = await asyncio.gather(*first_two)
     assert all(r.status_code in (302, 307) for r in done)

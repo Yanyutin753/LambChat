@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.api import deps as api_deps
+from src.api.error_handlers import register_error_handlers
 from src.api.routes import team as team_route
 from src.kernel.schemas.team import (
     TeamCreate,
@@ -115,6 +116,7 @@ async def test_create_team_returns_bad_request_for_invalid_member_model() -> Non
             raise ValueError("team_member_model_unavailable")
 
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(team_route.router, prefix="/api/teams")
     app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
     app.dependency_overrides[team_route._get_manager] = lambda: _FakeManager()
@@ -130,7 +132,8 @@ async def test_create_team_returns_bad_request_for_invalid_member_model() -> Non
         )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "team_member_model_unavailable"
+    assert response.json()["detail"]["code"] == "team_error"
+    assert response.json()["detail"]["message"] == "team_member_model_unavailable"
 
 
 @pytest.mark.asyncio

@@ -21,7 +21,7 @@ import type {
   ArtifactPartArtifact,
 } from "../../types";
 import i18n from "../../i18n";
-import { translateBackendError } from "../../utils/backendErrors";
+import { translateApiError } from "../../utils/backendErrors";
 import type { EventData, SubagentStackItem } from "./types";
 import {
   addPartToDepth,
@@ -580,7 +580,7 @@ export function processMessageEvent(
 
     case "error": {
       const errorMsg = data.error
-        ? translateBackendError(data.error, i18n.t.bind(i18n))
+        ? translateApiError(data.code, data.error, undefined, i18n.t.bind(i18n))
         : i18n.t("chat.unknownError");
       if (isTransientAskHumanCancellation(errorMsg)) {
         result.parts = parts;

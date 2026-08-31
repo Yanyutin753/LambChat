@@ -7,13 +7,14 @@ from inspect import isawaitable
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, Path, Request, status
+from fastapi import APIRouter, Path, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, StringConstraints
 
 from src.infra.auth.turnstile import get_turnstile_service
 from src.infra.logging import get_logger
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import OAuthProvider
 
 from .utils import _get_client_ip, _get_frontend_url, _store_oauth_state, _verify_oauth_state
@@ -82,10 +83,7 @@ async def oauth_login(request: Request, provider: OAuthProviderParam):
     oauth_provider = OAuthProvider(provider)
 
     if not oauth_service.is_provider_enabled(oauth_provider):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"OAuth provider '{provider}' is not enabled",
-        )
+        raise AppError(ErrorCode.OAUTH_PROVIDER_DISABLED, args={"provider": provider})
 
     # 生成 state 用于 CSRF 防护
     state = secrets.token_urlsafe(32)
@@ -101,10 +99,7 @@ async def oauth_login(request: Request, provider: OAuthProviderParam):
     # 获取授权 URL
     auth_url = oauth_service.get_authorization_url(oauth_provider, state, redirect_uri)
     if not auth_url:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create authorization URL",
-        )
+        raise AppError(ErrorCode.OAUTH_URL_FAILED)
 
     # 直接重定向到 OAuth 提供商授权页面（标准 OAuth 模式）
     return RedirectResponse(url=auth_url, status_code=302)
@@ -184,10 +179,7 @@ async def oauth_callback(http_request: Request, provider: OAuthProviderParam):
             body = await http_request.json()
             callback_request = OAuthCallbackRequest.model_validate(body)
         except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid OAuth callback payload",
-            ) from exc
+            raise AppError(ErrorCode.OAUTH_CALLBACK_INVALID) from exc
 
     # 验证 state 以防止 CSRF 攻击
     client_ip = _get_client_ip(http_request)
@@ -195,15 +187,12 @@ async def oauth_callback(http_request: Request, provider: OAuthProviderParam):
         logger.warning("[OAuth] Invalid state for %s from %s", provider, client_ip)
         if is_form_post:
             frontend_url = _get_frontend_url(http_request)
-            error_params = urlencode({"error": "invalid_state", "provider": provider})
+            error_params = urlencode({"error": "oauth_invalid_state", "provider": provider})
             return RedirectResponse(
                 url=f"{frontend_url}/auth/login?{error_params}",
                 status_code=302,
             )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OAuth state. Please try logging in again.",
-        )
+        raise AppError(ErrorCode.OAUTH_INVALID_STATE)
 
     frontend_url, token = await _exchange_oauth_token(
         http_request,
@@ -218,10 +207,7 @@ async def oauth_callback(http_request: Request, provider: OAuthProviderParam):
                 url=f"{frontend_url}/auth/login?{error_params}",
                 status_code=302,
             )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="OAuth authentication failed",
-        )
+        raise AppError(ErrorCode.OAUTH_FAILED)
 
     if is_form_post:
         return RedirectResponse(
@@ -247,7 +233,7 @@ async def oauth_callback_get(request: Request, provider: OAuthProviderParam, cod
     client_ip = _get_client_ip(request)
     if not await _verify_state(provider, state, client_ip):
         logger.warning("[OAuth] Invalid state for %s from %s", provider, client_ip)
-        error_params = urlencode({"error": "invalid_state", "provider": provider})
+        error_params = urlencode({"error": "oauth_invalid_state", "provider": provider})
         return RedirectResponse(url=f"{frontend_url}/auth/login?{error_params}", status_code=302)
 
     frontend_url, token = await _exchange_oauth_token(request, provider, code, state)

@@ -4,11 +4,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes import chat
 from src.infra.task.concurrency import ConcurrencyResponse, ConcurrencyResult
 from src.infra.upload.file_record import AttachmentClaimError
+from src.kernel.errors import AppError
 from src.kernel.schemas.agent import AgentRequest
 
 
@@ -189,7 +189,7 @@ async def test_invalid_attachments_return_same_422_before_limiter(
     limiter = _Limiter(ConcurrencyResult.STARTED)
     task_manager = _TaskManager()
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _invoke_chat(
             monkeypatch,
             attachments=[_attachment("unavailable")],
@@ -199,8 +199,8 @@ async def test_invalid_attachments_return_same_422_before_limiter(
             task_manager=task_manager,
         )
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == {"error": "invalid_attachments"}
+    assert exc_info.value.error_code.code == "invalid_attachments"
+    assert exc_info.value.http_status == 400
     assert limiter.acquire_calls == []
     assert task_manager.submit_calls == []
     assert task_manager.submit_arq_calls == []
@@ -242,7 +242,7 @@ async def test_attachment_overflow_is_rejected_before_limiter_without_truncating
         _attachment(f"key-{index}", attachment_id=f"attachment-{index}") for index in range(101)
     ]
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _invoke_chat(
             monkeypatch,
             attachments=attachments,
@@ -251,8 +251,8 @@ async def test_attachment_overflow_is_rejected_before_limiter_without_truncating
             limiter=limiter,
         )
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == {"error": "invalid_attachments"}
+    assert exc_info.value.error_code.code == "invalid_attachments"
+    assert exc_info.value.http_status == 400
     assert len(file_records.claims[0][0]) == 101
     assert limiter.acquire_calls == []
 
@@ -296,14 +296,15 @@ async def test_empty_attachment_list_performs_no_file_record_write(
 async def test_rejected_queue_releases_preclaimed_attachments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _invoke_chat(
             monkeypatch,
             attachments=[_attachment("key-1")],
             limiter_result=ConcurrencyResult.REJECTED_QUEUE,
         )
 
-    assert exc_info.value.status_code == 429
+    assert exc_info.value.error_code.code == "too_many_requests"
+    assert exc_info.value.http_status == 429
     file_records = chat.FileRecordStorage()
     assert file_records.releases == [(["key-1"], "owner-1")]
 

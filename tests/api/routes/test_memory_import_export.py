@@ -6,10 +6,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi import HTTPException
 from starlette.responses import StreamingResponse
 
 from src.api.routes import memory as memory_routes
+from src.kernel.errors import AppError
 from src.kernel.schemas.user import TokenPayload
 
 
@@ -398,7 +398,7 @@ async def test_import_memories_rejects_oversized_single_content(
         raising=False,
     )
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await memory_routes.import_memories(
             {
                 "version": 1,
@@ -414,8 +414,8 @@ async def test_import_memories_rejects_oversized_single_content(
             user=_user(),
         )
 
-    assert exc.value.status_code == 400
-    assert "Memory content too large" in exc.value.detail
+    assert exc.value.error_code.code == "memory_content_too_large"
+    assert exc.value.http_status == 400
     assert backend._collection.docs == []
 
 
@@ -436,7 +436,7 @@ async def test_import_memories_rejects_oversized_total_content_before_writes(
         raising=False,
     )
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await memory_routes.import_memories(
             {
                 "version": 1,
@@ -458,6 +458,6 @@ async def test_import_memories_rejects_oversized_total_content_before_writes(
             user=_user(),
         )
 
-    assert exc.value.status_code == 400
-    assert "Memory import content too large" in exc.value.detail
+    assert exc.value.error_code.code == "memory_import_too_large"
+    assert exc.value.http_status == 400
     assert backend._collection.docs == []

@@ -4,10 +4,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes.chat import SteerRequest, list_pending_steers, steer_running_agent
 from src.infra.task.status import TaskStatus
+from src.kernel.errors import AppError
 
 
 def _user(sub="user-1"):
@@ -157,9 +157,10 @@ async def test_steer_rejects_when_task_not_running(monkeypatch) -> None:
         lambda: SimpleNamespace(get_status=AsyncMock(return_value=TaskStatus.WAITING_HUMAN)),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await steer_running_agent("session-1", SteerRequest(message="hi"), user=_user())
-    assert exc_info.value.status_code == 409
+    assert exc_info.value.error_code.code == "steer_session_not_running"
+    assert exc_info.value.http_status == 409
 
 
 async def test_steer_rejects_missing_session(monkeypatch) -> None:
@@ -168,9 +169,10 @@ async def test_steer_rejects_missing_session(monkeypatch) -> None:
         lambda: SimpleNamespace(get_session=AsyncMock(return_value=None)),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await steer_running_agent("session-1", SteerRequest(message="hi"), user=_user())
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code.code == "session_not_found"
+    assert exc_info.value.http_status == 404
 
 
 async def test_steer_rejects_other_users_session(monkeypatch) -> None:
@@ -179,9 +181,10 @@ async def test_steer_rejects_other_users_session(monkeypatch) -> None:
         lambda: SimpleNamespace(get_session=AsyncMock(return_value=_session(user_id="user-2"))),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await steer_running_agent("session-1", SteerRequest(message="hi"), user=_user("user-1"))
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code.code == "session_access_denied"
+    assert exc_info.value.http_status == 403
 
 
 async def test_steer_rejects_empty_message(monkeypatch) -> None:
@@ -194,9 +197,10 @@ async def test_steer_rejects_empty_message(monkeypatch) -> None:
         lambda: SimpleNamespace(get_status=AsyncMock(return_value=TaskStatus.RUNNING)),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await steer_running_agent("session-1", SteerRequest(message="   "), user=_user())
-    assert exc_info.value.status_code == 422
+    assert exc_info.value.error_code.code == "steer_content_required"
+    assert exc_info.value.http_status == 422
 
 
 async def test_new_chat_submit_purges_stale_pending_steers(queue) -> None:

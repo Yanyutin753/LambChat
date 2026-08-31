@@ -252,7 +252,10 @@ class TeamAgent(BaseGraphAgent):
             raise
 
         except Exception as e:
-            yield presenter.error(str(e), type(e).__name__)
+            err_code = getattr(e, "error_code", None)
+            yield presenter.error(
+                str(e), type(e).__name__, code=err_code.code if err_code else None
+            )
             raise
 
         finally:

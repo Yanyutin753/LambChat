@@ -161,8 +161,9 @@ async def test_backfill_usage_returns_409_when_lock_contended(monkeypatch):
         }
 
     monkeypatch.setattr(backfill_module, "backfill_usage_costs", _fake_backfill)
-    from fastapi import HTTPException
+    from src.kernel.errors import AppError
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await pricing_routes.backfill_usage_costs(dry_run=False, user=_admin())
-    assert exc_info.value.status_code == 409
+    assert exc_info.value.error_code.code == "backfill_in_progress"
+    assert exc_info.value.http_status == 409

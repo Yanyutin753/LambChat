@@ -3,10 +3,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
 from src.api.routes import session as session_routes
 from src.infra.session import storage as session_storage
+from src.kernel.errors import AppError
 
 
 class _UpdateResult:
@@ -80,13 +80,14 @@ async def test_mark_read_route_preserves_not_found_on_atomic_miss(
 
     monkeypatch.setattr(session_routes, "SessionManager", lambda: _Manager())
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await session_routes.mark_session_read(
             "missing-session",
             user=SimpleNamespace(sub="user-1"),
         )
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code.code == "session_not_found"
+    assert exc_info.value.http_status == 404
 
 
 @pytest.mark.asyncio
@@ -102,10 +103,11 @@ async def test_mark_read_route_preserves_forbidden_on_owner_mismatch(
 
     monkeypatch.setattr(session_routes, "SessionManager", lambda: _Manager())
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await session_routes.mark_session_read(
             "session-1",
             user=SimpleNamespace(sub="user-1"),
         )
 
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code.code == "session_access_denied"
+    assert exc_info.value.http_status == 403

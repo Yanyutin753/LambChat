@@ -10,7 +10,7 @@
 
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from src.agents.core.base import get_agent_class
 from src.api.deps import get_current_user_optional, get_current_user_required
@@ -23,6 +23,7 @@ from src.infra.share.storage import ShareStorage
 from src.infra.team.storage import TeamStorage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import to_iso
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.share import (
     ProjectSnapshot,
     ShareCreate,
@@ -57,49 +58,37 @@ def _check_permission(user: TokenPayload, permission: str) -> bool:
 def _require_share_permission(user: TokenPayload) -> None:
     """要求用户拥有分享权限"""
     if not _check_permission(user, Permission.SESSION_SHARE.value):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有分享会话的权限",
-        )
+        raise AppError(ErrorCode.SHARE_NO_PERMISSION)
 
 
 def _validate_share_run_ids(share_data: ShareCreate | ShareUpdate) -> None:
     if share_data.share_type != ShareType.PARTIAL:
         return
     if not share_data.run_ids:
-        raise HTTPException(
-            status_code=400,
-            detail="部分分享需要指定 run_ids",
-        )
+        raise AppError(ErrorCode.SHARE_PARTIAL_NEEDS_RUN_IDS)
     if len(share_data.run_ids) > SHARE_PARTIAL_RUN_IDS_LIMIT:
-        raise HTTPException(
-            status_code=400,
-            detail=f"run_ids 数量不能超过 {SHARE_PARTIAL_RUN_IDS_LIMIT}",
-        )
+        raise AppError(ErrorCode.SHARE_RUN_IDS_LIMIT, args={"max": SHARE_PARTIAL_RUN_IDS_LIMIT})
 
 
 def _validate_share_payload(share_data: ShareCreate) -> None:
     """结构化校验：按 share_scope 检查必填字段与上限。"""
     if share_data.share_scope == ShareScope.SESSION:
         if not share_data.session_id:
-            raise HTTPException(status_code=400, detail="会话分享需要 session_id")
+            raise AppError(ErrorCode.SHARE_SESSION_ID_REQUIRED)
         if share_data.share_type == ShareType.PARTIAL:
             _validate_share_run_ids(share_data)
         return
 
     # scope == PROJECT
     if not share_data.project_id:
-        raise HTTPException(status_code=400, detail="项目分享需要 project_id")
+        raise AppError(ErrorCode.SHARE_PROJECT_NEEDS_PROJECT_ID)
     if share_data.share_type == ShareType.PARTIAL:
         if not share_data.session_ids:
-            raise HTTPException(
-                status_code=400,
-                detail="部分项目分享需要 session_ids",
-            )
+            raise AppError(ErrorCode.SHARE_PARTIAL_NEEDS_SESSION_IDS)
         if len(share_data.session_ids) > SHARE_PROJECT_SESSIONS_LIMIT:
-            raise HTTPException(
-                status_code=400,
-                detail=f"session_ids 数量不能超过 {SHARE_PROJECT_SESSIONS_LIMIT}",
+            raise AppError(
+                ErrorCode.SHARE_SESSION_IDS_LIMIT,
+                args={"max": SHARE_PROJECT_SESSIONS_LIMIT},
             )
 
 
@@ -110,25 +99,19 @@ async def _validate_project_share(
     """校验项目分享的所有权与会话归属，返回冻结的项目快照。"""
     project_id = share_data.project_id
     if not project_id:
-        raise HTTPException(status_code=400, detail="项目分享需要 project_id")
+        raise AppError(ErrorCode.SHARE_PROJECT_NEEDS_PROJECT_ID)
 
     project = await get_project_storage().get_by_id(project_id, user.sub)
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        raise AppError(ErrorCode.PROJECT_NOT_FOUND)
 
     if share_data.share_type == ShareType.PARTIAL:
         actual_ids = set(await SessionStorage().list_ids_by_project(project_id, user.sub))
         requested = set(share_data.session_ids or [])
         if not requested:
-            raise HTTPException(
-                status_code=400,
-                detail="部分项目分享需要 session_ids",
-            )
+            raise AppError(ErrorCode.SHARE_PARTIAL_NEEDS_SESSION_IDS)
         if not requested <= actual_ids:
-            raise HTTPException(
-                status_code=400,
-                detail="部分会话不属于该项目",
-            )
+            raise AppError(ErrorCode.SESSIONS_NOT_IN_PROJECT)
 
     return ProjectSnapshot(id=project.id, name=project.name, icon=project.icon)
 
@@ -252,10 +235,10 @@ async def _build_session_content(
     """
     if session is None:
         if not share.session_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="原会话已不存在")
+            raise AppError(ErrorCode.SHARE_SOURCE_MISSING)
         session = await SessionManager().get_session(share.session_id)
         if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="原会话已不存在")
+            raise AppError(ErrorCode.SHARE_SOURCE_MISSING)
 
     dual_writer = get_dual_writer()
 
@@ -309,7 +292,7 @@ async def _build_project_manifest(
 ) -> SharedProjectContentResponse:
     """构建项目分享的 manifest（项目信息 + 子会话摘要，不含完整事件）。"""
     if not share.project_snapshot:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在或已过期")
+        raise AppError(ErrorCode.SHARE_EXPIRED_OR_MISSING)
 
     session_limit = min(max(int(session_limit), 1), SHARE_PROJECT_SESSIONS_LIMIT)
     session_skip = max(int(session_skip), 0)
@@ -392,16 +375,13 @@ async def create_share(
         # 验证会话所有权
         session_id = share_data.session_id
         if not session_id:
-            raise HTTPException(status_code=400, detail="会话分享需要 session_id")
+            raise AppError(ErrorCode.SHARE_SESSION_ID_REQUIRED)
         manager = SessionManager()
         session = await manager.get_session(session_id)
         if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+            raise AppError(ErrorCode.SESSION_NOT_FOUND)
         if session.user_id != user.sub:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="只能分享自己的会话",
-            )
+            raise AppError(ErrorCode.SHARE_OWN_ONLY)
 
     storage = ShareStorage()
     shared_session = await storage.create(
@@ -454,33 +434,27 @@ async def update_share(
     storage = ShareStorage()
     share = await storage.get_by_id(share_id)
     if not share:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在")
+        raise AppError(ErrorCode.SHARE_NOT_FOUND)
 
     if share.owner_id != user.sub:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="只能编辑自己创建的分享",
-        )
+        raise AppError(ErrorCode.SHARE_EDIT_OWN_ONLY)
 
     next_share_type = share_data.share_type or share.share_type
     next_visibility = share_data.visibility or share.visibility
 
     if share.share_scope == ShareScope.PROJECT:
         if not share.project_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在")
+            raise AppError(ErrorCode.SHARE_NOT_FOUND)
         next_session_ids = (
             share_data.session_ids if share_data.session_ids is not None else share.session_ids
         )
         if next_share_type == ShareType.PARTIAL:
             if not next_session_ids:
-                raise HTTPException(
-                    status_code=400,
-                    detail="部分项目分享需要 session_ids",
-                )
+                raise AppError(ErrorCode.SHARE_PARTIAL_NEEDS_SESSION_IDS)
             if len(next_session_ids) > SHARE_PROJECT_SESSIONS_LIMIT:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"session_ids 数量不能超过 {SHARE_PROJECT_SESSIONS_LIMIT}",
+                raise AppError(
+                    ErrorCode.SHARE_SESSION_IDS_LIMIT,
+                    args={"max": SHARE_PROJECT_SESSIONS_LIMIT},
                 )
             # Existing partial shares are membership snapshots. Project changes
             # after creation must not block a visibility-only update; revalidate
@@ -503,17 +477,14 @@ async def update_share(
     else:
         # session 分享
         if not share.session_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+            raise AppError(ErrorCode.SESSION_NOT_FOUND)
         manager = SessionManager()
         session = await manager.get_session(share.session_id)
         if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+            raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
         if session.user_id != user.sub:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="只能分享自己的会话",
-            )
+            raise AppError(ErrorCode.SHARE_OWN_ONLY)
 
         next_run_ids = share_data.run_ids if share_data.run_ids is not None else share.run_ids
         normalized_update = ShareUpdate(
@@ -535,7 +506,7 @@ async def update_share(
         session_ids=next_session_ids,
     )
     if not updated_share:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新失败")
+        raise AppError(ErrorCode.UPDATE_FAILED)
 
     return _build_share_response(updated_share)
 
@@ -554,13 +525,10 @@ async def list_session_shares(
     manager = SessionManager()
     session = await manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+        raise AppError(ErrorCode.SESSION_NOT_FOUND)
 
     if session.user_id != user.sub:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="只能查看自己会话的分享",
-        )
+        raise AppError(ErrorCode.SHARE_VIEW_OWN_ONLY)
 
     storage = ShareStorage()
     shares = await storage.list_by_session(session_id)
@@ -583,7 +551,7 @@ async def list_project_shares(
     """
     project = await get_project_storage().get_by_id(project_id, user.sub)
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        raise AppError(ErrorCode.PROJECT_NOT_FOUND)
 
     storage = ShareStorage()
     shares = await storage.list_by_project(project_id, user.sub)
@@ -610,17 +578,14 @@ async def delete_share(
     # 获取分享记录验证所有权
     share = await storage.get_by_id(share_id)
     if not share:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在")
+        raise AppError(ErrorCode.SHARE_NOT_FOUND)
 
     if share.owner_id != user.sub:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="只能删除自己创建的分享",
-        )
+        raise AppError(ErrorCode.SHARE_DELETE_OWN_ONLY)
 
     success = await storage.delete(share_id, user.sub)
     if not success:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="删除失败")
+        raise AppError(ErrorCode.DELETE_FAILED)
 
     return {"status": "deleted"}
 
@@ -655,15 +620,12 @@ async def get_shared_content(
     share = await storage.get_by_share_id(share_id)
 
     if not share:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在或已过期")
+        raise AppError(ErrorCode.SHARE_EXPIRED_OR_MISSING)
 
     # 检查访问权限
     if share.visibility == ShareVisibility.AUTHENTICATED:
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="需要登录才能查看此分享",
-            )
+            raise AppError(ErrorCode.SHARE_LOGIN_REQUIRED)
 
     if share.share_scope == ShareScope.PROJECT:
         return await _build_project_manifest(share, session_skip, session_limit)
@@ -687,24 +649,21 @@ async def get_shared_session_in_project(
     share = await storage.get_by_share_id(share_id)
 
     if not share:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在或已过期")
+        raise AppError(ErrorCode.SHARE_EXPIRED_OR_MISSING)
 
     if share.visibility == ShareVisibility.AUTHENTICATED:
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="需要登录才能查看此分享",
-            )
+            raise AppError(ErrorCode.SHARE_LOGIN_REQUIRED)
 
     if share.share_scope != ShareScope.PROJECT:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分享不存在或已过期")
+        raise AppError(ErrorCode.SHARE_EXPIRED_OR_MISSING)
 
     allowed_ids = await _resolve_project_member_ids(share)
     if session_id not in allowed_ids:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不在此分享中")
+        raise AppError(ErrorCode.SESSION_NOT_IN_SHARE)
 
     session = await SessionManager().get_session(session_id)
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="原会话已不存在")
+        raise AppError(ErrorCode.SHARE_SOURCE_MISSING)
 
     return await _build_session_content(share, event_limit=event_limit, session=session)

@@ -59,6 +59,8 @@ export interface EventData {
   content?: string;
   thinking_id?: string;
   error?: string;
+  /** 稳定错误码（snake_case），后端统一错误事件携带，供 i18n 翻译 */
+  code?: string;
   type?: string;
   step_name?: string;
   step_id?: string;

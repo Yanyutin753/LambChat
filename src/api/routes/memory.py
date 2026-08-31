@@ -7,7 +7,7 @@ import re
 import uuid
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from src.api.deps import get_current_user_required
@@ -18,6 +18,7 @@ from src.infra.session.conversation_history import ConversationHistoryService
 from src.infra.session.conversation_history_index import merge_source_refs
 from src.infra.utils.datetime import parse_iso, to_iso, utc_now, utc_now_iso
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.conversation_history import ConversationSourceRef
 from src.kernel.schemas.user import TokenPayload
 
@@ -98,10 +99,7 @@ def _get_memory_export_content_max_chars() -> int:
 def _validate_memory_content_size(content: str) -> None:
     max_chars = _get_memory_import_content_max_chars()
     if len(content) > max_chars:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Memory content too large (max {max_chars} characters)",
-        )
+        raise AppError(ErrorCode.MEMORY_CONTENT_TOO_LARGE, args={"max": max_chars})
 
 
 def _validate_memory_import_total_content_size(raw_memories: list[Any]) -> None:
@@ -112,10 +110,7 @@ def _validate_memory_import_total_content_size(raw_memories: list[Any]) -> None:
             continue
         total_chars += len(str(raw.get("content") or "").strip())
         if total_chars > max_chars:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Memory import content too large (max {max_chars} total characters)",
-            )
+            raise AppError(ErrorCode.MEMORY_IMPORT_TOO_LARGE, args={"max": max_chars})
 
 
 def _memory_projection() -> dict[str, int]:
@@ -184,9 +179,8 @@ async def list_memories(
         return {"memories": [], "total": 0}
 
     if memory_type and memory_type not in _VALID_MEMORY_TYPES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid memory_type. Must be one of: {', '.join(sorted(_VALID_MEMORY_TYPES))}",
+        raise AppError(
+            ErrorCode.INVALID_MEMORY_TYPE, args={"allowed": ", ".join(sorted(_VALID_MEMORY_TYPES))}
         )
 
     query_filter: dict = {"user_id": user.sub}
@@ -263,18 +257,17 @@ async def create_memory(
 
     backend = await _get_backend()
     if not backend:
-        raise HTTPException(status_code=404, detail="Memory backend not available")
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     memory_type = _clean_text(payload.get("memory_type") or MemoryType.USER.value)
     if memory_type not in _VALID_MEMORY_TYPES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid memory_type. Must be one of: {', '.join(sorted(_VALID_MEMORY_TYPES))}",
+        raise AppError(
+            ErrorCode.INVALID_MEMORY_TYPE, args={"allowed": ", ".join(sorted(_VALID_MEMORY_TYPES))}
         )
 
     content = _clean_text(payload.get("content"))
     if len(content) < 5:
-        raise HTTPException(status_code=400, detail="Memory content must be at least 5 characters")
+        raise AppError(ErrorCode.MEMORY_CONTENT_TOO_SHORT)
     _validate_memory_content_size(content)
 
     memory_id = uuid.uuid4().hex
@@ -339,7 +332,7 @@ async def update_memory(
 
     backend = await _get_backend()
     if not backend:
-        raise HTTPException(status_code=404, detail="Memory backend not available")
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     existing = await backend._collection.find_one(
         {"user_id": user.sub, "memory_id": memory_id},
@@ -350,7 +343,7 @@ async def update_memory(
         },
     )
     if not existing:
-        raise HTTPException(status_code=404, detail="Memory not found")
+        raise AppError(ErrorCode.MEMORY_NOT_FOUND)
 
     update: dict[str, Any] = {"updated_at": utc_now()}
 
@@ -359,9 +352,9 @@ async def update_memory(
     if "memory_type" in payload:
         mt = _clean_text(payload["memory_type"])
         if mt not in _VALID_MEMORY_TYPES:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid memory_type. Must be one of: {', '.join(sorted(_VALID_MEMORY_TYPES))}",
+            raise AppError(
+                ErrorCode.INVALID_MEMORY_TYPE,
+                args={"allowed": ", ".join(sorted(_VALID_MEMORY_TYPES))},
             )
         update["memory_type"] = mt
     if "tags" in payload:
@@ -369,9 +362,8 @@ async def update_memory(
     if "source" in payload:
         src = _clean_text(payload["source"])
         if src not in _VALID_SOURCES:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid source. Must be one of: {', '.join(sorted(_VALID_SOURCES))}",
+            raise AppError(
+                ErrorCode.INVALID_MEMORY_SOURCE, args={"allowed": ", ".join(sorted(_VALID_SOURCES))}
             )
         update["source"] = src
     if "source_refs" in payload:
@@ -383,9 +375,7 @@ async def update_memory(
     if content is not None:
         content = _clean_text(content)
         if len(content) < 5:
-            raise HTTPException(
-                status_code=400, detail="Memory content must be at least 5 characters"
-            )
+            raise AppError(ErrorCode.MEMORY_CONTENT_TOO_SHORT)
         _validate_memory_content_size(content)
 
         content_fields = await build_content_fields(backend, user.sub, memory_id, content)
@@ -438,7 +428,7 @@ async def export_memories(
 
     backend = await _get_backend()
     if not backend:
-        raise HTTPException(status_code=404, detail="Memory backend not available")
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     cursor = backend._collection.find({"user_id": user.sub}, _memory_projection())
     if hasattr(cursor, "sort"):
@@ -507,13 +497,13 @@ async def import_memories(
 
     backend = await _get_backend()
     if not backend:
-        raise HTTPException(status_code=404, detail="Memory backend not available")
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     raw_memories = payload.get("memories")
     if not isinstance(raw_memories, list):
-        raise HTTPException(status_code=400, detail="memories must be a list")
+        raise AppError(ErrorCode.MEMORIES_MUST_BE_LIST)
     if len(raw_memories) > 1000:
-        raise HTTPException(status_code=400, detail="Cannot import more than 1000 memories at once")
+        raise AppError(ErrorCode.MEMORY_IMPORT_LIMIT)
     _validate_memory_import_total_content_size(raw_memories)
 
     created = 0
@@ -522,20 +512,18 @@ async def import_memories(
 
     for raw in raw_memories:
         if not isinstance(raw, dict):
-            raise HTTPException(status_code=400, detail="Each memory must be an object")
+            raise AppError(ErrorCode.MEMORY_MUST_BE_OBJECT)
 
         memory_type = _clean_text(raw.get("memory_type") or MemoryType.USER.value)
         if memory_type not in _VALID_MEMORY_TYPES:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid memory_type. Must be one of: {', '.join(sorted(_VALID_MEMORY_TYPES))}",
+            raise AppError(
+                ErrorCode.INVALID_MEMORY_TYPE,
+                args={"allowed": ", ".join(sorted(_VALID_MEMORY_TYPES))},
             )
 
         content = _clean_text(raw.get("content"))
         if len(content) < 5:
-            raise HTTPException(
-                status_code=400, detail="Memory content must be at least 5 characters"
-            )
+            raise AppError(ErrorCode.MEMORY_CONTENT_TOO_SHORT)
         _validate_memory_content_size(content)
 
         memory_id = _clean_text(raw.get("memory_id")) or uuid.uuid4().hex
@@ -636,7 +624,7 @@ async def get_memory(
 
     backend = await _get_backend()
     if not backend:
-        raise HTTPException(status_code=404, detail="Memory backend not available")
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     doc = await backend._collection.find_one(
         {"user_id": user.sub, "memory_id": memory_id},
@@ -658,7 +646,7 @@ async def get_memory(
         },
     )
     if not doc:
-        raise HTTPException(status_code=404, detail="Memory not found")
+        raise AppError(ErrorCode.MEMORY_NOT_FOUND)
 
     full_content = await hydrate_memory_text(backend, doc)
     source_refs = await _validated_source_ref_docs(user.sub, doc.get("source_refs"))
@@ -687,11 +675,11 @@ async def delete_memory(
     """Delete a specific memory."""
     backend = await _get_backend()
     if not backend:
-        raise HTTPException(status_code=404, detail="Memory backend not available")
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     result = await backend.delete(user.sub, memory_id)
     if not result.get("success"):
-        raise HTTPException(status_code=404, detail="Memory not found")
+        raise AppError(ErrorCode.MEMORY_NOT_FOUND)
 
     return result
 
@@ -705,14 +693,14 @@ async def batch_delete_memories(
     body = await request.json()
     memory_ids = body.get("memory_ids", [])
     if not memory_ids or not isinstance(memory_ids, list):
-        raise HTTPException(status_code=400, detail="memory_ids must be a non-empty list")
+        raise AppError(ErrorCode.MEMORY_IDS_REQUIRED)
 
     if len(memory_ids) > 100:
-        raise HTTPException(status_code=400, detail="Cannot delete more than 100 memories at once")
+        raise AppError(ErrorCode.MEMORY_DELETE_LIMIT)
 
     backend = await _get_backend()
     if not backend:
-        raise HTTPException(status_code=404, detail="Memory backend not available")
+        raise AppError(ErrorCode.MEMORY_BACKEND_UNAVAILABLE)
 
     deleted = 0
     for mid in memory_ids:

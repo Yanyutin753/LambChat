@@ -7,6 +7,7 @@ import weakref
 import pytest
 
 from src.api.routes import github
+from src.kernel.errors import AppError
 
 
 class _TrackableChunk(bytearray):
@@ -262,7 +263,7 @@ async def test_install_github_skills_rejects_too_many_requested_names(
 
     monkeypatch.setattr(github, "scan_for_skills", _should_not_scan)
 
-    with pytest.raises(github.HTTPException) as exc:
+    with pytest.raises(AppError) as exc:
         await github.install_github_skills(
             github.GitHubInstallRequest(
                 repo_url="owner/repo",
@@ -271,5 +272,6 @@ async def test_install_github_skills_rejects_too_many_requested_names(
             user=type("User", (), {"sub": "user-1"})(),
         )
 
-    assert exc.value.status_code == 400
-    assert "Cannot install more than 2 skills" in exc.value.detail
+    assert exc.value.error_code.code == "github_install_limit"
+    assert exc.value.http_status == 400
+    assert exc.value.args_data == {"max": 2}

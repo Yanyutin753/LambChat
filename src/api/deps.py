@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.infra.async_utils import run_blocking_io
@@ -14,6 +14,7 @@ from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
 from src.infra.user.manager import UserManager
 from src.infra.user.storage import UserStorage
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload
 
 security = HTTPBearer(auto_error=False)
@@ -128,10 +129,7 @@ async def get_current_user_required(
     用户信息从数据库动态获取，确保权限变更立即生效。
     """
     if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="未提供认证信息",
-        )
+        raise AppError(ErrorCode.AUTH_MISSING)
 
     try:
         token = credentials.credentials
@@ -153,20 +151,14 @@ async def get_current_user_required(
         user_id = payload.sub
 
         if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="无效的 Token",
-            )
+            raise AppError(ErrorCode.INVALID_TOKEN)
 
         # 从数据库获取用户信息
         user_storage = UserStorage()
         user = await user_storage.get_by_id(user_id)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户不存在",
-            )
+            raise AppError(ErrorCode.USER_NOT_FOUND)
 
         # 从缓存/数据库动态获取角色和权限
         roles, permissions = await _get_user_roles_and_permissions(user.roles)
@@ -180,13 +172,10 @@ async def get_current_user_required(
         request.state.current_user = payload.model_copy(deep=True)
 
         return payload
-    except HTTPException:
+    except AppError:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-        )
+        raise AppError(ErrorCode.INVALID_TOKEN, message=str(e)) from e
 
 
 async def get_current_user_from_websocket(
@@ -203,10 +192,7 @@ async def get_current_user_from_websocket(
 
     if not token:
         logger.warning("[WebSocket] No token provided")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="未提供认证信息",
-        )
+        raise AppError(ErrorCode.AUTH_MISSING)
 
     try:
         payload = await _verify_token_async(token)
@@ -214,10 +200,7 @@ async def get_current_user_from_websocket(
 
         if not user_id:
             logger.warning("[WebSocket] Invalid token: no user_id")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="无效的 Token",
-            )
+            raise AppError(ErrorCode.INVALID_TOKEN)
 
         # 从数据库获取用户信息
         user_storage = UserStorage()
@@ -225,10 +208,7 @@ async def get_current_user_from_websocket(
 
         if not user:
             logger.warning(f"[WebSocket] User not found: {user_id}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户不存在",
-            )
+            raise AppError(ErrorCode.USER_NOT_FOUND)
 
         # 从缓存/数据库动态获取角色和权限
         roles, permissions = await _get_user_roles_and_permissions(user.roles)
@@ -243,14 +223,11 @@ async def get_current_user_from_websocket(
             iat=payload.iat,
         )
 
-    except HTTPException:
+    except AppError:
         raise
     except Exception as e:
         logger.error(f"[WebSocket] Auth error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-        )
+        raise AppError(ErrorCode.INVALID_TOKEN, message=str(e)) from e
 
 
 async def get_user_manager() -> UserManager:
@@ -272,10 +249,7 @@ def require_permissions(*permissions: str):
         user_permissions = set(user.permissions)
         for perm in permissions:
             if perm not in user_permissions:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"缺少权限: {perm}",
-                )
+                raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": perm})
         return user
 
     return checker

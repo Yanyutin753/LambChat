@@ -9,6 +9,7 @@ from __future__ import annotations
 from functools import wraps
 from typing import TYPE_CHECKING, Callable, List, Set
 
+from src.kernel.errors import ErrorCode
 from src.kernel.exceptions import AuthorizationError
 from src.kernel.types import Permission
 
@@ -76,13 +77,15 @@ def require_permissions(
             # 从 kwargs 中获取当前用户
             current_user = kwargs.get("current_user")
             if not current_user:
-                raise AuthorizationError("未认证的用户")
+                raise AuthorizationError(ErrorCode.UNAUTHENTICATED)
 
             user_permissions = set(current_user.get("permissions", []))
 
             for perm in required_permissions:
                 if perm not in user_permissions:
-                    raise AuthorizationError(f"缺少权限: {perm}")
+                    raise AuthorizationError(
+                        ErrorCode.PERMISSION_MISSING, args={"permission": perm}
+                    )
 
             return await func(*args, **kwargs)
 

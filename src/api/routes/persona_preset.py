@@ -2,11 +2,12 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, Query
 
 from src.api.deps import require_permissions
 from src.infra.persona_preset.manager import PersonaPresetManager
-from src.kernel.exceptions import AuthorizationError, NotFoundError
+from src.kernel.errors import AppError, ErrorCode
+from src.kernel.exceptions import NotFoundError
 from src.kernel.schemas.persona_preset import (
     PersonaPreset,
     PersonaPresetCreate,
@@ -79,14 +80,11 @@ async def create_persona_preset(
     user: TokenPayload = Depends(require_permissions("persona_preset:write")),
 ):
     """Create a user preset or, for admins, a global preset."""
-    try:
-        return await _manager().create_preset(
-            preset_data,
-            user_id=user.sub,
-            is_admin=_is_admin(user),
-        )
-    except AuthorizationError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+    return await _manager().create_preset(
+        preset_data,
+        user_id=user.sub,
+        is_admin=_is_admin(user),
+    )
 
 
 @router.post("/batch", response_model=list[PersonaPreset])
@@ -115,7 +113,7 @@ async def get_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="persona_preset_not_found")
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)
 
 
 @router.put("/{preset_id}", response_model=PersonaPreset)
@@ -133,9 +131,7 @@ async def update_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="persona_preset_not_found")
-    except AuthorizationError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)
 
 
 @router.delete("/{preset_id}")
@@ -152,9 +148,7 @@ async def delete_persona_preset(
         )
         return {"status": "deleted"}
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="persona_preset_not_found")
-    except AuthorizationError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)
 
 
 @router.post("/{preset_id}/copy", response_model=PersonaPreset)
@@ -170,7 +164,7 @@ async def copy_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="persona_preset_not_found")
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)
 
 
 @router.post("/{preset_id}/use", response_model=PersonaPresetSnapshot)
@@ -186,7 +180,7 @@ async def use_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="persona_preset_not_found")
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)
 
 
 @router.patch("/{preset_id}/preference", response_model=PersonaPreset)
@@ -205,4 +199,4 @@ async def update_persona_preset_preference(
             is_pinned=preference.is_pinned,
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="persona_preset_not_found")
+        raise AppError(ErrorCode.PERSONA_PRESET_NOT_FOUND)

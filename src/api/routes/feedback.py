@@ -10,12 +10,13 @@ from typing import Optional
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.server_timing import timed_server_phase
 from src.infra.feedback.manager import FeedbackManager
 from src.infra.logging import get_logger
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.feedback import (
     Feedback,
     FeedbackCreate,
@@ -49,10 +50,7 @@ def validate_object_id(id_str: str) -> ObjectId:
     try:
         return ObjectId(id_str)
     except InvalidId:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid feedback ID format",
-        )
+        raise AppError(ErrorCode.INVALID_FEEDBACK_ID)
 
 
 @router.post("/", response_model=Feedback)
@@ -68,10 +66,7 @@ async def submit_feedback(
     每个用户对每个 run 只能提交一次反馈
     """
     if "feedback:write" not in user.permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="缺少权限: feedback:write",
-        )
+        raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": "feedback:write"})
 
     try:
         feedback = await manager.submit_feedback(
@@ -82,10 +77,7 @@ async def submit_feedback(
         return feedback
     except ValueError as e:
         logger.warning(f"Duplicate feedback for user {user.sub}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        raise AppError(ErrorCode.BAD_REQUEST, message=str(e))
 
 
 @router.get("/", response_model=FeedbackListResponse)
@@ -141,10 +133,7 @@ async def get_my_feedback_for_run(
     需要 feedback:write 权限（表示用户可以查看自己的反馈）
     """
     if "feedback:write" not in user.permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="缺少权限: feedback:write",
-        )
+        raise AppError(ErrorCode.PERMISSION_MISSING, args={"permission": "feedback:write"})
     return await manager.get_user_feedback_for_run(user.sub, session_id, run_id)
 
 
@@ -193,8 +182,5 @@ async def delete_feedback(
 
     success = await manager.delete_feedback(str(validated_id))
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Feedback not found",
-        )
+        raise AppError(ErrorCode.FEEDBACK_NOT_FOUND)
     return {"status": "deleted"}

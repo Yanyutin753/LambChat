@@ -44,8 +44,10 @@ class TestRequirePermissionsDecorator:
         async def write(current_user):
             return "ok"
 
-        with pytest.raises(AuthorizationError, match=Permission.CHAT_WRITE.value):
+        with pytest.raises(AuthorizationError) as exc_info:
             await write(current_user={"permissions": [Permission.CHAT_READ.value]})
+        assert exc_info.value.error_code.code == "permission_missing"
+        assert exc_info.value.args_data["permission"] == Permission.CHAT_WRITE.value
 
     @pytest.mark.asyncio
     async def test_denies_when_no_current_user(self):
@@ -53,7 +55,7 @@ class TestRequirePermissionsDecorator:
         async def view(current_user=None):
             return "ok"
 
-        with pytest.raises(AuthorizationError, match="未认证"):
+        with pytest.raises(AuthorizationError, match="Unauthenticated"):
             await view()
 
     @pytest.mark.asyncio

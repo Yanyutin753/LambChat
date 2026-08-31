@@ -4,11 +4,12 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from starlette.responses import Response
 
 from src.api.deps import require_permissions
 from src.infra.user.manager import UserManager
+from src.kernel.errors import AppError, ErrorCode
 from src.kernel.schemas.user import TokenPayload, User, UserCreate, UserListResponse, UserUpdate
 
 router = APIRouter()
@@ -48,7 +49,7 @@ async def get_user(
     manager = UserManager()
     user = await manager.get_user(user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise AppError(ErrorCode.USER_NOT_FOUND)
     return user
 
 
@@ -62,7 +63,7 @@ async def update_user(
     manager = UserManager()
     user = await manager.update_user(user_id, user_data)
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise AppError(ErrorCode.USER_NOT_FOUND)
 
     # 如果修改了当前用户的角色，返回响应头让前端强制重新登录
     response = Response()
@@ -88,5 +89,5 @@ async def delete_user(
     manager = UserManager()
     success = await manager.delete_user(user_id)
     if not success:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise AppError(ErrorCode.USER_NOT_FOUND)
     return {"status": "deleted"}

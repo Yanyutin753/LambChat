@@ -158,3 +158,69 @@ export function translateBackendError(message: string, t: TFunction): string {
 
   return message;
 }
+
+// ============================================
+// 统一错误码翻译（后端 {"detail": {code, message, args}} 契约）
+// ============================================
+
+/** snake_case 错误码 → camelCase i18n key 段（session_not_found → sessionNotFound）。 */
+function codeToKeySegment(code: string): string {
+  return code.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+export interface ParsedErrorDetail {
+  code: string | undefined;
+  message: string;
+  args: Record<string, unknown> | undefined;
+}
+
+/**
+ * 解析后端错误响应体（兼容三种历史形状）：
+ * - {"detail": {"code", "message", "args"}}（标准契约）
+ * - {"detail": {"error": 码, "message"}}（旧 dict detail）
+ * - {"detail": "字符串"}（未迁移兜底）
+ */
+export function parseErrorDetail(errorData: unknown): ParsedErrorDetail {
+  const detail = (errorData as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "object" && detail !== null) {
+    const obj = detail as Record<string, unknown>;
+    const code =
+      typeof obj.code === "string"
+        ? obj.code
+        : typeof obj.error === "string"
+          ? obj.error
+          : undefined;
+    const message =
+      typeof obj.message === "string" && obj.message
+        ? obj.message
+        : code ?? JSON.stringify(detail);
+    const args =
+      obj.args && typeof obj.args === "object" && !Array.isArray(obj.args)
+        ? (obj.args as Record<string, unknown>)
+        : undefined;
+    return { code, message, args };
+  }
+  if (typeof detail === "string" && detail) {
+    return { code: undefined, message: detail, args: undefined };
+  }
+  return { code: undefined, message: "", args: undefined };
+}
+
+/**
+ * 统一错误翻译入口，优先级：错误码 i18n > 原文映射/正则 > 原文。
+ * internal_error 携带动态原文（str(exc) 透传）时不翻译，直接展示原文。
+ */
+export function translateApiError(
+  code: string | undefined,
+  message: string,
+  args: Record<string, unknown> | undefined,
+  t: TFunction,
+): string {
+  if (code && code !== "internal_error") {
+    const key = `backendErrors.${codeToKeySegment(code)}`;
+    const translated = t(key, { defaultValue: "", ...(args ?? {}) });
+    if (translated && translated !== key) return translated;
+  }
+  if (!message) return code ? String(code) : "";
+  return translateBackendError(message, t);
+}
