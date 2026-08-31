@@ -166,13 +166,12 @@ async def test_recovery_service_resume_session_submits_localized_recovery_messag
     redis = _FakeRedis(acquired=True)
     submit_calls = []
 
-    async def _fake_submit(**kwargs):
-        submit_calls.append(kwargs)
+    async def _fake_submit(*args, **kwargs):
+        submit_calls.append({"args": args, **kwargs})
         return kwargs["run_id"], ""
 
     async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
-        assert run_id == "run-old"
-        assert loaded_session.id == "session-1"
+        raise AssertionError("seamless resume must not mark the run failed")
 
     class _FakeUserStorage:
         async def get_by_id(self, user_id: str):
@@ -183,9 +182,35 @@ async def test_recovery_service_resume_session_submits_localized_recovery_messag
         if False:
             yield None
 
+    class _FakeLimiter:
+        async def try_acquire_run_slot(self, user_id: str, run_id: str) -> bool:
+            return True
+
+        async def release(self, *args, **kwargs):
+            return None
+
+    class _EmptyTraceCursor:
+        def sort(self, key, direction=None):
+            return self
+
+        def limit(self, limit):
+            return self
+
+        async def to_list(self, length=None):
+            return []
+
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
     monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr(
+        recovery_module,
+        "get_trace_storage",
+        lambda: SimpleNamespace(
+            collection=SimpleNamespace(find=lambda q, p=None: _EmptyTraceCursor())
+        ),
+    )
 
     service = recovery_module.TaskRecoveryService(
         storage=storage,
@@ -199,18 +224,23 @@ async def test_recovery_service_resume_session_submits_localized_recovery_messag
     result = await service.resume_session("session-1")
 
     assert result["success"] is True
+    assert result["run_id"] == "run-old"
     assert result["resumed_from_run_id"] == "run-old"
     assert len(submit_calls) == 1
-    assert submit_calls[0]["session_id"] == "session-1"
-    assert submit_calls[0]["project_id"] == "project-1"
-    assert submit_calls[0]["disabled_tools"] == ["bash"]
-    assert submit_calls[0]["team_id"] == "team-1"
-    assert "active_goal" not in submit_calls[0]
-    assert submit_calls[0]["message"] == "请继续处理当前会话中未完成的内容。"
-    assert submit_calls[0]["enabled_skills"] is None
+    call = submit_calls[0]
+    assert call["args"][0] == "session-1"
+    assert call["project_id"] == "project-1"
+    assert call["disabled_tools"] == ["bash"]
+    assert call["team_id"] == "team-1"
+    assert "active_goal" not in call
+    assert call["args"][2] == "请继续处理当前会话中未完成的内容。"
+    assert call["enabled_skills"] is None
+    assert call["run_id"] == "run-old"
+    assert call["user_message_written"] is True
+    assert call["interrupted_resume"] is True
     assert redis.set_calls
     assert storage.updates[-1][0] == "session-1"
-    assert storage.updates[-1][1].metadata["team_id"] == "team-1"
+    assert storage.updates[-1][1].metadata["resume_attempts"] == 1
 
 
 @pytest.mark.asyncio
@@ -235,8 +265,8 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
     redis = _FakeRedis(acquired=True)
     submit_calls = []
 
-    async def _fake_submit(**kwargs):
-        submit_calls.append(kwargs)
+    async def _fake_submit(*args, **kwargs):
+        submit_calls.append({"args": args, **kwargs})
         return kwargs["run_id"], ""
 
     async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
@@ -253,6 +283,15 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
     monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _SeamlessFakeLimiter())
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr(
+        recovery_module,
+        "get_trace_storage",
+        lambda: SimpleNamespace(
+            collection=SimpleNamespace(find=lambda q, p=None: _SeamlessEmptyTraceCursor())
+        ),
+    )
 
     service = recovery_module.TaskRecoveryService(
         storage=storage,
@@ -267,8 +306,26 @@ async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
 
     assert result["success"] is True
     assert submit_calls[0]["enabled_skills"] == []
-    metadata = storage.updates[-1][1].metadata
-    assert metadata["enabled_skills"] == []
+    assert submit_calls[0]["user_message_written"] is True
+
+
+class _SeamlessFakeLimiter:
+    async def try_acquire_run_slot(self, user_id: str, run_id: str) -> bool:
+        return True
+
+    async def release(self, *args, **kwargs):
+        return None
+
+
+class _SeamlessEmptyTraceCursor:
+    def sort(self, key, direction=None):
+        return self
+
+    def limit(self, limit):
+        return self
+
+    async def to_list(self, length=None):
+        return []
 
 
 @pytest.mark.asyncio

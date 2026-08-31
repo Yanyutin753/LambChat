@@ -94,6 +94,17 @@ jobs:
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
+    services:
+      # 队列 Lua 脚本等集成测试需要真实 Redis（不可达时测试自动 skip）
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
