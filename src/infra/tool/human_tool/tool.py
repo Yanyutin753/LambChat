@@ -47,7 +47,8 @@ class AskHumanTool(BaseTool):
 
     name: str = "ask_human"
     description: str = """向用户提问并等待回复。仅在缺少必要信息、需要用户选择，或需确认敏感/不可逆操作时使用。
-简单选项用 choices（multiple 控制多选）；结构化表单用 fields。返回字段 JSON 或拒绝状态。"""
+简单选项用 choices（multiple 控制多选）；结构化表单用 fields。返回字段 JSON 或拒绝状态。
+若返回 rejected（用户拒绝或忽略），不要重复提问：基于现有信息以合理低风险假设继续，或说明无法确认后收尾。"""
     args_schema: Type[AskHumanInput] = AskHumanInput
     return_direct: bool = False
 
