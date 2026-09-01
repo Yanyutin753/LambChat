@@ -466,6 +466,35 @@ def _is_remote_url(path: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
+_UPLOAD_PROXY_URL_PREFIX = "/api/upload/file/"
+
+
+def _extract_self_upload_key(url: str) -> str | None:
+    """提取指向本站上传代理路由（/api/upload/file/<key>）的 URL 的 storage key。
+
+    agent 常把 image_generate 等工具返回的长 URL 重新抄写后再传给
+    reveal_file，hex id 抄错一个字符即得到不存在的对象；此类 URL 必须
+    先校验存在性再透传。其他远程 URL 不属于本站 storage，返回 None。
+    """
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    path = unquote(parsed.path or "")
+    if _UPLOAD_PROXY_URL_PREFIX not in path:
+        return None
+    key = path.split(_UPLOAD_PROXY_URL_PREFIX, 1)[1].strip("/")
+    return key or None
+
+
+async def _self_upload_url_missing(storage: Any, key: str) -> bool | None:
+    """检查本站上传 key 是否存在；检查本身失败时返回 None（保持透传可用性）。"""
+    try:
+        return not await storage.file_exists(key)
+    except Exception as e:
+        logger.warning(f"[reveal_file] Existence check failed for key {key}: {e}")
+        return None
+
+
 def _get_filename_from_path(path: str) -> str:
     """从本地路径或 URL 中提取文件名。"""
     if _is_remote_url(path):
@@ -693,6 +722,29 @@ async def reveal_file(
     """向用户实际展示一个可点击的单个文件或 URL；仅回复路径不够。
     目录或多文件项目必须使用 reveal_project。"""
     if _is_remote_url(file_path):
+        self_upload_key = _extract_self_upload_key(file_path)
+        if self_upload_key is not None:
+            storage = await _get_storage()
+            missing = await _self_upload_url_missing(storage, self_upload_key)
+            if missing:
+                logger.warning(
+                    f"[reveal_file] Self-hosted upload URL not found in storage: {file_path}"
+                )
+                return await _json_dumps_result(
+                    {
+                        "type": "file_reveal",
+                        "file": {
+                            "path": file_path,
+                            "description": description or "",
+                            "error": "remote_url_not_found",
+                            "hint": (
+                                "This upload URL does not match any stored file "
+                                "(ids are easy to mistype when re-copying long URLs). "
+                                "Re-copy the exact url from the original tool result and retry."
+                            ),
+                        },
+                    }
+                )
         filename = _get_filename_from_path(file_path)
         mime_type = get_mime_type(filename)
         file_category = get_file_category(mime_type)
