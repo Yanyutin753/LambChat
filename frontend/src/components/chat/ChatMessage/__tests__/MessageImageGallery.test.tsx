@@ -49,7 +49,7 @@ describe("MessageImageGallery", () => {
   });
 
   it("opens session image gallery on click", () => {
-    expect(source).toContain("sessionImageGallery?.openImage");
+    expect(source).toContain("sessionImageGallery.openImage");
     expect(source).toContain('"reveal-file"');
   });
 
