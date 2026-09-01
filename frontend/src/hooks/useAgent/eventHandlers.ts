@@ -307,6 +307,11 @@ export function handleStreamEvent(
     case "run:resumed": {
       // 系统中断后同 run 无缝续跑：清空气泡里的半截输出/错误/取消状态，
       // 回到流式空态接收重新生成的完整回答（模型会重跑这一轮）。
+      // 中断瞬间可能卡住的全局态一并复位：子代理栈残留（agent:call 无配对
+      // agent:result）、沙箱初始化中/错误（sandbox:starting 无 ready/error）。
+      ctx.activeSubagentStackRef.current.length = 0;
+      ctx.setIsInitializingSandbox(false);
+      ctx.setSandboxError(null);
       ctx.setMessages((prev) => {
         const reset = {
           parts: [],
