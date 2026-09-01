@@ -68,6 +68,14 @@ async def worker_startup(ctx: dict[str, Any]) -> None:
     validate_distributed_runtime_settings(settings)
 
 
+async def worker_shutdown(ctx: dict[str, Any]) -> None:
+    """Mark the worker process as shutting down so recovery entrypoints go quiet."""
+    del ctx
+    from .lifecycle import mark_shutting_down
+
+    mark_shutting_down()
+
+
 def _resolve_executor(executor_key: str) -> Any:
     executor_fn = get_registered_executor(executor_key)
     if executor_fn is not None:
@@ -293,3 +301,4 @@ async def update_user_message_search_index(ctx: dict[str, Any], run_id: str) -> 
 class WorkerSettings:
     functions = [run_agent_task, update_user_message_search_index]
     on_startup = worker_startup
+    on_shutdown = worker_shutdown

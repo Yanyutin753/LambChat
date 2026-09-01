@@ -131,3 +131,68 @@ async def test_limiter_methods_against_real_redis(real_redis) -> None:
         assert await limiter.get_queue_position(user_id, "run-b") == 1
     finally:
         await real_redis.delete(key)
+
+
+async def test_recovery_lock_takeover_script_semantics(real_redis) -> None:
+    """恢复锁僵死接管脚本对真实 Redis 的语义验证。
+
+    - 锁龄（原 TTL - 剩余 TTL）低于阈值：不动锁，返回 0
+    - 锁龄达到阈值：覆写 token 并重置 TTL，返回 1
+    - 旧持有者按旧 token 释放：no-op；新 token 释放：成功
+    """
+    from src.infra.task.recovery import (
+        RECOVERY_LOCK_STALE_TAKEOVER_SECONDS,
+        RECOVERY_LOCK_TAKEOVER_LUA,
+        RECOVERY_LOCK_TTL_SECONDS,
+    )
+
+    key = f"task:recovery:lua-test:{uuid.uuid4().hex}"
+    try:
+        # 新鲜锁（TTL 只消耗了 10s，龄 10 < 60）：拒绝接管
+        await real_redis.set(key, "old-token", ex=RECOVERY_LOCK_TTL_SECONDS - 10)
+        result = await real_redis.eval(
+            RECOVERY_LOCK_TAKEOVER_LUA,
+            1,
+            key,
+            "new-token",
+            RECOVERY_LOCK_TTL_SECONDS,
+            RECOVERY_LOCK_STALE_TAKEOVER_SECONDS,
+        )
+        assert result == 0
+        assert await real_redis.get(key) == "old-token"
+
+        # 僵死锁（TTL 只剩 100s，龄 200 ≥ 60）：接管
+        await real_redis.set(key, "old-token", ex=100)
+        result = await real_redis.eval(
+            RECOVERY_LOCK_TAKEOVER_LUA,
+            1,
+            key,
+            "new-token",
+            RECOVERY_LOCK_TTL_SECONDS,
+            RECOVERY_LOCK_STALE_TAKEOVER_SECONDS,
+        )
+        assert result == 1
+        assert await real_redis.get(key) == "new-token"
+        assert await real_redis.ttl(key) == RECOVERY_LOCK_TTL_SECONDS
+
+        # 接管后旧 token 释放为 no-op，新 token 才能释放（复用 release Lua 语义）
+        from src.infra.task.recovery import RECOVERY_LOCK_RELEASE_LUA
+
+        assert await real_redis.eval(RECOVERY_LOCK_RELEASE_LUA, 1, key, "old-token") == 0
+        assert await real_redis.exists(key) == 1
+        assert await real_redis.eval(RECOVERY_LOCK_RELEASE_LUA, 1, key, "new-token") == 1
+        assert await real_redis.exists(key) == 0
+
+        # 锁不存在时直接获取（重投/竞态窗口）
+        result = await real_redis.eval(
+            RECOVERY_LOCK_TAKEOVER_LUA,
+            1,
+            key,
+            "third-token",
+            RECOVERY_LOCK_TTL_SECONDS,
+            RECOVERY_LOCK_STALE_TAKEOVER_SECONDS,
+        )
+        assert result == 1
+        assert await real_redis.get(key) == "third-token"
+    finally:
+        await real_redis.delete(key)
