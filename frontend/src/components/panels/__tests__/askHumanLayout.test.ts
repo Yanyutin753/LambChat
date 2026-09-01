@@ -320,3 +320,9 @@ test("shows desktop-only keyboard shortcut hint for ask-human choices", () => {
 test("supports number-key selection for ask-human choices", () => {
   expect(approvalSource).toMatch(/event\.key >= "1"/);
 });
+
+test("skips ask-human shortcuts while typing inside card text controls", () => {
+  expect(approvalSource).toMatch(
+    /isEditableEventTarget\(event\.target\)[\s\S]*?event\.key >= "1"/,
+  );
+});
