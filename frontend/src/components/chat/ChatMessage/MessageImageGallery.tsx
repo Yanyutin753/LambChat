@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { ImageWithSkeleton } from "./ImageWithSkeleton";
 import { useSessionImageGallery } from "./sessionImageGallery";
 import { buildChatThumbUrl } from "../../../utils/chatThumbs";
+import { ImageViewer } from "../../common";
 import type { RevealFileImageInfo } from "./revealFileImageUtils";
 
 interface MessageImageGalleryProps {
@@ -11,11 +12,20 @@ interface MessageImageGalleryProps {
 
 export function MessageImageGallery({ images }: MessageImageGalleryProps) {
   const sessionImageGallery = useSessionImageGallery();
+  // 分享页等未挂 SessionImageGalleryProvider 的场景，用本地灯箱兜底，
+  // 避免点击预览变成静默 no-op
+  const [fallbackImage, setFallbackImage] = useState<RevealFileImageInfo | null>(
+    null,
+  );
 
   const handleImageClick = (image: RevealFileImageInfo) => {
-    sessionImageGallery?.openImage(image.src, image.fileName, {
-      group: "reveal-file",
-    });
+    if (sessionImageGallery) {
+      sessionImageGallery.openImage(image.src, image.fileName, {
+        group: "reveal-file",
+      });
+    } else {
+      setFallbackImage(image);
+    }
   };
 
   const layoutClass = useMemo(() => {
@@ -26,7 +36,8 @@ export function MessageImageGallery({ images }: MessageImageGalleryProps) {
   }, [images.length]);
 
   return (
-    <div className={layoutClass}>
+    <>
+      <div className={layoutClass}>
       {images.map((image, index) => {
         const isFirstOfThree = images.length === 3 && index === 0;
         return (
@@ -72,5 +83,13 @@ export function MessageImageGallery({ images }: MessageImageGalleryProps) {
         );
       })}
     </div>
+
+      <ImageViewer
+        src={fallbackImage?.src || ""}
+        alt={fallbackImage?.fileName || ""}
+        isOpen={!!fallbackImage}
+        onClose={() => setFallbackImage(null)}
+      />
+    </>
   );
 }

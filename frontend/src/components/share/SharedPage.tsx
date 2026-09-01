@@ -27,6 +27,7 @@ import { shareApi } from "../../services/api/share";
 import { useSharedPageTheme } from "./useSharedPageTheme";
 import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
+import { SessionImageGalleryProvider } from "../chat/ChatMessage/sessionImageGallery";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
 import { BrandLogo } from "../common/BrandLogo";
 import { RevealPreviewHost } from "../chat/ChatMessage/items/RevealPreviewHost";
@@ -598,6 +599,7 @@ export function SharedPage({
 
       {/* Scrollable article area */}
       <main className="relative flex-1 overflow-x-hidden scroll-smooth">
+        <SessionImageGalleryProvider messages={messages}>
         <article className="max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-auto">
           {/* Editorial hero */}
           <header className="pt-[calc(5rem+var(--app-safe-area-top,0px))] sm:pt-[calc(7rem+var(--app-safe-area-top,0px))] lg:pt-[calc(9rem+var(--app-safe-area-top,0px))] pb-0 animate-in fade-in duration-800">
@@ -802,6 +804,7 @@ export function SharedPage({
             </div>
           )}
         </article>
+        </SessionImageGalleryProvider>
       </main>
 
       {/* Footer */}
