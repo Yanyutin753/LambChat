@@ -15,6 +15,7 @@
 | daemon 形态 | sidecar 打进现有 Tauri 桌面壳 | 随壳安装/升级，用户只装一个 app |
 | 离线回退云端 | 默认**关**，可配置 | 选本地即有意让数据落本地，静默切云端危险 |
 | 确认策略 | 本地写文件/执行命令默认经 HITL 网页确认 | 复用 `ask_human` 既有交互，可配置放开 |
+| 形态依据 | 2026-09 两轮业界调研后定稿：**Devin Outposts 同构**（云 brain + 本机执行 + 仅出网拨号）；产品定位 = 网页功能零改动 + 本机作执行基座 | 见 §12 |
 
 ## 1. 背景与目标
 
@@ -147,3 +148,13 @@ client/lambchat_sandbox/
 | 长任务 | 超过超时上限即失败 | 上限可配；v1 不支持超长任务，UI 提示拆分 |
 | 子进程软隔离 | 非硬隔离，恶意/失控代码理论可逃逸 roots | HITL 确认默认开 + 审计；Docker 后端作为后续硬隔离选项 |
 | 签名证书 | 产品化分发需要 | 开放问题，M4 前决策 |
+
+## 12. 业界对标与形态依据（2026-09 调研）
+
+调研范围：OpenAI Codex（Local/Cloud）、Claude Code（--cloud/--teleport/Remote Control）、Claude Desktop MCP、Cursor（CLI/Cloud Agents/handoff）、Gemini CLI、Devin（默认云/Outposts）。三种主流模式：
+
+- **A. 本地 agent**（Codex CLI、Gemini CLI、Claude Code、Cursor CLI）：agent 循环与执行全在本机，是独立产品面，能力自成一体，与网页端存在差距（各厂商均接受此差距）。同步到网页均为部分实现：Codex 靠 relay 同步活跃会话（双向历史至今 open issue #21079/#5609），Claude Code 只有单向快照交接，Gemini CLI 干脆无同步。
+- **B. 云 agent**（Codex Cloud、Cursor Cloud、Devin 默认、Claude Code web）：全部在厂商 VM 执行。LambChat 现状（服务端 agent + E2B/Daytona）即此模式。
+- **C. 云 brain + 本机执行**（**Devin Outposts**、Claude Desktop MCP）：agent 决策在云端，执行在用户机器；网络均为"机器仅出网拨号、零入站"。**本设计 v2 与 Devin Outposts 同构**（其每个 session 配 OpenShell 沙箱，对应我们的子进程+roots+确认）；Claude Desktop MCP 的 Fileserver 目录白名单对应我们的 roots。
+
+**选型结论**：本项目需求是"给现有平台加本地执行能力"而非"做独立终端产品"，逐字对应模式 C；模式 A（本地 agent + 网关 + ingest 同步，即被否的 v1）作为未来"本地 CLI 入口"可选项保留，与 v2 共享 `client/`、PAT 与打包管线，不互斥。Cursor 的本地↔云 seamless handoff 列为 v2 落地后的演进方向（对应本设计的"离线回退云端"开关的推广）。
