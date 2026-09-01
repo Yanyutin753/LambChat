@@ -23,6 +23,13 @@ def test_all_memory_tools_excludes_consolidation_tool():
     assert "memory_consolidate" not in tool_names
 
 
+def test_memory_tool_exposure_split_keeps_delete_deferred():
+    from src.infra.memory.tools import get_deferred_memory_tools, get_inline_memory_tools
+
+    assert {tool.name for tool in get_inline_memory_tools()} == {"memory_retain", "memory_recall"}
+    assert {tool.name for tool in get_deferred_memory_tools()} == {"memory_delete"}
+
+
 def test_native_memory_guide_does_not_advertise_consolidation_tool():
     from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
 
@@ -36,6 +43,7 @@ def test_native_memory_guide_preserves_compact_behavior_contract() -> None:
         "memory_retain",
         "memory_recall",
         "memory_delete",
+        "search_tools",
         "hint only",
         "user",
         "feedback",
@@ -697,6 +705,7 @@ def test_native_memory_guide_vfs_preserves_compact_behavior_contract() -> None:
         "memory_retain",
         "memory_recall",
         "memory_delete",
+        "search_tools",
         "hint only",
         "user",
         "feedback",

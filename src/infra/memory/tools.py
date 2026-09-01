@@ -310,7 +310,17 @@ def get_memory_delete_tool() -> BaseTool:
 
 def get_all_memory_tools() -> list[BaseTool]:
     """Get all unified memory tools (works with any backend)."""
-    return [memory_retain, memory_recall, memory_delete]
+    return [*get_inline_memory_tools(), *get_deferred_memory_tools()]
+
+
+def get_inline_memory_tools() -> list[BaseTool]:
+    """High-frequency, non-destructive tools mounted directly on the agent."""
+    return [memory_retain, memory_recall]
+
+
+def get_deferred_memory_tools() -> list[BaseTool]:
+    """Destructive, low-frequency tools exposed through the `search_tools` channel."""
+    return [memory_delete]
 
 
 def _background_task_error(task: asyncio.Task) -> None:
