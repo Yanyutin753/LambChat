@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import type { PendingApproval, FormField } from "../../types";
+import { isEditableEventTarget } from "./askHumanKeyboardGuard";
 import { ScheduledTaskApprovalContent } from "./ScheduledTaskApprovalContent";
 import { Checkbox } from "../common/Checkbox";
 import { Input, Select, Textarea } from "../common";
@@ -606,6 +607,8 @@ export function ApprovalPanel({
           }`}
           key={currentApproval.id}
           onKeyDown={(event) => {
+            // 卡片内文本控件（如“其他”自由填写）优先走原生输入，快捷键让位
+            if (isEditableEventTarget(event.target)) return;
             if (!isAskHuman || !askHumanKeyboardField?.options?.length) return;
             const count = askHumanKeyboardField.options.length;
             if (event.key === "ArrowDown" || event.key === "Tab") {
