@@ -67,10 +67,19 @@ def get_memory_guide() -> str:
     if getattr(settings, "ENABLE_MEMORY_VFS", False):
         from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE_VFS
 
-        return NATIVE_MEMORY_GUIDE_VFS
-    from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
+        guide = NATIVE_MEMORY_GUIDE_VFS
+    else:
+        from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
 
-    return NATIVE_MEMORY_GUIDE
+        guide = NATIVE_MEMORY_GUIDE
+    if not settings.ENABLE_DEFERRED_TOOL_LOADING:
+        from src.infra.memory.client.types import (
+            MEMORY_DELETE_DEFERRED_SEGMENT,
+            MEMORY_DELETE_INLINE_SEGMENT,
+        )
+
+        return guide.replace(MEMORY_DELETE_DEFERRED_SEGMENT, MEMORY_DELETE_INLINE_SEGMENT)
+    return guide
 
 
 _SUBAGENT_BASE = """You are a subagent completing a scoped objective. Stay within scope, prefer evidence, name uncertainty, verify checkable claims, and hand results to the main agent rather than promising the user a final outcome."""
