@@ -26,6 +26,12 @@ class MemoryType(str, Enum):
 # System prompt guide for native backend
 # ---------------------------------------------------------------------------
 
+# memory_delete 的两种暴露说法：延迟加载开启时走 search_tools 发现；关闭时随
+# retain/recall 一起直挂。get_memory_guide() 按设置把前者替换成后者，保证指南
+# 与 Context 的实际挂载方式一致（关闭时不存在 search_tools，指引会断）。
+MEMORY_DELETE_DEFERRED_SEGMENT = ". `memory_delete` is deferred: load via `search_tools`."
+MEMORY_DELETE_INLINE_SEGMENT = ", `memory_delete` (remove)"
+
 NATIVE_MEMORY_GUIDE = """
 ## Cross-Session Memory
 

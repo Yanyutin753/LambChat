@@ -116,6 +116,63 @@ async def test_memory_delete_stays_inline_when_deferred_loading_disabled(
     assert context.deferred_manager is None
 
 
+@pytest.mark.parametrize(
+    ("module", "context_type"),
+    [(fast_context, FastAgentContext), (search_context, SearchAgentContext)],
+)
+@pytest.mark.asyncio
+async def test_memory_sop_search_tools_loads_memory_delete(
+    monkeypatch,
+    lean_settings,
+    module,
+    context_type,
+) -> None:
+    """记忆指南 SOP 端到端：search_tools 按名/按能力词搜索都能命中并提升 memory_delete。"""
+    monkeypatch.setattr(module.settings, "ENABLE_MEMORY", True)
+
+    async def no_internal(**_kwargs):
+        return [], []
+
+    monkeypatch.setattr(module, "get_internal_tools_by_exposure_for_user", no_internal)
+    context = context_type(session_id="session-1")
+
+    await context.setup()
+    await context.get_tools()
+
+    # SOP 前提：memory_delete 在延迟通道里，search_tools 入口由节点注入
+    assert context.deferred_manager is not None
+    assert context.deferred_manager.get_tool("memory_delete") is not None
+
+    from src.infra.tool.tool_search_tool import ToolSearchTool
+
+    search_tool = ToolSearchTool(manager=context.deferred_manager, search_limit=25)
+
+    # 指南点名工具名 → 按名搜索可提升
+    result = await search_tool.ainvoke({"query": "memory_delete"})
+    assert "## memory_delete" in result
+    assert context.deferred_manager.is_discovered("memory_delete")
+    discovered_names = [t.name for t in context.deferred_manager.get_discovered_tools()]
+    assert "memory_delete" in discovered_names
+
+    # 自然语言能力词也要命中
+    result = await search_tool.ainvoke({"query": "delete memory"})
+    assert "## memory_delete" in result
+
+
+def test_agent_nodes_wire_search_tool_whenever_deferred_manager_exists() -> None:
+    """结构断言：主 Agent 节点在 deferred_manager 非空时注入 search_tools（SOP 入口）。"""
+    from inspect import getsource
+
+    from src.agents.fast_agent import nodes as fast_nodes
+    from src.agents.search_agent import nodes as search_nodes
+
+    for nodes in (fast_nodes, search_nodes):
+        source = getsource(nodes)
+        assert "context.deferred_manager is not None" in source
+        assert "ToolSearchTool(" in source
+        assert "ToolSearchMiddleware(" in source
+
+
 @pytest.mark.asyncio
 async def test_compatibility_registration_does_not_reinline_deferred_env_tool(
     monkeypatch,

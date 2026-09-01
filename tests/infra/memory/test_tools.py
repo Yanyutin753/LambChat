@@ -737,3 +737,26 @@ def test_get_memory_guide_selects_variant_by_vfs_setting(monkeypatch):
 
     monkeypatch.setattr(settings, "ENABLE_MEMORY_VFS", True)
     assert subagent_prompts.get_memory_guide() == NATIVE_MEMORY_GUIDE_VFS
+
+
+def test_get_memory_guide_keeps_delete_deferred_when_deferred_loading_enabled(monkeypatch):
+    from src.agents.core import subagent_prompts
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "ENABLE_MEMORY_VFS", False)
+    monkeypatch.setattr(settings, "ENABLE_DEFERRED_TOOL_LOADING", True)
+    guide = subagent_prompts.get_memory_guide()
+    assert "search_tools" in guide
+    assert "(remove)" not in guide
+
+
+def test_get_memory_guide_lists_delete_inline_when_deferred_loading_disabled(monkeypatch):
+    """延迟加载关闭时 memory_delete 直挂，指南不得再指向不存在的 search_tools。"""
+    from src.agents.core import subagent_prompts
+    from src.kernel.config import settings
+
+    monkeypatch.setattr(settings, "ENABLE_MEMORY_VFS", False)
+    monkeypatch.setattr(settings, "ENABLE_DEFERRED_TOOL_LOADING", False)
+    guide = subagent_prompts.get_memory_guide()
+    assert "search_tools" not in guide
+    assert "`memory_delete` (remove)" in guide
