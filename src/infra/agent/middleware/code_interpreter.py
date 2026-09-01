@@ -115,6 +115,10 @@ def create_code_interpreter_middleware(
         return []
 
     return [
-        CodeInterpreterMiddleware(),
+        # subagents=False：不装 JS task() 桥。开启时上游会往每次模型调用的
+        # system message 注入约 9.8k 字符的 JS 子代理编排教程（dynamic
+        # subagents），且 JS 内派发绕过父级 interrupt_on/HITL 审批；本项目的
+        # REPL 定位是纯计算（见上方路由文案），子代理统一走正常 task 工具。
+        CodeInterpreterMiddleware(subagents=False),
         CodeInterpreterRoutingMiddleware(sandbox_active=sandbox_active),
     ]

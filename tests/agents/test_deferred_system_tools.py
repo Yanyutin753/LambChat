@@ -61,6 +61,61 @@ async def test_context_defers_system_tools_even_when_mcp_is_disabled(
     assert context.deferred_manager.get_tool("deferred_system") is deferred
 
 
+@pytest.mark.parametrize(
+    ("module", "context_type"),
+    [(fast_context, FastAgentContext), (search_context, SearchAgentContext)],
+)
+@pytest.mark.asyncio
+async def test_memory_delete_is_deferred_while_retain_and_recall_stay_inline(
+    monkeypatch,
+    lean_settings,
+    module,
+    context_type,
+) -> None:
+    monkeypatch.setattr(module.settings, "ENABLE_MEMORY", True)
+
+    async def no_internal(**_kwargs):
+        return [], []
+
+    monkeypatch.setattr(module, "get_internal_tools_by_exposure_for_user", no_internal)
+    context = context_type(session_id="session-1")
+
+    await context.setup()
+    await context.get_tools()
+
+    direct = {tool.name for tool in context.tools}
+    assert {"memory_retain", "memory_recall"}.issubset(direct)
+    assert "memory_delete" not in direct
+    assert context.deferred_manager is not None
+    assert context.deferred_manager.get_tool("memory_delete") is not None
+    assert "memory_delete" in context.deferred_manager.get_deferred_stubs_string()
+
+
+@pytest.mark.asyncio
+async def test_memory_delete_stays_inline_when_deferred_loading_disabled(
+    monkeypatch,
+    lean_settings,
+) -> None:
+    monkeypatch.setattr(fast_context.settings, "ENABLE_MEMORY", True)
+    monkeypatch.setattr(fast_context.settings, "ENABLE_DEFERRED_TOOL_LOADING", False)
+
+    async def no_internal(**_kwargs):
+        return [], []
+
+    monkeypatch.setattr(
+        fast_context,
+        "get_internal_tools_by_exposure_for_user",
+        no_internal,
+    )
+    context = FastAgentContext(session_id="session-1")
+
+    await context.setup()
+
+    direct = {tool.name for tool in context.tools}
+    assert {"memory_retain", "memory_recall", "memory_delete"}.issubset(direct)
+    assert context.deferred_manager is None
+
+
 @pytest.mark.asyncio
 async def test_compatibility_registration_does_not_reinline_deferred_env_tool(
     monkeypatch,

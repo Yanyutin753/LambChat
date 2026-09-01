@@ -14,6 +14,8 @@ from src.infra.memory.client.base import (
 )
 from src.infra.memory.tools import (
     get_all_memory_tools,
+    get_deferred_memory_tools,
+    get_inline_memory_tools,
     get_memory_delete_tool,
     get_memory_recall_tool,
     get_memory_retain_tool,
@@ -22,6 +24,8 @@ from src.infra.memory.tools import (
 __all__ = [
     # Unified tools (preferred API)
     "get_all_memory_tools",
+    "get_inline_memory_tools",
+    "get_deferred_memory_tools",
     "get_memory_retain_tool",
     "get_memory_recall_tool",
     "get_memory_delete_tool",

@@ -50,8 +50,57 @@ def test_code_interpreter_middleware_created_when_both_switches_enabled(monkeypa
 
     assert len(middleware) == 2
     assert isinstance(middleware[0], FakeCodeInterpreterMiddleware)
-    assert middleware[0].kwargs == {}
+    # subagents=False：不安装 JS task() 桥，也不注入 ~9.8k 的 JS 子代理编排教程。
+    assert middleware[0].kwargs == {"subagents": False}
     assert isinstance(middleware[1], CodeInterpreterRoutingMiddleware)
+
+
+async def test_subagent_orchestration_prompt_is_not_injected() -> None:
+    from langchain_quickjs import CodeInterpreterMiddleware
+    from pydantic import BaseModel
+
+    class TaskArgs(BaseModel):
+        description: str
+        subagent_type: str
+
+    class TaskTool(BaseTool):
+        name: str = "task"
+        description: str = "Dispatch a subagent."
+        args_schema: type = TaskArgs
+
+        def _run(self, *args, **kwargs):  # pragma: no cover - test stub
+            return "ok"
+
+    class EvalTool(BaseTool):
+        name: str = "eval"
+        description: str = "Execute JavaScript in a sandboxed REPL."
+
+        def _run(self, *args, **kwargs):  # pragma: no cover - test stub
+            return "ok"
+
+    class Request:
+        def __init__(self) -> None:
+            self.messages = []
+            self.system_message = SystemMessage(content="base")
+            self.tools = [EvalTool(), TaskTool()]
+
+        def override(self, **kwargs):
+            request = Request()
+            request.tools = kwargs.get("tools", self.tools)
+            request.system_message = kwargs.get("system_message", self.system_message)
+            return request
+
+    async def handler(request):
+        return request
+
+    middleware = CodeInterpreterMiddleware(subagents=False)
+    result = await middleware.awrap_model_call(Request(), handler)
+
+    content = result.system_message.content
+    injected = content[-1]["text"] if isinstance(content, list) else str(content)
+    assert "### Interpreter" in injected
+    assert "Dispatching Subagents" not in injected
+    assert len(injected) < 1000
 
 
 class _EvalTool(BaseTool):

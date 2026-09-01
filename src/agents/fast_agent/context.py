@@ -229,6 +229,29 @@ class FastAgentContext:
         self.tools.append(transfer_path_tool)
         logger.info("[FastAgentContext] Added transfer_path tool")
 
+        # Memory 工具（原生 MongoDB 后端）：retain/recall 直挂；delete 是破坏性
+        # 低频操作，走 search_tools 延迟通道，不常驻工具 schema。
+        if settings.ENABLE_MEMORY:
+            try:
+                from src.infra.memory.tools import (
+                    get_deferred_memory_tools,
+                    get_inline_memory_tools,
+                )
+
+                self.tools.extend(get_inline_memory_tools())
+                if settings.ENABLE_DEFERRED_TOOL_LOADING:
+                    self._deferred_system_tools.extend(get_deferred_memory_tools())
+                else:
+                    self.tools.extend(get_deferred_memory_tools())
+                logger.info(
+                    "[FastAgentContext] Added memory tools (delete deferred=%s)",
+                    settings.ENABLE_DEFERRED_TOOL_LOADING,
+                )
+            except ImportError:
+                logger.warning("[FastAgentContext] memory tools import failed, skipping")
+            except Exception as e:
+                logger.warning(f"[FastAgentContext] Failed to load memory tools: {e}")
+
         try:
             from src.infra.mcp.quota import resolve_user_mcp_access
 
@@ -245,9 +268,9 @@ class FastAgentContext:
                 deferred_internal = []
             self._append_unique_tools(direct_internal)
             direct_names = {getattr(tool, "name", "") for tool in self.tools}
-            self._deferred_system_tools = [
+            self._deferred_system_tools.extend(
                 tool for tool in deferred_internal if getattr(tool, "name", "") not in direct_names
-            ]
+            )
             if self._deferred_system_tools:
                 from src.infra.tool.deferred_manager import DeferredToolManager
 
@@ -281,19 +304,6 @@ class FastAgentContext:
             logger.info(f"[FastAgentContext] Added {len(env_var_tools)} env var tools")
         except Exception as e:
             logger.warning(f"[FastAgentContext] Failed to load env var tools: {e}")
-
-        # Memory 工具（原生 MongoDB 后端）
-        if settings.ENABLE_MEMORY:
-            try:
-                from src.infra.memory.tools import get_all_memory_tools
-
-                memory_tools = get_all_memory_tools()
-                self.tools.extend(memory_tools)
-                logger.info(f"[FastAgentContext] Added {len(memory_tools)} memory tools")
-            except ImportError:
-                logger.warning("[FastAgentContext] memory tools import failed, skipping")
-            except Exception as e:
-                logger.warning(f"[FastAgentContext] Failed to load memory tools: {e}")
 
         # MCP 工具延迟加载（不在 setup 时初始化）
         logger.info("[FastAgentContext] MCP tools will be lazy loaded on first use")
