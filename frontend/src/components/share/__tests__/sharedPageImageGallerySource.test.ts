@@ -9,5 +9,5 @@ const sharedPageSource = readFileSync(
 test("shared page mounts the session image gallery provider over its messages", () => {
   // 分享页没有挂 SessionImageGalleryProvider 时，reveal_file 图片卡片
   // 点击预览是静默 no-op（MessageImageGallery 只依赖该 context）。
-  expect(sharedPageSource).toMatch(/SessionImageGalleryProvider/);
+  expect(sharedPageSource).toMatch(/<SessionImageGalleryProvider messages=\{messages\}>/);
 });

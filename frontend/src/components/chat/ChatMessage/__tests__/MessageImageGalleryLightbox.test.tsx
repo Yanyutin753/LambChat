@@ -23,7 +23,7 @@ test("opens a local lightbox fallback when session gallery context is absent", (
   expect(screen.getAllByAltText("img-1.png")).toHaveLength(2);
 });
 
-test("routes clicks through the session gallery provider when present", () => {
+test("opens lightbox when the session gallery provider is present", () => {
   render(
     <SessionImageGalleryProvider messages={[]}>
       <MessageImageGallery images={[IMAGE]} />

@@ -33,20 +33,26 @@ class _FakeStorage:
         return self.exists
 
 
+class _RecordingIndex:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def upsert_by_name(self, **kwargs):
+        self.calls.append(kwargs)
+
+
 @pytest.mark.asyncio
 async def test_reveal_file_rejects_self_upload_url_with_missing_object(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _FakeStorage(exists=False)
-
-    def _fail_index():
-        raise AssertionError("missing URL must not be indexed as a revealed file")
+    index = _RecordingIndex()
 
     async def _fake_get_storage():
         return storage
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
-    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", _fail_index)
+    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: index)
 
     result = json.loads(
         await reveal_file_tool.reveal_file.coroutine(
@@ -60,6 +66,7 @@ async def test_reveal_file_rejects_self_upload_url_with_missing_object(
     assert result["file"]["path"] == _SELF_UPLOAD_URL
     assert result["file"]["error"] == "remote_url_not_found"
     assert storage.checked_keys == [_SELF_UPLOAD_KEY]
+    assert index.calls == []
 
 
 @pytest.mark.asyncio
@@ -72,7 +79,7 @@ async def test_reveal_file_passes_through_self_upload_url_with_existing_object(
         return storage
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
-    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _FakeIndex())
+    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _RecordingIndex())
 
     result = json.loads(
         await reveal_file_tool.reveal_file.coroutine(
@@ -120,7 +127,7 @@ async def test_reveal_file_self_upload_existence_check_failure_passes_through(
         return _BrokenStorage()
 
     monkeypatch.setattr(reveal_file_tool, "_get_storage", _fake_get_storage)
-    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _FakeIndex())
+    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _RecordingIndex())
 
     result = json.loads(
         await reveal_file_tool.reveal_file.coroutine(_SELF_UPLOAD_URL, runtime=object())
@@ -130,6 +137,21 @@ async def test_reveal_file_self_upload_existence_check_failure_passes_through(
     assert result["_meta"]["source"] == "remote_url"
 
 
-class _FakeIndex:
-    async def upsert_by_name(self, **kwargs):
-        del kwargs
+@pytest.mark.asyncio
+async def test_reveal_file_storage_init_failure_passes_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """storage 初始化本身失败也必须走透传，不能让整个工具调用报错。"""
+
+    async def _broken_get_storage():
+        raise RuntimeError("storage init failed")
+
+    monkeypatch.setattr(reveal_file_tool, "_get_storage", _broken_get_storage)
+    monkeypatch.setattr(reveal_file_tool, "get_revealed_file_storage", lambda: _RecordingIndex())
+
+    result = json.loads(
+        await reveal_file_tool.reveal_file.coroutine(_SELF_UPLOAD_URL, runtime=object())
+    )
+
+    assert result["url"] == _SELF_UPLOAD_URL
+    assert result["_meta"]["source"] == "remote_url"

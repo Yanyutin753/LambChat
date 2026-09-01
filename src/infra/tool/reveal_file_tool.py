@@ -470,11 +470,11 @@ _UPLOAD_PROXY_URL_PREFIX = "/api/upload/file/"
 
 
 def _extract_self_upload_key(url: str) -> str | None:
-    """提取指向本站上传代理路由（/api/upload/file/<key>）的 URL 的 storage key。
+    """提取指向本站上传代理路由（/api/upload/file/<key>）形态 URL 的 storage key。
 
     agent 常把 image_generate 等工具返回的长 URL 重新抄写后再传给
     reveal_file，hex id 抄错一个字符即得到不存在的对象；此类 URL 必须
-    先校验存在性再透传。其他远程 URL 不属于本站 storage，返回 None。
+    先校验存在性再透传。不含该路径前缀的远程 URL 返回 None，不校验。
     """
     parsed = urlparse(url.strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -486,9 +486,10 @@ def _extract_self_upload_key(url: str) -> str | None:
     return key or None
 
 
-async def _self_upload_url_missing(storage: Any, key: str) -> bool | None:
-    """检查本站上传 key 是否存在；检查本身失败时返回 None（保持透传可用性）。"""
+async def _self_upload_url_missing(key: str) -> bool | None:
+    """检查本站上传 key 是否存在；存储不可用（含初始化失败）时返回 None（保持透传可用性）。"""
     try:
+        storage = await _get_storage()
         return not await storage.file_exists(key)
     except Exception as e:
         logger.warning(f"[reveal_file] Existence check failed for key {key}: {e}")
@@ -724,8 +725,7 @@ async def reveal_file(
     if _is_remote_url(file_path):
         self_upload_key = _extract_self_upload_key(file_path)
         if self_upload_key is not None:
-            storage = await _get_storage()
-            missing = await _self_upload_url_missing(storage, self_upload_key)
+            missing = await _self_upload_url_missing(self_upload_key)
             if missing:
                 logger.warning(
                     f"[reveal_file] Self-hosted upload URL not found in storage: {file_path}"
