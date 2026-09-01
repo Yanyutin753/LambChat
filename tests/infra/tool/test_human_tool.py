@@ -271,3 +271,12 @@ async def test_ask_human_forwards_request_trace_id_to_approval_event(
         TraceContext.clear_request_context()
 
     assert captured == [{"session_id": "session-ctx", "run_id": "run-ctx", "trace_id": "trace-ctx"}]
+
+
+def test_description_defines_rejected_semantics() -> None:
+    """忽略（rejected）后模型不得重复提问：描述需写明兜底行为。"""
+    description = human_tool.AskHumanTool().description
+
+    assert "rejected" in description
+    assert "不要重复提问" in description
+    assert "合理" in description
