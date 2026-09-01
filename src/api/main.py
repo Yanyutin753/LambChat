@@ -523,6 +523,11 @@ async def lifespan(app: FastAPI):
     # 启动时初始化
     logger.info("%s v%s starting...", settings.APP_NAME, settings.APP_VERSION)
 
+    # 复位进程关闭标志（进程复用/热重载场景），随后才允许扫描/恢复入口工作
+    from src.infra.task.lifecycle import clear_shutting_down
+
+    clear_shutting_down()
+
     # 初始化日志系统
     setup_logging()
 
@@ -678,6 +683,12 @@ async def lifespan(app: FastAPI):
         # 关闭时清理
         from src.agents import AgentFactory
         from src.infra.sandbox import SandboxFactory
+
+        # 第一时间置进程关闭标志：此后周期扫描/孤儿接管不再发起新的恢复，
+        # 否则依赖逐个断开期间，垂死实例会把恢复任务塞给自己并随即被杀掉。
+        from src.infra.task.lifecycle import mark_shutting_down
+
+        mark_shutting_down()
 
         # 先关闭飞书长连接并释放 lease，避免快速重启时旧锁阻止新实例启动。
         await _stop_feishu_channels_for_shutdown(app)

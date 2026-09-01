@@ -144,6 +144,10 @@ _runtime: EmbeddedArqRuntime | None = None
 
 async def _recover_stale_tasks_after_worker_restart() -> None:
     """Worker 崩溃重启后补一次全量恢复（与启动清理等价，有租约互斥保护）。"""
+    from .lifecycle import is_shutting_down
+
+    if is_shutting_down():
+        return
     try:
         from .manager import get_task_manager
 

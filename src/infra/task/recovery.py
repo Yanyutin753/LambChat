@@ -23,8 +23,38 @@ logger = get_logger(__name__)
 
 RECOVERY_LOCK_PREFIX = "task:recovery:"
 RECOVERY_LOCK_TTL_SECONDS = 300
+# 恢复锁僵死接管阈值：锁龄（原 TTL - 剩余 TTL）超过该值且执行者心跳仍判定
+# 死亡时，允许原子接管。健康的恢复交接在秒级完成并落下 task_recoverable=False；
+# 锁挂到这个年龄还没有任何进展，说明持锁实例已死/提交空转（生产实测强杀场景
+# 被死锁堵满整个 300s TTL），此时等待只剩坏处。
+RECOVERY_LOCK_STALE_TAKEOVER_SECONDS = 60
 # 同一 run 的无缝恢复提交次数上限：超限视为毒消息，落终态 FAILED 防止无限重跑。
 MAX_SEAMLESS_RESUME_ATTEMPTS = 3
+
+# 僵死锁接管（原子）：锁缺失 → 直接获取；TTL 异常（-1 无过期/-2 竞态消失）或
+# 锁龄（ARGV[2] 自设定的 TTL - 剩余 TTL）达标 → 覆写 token 并重置 TTL；否则
+# 不动锁。旧持有者事后按旧 token 释放因不匹配为 no-op，不会误删新持有者的锁。
+RECOVERY_LOCK_TAKEOVER_LUA = """
+local current = redis.call("get", KEYS[1])
+if not current then
+    redis.call("set", KEYS[1], ARGV[1], "EX", tonumber(ARGV[2]))
+    return 1
+end
+local ttl = redis.call("ttl", KEYS[1])
+if ttl <= 0 or tonumber(ARGV[2]) - ttl >= tonumber(ARGV[3]) then
+    redis.call("set", KEYS[1], ARGV[1], "EX", tonumber(ARGV[2]))
+    return 1
+end
+return 0
+"""
+
+# 令牌匹配才删除：接管后旧持有者的释放是安全的 no-op。
+RECOVERY_LOCK_RELEASE_LUA = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+end
+return 0
+"""
 
 
 def _get_enabled_skills_from_metadata(session_metadata: dict[str, Any]) -> list[str] | None:
@@ -412,12 +442,24 @@ class TaskRecoveryService:
             nx=True,
         )
         if not acquired:
-            return {
-                "success": False,
-                "run_id": None,
-                "resumed_from_run_id": source_run_id,
-                "message": "恢复任务已在其他实例中启动",
-            }
+            # 锁被占用通常意味着别的实例正在恢复；但持锁实例也可能已死
+            # （提交后崩溃 / arq job 空转），死锁会把恢复堵满整个 TTL。
+            # 执行者心跳仍判定死亡且锁龄超阈值时原子接管；心跳新鲜则不动锁。
+            took_over = False
+            if await self._heartbeat.is_stale(source_run_id):
+                took_over = await self._takeover_stale_recovery_lock(
+                    redis_client, lock_key, lock_token
+                )
+            if not took_over:
+                return {
+                    "success": False,
+                    "run_id": None,
+                    "resumed_from_run_id": source_run_id,
+                    "message": "恢复任务已在其他实例中启动",
+                }
+            logger.warning(
+                "Took over stale recovery lock: key=%s run_id=%s", lock_key, source_run_id
+            )
 
         try:
             session_metadata = getattr(session, "metadata", None) or {}
@@ -516,17 +558,34 @@ class TaskRecoveryService:
                 "message": f"恢复任务失败: {e}",
             }
 
+    async def _takeover_stale_recovery_lock(
+        self, redis_client: Any, lock_key: str, lock_token: str
+    ) -> bool:
+        """Atomically take over an aged recovery lock whose holder is gone.
+
+        Lua 侧校验锁龄（原 TTL - 剩余 TTL ≥ 接管阈值）后才覆写 token，多个
+        扫描器并发接管时只有一个成功；失败方按普通锁冲突退避。
+        """
+        try:
+            result = redis_client.eval(
+                RECOVERY_LOCK_TAKEOVER_LUA,
+                1,
+                lock_key,
+                lock_token,
+                RECOVERY_LOCK_TTL_SECONDS,
+                RECOVERY_LOCK_STALE_TAKEOVER_SECONDS,
+            )
+            if inspect.isawaitable(result):
+                result = await result
+            return bool(result)
+        except Exception as e:
+            logger.warning("Failed to takeover stale recovery lock %s: %s", lock_key, e)
+            return False
+
     async def release_recovery_lock(self, lock_key: str, token: str) -> None:
         """Release a distributed recovery lock when immediate retry is safe."""
         try:
-            lua_script = """
-            if redis.call("get", KEYS[1]) == ARGV[1] then
-                return redis.call("del", KEYS[1])
-            else
-                return 0
-            end
-            """
-            result = get_redis_client().eval(lua_script, 1, lock_key, token)
+            result = get_redis_client().eval(RECOVERY_LOCK_RELEASE_LUA, 1, lock_key, token)
             if inspect.isawaitable(result):
                 await result
         except Exception as e:

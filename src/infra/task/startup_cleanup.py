@@ -11,6 +11,7 @@ from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.logging import get_logger
 from src.kernel.config import settings
 
+from .lifecycle import is_shutting_down
 from .status import TaskStatus
 
 logger = get_logger(__name__)
@@ -378,6 +379,12 @@ class TaskStartupCleanupService:
             running_only: 仅接管 RUNNING 且心跳过期的任务（周期调用的保守模式，
                 跳过 PENDING/QUEUED 重放与 FAILED 恢复，避免误重放排队中的任务）。
         """
+        if is_shutting_down():
+            # 本实例正在关闭：依赖逐个断开会把执行器标记成 recoverable，此时
+            # 接管等于把恢复任务塞给垂死的自己（生产实测会白跑一轮再被杀）。
+            logger.info("Skipping stale task cleanup: instance is shutting down")
+            return
+
         from .concurrency import get_concurrency_limiter
 
         limiter = get_concurrency_limiter()

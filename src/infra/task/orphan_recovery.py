@@ -13,6 +13,7 @@ from typing import Any
 
 from src.infra.logging import get_logger
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
+from src.infra.task.lifecycle import is_shutting_down
 from src.infra.task.manager import get_task_manager
 from src.kernel.config import settings
 
@@ -29,6 +30,9 @@ def recovery_interval_seconds() -> int:
 
 
 async def run_scheduled_orphan_recovery() -> dict[str, Any]:
+    if is_shutting_down():
+        # 关闭中的实例不再接管任务，交还给存活副本（关闭静默的调度器层闸门）。
+        return {"status": "skipped", "reason": "shutting_down"}
     task_manager = get_task_manager()
     await task_manager.cleanup_stale_tasks(running_only=True)
     return {"status": "ok"}
