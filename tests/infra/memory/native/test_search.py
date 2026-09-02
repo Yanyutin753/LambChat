@@ -309,3 +309,30 @@ async def test_vector_search_qdrant_none_falls_back_to_cosine(monkeypatch):
     assert out[0]["score"] == pytest.approx(1.0)
     assert out[1]["score"] == pytest.approx(0.0)
     assert col.find_queries  # 走了 Mongo find 兜底
+
+
+def test_rrf_merge_keeps_higher_score_dict_for_same_memory():
+    """同一记忆被文本(keyword 兜底 score=0)与向量(cosine 0.6)同时命中时，
+    合并结果必须保留高分字典——否则 0 分被下游 min_score(0.3) 全部过滤，
+    召回凭查询措辞随机失效（staging 实测定位）。"""
+    from src.infra.memory.client.native.search import rrf_merge
+
+    text_hit = {"memory_id": "m1", "title": "t", "score": 0.0}
+    vector_hit = {"memory_id": "m1", "title": "t", "score": 0.602}
+    other = {"memory_id": "m2", "title": "o", "score": 0.5}
+
+    merged = rrf_merge([text_hit], [vector_hit, other], max_results=5)
+
+    by_id = {m["memory_id"]: m for m in merged}
+    assert by_id["m1"]["score"] == 0.602, "文本兜底的 0 分不得覆盖向量相似度"
+
+
+def test_rrf_merge_text_score_beats_zero_vector_keeps_text():
+    from src.infra.memory.client.native.search import rrf_merge
+
+    text_hit = {"memory_id": "m1", "score": 1.2}
+    vector_hit = {"memory_id": "m1", "score": 0.4}
+
+    merged = rrf_merge([text_hit], [vector_hit], max_results=5)
+
+    assert merged[0]["score"] == 1.2

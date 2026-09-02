@@ -478,6 +478,13 @@ async def rerank_candidates(query: str, candidates: list[dict], max_results: int
     return ranked[:max_results] if ranked else local_rerank(query, candidates, max_results)
 
 
+def _memory_score(memory: dict) -> float:
+    try:
+        return float(memory.get("score", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def rrf_merge(
     text_results: list[dict], vector_results: list[dict], max_results: int, k: int = 60
 ) -> list[dict]:
@@ -493,6 +500,10 @@ def rrf_merge(
         mid = item["memory_id"]
         if mid not in scores:
             scores[mid] = {"data": item, "rrf_score": 0.0}
+        elif _memory_score(item) > _memory_score(scores[mid]["data"]):
+            # 同一记忆双路命中时保留高分字典：文本 keyword 兜底命中 score=0，
+            # 若任其覆盖向量相似度，会被下游 min_score 阈值整体滤除
+            scores[mid]["data"] = item
         scores[mid]["rrf_score"] += 1.0 / (k + rank + 1)
 
     merged = sorted(scores.values(), key=lambda x: x["rrf_score"], reverse=True)
