@@ -26,7 +26,6 @@ from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
-from src.infra.chat.memory_context import append_memory_context
 from src.infra.chat.model_facing import (
     build_model_facing_message,
 )
@@ -292,13 +291,8 @@ async def _execute_agent_stream(
                 "data": {"goal": active_goal, "started_at": started_at},
             }
 
-    # 记忆注入在后台执行（POST 只做零成本本地格式化）：先发 status 事件让前端
-    # 立刻有进度反馈，再追加记忆块——字节顺序与原先写时注入完全一致（最后一段）。
-    # HITL 恢复轮跳过（保持恢复语义）；recommendation_input 即用户原始消息，
-    # 全链路（直发/arq/并发队列）透传至此。
-    if hitl_resume is None and recommendation_input:
-        yield {"event": "status", "data": {"stage": "memory"}}
-        message = await append_memory_context(message, user_id, raw_query=recommendation_input)
+    # 记忆注入已收敛为 Codex 式会话基线（POST 仅在会话首轮注入一次）：
+    # 逐轮注入的变量块会击穿 provider 前缀缓存（生产实测），executor 不再注入。
 
     try:
         agent = await AgentFactory.get(agent_id)
@@ -351,6 +345,30 @@ async def _execute_agent_stream(
 
 # Register the default agent-stream executor so any worker can dispatch queued tasks
 register_executor("agent_stream", _execute_agent_stream)
+
+
+async def session_has_prior_messages(session_id: str) -> bool:
+    """会话是否已有历史消息（按 traces 计数）。"""
+    from src.infra.storage.mongodb import get_mongo_client
+
+    client = get_mongo_client()
+    count = await client[settings.MONGODB_DB][settings.MONGODB_TRACES_COLLECTION].count_documents(
+        {"session_id": session_id}
+    )
+    return count > 0
+
+
+async def _should_inject_session_memory(session_id: str | None) -> bool:
+    """Codex 式会话基线：记忆块只在会话首轮注入一次，之后 append-only——
+    逐轮注入的内容各异的块会击穿 provider 前缀缓存（生产实测）。
+    开关关闭时零查询成本。"""
+    if not getattr(settings, "ENABLE_MEMORY", False):
+        return False
+    if not getattr(settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", False):
+        return False
+    if not session_id:
+        return True  # 全新会话，必为首轮
+    return not await session_has_prior_messages(session_id)
 
 
 @router.post("/stream")
@@ -424,7 +442,7 @@ async def chat_stream(
         active_goal,
         request.auto_mode,
         user.sub,
-        include_memory=False,
+        include_memory=await _should_inject_session_memory(request.session_id),
     )
 
     # 生成 run_id（不管是否排队都需要唯一 ID）

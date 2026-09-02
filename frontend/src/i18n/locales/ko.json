@@ -2599,7 +2599,7 @@
     "NATIVE_MEMORY_PRUNE_THRESHOLD": "접근되지 않은 메모리가 통합 중에 정리되기까지의 일수",
     "NATIVE_MEMORY_QDRANT_API_KEY": "Qdrant API 키 (인증 없으면 비워두기)",
     "NATIVE_MEMORY_QDRANT_URL": "Qdrant 서버 주소 (예: http://127.0.0.1:6333)",
-    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "매 턴 메시지 생성 시 관련 메모리 자동 첨부 (쓰기 시점 주입, 기본 비활성)",
+    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "각 세션 첫 턴에 관련 메모리 스냅샷을 한 번만 주입(쓰기 시점, 이후 불변으로 프리픽스 캐시 유지; 매 턴 주입은 KV 캐시를 무효화하므로 기본 비활성)",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "주입 블록 문자 예산 (기본 1200)",
     "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": "턴당 메모리 주입의 리콜 타임아웃(초). 임베딩이 느린 환경에서 늘리세요",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "턴당 주입하는 관련 메모리 상한 (기본 3)",

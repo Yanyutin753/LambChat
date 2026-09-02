@@ -2599,7 +2599,7 @@
     "NATIVE_MEMORY_PRUNE_THRESHOLD": "Days after which never-accessed memories are pruned during consolidation",
     "NATIVE_MEMORY_QDRANT_API_KEY": "Qdrant API key (leave empty if no auth)",
     "NATIVE_MEMORY_QDRANT_URL": "Qdrant server URL (e.g. http://127.0.0.1:6333)",
-    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "Append relevant memories to each turn at message creation (write-time injection, off by default)",
+    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "Inject a one-time relevant-memory snapshot into the first turn of each session (write-time, append-only to preserve prefix cache; per-turn injection defeats provider KV cache, off by default)",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "Injected block char budget (default 1200)",
     "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": "Recall timeout (seconds) for per-turn memory context injection. Raise for slow embedding endpoints",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "Max relevant memories injected per turn (default 3)",
