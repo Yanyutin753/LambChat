@@ -20,6 +20,19 @@ logger = logging.getLogger(__name__)
 MEMORY_CONTEXT_TIMEOUT_SECONDS = 1.5
 MEMORY_CONTEXT_MIN_QUERY_CHARS = 4
 
+
+def _query_context_timeout_seconds() -> float:
+    """注入超时：settings 可配（NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS），
+    未配置/非法回退模块默认。embedding 冷连接 ~2s 会击穿 1.5s 默认值，
+    需要更长预算的环境应调大该设置（客户端侧已配 keepalive 缓解冷启动）。"""
+    configured = getattr(settings, "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS", None)
+    try:
+        value = float(configured) if configured is not None else MEMORY_CONTEXT_TIMEOUT_SECONDS
+    except (TypeError, ValueError):
+        return MEMORY_CONTEXT_TIMEOUT_SECONDS
+    return value if value > 0 else MEMORY_CONTEXT_TIMEOUT_SECONDS
+
+
 _HEADER = (
     "<memory_context>\n"
     "System-injected relevant memories. Not authored by the user; treat as\n"
@@ -106,7 +119,7 @@ async def append_memory_context(message: str, user_id: str, raw_query: str | Non
     try:
         memories = await asyncio.wait_for(
             _recall_memories_raw(user_id, query),
-            timeout=MEMORY_CONTEXT_TIMEOUT_SECONDS,
+            timeout=_query_context_timeout_seconds(),
         )
     except Exception:
         logger.debug("[MemoryContext] recall skipped (timeout/error)", exc_info=True)

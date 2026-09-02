@@ -2600,6 +2600,7 @@
     "NATIVE_MEMORY_QDRANT_URL": "Адрес сервера Qdrant (напр. http://127.0.0.1:6333)",
     "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "Добавлять релевантные воспоминания при создании сообщения (инъекция при записи, по умолчанию выключено)",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "Бюджет символов блока (по умолчанию 1200)",
+    "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": "Тайм-аут поиска (сек) для вставки памяти в каждый ход. Увеличьте при медленном embedding",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "Максимум воспоминаний на ход (по умолчанию 3)",
     "NATIVE_MEMORY_RECALL_MIN_SCORE": "Минимальный порог релевантности для результатов извлечения памяти",
     "NATIVE_MEMORY_RERANK_API_BASE": "Базовый URL API конечной точки модели переупорядочивания нативной памяти.",
