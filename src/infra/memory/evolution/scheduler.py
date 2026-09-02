@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from src.kernel.config import settings
 
@@ -20,6 +20,11 @@ EVOLUTION_SCAN_LOCK_TTL = 600  # 10 分钟（远小于调度间隔，防死锁�
 _RELEASE_LOCK_LUA = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
+)
+
+_REFRESH_LOCK_LUA = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then "
+    "return redis.call('expire', KEYS[1], ARGV[2]) else return 0 end"
 )
 
 
@@ -54,6 +59,27 @@ async def _release_scan_lock(token: str) -> None:
         )
     except Exception:
         pass
+
+
+async def _refresh_scan_lock(token: str) -> bool:
+    """Token-checked TTL 续期——单轮扫描最坏可跑远超锁 TTL（50 用户 × 多次
+    反思 LLM 调用），运行中逐用户续期防止锁过期后被其他副本并发抢占。
+
+    返回 False 仅当 Redis 明确表示锁已易主（调用方应立即中止扫描）；
+    Redis 故障时 fail-open 返回 True——无法证伪所有权，不误杀进行中的长任务。
+    """
+    if not token:
+        return False
+    try:
+        from src.infra.storage.redis import get_redis_client
+
+        result: Any = await get_redis_client().eval(  # type: ignore[misc]
+            _REFRESH_LOCK_LUA, 1, EVOLUTION_SCAN_LOCK_KEY, token, str(EVOLUTION_SCAN_LOCK_TTL)
+        )
+        return bool(int(result))
+    except Exception as e:
+        logger.warning("[MemoryEvolution] scan lock refresh failed (fail-open): %s", e)
+        return True
 
 
 async def _collect_signal_user_ids(cutoff: datetime) -> list[str]:
@@ -142,6 +168,12 @@ async def run_scheduled_evolution() -> dict:
         total = 0
         users_processed = 0
         for uid in user_ids:
+            if not await _refresh_scan_lock(lock_token):
+                logger.warning(
+                    "[MemoryEvolution] scan lock lost mid-scan (users_done=%d), aborting",
+                    users_processed,
+                )
+                return {"skipped": "scan_lock_lost"}
             try:
                 r = await evolve_user(backend, uid)
                 stored = int(r.get("stored") or 0)

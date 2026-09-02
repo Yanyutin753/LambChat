@@ -8,6 +8,10 @@ import pytest
 
 from src.infra.memory.evolution import reflector
 
+# autouse 的 _exchange_stub 会替换模块函数——直测 _load_exchange 的用例
+# 需要这份 import 期捕获的真实引用来还原。
+_REAL_LOAD_EXCHANGE = reflector._load_exchange
+
 
 def _dt(**kw):
     return datetime.now(timezone.utc) - timedelta(**kw)
@@ -54,7 +58,7 @@ class _FakeTracesCol:
 
 @pytest.fixture(autouse=True)
 def _exchange_stub(monkeypatch):
-    async def fake_load(run_id, session_id=""):
+    async def fake_load(run_id, session_id="", user_id=""):
         if run_id == "r-down":
             return "帮我写个部署脚本", "好的，这是一个 3000 字的详细教程……（非常啰嗦）"
         if run_id == "r-fail":
@@ -181,6 +185,114 @@ async def test_reflect_no_tool_call_skips(monkeypatch):
     FakeBackend._get_memory_model = staticmethod(lambda: FakeModel())
     sig = reflector.SignalRun(run_id="r-ok", session_id="s1", kind="down", comment=None)
     assert await reflector.reflect_on_run(FakeBackend(), "u1", sig) == {"stored": 0}
+
+
+@pytest.mark.asyncio
+async def test_strip_injected_blocks_removes_system_context():
+    """反思输入须剥离写时注入的上下文块，只留用户真实表达。"""
+    raw = (
+        "帮我优化这个查询\n\n"
+        "<memory_context>\n"
+        "System-injected relevant memories. Not authored by the user; ...\n"
+        "- [user|2026-08-30] 标题 — 摘要\n"
+        "</memory_context>\n\n"
+        "<turn_context>\n"
+        "System-injected context. Not authored by the user; ...\n"
+        "（目标/自动模式内容）\n"
+        "</turn_context>"
+    )
+    assert reflector._strip_injected_blocks(raw) == "帮我优化这个查询"
+    # 无注入块时原样返回
+    assert reflector._strip_injected_blocks("普通消息") == "普通消息"
+
+
+@pytest.mark.asyncio
+async def test_load_exchange_scopes_queries_by_user_id(monkeypatch):
+    """trace/chunks 查询必须带 user_id——防御性隔离，run_id 不可信任为唯一凭证。"""
+    seen_queries: list[dict] = []
+
+    class _FakeTraceCol:
+        async def find_one(self, query, *_a, **_k):
+            seen_queries.append(("trace", dict(query)))
+            return None
+
+    class _FakeChunksCol:
+        def find(self, query, *_a, **_k):
+            seen_queries.append(("chunks", dict(query)))
+            return _FakeFind([])
+
+    class _FakeDB:
+        def __init__(self, cols):
+            self._cols = cols
+
+        def __getitem__(self, name):
+            return self._cols[name]
+
+    class _FakeClient:
+        def __init__(self, cols):
+            self._db = _FakeDB(cols)
+
+        def __getitem__(self, _db_name):
+            return self._db
+
+    import src.infra.memory.evolution.reflector as r
+
+    monkeypatch.setattr(r, "_load_exchange", _REAL_LOAD_EXCHANGE)
+    monkeypatch.setattr(r.settings, "MONGODB_DB", "testdb", raising=False)
+    monkeypatch.setattr(r.settings, "MONGODB_TRACES_COLLECTION", "traces", raising=False)
+    monkeypatch.setattr(
+        r.settings,
+        "MONGODB_TRACE_EVENT_CHUNKS_COLLECTION",
+        "trace_event_chunks",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeClient({"traces": _FakeTraceCol(), "trace_event_chunks": _FakeChunksCol()}),
+    )
+    await r._load_exchange("run-1", "sess-1", "u1")
+    assert seen_queries, "应发出 trace 查询"
+    for _, q in seen_queries:
+        assert q.get("user_id") == "u1"
+        assert q.get("run_id") == "run-1"
+
+
+@pytest.mark.asyncio
+async def test_load_exchange_strips_injected_blocks_before_clip(monkeypatch):
+    """注入块剥离应在裁剪之前——剥离释放的预算留给真实内容。"""
+    long_tail = "真实诉求" * 600
+
+    class _FakeTraceCol:
+        async def find_one(self, _query, *_a, **_k):
+            return {
+                "events": [
+                    {
+                        "event_type": "user:message",
+                        "data": {
+                            "content": "<memory_context>\n被注入的块\n</memory_context>\n\n"
+                            + long_tail
+                        },
+                    }
+                ]
+            }
+
+    class _FakeDB:
+        def __getitem__(self, _name):
+            return _FakeTraceCol()
+
+    class _FakeClient:
+        def __getitem__(self, _db_name):
+            return _FakeDB()
+
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: _FakeClient())
+    import src.infra.memory.evolution.reflector as r
+
+    monkeypatch.setattr(r, "_load_exchange", _REAL_LOAD_EXCHANGE)
+    monkeypatch.setattr(r.settings, "MONGODB_TRACES_COLLECTION", "traces", raising=False)
+    user_msg, _assistant = await r._load_exchange("run-1", "", "u1")
+    assert "<memory_context>" not in user_msg
+    assert user_msg.startswith("真实诉求")
+    assert len(user_msg) == r.EXCHANGE_CLIP_CHARS
 
 
 @pytest.mark.asyncio
