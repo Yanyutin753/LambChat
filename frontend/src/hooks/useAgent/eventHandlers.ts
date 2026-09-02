@@ -24,6 +24,16 @@ import { splitAssistantTurn } from "./steerTurnSplit";
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
 
+// react-hot-toast 单例加载：进度类 toast 的显示/关闭共用同一模块实例
+// （同文件多处动态 import 在测试 mock 下行为不一致，收敛到单一加载点）
+let hotToastLoader: Promise<typeof import("react-hot-toast")["default"]> | null = null;
+function loadHotToast() {
+  if (!hotToastLoader) {
+    hotToastLoader = import("react-hot-toast").then((m) => m.default);
+  }
+  return hotToastLoader;
+}
+
 /**
  * Context passed to event handler
  */
@@ -139,6 +149,23 @@ export function handleStreamEvent(
         ctx.streamVersionRef.current === streamVersion
       ) {
         ctx.setSessionId(data.session_id);
+      }
+      // Agent 已开跑——收掉记忆检索的进度 toast（如果还挂着）
+      loadHotToast().then((toast) => {
+        toast.dismiss("chat-memory-recall");
+      });
+      return;
+    }
+
+    case "status": {
+      // 后台记忆注入开始：立刻给用户进度反馈（提交与召回已解耦）
+      if (data.stage === "memory") {
+        loadHotToast().then((toast) => {
+          toast.loading(i18n.t("chat.memoryRecalling"), {
+            id: "chat-memory-recall",
+            duration: 5000,
+          });
+        });
       }
       return;
     }

@@ -312,6 +312,14 @@ async def _execute_agent_stream(
                 "data": {"goal": active_goal, "started_at": started_at},
             }
 
+    # 记忆注入在后台执行（POST 只做零成本本地格式化）：先发 status 事件让前端
+    # 立刻有进度反馈，再追加记忆块——字节顺序与原先写时注入完全一致（最后一段）。
+    # HITL 恢复轮跳过（保持恢复语义）；recommendation_input 即用户原始消息，
+    # 全链路（直发/arq/并发队列）透传至此。
+    if hitl_resume is None and recommendation_input:
+        yield {"event": "status", "data": {"stage": "memory"}}
+        message = await append_memory_context(message, user_id, raw_query=recommendation_input)
+
     try:
         agent = await AgentFactory.get(agent_id)
         async for event in agent.stream(
@@ -372,17 +380,22 @@ async def build_model_facing_message(
     active_goal: GoalSpec | None,
     auto_mode: bool,
     user_id: str,
+    include_memory: bool = True,
 ) -> str:
     """装配模型侧用户消息（时间戳 → 技能 → 轮次上下文 → 相关记忆块）。
 
     所有按轮变化的动态内容都在这里（消息创建时）一次性写入并随状态持久化，
     使持久化历史与发送给模型的字节逐字一致，provider prompt-cache 前缀跨轮
     连续；前端展示用原始 raw_message，不受影响。
+
+    include_memory=False 时跳过记忆块（POST 关键路径不再等召回）——块由
+    _execute_agent_stream 在后台追加，字节顺序不变（记忆块本来就是最后一段）。
     """
     formatted = format_user_message_with_timestamp(raw_message, user_timezone)
     formatted = append_required_skills_prompt(formatted, enabled_skills)
     formatted = append_turn_context_prompt(formatted, active_goal, auto_mode)
-    formatted = await append_memory_context(formatted, user_id, raw_query=raw_message)
+    if include_memory:
+        formatted = await append_memory_context(formatted, user_id, raw_query=raw_message)
     return formatted
 
 
@@ -457,6 +470,7 @@ async def chat_stream(
         active_goal,
         request.auto_mode,
         user.sub,
+        include_memory=False,
     )
 
     # 生成 run_id（不管是否排队都需要唯一 ID）
