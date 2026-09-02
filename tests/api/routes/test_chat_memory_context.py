@@ -157,56 +157,6 @@ async def test_model_facing_message_skips_memory_when_deferred(
 
 
 @pytest.mark.asyncio
-async def test_execute_agent_stream_defers_memory_injection(monkeypatch: pytest.MonkeyPatch):
-    """executor 侧注入：先发 status 事件（用户可感知进度），再追加记忆块进消息。"""
-    from src.api.routes import chat as chat_route
-
-    calls: dict = {}
-
-    async def fake_append(message, user_id, raw_query=None):
-        calls["append"] = (user_id, raw_query)
-        return message + "\n\n<memory_context>injected</memory_context>"
-
-    monkeypatch.setattr(chat_route, "append_memory_context", fake_append)
-
-    captured: dict = {}
-
-    class FakeAgent:
-        def stream(self, message, *a, **kw):
-            captured["message"] = message
-
-            async def gen():
-                yield {"event": "thinking", "data": {"content": "ok"}}
-
-            return gen()
-
-    async def fake_get(_agent_id):
-        return FakeAgent()
-
-    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
-
-    class FakePresenter:
-        run_id = "run-test"
-        hitl_suspended = False
-
-    events = []
-    gen = chat_route._execute_agent_stream(
-        session_id="s1",
-        agent_id="fast_agent",
-        message="base message",
-        user_id="u1",
-        presenter=FakePresenter(),
-        recommendation_input="原始问题",
-    )
-    async for ev in gen:
-        events.append(ev)
-
-    assert events[0] == {"event": "status", "data": {"stage": "memory"}}
-    assert calls["append"] == ("u1", "原始问题")
-    assert "<memory_context>injected" in captured["message"]
-
-
-@pytest.mark.asyncio
 async def test_execute_agent_stream_skips_memory_on_hitl_resume(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -291,3 +241,77 @@ async def test_execute_agent_stream_no_recall_without_recommendation_input(
         events.append(ev)
 
     assert all(ev.get("event") != "status" for ev in events)
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.MonkeyPatch):
+    """Codex 式会话基线：注入只在 POST 首轮发生，executor 逐轮注入已移除
+    （逐轮变化块是前缀缓存杀手——生产实测确认）。"""
+    from src.api.routes import chat as chat_route
+
+    async def boom(*a, **k):
+        raise AssertionError("executor 不得再注入记忆")
+
+    monkeypatch.setattr(chat_route, "append_memory_context", boom)
+
+    class FakeAgent:
+        def stream(self, message, *a, **kw):
+            async def gen():
+                yield {"event": "thinking", "data": {"content": "ok"}}
+
+            return gen()
+
+    async def fake_get(_agent_id):
+        return FakeAgent()
+
+    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
+
+    class FakePresenter:
+        run_id = "run-test"
+        hitl_suspended = False
+
+    events = []
+    gen = chat_route._execute_agent_stream(
+        session_id="s1",
+        agent_id="fast_agent",
+        message="base message",
+        user_id="u1",
+        presenter=FakePresenter(),
+        recommendation_input="原始问题",
+    )
+    async for ev in gen:
+        events.append(ev)
+
+    assert all(ev.get("event") != "status" for ev in events)
+
+
+@pytest.mark.asyncio
+async def test_session_memory_baseline_only_first_turn(monkeypatch: pytest.MonkeyPatch):
+    """会话首轮判定：无历史消息才注入记忆基线（append-only，之后轮次不再变）。"""
+    from src.api.routes.chat import session_has_prior_messages
+    from src.kernel.config import settings as kernel_settings
+
+    monkeypatch.setattr(kernel_settings, "MONGODB_TRACES_COLLECTION", "traces")
+
+    counts = {"called_with": [], "ret": 0}
+
+    class FakeCol:
+        async def count_documents(self, query):
+            counts["called_with"].append(query)
+            return counts["ret"]
+
+    class FakeDB:
+        def __getitem__(self, name):
+            assert name == "traces", name
+            return FakeCol()
+
+    class FakeClient:
+        def __getitem__(self, name):
+            return FakeDB()
+
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: FakeClient())
+
+    assert await session_has_prior_messages("s1") is False  # count=0 → 首轮
+    assert counts["called_with"] == [{"session_id": "s1"}]
+    counts["ret"] = 3
+    assert await session_has_prior_messages("s1") is True

@@ -2599,7 +2599,7 @@
     "NATIVE_MEMORY_PRUNE_THRESHOLD": "アクセスされていないメモリが統合時に削除されるまでの日数",
     "NATIVE_MEMORY_QDRANT_API_KEY": "Qdrant APIキー（認証なしなら空欄）",
     "NATIVE_MEMORY_QDRANT_URL": "Qdrant サーバーアドレス（例: http://127.0.0.1:6333）",
-    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "各ターンのメッセージ作成時に関連メモリを自動付与（書き込み時注入、デフォルト無効）",
+    "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "各セッションの初回ターンに一度だけ関連メモリを注入（書き込み時点・以降不変でプレフィックスキャッシュを保持。毎ターン注入は KV キャッシュを壊すため無効がデフォルト）",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "注入ブロックの文字数予算（デフォルト 1200）",
     "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": "ターンごとのメモリ注入のリコールタイムアウト（秒）。埋め込みが遅い環境では大きくしてください",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "1ターンに注入する関連メモリの上限（デフォルト 3）",
