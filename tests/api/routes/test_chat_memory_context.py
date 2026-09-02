@@ -127,3 +127,167 @@ async def test_recall_failure_leaves_message_intact(monkeypatch: pytest.MonkeyPa
 
     assert message.endswith("你好")
     assert "<memory_context>" not in message
+
+
+@pytest.mark.asyncio
+async def test_model_facing_message_skips_memory_when_deferred(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """POST 关键路径不再做记忆注入（挪到 executor 后台）——include_memory=False
+    时即使开关全开也不产生记忆块，提交延迟与召回解耦。"""
+    monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
+
+    async def _has_memories(user_id: str, query: str) -> list[dict]:
+        return [_memory()]
+
+    monkeypatch.setattr(memory_context, "_recall_memories_raw", _has_memories)
+
+    message = await build_model_facing_message(
+        raw_message="你好",
+        user_timezone="Asia/Shanghai",
+        enabled_skills=None,
+        active_goal=None,
+        auto_mode=False,
+        user_id="u1",
+        include_memory=False,
+    )
+
+    assert "<memory_context>" not in message
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_defers_memory_injection(monkeypatch: pytest.MonkeyPatch):
+    """executor 侧注入：先发 status 事件（用户可感知进度），再追加记忆块进消息。"""
+    from src.api.routes import chat as chat_route
+
+    calls: dict = {}
+
+    async def fake_append(message, user_id, raw_query=None):
+        calls["append"] = (user_id, raw_query)
+        return message + "\n\n<memory_context>injected</memory_context>"
+
+    monkeypatch.setattr(chat_route, "append_memory_context", fake_append)
+
+    captured: dict = {}
+
+    class FakeAgent:
+        def stream(self, message, *a, **kw):
+            captured["message"] = message
+
+            async def gen():
+                yield {"event": "thinking", "data": {"content": "ok"}}
+
+            return gen()
+
+    async def fake_get(_agent_id):
+        return FakeAgent()
+
+    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
+
+    class FakePresenter:
+        run_id = "run-test"
+        hitl_suspended = False
+
+    events = []
+    gen = chat_route._execute_agent_stream(
+        session_id="s1",
+        agent_id="fast_agent",
+        message="base message",
+        user_id="u1",
+        presenter=FakePresenter(),
+        recommendation_input="原始问题",
+    )
+    async for ev in gen:
+        events.append(ev)
+
+    assert events[0] == {"event": "status", "data": {"stage": "memory"}}
+    assert calls["append"] == ("u1", "原始问题")
+    assert "<memory_context>injected" in captured["message"]
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_skips_memory_on_hitl_resume(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """HITL 恢复轮不走注入——恢复语义保持原样。"""
+    from src.api.routes import chat as chat_route
+
+    async def boom(*a, **k):
+        raise AssertionError("HITL 恢复轮不得注入记忆")
+
+    monkeypatch.setattr(chat_route, "append_memory_context", boom)
+
+    class FakeAgent:
+        def stream(self, message, *a, **kw):
+            async def gen():
+                yield {"event": "thinking", "data": {"content": "ok"}}
+
+            return gen()
+
+    async def fake_get(_agent_id):
+        return FakeAgent()
+
+    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
+
+    class FakePresenter:
+        run_id = "run-test"
+        hitl_suspended = False
+
+    events = []
+    gen = chat_route._execute_agent_stream(
+        session_id="s1",
+        agent_id="fast_agent",
+        message="base message",
+        user_id="u1",
+        presenter=FakePresenter(),
+        recommendation_input="原始问题",
+        hitl_resume={"foo": "bar"},
+    )
+    async for ev in gen:
+        events.append(ev)
+
+    assert all(ev.get("event") != "status" for ev in events)
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_no_recall_without_recommendation_input(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """无 recommendation_input（如历史路径）时不发 status、不注入。"""
+    from src.api.routes import chat as chat_route
+
+    async def boom(*a, **k):
+        raise AssertionError("无 raw query 不应注入")
+
+    monkeypatch.setattr(chat_route, "append_memory_context", boom)
+
+    class FakeAgent:
+        def stream(self, message, *a, **kw):
+            async def gen():
+                yield {"event": "thinking", "data": {"content": "ok"}}
+
+            return gen()
+
+    async def fake_get(_agent_id):
+        return FakeAgent()
+
+    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
+
+    class FakePresenter:
+        run_id = "run-test"
+        hitl_suspended = False
+
+    events = []
+    gen = chat_route._execute_agent_stream(
+        session_id="s1",
+        agent_id="fast_agent",
+        message="base message",
+        user_id="u1",
+        presenter=FakePresenter(),
+        recommendation_input=None,
+    )
+    async for ev in gen:
+        events.append(ev)
+
+    assert all(ev.get("event") != "status" for ev in events)

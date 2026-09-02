@@ -39,6 +39,7 @@ function createContext(
       connectionStatuses.push(status);
     },
     setIsInitializingSandbox: () => undefined,
+    setIsRecallingMemory: () => undefined,
     setSandboxError: () => undefined,
     setActiveGoal: (updater: React.SetStateAction<ActiveGoalSpec | null>) => {
       activeGoal =
@@ -725,3 +726,4 @@ test("goal:end auto-clears the active goal after a short delay", () => {
   // Immediately after goal:end, the goal still has ended_at set
   expect(ctx.activeGoal()?.ended_at).toBe("2026-05-30T08:00:05.000Z");
 });
+

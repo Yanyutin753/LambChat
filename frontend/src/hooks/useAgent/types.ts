@@ -35,6 +35,7 @@ export type EventType =
   | "token:usage"
   | "skills:changed"
   | "queue_update"
+  | "status"
   | "goal:start"
   | "goal:end"
   | "complete"
@@ -127,6 +128,8 @@ export interface EventData {
   files_count?: number;
   // queue_update event fields
   status?: string;
+  // status event fields
+  stage?: string;
   queue_position?: number;
   // goal:start / goal:end event fields
   goal?: {
@@ -284,6 +287,7 @@ export interface UseAgentReturn {
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   isInitializingSandbox: boolean;
+  isRecallingMemory: boolean;
   sandboxError: string | null;
   sendMessage: (
     content: string,
