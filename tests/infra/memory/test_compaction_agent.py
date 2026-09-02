@@ -150,7 +150,8 @@ async def test_maybe_compact_after_write_skips_below_threshold():
 
 
 @pytest.mark.asyncio
-async def test_maybe_compact_after_write_counts_only_non_manual_memories():
+async def test_maybe_compact_after_write_counts_only_compactable_memories():
+    """manual 与 self_evolved（教训）都不参与压缩计数——教训有固定 schema，不允许被改写。"""
     backend = _Backend({"u1": 49})
     agent = MemoryCompactionAgent(enabled=True, threshold=50)
 
@@ -158,7 +159,7 @@ async def test_maybe_compact_after_write_counts_only_non_manual_memories():
 
     assert backend._collection.last_count_query == {
         "user_id": "u1",
-        "source": {"$ne": "manual"},
+        "source": {"$nin": ["manual", "self_evolved"]},
     }
 
 
@@ -1441,3 +1442,108 @@ async def test_run_periodic_once_skips_when_scan_lock_not_acquired(monkeypatch):
         "reason": "scan_lock_not_acquired",
     }
     assert [event[0] for event in events] == ["acquire_scan"]
+
+
+# ---------------------------------------------------------------------------
+# self_evolved（自进化教训）保护——教训有 rule:/why:/how_to_apply 固定 schema，
+# 压缩改写会破坏形状且写入时校验不会重跑，故与 manual 同级保护。
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_compaction_update_rejects_self_evolved_memory():
+    backend = _Backend(
+        {"u1": 80},
+        docs=[
+            {
+                "memory_id": "m-lesson",
+                "user_id": "u1",
+                "content": "rule: 保持简洁\nwhy: 差评\nhow_to_apply: 回复时",
+                "source": "self_evolved",
+            }
+        ],
+    )
+
+    async def fail_retain(*_a, **_k):
+        raise AssertionError("self_evolved 记忆不得被压缩改写")
+
+    backend.retain = fail_retain  # type: ignore[method-assign]
+    tools = MemoryCompactionAgent()._build_compaction_tools(backend, "u1")
+    tool_by_name = {tool.name: tool for tool in tools}
+
+    result = await tool_by_name["memory_compaction_update"].ainvoke(
+        {"memory_id": "m-lesson", "content": "合并后的简洁版教训"}
+    )
+    assert result == {"success": False, "error": "self_evolved_memory_protected"}
+
+
+@pytest.mark.asyncio
+async def test_compaction_delete_rejects_self_evolved_memory():
+    backend = _Backend(
+        {"u1": 80},
+        docs=[
+            {
+                "memory_id": "m-lesson",
+                "user_id": "u1",
+                "content": "rule: 保持简洁",
+                "source": "self_evolved",
+            }
+        ],
+    )
+
+    async def fail_delete(*_a, **_k):
+        raise AssertionError("self_evolved 记忆不得被压缩删除")
+
+    backend.delete = fail_delete  # type: ignore[method-assign]
+    tools = MemoryCompactionAgent()._build_compaction_tools(backend, "u1")
+    tool_by_name = {tool.name: tool for tool in tools}
+
+    result = await tool_by_name["memory_compaction_delete"].ainvoke({"memory_id": "m-lesson"})
+    assert result == {"success": False, "error": "self_evolved_memory_protected"}
+
+
+@pytest.mark.asyncio
+async def test_build_inventory_excludes_self_evolved_memories():
+    class QueryCaptureCollection(_Collection):
+        def __init__(self):
+            super().__init__({})
+            self.find_query = None
+
+        def find(self, query, projection):
+            self.find_query = dict(query)
+            return _CountCursor([])
+
+    backend = _Backend({"u1": 3})
+    backend._collection = QueryCaptureCollection()
+
+    await MemoryCompactionAgent._build_inventory(backend, "u1")
+
+    assert backend._collection.find_query == {
+        "user_id": "u1",
+        "source": {"$nin": ["manual", "self_evolved"]},
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_periodic_once_scan_excludes_self_evolved(monkeypatch):
+    from src.infra.memory import compaction_agent as compaction_module
+
+    backend = _Backend({"u1": 40})
+    agent = MemoryCompactionAgent(enabled=True, threshold=20)
+
+    async def fake_acquire(_iid, ttl_seconds=None):
+        return "acquired"
+
+    monkeypatch.setattr(compaction_module, "acquire_compaction_scan_lock", fake_acquire)
+
+    async def fake_compact(_backend, user_id):
+        return {"agent": "deepagent", "checked": 1}
+
+    agent.compact_user_memories = fake_compact  # type: ignore[method-assign]
+
+    await agent.run_periodic_once(backend)
+
+    pipelines = backend._collection.aggregate_pipelines
+    assert pipelines, "应发出聚合扫描"
+    match_stage = pipelines[0][0]["$match"]
+    assert match_stage["source"] == {"$nin": ["manual", "self_evolved"]}

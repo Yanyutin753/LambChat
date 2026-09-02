@@ -2600,6 +2600,7 @@
     "NATIVE_MEMORY_QDRANT_URL": "Qdrant server URL (e.g. http://127.0.0.1:6333)",
     "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "Append relevant memories to each turn at message creation (write-time injection, off by default)",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "Injected block char budget (default 1200)",
+    "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": "Recall timeout (seconds) for per-turn memory context injection. Raise for slow embedding endpoints",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "Max relevant memories injected per turn (default 3)",
     "NATIVE_MEMORY_RECALL_MIN_SCORE": "Minimum relevance score for memory recall results",
     "NATIVE_MEMORY_RERANK_API_BASE": "API base URL for the native memory rerank model endpoint.",

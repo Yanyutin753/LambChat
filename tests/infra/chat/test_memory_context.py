@@ -177,3 +177,29 @@ async def test_append_is_deterministic(monkeypatch: pytest.MonkeyPatch):
 def test_block_empty_when_budget_below_min_viable():
     # 预算连框架+一条短行都放不下时返回空串（放弃注入），而不是超预算硬塞
     assert build_memory_context_block([_memory()], max_chars=100) == ""
+
+
+@pytest.mark.asyncio
+async def test_timeout_overridable_via_settings(monkeypatch: pytest.MonkeyPatch):
+    """注入超时必须可经 NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS 配置——
+    staging 实测：embedding 冷连接 ~2s 击穿 1.5s 硬超时，注入永远不触发。"""
+    monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
+    # 模块默认压到 0.05s；settings 配 2.0 必须生效——0.3s 的召回不该被掐断
+    monkeypatch.setattr(memory_context, "MEMORY_CONTEXT_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(
+        memory_context.settings,
+        "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS",
+        2.0,
+        raising=False,
+    )
+
+    async def sluggish_recall(user_id, query):
+        await asyncio.sleep(0.3)
+        return [_memory()]
+
+    monkeypatch.setattr(memory_context, "_recall_memories_raw", sluggish_recall)
+
+    result = await append_memory_context("帮我总结一下这个项目的进度", "u1")
+
+    assert "<memory_context>" in result

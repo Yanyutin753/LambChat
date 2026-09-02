@@ -2600,6 +2600,7 @@
     "NATIVE_MEMORY_QDRANT_URL": "Qdrant 服务地址（如 http://127.0.0.1:6333）",
     "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "开启后每轮消息自动附加相关记忆（写时注入，默认关闭灰度）",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "注入块字符预算（默认 1200）",
+    "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": "每轮消息注入相关记忆的召回超时（秒）。embedding 冷连接较慢的环境可调大",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "每轮注入的相关记忆条数上限（默认 3）",
     "NATIVE_MEMORY_RECALL_MIN_SCORE": "记忆召回结果的最低相关度分数",
     "NATIVE_MEMORY_RERANK_API_BASE": "原生记忆重排序模型端点的 API 基础 URL。",

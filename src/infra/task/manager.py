@@ -206,8 +206,8 @@ class BackgroundTaskManager:
             resume_interrupted_run=self._resume_interrupted_run,
         )
 
-    async def _mark_run_failed(self, run_id: str, reason: str, session: Any) -> None:
-        await self._recovery_service().mark_run_failed(run_id, reason, session)
+    async def _mark_run_failed(self, run_id: str, reason: str, session: Any, **kwargs) -> None:
+        await self._recovery_service().mark_run_failed(run_id, reason, session, **kwargs)
 
     async def _mark_run_recoverable_failure(
         self,

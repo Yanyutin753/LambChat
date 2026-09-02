@@ -2600,6 +2600,7 @@
     "NATIVE_MEMORY_QDRANT_URL": "Qdrant サーバーアドレス（例: http://127.0.0.1:6333）",
     "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED": "各ターンのメッセージ作成時に関連メモリを自動付与（書き込み時注入、デフォルト無効）",
     "NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS": "注入ブロックの文字数予算（デフォルト 1200）",
+    "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": "ターンごとのメモリ注入のリコールタイムアウト（秒）。埋め込みが遅い環境では大きくしてください",
     "NATIVE_MEMORY_QUERY_CONTEXT_TOP_K": "1ターンに注入する関連メモリの上限（デフォルト 3）",
     "NATIVE_MEMORY_RECALL_MIN_SCORE": "メモリリコール結果の最小関連性スコア",
     "NATIVE_MEMORY_RERANK_API_BASE": "ネイティブメモリ再ランキングモデルエンドポイントのAPIベースURL。",
