@@ -1,4 +1,7 @@
-"""Per-turn relevant-memory context, appended to the user message at write time.
+"""Session-baseline relevant-memory context (Codex-style: first turn only).
+
+会话首轮检索一次并随首条用户消息写时注入，之后 append-only 不再变化——
+逐轮注入的变量块会击穿 provider 前缀缓存。
 
 与 turn_context.py 同模式：动态的每轮内容在人类消息创建时追加并随状态持久化，
 使持久化历史与发送给模型的字节逐字一致，provider prompt-cache 前缀跨轮连续。

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.api.routes.chat import build_model_facing_message
 from src.infra.chat import memory_context
+from src.infra.chat.model_facing import build_model_facing_message
 from src.kernel.schemas.agent import GoalSpec
 
 
@@ -157,19 +157,12 @@ async def test_model_facing_message_skips_memory_when_deferred(
 
 
 @pytest.mark.asyncio
-async def test_execute_agent_stream_defers_memory_injection(monkeypatch: pytest.MonkeyPatch):
-    """executor 侧注入：先发 status 事件（用户可感知进度），再追加记忆块进消息。"""
+async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.MonkeyPatch):
+    """Codex 式会话基线：注入只在 POST 首轮发生，executor 逐轮注入已移除
+    （逐轮变化块是前缀缓存杀手——生产实测确认）。"""
     from src.api.routes import chat as chat_route
 
-    calls: dict = {}
-
-    async def fake_append(message, user_id, raw_query=None):
-        calls["append"] = (user_id, raw_query)
-        return message + "\n\n<memory_context>injected</memory_context>"
-
-    monkeypatch.setattr(chat_route, "append_memory_context", fake_append)
-
-    captured: dict = {}
+    captured = {}
 
     class FakeAgent:
         def stream(self, message, *a, **kw):
@@ -201,93 +194,95 @@ async def test_execute_agent_stream_defers_memory_injection(monkeypatch: pytest.
     async for ev in gen:
         events.append(ev)
 
-    assert events[0] == {"event": "status", "data": {"stage": "memory"}}
-    assert calls["append"] == ("u1", "原始问题")
-    assert "<memory_context>injected" in captured["message"]
+    assert all(ev.get("event") != "status" for ev in events)
+    assert captured["message"] == "base message", "executor 必须原样透传消息"
 
 
 @pytest.mark.asyncio
-async def test_execute_agent_stream_skips_memory_on_hitl_resume(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """HITL 恢复轮不走注入——恢复语义保持原样。"""
-    from src.api.routes import chat as chat_route
+async def test_session_memory_baseline_only_first_turn(monkeypatch: pytest.MonkeyPatch):
+    """会话首轮判定：无历史消息才注入记忆基线（append-only，之后轮次不再变）。"""
+    from src.infra.chat.session_baseline import session_has_prior_messages
+    from src.kernel.config import settings as kernel_settings
 
-    async def boom(*a, **k):
-        raise AssertionError("HITL 恢复轮不得注入记忆")
+    monkeypatch.setattr(kernel_settings, "MONGODB_TRACES_COLLECTION", "traces")
 
-    monkeypatch.setattr(chat_route, "append_memory_context", boom)
+    counts = {"called_with": [], "ret": 0}
 
-    class FakeAgent:
-        def stream(self, message, *a, **kw):
-            async def gen():
-                yield {"event": "thinking", "data": {"content": "ok"}}
+    class FakeCol:
+        async def count_documents(self, query):
+            counts["called_with"].append(query)
+            return counts["ret"]
 
-            return gen()
+    class FakeDB:
+        def __getitem__(self, name):
+            assert name == "traces", name
+            return FakeCol()
 
-    async def fake_get(_agent_id):
-        return FakeAgent()
+    class FakeClient:
+        def __getitem__(self, name):
+            return FakeDB()
 
-    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: FakeClient())
 
-    class FakePresenter:
-        run_id = "run-test"
-        hitl_suspended = False
-
-    events = []
-    gen = chat_route._execute_agent_stream(
-        session_id="s1",
-        agent_id="fast_agent",
-        message="base message",
-        user_id="u1",
-        presenter=FakePresenter(),
-        recommendation_input="原始问题",
-        hitl_resume={"foo": "bar"},
-    )
-    async for ev in gen:
-        events.append(ev)
-
-    assert all(ev.get("event") != "status" for ev in events)
+    assert await session_has_prior_messages("s1") is False  # count=0 → 首轮
+    assert counts["called_with"] == [{"session_id": "s1"}]
+    counts["ret"] = 3
+    assert await session_has_prior_messages("s1") is True
 
 
 @pytest.mark.asyncio
-async def test_execute_agent_stream_no_recall_without_recommendation_input(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """无 recommendation_input（如历史路径）时不发 status、不注入。"""
+async def test_session_baseline_prepended_at_message_head(monkeypatch: pytest.MonkeyPatch):
+    """Codex input[1]：记忆索引基线置于首条消息头部——稳定内容在时间戳等
+    变化内容之前，同用户跨会话公共前缀延伸到索引末尾。"""
     from src.api.routes import chat as chat_route
 
-    async def boom(*a, **k):
-        raise AssertionError("无 raw query 不应注入")
+    async def fake_baseline(user_id):
+        return "<memory_index_context>\n- 记忆索引行\n</memory_index_context>"
 
-    monkeypatch.setattr(chat_route, "append_memory_context", boom)
-
-    class FakeAgent:
-        def stream(self, message, *a, **kw):
-            async def gen():
-                yield {"event": "thinking", "data": {"content": "ok"}}
-
-            return gen()
-
-    async def fake_get(_agent_id):
-        return FakeAgent()
-
-    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
-
-    class FakePresenter:
-        run_id = "run-test"
-        hitl_suspended = False
-
-    events = []
-    gen = chat_route._execute_agent_stream(
-        session_id="s1",
-        agent_id="fast_agent",
-        message="base message",
-        user_id="u1",
-        presenter=FakePresenter(),
-        recommendation_input=None,
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.prompt_injection.build_session_memory_baseline",
+        fake_baseline,
     )
-    async for ev in gen:
-        events.append(ev)
 
-    assert all(ev.get("event") != "status" for ev in events)
+    msg, _tc = await chat_route.assemble_first_turn_message(
+        raw_message="你好",
+        user_timezone="Asia/Shanghai",
+        enabled_skills=None,
+        active_goal=None,
+        auto_mode=False,
+        user_id="u1",
+        include_memory=True,
+        include_timestamp=True,
+        last_tc_signature=None,
+    )
+
+    assert msg.startswith("<memory_index_context>")
+    assert msg.index("<memory_index_context>") < msg.index("[User message sent at")
+
+
+@pytest.mark.asyncio
+async def test_turn_context_signature_dedup():
+    """goal/自动模式块签名去重：目标未变的后续轮次不再注入。"""
+    from src.infra.chat.session_baseline import _turn_context_signature
+    from src.infra.goal import GoalSpec
+
+    goal = GoalSpec(objective="写周报", rubric="完成即达标")
+    assert _turn_context_signature(goal, False) == "写周报|auto=False"
+    assert _turn_context_signature(None, True) == "|auto=True"
+    assert _turn_context_signature(None, False) is None
+
+
+def test_time_report_drift():
+    """报时漂移：无记录=应报；刚报过=不报；超阈值=应报。"""
+    from datetime import datetime, timedelta, timezone
+
+    from src.infra.chat.session_baseline import TIME_REPORT_DRIFT_SECONDS, _time_report_due
+
+    assert _time_report_due(None) is True
+    assert _time_report_due({}) is True
+    recent = datetime.now(timezone.utc).isoformat()
+    assert _time_report_due({"prompt_time_reported_at": recent}) is False
+    stale = (
+        datetime.now(timezone.utc) - timedelta(seconds=TIME_REPORT_DRIFT_SECONDS + 60)
+    ).isoformat()
+    assert _time_report_due({"prompt_time_reported_at": stale}) is True

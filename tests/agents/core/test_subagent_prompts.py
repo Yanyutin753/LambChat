@@ -196,9 +196,10 @@ def test_dynamic_prompt_middleware_order_is_canonical() -> None:
     for node in (agent_node, team_router_node):
         source = getsource(node)
         env = source.rfind("EnvVarPromptMiddleware")
-        memory = source.rfind("MemoryIndexMiddleware")
         deferred = source.rfind("ToolSearchMiddleware")
-        assert -1 < env < memory < deferred
+        assert -1 < env < deferred
+        # 记忆索引已挪出工具描述（会话基线消息），工具层保持全静态
+        assert "MemoryIndexMiddleware" not in source
         assert "PromptCachingMiddleware" not in source
 
 
