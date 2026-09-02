@@ -157,105 +157,17 @@ async def test_model_facing_message_skips_memory_when_deferred(
 
 
 @pytest.mark.asyncio
-async def test_execute_agent_stream_skips_memory_on_hitl_resume(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """HITL 恢复轮不走注入——恢复语义保持原样。"""
-    from src.api.routes import chat as chat_route
-
-    async def boom(*a, **k):
-        raise AssertionError("HITL 恢复轮不得注入记忆")
-
-    monkeypatch.setattr(chat_route, "append_memory_context", boom)
-
-    class FakeAgent:
-        def stream(self, message, *a, **kw):
-            async def gen():
-                yield {"event": "thinking", "data": {"content": "ok"}}
-
-            return gen()
-
-    async def fake_get(_agent_id):
-        return FakeAgent()
-
-    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
-
-    class FakePresenter:
-        run_id = "run-test"
-        hitl_suspended = False
-
-    events = []
-    gen = chat_route._execute_agent_stream(
-        session_id="s1",
-        agent_id="fast_agent",
-        message="base message",
-        user_id="u1",
-        presenter=FakePresenter(),
-        recommendation_input="原始问题",
-        hitl_resume={"foo": "bar"},
-    )
-    async for ev in gen:
-        events.append(ev)
-
-    assert all(ev.get("event") != "status" for ev in events)
-
-
-@pytest.mark.asyncio
-async def test_execute_agent_stream_no_recall_without_recommendation_input(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """无 recommendation_input（如历史路径）时不发 status、不注入。"""
-    from src.api.routes import chat as chat_route
-
-    async def boom(*a, **k):
-        raise AssertionError("无 raw query 不应注入")
-
-    monkeypatch.setattr(chat_route, "append_memory_context", boom)
-
-    class FakeAgent:
-        def stream(self, message, *a, **kw):
-            async def gen():
-                yield {"event": "thinking", "data": {"content": "ok"}}
-
-            return gen()
-
-    async def fake_get(_agent_id):
-        return FakeAgent()
-
-    monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
-
-    class FakePresenter:
-        run_id = "run-test"
-        hitl_suspended = False
-
-    events = []
-    gen = chat_route._execute_agent_stream(
-        session_id="s1",
-        agent_id="fast_agent",
-        message="base message",
-        user_id="u1",
-        presenter=FakePresenter(),
-        recommendation_input=None,
-    )
-    async for ev in gen:
-        events.append(ev)
-
-    assert all(ev.get("event") != "status" for ev in events)
-
-
-@pytest.mark.asyncio
 async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.MonkeyPatch):
     """Codex 式会话基线：注入只在 POST 首轮发生，executor 逐轮注入已移除
     （逐轮变化块是前缀缓存杀手——生产实测确认）。"""
     from src.api.routes import chat as chat_route
 
-    async def boom(*a, **k):
-        raise AssertionError("executor 不得再注入记忆")
-
-    monkeypatch.setattr(chat_route, "append_memory_context", boom)
+    captured = {}
 
     class FakeAgent:
         def stream(self, message, *a, **kw):
+            captured["message"] = message
+
             async def gen():
                 yield {"event": "thinking", "data": {"content": "ok"}}
 
@@ -283,6 +195,7 @@ async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.Mon
         events.append(ev)
 
     assert all(ev.get("event") != "status" for ev in events)
+    assert captured["message"] == "base message", "executor 必须原样透传消息"
 
 
 @pytest.mark.asyncio
