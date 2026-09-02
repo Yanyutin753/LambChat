@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.api.routes.chat import build_model_facing_message
 from src.infra.chat import memory_context
+from src.infra.chat.model_facing import build_model_facing_message
 from src.kernel.schemas.agent import GoalSpec
 
 
@@ -201,7 +201,7 @@ async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.Mon
 @pytest.mark.asyncio
 async def test_session_memory_baseline_only_first_turn(monkeypatch: pytest.MonkeyPatch):
     """会话首轮判定：无历史消息才注入记忆基线（append-only，之后轮次不再变）。"""
-    from src.api.routes.chat import session_has_prior_messages
+    from src.infra.chat.session_baseline import session_has_prior_messages
     from src.kernel.config import settings as kernel_settings
 
     monkeypatch.setattr(kernel_settings, "MONGODB_TRACES_COLLECTION", "traces")
@@ -228,3 +228,61 @@ async def test_session_memory_baseline_only_first_turn(monkeypatch: pytest.Monke
     assert counts["called_with"] == [{"session_id": "s1"}]
     counts["ret"] = 3
     assert await session_has_prior_messages("s1") is True
+
+
+@pytest.mark.asyncio
+async def test_session_baseline_prepended_at_message_head(monkeypatch: pytest.MonkeyPatch):
+    """Codex input[1]：记忆索引基线置于首条消息头部——稳定内容在时间戳等
+    变化内容之前，同用户跨会话公共前缀延伸到索引末尾。"""
+    from src.api.routes import chat as chat_route
+
+    async def fake_baseline(user_id):
+        return "<memory_index_context>\n- 记忆索引行\n</memory_index_context>"
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.prompt_injection.build_session_memory_baseline",
+        fake_baseline,
+    )
+
+    msg, _tc = await chat_route.assemble_first_turn_message(
+        raw_message="你好",
+        user_timezone="Asia/Shanghai",
+        enabled_skills=None,
+        active_goal=None,
+        auto_mode=False,
+        user_id="u1",
+        include_memory=True,
+        include_timestamp=True,
+        last_tc_signature=None,
+    )
+
+    assert msg.startswith("<memory_index_context>")
+    assert msg.index("<memory_index_context>") < msg.index("[User message sent at")
+
+
+@pytest.mark.asyncio
+async def test_turn_context_signature_dedup():
+    """goal/自动模式块签名去重：目标未变的后续轮次不再注入。"""
+    from src.infra.chat.session_baseline import _turn_context_signature
+    from src.infra.goal import GoalSpec
+
+    goal = GoalSpec(objective="写周报", rubric="完成即达标")
+    assert _turn_context_signature(goal, False) == "写周报|auto=False"
+    assert _turn_context_signature(None, True) == "|auto=True"
+    assert _turn_context_signature(None, False) is None
+
+
+def test_time_report_drift():
+    """报时漂移：无记录=应报；刚报过=不报；超阈值=应报。"""
+    from datetime import datetime, timedelta, timezone
+
+    from src.infra.chat.session_baseline import TIME_REPORT_DRIFT_SECONDS, _time_report_due
+
+    assert _time_report_due(None) is True
+    assert _time_report_due({}) is True
+    recent = datetime.now(timezone.utc).isoformat()
+    assert _time_report_due({"prompt_time_reported_at": recent}) is False
+    stale = (
+        datetime.now(timezone.utc) - timedelta(seconds=TIME_REPORT_DRIFT_SECONDS + 60)
+    ).isoformat()
+    assert _time_report_due({"prompt_time_reported_at": stale}) is True
