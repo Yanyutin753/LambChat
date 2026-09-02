@@ -602,7 +602,7 @@ export function ChatView({
   const virtuosoFooterComponent = useCallback(
     () => (
       <>
-        {isRecallingMemory && !hasVisibleStreamingMessage && (
+        {isRecallingMemory && (
           <div className="flex items-center gap-2 px-4 py-2 text-xs text-[var(--theme-text-tertiary)]">
             <Loader2 size={14} className="animate-spin" />
             {t("chat.memoryRecalling")}
@@ -619,7 +619,7 @@ export function ChatView({
         />
       </>
     ),
-    [isRecallingMemory, hasVisibleStreamingMessage, showStreamingFooterSkeleton, isMobileViewport, messagesEndRef, t],
+    [isRecallingMemory, showStreamingFooterSkeleton, isMobileViewport, messagesEndRef, t],
   );
 
   const virtuosoHeaderComponent = useCallback(() => {
