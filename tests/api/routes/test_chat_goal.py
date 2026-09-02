@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.infra.chat.model_facing import (
-    append_required_skills_prompt,
-)  # noqa: F401
 from src.api.routes.chat import (
     CHAT_SSE_DATA_MAX_BYTES,
     _execute_agent_stream,
@@ -13,6 +10,9 @@ from src.api.routes.chat import (
     resolve_goal_for_request,
     session_stream,
 )
+from src.infra.chat.model_facing import (
+    append_required_skills_prompt,
+)  # noqa: F401
 from src.kernel.schemas.agent import AgentRequest, GoalSpec
 
 
