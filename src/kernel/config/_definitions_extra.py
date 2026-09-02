@@ -651,6 +651,14 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": False,
         "depends_on": "ENABLE_MEMORY",
     },
+    "NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_SEARCH,
+        "subcategory": "query_context",
+        "description": "settingDesc.NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS",
+        "default": 1.5,
+        "depends_on": "ENABLE_MEMORY",
+    },
     "NATIVE_MEMORY_SELF_EVOLVE_ENABLED": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.MEMORY_SEARCH,

@@ -654,6 +654,9 @@ class NativeMemoryBackend(MemoryBackend):
                     "Content-Type": "application/json",
                 },
                 timeout=httpx.Timeout(30.0),
+                # httpx 连接池默认 5s 闲置断连：每条隔闲消息重付 ~1.5s TLS 握手，
+                # 恰好击穿 1.5s 的查询上下文注入预算（staging 实测冷 1.99s→热 0.44s）
+                limits=httpx.Limits(keepalive_expiry=60.0),
             )
 
             async def embed_fn(text: str) -> list[float]:
