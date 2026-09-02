@@ -41,6 +41,7 @@ export interface EventHandlerContext {
   markSteerDelivered?: (content: string, messageId?: string) => void;
   setConnectionStatus: (status: string) => void;
   setIsInitializingSandbox: (loading: boolean) => void;
+  setIsRecallingMemory: (loading: boolean) => void;
   setSandboxError: (error: string | null) => void;
   setActiveGoal: React.Dispatch<
     React.SetStateAction<import("./types").ActiveGoalSpec | null>
@@ -139,6 +140,16 @@ export function handleStreamEvent(
         ctx.streamVersionRef.current === streamVersion
       ) {
         ctx.setSessionId(data.session_id);
+      }
+      // Agent 已开跑——收掉记忆检索的界面内加载状态（如果还挂着）
+      ctx.setIsRecallingMemory(false);
+      return;
+    }
+
+    case "status": {
+      // 后台记忆注入开始：立刻给用户进度反馈（提交与召回已解耦）
+      if (data.stage === "memory") {
+        ctx.setIsRecallingMemory(true);
       }
       return;
     }
@@ -311,6 +322,7 @@ export function handleStreamEvent(
       // agent:result）、沙箱初始化中/错误（sandbox:starting 无 ready/error）。
       ctx.activeSubagentStackRef.current.length = 0;
       ctx.setIsInitializingSandbox(false);
+      ctx.setIsRecallingMemory(false);
       ctx.setSandboxError(null);
       ctx.setMessages((prev) => {
         const reset = {

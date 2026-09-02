@@ -160,6 +160,7 @@ export function ChatAppContent({
     sessionId,
     currentRunId,
     isLoading,
+    isRecallingMemory,
     isLoadingHistory,
     historyLoadGeneration,
     hasMoreHistoryTraces,
@@ -805,6 +806,7 @@ export function ChatAppContent({
           sessionId={sessionId}
           currentRunId={currentRunId}
           isLoading={isLoading}
+          isRecallingMemory={isRecallingMemory}
           isLoadingHistory={isLoadingHistory}
           historyLoadGeneration={historyLoadGeneration}
           hasMoreHistoryTraces={hasMoreHistoryTraces}

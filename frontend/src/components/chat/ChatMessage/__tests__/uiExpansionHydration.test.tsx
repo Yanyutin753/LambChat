@@ -5,10 +5,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import { RunStepsCollapse } from "../RunStepsCollapse";
 import { TodoBlock } from "../TodoBlock";
-import {
-  clearUiExpansions,
-  getUiExpansion,
-} from "../uiExpansionStore";
+import { clearUiExpansions } from "../uiExpansionStore";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -37,7 +34,7 @@ afterEach(() => {
   clearUiExpansions();
 });
 
-test("run-steps collapse choice survives virtualized unmount/remount", () => {
+test("active run row shows details without a toggle, surviving unmount/remount", () => {
   const { unmount } = render(
     <RunStepsCollapse
       active
@@ -47,14 +44,11 @@ test("run-steps collapse choice survives virtualized unmount/remount", () => {
       renderExpanded={() => <div>step-details</div>}
     />,
   );
+  // 工作中无展开收起控件，详情直接可见
+  expect(screen.queryByRole("button")).toBeNull();
   expect(screen.getByText("step-details")).toBeTruthy();
 
-  // 流式中手动收起
-  fireEvent.click(screen.getByRole("button", { expanded: true }));
-  expect(screen.queryByText("step-details")).toBeNull();
-  expect(getUiExpansion("msg-1:run-steps")).toBe(false);
-
-  // 模拟虚拟列表卸载再滚回重挂
+  // 模拟虚拟列表卸载再滚回重挂：行为不变
   unmount();
   render(
     <RunStepsCollapse
@@ -65,8 +59,8 @@ test("run-steps collapse choice survives virtualized unmount/remount", () => {
       renderExpanded={() => <div>step-details</div>}
     />,
   );
-  // 复水：保持用户收起的选择，而不是回弹到默认展开
-  expect(screen.queryByText("step-details")).toBeNull();
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(screen.getByText("step-details")).toBeTruthy();
 });
 
 test("run-steps history remount keeps expanded state after completion", () => {

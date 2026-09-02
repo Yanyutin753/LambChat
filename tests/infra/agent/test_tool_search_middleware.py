@@ -736,13 +736,13 @@ def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -
     from src.agents.fast_agent.nodes import fast_agent_node
     from src.agents.search_agent.nodes import agent_node
     from src.agents.team_agent.nodes import team_router_node
-    from src.api.routes.chat import append_turn_context_prompt as _chat_import  # noqa: F401
 
     chat_source = getsource(_load_module("src.api.routes.chat"))
+    facing_source = getsource(_load_module("src.infra.chat.model_facing"))
     # Goal/auto-mode context is persisted into the user message at write time
     # (same layering as the timestamp and skills prompt), keeping the sent
-    # prompt byte-identical to the stored history.
-    assert "append_turn_context_prompt(" in chat_source
+    # prompt byte-identical to the stored history. 装配逻辑已下沉 model_facing。
+    assert "append_turn_context_prompt(" in facing_source
     assert "request.auto_mode" in chat_source
 
     for node in (fast_agent_node, agent_node, team_router_node):

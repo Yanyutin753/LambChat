@@ -34,6 +34,11 @@ function ExpandedSummaryRow() {
   return screen.getByRole("button", { expanded: true });
 }
 
+/** 工作中状态行的文案 span（工作中无按钮，只能按文案定位） */
+function WorkingRowText() {
+  return screen.getByText(/Working/) as HTMLSpanElement;
+}
+
 describe("RunStepsCollapse", () => {
   test("renders the duration in the summary row", () => {
     render(
@@ -57,7 +62,7 @@ describe("RunStepsCollapse", () => {
     expect(SummaryRow().textContent).toContain("2");
   });
 
-  test("starts expanded with a live timer while active and stays user-collapsible", () => {
+  test("shows the live timer and full details while active, with no expand/collapse toggle", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-26T10:00:45Z"));
     try {
@@ -71,23 +76,18 @@ describe("RunStepsCollapse", () => {
           renderExpanded={renderExpanded}
         />,
       );
-      const row = ExpandedSummaryRow();
-      expect(row.textContent).toContain("Working");
+      // 工作中：无展开收起控件（无按钮、无 chevron），直接展示完整详情
+      expect(screen.queryByRole("button")).toBeNull();
+      const row = WorkingRowText().parentElement as HTMLElement;
+      expect(row.querySelector("svg")).toBeNull();
       expect(row.textContent).toContain("45s");
-      // 流式中也允许手动收起（长 run 只想看最新输出时不必等结束）
-      expect((row as HTMLButtonElement).disabled).toBe(false);
       expect(renderExpanded).toHaveBeenCalled();
       expect(screen.getByText("step-details")).toBeTruthy();
 
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      expect(ExpandedSummaryRow().textContent).toContain("46s");
-
-      act(() => {
-        fireEvent.click(ExpandedSummaryRow());
-      });
-      expect(screen.queryByText("step-details")).toBeNull();
+      expect(WorkingRowText().textContent).toContain("46s");
     } finally {
       vi.useRealTimers();
     }
@@ -106,14 +106,13 @@ describe("RunStepsCollapse", () => {
           renderExpanded={() => <div>step-details</div>}
         />,
       );
-      const row = ExpandedSummaryRow();
-      expect(row.textContent).toContain("45s");
-      expect(row.textContent).not.toContain("30s");
+      expect(WorkingRowText().textContent).toContain("45s");
+      expect(WorkingRowText().textContent).not.toContain("30s");
 
       act(() => {
         vi.advanceTimersByTime(1000);
       });
-      expect(ExpandedSummaryRow().textContent).toContain("46s");
+      expect(WorkingRowText().textContent).toContain("46s");
     } finally {
       vi.useRealTimers();
     }
@@ -154,7 +153,7 @@ describe("RunStepsCollapse", () => {
         renderExpanded={() => <div>step-details</div>}
       />,
     );
-    let span = SummaryRow().querySelector("span");
+    const span = SummaryRow().querySelector("span");
     expect(span?.className).toContain("text-gray-700");
     expect(span?.className).toContain("dark:text-gray-300");
     expect(span?.className).not.toContain("text-theme-text-secondary");
@@ -168,10 +167,10 @@ describe("RunStepsCollapse", () => {
         renderExpanded={() => <div>step-details</div>}
       />,
     );
-    span = ExpandedSummaryRow().querySelector("span");
-    expect(span?.className).toContain("text-gray-700");
-    expect(span?.className).toContain("dark:text-gray-300");
-    expect(span?.className).not.toContain("text-theme-text-secondary");
+    const workingSpan = WorkingRowText();
+    expect(workingSpan.className).toContain("text-gray-700");
+    expect(workingSpan.className).toContain("dark:text-gray-300");
+    expect(workingSpan.className).not.toContain("text-theme-text-secondary");
   });
 
   test("summary row matches the markdown body font size", () => {
@@ -200,7 +199,7 @@ describe("RunStepsCollapse", () => {
     expect(SummaryRow().style.borderColor).toBe("");
   });
 
-  test("keeps the user's manual choice after the run finishes", () => {
+  test("shows details again on resume and auto-collapses when the run finishes", () => {
     const { rerender } = render(
       <RunStepsCollapse
         active
@@ -211,11 +210,7 @@ describe("RunStepsCollapse", () => {
       />,
     );
 
-    // 流式中用户手动收起
-    fireEvent.click(ExpandedSummaryRow());
-    expect(screen.queryByText("step-details")).toBeNull();
-
-    // 结束时不强制重置：保持用户收起的选择
+    // 第一次结束：自动收起成一行
     rerender(
       <RunStepsCollapse
         steps={1}
@@ -225,7 +220,31 @@ describe("RunStepsCollapse", () => {
       />,
     );
     expect(screen.queryByText("step-details")).toBeNull();
-    expect(SummaryRow().getAttribute("aria-expanded")).toBe("false");
+
+    // 用户展开历史行后 run 恢复：直接显示详情（无展开收起控件）
+    fireEvent.click(SummaryRow());
+    rerender(
+      <RunStepsCollapse
+        active
+        steps={1}
+        durationMs={null}
+        startedAtMs={Date.now() - 1000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText("step-details")).toBeTruthy();
+
+    // 再次结束：仍自动收起
+    rerender(
+      <RunStepsCollapse
+        steps={1}
+        durationMs={90000}
+        startedAtMs={null}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    expect(screen.queryByText("step-details")).toBeNull();
   });
 
   test("shows the full details directly when toggled open", () => {
