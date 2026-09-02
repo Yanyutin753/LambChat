@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
 
@@ -16,7 +16,6 @@ class _MemoryRecallTool(BaseTool):
 
 
 from src.infra.agent.middleware import (
-    MemoryIndexMiddleware,
     SectionPromptMiddleware,
     ToolSearchMiddleware,
 )
@@ -639,97 +638,6 @@ async def test_section_prompt_middleware_appends_one_normalized_block() -> None:
     ]
 
 
-async def test_memory_index_keeps_current_user_question_as_final_message(monkeypatch) -> None:
-    middleware = MemoryIndexMiddleware(user_id="user-1")
-    history = HumanMessage(content="earlier question")
-    current = HumanMessage(content="current question")
-
-    async def _build_index(_user_id: str, *, session_id=None) -> str:
-        return "<memory_index>\n- preference\n</memory_index>"
-
-    monkeypatch.setattr(
-        "src.infra.agent.middleware.prompt_injection._build_memory_index_for_user",
-        _build_index,
-    )
-
-    class _Request:
-        def __init__(self, messages=None, system_message=None, tools=None) -> None:
-            self.messages = messages or [history, current]
-            self.system_message = system_message or SystemMessage(content="base")
-            self.tools = tools if tools is not None else [_MemoryRecallTool()]
-
-        def override(self, **kwargs):
-            return _Request(
-                kwargs.get("messages", self.messages),
-                kwargs.get("system_message", self.system_message),
-                kwargs.get("tools", self.tools),
-            )
-
-    async def _handler(request):
-        return request
-
-    result = await middleware.awrap_model_call(_Request(), _handler)
-
-    # Codex-style layering: the memory index is a framed block appended to
-    # the memory_recall tool description (versioned by content); messages and
-    # the system prompt are left completely untouched.
-    assert result.messages[0] is history
-    assert result.messages[1] is current
-    assert len(result.messages) == 2
-    assert current.content == "current question"
-    assert result.system_message.content == "base"
-    recall = next(t for t in result.tools if t.name == "memory_recall")
-    assert "base memory recall description" in recall.description
-    assert "<memory_index_context>" in recall.description
-    assert "Not authored by the user" in recall.description
-    assert "<memory_index>" in recall.description
-
-
-async def test_memory_index_stays_before_current_user_during_tool_loop(monkeypatch) -> None:
-    middleware = MemoryIndexMiddleware(user_id="user-1")
-    previous = HumanMessage(content="previous question")
-    current = HumanMessage(content="current question")
-    assistant = AIMessage(
-        content="",
-        tool_calls=[{"name": "lookup", "args": {}, "id": "call-1"}],
-    )
-    tool = ToolMessage(content="result", tool_call_id="call-1")
-
-    async def _build_index(_user_id: str, *, session_id=None) -> str:
-        return "<memory_index>\n- preference\n</memory_index>"
-
-    monkeypatch.setattr(
-        "src.infra.agent.middleware.prompt_injection._build_memory_index_for_user",
-        _build_index,
-    )
-
-    class _Request:
-        def __init__(self, messages=None, system_message=None, tools=None) -> None:
-            self.messages = messages or [previous, current, assistant, tool]
-            self.system_message = system_message or SystemMessage(content="base")
-            self.tools = tools if tools is not None else [_MemoryRecallTool()]
-
-        def override(self, **kwargs):
-            return _Request(
-                kwargs.get("messages", self.messages),
-                kwargs.get("system_message", self.system_message),
-                kwargs.get("tools", self.tools),
-            )
-
-    async def _handler(request):
-        return request
-
-    result = await middleware.awrap_model_call(_Request(), _handler)
-
-    # The message sequence and system prompt are never modified; the index
-    # rides on the memory_recall tool description instead.
-    assert result.messages == [previous, current, assistant, tool]
-    assert current.content == "current question"
-    assert result.system_message.content == "base"
-    recall = next(t for t in result.tools if t.name == "memory_recall")
-    assert "<memory_index_context>" in recall.description
-
-
 def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -> None:
     from inspect import getsource
 
@@ -760,36 +668,6 @@ def _load_module(dotted: str):
     import importlib
 
     return importlib.import_module(dotted)
-
-
-@pytest.mark.asyncio
-async def test_memory_index_snapshotted_per_user_with_ttl(monkeypatch) -> None:
-    """With a session_id the index is built once and reused (Codex-style
-    session snapshot), so auto memory capture cannot churn the tools prefix
-    every turn."""
-    from src.infra.agent.middleware import prompt_injection
-
-    # 模块级 dict 是共享状态——两个都要清，防前序测试污染（见下方 test_memory_index_skipped_when_user_disabled）
-    prompt_injection._MEMORY_INDEX_SNAPSHOTS.clear()
-    prompt_injection._MEMORY_INDEX_USER_SNAPSHOTS.clear()
-    calls = {"n": 0}
-
-    async def _uncached(_user_id: str) -> str:
-        calls["n"] += 1
-        return "<memory_index>\n- item\n</memory_index>"
-
-    monkeypatch.setattr(prompt_injection, "_build_memory_index_uncached", _uncached)
-
-    first = await prompt_injection._build_memory_index_for_user("u1", session_id="s1")
-    second = await prompt_injection._build_memory_index_for_user("u1", session_id="s1")
-    assert first == second == "<memory_index>\n- item\n</memory_index>"
-    assert calls["n"] == 1
-
-    # Without a session_id (legacy call sites) every call rebuilds.
-    await prompt_injection._build_memory_index_for_user("u1")
-    assert calls["n"] == 2
-
-    prompt_injection._MEMORY_INDEX_SNAPSHOTS.clear()
 
 
 @pytest.mark.asyncio

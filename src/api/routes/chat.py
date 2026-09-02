@@ -26,8 +26,11 @@ from src.api.routes.chat_sse import (  # noqa: F401 - 供 SSE 路由与既有测
 from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
-from src.infra.chat.model_facing import (
-    build_model_facing_message,
+from src.infra.chat.session_baseline import (
+    _should_inject_session_memory,
+    _time_report_due,
+    _turn_context_signature,
+    assemble_first_turn_message,
 )
 from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
@@ -159,8 +162,13 @@ async def _update_session_config(
     request: AgentRequest,
     language: str,
     trace_id: str | None = None,
+    prompt_state: dict | None = None,
 ) -> None:
-    """Update session metadata with conversation configuration."""
+    """Update session metadata with conversation configuration.
+
+    prompt_state 携带 Codex 式注入的会话状态（报时水位/目标签名），
+    供后续轮次做漂移/去重判定。
+    """
     session_manager = SessionManager()
     conversation_config = build_conversation_config(
         session_id=session_id,
@@ -170,6 +178,8 @@ async def _update_session_config(
         language=language,
         trace_id=trace_id,
     )
+    if prompt_state:
+        conversation_config.update(prompt_state)
     await session_manager.update_session_metadata(session_id, conversation_config)
 
 
@@ -347,30 +357,6 @@ async def _execute_agent_stream(
 register_executor("agent_stream", _execute_agent_stream)
 
 
-async def session_has_prior_messages(session_id: str) -> bool:
-    """会话是否已有历史消息（按 traces 计数）。"""
-    from src.infra.storage.mongodb import get_mongo_client
-
-    client = get_mongo_client()
-    count = await client[settings.MONGODB_DB][settings.MONGODB_TRACES_COLLECTION].count_documents(
-        {"session_id": session_id}
-    )
-    return count > 0
-
-
-async def _should_inject_session_memory(session_id: str | None) -> bool:
-    """Codex 式会话基线：记忆块只在会话首轮注入一次，之后 append-only——
-    逐轮注入的内容各异的块会击穿 provider 前缀缓存（生产实测）。
-    开关关闭时零查询成本。"""
-    if not getattr(settings, "ENABLE_MEMORY", False):
-        return False
-    if not getattr(settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", False):
-        return False
-    if not session_id:
-        return True  # 全新会话，必为首轮
-    return not await session_has_prior_messages(session_id)
-
-
 @router.post("/stream")
 async def chat_stream(
     request: AgentRequest,
@@ -435,15 +421,33 @@ async def chat_stream(
     # submit / submit_arq / scheduler 均携带 agent_options）
     apply_response_language(request.agent_options, http_request.headers.get("accept-language"))
 
-    formatted_message = await build_model_facing_message(
-        agent_message,
-        request.user_timezone,
-        request.enabled_skills,
-        active_goal,
-        request.auto_mode,
-        user.sub,
-        include_memory=await _should_inject_session_memory(request.session_id),
+    # Codex 式装配（稳定在前、变化在后，全部写时一次性）：
+    # - 记忆索引基线：仅会话首轮，置于消息头部（同用户跨会话字节稳定，
+    #   公共前缀延伸到索引末尾）
+    # - 报时漂移：首轮或超阈值才带时间戳
+    # - goal/自动模式签名去重：目标未变不重复注入
+    include_memory = await _should_inject_session_memory(request.session_id)
+    time_due = _time_report_due(existing_metadata)
+    tc_signature = _turn_context_signature(active_goal, request.auto_mode)
+
+    formatted_message, inject_turn_context = await assemble_first_turn_message(
+        raw_message=agent_message,
+        user_timezone=request.user_timezone,
+        enabled_skills=request.enabled_skills,
+        active_goal=active_goal,
+        auto_mode=request.auto_mode,
+        user_id=user.sub,
+        include_memory=include_memory,
+        include_timestamp=time_due,
+        last_tc_signature=(existing_metadata or {}).get("prompt_turn_context_signature"),
     )
+
+    # 本轮注入状态写回会话元数据（供后续轮次判定）
+    prompt_state = {"prompt_turn_context_signature": tc_signature}
+    if time_due:
+        from src.infra.utils.datetime import utc_now
+
+        prompt_state["prompt_time_reported_at"] = utc_now().isoformat()
 
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
@@ -589,6 +593,7 @@ async def chat_stream(
                 request,
                 preferred_language,
                 trace_id=trace_id,
+                prompt_state=prompt_state,
             )
 
             return {
@@ -674,6 +679,7 @@ async def chat_stream(
         request,
         preferred_language,
         trace_id=trace_id,
+        prompt_state=prompt_state,
     )
 
     return {
