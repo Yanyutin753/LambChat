@@ -736,7 +736,7 @@ def test_main_agents_assemble_goal_and_auto_mode_as_ordinary_prompt_sections() -
     from src.agents.fast_agent.nodes import fast_agent_node
     from src.agents.search_agent.nodes import agent_node
     from src.agents.team_agent.nodes import team_router_node
-    from src.api.routes.chat import append_turn_context_prompt as _chat_import  # noqa: F401
+    from src.infra.chat.turn_context import append_turn_context_prompt as _chat_import  # noqa: F401
 
     chat_source = getsource(_load_module("src.api.routes.chat"))
     # Goal/auto-mode context is persisted into the user message at write time

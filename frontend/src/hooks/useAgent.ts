@@ -16,10 +16,10 @@ import {
   type SubagentStackItem,
   type HistoryEvent,
   type UseAgentReturn,
-  type ActiveGoalSpec,
   type ChatSubmissionCallbacks,
 } from "./useAgent/types";
 import { applyRecommendQuestionsToMessages } from "./useAgent/recommendQuestionsUpdate";
+import { useChatRuntimeStates } from "./useAgent/loadingStates";
 import {
   reconstructMessagesFromEvents,
   getLastEventTimestamp,
@@ -68,29 +68,19 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     Permission.FEEDBACK_WRITE,
   ]);
 
-  // State
+  // State（messages + 运行态簇；簇实现下沉 loadingStates.ts 控行数红线）
   const [messages, setMessages] = useState<Message[]>([]);
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [historyLoadGeneration, setHistoryLoadGeneration] = useState(0);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>("disconnected");
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
-  const [newlyCreatedSession, setNewlyCreatedSession] =
-    useState<BackendSession | null>(null);
-  const [isInitializingSandbox, setIsInitializingSandbox] = useState(false);
-  const [isRecallingMemory, setIsRecallingMemory] = useState(false);
-  const [sandboxError, setSandboxError] = useState<string | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [activeGoal, setActiveGoal] = useState<ActiveGoalSpec | null>(null);
-  const [goalsByRunId, setGoalsByRunId] = useState<
-    Record<string, ActiveGoalSpec>
-  >({});
-  const [goalModeEnabled, setGoalModeEnabled] = useState(false);
+  const {
+    isLoading, setIsLoading, isLoadingHistory, setIsLoadingHistory,
+    historyLoadGeneration, setHistoryLoadGeneration, sessionId, setSessionId,
+    currentProjectId, setCurrentProjectId, error, setError,
+    connectionStatus, setConnectionStatus, currentRunId, setCurrentRunId,
+    newlyCreatedSession, setNewlyCreatedSession, isInitializingSandbox,
+    setIsInitializingSandbox, isRecallingMemory, setIsRecallingMemory,
+    sandboxError, setSandboxError, selectedTeamId, setSelectedTeamId,
+    activeGoal, setActiveGoal, goalsByRunId, setGoalsByRunId,
+    goalModeEnabled, setGoalModeEnabled,
+  } = useChatRuntimeStates();
   const [autoModeEnabled, setAutoModeEnabled] = useAutoModeSetting();
 
   // Refs for connection management
