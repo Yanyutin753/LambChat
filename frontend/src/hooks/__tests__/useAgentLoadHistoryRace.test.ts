@@ -10,7 +10,12 @@ test("loadHistory ignores stale async results instead of overwriting the active 
   expect(source).toMatch(/loadHistoryRequestIdRef/);
   expect(source).toMatch(/isStaleHistoryLoad/);
   expect(source).toMatch(/loadHistoryRequestIdRef\.current \+= 1/);
-  expect(source).toMatch(
+  // 状态声明已下沉 loadingStates.ts（useAgent.ts 行数红线）
+  const statesSource = readFileSync(
+    resolve(__dirname, "../useAgent/loadingStates.ts"),
+    "utf8",
+  );
+  expect(statesSource).toMatch(
     /const \[historyLoadGeneration, setHistoryLoadGeneration\]/,
   );
   expect(source).toMatch(
