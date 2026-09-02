@@ -131,7 +131,7 @@ class TaskRecoveryService:
         heartbeat: Any,
         ensure_executor: Callable[[], Any],
         submit_task: Callable[..., Awaitable[tuple[str, str]]],
-        mark_run_failed: Callable[[str, str, Any], Awaitable[None]],
+        mark_run_failed: Callable[..., Awaitable[None]],
         submit_arq_task: Callable[..., Awaitable[tuple[str, str]]] | None = None,
     ) -> None:
         self._storage = storage
@@ -169,8 +169,20 @@ class TaskRecoveryService:
             logger.warning("Failed to load user roles for recovery: %s", e)
             return []
 
-    async def mark_run_failed(self, run_id: str, reason: str, session: Any) -> None:
-        """Mark a stale run and its trace as failed before recovery."""
+    async def mark_run_failed(
+        self,
+        run_id: str,
+        reason: str,
+        session: Any,
+        *,
+        recoverable: bool = True,
+    ) -> None:
+        """Mark a stale run and its trace as failed before recovery.
+
+        recoverable=False 用于「恢复次数已达上限」的终态终止：此时会话不得
+        再被标为可恢复，否则 startup 扫描谓词（task_recoverable=True +
+        task_error_code=server_restart）每轮都会重新接管，形成恢复风暴。
+        """
         executor = self._ensure_executor()
         await executor._update_session_status(
             session.id,
@@ -182,7 +194,7 @@ class TaskRecoveryService:
             session.id,
             SessionUpdate(
                 metadata={
-                    "task_recoverable": True,
+                    "task_recoverable": recoverable,
                     "task_error_code": "server_restart",
                     "interrupted_run_id": run_id,
                 }
@@ -487,12 +499,16 @@ class TaskRecoveryService:
             attempts = int(session_metadata.get("resume_attempts") or 0)
             if attempts >= MAX_SEAMLESS_RESUME_ATTEMPTS:
                 # 毒消息防护：同 run 反复中断说明重跑本身在触发崩溃，
-                # 终态失败（写 error 事件 + trace 终结），扫描器不再接管。
+                # 终态失败（写 error 事件 + trace 终结）。recoverable=False
+                # 是关键：会话不再满足扫描谓词，否则每轮扫描都会重新接管，
+                # 反复重复本分支（生产曾因此 25h 刷 500+ 轮恢复风暴）。
                 await self._mark_run_failed(
                     source_run_id,
                     f"Resume attempts exhausted ({attempts})",
                     session,
+                    recoverable=False,
                 )
+                await self.release_recovery_lock(lock_key, lock_token)
                 return {
                     "success": False,
                     "run_id": None,
