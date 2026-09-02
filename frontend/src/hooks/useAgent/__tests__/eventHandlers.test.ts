@@ -39,6 +39,7 @@ function createContext(
       connectionStatuses.push(status);
     },
     setIsInitializingSandbox: () => undefined,
+    setIsRecallingMemory: () => undefined,
     setSandboxError: () => undefined,
     setActiveGoal: (updater: React.SetStateAction<ActiveGoalSpec | null>) => {
       activeGoal =

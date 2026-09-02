@@ -1,23 +1,12 @@
-/** status(memory) 事件——后台记忆注入的进度反馈（提交与召回解耦后）。 */
+/** status(memory) 事件——后台记忆注入的界面内加载状态（提交与召回解耦后）。 */
 import type { Message } from "../../../types";
 import { handleStreamEvent } from "../eventHandlers.ts";
 import type { EventHandlerContext } from "../eventHandlers.ts";
 import type { StreamEvent } from "../types.ts";
 
-const toastCalls: Array<{ op: string; id?: string }> = [];
-
-vi.mock("react-hot-toast", () => ({
-  default: {
-    loading: (_msg: string, opts?: { id?: string }) =>
-      toastCalls.push({ op: "loading", id: opts?.id }),
-    dismiss: (id?: string) => toastCalls.push({ op: "dismiss", id }),
-    success: () => undefined,
-    error: () => undefined,
-  },
-}));
-
-function createContext(): EventHandlerContext {
-  return {
+function createContext() {
+  const recallStates: boolean[] = [];
+  const ctx: EventHandlerContext = {
     sessionIdRef: { current: "session-1" },
     processedEventIdsRef: { current: new Set<string>() },
     lastHistoryTimestampRef: { current: null },
@@ -29,6 +18,7 @@ function createContext(): EventHandlerContext {
     >,
     setConnectionStatus: () => undefined,
     setIsInitializingSandbox: () => undefined,
+    setIsRecallingMemory: (loading: boolean) => recallStates.push(loading),
     setSandboxError: () => undefined,
     setActiveGoal: (() => undefined) as unknown as React.Dispatch<
       React.SetStateAction<import("../types").ActiveGoalSpec | null>
@@ -37,6 +27,7 @@ function createContext(): EventHandlerContext {
       React.SetStateAction<Record<string, import("../types").ActiveGoalSpec>>
     >,
   };
+  return { ctx, recallStates };
 }
 
 function event(name: string, payload: unknown, id: string): StreamEvent {
@@ -49,45 +40,16 @@ function event(name: string, payload: unknown, id: string): StreamEvent {
 }
 
 describe("memory recall status event", () => {
-  beforeEach(() => {
-    toastCalls.length = 0;
-  });
-
-  it("shows loading toast on status stage=memory", async () => {
-    handleStreamEvent(
-      event("status", { stage: "memory" }, "e1"),
-      "m1",
-      "e1",
-      undefined,
-      createContext(),
-    );
-    await vi.waitFor(() => {
-      expect(
-        toastCalls.some((c) => c.op === "loading" && c.id === "chat-memory-recall"),
-      ).toBe(true);
-    });
-  });
-
-  it("dismisses recall toast when metadata arrives", async () => {
-    const ctx = createContext();
+  it("sets recall state on status stage=memory and clears on metadata", () => {
+    const { ctx, recallStates } = createContext();
     handleStreamEvent(event("status", { stage: "memory" }, "e1"), "m1", "e1", undefined, ctx);
     handleStreamEvent(event("metadata", {}, "e2"), "m1", "e2", undefined, ctx);
-    await vi.waitFor(() => {
-      expect(
-        toastCalls.some((c) => c.op === "dismiss" && c.id === "chat-memory-recall"),
-      ).toBe(true);
-    });
+    expect(recallStates).toEqual([true, false]);
   });
 
-  it("ignores other status stages", async () => {
-    handleStreamEvent(
-      event("status", { stage: "other" }, "e3"),
-      "m1",
-      "e3",
-      undefined,
-      createContext(),
-    );
-    await new Promise((r) => setTimeout(r, 30));
-    expect(toastCalls).toHaveLength(0);
+  it("ignores other status stages", () => {
+    const { ctx, recallStates } = createContext();
+    handleStreamEvent(event("status", { stage: "other" }, "e3"), "m1", "e3", undefined, ctx);
+    expect(recallStates).toEqual([]);
   });
 });

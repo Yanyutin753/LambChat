@@ -33,6 +33,7 @@ function createLiveContext(initial: Message[]): {
       setIsInitializingSandbox: () => {
         sandboxCleared += 1;
       },
+      setIsRecallingMemory: () => undefined,
       setSandboxError: (error: unknown) => {
         if (error === null) sandboxErrorCleared += 1;
       },
