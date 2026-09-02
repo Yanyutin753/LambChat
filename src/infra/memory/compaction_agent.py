@@ -36,6 +36,16 @@ _LOCAL_ATTEMPT_CACHE_LIMIT = 500
 _COMPACTION_INVENTORY_MAX_CHARS = 80_000
 COMPACTION_SCAN_CANDIDATE_LIMIT = 100
 
+# 教训（self_evolved）有 rule:/why:/how_to_apply 固定 schema，写入时经形状校验；
+# 压缩改写会破坏形状且校验不会重跑——与 manual 同级保护，不参与压缩计数与清单。
+_COMPACTION_EXCLUDED_SOURCES = ["manual", "self_evolved"]
+
+
+def _compaction_candidate_query(user_id: str) -> dict[str, Any]:
+    """压缩候选查询（按用户）——排除 manual 与 self_evolved。"""
+    return {"user_id": user_id, "source": {"$nin": _COMPACTION_EXCLUDED_SOURCES}}
+
+
 _COMPACTION_SYSTEM_PROMPT = (
     "You are a dedicated memory compaction agent for LambChat.\n"
     "Your job is to organize automatic cross-session memories for one user into concise, "
@@ -50,11 +60,13 @@ _COMPACTION_SYSTEM_PROMPT = (
     "- memory_compaction_update: update one existing automatic memory. Arguments: "
     "memory_id, content, optional title, summary, tags, context. "
     'tags MUST be a JSON array of strings (e.g. [\\"a\\", \\"b\\"]), never a plain string. '
+    "Never use it on self-evolved lessons. "
     "Use it on the canonical "
     "memory after merging durable facts; metadata is optional; omitted fields are filled "
     "automatically.\n"
     "- memory_compaction_delete: delete one redundant or low-value automatic memory. "
-    "Arguments: memory_id. Never use it on manual memories.\n\n"
+    "Arguments: memory_id. Never use it on manual memories or self-evolved lessons "
+    "(context=feedback_rule, fixed rule:/why:/how_to_apply shape).\n\n"
     "Follow these steps:\n\n"
     "Step 1 — Candidate selection (from the inventory below):\n"
     "- First scan titles, summaries, tags, context, updated_at, access_count, and content "
@@ -80,7 +92,8 @@ _COMPACTION_SYSTEM_PROMPT = (
     "- Delete ONLY after durable facts are preserved in the canonical memory, or the memory "
     "is confirmed vague/stale/temporary/contradicted.\n"
     "- Prefer reducing total memory count when facts are already represented elsewhere. "
-    "NEVER delete manual memories. NEVER delete a unique durable fact.\n\n"
+    "NEVER delete manual memories. NEVER delete self-evolved lessons. "
+    "NEVER delete a unique durable fact.\n\n"
     "Step 4 — Finish:\n"
     "- When done, respond with a summary: checked count, updated count, deleted count, "
     "merged topics, unchanged items.\n"
@@ -179,9 +192,7 @@ class MemoryCompactionAgent:
             )
             return {"triggered": False, "reason": "unsupported_backend"}
 
-        count = await backend._collection.count_documents(
-            {"user_id": user_id, "source": {"$ne": "manual"}}
-        )
+        count = await backend._collection.count_documents(_compaction_candidate_query(user_id))
         if count < self.threshold:
             logger.info(
                 "[MemoryCompactionAgent] after-write skipped for %s: count=%s threshold=%s",
@@ -309,7 +320,7 @@ class MemoryCompactionAgent:
 
         try:
             memory_count = await backend._collection.count_documents(
-                {"user_id": user_id, "source": {"$ne": "manual"}}
+                _compaction_candidate_query(user_id)
             )
             if memory_count < 3:
                 return {"agent": "deepagent", "checked": memory_count, "skipped": True}
@@ -389,7 +400,7 @@ class MemoryCompactionAgent:
 
         cursor = backend._collection.aggregate(
             [
-                {"$match": {"source": {"$ne": "manual"}}},
+                {"$match": {"source": {"$nin": _COMPACTION_EXCLUDED_SOURCES}}},
                 {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
                 {"$match": {"count": {"$gte": self.threshold}}},
                 {"$sort": {"count": -1}},
@@ -454,6 +465,8 @@ class MemoryCompactionAgent:
                 return {"success": False, "error": "memory_not_found"}
             if existing.get("source") == "manual":
                 return {"success": False, "error": "manual_memory_protected"}
+            if existing.get("source") == "self_evolved":
+                return {"success": False, "error": "self_evolved_memory_protected"}
             filled_title, filled_summary, filled_tags = self._fill_compaction_metadata(
                 content=content,
                 existing=existing,
@@ -476,7 +489,7 @@ class MemoryCompactionAgent:
 
         @tool
         async def memory_compaction_delete(
-            memory_id: Annotated[str, "Existing non-manual memory id to delete"],
+            memory_id: Annotated[str, "Existing non-manual memory to delete"],
         ) -> dict[str, Any]:
             """Delete one redundant automatic memory after its facts were preserved elsewhere."""
             existing = await backend._collection.find_one(
@@ -487,6 +500,8 @@ class MemoryCompactionAgent:
                 return {"success": False, "error": "memory_not_found"}
             if existing.get("source") == "manual":
                 return {"success": False, "error": "manual_memory_protected"}
+            if existing.get("source") == "self_evolved":
+                return {"success": False, "error": "self_evolved_memory_protected"}
             result = await backend.delete(user_id, memory_id)
             if result.get("success"):
                 tool_metrics["deleted"] += 1
@@ -572,7 +587,7 @@ class MemoryCompactionAgent:
             "content_store_key": 1,
         }
         cursor = backend._collection.find(
-            {"user_id": user_id, "source": {"$ne": "manual"}},
+            _compaction_candidate_query(user_id),
             projection,
         ).sort("updated_at", 1)
         result: list[dict[str, Any]] = []

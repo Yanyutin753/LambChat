@@ -118,6 +118,8 @@ async def test_get_memory_model_uses_native_model_id(monkeypatch: pytest.MonkeyP
         fake_resolve_model_reference,
     )
     monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_MODEL", "memory-model-id")
+    # 钉住 max_tokens——测试不得依赖开发者本地 .env 的覆盖值
+    monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_MAX_TOKENS", 2000)
     monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_API_BASE", "https://unused.test/v1")
     monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_API_KEY", "unused-key")
 
@@ -151,6 +153,7 @@ async def test_get_memory_model_uses_default_model_when_native_model_empty(
         fake_resolve_model_reference,
     )
     monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_MODEL", "")
+    monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_MAX_TOKENS", 2000)
 
     await NativeMemoryBackend._get_memory_model()
 

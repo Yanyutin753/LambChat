@@ -42,6 +42,10 @@ _SECRET_PATTERNS = [
     re.compile(r"((?:api[_-]?key|token|secret|password)\s*[:=]\s*\S{8,})", re.I),
 ]
 
+# 写时注入到用户消息的系统块（memory_context/turn_context）——反思输入须剥离，
+# 只留用户真实表达：既是降噪，也防教训提炼到注入块上。
+_INJECTED_BLOCK_RE = re.compile(r"\s*<(memory_context|turn_context)>.*?</\1>\s*", re.S)
+
 
 @dataclass(frozen=True)
 class SignalRun:
@@ -49,6 +53,13 @@ class SignalRun:
     session_id: str
     kind: str  # "down" | "failed" | "up"
     comment: Optional[str] = None
+
+
+def _strip_injected_blocks(text: str) -> str:
+    """剥离写时注入的 <memory_context>/<turn_context> 系统块，保留用户真实表达。"""
+    if not text:
+        return text
+    return _INJECTED_BLOCK_RE.sub("", text).strip()
 
 
 def _validate_and_sanitize_lesson(content: str) -> Optional[str]:
@@ -304,25 +315,34 @@ async def _increment_daily_quota(user_id: str, stored: int) -> None:
         logger.debug("[MemoryEvolution] quota increment failed: %s", e)
 
 
-async def _load_exchange(run_id: str, session_id: str = "") -> tuple[str, str]:
-    """从 trace 取该 run 的用户消息与最终助手回复（累积合并 chunk）。"""
+async def _load_exchange(run_id: str, session_id: str = "", user_id: str = "") -> tuple[str, str]:
+    """从 trace 取该 run 的用户消息与最终助手回复（累积合并 chunk）。
+
+    查询带 user_id 过滤（防御性隔离：run_id 不作为唯一凭证）；
+    用户消息剥离注入块后再裁剪——剥离释放的预算留给真实内容。
+    """
     from src.infra.storage.mongodb import get_mongo_client
 
     client = get_mongo_client()
     db = client[settings.MONGODB_DB]
 
-    query: dict[str, Any] = {"run_id": run_id}
+    def _scope(query: dict[str, Any]) -> dict[str, Any]:
+        if user_id:
+            query["user_id"] = user_id
+        return query
+
+    query = _scope({"run_id": run_id})
     if session_id:
-        query = {"session_id": session_id, "run_id": run_id}
+        query["session_id"] = session_id
 
     events: list[dict[str, Any]] = []
     trace = await db[settings.MONGODB_TRACES_COLLECTION].find_one(query, {"events": 1})
     if trace:
         events = trace.get("events") or []
     if not events:
-        chunks_query: dict[str, Any] = {"run_id": run_id}
+        chunks_query = _scope({"run_id": run_id})
         if session_id:
-            chunks_query = {"session_id": session_id, "run_id": run_id}
+            chunks_query["session_id"] = session_id
         chunks = (
             await db[settings.MONGODB_TRACE_EVENT_CHUNKS_COLLECTION]
             .find(chunks_query, {"events": 1})
@@ -359,7 +379,9 @@ async def _load_exchange(run_id: str, session_id: str = "") -> tuple[str, str]:
         if total_len >= EXCHANGE_CLIP_CHARS:
             break
     assistant_msg = "\n".join(reversed(parts))
-    return user_msg[:EXCHANGE_CLIP_CHARS], assistant_msg[:EXCHANGE_CLIP_CHARS]
+    return _strip_injected_blocks(user_msg)[:EXCHANGE_CLIP_CHARS], assistant_msg[
+        :EXCHANGE_CLIP_CHARS
+    ]
 
 
 REFLECT_SYSTEM_PROMPT = """You are an offline reflection engine distilling behavioral lessons \
@@ -390,7 +412,7 @@ If nothing worth extracting, call no tool."""
 async def reflect_on_run(backend, user_id: str, signal: SignalRun) -> dict:
     """对单个信号 run 跑反思 LLM，产出教训则 retain（至多 1 条）。"""
     try:
-        user_msg, assistant_msg = await _load_exchange(signal.run_id, signal.session_id)
+        user_msg, assistant_msg = await _load_exchange(signal.run_id, signal.session_id, user_id)
     except Exception as e:
         logger.info("[MemoryEvolution] exchange load failed for %s: %s", signal.run_id, e)
         return {"stored": 0, "skipped": True}
