@@ -10,6 +10,7 @@ import {
 } from "./items/persistentToolPanelState";
 import { SidebarMarkdownContent } from "./SidebarMarkdownContent";
 import { buildStreamingThinkingPreview } from "./thinkingPreview";
+import { useSmoothStreamText } from "./useSmoothStreamText";
 
 export function ThinkingBlock({
   content,
@@ -24,6 +25,9 @@ export function ThinkingBlock({
 
   const status: CollapsibleStatus = isStreaming ? "loading" : "success";
 
+  // 思考文案平滑流出：片段到达后打字机式渐显，而非整块蹦出；历史回放全量
+  const displayContent = useSmoothStreamText(content, !!isStreaming);
+
   useEffect(() => {
     if (!isPersistentToolPanelOpen(panelKey)) return;
     updatePersistentToolPanel(
@@ -33,7 +37,7 @@ export function ThinkingBlock({
         children: (
           <div className="p-3 sm:p-4 [&_.markdown-preview]:thinking-content">
             <SidebarMarkdownContent
-              content={content}
+              content={displayContent}
               isStreaming={isStreaming}
             />
           </div>
@@ -41,15 +45,15 @@ export function ThinkingBlock({
       }),
       panelKey,
     );
-  }, [content, isStreaming, panelKey, status]);
+  }, [displayContent, isStreaming, panelKey, status]);
 
   // Show a brief preview of the reasoning content in the pill label
   const preview = useMemo(() => {
-    if (!content) return "";
-    if (isStreaming) return buildStreamingThinkingPreview(content);
-    const text = content.replace(/\n+/g, " ").trim();
+    if (!displayContent) return "";
+    if (isStreaming) return buildStreamingThinkingPreview(displayContent);
+    const text = displayContent.replace(/\n+/g, " ").trim();
     return text.length > 80 ? text.slice(0, 80) + "…" : text;
-  }, [content, isStreaming]);
+  }, [displayContent, isStreaming]);
 
   const label = isStreaming
     ? preview
@@ -75,7 +79,7 @@ export function ThinkingBlock({
           children: (
             <div className="p-3 sm:p-4 [&_.markdown-preview]:thinking-content">
               <SidebarMarkdownContent
-                content={content}
+                content={displayContent}
                 isStreaming={isStreaming}
               />
             </div>

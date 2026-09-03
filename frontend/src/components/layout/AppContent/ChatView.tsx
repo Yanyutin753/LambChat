@@ -603,8 +603,8 @@ export function ChatView({
     () => (
       <>
         {isRecallingMemory && (
-          <div className="flex items-center gap-2 px-4 py-2 text-xs text-[var(--theme-text-tertiary)]">
-            <Loader2 size={14} className="animate-spin" />
+          <div className="animate-in fade-in duration-300 flex items-center gap-2 px-4 py-2 text-xs font-medium text-amber-600/90 dark:text-amber-400/90 select-none">
+            <Loader2 size={12} className="shrink-0 animate-spin text-amber-500 dark:text-amber-400" />
             {t("chat.memoryRecalling")}
           </div>
         )}
