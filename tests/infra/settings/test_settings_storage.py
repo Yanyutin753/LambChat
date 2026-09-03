@@ -378,3 +378,47 @@ async def test_settings_service_get_offloads_env_json_parsing(
     value = await settings_service.get("WELCOME_SUGGESTIONS")
 
     assert value == {"en": []}
+
+
+@pytest.mark.asyncio
+async def test_malformed_row_skipped_not_crash(monkeypatch):
+    """单行坏数据（如 updated_at 为 Date 类型）不得炸掉整个加载——
+    跳过该行回退默认值，其余行正常（生产实测踩坑：CrashLoop 全站宕机）。"""
+    from src.infra.settings.storage import SettingsStorage
+
+    class FakeCol:
+        async def find_one(self, query):
+            key = query["_id"]
+            if key == "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED":
+                # 坏行：updated_at 是 Date（正确应为 ISO 字符串）
+                return {
+                    "_id": key,
+                    "value": True,
+                    "updated_at": __import__("datetime").datetime(2026, 9, 2),
+                }
+            if key == "ENABLE_MEMORY":
+                return {
+                    "_id": key,
+                    "value": True,
+                    "updated_at": "2026-09-02T03:20:51.128280+00:00",
+                }
+            return None
+
+    class FakeDB:
+        def __getitem__(self, name):
+            return FakeCol()
+
+    class FakeClient:
+        def __getitem__(self, name):
+            return FakeDB()
+
+    monkeypatch.setattr("src.infra.storage.mongodb.get_mongo_client", lambda: FakeClient())
+    storage = SettingsStorage()
+    storage._collection = FakeCol()
+
+    # 坏行：返回 None（视为不存在 → 回退默认），不抛 ValidationError
+    bad = await storage.get("NATIVE_MEMORY_QUERY_CONTEXT_ENABLED")
+    assert bad is None
+    # 好行：正常返回
+    good = await storage.get("ENABLE_MEMORY")
+    assert good is not None and good.value is True

@@ -334,3 +334,72 @@ async def test_get_usage_stats_defaults_admin_to_own_usage(monkeypatch) -> None:
     )
 
     assert storage.calls[0]["user_id"] == "admin-1"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_exposes_cache_read_share(monkeypatch) -> None:
+    """缓存命中率指标必须透出：summary.cache_read_share + 每日趋势——
+    命中率塌了能在用量页第一时间看到，不用手动查库。"""
+
+    # 层1：_format_dashboard 从聚合管道输出计算命中率
+    from src.infra.usage.storage import _format_dashboard
+
+    formatted = _format_dashboard(
+        {
+            "summary": [
+                {
+                    "total_requests": 10,
+                    "total_tokens": 1000,
+                    "total_input_tokens": 800,
+                    "total_output_tokens": 200,
+                    "total_cache_read_tokens": 600,
+                    "total_duration": 5.0,
+                    "total_tool_calls": 3,
+                    "total_cost_usd": 0.1,
+                    "unpriced_requests": 0,
+                    "scheduled_runs": 0,
+                    "failed_requests": 0,
+                    "successful_requests": 10,
+                }
+            ],
+            "daily": [
+                {
+                    "_id": "2026-09-03",
+                    "requests": 4,
+                    "tokens": 400,
+                    "duration": 2.0,
+                    "cost_usd": 0.04,
+                    "scheduled_runs": 0,
+                    "failed_requests": 0,
+                    "tool_calls": 1,
+                    "input_tokens": 300,
+                    "cache_read_tokens": 250,
+                }
+            ],
+            "agents": [],
+            "teams": [],
+            "personas": [],
+            "models": [],
+            "users": [],
+            "sources": [],
+            "triggers": [],
+        }
+    )
+    assert abs(formatted["summary"]["cache_read_share"] - 0.75) < 1e-6
+    assert abs(formatted["daily"][0]["cache_read_share"] - 250 / 300) < 1e-6
+
+    # 层2：响应模型透传（schema 已声明 cache_read_share，不再被 pydantic 丢弃）
+    class _Storage:
+        async def get_usage_dashboard(self, **kwargs):
+            return formatted
+
+    monkeypatch.setattr(usage_routes, "get_usage_storage", lambda: _Storage())
+    user = TokenPayload(sub="admin-1", username="Admin", permissions=["usage:read"])
+
+    resp = await usage_routes.get_usage_dashboard(
+        user_id=None, period="7d", search=None, start_date=None, user=user
+    )
+
+    assert abs(resp.summary.cache_read_share - 0.75) < 1e-6
+    assert resp.daily[0].cache_read_tokens == 250
+    assert abs(resp.daily[0].cache_read_share - 250 / 300) < 1e-6

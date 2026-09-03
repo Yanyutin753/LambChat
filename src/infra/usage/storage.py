@@ -413,6 +413,8 @@ class UsageStorage:
                                 },
                                 "requests": {"$sum": 1},
                                 "tokens": {"$sum": "$total_tokens"},
+                                "input_tokens": {"$sum": "$input_tokens"},
+                                "cache_read_tokens": {"$sum": "$cache_read_tokens"},
                                 "duration": {"$sum": "$duration"},
                                 "cost_usd": {"$sum": "$cost_usd"},
                                 "scheduled_runs": {
@@ -692,6 +694,13 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
             "scheduled_runs": _as_int(item.get("scheduled_runs")),
             "failed_requests": _as_int(item.get("failed_requests")),
             "tool_calls": _as_int(item.get("tool_calls")),
+            "input_tokens": _as_int(item.get("input_tokens")),
+            "cache_read_tokens": _as_int(item.get("cache_read_tokens")),
+            "cache_read_share": (
+                _as_int(item.get("cache_read_tokens")) / _as_int(item.get("input_tokens"))
+                if _as_int(item.get("input_tokens"))
+                else 0.0
+            ),
         }
         for item in doc.get("daily", [])
         if item.get("_id")
