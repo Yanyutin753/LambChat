@@ -156,13 +156,8 @@ async def test_model_facing_message_skips_memory_when_deferred(
     assert "<memory_context>" not in message
 
 
-@pytest.mark.asyncio
-async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.MonkeyPatch):
-    """Codex 式会话基线：注入只在 POST 首轮发生，executor 逐轮注入已移除
-    （逐轮变化块是前缀缓存杀手——生产实测确认）。"""
-    from src.api.routes import chat as chat_route
-
-    captured = {}
+def _fake_agent_factory(captured: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    """FakeAgent：捕获 executor 实际喂给 agent.stream 的最终消息。"""
 
     class FakeAgent:
         def stream(self, message, *a, **kw):
@@ -178,9 +173,35 @@ async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.Mon
 
     monkeypatch.setattr("src.agents.core.AgentFactory.get", fake_get)
 
-    class FakePresenter:
-        run_id = "run-test"
-        hitl_suspended = False
+
+class _FakePresenter:
+    run_id = "run-test"
+    hitl_suspended = False
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_emits_status_then_injects_first_round_memory(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """首轮记忆装配移回 executor 后台：先发 status{stage:memory} 让前端出
+    加载行（沙箱初始化式），注入完成才开跑 agent——提交延迟与召回解耦。"""
+    from src.api.routes import chat as chat_route
+
+    captured = {}
+    _fake_agent_factory(captured, monkeypatch)
+
+    async def fake_first_round(session_id, *, exclude_run_id=None):
+        return True
+
+    monkeypatch.setattr(chat_route, "_should_inject_session_memory", fake_first_round)
+
+    injected = {}
+
+    async def fake_inject(message: str, *, user_id: str, raw_query: str | None) -> str:
+        injected["args"] = (user_id, raw_query)
+        return f"{message}\n\n<memory_context>注入块</memory_context>"
+
+    monkeypatch.setattr(chat_route, "inject_session_memory", fake_inject)
 
     events = []
     gen = chat_route._execute_agent_stream(
@@ -188,7 +209,46 @@ async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.Mon
         agent_id="fast_agent",
         message="base message",
         user_id="u1",
-        presenter=FakePresenter(),
+        presenter=_FakePresenter(),
+        recommendation_input="原始问题",
+    )
+    async for ev in gen:
+        events.append(ev)
+
+    assert events[0] == {"event": "status", "data": {"stage": "memory"}}
+    assert events[1] == {"event": "status", "data": {"stage": "memory_done"}}
+    assert injected["args"] == ("u1", "原始问题")
+    assert captured["message"].endswith("</memory_context>"), "agent 收到的必须是注入后的消息"
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_no_status_or_injection_when_not_first_round(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """非首轮：不发 status、不注入，消息原样透传——前缀缓存 append-only
+    语义不变。"""
+    from src.api.routes import chat as chat_route
+
+    captured = {}
+    _fake_agent_factory(captured, monkeypatch)
+
+    async def fake_not_first_round(session_id, *, exclude_run_id=None):
+        return False
+
+    monkeypatch.setattr(chat_route, "_should_inject_session_memory", fake_not_first_round)
+
+    async def unexpected_inject(message: str, *, user_id: str, raw_query: str | None) -> str:
+        raise AssertionError("非首轮不应触发记忆注入")
+
+    monkeypatch.setattr(chat_route, "inject_session_memory", unexpected_inject)
+
+    events = []
+    gen = chat_route._execute_agent_stream(
+        session_id="s1",
+        agent_id="fast_agent",
+        message="base message",
+        user_id="u1",
+        presenter=_FakePresenter(),
         recommendation_input="原始问题",
     )
     async for ev in gen:
@@ -196,6 +256,43 @@ async def test_execute_agent_stream_never_injects_memory(monkeypatch: pytest.Mon
 
     assert all(ev.get("event") != "status" for ev in events)
     assert captured["message"] == "base message", "executor 必须原样透传消息"
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_stream_skips_memory_injection_on_hitl_resume(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """HITL 恢复轮跳过注入（恢复语义不重注入），即使判定为首轮。"""
+    from src.api.routes import chat as chat_route
+
+    captured = {}
+    _fake_agent_factory(captured, monkeypatch)
+
+    async def fake_first_round(session_id, *, exclude_run_id=None):
+        return True
+
+    monkeypatch.setattr(chat_route, "_should_inject_session_memory", fake_first_round)
+
+    async def unexpected_inject(message: str, *, user_id: str, raw_query: str | None) -> str:
+        raise AssertionError("HITL 恢复轮不应触发记忆注入")
+
+    monkeypatch.setattr(chat_route, "inject_session_memory", unexpected_inject)
+
+    events = []
+    gen = chat_route._execute_agent_stream(
+        session_id="s1",
+        agent_id="fast_agent",
+        message="base message",
+        user_id="u1",
+        presenter=_FakePresenter(),
+        recommendation_input="原始问题",
+        hitl_resume={"goal_started_at": "2026-09-03T00:00:00+00:00"},
+    )
+    async for ev in gen:
+        events.append(ev)
+
+    assert all(ev.get("event") != "status" for ev in events)
+    assert captured["message"] == "base message"
 
 
 @pytest.mark.asyncio
@@ -228,13 +325,33 @@ async def test_session_memory_baseline_only_first_turn(monkeypatch: pytest.Monke
     assert counts["called_with"] == [{"session_id": "s1"}]
     counts["ret"] = 3
     assert await session_has_prior_messages("s1") is True
+    # executor 侧判定：排除本 run 已写入的用户消息 trace
+    await session_has_prior_messages("s1", exclude_run_id="run-current")
+    assert counts["called_with"][-1] == {
+        "session_id": "s1",
+        "run_id": {"$ne": "run-current"},
+    }
+    await session_has_prior_messages("s1", exclude_run_id=None)
+    assert counts["called_with"][-1] == {"session_id": "s1"}  # None 时不排除
 
 
 @pytest.mark.asyncio
-async def test_session_baseline_prepended_at_message_head(monkeypatch: pytest.MonkeyPatch):
-    """Codex input[1]：记忆索引基线置于首条消息头部——稳定内容在时间戳等
-    变化内容之前，同用户跨会话公共前缀延伸到索引末尾。"""
-    from src.api.routes import chat as chat_route
+async def test_inject_session_memory_baseline_head_snapshot_tail(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """executor 侧首轮装配的字节顺序与原 POST 侧完全一致：索引基线置头、
+    相关记忆快照置尾——持久化与发送字节不变，前缀缓存语义不变。"""
+    from src.infra.chat.session_baseline import inject_session_memory
+
+    monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
+    seen = {}
+
+    async def fake_recall(user_id: str, query: str) -> list[dict]:
+        seen["query"] = query
+        return [_memory()]
+
+    monkeypatch.setattr(memory_context, "_recall_memories_raw", fake_recall)
 
     async def fake_baseline(user_id):
         return "<memory_index_context>\n- 记忆索引行\n</memory_index_context>"
@@ -244,6 +361,45 @@ async def test_session_baseline_prepended_at_message_head(monkeypatch: pytest.Mo
         fake_baseline,
     )
 
+    out = await inject_session_memory(
+        "[User message sent at 09:00+08:00]\n\n帮我总结项目进度",
+        user_id="u1",
+        raw_query="帮我总结项目进度",
+    )
+
+    assert seen["query"] == "帮我总结项目进度"  # 检索用原始消息，不用带时间戳文本
+    assert (
+        out.index("<memory_index_context>")
+        < out.index("[User message sent at")
+        < out.index("<memory_context>")
+    )
+    assert out.endswith("</memory_context>")  # 快照在尾部——前缀缓存安全位置
+
+
+@pytest.mark.asyncio
+async def test_assemble_first_turn_message_skips_memory_recall(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """POST 装配只做零成本本地格式化：即使开关全开也不触发召回与基线构建
+    （昂贵部分移至 executor，提交延迟与召回解耦）。"""
+    from src.api.routes import chat as chat_route
+
+    monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
+    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
+
+    async def unexpected_recall(user_id: str, query: str) -> list[dict]:
+        raise AssertionError("POST 装配不应触发记忆召回")
+
+    monkeypatch.setattr(memory_context, "_recall_memories_raw", unexpected_recall)
+
+    async def unexpected_baseline(user_id):
+        raise AssertionError("POST 装配不应触发基线构建")
+
+    monkeypatch.setattr(
+        "src.infra.agent.middleware.prompt_injection.build_session_memory_baseline",
+        unexpected_baseline,
+    )
+
     msg, _tc = await chat_route.assemble_first_turn_message(
         raw_message="你好",
         user_timezone="Asia/Shanghai",
@@ -251,13 +407,13 @@ async def test_session_baseline_prepended_at_message_head(monkeypatch: pytest.Mo
         active_goal=None,
         auto_mode=False,
         user_id="u1",
-        include_memory=True,
         include_timestamp=True,
         last_tc_signature=None,
     )
 
-    assert msg.startswith("<memory_index_context>")
-    assert msg.index("<memory_index_context>") < msg.index("[User message sent at")
+    assert msg.startswith("[User message sent at")
+    assert "<memory_context>" not in msg
+    assert "<memory_index_context>" not in msg
 
 
 @pytest.mark.asyncio
