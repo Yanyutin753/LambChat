@@ -79,7 +79,6 @@ class UsageDashboardSummary(BaseModel):
     scheduled_runs: int = 0
     failed_requests: int = 0
     success_rate: float = 0.0
-    cache_read_share: float = 0.0
     avg_tokens_per_request: float = 0.0
     avg_duration_per_request: float = 0.0
     scheduled_share: float = 0.0
