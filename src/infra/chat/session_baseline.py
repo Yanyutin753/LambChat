@@ -10,9 +10,7 @@ from src.infra.chat.model_facing import build_model_facing_message
 from src.kernel.config import settings
 
 
-async def session_has_prior_messages(
-    session_id: str, *, exclude_run_id: str | None = None
-) -> bool:
+async def session_has_prior_messages(session_id: str, *, exclude_run_id: str | None = None) -> bool:
     """会话是否已有历史消息（按 traces 计数）。exclude_run_id 用于 executor
     侧判定首轮：本 run 的用户消息 trace 在 executor 开跑前已写入，需排除。"""
     from src.infra.storage.mongodb import get_mongo_client
@@ -101,9 +99,7 @@ async def assemble_first_turn_message(
     return formatted, inject_turn_context
 
 
-async def inject_session_memory(
-    message: str, *, user_id: str, raw_query: str | None
-) -> str:
+async def inject_session_memory(message: str, *, user_id: str, raw_query: str | None) -> str:
     """首轮记忆装配（executor 后台）：索引基线置头、相关记忆快照置尾。
 
     字节顺序与 POST 侧装配完全一致（基线 → 报时/技能/目标 → 快照），仅
