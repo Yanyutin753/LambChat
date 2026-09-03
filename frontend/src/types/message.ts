@@ -44,6 +44,7 @@ export type MessagePart =
   | SubagentPart
   | ThinkingPart
   | SandboxPart
+  | MemoryStatusPart
   | TokenUsagePart
   | CancelledPart
   | TodoPart
@@ -57,6 +58,15 @@ export interface SandboxPart {
   sandbox_id?: string;
   work_dir?: string;
   error?: string;
+  timestamp?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+// Memory 检索状态块类型（首轮记忆装配进度，渲染与沙箱初始化同款 item）
+export interface MemoryStatusPart {
+  type: "memoryStatus";
+  status: "starting" | "ready" | "cancelled";
   timestamp?: string;
   startedAt?: string;
   completedAt?: string;

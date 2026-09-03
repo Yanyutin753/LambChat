@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../i18n";
@@ -77,7 +76,6 @@ export function ChatView({
   sessionId,
   currentRunId,
   isLoading,
-  isRecallingMemory = false,
   isLoadingHistory,
   historyLoadGeneration,
   hasMoreHistoryTraces = false,
@@ -602,12 +600,6 @@ export function ChatView({
   const virtuosoFooterComponent = useCallback(
     () => (
       <>
-        {isRecallingMemory && (
-          <div className="animate-in fade-in duration-300 flex items-center gap-2 px-4 py-2 text-xs font-medium text-amber-600/90 dark:text-amber-400/90 select-none">
-            <Loader2 size={12} className="shrink-0 animate-spin text-amber-500 dark:text-amber-400" />
-            {t("chat.memoryRecalling")}
-          </div>
-        )}
         {showStreamingFooterSkeleton && (
           <div className="pb-4">
             <ChatSkeletonMessagesOnly count={3} />
@@ -619,7 +611,7 @@ export function ChatView({
         />
       </>
     ),
-    [isRecallingMemory, showStreamingFooterSkeleton, isMobileViewport, messagesEndRef, t],
+    [showStreamingFooterSkeleton, isMobileViewport, messagesEndRef],
   );
 
   const virtuosoHeaderComponent = useCallback(() => {

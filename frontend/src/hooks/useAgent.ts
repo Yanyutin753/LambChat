@@ -76,7 +76,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     currentProjectId, setCurrentProjectId, error, setError,
     connectionStatus, setConnectionStatus, currentRunId, setCurrentRunId,
     newlyCreatedSession, setNewlyCreatedSession, isInitializingSandbox,
-    setIsInitializingSandbox, isRecallingMemory, setIsRecallingMemory,
+    setIsInitializingSandbox,
     sandboxError, setSandboxError, selectedTeamId, setSelectedTeamId,
     activeGoal, setActiveGoal, goalsByRunId, setGoalsByRunId,
     goalModeEnabled, setGoalModeEnabled,
@@ -201,7 +201,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setConnectionStatus: (status) =>
         setConnectionStatus(status as ConnectionStatus),
       setIsInitializingSandbox,
-      setIsRecallingMemory,
       setSandboxError,
       setActiveGoal,
       setGoalsByRunId,
@@ -745,7 +744,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         );
         setConnectionStatus("disconnected");
         setIsInitializingSandbox(false);
-        setIsRecallingMemory(false);
       } finally {
         setIsLoading(false);
         isSendingRef.current = false;
@@ -818,7 +816,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     isSendingRef.current = false;
     setIsLoading(false);
     setIsInitializingSandbox(false);
-    setIsRecallingMemory(false);
     setSandboxError(null);
 
     // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
@@ -946,7 +943,6 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     activeGoal,
     goalsByRunId,
     isInitializingSandbox,
-    isRecallingMemory,
     sandboxError,
     sendMessage,
     ...steerQueue,

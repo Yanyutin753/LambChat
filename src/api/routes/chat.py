@@ -32,6 +32,7 @@ from src.infra.chat.session_baseline import (
     _turn_context_signature,
     assemble_first_turn_message,
     inject_session_memory,
+    memory_status_event,
 )
 from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
@@ -311,11 +312,11 @@ async def _execute_agent_stream(
     if hitl_resume is None and await _should_inject_session_memory(
         session_id, exclude_run_id=run_id
     ):
-        yield {"event": "status", "data": {"stage": "memory"}}
+        yield memory_status_event("memory")
         message = await inject_session_memory(
             message, user_id=user_id, raw_query=recommendation_input
         )
-        yield {"event": "status", "data": {"stage": "memory_done"}}
+        yield memory_status_event("memory_done")
 
     try:
         agent = await AgentFactory.get(agent_id)

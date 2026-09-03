@@ -759,7 +759,6 @@
     "historyLoadOlder": "加载更早的消息",
     "historyLoadingOlder": "正在加载更早的消息…",
     "keyboardShortcuts": "键盘快捷键",
-    "memoryRecalling": "正在检索相关记忆…",
     "mentionNoResults": "没有匹配的角色",
     "mermaid": "Mermaid",
     "mermaidDiagram": "Mermaid 图表",
@@ -971,6 +970,10 @@
     "rateLimited": "请求过于频繁，请稍后再试",
     "requestFailed": "加载会话失败",
     "runningPlaceholder": "继续输入以排队有序修改…",
+    "memory": {
+      "initializing": "正在检索相关记忆",
+      "ready": "记忆检索完成"
+    },
     "sandbox": {
       "elapsed": "用时 {{duration}}",
       "error": "初始化失败",

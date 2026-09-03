@@ -759,7 +759,6 @@
     "historyLoadOlder": "이전 메시지 더 불러오기",
     "historyLoadingOlder": "이전 메시지를 불러오는 중…",
     "keyboardShortcuts": "키보드 단축키",
-    "memoryRecalling": "관련 메모리를 검색하는 중…",
     "mentionNoResults": "일치하는 페르소나가 없습니다",
     "mermaid": "Mermaid",
     "mermaidDiagram": "Mermaid 다이어그램",
@@ -971,6 +970,10 @@
     "rateLimited": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요",
     "requestFailed": "세션 로드에 실패했습니다",
     "runningPlaceholder": "계속 입력하면 수정이 순서대로 대기열에 추가됩니다…",
+    "memory": {
+      "initializing": "관련 메모리를 검색하는 중",
+      "ready": "메모리 검색 완료"
+    },
     "sandbox": {
       "elapsed": "소요 시간 {{duration}}",
       "error": "초기화 실패",

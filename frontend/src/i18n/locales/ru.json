@@ -759,7 +759,6 @@
     "historyLoadOlder": "Загрузить более ранние сообщения",
     "historyLoadingOlder": "Загрузка более ранних сообщений…",
     "keyboardShortcuts": "Горячие клавиши",
-    "memoryRecalling": "Поиск релевантных воспоминаний…",
     "mentionNoResults": "Нет подходящих персон",
     "mermaid": "Mermaid",
     "mermaidDiagram": "Диаграмма Mermaid",
@@ -971,6 +970,10 @@
     "rateLimited": "Слишком много запросов, попробуйте позже",
     "requestFailed": "Не удалось загрузить сессию",
     "runningPlaceholder": "Продолжайте вводить — правки встанут в очередь по порядку…",
+    "memory": {
+      "initializing": "Поиск релевантных воспоминаний",
+      "ready": "Поиск воспоминаний завершён"
+    },
     "sandbox": {
       "elapsed": "Затрачено {{duration}}",
       "error": "ошибка инициализации",

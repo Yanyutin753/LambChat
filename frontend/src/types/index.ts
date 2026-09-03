@@ -16,6 +16,7 @@ export type {
   Message,
   MessagePart,
   SandboxPart,
+  MemoryStatusPart,
   TokenUsagePart,
   TextPart,
   ThinkingPart,

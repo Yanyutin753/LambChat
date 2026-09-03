@@ -287,7 +287,6 @@ export interface UseAgentReturn {
   activeGoal: ActiveGoalSpec | null;
   goalsByRunId: Record<string, ActiveGoalSpec>;
   isInitializingSandbox: boolean;
-  isRecallingMemory: boolean;
   sandboxError: string | null;
   sendMessage: (
     content: string,
