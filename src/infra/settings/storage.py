@@ -264,7 +264,12 @@ class SettingsStorage:
         return await self._get_internal(key, mask_sensitive=False)
 
     async def _get_internal(self, key: str, mask_sensitive: bool = True) -> Optional[SettingItem]:
-        """Internal method to get setting by key"""
+        """Internal method to get setting by key
+
+        单行坏数据（字段类型漂移等）在此被吞掉并告警，返回 None 视为该行
+        不存在（回退默认值）——绝不因一行脏数据炸掉应用启动（生产实测：
+        Date 类型的 updated_at 曾让全站 CrashLoop）。
+        """
         definition = SETTING_DEFINITIONS.get(key)
         if not definition:
             return None
@@ -288,23 +293,32 @@ class SettingsStorage:
         if mask_sensitive and is_sensitive and value:
             value = "********"
 
-        return SettingItem(
-            key=key,
-            value=value,
-            type=definition["type"],
-            category=definition["category"],
-            subcategory=definition.get("subcategory", ""),
-            description=definition["description"],
-            default_value=default_value,
-            requires_restart=key in RESTART_REQUIRED_SETTINGS,
-            is_sensitive=is_sensitive,
-            frontend_visible=definition.get("frontend_visible", False),
-            depends_on=definition.get("depends_on"),
-            options=definition.get("options"),
-            json_schema=definition.get("json_schema"),
-            updated_at=doc.get("updated_at") if doc else None,
-            updated_by=doc.get("updated_by") if doc else None,
-        )
+        try:
+            return SettingItem(
+                key=key,
+                value=value,
+                type=definition["type"],
+                category=definition["category"],
+                subcategory=definition.get("subcategory", ""),
+                description=definition["description"],
+                default_value=default_value,
+                requires_restart=key in RESTART_REQUIRED_SETTINGS,
+                is_sensitive=is_sensitive,
+                frontend_visible=definition.get("frontend_visible", False),
+                depends_on=definition.get("depends_on"),
+                options=definition.get("options"),
+                json_schema=definition.get("json_schema"),
+                updated_at=doc.get("updated_at") if doc else None,
+                updated_by=doc.get("updated_by") if doc else None,
+            )
+        except Exception as exc:
+            logger.warning(
+                "[Settings] Skipping malformed row %s (%s: %s); falling back to default",
+                key,
+                type(exc).__name__,
+                exc,
+            )
+            return None
 
     async def set(self, key: str, value: Any, user_id: str) -> Optional[SettingItem]:
         """Set setting value"""
