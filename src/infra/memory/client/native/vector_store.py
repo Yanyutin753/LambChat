@@ -159,15 +159,17 @@ class QdrantVectorIndex:
         user_id: str,
         limit: int,
         memory_types: Optional[list[str]] = None,
-        context_filter: Optional[str] = None,
+        context_values: Optional[list[str]] = None,
     ) -> Optional[list[VectorHit]]:
         from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
 
         must = [FieldCondition(key="user_id", match=MatchValue(value=user_id))]
         if memory_types:
             must.append(FieldCondition(key="memory_type", match=MatchAny(any=memory_types)))
-        if context_filter:
-            must.append(FieldCondition(key="context", match=MatchValue(value=context_filter)))
+        if context_values:
+            # context 家族已在 Mongo 解析为具体值列表（'project' → project/
+            # project_status/...），MatchAny 下推
+            must.append(FieldCondition(key="context", match=MatchAny(any=context_values)))
         try:
             if not await self._client.collection_exists(COLLECTION):
                 return []
@@ -336,7 +338,7 @@ async def index_search(
     user_id: str,
     limit: int,
     memory_types: Optional[list[str]] = None,
-    context_filter: Optional[str] = None,
+    context_values: Optional[list[str]] = None,
 ) -> Optional[list[VectorHit]]:
     """None = 未启用/故障 → 调用方走既有 $vectorSearch/余弦链路；list = 权威结果。"""
     idx = await get_vector_index()
@@ -347,7 +349,7 @@ async def index_search(
         user_id=user_id,
         limit=limit,
         memory_types=memory_types,
-        context_filter=context_filter,
+        context_values=context_values,
     )
 
 

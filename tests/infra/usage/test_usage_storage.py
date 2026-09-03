@@ -472,6 +472,9 @@ class _DashboardFakeCollection:
                             "scheduled_runs": 1,
                             "tool_calls": 5,
                             "failed_requests": 1,
+                            "input_tokens": 70,
+                            "cache_creation_tokens": 5,
+                            "cache_read_tokens": 20,
                         }
                     ],
                     "agents": [
@@ -536,6 +539,7 @@ class _DashboardFakeCollection:
                             "total_tokens": 150,
                             "total_input_tokens": 70,
                             "total_output_tokens": 80,
+                            "total_cache_creation_tokens": 5,
                             "total_cache_read_tokens": 20,
                             "total_duration": 60.0,
                             "total_tool_calls": 5,
@@ -574,6 +578,7 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
     assert dashboard["summary"]["peak_day"]["date"] == "2026-06-14"
     assert dashboard["daily"][0]["date"] == "2026-06-14"
     assert dashboard["daily"][0]["failed_requests"] == 1
+    assert dashboard["daily"][0]["cache_read_share"] == 20 / 70
     assert dashboard["top_agents"][0]["name"] == "Team Agent"
     assert dashboard["top_teams"][0]["id"] == "team-1"
     assert dashboard["top_personas"][0]["name"] == "Researcher"
@@ -603,3 +608,74 @@ async def test_get_usage_dashboard_returns_daily_and_rankings() -> None:
     assert "cache_creation_tokens" in pipeline_text
     assert "cache_read_tokens" in pipeline_text
     assert "zero_cache_requests" in pipeline_text
+
+
+class _ProviderQuirkFakeCollection:
+    """provider 口径不一致：input_tokens 不含缓存 token，甚至 cache > input。"""
+
+    def aggregate(self, pipeline):
+        return _FakeAggregateCursor(
+            [
+                {
+                    "daily": [
+                        {
+                            "_id": "2026-09-03",
+                            "requests": 1,
+                            "input_tokens": 0,
+                            "cache_creation_tokens": 12000,
+                            "cache_read_tokens": 14813,
+                        }
+                    ],
+                    "models": [
+                        {
+                            "_id": "anthropic/claude",
+                            "requests": 1,
+                            "input_tokens": 10,
+                            "cache_creation_tokens": 50,
+                            "cache_read_tokens": 100,
+                        }
+                    ],
+                    "agents": [],
+                    "teams": [],
+                    "personas": [],
+                    "users": [],
+                    "sources": [],
+                    "triggers": [],
+                    "summary": [
+                        {
+                            "total_requests": 1,
+                            "total_input_tokens": 10,
+                            "total_cache_creation_tokens": 50,
+                            "total_cache_read_tokens": 100,
+                        }
+                    ],
+                }
+            ]
+        )
+
+
+@pytest.mark.asyncio
+async def test_dashboard_cache_share_normalizes_provider_token_semantics() -> None:
+    """input 不含缓存 token 的 provider：分母取 max(input, read+write)，且 clamp ≤ 1。"""
+    storage = UsageStorage()
+    storage._collection = _ProviderQuirkFakeCollection()
+
+    dashboard = await storage.get_usage_dashboard()
+
+    # summary: eff = max(10, 100+50) = 150 → 100/150
+    assert abs(dashboard["summary"]["cache_read_share"] - 100 / 150) < 1e-9
+    # daily: eff = max(0, 14813+12000) = 26813 → 14813/26813（不再因 input=0 显示 0）
+    assert abs(dashboard["daily"][0]["cache_read_share"] - 14813 / 26813) < 1e-9
+    # ranking 与 summary 同口径
+    assert abs(dashboard["top_models"][0]["cache_read_share"] - 100 / 150) < 1e-9
+
+
+def test_cache_read_share_clamped_when_cache_exceeds_input() -> None:
+    from src.infra.usage.storage import _cache_read_share
+
+    # 裸除法会得到 10.0（10000%）；归一化后 clamp 到 1.0
+    assert _cache_read_share(input_tokens=10, cache_read_tokens=100, cache_creation_tokens=0) == 1.0
+    # 无任何 token → 0.0
+    assert _cache_read_share(input_tokens=0, cache_read_tokens=0, cache_creation_tokens=0) == 0.0
+    # 标准口径（input 已含缓存）：eff=input，share 不变
+    assert abs(_cache_read_share(100, 30, 20) - 0.3) < 1e-9

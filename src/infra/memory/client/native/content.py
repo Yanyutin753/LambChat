@@ -114,8 +114,14 @@ async def build_content_fields(
 
 
 async def hydrate_memory_text(backend, doc: dict[str, Any]) -> str:
+    text, _complete = await hydrate_memory_text_status(backend, doc)
+    return text
+
+
+async def hydrate_memory_text_status(backend, doc: dict[str, Any]) -> tuple[str, bool]:
+    preview = str(doc.get("content", ""))
     if doc.get("content_storage_mode") != "store" or not doc.get("content_store_key"):
-        return str(doc.get("content", ""))
+        return preview, True
 
     item = await store_get(
         backend,
@@ -123,17 +129,18 @@ async def hydrate_memory_text(backend, doc: dict[str, Any]) -> str:
         doc["content_store_key"],
     )
     if item is None:
-        return str(doc.get("content", ""))
+        return preview, False
     value = getattr(item, "value", item)
-    if isinstance(value, dict):
-        return str(value.get("text") or doc.get("content", ""))
-    return str(doc.get("content", ""))
+    if isinstance(value, dict) and value.get("text") is not None:
+        return str(value["text"]), True
+    return preview, False
 
 
 async def hydrate_formatted_memory(backend, memory: dict[str, Any]) -> dict[str, Any]:
     if memory.get("storage_mode") != "store":
         memory.setdefault("preview", memory.get("text", ""))
         memory.setdefault("storage_mode", "inline")
+        memory["text_complete"] = True
         return memory
 
     doc = {
@@ -142,7 +149,10 @@ async def hydrate_formatted_memory(backend, memory: dict[str, Any]) -> dict[str,
         "content_storage_mode": memory.get("storage_mode"),
         "content_store_key": memory.get("content_store_key"),
     }
-    full_text = await hydrate_memory_text(backend, doc)
+    full_text, complete = await hydrate_memory_text_status(backend, doc)
     memory["preview"] = memory.get("text", "")
     memory["text"] = full_text
+    memory["text_complete"] = complete
+    if not complete:
+        memory["text_incomplete_reason"] = "content_store_unavailable"
     return memory

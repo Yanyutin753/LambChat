@@ -21,7 +21,6 @@ from src.agents.core.node_utils import (
     emit_token_usage,
     inline_image_attachments_as_data_urls,
     isolated_nested_graph_run,
-    resolve_auto_memory_capture_text,
     resolve_fallback_model,
     resolve_model_image_url_to_base64,
     resolve_model_supports_vision,
@@ -52,6 +51,7 @@ from src.infra.agent.middleware import (
     EnvVarPromptMiddleware,
     ImageUrlToBase64Middleware,
     MainAgentContextMiddleware,
+    MemoryRecallIndexMiddleware,
     SectionPromptMiddleware,
     SteerMiddleware,
     SubagentActivityMiddleware,
@@ -293,6 +293,13 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     ]
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
+    if settings.ENABLE_MEMORY and context.user_id:
+        user_middleware.append(
+            MemoryRecallIndexMiddleware(
+                user_id=context.user_id,
+                session_id=str(state.get("session_id") or "") or None,
+            )
+        )
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
         if sandbox_work_dir:
@@ -465,29 +472,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             logger.warning("[SearchAgent] Failed to inspect graph state after run: %s", e)
 
     if settings.ENABLE_MEMORY and context.user_id:
-        memory_text = resolve_auto_memory_capture_text(
-            hitl_suspended=getattr(presenter, "hitl_suspended", False),
-            user_input=user_input,
-            recommendation_input=recommendation_input,
-            assistant_text=event_processor.output_text,
-        )
-        if memory_text:
-            from src.infra.logging.context import TraceContext
-            from src.infra.memory.tools import schedule_auto_memory_capture
-            from src.kernel.schemas.conversation_history import ConversationSourceRef
+        # Codex 式 Phase 1 记忆提取：run 结束后 kick 一轮「空闲会话」扫描，
+        # 完整会话转录提炼 raw_memory（替代旧的每轮最后一条交换评估器）。
+        from src.infra.memory.extraction import schedule_memory_extraction
 
-            request_context = TraceContext.get_request_context()
-            source_refs = (
-                [
-                    ConversationSourceRef(
-                        session_id=request_context.session_id,
-                        run_id=request_context.run_id,
-                    )
-                ]
-                if request_context.session_id and request_context.run_id
-                else None
-            )
-            schedule_auto_memory_capture(context.user_id, memory_text, source_refs=source_refs)
+        schedule_memory_extraction(context.user_id)
 
     # 持久化已发现的延迟工具名（跨 turn 恢复，分布式安全）
     session_id = state.get("session_id", "")

@@ -23,6 +23,7 @@ import {
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { useFxRates } from "../../hooks/useFxRates";
+import { effectivePromptInput } from "../chat/todayUsageSnapshot";
 import { fmtCostUsd } from "./UsagePanel/formatters";
 import { PanelHeader } from "../common/PanelHeader";
 import { PanelFilterSelect } from "../common";
@@ -169,10 +170,17 @@ export function UsagePanel() {
   );
 
   const cacheHitLabel = useMemo(() => {
-    if (!stats || stats.total_input_tokens <= 0) return "0%";
-    return `${Math.round(
-      (stats.total_cache_read_tokens / stats.total_input_tokens) * 100,
-    )}%`;
+    // 与输入框用量卡同口径：分母取 max(input, cacheRead+cacheWrite)，
+    // 兼容 input_tokens 不含缓存 token 的 provider。
+    if (!stats) return "0%";
+    const effectiveInput = effectivePromptInput(
+      stats.total_input_tokens,
+      stats.total_cache_read_tokens,
+      stats.total_cache_creation_tokens,
+    );
+    if (effectiveInput <= 0) return "0%";
+    const rate = Math.min(stats.total_cache_read_tokens / effectiveInput, 1);
+    return `${Math.round(rate * 100)}%`;
   }, [stats]);
 
   const dashboardSummary = dashboard?.summary;

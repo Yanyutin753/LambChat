@@ -98,6 +98,7 @@ YubbChat/
 !/scripts/pre_deploy_db_checks.py
 !/scripts/extract_raise_sites.py
 !/scripts/codemod_error_literals.py
+!/scripts/cleanup_junk_memories.py
 !/scripts/sync_error_locales.py
 docs/docs/.vitepress/
 k8s/lambchat-secret.yaml

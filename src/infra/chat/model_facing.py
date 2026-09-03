@@ -1,13 +1,11 @@
 """模型侧用户消息装配（从 api 路由下沉到 chat 基础设施层）。
 
-时间戳 → 技能 → 轮次上下文 → 相关记忆块：所有按轮变化的动态内容在消息
-创建时一次性写入并随状态持久化，使持久化历史与发送给模型的字节逐字一致，
-provider prompt-cache 前缀跨轮连续；前端展示用原始 raw_message，不受影响。
+用户消息只包含时间戳、技能与轮次上下文。跨会话记忆由 memory_recall
+工具按需检索，不注入用户消息。
 """
 
 from __future__ import annotations
 
-from src.infra.chat.memory_context import append_memory_context
 from src.infra.chat.turn_context import append_turn_context_prompt
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.goal import GoalSpec
@@ -41,18 +39,13 @@ async def build_model_facing_message(
     active_goal: GoalSpec | None,
     auto_mode: bool,
     user_id: str,
-    include_memory: bool = True,
+    include_memory: bool = False,
     include_timestamp: bool = True,
     include_turn_context: bool = True,
 ) -> str:
-    """Codex 式装配，稳定内容在前、变化内容在后，全部写时一次性：
+    """装配本轮模型消息。
 
-    - include_timestamp=False 时省略报时前缀（漂移注入：距上次报时超过
-      阈值或会话首轮才带，长会话省 ~80% 报时 token；位于最新消息上，
-      不影响前缀缓存）
-    - include_turn_context=False 时省略 goal/自动模式块（签名去重：目标
-      未变不重复注入，历史中已有同字节块）
-    - include_memory=False 时跳过记忆快照（仅会话首轮注入）
+    `include_memory` 仅保留调用兼容性，记忆始终不进入用户消息。
     """
     if include_timestamp:
         formatted = format_user_message_with_timestamp(raw_message, user_timezone)
@@ -61,6 +54,4 @@ async def build_model_facing_message(
     formatted = append_required_skills_prompt(formatted, enabled_skills)
     if include_turn_context:
         formatted = append_turn_context_prompt(formatted, active_goal, auto_mode)
-    if include_memory:
-        formatted = await append_memory_context(formatted, user_id, raw_query=raw_message)
     return formatted

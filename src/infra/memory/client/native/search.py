@@ -34,6 +34,16 @@ def _clip_recall_query(query: str) -> str:
     return normalized[:NATIVE_MEMORY_RECALL_QUERY_MAX_CHARS].rstrip()
 
 
+def build_context_clause(context_filter: str) -> dict[str, Any]:
+    """context 家族前缀子句：'project' 命中 project/project_status/project_constraint…
+
+    记忆库的 context 是细粒度自由值，而工具文档只向模型暴露家族名（project/
+    user/feedback/reference）；精确匹配会让一次家族猜测漏掉该族全部记忆
+    （生产 6650ea0e：context='project' 只剩 2/50 条可命中）。
+    """
+    return {"$regex": f"^{re.escape(context_filter.strip())}"}
+
+
 async def _hydrate_memories_limited(
     backend, memories: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -163,7 +173,7 @@ async def recent_context_fallback(
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
-        base["context"] = context_filter
+        base["context"] = build_context_clause(context_filter)
     cursor = (
         collection.find(
             base,
@@ -202,7 +212,7 @@ async def text_search(
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
-        base["context"] = context_filter
+        base["context"] = build_context_clause(context_filter)
     base["$text"] = {"$search": query}
 
     try:
@@ -246,7 +256,7 @@ async def keyword_fallback(
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
-        base["context"] = context_filter
+        base["context"] = build_context_clause(context_filter)
 
     _projection = {
         "memory_id": 1,
@@ -285,13 +295,33 @@ async def vector_search(
     # Qdrant 专用索引层（启用时优先；None=未启用/故障 → 走下方既有链路）
     from src.infra.memory.client.native.vector_store import index_search
 
-    qdrant_hits = await index_search(
-        vector=query_vec,
-        user_id=user_id,
-        limit=limit,
-        memory_types=memory_types,
-        context_filter=context_filter,
-    )
+    # 家族前缀 → 具体值列表：Qdrant payload 只存具体 context，MatchAny 下推
+    context_values: Optional[list[str]] = None
+    context_prefetch_failed = False
+    if context_filter:
+        try:
+            distinct_contexts = await backend._collection.distinct(
+                "context",
+                {"user_id": user_id, "context": build_context_clause(context_filter)},
+            )
+            context_values = sorted({c for c in distinct_contexts if c})
+            if not context_values:
+                return []  # distinct 成功且家族确实为空：权威空结果
+        except Exception:
+            # 瞬时故障 ≠ 空家族：跳过 Qdrant 预过滤（context_values=None 会把
+            # 过滤语义丢掉），改走下方 Mongo 链路的家族正则子句
+            context_values = None
+            context_prefetch_failed = True
+
+    qdrant_hits = None
+    if not context_prefetch_failed:
+        qdrant_hits = await index_search(
+            vector=query_vec,
+            user_id=user_id,
+            limit=limit,
+            memory_types=memory_types,
+            context_values=context_values,
+        )
     if qdrant_hits is not None:
         if not qdrant_hits:
             return []
@@ -316,7 +346,7 @@ async def vector_search(
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
-        base["context"] = context_filter
+        base["context"] = build_context_clause(context_filter)
 
     try:
         pipeline = [
@@ -597,15 +627,16 @@ async def recall_memories(
             backend._collection, user_id, max_results * 2, memory_types, context_filter
         )
 
-    if enable_rerank and memories and len(memories) > max_results:
-        memories = await rerank_candidates(query, memories, max_results)
+    # rerank 全池排序（不提前截断），让 min_score 过滤后仍有足额候选回填 top-N
+    if enable_rerank and memories and len(memories) > 1:
+        memories = await rerank_candidates(query, memories, len(memories))
+    min_score = getattr(settings, "NATIVE_MEMORY_RECALL_MIN_SCORE", 0.3)
+    if min_score > 0:
+        memories = [m for m in memories if m.get("score", 1.0) >= min_score]
     memories = prioritize_sources(memories)
 
     if memories:
         memories = memories[:max_results]
-        min_score = getattr(settings, "NATIVE_MEMORY_RECALL_MIN_SCORE", 0.3)
-        if min_score > 0:
-            memories = [m for m in memories if m.get("score", 1.0) >= min_score]
         memories = await _hydrate_memories_limited(backend, memories)
         memories = await validate_memory_source_refs(user_id, memories)
 
