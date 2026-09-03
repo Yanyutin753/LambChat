@@ -25,21 +25,6 @@ import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { dispatchToolMutationRefresh } from "../../components/chat/ChatMessage/items/toolMutationEvents";
 
 /**
- * 首轮记忆装配进度行的两段式生命周期（对齐 sandbox:starting/ready）：
- * status{stage:memory} 亮行 → status{stage:memory_done} 收起，metadata 兜底。
- * 最短展示保护：SSE 重放时 start/done 可能同批毫秒级到达，React 合并渲染
- * 会吞掉整段行——收起一律走延迟任务（不足最短展示则补足），保证可见。
- */
-const MEMORY_RECALL_MIN_DISPLAY_MS = 600;
-let memoryRecallShownAt = 0;
-
-function scheduleMemoryRecallCollapse(ctx: EventHandlerContext) {
-  const elapsed = Date.now() - memoryRecallShownAt;
-  const delay = Math.max(0, MEMORY_RECALL_MIN_DISPLAY_MS - elapsed);
-  setTimeout(() => ctx.setIsRecallingMemory(false), delay);
-}
-
-/**
  * Context passed to event handler
  */
 export interface EventHandlerContext {
@@ -56,7 +41,6 @@ export interface EventHandlerContext {
   markSteerDelivered?: (content: string, messageId?: string) => void;
   setConnectionStatus: (status: string) => void;
   setIsInitializingSandbox: (loading: boolean) => void;
-  setIsRecallingMemory: (loading: boolean) => void;
   setSandboxError: (error: string | null) => void;
   setActiveGoal: React.Dispatch<
     React.SetStateAction<import("./types").ActiveGoalSpec | null>
@@ -155,20 +139,6 @@ export function handleStreamEvent(
         ctx.streamVersionRef.current === streamVersion
       ) {
         ctx.setSessionId(data.session_id);
-      }
-      // Agent 已开跑——收掉记忆检索的界面内加载状态（如果还挂着，兜底；
-      // 正常由 memory_done 收起）
-      scheduleMemoryRecallCollapse(ctx);
-      return;
-    }
-
-    case "status": {
-      // 首轮记忆装配：开始亮行（记录展示起点），完成收起（带最短展示保护）
-      if (data.stage === "memory") {
-        memoryRecallShownAt = Date.now();
-        ctx.setIsRecallingMemory(true);
-      } else if (data.stage === "memory_done") {
-        scheduleMemoryRecallCollapse(ctx);
       }
       return;
     }
@@ -341,7 +311,6 @@ export function handleStreamEvent(
       // agent:result）、沙箱初始化中/错误（sandbox:starting 无 ready/error）。
       ctx.activeSubagentStackRef.current.length = 0;
       ctx.setIsInitializingSandbox(false);
-      ctx.setIsRecallingMemory(false);
       ctx.setSandboxError(null);
       ctx.setMessages((prev) => {
         const reset = {
@@ -447,6 +416,7 @@ export function handleStreamEvent(
     "sandbox:starting",
     "sandbox:ready",
     "sandbox:error",
+    "status",
     "token:usage",
     "todo:updated",
     "summary",

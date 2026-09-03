@@ -9,6 +9,7 @@
 import type {
   MessagePart,
   SandboxPart,
+  MemoryStatusPart,
   SubagentPart,
   SummaryPart,
   ThinkingPart,
@@ -910,6 +911,11 @@ export function clearAllLoadingStates(
         const sandboxPart = part as SandboxPart;
         if (sandboxPart.status !== "starting") return part;
         return { ...sandboxPart, status: "cancelled" };
+      }
+      case "memoryStatus": {
+        const memoryPart = part as MemoryStatusPart;
+        if (memoryPart.status !== "starting") return part;
+        return { ...memoryPart, status: "cancelled" };
       }
       default:
         return part;

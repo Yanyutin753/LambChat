@@ -32,6 +32,7 @@ import {
   SkillSearchItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
+import { MemoryStatusItem } from "./MemoryStatusItem";
 import { parsePartialToolArgs } from "./items/partialToolArgs";
 import { TodoBlock } from "./TodoBlock";
 import { SummaryItem } from "./SummaryItem";
@@ -544,6 +545,16 @@ export function MessagePartRenderer({
         content={part.content}
         isStreaming={isStreaming && isLast && part.isStreaming}
         panelKey={part.thinking_id}
+      />
+    );
+  }
+
+  if (part.type === "memoryStatus") {
+    return (
+      <MemoryStatusItem
+        status={part.status}
+        startedAt={part.startedAt}
+        completedAt={part.completedAt}
       />
     );
   }

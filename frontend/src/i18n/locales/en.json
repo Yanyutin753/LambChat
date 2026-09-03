@@ -759,7 +759,6 @@
     "historyLoadOlder": "Load earlier messages",
     "historyLoadingOlder": "Loading earlier messages…",
     "keyboardShortcuts": "Keyboard Shortcuts",
-    "memoryRecalling": "Recalling relevant memories…",
     "mentionNoResults": "No matching personas",
     "mermaid": "Mermaid",
     "mermaidDiagram": "Mermaid Diagram",
@@ -971,6 +970,10 @@
     "rateLimited": "Too many requests, please try again later",
     "requestFailed": "Failed to load session",
     "runningPlaceholder": "Keep typing to queue ordered edits…",
+    "memory": {
+      "initializing": "Recalling relevant memories",
+      "ready": "Memory recall complete"
+    },
     "sandbox": {
       "elapsed": "Elapsed {{duration}}",
       "error": "initialization failed",

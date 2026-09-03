@@ -6,8 +6,18 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from src.infra.chat.model_facing import build_model_facing_message
 from src.kernel.config import settings
+
+
+def memory_status_event(stage: str) -> dict:
+    """status 事件（首轮记忆装配进度，沙箱初始化同款两段式），带时间戳供前端记用时。"""
+    return {
+        "event": "status",
+        "data": {"stage": stage, "timestamp": datetime.now(timezone.utc).isoformat()},
+    }
 
 
 async def session_has_prior_messages(session_id: str, *, exclude_run_id: str | None = None) -> bool:
