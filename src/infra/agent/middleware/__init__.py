@@ -6,6 +6,7 @@ from src.infra.agent.middleware.image_url import ImageUrlToBase64Middleware
 from src.infra.agent.middleware.main_agent_context import MainAgentContextMiddleware
 from src.infra.agent.middleware.prompt_injection import (
     EnvVarPromptMiddleware,
+    MemoryRecallIndexMiddleware,
     SectionPromptMiddleware,
 )
 from src.infra.agent.middleware.retry import (
@@ -32,6 +33,7 @@ __all__ = [
     "EnvVarPromptMiddleware",
     "ImageUrlToBase64Middleware",
     "MainAgentContextMiddleware",
+    "MemoryRecallIndexMiddleware",
     "ModelFallbackMiddleware",
     "SandboxWorkspaceMiddleware",
     "SectionPromptMiddleware",

@@ -417,6 +417,8 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_AUTO_CAPTURE_INPUT_MAX_CHARS: int = 8000
     NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS: int = 8
     NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY: int = 20
+    # Legacy automatic query-context injection. Memory is recalled explicitly through
+    # memory_recall; the compact index is controlled by NATIVE_MEMORY_INDEX_ENABLED.
     NATIVE_MEMORY_QUERY_CONTEXT_ENABLED: bool = False
     NATIVE_MEMORY_QUERY_CONTEXT_TIMEOUT_SECONDS: float = 5.0
     NATIVE_MEMORY_SELF_EVOLVE_ENABLED: bool = False
@@ -427,6 +429,15 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_QDRANT_API_KEY: str = ""
     NATIVE_MEMORY_QUERY_CONTEXT_TOP_K: int = 3
     NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS: int = 1200
+    # Codex 式 Phase 1 会话提取（extraction.py）：空闲会话全量转录 → 结构化
+    # raw_memory；认领租约 + 退避 + 每日限额控制成本。
+    MEMORY_EXTRACTION_ENABLED: bool = True
+    MEMORY_EXTRACTION_IDLE_SECONDS: int = 1800
+    MEMORY_EXTRACTION_MAX_AGE_DAYS: int = 30
+    MEMORY_EXTRACTION_MAX_SESSIONS_PER_PASS: int = 3
+    MEMORY_EXTRACTION_MAX_ATTEMPTS: int = 3
+    MEMORY_EXTRACTION_TRANSCRIPT_MAX_CHARS: int = 24_000
+    MEMORY_EXTRACTION_INTERVAL_SECONDS: int = 900
 
     # Audio transcription tool settings
     ENABLE_AUDIO_TRANSCRIPTION: bool = False

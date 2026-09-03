@@ -116,57 +116,6 @@ async def test_memory_recall_tool_gated_for_disabled_user(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_append_memory_context_gated_for_disabled_user(monkeypatch):
-    from src.infra.chat import memory_context
-
-    monkeypatch.setattr(memory_context.settings, "ENABLE_MEMORY", True)
-    monkeypatch.setattr(memory_context.settings, "NATIVE_MEMORY_QUERY_CONTEXT_ENABLED", True)
-
-    async def _async_false(_uid):
-        return False
-
-    monkeypatch.setattr(user_pref, "user_memory_enabled", _async_false)
-
-    called = []
-
-    async def fake_recall(uid, query):
-        called.append(query)
-        return []
-
-    monkeypatch.setattr(memory_context, "_recall_memories_raw", fake_recall)
-
-    out = await memory_context.append_memory_context("足够长的一条消息内容", "u1")
-    assert out == "足够长的一条消息内容"
-    assert called == []
-
-
-@pytest.mark.asyncio
-async def test_auto_capture_gated_for_disabled_user(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    async def _disabled(uid):
-        return False
-
-    monkeypatch.setattr(memory_tools, "user_memory_enabled", _disabled)
-    events: list = []
-
-    async def fake_acquire(uid, iid):
-        events.append("acquire")
-        return "acquired"
-
-    async def fake_release(uid, iid):
-        events.append("release")
-
-    monkeypatch.setattr(
-        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-
-    await memory_tools._auto_retain_user_memory("u1", "一条不该被评估的消息")
-
-    assert events == []  # 关闭用户直接短路，连分布式锁都不碰
-
-
-@pytest.mark.asyncio
 async def test_pref_cache_bounded_under_burst(monkeypatch):
     """缓存上界：超限时先清过期再淘汰最旧，条目数不超过上限。"""
     cap = getattr(user_pref, "_PREF_CACHE_MAX_SIZE", None)

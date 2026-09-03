@@ -95,6 +95,11 @@ class _FakeRedisCounter:
         self.expires: dict[str, int] = {}
         self._fail = fail
 
+    async def get(self, key):
+        if self._fail:
+            raise RuntimeError("redis down")
+        return self.store.get(key)
+
     async def incr(self, key):
         if self._fail:
             raise RuntimeError("redis down")
@@ -106,7 +111,8 @@ class _FakeRedisCounter:
 
 
 @pytest.mark.asyncio
-async def test_auto_retain_daily_limit_counts_and_allows(monkeypatch):
+async def test_auto_retain_limit_peek_does_not_count(monkeypatch):
+    """检查（peek）不递增计数：空转 pass 不烧每日额度。"""
     from src.infra.memory.distributed import check_auto_retain_daily_limit
 
     fake = _FakeRedisCounter()
@@ -115,19 +121,30 @@ async def test_auto_retain_daily_limit_counts_and_allows(monkeypatch):
 
     assert await check_auto_retain_daily_limit("u1") == "allowed"
     assert await check_auto_retain_daily_limit("u1") == "allowed"
-    # 首次计数设置了 24h 过期
-    assert any(ttl == 86400 for ttl in fake.expires.values())
+    assert await check_auto_retain_daily_limit("u1") == "allowed"
+    assert fake.store == {}  # 只读检查不产生任何计数
 
 
 @pytest.mark.asyncio
-async def test_auto_retain_daily_limit_blocks_over_limit(monkeypatch):
-    from src.infra.memory.distributed import check_auto_retain_daily_limit
+async def test_record_auto_retain_usage_counts_and_expires(monkeypatch):
+    from src.infra.memory.distributed import (
+        check_auto_retain_daily_limit,
+        record_auto_retain_usage,
+    )
 
     fake = _FakeRedisCounter()
     monkeypatch.setattr(distributed, "get_redis_client", lambda: fake)
-    monkeypatch.setattr(_global_settings(), "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 1)
+    monkeypatch.setattr(_global_settings(), "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 2)
 
     assert await check_auto_retain_daily_limit("u1") == "allowed"
+    await record_auto_retain_usage("u1")
+    # 计数写入并设置 24h 过期
+    assert list(fake.store.values()) == [1]
+    assert any(ttl == 86400 for ttl in fake.expires.values())
+    assert await check_auto_retain_daily_limit("u1") == "allowed"
+
+    await record_auto_retain_usage("u1")
+    # 恰好记满 limit 次：再次 peek 判超限（与旧 check-and-increment 语义一致）
     assert await check_auto_retain_daily_limit("u1") == "exceeded"
 
 
@@ -143,11 +160,15 @@ async def test_auto_retain_daily_limit_fails_open(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_auto_retain_daily_limit_zero_disables(monkeypatch):
-    from src.infra.memory.distributed import check_auto_retain_daily_limit
+    from src.infra.memory.distributed import (
+        check_auto_retain_daily_limit,
+        record_auto_retain_usage,
+    )
 
     fake = _FakeRedisCounter()
     monkeypatch.setattr(distributed, "get_redis_client", lambda: fake)
     monkeypatch.setattr(_global_settings(), "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
 
     assert await check_auto_retain_daily_limit("u1") == "allowed"
-    assert fake.store == {}  # 不计数
+    await record_auto_retain_usage("u1")
+    assert fake.store == {}  # 不限制即不计数

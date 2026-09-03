@@ -383,6 +383,7 @@ class UsageStorage:
                                 "total_input_tokens": {"$sum": "$input_tokens"},
                                 "total_output_tokens": {"$sum": "$output_tokens"},
                                 "total_cache_read_tokens": {"$sum": "$cache_read_tokens"},
+                                "total_cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
                                 "total_duration": {"$sum": "$duration"},
                                 "total_tool_calls": {"$sum": "$tool_calls"},
                                 "max_duration": {"$max": "$duration"},
@@ -415,6 +416,7 @@ class UsageStorage:
                                 "tokens": {"$sum": "$total_tokens"},
                                 "input_tokens": {"$sum": "$input_tokens"},
                                 "cache_read_tokens": {"$sum": "$cache_read_tokens"},
+                                "cache_creation_tokens": {"$sum": "$cache_creation_tokens"},
                                 "duration": {"$sum": "$duration"},
                                 "cost_usd": {"$sum": "$cost_usd"},
                                 "scheduled_runs": {
@@ -654,10 +656,25 @@ def _empty_stats() -> Dict[str, Any]:
     }
 
 
+def _cache_read_share(
+    input_tokens: int, cache_read_tokens: int, cache_creation_tokens: int
+) -> float:
+    """缓存命中率：分母取 max(input, cache_read+cache_creation)。
+
+    provider 口径不一：部分（如 Anthropic 协议）的 input_tokens 不含缓存 token，
+    裸除法会低估甚至除零；统一取两者较大值，并把结果 clamp 到 ≤1。
+    """
+    effective_input = max(input_tokens, cache_read_tokens + cache_creation_tokens)
+    if effective_input <= 0:
+        return 0.0
+    return min(cache_read_tokens / effective_input, 1.0)
+
+
 def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
     item_id = str(doc.get("_id") or "")
     input_tokens = _as_int(doc.get("input_tokens"))
     cache_read_tokens = _as_int(doc.get("cache_read_tokens"))
+    cache_creation_tokens = _as_int(doc.get("cache_creation_tokens"))
     return {
         "id": item_id,
         "name": str(doc.get("name") or item_id or "Unknown"),
@@ -666,9 +683,11 @@ def _format_ranking_item(doc: Dict[str, Any]) -> Dict[str, Any]:
         "duration": _as_float(doc.get("duration")),
         "cost_usd": _as_float(doc.get("cost_usd")),
         "input_tokens": input_tokens,
-        "cache_creation_tokens": _as_int(doc.get("cache_creation_tokens")),
+        "cache_creation_tokens": cache_creation_tokens,
         "cache_read_tokens": cache_read_tokens,
-        "cache_read_share": cache_read_tokens / input_tokens if input_tokens else 0.0,
+        "cache_read_share": _cache_read_share(
+            input_tokens, cache_read_tokens, cache_creation_tokens
+        ),
         "zero_cache_requests": _as_int(doc.get("zero_cache_requests")),
     }
 
@@ -680,6 +699,7 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
     total_tokens = _as_int(summary_doc.get("total_tokens"))
     total_input_tokens = _as_int(summary_doc.get("total_input_tokens"))
     total_cache_read_tokens = _as_int(summary_doc.get("total_cache_read_tokens"))
+    total_cache_creation_tokens = _as_int(summary_doc.get("total_cache_creation_tokens"))
     total_duration = _as_float(summary_doc.get("total_duration"))
     scheduled_runs = _as_int(summary_doc.get("scheduled_runs"))
     total_tool_calls = _as_int(summary_doc.get("total_tool_calls"))
@@ -695,11 +715,12 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
             "failed_requests": _as_int(item.get("failed_requests")),
             "tool_calls": _as_int(item.get("tool_calls")),
             "input_tokens": _as_int(item.get("input_tokens")),
+            "cache_creation_tokens": _as_int(item.get("cache_creation_tokens")),
             "cache_read_tokens": _as_int(item.get("cache_read_tokens")),
-            "cache_read_share": (
-                _as_int(item.get("cache_read_tokens")) / _as_int(item.get("input_tokens"))
-                if _as_int(item.get("input_tokens"))
-                else 0.0
+            "cache_read_share": _cache_read_share(
+                _as_int(item.get("input_tokens")),
+                _as_int(item.get("cache_read_tokens")),
+                _as_int(item.get("cache_creation_tokens")),
             ),
         }
         for item in doc.get("daily", [])
@@ -726,8 +747,8 @@ def _format_dashboard(doc: Dict[str, Any]) -> Dict[str, Any]:
         "avg_tokens_per_request": (total_tokens / total_requests) if total_requests else 0.0,
         "avg_duration_per_request": (total_duration / total_requests) if total_requests else 0.0,
         "scheduled_share": (scheduled_runs / total_requests) if total_requests else 0.0,
-        "cache_read_share": (
-            (total_cache_read_tokens / total_input_tokens) if total_input_tokens else 0.0
+        "cache_read_share": _cache_read_share(
+            total_input_tokens, total_cache_read_tokens, total_cache_creation_tokens
         ),
         "tool_calls_per_request": ((total_tool_calls / total_requests) if total_requests else 0.0),
         "max_duration": _as_float(summary_doc.get("max_duration")),

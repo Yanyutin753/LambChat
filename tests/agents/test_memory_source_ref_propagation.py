@@ -1,3 +1,11 @@
+"""三个主 agent 的记忆提取触发点结构契约（Codex 式 Phase 1 移植后）。
+
+- run 结束后 kick 的是「空闲会话提取」（schedule_memory_extraction），不再是
+  旧的每轮最后一条交换评估器（schedule_auto_memory_capture 已删除）；
+- source_refs 的会话/轮次绑定由提取器从 traces 转录生成（extraction.py），
+  nodes 不再手工拼装。
+"""
+
 import re
 from pathlib import Path
 
@@ -12,12 +20,13 @@ import pytest
         "src/agents/team_agent/nodes.py",
     ],
 )
-def test_agent_auto_memory_capture_binds_current_session_and_run(node_path: str) -> None:
+def test_agent_kicks_memory_extraction_after_run(node_path: str) -> None:
     source = Path(node_path).read_text()
 
-    assert "TraceContext.get_request_context()" in source
-    assert "ConversationSourceRef(" in source
-    assert "source_refs=source_refs" in source
+    assert "schedule_memory_extraction(context.user_id)" in source, node_path
+    # 旧每轮评估器必须彻底移除
+    assert "schedule_auto_memory_capture" not in source, node_path
+    assert "resolve_auto_memory_capture_text" not in source, node_path
 
 
 @pytest.mark.parametrize(
@@ -28,16 +37,11 @@ def test_agent_auto_memory_capture_binds_current_session_and_run(node_path: str)
         "src/agents/team_agent/nodes.py",
     ],
 )
-def test_agent_auto_memory_capture_waits_for_final_run_completion(node_path: str) -> None:
+def test_agent_memory_kick_is_memory_flag_gated(node_path: str) -> None:
     source = Path(node_path).read_text()
 
-    memory_block = re.search(
-        r"if settings\.ENABLE_MEMORY[\s\S]*?schedule_auto_memory_capture\([^)]*\)",
+    block = re.search(
+        r"if settings\.ENABLE_MEMORY and context\.user_id:[\s\S]*?schedule_memory_extraction\(",
         source,
     )
-    assert memory_block is not None, node_path
-    block = memory_block.group(0)
-    # ask_human 挂起的 run（waiting_human）不能在挂起瞬间发起记忆评估，
-    # 只能在 run 最终 finished 的那一轮捕获
-    assert "hitl_suspended" in block, node_path
-    assert "hitl_resume is None" not in block, node_path
+    assert block is not None, node_path

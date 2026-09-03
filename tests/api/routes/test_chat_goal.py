@@ -201,11 +201,6 @@ async def test_execute_agent_stream_runs_agent_when_active_goal_is_supplied(
 
     monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
 
-    async def _no_memory(session_id, *, exclude_run_id=None):
-        return False
-
-    monkeypatch.setattr("src.api.routes.chat._should_inject_session_memory", _no_memory)
-
     events = [
         event
         async for event in _execute_agent_stream(
@@ -248,11 +243,6 @@ async def test_execute_agent_stream_passes_auto_mode_to_agent(
         return agent
 
     monkeypatch.setattr("src.api.routes.chat.AgentFactory.get", _get)
-
-    async def _no_memory(session_id, *, exclude_run_id=None):
-        return False
-
-    monkeypatch.setattr("src.api.routes.chat._should_inject_session_memory", _no_memory)
 
     events = [
         event

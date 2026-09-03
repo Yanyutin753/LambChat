@@ -1,6 +1,5 @@
 import asyncio
 import json
-from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -28,6 +27,28 @@ def test_memory_tool_exposure_split_keeps_delete_deferred():
 
     assert {tool.name for tool in get_inline_memory_tools()} == {"memory_retain", "memory_recall"}
     assert {tool.name for tool in get_deferred_memory_tools()} == {"memory_delete"}
+
+
+@pytest.mark.asyncio
+async def test_memory_shutdown_stops_extraction_tasks(monkeypatch):
+    from src.infra.memory import extraction
+    from src.infra.memory import tools as memory_tools
+
+    events: list[str] = []
+
+    async def stop_extraction():
+        events.append("extraction")
+
+    async def stop_compaction():
+        events.append("compaction")
+
+    monkeypatch.setattr(extraction, "stop_memory_extraction_tasks", stop_extraction)
+    monkeypatch.setattr(memory_tools, "stop_memory_compaction_agent", stop_compaction)
+    monkeypatch.setattr(memory_tools, "_backend", None)
+
+    await memory_tools.shutdown()
+
+    assert events == ["extraction", "compaction"]
 
 
 def test_native_memory_guide_does_not_advertise_consolidation_tool():
@@ -70,6 +91,10 @@ def test_memory_recall_description_embeds_source_lookup_sop() -> None:
     assert "get_conversation_detail" in description
     assert "session_id" in description
     assert "run_id" in description
+    assert "complete `text`" in description
+    assert "do not omit" in description.lower()
+    assert "not injected into user messages" in description.lower()
+    assert "call this tool" in description.lower()
 
 
 @pytest.mark.asyncio
@@ -170,349 +195,13 @@ async def test_memory_retain_forwards_source_refs(monkeypatch):
     assert seen["kwargs"]["source_refs"] == [{"session_id": "session-1", "run_id": "run-1"}]
 
 
-@pytest.mark.asyncio
-async def test_auto_memory_capture_forwards_current_source_refs(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    seen = {}
-
-    class FakeBackend:
-        name = "native"
-
-        async def auto_retain_from_text(self, user_id, user_input, source_refs=None):
-            seen["call"] = (user_id, user_input, source_refs)
-            return {"stored": 0}
-
-    async def fake_get_backend():
-        return FakeBackend()
-
-    async def fake_acquire(_user_id, _instance_id):
-        return "acquired"
-
-    async def fake_release(_user_id, _instance_id):
-        return None
-
-    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-
-    refs = [{"session_id": "session-1", "run_id": "run-1"}]
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
-    await memory_tools._auto_retain_user_memory("u1", "hello", source_refs=refs)
-
-    assert seen["call"] == ("u1", "hello", refs)
-
-
-@pytest.mark.asyncio
-async def test_auto_memory_capture_serializes_per_user(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    state = {"active": 0, "max_active": 0, "calls": 0}
-    release = asyncio.Event()
-
-    class FakeBackend:
-        name = "native"
-
-        async def auto_retain_from_text(self, user_id: str, user_input: str) -> None:
-            state["calls"] += 1
-            state["active"] += 1
-            state["max_active"] = max(state["max_active"], state["active"])
-            if state["calls"] == 1:
-                await release.wait()
-            state["active"] -= 1
-
-    async def fake_get_backend():
-        return FakeBackend()
-
-    async def fake_acquire(user_id: str, instance_id: str) -> str:
-        return "acquired"
-
-    async def fake_release(user_id: str, instance_id: str) -> None:
-        return None
-
-    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
-
-    t1 = asyncio.create_task(memory_tools._auto_retain_user_memory("u1", "first"))
-    await asyncio.sleep(0)
-    t2 = asyncio.create_task(memory_tools._auto_retain_user_memory("u1", "second"))
-    await asyncio.sleep(0.05)
-
-    assert state["calls"] == 1
-    assert state["max_active"] == 1
-
-    release.set()
-    await asyncio.gather(t1, t2)
-
-    assert state["calls"] == 2
-    assert state["max_active"] == 1
-
-
-@pytest.mark.asyncio
-async def test_auto_memory_capture_uses_distributed_lock(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    events: list[tuple[str, str]] = []
-
-    class FakeBackend:
-        name = "native"
-
-        async def auto_retain_from_text(self, user_id: str, user_input: str) -> None:
-            events.append(("retain", user_id))
-
-    async def fake_get_backend():
-        return FakeBackend()
-
-    async def fake_acquire(user_id: str, instance_id: str) -> str:
-        events.append(("acquire", user_id))
-        return "acquired"
-
-    async def fake_release(user_id: str, instance_id: str) -> None:
-        events.append(("release", user_id))
-
-    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
-    await memory_tools._auto_retain_user_memory("u1", "hello")
-
-    assert events == [("acquire", "u1"), ("retain", "u1"), ("release", "u1")]
-
-
-@pytest.mark.asyncio
-async def test_auto_memory_capture_notifies_compaction_agent_after_store(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    events: list[tuple[str, str]] = []
-
-    class FakeBackend:
-        name = "native"
-
-        async def auto_retain_from_text(self, user_id: str, user_input: str) -> dict[str, int]:
-            events.append(("retain", user_id))
-            return {"stored": 1}
-
-    class FakeCompactionAgent:
-        async def maybe_compact_after_write(self, backend, user_id: str):
-            assert isinstance(backend, FakeBackend)
-            events.append(("compact", user_id))
-            return {"triggered": True}
-
-    async def fake_get_backend():
-        return FakeBackend()
-
-    async def fake_acquire(user_id: str, instance_id: str) -> str:
-        events.append(("acquire", user_id))
-        return "acquired"
-
-    async def fake_release(user_id: str, instance_id: str) -> None:
-        events.append(("release", user_id))
-
-    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-    monkeypatch.setattr(
-        memory_tools,
-        "get_memory_compaction_agent",
-        lambda: FakeCompactionAgent(),
-        raising=False,
-    )
-
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
-    await memory_tools._auto_retain_user_memory("u1", "hello")
-
-    assert events == [("acquire", "u1"), ("retain", "u1"), ("compact", "u1"), ("release", "u1")]
-
-
-@pytest.mark.asyncio
-async def test_auto_memory_capture_detaches_langsmith_parent(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    events: list[tuple[str, object]] = []
-
-    @contextmanager
-    def fake_tracing_context(**kwargs):
-        events.append(("trace_kwargs", kwargs))
-        yield
-
-    async def fake_auto_retain(user_id: str, user_input: str) -> None:
-        events.append(("retain", (user_id, user_input)))
-
-    monkeypatch.setattr(memory_tools, "tracing_context", fake_tracing_context)
-    monkeypatch.setattr(memory_tools, "_auto_retain_user_memory", fake_auto_retain)
-
-    await memory_tools._auto_retain_user_memory_detached("u1", "hello")
-
-    assert events == [
-        ("trace_kwargs", {"parent": False}),
-        ("retain", ("u1", "hello")),
-    ]
-
-
-@pytest.mark.asyncio
-async def test_schedule_auto_memory_capture_dedupes_running_task_per_user(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    release = asyncio.Event()
-    started = asyncio.Event()
-    calls: list[tuple[str, str]] = []
-
-    async def fake_detached(user_id: str, user_input: str) -> None:
-        calls.append((user_id, user_input))
-        started.set()
-        await release.wait()
-
-    monkeypatch.setattr(memory_tools, "_auto_retain_user_memory_detached", fake_detached)
-    memory_tools._background_tasks.clear()
-    memory_tools._auto_capture_tasks_by_user.clear()
-
-    memory_tools.schedule_auto_memory_capture("u1", "first large input")
-    await asyncio.wait_for(started.wait(), timeout=1)
-    memory_tools.schedule_auto_memory_capture("u1", "second large input")
-
-    assert len(memory_tools._background_tasks) == 1
-    assert len(memory_tools._auto_capture_tasks_by_user) == 1
-    assert calls == [("u1", "first large input")]
-
-    release.set()
-    await asyncio.gather(*list(memory_tools._background_tasks))
-    assert memory_tools._auto_capture_tasks_by_user == {}
-
-
-@pytest.mark.asyncio
-async def test_schedule_auto_memory_capture_limits_global_background_tasks(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    release = asyncio.Event()
-    started_users: list[str] = []
-
-    async def fake_detached(user_id: str, user_input: str) -> None:
-        started_users.append(user_id)
-        await release.wait()
-
-    monkeypatch.setattr(memory_tools, "_auto_retain_user_memory_detached", fake_detached)
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS", 2)
-    memory_tools._background_tasks.clear()
-    memory_tools._auto_capture_tasks_by_user.clear()
-
-    memory_tools.schedule_auto_memory_capture("u1", "first")
-    memory_tools.schedule_auto_memory_capture("u2", "second")
-    memory_tools.schedule_auto_memory_capture("u3", "third")
-    await asyncio.sleep(0)
-
-    assert len(memory_tools._background_tasks) == 2
-    assert set(memory_tools._auto_capture_tasks_by_user) == {"u1", "u2"}
-    assert started_users == ["u1", "u2"]
-
-    release.set()
-    await asyncio.gather(*list(memory_tools._background_tasks))
-    assert memory_tools._auto_capture_tasks_by_user == {}
-
-
-@pytest.mark.asyncio
-async def test_schedule_auto_memory_capture_truncates_large_inputs(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    calls: list[tuple[str, str]] = []
-
-    async def fake_detached(user_id: str, user_input: str) -> None:
-        calls.append((user_id, user_input))
-
-    monkeypatch.setattr(memory_tools, "_auto_retain_user_memory_detached", fake_detached)
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_AUTO_CAPTURE_INPUT_MAX_CHARS", 12)
-    memory_tools._background_tasks.clear()
-    memory_tools._auto_capture_tasks_by_user.clear()
-
-    memory_tools.schedule_auto_memory_capture("u1", "abcdefghijklmnopqrstuvwxyz")
-
-    await asyncio.gather(*list(memory_tools._background_tasks))
-
-    assert calls == [("u1", "abcdefghijkl\n\n[truncated from 26 chars for auto memory capture]")]
-
-
-@pytest.mark.asyncio
-async def test_auto_memory_capture_skips_compaction_when_nothing_stored(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    events: list[tuple[str, str]] = []
-
-    class FakeBackend:
-        name = "native"
-
-        async def auto_retain_from_text(self, user_id: str, user_input: str) -> dict[str, int]:
-            events.append(("retain", user_id))
-            return {"stored": 0}
-
-    class FakeCompactionAgent:
-        async def maybe_compact_after_write(self, backend, user_id: str):
-            events.append(("compact", user_id))
-            return {"triggered": True}
-
-    async def fake_get_backend():
-        return FakeBackend()
-
-    async def fake_acquire(user_id: str, instance_id: str) -> str:
-        events.append(("acquire", user_id))
-        return "acquired"
-
-    async def fake_release(user_id: str, instance_id: str) -> None:
-        events.append(("release", user_id))
-
-    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-    monkeypatch.setattr(
-        memory_tools,
-        "get_memory_compaction_agent",
-        lambda: FakeCompactionAgent(),
-        raising=False,
-    )
-
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
-    await memory_tools._auto_retain_user_memory("u1", "hello")
-
-    assert events == [("acquire", "u1"), ("retain", "u1"), ("release", "u1")]
-
-
-@pytest.mark.asyncio
-async def test_auto_memory_capture_skips_when_distributed_lock_not_acquired(monkeypatch):
-    from src.infra.memory import tools as memory_tools
-
-    events: list[tuple[str, str]] = []
-
-    class FakeBackend:
-        name = "native"
-
-        async def auto_retain_from_text(self, user_id: str, user_input: str) -> None:
-            events.append(("retain", user_id))
-
-    async def fake_get_backend():
-        return FakeBackend()
-
-    async def fake_acquire(user_id: str, instance_id: str) -> str:
-        events.append(("acquire", user_id))
-        return "not_acquired"
-
-    async def fake_release(user_id: str, instance_id: str) -> None:
-        events.append(("release", user_id))
-
-    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-
-    monkeypatch.setattr(memory_tools.settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 0)
-    await memory_tools._auto_retain_user_memory("u1", "hello")
-
-    assert events == [("acquire", "u1")]
+def test_memory_recall_context_param_documents_family_prefix():
+    from src.infra.memory.tools import memory_recall
+
+    context_description = str(memory_recall.args["context"].get("description") or "")
+    # context 参数必须说明家族前缀语义（'project' 覆盖 project_status 等）
+    assert "family prefix" in context_description
+    assert "project_status" in context_description
 
 
 def test_start_memory_compaction_agent_registers_unified_scheduler_job(monkeypatch):
@@ -623,79 +312,6 @@ async def test_schedule_backend_reset_deduplicates_inflight_reset_task(monkeypat
     await asyncio.gather(*list(memory_tools._background_tasks))
 
     assert memory_tools._backend_reset_task is None
-
-
-@pytest.mark.asyncio
-async def test_auto_retain_skipped_when_daily_limit_exceeded(monkeypatch):
-    from src.infra.memory import distributed as distributed_module
-    from src.infra.memory import tools as tools_module
-
-    calls = []
-
-    async def fake_exceeded(user_id):
-        return "exceeded"
-
-    monkeypatch.setattr(distributed_module, "check_auto_retain_daily_limit", fake_exceeded)
-    monkeypatch.setattr(tools_module, "check_auto_retain_daily_limit", fake_exceeded, raising=False)
-
-    class NoBackend:
-        async def auto_retain_from_text(self, *args, **kwargs):
-            calls.append(args)
-            return {"success": True, "stored": 0, "candidates": 0}
-
-    async def fake_get_backend():
-        return NoBackend()
-
-    async def fake_acquire(_uid, _iid):
-        return "acquired"
-
-    async def fake_release(_uid, _iid):
-        return None
-
-    monkeypatch.setattr(tools_module, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        tools_module, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-
-    await tools_module._auto_retain_user_memory("u1", "一条会被跳过的消息")
-
-    assert calls == []  # 超限直接跳过评估
-
-
-@pytest.mark.asyncio
-async def test_auto_retain_proceeds_when_limit_unavailable(monkeypatch):
-    from src.infra.memory import distributed as distributed_module
-    from src.infra.memory import tools as tools_module
-
-    calls = []
-
-    async def fake_unavailable(user_id):
-        return "unavailable"  # Redis 故障 → fail-open
-
-    monkeypatch.setattr(distributed_module, "check_auto_retain_daily_limit", fake_unavailable)
-
-    class NoBackend:
-        async def auto_retain_from_text(self, *args, **kwargs):
-            calls.append(args)
-            return {"success": True, "stored": 0, "candidates": 0}
-
-    async def fake_get_backend():
-        return NoBackend()
-
-    async def fake_acquire(_uid, _iid):
-        return "acquired"
-
-    async def fake_release(_uid, _iid):
-        return None
-
-    monkeypatch.setattr(tools_module, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(
-        tools_module, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
-    )
-
-    await tools_module._auto_retain_user_memory("u1", "Redis 挂了也要继续评估")
-
-    assert len(calls) == 1
 
 
 def test_native_memory_guide_vfs_preserves_compact_behavior_contract() -> None:

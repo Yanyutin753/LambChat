@@ -234,8 +234,8 @@ def test_dynamic_prompt_middleware_order_is_canonical() -> None:
         env = source.rfind("EnvVarPromptMiddleware")
         deferred = source.rfind("ToolSearchMiddleware")
         assert -1 < env < deferred
-        # 记忆索引已挪出工具描述（会话基线消息），工具层保持全静态
-        assert "MemoryIndexMiddleware" not in source
+        # 记忆索引只附着到 memory_recall 工具，不进入用户消息。
+        assert "MemoryRecallIndexMiddleware" in source
         assert "PromptCachingMiddleware" not in source
 
 

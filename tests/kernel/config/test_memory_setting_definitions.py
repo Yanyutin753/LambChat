@@ -27,12 +27,32 @@ def test_memory_embedding_dimensions_default_matches_definition() -> None:
 
 
 def test_memory_query_context_defaults_match_definitions() -> None:
+    # 相关记忆不再自动注入用户消息；索引由 NATIVE_MEMORY_INDEX_ENABLED 控制，
+    # 并只附着到 memory_recall 工具描述。
     assert Settings(_env_file=None).NATIVE_MEMORY_QUERY_CONTEXT_ENABLED is False
     assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_ENABLED"]["default"] is False
     assert Settings(_env_file=None).NATIVE_MEMORY_QUERY_CONTEXT_TOP_K == 3
     assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_TOP_K"]["default"] == 3
     assert Settings(_env_file=None).NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS == 1200
     assert SETTING_DEFINITIONS["NATIVE_MEMORY_QUERY_CONTEXT_MAX_CHARS"]["default"] == 1200
+
+
+def test_memory_extraction_defaults_match_definitions() -> None:
+    expected = {
+        "MEMORY_EXTRACTION_ENABLED": True,
+        "MEMORY_EXTRACTION_IDLE_SECONDS": 1800,
+        "MEMORY_EXTRACTION_MAX_AGE_DAYS": 30,
+        "MEMORY_EXTRACTION_MAX_SESSIONS_PER_PASS": 3,
+        "MEMORY_EXTRACTION_MAX_ATTEMPTS": 3,
+        "MEMORY_EXTRACTION_TRANSCRIPT_MAX_CHARS": 24_000,
+        "MEMORY_EXTRACTION_INTERVAL_SECONDS": 900,
+    }
+
+    configured = Settings(_env_file=None)
+    for name, value in expected.items():
+        assert getattr(configured, name) == value
+        assert SETTING_DEFINITIONS[name]["default"] == value
+        assert SETTING_DEFINITIONS[name]["depends_on"] == "ENABLE_MEMORY"
 
 
 def test_memory_auto_retain_daily_limit_default_matches_definition() -> None:

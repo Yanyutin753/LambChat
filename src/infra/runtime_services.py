@@ -159,6 +159,12 @@ def start_memory_compaction_agent() -> None:
     start_memory_compaction_agent()
 
 
+def start_memory_extraction_agent() -> None:
+    from src.infra.memory.extraction import start_memory_extraction_agent
+
+    start_memory_extraction_agent()
+
+
 def start_memory_evolution_scheduler() -> None:
     from src.infra.memory.evolution.scheduler import run_scheduled_evolution
     from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
@@ -245,6 +251,7 @@ async def start_runtime_services() -> None:
 
     if settings.ENABLE_MEMORY:
         start_memory_compaction_agent()
+        start_memory_extraction_agent()
         start_memory_evolution_scheduler()
 
     register_orphan_recovery_job()

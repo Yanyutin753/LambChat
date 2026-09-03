@@ -27,12 +27,9 @@ from src.api.routes.chat_validation import validate_team_agent_request
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
 from src.infra.chat.session_baseline import (
-    _should_inject_session_memory,
     _time_report_due,
     _turn_context_signature,
     assemble_first_turn_message,
-    inject_session_memory,
-    memory_status_event,
 )
 from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
@@ -303,21 +300,6 @@ async def _execute_agent_stream(
                 "data": {"goal": active_goal, "started_at": started_at},
             }
 
-    # 首轮记忆装配在 executor 后台执行（POST 不再做首轮判定与召回，提交零
-    # 记忆成本）：executor 判首轮（traces 计数排除本 run 已写入的用户消息
-    # trace），首轮先发 status 事件让前端立刻出加载行（沙箱初始化式）再注入，
-    # 注入完成补发 memory_done（对齐 sandbox:starting/ready 两段式生命周期）
-    # ——字节顺序与 POST 侧装配完全一致（基线置头、快照置尾），前缀缓存
-    # append-only 语义不变。HITL 恢复轮跳过（恢复语义不重注入）。
-    if hitl_resume is None and await _should_inject_session_memory(
-        session_id, exclude_run_id=run_id
-    ):
-        yield memory_status_event("memory")
-        message = await inject_session_memory(
-            message, user_id=user_id, raw_query=recommendation_input
-        )
-        yield memory_status_event("memory_done")
-
     try:
         agent = await AgentFactory.get(agent_id)
         async for event in agent.stream(
@@ -435,9 +417,8 @@ async def chat_stream(
     # submit / submit_arq / scheduler 均携带 agent_options）
     apply_response_language(request.agent_options, http_request.headers.get("accept-language"))
 
-    # Codex 式装配（稳定在前、变化在后，全部写时一次性）：
-    # - 记忆索引基线 + 相关记忆快照：仅会话首轮，装配在 executor 后台执行
-    #   （status 事件实时反馈进度，提交延迟与召回解耦），字节顺序不变
+    # 模型侧消息只包含本轮上下文，不注入记忆；记忆索引归属 memory_recall
+    # 工具描述，详细内容由模型按需调用工具获取。
     # - 报时漂移：首轮或超阈值才带时间戳
     # - goal/自动模式签名去重：目标未变不重复注入
     time_due = _time_report_due(existing_metadata)
