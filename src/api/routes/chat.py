@@ -304,7 +304,8 @@ async def _execute_agent_stream(
 
     # 首轮记忆装配在 executor 后台执行（POST 不再做首轮判定与召回，提交零
     # 记忆成本）：executor 判首轮（traces 计数排除本 run 已写入的用户消息
-    # trace），首轮先发 status 事件让前端立刻出加载行（沙箱初始化式）再注入
+    # trace），首轮先发 status 事件让前端立刻出加载行（沙箱初始化式）再注入，
+    # 注入完成补发 memory_done（对齐 sandbox:starting/ready 两段式生命周期）
     # ——字节顺序与 POST 侧装配完全一致（基线置头、快照置尾），前缀缓存
     # append-only 语义不变。HITL 恢复轮跳过（恢复语义不重注入）。
     if hitl_resume is None and await _should_inject_session_memory(
@@ -314,6 +315,7 @@ async def _execute_agent_stream(
         message = await inject_session_memory(
             message, user_id=user_id, raw_query=recommendation_input
         )
+        yield {"event": "status", "data": {"stage": "memory_done"}}
 
     try:
         agent = await AgentFactory.get(agent_id)

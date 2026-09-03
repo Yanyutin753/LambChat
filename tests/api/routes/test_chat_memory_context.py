@@ -216,6 +216,7 @@ async def test_execute_agent_stream_emits_status_then_injects_first_round_memory
         events.append(ev)
 
     assert events[0] == {"event": "status", "data": {"stage": "memory"}}
+    assert events[1] == {"event": "status", "data": {"stage": "memory_done"}}
     assert injected["args"] == ("u1", "原始问题")
     assert captured["message"].endswith("</memory_context>"), "agent 收到的必须是注入后的消息"
 
