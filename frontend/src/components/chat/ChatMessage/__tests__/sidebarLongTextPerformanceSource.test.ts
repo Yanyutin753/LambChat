@@ -24,7 +24,7 @@ test("thinking and subagent sidebars use a lightweight renderer for long or stre
   expect(sidebarSource).not.toMatch(/<pre className=/);
 
   expect(thinkingSource).toMatch(
-    /<SidebarMarkdownContent\s+content=\{content\}/,
+    /<SidebarMarkdownContent\s+content=\{displayContent\}/,
   );
   expect(panelSource).toMatch(
     /<SidebarMarkdownContent\s+content=\{data\.input\}/,
