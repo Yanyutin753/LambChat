@@ -175,10 +175,11 @@ async def release_auto_capture_lock(user_id: str, instance_id: str) -> None:
 
 
 async def check_auto_retain_daily_limit(user_id: str) -> str:
-    """Count this user's auto-retain evaluations against the daily cap.
+    """只读检查当日 auto-retain 剩余额度（peek，不递增计数）。
 
     Returns "allowed" / "exceeded" / "unavailable"（Redis 故障时 fail-open 允许）。
-    计数按 UTC 日分键，首次计数设置 24h 过期；上限 0 = 不限制。
+    计数按 UTC 日分键，由 record_auto_retain_usage 在 retain 成功后写入；
+    上限 0 = 不限制。空转 pass（无可认领会话/模型 no-op）不消耗额度。
     """
     try:
         from src.kernel.config import settings
@@ -189,14 +190,35 @@ async def check_auto_retain_daily_limit(user_id: str) -> str:
         redis_client = get_redis_client()
         date_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
         key = AUTO_RETAIN_DAILY_COUNT_KEY.format(user_id=user_id, date=date_tag)
-        count = int(await redis_client.incr(key))
+        count = int(await redis_client.get(key) or 0)
+        return "allowed" if count < limit else "exceeded"
+    except Exception as e:
+        logger.debug("[Memory] Failed to check auto-retain daily limit: %s", e)
+        return "unavailable"
+
+
+async def record_auto_retain_usage(user_id: str) -> str:
+    """成功 retain 一条记忆后计数；首次计数设置 24h 过期。
+
+    Returns "counted" / "unavailable"（Redis 故障仅降级为不计数）。
+    """
+    try:
+        from src.kernel.config import settings
+
+        limit = int(getattr(settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 20) or 0)
+        if limit <= 0:
+            return "counted"
+        redis_client = get_redis_client()
+        date_tag = datetime.now(timezone.utc).strftime("%Y%m%d")
+        key = AUTO_RETAIN_DAILY_COUNT_KEY.format(user_id=user_id, date=date_tag)
+        await redis_client.incr(key)
         # 无条件续期：只在 count==1 时设置的话，INCR 成功而 EXPIRE 失败会让键
         # 永不过期，用户从此被静默限死。多续的 TTL 最多让键多活一天，无碍正确性
         # （日期在键名里，跨日即换键）。
         await redis_client.expire(key, 86400)
-        return "allowed" if count <= limit else "exceeded"
+        return "counted"
     except Exception as e:
-        logger.debug("[Memory] Failed to check auto-retain daily limit: %s", e)
+        logger.warning("[Memory] Failed to record auto-retain usage: %s", type(e).__name__)
         return "unavailable"
 
 

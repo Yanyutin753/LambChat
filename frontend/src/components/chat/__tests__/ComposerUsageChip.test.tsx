@@ -84,8 +84,8 @@ test("shows the amount and opens the usage card on click", async () => {
   expect(screen.getByText("Token 构成")).toBeInTheDocument();
   expect(screen.getByText("请求数")).toBeInTheDocument();
   expect(screen.getByText("3")).toBeInTheDocument();
-  // 缓存命中率 = 30 / (30 + 100) = 23.1%
-  expect(screen.getByText("23.1%")).toBeInTheDocument();
+  // 缓存命中率 = 30 / 100 = 30.0%（input 已包含缓存读取 token）
+  expect(screen.getByText("30.0%")).toBeInTheDocument();
   // 四类 token 明细
   expect(screen.getByText("输入")).toBeInTheDocument();
   expect(screen.getByText("输出")).toBeInTheDocument();

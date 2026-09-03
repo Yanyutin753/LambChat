@@ -52,6 +52,7 @@ import {
   formatCostDetailRow,
   hasPricedCost,
 } from "./tokenCostDisplay";
+import { cacheHitRateFromTokens } from "../todayUsageSnapshot";
 import { useFxRates } from "../../../hooks/useFxRates";
 import { formatCostUsd, type FxRatesDoc } from "../../../utils/currency";
 import {
@@ -116,10 +117,15 @@ function TokenDetailsButton({
   const [costExpanded, setCostExpanded] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const cacheRate =
-    tokenUsage && tokenUsage.input_tokens > 0
-      ? (tokenUsage.cache_read_tokens ?? 0) / tokenUsage.input_tokens
-      : null;
+  // 口径与今日用量卡一致：分母取有效 prompt 输入并 clamp ≤1，
+  // 兼容 input_tokens 不含缓存 token 的 provider。
+  const cacheRate = tokenUsage
+    ? cacheHitRateFromTokens(
+        tokenUsage.input_tokens ?? 0,
+        tokenUsage.cache_read_tokens ?? 0,
+        tokenUsage.cache_creation_tokens ?? 0,
+      )
+    : null;
   const costRows = buildCostDetailRows(tokenUsage);
   const priced = hasPricedCost(tokenUsage);
   const costRowLabels: Record<string, string> = {

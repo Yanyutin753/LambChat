@@ -16,6 +16,12 @@ test("token details popover computes cache rate on the frontend", () => {
   expect(source).toMatch(/cache_read_tokens/);
   expect(source).toMatch(/input_tokens/);
   expect(source).toMatch(/t\("chat\.message\.tokenCacheRate"\)/);
+  // 口径统一：单消息缓存率复用快照的归一化 helper（兼容 provider 两种
+  // input_tokens 口径且 clamp ≤100%），不再使用裸除法。
+  expect(source).toMatch(/cacheHitRateFromTokens\(/);
+  expect(source).not.toMatch(
+    /cache_read_tokens \?\? 0\) \/ tokenUsage\.input_tokens/,
+  );
 });
 
 test("token details popover is viewport anchored so it cannot cover or be clipped by the message", () => {

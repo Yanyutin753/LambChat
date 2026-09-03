@@ -81,9 +81,47 @@ async def test_search_filters_by_type_and_context():
     hits = await idx.search(vector=_vec(0.2), user_id="u1", memory_types=["project"], limit=5)
     assert [h.memory_id for h in hits] == ["b" * 32]
     hits2 = await idx.search(
-        vector=_vec(0.2), user_id="u1", context_filter="project_constraint", limit=5
+        vector=_vec(0.2), user_id="u1", context_values=["project_constraint"], limit=5
     )
     assert [h.memory_id for h in hits2] == ["b" * 32]
+
+
+@pytest.mark.asyncio
+async def test_search_filters_by_context_family_values():
+    """context 家族（'project' → project/project_status/...）以具体值列表下推
+    MatchAny；族外的 context 不可见。"""
+    idx = _mk_index()
+    await idx.upsert(
+        memory_id="a" * 32,
+        user_id="u1",
+        vector=_vec(0.2),
+        memory_type="project",
+        context="project_status",
+        updated_at=1,
+    )
+    await idx.upsert(
+        memory_id="b" * 32,
+        user_id="u1",
+        vector=_vec(0.2),
+        memory_type="project",
+        context="project",
+        updated_at=1,
+    )
+    await idx.upsert(
+        memory_id="c" * 32,
+        user_id="u1",
+        vector=_vec(0.2),
+        memory_type="project",
+        context="user_identity",
+        updated_at=1,
+    )
+    hits = await idx.search(
+        vector=_vec(0.2),
+        user_id="u1",
+        context_values=["project", "project_status"],
+        limit=5,
+    )
+    assert sorted(h.memory_id for h in hits) == sorted(["a" * 32, "b" * 32])
 
 
 @pytest.mark.asyncio

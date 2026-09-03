@@ -101,3 +101,12 @@ test("model ranking alone exposes per-model cache diagnostics", () => {
     /title=\{modelRankingTitle\}[\s\S]*?showCacheMetrics/,
   );
 });
+
+test("stats header cache hit label uses the normalized prompt-input denominator", () => {
+  // 与输入框用量卡同一口径：分母取 max(input, cacheRead+cacheWrite)，
+  // 避免 provider input 不含缓存 token 时低估或除零。
+  expect(usagePanelSource).toMatch(/effectivePromptInput\(/);
+  expect(usagePanelSource).not.toMatch(
+    /total_cache_read_tokens \/ stats\.total_input_tokens/,
+  );
+});

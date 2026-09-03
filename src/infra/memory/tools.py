@@ -8,12 +8,10 @@ are identical regardless of which memory provider is active.
 
 import asyncio
 import json
-import uuid
-from typing import Annotated, Any, Optional, Sequence
+from typing import Annotated, Any, Optional
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
-from langsmith.run_helpers import tracing_context
 
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
@@ -44,39 +42,6 @@ _backend_lock: Optional[asyncio.Lock] = None
 _backend_lock_loop: Optional[asyncio.AbstractEventLoop] = None
 _backend_reset_task: Optional[asyncio.Task] = None
 _background_tasks: set[asyncio.Task] = set()
-_auto_capture_tasks_by_user: dict[str, asyncio.Task] = {}
-_auto_capture_user_locks: dict[str, asyncio.Lock] = {}
-_AUTO_CAPTURE_LOCKS_MAX = 500  # Prevent unbounded lock accumulation
-_AUTO_CAPTURE_INPUT_MAX_CHARS = 8000
-_AUTO_CAPTURE_MAX_TASKS = 8
-
-
-def _get_auto_capture_lock_fns():
-    from src.infra.memory.distributed import acquire_auto_capture_lock, release_auto_capture_lock
-
-    return acquire_auto_capture_lock, release_auto_capture_lock
-
-
-def _cleanup_local_auto_capture_lock(user_id: str, lock: asyncio.Lock) -> None:
-    waiters = getattr(lock, "_waiters", None)
-    has_waiters = bool(waiters) if waiters is not None else False
-    if not lock.locked() and not has_waiters:
-        current = _auto_capture_user_locks.get(user_id)
-        if current is lock:
-            _auto_capture_user_locks.pop(user_id, None)
-
-
-def _evict_idle_auto_capture_locks() -> None:
-    """Evict idle locks when the dict grows too large."""
-    if len(_auto_capture_user_locks) <= _AUTO_CAPTURE_LOCKS_MAX:
-        return
-    idle_users = [
-        uid
-        for uid, lock in _auto_capture_user_locks.items()
-        if not lock.locked() and not getattr(lock, "_waiters", None)
-    ]
-    for uid in idle_users[: len(_auto_capture_user_locks) // 4]:
-        _auto_capture_user_locks.pop(uid, None)
 
 
 def _get_backend_lock() -> asyncio.Lock:
@@ -90,40 +55,6 @@ def _get_backend_lock() -> asyncio.Lock:
         _backend_lock = asyncio.Lock()
         _backend_lock_loop = current_loop
     return _backend_lock
-
-
-def _clip_auto_capture_input(user_input: str) -> str:
-    max_chars = max(
-        int(
-            getattr(
-                settings,
-                "NATIVE_MEMORY_AUTO_CAPTURE_INPUT_MAX_CHARS",
-                _AUTO_CAPTURE_INPUT_MAX_CHARS,
-            )
-            or 0
-        ),
-        1,
-    )
-    if len(user_input) <= max_chars:
-        return user_input
-    return (
-        user_input[:max_chars].rstrip()
-        + f"\n\n[truncated from {len(user_input)} chars for auto memory capture]"
-    )
-
-
-def _get_auto_capture_max_tasks() -> int:
-    return max(
-        int(
-            getattr(
-                settings,
-                "NATIVE_MEMORY_AUTO_CAPTURE_MAX_TASKS",
-                _AUTO_CAPTURE_MAX_TASKS,
-            )
-            or 0
-        ),
-        1,
-    )
 
 
 async def _get_backend() -> Optional[MemoryBackend]:
@@ -230,19 +161,27 @@ async def memory_recall(
     ] = None,
     context: Annotated[
         Optional[str],
-        "Optional exact-match context scope filter (e.g. 'project_constraint'), or None for all scopes",
+        "Optional context family prefix filter ('project' also matches project_status/"
+        "project_constraint), or None for all scopes",
     ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
     Search and retrieve relevant memories from cross-session storage.
 
-    Use this tool to recall previously stored information. The search is
-    semantic and will find memories that are conceptually related to the query.
+    Memories are not injected into user messages. When prior facts, preferences,
+    project state, suppliers, prices, decisions, or corrections may matter, call this tool
+    with a focused query instead of guessing from the compact index.
+    Each result returns complete `text` whenever storage is available; read it in
+    full and do not omit fine-grained facts. `preview` is only a shortened view.
+    Check `text_complete`: if false, say the detail is incomplete and search the
+    cited source instead of treating the preview as complete evidence.
+
     SOP for evidence: when a recalled memory contains `source_refs`, use each
     authorized `session_id` and `run_id` with get_conversation_detail to inspect
-    the original final answer. Treat the memory as a locator/summary and the
-    conversation detail as the source of truth.
+    the original final answer. Treat the memory as a locator and the conversation
+    detail as the source of truth. Assert an attribution only when the retrieved
+    text or source states it explicitly.
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -331,138 +270,6 @@ def _background_task_error(task: asyncio.Task) -> None:
             logger.warning(f"[Memory] Background task failed: {exc}")
     except asyncio.CancelledError:
         pass
-
-
-def _auto_capture_task_done(user_id: str, task: asyncio.Task) -> None:
-    current = _auto_capture_tasks_by_user.get(user_id)
-    if current is task:
-        _auto_capture_tasks_by_user.pop(user_id, None)
-    _background_tasks.discard(task)
-    _background_task_error(task)
-
-
-async def _auto_retain_user_memory(
-    user_id: str,
-    user_input: str,
-    source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
-) -> None:
-    if not user_id or not user_input.strip():
-        return
-    if not await user_memory_enabled(user_id):
-        logger.debug("[Memory] Auto-capture skipped: memory disabled by user %s", user_id)
-        return
-    lock = _auto_capture_user_locks.get(user_id)
-    if lock is None:
-        _evict_idle_auto_capture_locks()
-        lock = asyncio.Lock()
-        _auto_capture_user_locks[user_id] = lock
-    try:
-        async with lock:
-            instance_id = uuid.uuid4().hex[:8]
-            acquire_lock, release_lock = _get_auto_capture_lock_fns()
-            lock_state = await acquire_lock(user_id, instance_id)
-            if lock_state != "acquired":
-                return
-            try:
-                from src.infra.memory.distributed import check_auto_retain_daily_limit
-
-                daily_state = await check_auto_retain_daily_limit(user_id)
-                if daily_state == "exceeded":
-                    logger.debug(
-                        "[Memory] Auto-retain daily limit reached for user %s, skipping",
-                        user_id,
-                    )
-                    return
-                backend = await _get_backend()
-                if backend is None:
-                    return
-                if hasattr(backend, "auto_retain_from_text"):
-                    if source_refs is None:
-                        result = await backend.auto_retain_from_text(user_id, user_input)
-                    else:
-                        result = await backend.auto_retain_from_text(
-                            user_id, user_input, source_refs
-                        )
-                    stored = 0
-                    if isinstance(result, dict):
-                        stored = int(result.get("stored") or 0)
-                    logger.info(
-                        "[Memory] Auto-retain completed for user %s: stored=%s candidates=%s",
-                        user_id,
-                        stored,
-                        result.get("candidates") if isinstance(result, dict) else None,
-                    )
-                    if stored > 0:
-                        try:
-                            compaction_result = (
-                                await get_memory_compaction_agent().maybe_compact_after_write(
-                                    backend, user_id
-                                )
-                            )
-                            logger.info(
-                                "[Memory] Auto-compaction check for user %s: %s",
-                                user_id,
-                                compaction_result,
-                            )
-                        except Exception as e:
-                            logger.warning(
-                                "[Memory] Background memory compaction check failed: %s", e
-                            )
-            finally:
-                await release_lock(user_id, instance_id)
-    finally:
-        _cleanup_local_auto_capture_lock(user_id, lock)
-
-
-async def _auto_retain_user_memory_detached(
-    user_id: str,
-    user_input: str,
-    source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
-) -> None:
-    """Run background memory capture without inheriting the chat trace parent."""
-    with tracing_context(parent=False):
-        if source_refs is None:
-            await _auto_retain_user_memory(user_id, user_input)
-        else:
-            await _auto_retain_user_memory(user_id, user_input, source_refs)
-
-
-def schedule_auto_memory_capture(
-    user_id: str,
-    user_input: str,
-    source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
-) -> None:
-    """Best-effort background capture of durable user memories from latest input."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-
-    existing = _auto_capture_tasks_by_user.get(user_id)
-    if existing is not None and not existing.done():
-        logger.debug("[Memory] Auto-retain already running for user %s, skipping", user_id)
-        return
-    active_auto_capture_tasks = sum(
-        1 for task in _auto_capture_tasks_by_user.values() if not task.done()
-    )
-    if active_auto_capture_tasks >= _get_auto_capture_max_tasks():
-        logger.warning(
-            "[Memory] Auto-retain skipped for user %s: active task limit reached (%s)",
-            user_id,
-            active_auto_capture_tasks,
-        )
-        return
-
-    clipped_input = _clip_auto_capture_input(user_input)
-    logger.info("[Memory] Scheduling auto-retain for user %s", user_id)
-    if source_refs is None:
-        coro = _auto_retain_user_memory_detached(user_id, clipped_input)
-    else:
-        coro = _auto_retain_user_memory_detached(user_id, clipped_input, source_refs)
-    task = loop.create_task(coro)
-    _auto_capture_tasks_by_user[user_id] = task
-    _background_tasks.add(task)
-    task.add_done_callback(lambda done: _auto_capture_task_done(user_id, done))
 
 
 async def run_scheduled_memory_compaction() -> dict:
@@ -582,6 +389,9 @@ async def shutdown() -> None:
     if _background_tasks:
         await asyncio.gather(*_background_tasks, return_exceptions=True)
     _background_tasks.clear()
+    from src.infra.memory.extraction import stop_memory_extraction_tasks
+
+    await stop_memory_extraction_tasks()
     await stop_memory_compaction_agent()
 
     # Close backend
@@ -590,8 +400,6 @@ async def shutdown() -> None:
     _backend_lock = None
     _backend_lock_loop = None
     _backend_reset_task = None
-    _auto_capture_tasks_by_user.clear()
-    _auto_capture_user_locks.clear()
     if backend is not None:
         try:
             await backend.close()
