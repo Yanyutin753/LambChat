@@ -166,9 +166,7 @@ async def claim_candidate_jobs(
     claimed: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for session_doc in candidates:
         # 仍在跑的会话不认领：此刻提取会漏掉进行中的 run，且终态会把漏提内容锁死
-        if await _session_has_running_trace(
-            db, str(session_doc.get("session_id")), user_id
-        ):
+        if await _session_has_running_trace(db, str(session_doc.get("session_id")), user_id):
             continue
         job = await claim_session_job(jobs_collection, session_doc, user_id)
         if job is None:
@@ -412,7 +410,9 @@ def parse_stage_one_output(text: str) -> dict[str, Any] | None:
     if not raw_memory:
         return None
     tags_raw = payload.get("tags")
-    tags = [str(t).strip() for t in tags_raw if str(t).strip()] if isinstance(tags_raw, list) else []
+    tags = (
+        [str(t).strip() for t in tags_raw if str(t).strip()] if isinstance(tags_raw, list) else []
+    )
     return {
         "noop": False,
         "raw_memory": raw_memory,
@@ -463,7 +463,9 @@ def _fallback_index_fields(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def extract_session_memory(backend, db, user_id: str, session_doc: dict[str, Any]) -> ExtractionOutcome:
+async def extract_session_memory(
+    backend, db, user_id: str, session_doc: dict[str, Any]
+) -> ExtractionOutcome:
     """单个会话的 Phase 1 提取：转录 → LLM 结构化输出 → retain 落库。"""
     from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -513,9 +515,7 @@ async def extract_session_memory(backend, db, user_id: str, session_doc: dict[st
         "tags": [redact_secrets(t) for t in index_fields["tags"]],
     }
     source_refs = [
-        {"session_id": session_id, "run_id": turn["run_id"]}
-        for turn in turns
-        if turn.get("run_id")
+        {"session_id": session_id, "run_id": turn["run_id"]} for turn in turns if turn.get("run_id")
     ][:20]
     try:
         result = await backend.retain(
@@ -542,7 +542,12 @@ async def extract_session_memory(backend, db, user_id: str, session_doc: dict[st
         try:
             await backend._collection.update_one(
                 {"user_id": user_id, "memory_id": memory_id},
-                {"$set": {"source": "auto_retained", "rollout_summary": payload["rollout_summary"][:4000]}},
+                {
+                    "$set": {
+                        "source": "auto_retained",
+                        "rollout_summary": payload["rollout_summary"][:4000],
+                    }
+                },
             )
         except Exception as exc:
             # 记忆已落库：元数据是锦上添花，失败只降级告警，
@@ -663,9 +668,7 @@ async def run_extraction_pass(user_id: str, *, backend=None) -> dict[str, Any]:
             terminal_set["memory_id"] = outcome.memory_id
         result = await jobs.update_one(fence, {"$set": terminal_set})
         if not int(getattr(result, "matched_count", 1) or 0):
-            logger.warning(
-                "[MemoryExtraction] stale claim for %s, skip terminal write", session_id
-            )
+            logger.warning("[MemoryExtraction] stale claim for %s, skip terminal write", session_id)
         results[outcome.status] += 1
 
     if stored_memory:
@@ -739,9 +742,7 @@ def start_memory_extraction_agent() -> None:
     无需重启进程补注册。
     """
     if not settings.ENABLE_MEMORY:
-        logger.info(
-            "[MemoryExtraction] scheduler registered but idle until ENABLE_MEMORY=true"
-        )
+        logger.info("[MemoryExtraction] scheduler registered but idle until ENABLE_MEMORY=true")
 
     from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
 
@@ -753,8 +754,10 @@ def start_memory_extraction_agent() -> None:
             id="memory.extraction",
             name="Memory extraction (Phase 1)",
             interval_seconds=_interval,
-            enabled=lambda: bool(settings.ENABLE_MEMORY)
-            and bool(getattr(settings, "MEMORY_EXTRACTION_ENABLED", True)),
+            enabled=lambda: (
+                bool(settings.ENABLE_MEMORY)
+                and bool(getattr(settings, "MEMORY_EXTRACTION_ENABLED", True))
+            ),
             handler=run_scheduled_memory_extraction,
         )
     )

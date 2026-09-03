@@ -25,7 +25,9 @@ from scripts.cleanup_junk_memories import (  # noqa: E402
 )
 
 
-def _doc(memory_id: str, summary: str, updated_at: str = "2026-04-27", user_id: str = "u1", **extra):
+def _doc(
+    memory_id: str, summary: str, updated_at: str = "2026-04-27", user_id: str = "u1", **extra
+):
     return {
         "memory_id": memory_id,
         "user_id": user_id,
@@ -44,8 +46,16 @@ def _doc(memory_id: str, summary: str, updated_at: str = "2026-04-27", user_id: 
 
 def test_near_identical_summaries_flag_older_copies():
     docs = [
-        _doc("older", "用户强调研究中控制变量的必要性，关注研究设计的严谨性", updated_at="2026-04-25T16:44:00Z"),
-        _doc("newer", "用户强调研究中控制变量的必要性，关注研究设计的严谨性", updated_at="2026-04-25T16:50:00Z"),
+        _doc(
+            "older",
+            "用户强调研究中控制变量的必要性，关注研究设计的严谨性",
+            updated_at="2026-04-25T16:44:00Z",
+        ),
+        _doc(
+            "newer",
+            "用户强调研究中控制变量的必要性，关注研究设计的严谨性",
+            updated_at="2026-04-25T16:50:00Z",
+        ),
     ]
     assert find_duplicate_memory_ids(docs) == ["older"]
 
@@ -357,9 +367,7 @@ def test_render_report_never_prints_memory_content():
     plan = {
         "total": 2,
         "duplicates": [{"memory_id": "m1", "title": "旭日皮蛋报价机密标题"}],
-        "judgments": [
-            {"memory_id": "m2", "keep": False, "reason": "JUNK - 复述了用户隐私内容XYZ"}
-        ],
+        "judgments": [{"memory_id": "m2", "keep": False, "reason": "JUNK - 复述了用户隐私内容XYZ"}],
         "junk_ids": ["m2"],
         "docs_by_id": {},
     }

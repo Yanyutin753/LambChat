@@ -93,9 +93,7 @@ def memory_similarity(doc_a: dict[str, Any], doc_b: dict[str, Any]) -> float:
     emb_a, emb_b = doc_a.get("embedding"), doc_b.get("embedding")
     if isinstance(emb_a, list) and isinstance(emb_b, list):
         return cosine_similarity(emb_a, emb_b)
-    return word_similarity(
-        str(doc_a.get("summary") or ""), str(doc_b.get("summary") or "")
-    )
+    return word_similarity(str(doc_a.get("summary") or ""), str(doc_b.get("summary") or ""))
 
 
 def _updated_sort_key(doc: dict[str, Any]) -> str:
@@ -139,8 +137,7 @@ def find_duplicate_memory_ids(
         kept: list[dict[str, Any]] = []
         for doc in ordered:
             duplicate_of_kept = any(
-                memory_similarity(doc, other) >= _pair_threshold(doc, other)
-                for other in kept
+                memory_similarity(doc, other) >= _pair_threshold(doc, other) for other in kept
             )
             if duplicate_of_kept:
                 flagged.append(str(doc.get("memory_id")))
@@ -166,9 +163,7 @@ async def judge_memory_durability(model: Any, doc: dict[str, Any]) -> dict[str, 
 
     content = str(doc.get("content") or doc.get("summary") or "")[:4000]
     user_prompt = (
-        f"title: {doc.get('title') or ''}\n"
-        f"summary: {doc.get('summary') or ''}\n"
-        f"content: {content}"
+        f"title: {doc.get('title') or ''}\nsummary: {doc.get('summary') or ''}\ncontent: {content}"
     )
     try:
         response = await model.ainvoke(
@@ -185,7 +180,11 @@ async def judge_memory_durability(model: Any, doc: dict[str, Any]) -> dict[str, 
             doc.get("memory_id"),
             type(exc).__name__,
         )
-        return {"memory_id": doc.get("memory_id"), "keep": True, "reason": f"error: {type(exc).__name__}"}
+        return {
+            "memory_id": doc.get("memory_id"),
+            "keep": True,
+            "reason": f"error: {type(exc).__name__}",
+        }
     return {"memory_id": doc.get("memory_id"), "keep": keep, "reason": reason}
 
 
@@ -238,9 +237,7 @@ async def plan_cleanup(
     judgments: list[dict[str, Any]] = []
     if use_llm:
         model = await _get_judge_model()
-        to_judge = [d for d in docs if str(d.get("memory_id")) not in dup_set][
-            :LLM_JUDGE_MAX_BATCH
-        ]
+        to_judge = [d for d in docs if str(d.get("memory_id")) not in dup_set][:LLM_JUDGE_MAX_BATCH]
         for doc in to_judge:
             judgments.append(await judge_memory_durability(model, doc))
 

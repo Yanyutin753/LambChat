@@ -35,9 +35,7 @@ def _now() -> datetime:
 
 def test_candidate_query_requires_idle_window_and_age_cap():
     now = _now()
-    query = build_extraction_candidate_query(
-        "u1", now=now, idle_seconds=1800, max_age_days=30
-    )
+    query = build_extraction_candidate_query("u1", now=now, idle_seconds=1800, max_age_days=30)
 
     assert query["user_id"] == "u1"
     assert query["is_active"] is True
@@ -55,9 +53,7 @@ def test_candidate_query_requires_idle_window_and_age_cap():
 
 
 def test_clip_transcript_keeps_recent_turns_under_budget():
-    turns = [
-        {"run_id": f"r{i}", "user": "u" * 400, "assistant": "a" * 400} for i in range(10)
-    ]
+    turns = [{"run_id": f"r{i}", "user": "u" * 400, "assistant": "a" * 400} for i in range(10)]
     kept = _clip_transcript(turns, max_chars=1000)
 
     total = sum(len(t["user"]) + len(t["assistant"]) for t in kept)
@@ -126,7 +122,10 @@ def test_parse_fenced_json_is_tolerated():
 
 def test_fallback_index_fields_defaults_invalid_context():
     fields = _fallback_index_fields(
-        {"raw_memory": "供应商：九只鸭 15元/kg，旭日 16元/kg，曼玲粥归属待合同确认", "context": "weird"}
+        {
+            "raw_memory": "供应商：九只鸭 15元/kg，旭日 16元/kg，曼玲粥归属待合同确认",
+            "context": "weird",
+        }
     )
     assert fields["context"] == "project"
     assert fields["title"]
@@ -149,7 +148,15 @@ def test_stage_one_template_carries_codex_contract():
     # 用户消息优先的证据分级
     assert "read much more into user messages than assistant messages" in prompt
     # 结构化输出字段（codex 三件套 + LambChat 索引字段）
-    for key in ("rollout_summary", "rollout_slug", "raw_memory", "title", "summary", "tags", "context"):
+    for key in (
+        "rollout_summary",
+        "rollout_slug",
+        "raw_memory",
+        "title",
+        "summary",
+        "tags",
+        "context",
+    ):
         assert f"`{key}`" in prompt
     # 业务事实不算 transient（生产 6650ea0e 教训）
     assert "business facts" in prompt.lower()
@@ -244,9 +251,7 @@ async def test_claim_reclaims_failed_job_past_backoff():
 
 @pytest.mark.asyncio
 async def test_claim_stops_after_max_attempts(monkeypatch):
-    monkeypatch.setattr(
-        extraction.settings, "MEMORY_EXTRACTION_MAX_ATTEMPTS", 3, raising=False
-    )
+    monkeypatch.setattr(extraction.settings, "MEMORY_EXTRACTION_MAX_ATTEMPTS", 3, raising=False)
     jobs = FakeJobsCollection(
         existing={
             "_id": "j",
@@ -341,7 +346,9 @@ def _trace_doc(run_id: str, user_text: str, assistant_text: str) -> dict:
 async def test_extract_session_memory_stores_raw_memory(monkeypatch):
     base = _now()
     trace_docs = [
-        _started_trace("run-1", base - timedelta(minutes=10), "曼玲粥的皮蛋供应商是谁？", "现用九只鸭/旭日…"),
+        _started_trace(
+            "run-1", base - timedelta(minutes=10), "曼玲粥的皮蛋供应商是谁？", "现用九只鸭/旭日…"
+        ),
         _started_trace("run-2", base, "？", "不能确定，需查合同。"),
     ]
 
@@ -496,8 +503,7 @@ async def test_ensure_extraction_job_indexes_creates_unique_session_index():
         for keys, kwargs in calls
     )
     assert any(
-        keys == [("user_id", 1), ("status", 1), ("next_retry_at", 1)]
-        for keys, _kwargs in calls
+        keys == [("user_id", 1), ("status", 1), ("next_retry_at", 1)] for keys, _kwargs in calls
     )
 
 
@@ -920,9 +926,7 @@ async def test_run_extraction_pass_skips_claiming_when_quota_exceeded(monkeypatc
     async def unexpected_claim(*a, **k):
         raise AssertionError("quota exceeded must skip claiming entirely")
 
-    jobs, recorded = _patch_pass_env(
-        monkeypatch, claimed=[], quota="exceeded", job_docs=[]
-    )
+    jobs, recorded = _patch_pass_env(monkeypatch, claimed=[], quota="exceeded", job_docs=[])
     monkeypatch.setattr(extraction, "claim_candidate_jobs", unexpected_claim)
 
     result = await extraction.run_extraction_pass("u1", backend=object())

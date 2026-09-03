@@ -88,6 +88,7 @@ async def test_memory_index_middleware_attaches_index_only_to_recall_tool(monkey
     middleware = pi.MemoryRecallIndexMiddleware(user_id="u1", session_id="s1")
     recall = _tool("memory_recall", "base recall description")
     other = _tool("other_tool", "other description")
+
     class FakeRequest:
         def __init__(self, tools, messages):
             self.tools = tools

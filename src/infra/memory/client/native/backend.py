@@ -41,7 +41,6 @@ _CONTEXT_TYPE_HINTS = {
 }
 
 
-
 def _infer_memory_type(context: Optional[str] = None) -> str:
     if context:
         ctx_lower = context.lower()

@@ -456,9 +456,7 @@ async def test_vector_search_context_prefetch_failure_degrades_not_empties(monke
         _maybe_embed=embed, _collection=col, _logger=logging.getLogger("test")
     )
 
-    out = await search.vector_search(
-        backend, "u1", "查询", 5, None, context_filter="project"
-    )
+    out = await search.vector_search(backend, "u1", "查询", 5, None, context_filter="project")
 
     assert col.distinct_calls == 1
     assert [d["memory_id"] for d in out] == ["a" * 32]  # 回退命中，而非权威空
@@ -472,13 +470,17 @@ async def test_recall_memories_filters_min_score_before_truncation(monkeypatch):
     from src.infra.memory.client.native import search as search_module
     from src.infra.memory.client.native.search import recall_memories
 
-    async def fake_text_search(collection, logger, user_id, query, limit, memory_types, context_filter=None):
+    async def fake_text_search(
+        collection, logger, user_id, query, limit, memory_types, context_filter=None
+    ):
         return []
 
     async def fake_vector_search(backend, user_id, query, limit, memory_types, context_filter=None):
         return []
 
-    async def fake_recent_context_fallback(collection, user_id, limit, memory_types, context_filter=None):
+    async def fake_recent_context_fallback(
+        collection, user_id, limit, memory_types, context_filter=None
+    ):
         return []
 
     async def fake_hydrate(backend, memories):
@@ -510,15 +512,11 @@ async def test_recall_memories_filters_min_score_before_truncation(monkeypatch):
         {"memory_id": "low-3", "text": "e", "score": 0.05},
         {"memory_id": "ok-3", "text": "f", "score": 0.45},
     ]
-    monkeypatch.setattr(
-        search_module, "rrf_merge", lambda text, vector, max_results: list(pool)
-    )
+    monkeypatch.setattr(search_module, "rrf_merge", lambda text, vector, max_results: list(pool))
 
     monkeypatch.setattr(search_module.settings, "NATIVE_MEMORY_RECALL_MIN_SCORE", 0.3)
 
-    result = await recall_memories(
-        FakeBackend(), "u1", "query", max_results=3, touch_access=False
-    )
+    result = await recall_memories(FakeBackend(), "u1", "query", max_results=3, touch_access=False)
 
     ids = [m["memory_id"] for m in result["memories"]]
     assert ids == ["ok-3", "ok-2", "ok-1"], "低分候选应先过滤，达标者回填 top-N"
