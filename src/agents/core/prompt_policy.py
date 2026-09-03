@@ -21,7 +21,13 @@ LAZY_SANDBOX_RUNTIME_POLICY = """## Sandbox Runtime
 
 Logical file-tool alias (not a shell path): `{work_dir}`
 
-Use this alias only with file tools and uploads. For shell commands, use relative paths or `$LAMBCHAT_WORKSPACE`. Never paste `{work_dir}` into a shell command. Never guess or repeat a provider filesystem path. The backend resolves the alias after the sandbox starts. Do not persist either path in durable documents unless requested."""
+Use this alias only with file tools and uploads. For shell commands, use relative paths or `$LAMBCHAT_WORKSPACE`. Never paste `{work_dir}` into a shell command. Never guess or repeat a provider filesystem path. The backend resolves the alias after the sandbox starts. Do not persist either path in durable documents unless requested.
+
+### File/Shell Path Bridging
+- File tools and shell share one sandbox filesystem. `{work_dir}/<name>` and `$LAMBCHAT_WORKSPACE/<name>` are the same directory: file-tool writes appear in the shell, and shell-created files are readable by file tools at `{work_dir}/<name>` — never at a guessed `/workspace/<name>`.
+- Absolute paths outside `{work_dir}` (e.g. `/workspace/<name>`) sit outside the work directory; the shell reaches them only by that exact absolute path, never via `$LAMBCHAT_WORKSPACE` or relative paths. Keep working files under `{work_dir}` / `$LAMBCHAT_WORKSPACE`.
+- `/skills/` and `/memories/` exist only for file tools. To run skill scripts in the shell, `transfer_path` them with target prefix `{work_dir}/` first.
+- `upload_url_to_sandbox` downloads inside the sandbox; pass `{work_dir}/<name>` as the target so the file lands in `$LAMBCHAT_WORKSPACE` for later shell commands."""
 
 WORKSPACE_POLICY = """### Workspace Boundaries
 Check whether a target exists before creating it. Modify an existing project only when requested or relevant; otherwise use a named directory in the current session workspace."""
