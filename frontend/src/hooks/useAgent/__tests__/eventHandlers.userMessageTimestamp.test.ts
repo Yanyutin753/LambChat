@@ -23,7 +23,6 @@ function createContext(messages: Message[]): {
       },
       setConnectionStatus: () => undefined,
       setIsInitializingSandbox: () => undefined,
-    setIsRecallingMemory: () => undefined,
       setSandboxError: () => undefined,
       setActiveGoal: () => undefined,
       setGoalsByRunId: () => undefined,

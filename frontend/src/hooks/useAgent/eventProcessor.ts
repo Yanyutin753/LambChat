@@ -15,6 +15,7 @@ import type {
   ToolResult,
   TokenUsagePart,
   SandboxPart,
+  MemoryStatusPart,
   TodoPart,
   SummaryPart,
   RecommendQuestion,
@@ -411,6 +412,26 @@ export function processMessageEvent(
       break;
     }
 
+    // ---- Memory status events（首轮记忆装配进度，沙箱初始化同款 item）----
+
+    case "status": {
+      if (data.stage === "memory") {
+        result.parts = upsertMemoryStatusPart(parts, {
+          type: "memoryStatus",
+          status: "starting",
+          timestamp: data.timestamp,
+        });
+      } else if (data.stage === "memory_done") {
+        result.parts = upsertMemoryStatusPart(parts, {
+          type: "memoryStatus",
+          status: "ready",
+          timestamp: data.timestamp,
+          completedAt: data.timestamp,
+        });
+      }
+      break;
+    }
+
     // ---- Sandbox events ----
 
     case "sandbox:starting": {
@@ -661,6 +682,29 @@ function isTransientAskHumanCancellation(text: string): boolean {
 /** Replace existing sandbox part or append if none exists.
  *  Preserves `startedAt` from the previous part so the original
  *  starting timestamp survives across status transitions. */
+/** Replace existing memory-status part or append if none exists. */
+function upsertMemoryStatusPart(
+  parts: MessagePart[],
+  memoryPart: MemoryStatusPart,
+): MessagePart[] {
+  return parts.some((p) => p.type === "memoryStatus")
+    ? parts.map((p) => {
+        if (p.type !== "memoryStatus") return p;
+        const prevStartedAt = p.startedAt;
+        return {
+          ...memoryPart,
+          startedAt: memoryPart.startedAt ?? prevStartedAt ?? memoryPart.timestamp,
+        };
+      })
+    : [
+        ...parts,
+        {
+          ...memoryPart,
+          startedAt: memoryPart.startedAt ?? memoryPart.timestamp,
+        },
+      ];
+}
+
 function upsertSandboxPart(
   parts: MessagePart[],
   sandboxPart: SandboxPart,

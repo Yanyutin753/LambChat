@@ -17,7 +17,6 @@ export function useChatRuntimeStates() {
   const [newlyCreatedSession, setNewlyCreatedSession] =
     useState<BackendSession | null>(null);
   const [isInitializingSandbox, setIsInitializingSandbox] = useState(false);
-  const [isRecallingMemory, setIsRecallingMemory] = useState(false);
   const [sandboxError, setSandboxError] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [activeGoal, setActiveGoal] = useState<ActiveGoalSpec | null>(null);
@@ -47,8 +46,6 @@ export function useChatRuntimeStates() {
     setNewlyCreatedSession,
     isInitializingSandbox,
     setIsInitializingSandbox,
-    isRecallingMemory,
-    setIsRecallingMemory,
     sandboxError,
     setSandboxError,
     selectedTeamId,

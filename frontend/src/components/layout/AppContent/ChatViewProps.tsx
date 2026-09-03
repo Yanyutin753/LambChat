@@ -111,7 +111,6 @@ export interface ChatViewProps {
   sessionId: string | null;
   currentRunId: string | null;
   isLoading: boolean;
-  isRecallingMemory?: boolean;
   isLoadingHistory: boolean;
   historyLoadGeneration: number;
   /** 历史分页：是否还有更早的轮次可加载 */

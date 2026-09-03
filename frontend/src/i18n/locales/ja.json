@@ -759,7 +759,6 @@
     "historyLoadOlder": "過去のメッセージを読み込む",
     "historyLoadingOlder": "過去のメッセージを読み込み中…",
     "keyboardShortcuts": "キーボードショートカット",
-    "memoryRecalling": "関連するメモリを検索中…",
     "mentionNoResults": "一致するペルソナがありません",
     "mermaid": "Mermaid",
     "mermaidDiagram": "Mermaid 図",
@@ -971,6 +970,10 @@
     "rateLimited": "リクエストが多すぎます。しばらくしてからお試しください",
     "requestFailed": "セッションの読み込みに失敗しました",
     "runningPlaceholder": "入力を続けると修正が順番にキューされます…",
+    "memory": {
+      "initializing": "関連するメモリを検索中",
+      "ready": "メモリ検索完了"
+    },
     "sandbox": {
       "elapsed": "経過時間 {{duration}}",
       "error": "初期化に失敗しました",
