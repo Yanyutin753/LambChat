@@ -113,6 +113,42 @@ def test_search_lazy_runtime_distinguishes_file_and_shell_workspace_paths() -> N
     )
 
 
+def test_search_lazy_runtime_documents_file_tool_shell_bridging() -> None:
+    rendered = SANDBOX_RUNTIME_SECTION.format(work_dir="/workspace/session-1")
+
+    # 文件工具与 shell 共享同一沙箱文件系统：alias 与 $LAMBCHAT_WORKSPACE 互为映射
+    _assert_markers(
+        rendered,
+        (
+            "same directory",
+            "file-tool writes appear in the shell",
+            "shell-created files are readable by file tools at `/workspace/session-1/<name>`",
+            "outside the work directory",
+            "never at a guessed `/workspace/<name>`",
+        ),
+    )
+    # /skills 与 /memories 是文件工具专属的虚拟存储，进 shell 必须先 transfer_path 进工作目录
+    _assert_markers(
+        rendered,
+        (
+            "exist only for file tools",
+            "transfer_path",
+            "target prefix `/workspace/session-1/`",
+        ),
+    )
+    # URL 下载要落到工作目录 alias，后续 shell 命令才能用
+    _assert_markers(
+        rendered,
+        (
+            "upload_url_to_sandbox",
+            "pass `/workspace/session-1/<name>` as the target",
+            "$LAMBCHAT_WORKSPACE",
+        ),
+    )
+    # 桥接规则属于系统提示词，保持紧凑预算
+    assert len(LAZY_SANDBOX_RUNTIME_POLICY) <= 1700
+
+
 def test_team_runtime_keeps_eager_real_work_dir_semantics() -> None:
     real_work_dir = "/home/user/sessions/session-1"
     rendered = TEAM_SANDBOX_RUNTIME_SECTION.format(work_dir=real_work_dir)
