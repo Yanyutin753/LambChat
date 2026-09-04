@@ -91,6 +91,11 @@ class ErrorCode(Enum):
     PAT_SCOPE_DENIED = ("pat_scope_denied", 403, "Token missing required scope '{{scope}}'")
     DAEMON_OFFLINE = ("daemon_offline", 409, "Local sandbox daemon is offline")
     SANDBOX_TIMEOUT = ("sandbox_timeout", 504, "Local sandbox call timed out after {{seconds}}s")
+    SANDBOX_EXEC_FAILED = (
+        "sandbox_exec_failed",
+        500,
+        "Local sandbox execution failed: {{detail}}",
+    )
     SANDBOX_PAYLOAD_TOO_LARGE = (
         "sandbox_payload_too_large",
         413,

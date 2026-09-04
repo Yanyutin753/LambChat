@@ -171,6 +171,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ko": "로컬 샌드박스 호출 시간 초과({{seconds}}초)",
         "ru": "Превышено время ожидания локального sandbox ({{seconds}} с)",
     },
+    "sandboxExecFailed": {
+        "zh": "本地沙箱执行失败：{{detail}}",
+        "ja": "ローカルサンドボックスの実行に失敗しました：{{detail}}",
+        "ko": "로컬 샌드박스 실행 실패: {{detail}}",
+        "ru": "Ошибка выполнения локального sandbox: {{detail}}",
+    },
     "sandboxPayloadTooLarge": {
         "zh": "本地沙箱载荷超限",
         "ja": "ローカルサンドボックスのペイロードが大きすぎます",

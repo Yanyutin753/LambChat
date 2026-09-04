@@ -634,7 +634,8 @@
     "patScopeDenied": "令牌缺少所需权限 {{scope}}",
     "daemonOffline": "本地沙箱守护进程离线",
     "sandboxTimeout": "本地沙箱调用超时（{{seconds}} 秒）",
-    "sandboxPayloadTooLarge": "本地沙箱载荷超限"
+    "sandboxPayloadTooLarge": "本地沙箱载荷超限",
+    "sandboxExecFailed": "本地沙箱执行失败：{{detail}}"
   },
   "categories": {
     "agent": "代理",

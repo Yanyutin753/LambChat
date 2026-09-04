@@ -634,7 +634,8 @@
     "patScopeDenied": "トークンに必要なスコープ {{scope}} がありません",
     "daemonOffline": "ローカルサンドボックスデーモンはオフラインです",
     "sandboxTimeout": "ローカルサンドボックス呼び出しがタイムアウトしました（{{seconds}}秒）",
-    "sandboxPayloadTooLarge": "ローカルサンドボックスのペイロードが大きすぎます"
+    "sandboxPayloadTooLarge": "ローカルサンドボックスのペイロードが大きすぎます",
+    "sandboxExecFailed": "ローカルサンドボックスの実行に失敗しました：{{detail}}"
   },
   "categories": {
     "agent": "エージェント",

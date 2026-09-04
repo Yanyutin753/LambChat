@@ -634,7 +634,8 @@
     "patScopeDenied": "У токена нет требуемой области {{scope}}",
     "daemonOffline": "Локальный sandbox-демон не подключён",
     "sandboxTimeout": "Превышено время ожидания локального sandbox ({{seconds}} с)",
-    "sandboxPayloadTooLarge": "Полезная нагрузка локального sandbox слишком велика"
+    "sandboxPayloadTooLarge": "Полезная нагрузка локального sandbox слишком велика",
+    "sandboxExecFailed": "Ошибка выполнения локального sandbox: {{detail}}"
   },
   "categories": {
     "agent": "Агент",

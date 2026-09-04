@@ -634,7 +634,8 @@
     "patScopeDenied": "Token missing required scope '{{scope}}'",
     "daemonOffline": "Local sandbox daemon is offline",
     "sandboxTimeout": "Local sandbox call timed out after {{seconds}}s",
-    "sandboxPayloadTooLarge": "Local sandbox payload exceeds limit"
+    "sandboxPayloadTooLarge": "Local sandbox payload exceeds limit",
+    "sandboxExecFailed": "Local sandbox execution failed: {{detail}}"
   },
   "categories": {
     "agent": "Agent",
