@@ -200,8 +200,12 @@ async def _get_judge_model() -> Any:
     model_kwargs: dict[str, Any] = {
         "model_id": model_id,
         "temperature": 0.0,
-        "max_tokens": 200,
     }
+    # 0 = 不限制（默认）：思考型模型 thinking 块会先吃预算，小上限会让
+    # KEEP/JUNK 单行根本轮不到生成（保守 KEEP 掩盖了故障）
+    max_tokens = int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 0) or 0)
+    if max_tokens > 0:
+        model_kwargs["max_tokens"] = max_tokens
     if model_value:
         model_kwargs["model"] = model_value
     return await LLMClient.get_model(**model_kwargs)

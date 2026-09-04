@@ -2604,7 +2604,7 @@
     "NATIVE_MEMORY_INDEX_ENABLED": "Attach a compact memory index to the memory_recall tool description so the model can decide when and how to recall; the index is not answer evidence.",
     "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS": "Maximum number of characters to keep inline in MongoDB before offloading the full memory body to the store backend.",
     "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "Daily auto memory evaluation cap per user (0=unlimited, default 20)",
-    "NATIVE_MEMORY_MAX_TOKENS": "Max tokens for memory LLM responses (extraction, consolidation, reranking). Higher values produce longer summaries but cost more.",
+    "NATIVE_MEMORY_MAX_TOKENS": "Output token cap for memory LLM calls (extraction, consolidation, reranking). 0 = unlimited (default, uses the model's default cap); keep unlimited for thinking models or reasoning blocks will crowd out the output.",
     "NATIVE_MEMORY_MODEL": "Model configuration for memory extraction, consolidation, and reranking. Leave empty to use the default model. Legacy model values are still supported.",
     "NATIVE_MEMORY_PRUNE_THRESHOLD": "Days after which never-accessed memories are pruned during consolidation",
     "NATIVE_MEMORY_QDRANT_API_KEY": "Qdrant API key (leave empty if no auth)",

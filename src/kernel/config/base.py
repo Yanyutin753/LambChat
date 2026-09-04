@@ -401,7 +401,9 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_RERANK_MODEL: str = ""
     NATIVE_MEMORY_RERANK_API_BASE: str = ""
     NATIVE_MEMORY_RERANK_API_KEY: str = ""
-    NATIVE_MEMORY_MAX_TOKENS: int = 2000
+    # 记忆 LLM 输出预算：0 = 不限制（默认，用模型默认上限）；思考型模型
+    # 的 thinking 块会先吃预算，固定小上限会把结构化输出截断成解析失败
+    NATIVE_MEMORY_MAX_TOKENS: int = 0
     NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS: int = 1200
     NATIVE_MEMORY_IMPORT_TOTAL_CONTENT_MAX_CHARS: int = 2_000_000
     NATIVE_MEMORY_COMPACTION_CONTENT_MAX_CHARS: int = 4000

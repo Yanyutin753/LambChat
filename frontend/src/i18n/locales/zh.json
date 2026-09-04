@@ -2604,7 +2604,7 @@
     "NATIVE_MEMORY_INDEX_ENABLED": "将紧凑记忆索引附加到 memory_recall 工具描述，帮助模型决定何时及如何召回；索引本身不作为回答依据。",
     "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS": "在将完整记忆体卸载到存储后端之前，MongoDB 中保留的内联字符数上限。",
     "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "每用户每日自动记忆评估上限（0=不限，默认 20）",
-    "NATIVE_MEMORY_MAX_TOKENS": "记忆 LLM 响应的最大 token 数（提取、合并、重排序）。值越高摘要越长但成本越高。",
+    "NATIVE_MEMORY_MAX_TOKENS": "记忆 LLM 的输出 token 上限（提取、合并、重排序）。0 = 不限制（默认，使用模型默认上限）；思考型模型建议保持不限制，否则思考块会挤占预算导致输出截断。",
     "NATIVE_MEMORY_MODEL": "用于记忆提取、合并和重排序的模型配置。留空使用默认模型。旧的模型值仍兼容。",
     "NATIVE_MEMORY_PRUNE_THRESHOLD": "从未访问的记忆在合并期间被清理的天数",
     "NATIVE_MEMORY_QDRANT_API_KEY": "Qdrant API Key（无鉴权可留空）",

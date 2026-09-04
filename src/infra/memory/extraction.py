@@ -61,6 +61,12 @@ class ExtractionOutcome:
     status: str
     memory_id: str | None = None
     error: str | None = None
+    # 确定性失败（解析/截断类）不重试：重试只会重复烧配额，直接判 exhausted
+    retryable: bool = True
+
+
+# 解析失败是模型输出形态问题，重试同样输入不会变好
+_NON_RETRYABLE_ERRORS = {"unparseable_output", "output_truncated"}
 
 
 def extraction_settings() -> dict[str, Any]:
@@ -464,8 +470,12 @@ async def _get_extraction_model() -> Any:
     model_kwargs: dict[str, Any] = {
         "model_id": model_id,
         "temperature": 0.1,
-        "max_tokens": int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 2000)),
     }
+    # 0 = 不限制（默认）：思考型模型的 thinking 块会先吃输出预算，固定小
+    # 上限会把结构化 JSON 截断成必然解析失败；不传时用模型默认上限
+    max_tokens = int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 0) or 0)
+    if max_tokens > 0:
+        model_kwargs["max_tokens"] = max_tokens
     if model_value:
         model_kwargs["model"] = model_value
     return await LLMClient.get_model(**model_kwargs)
@@ -667,6 +677,7 @@ async def run_extraction_pass(user_id: str, *, backend=None) -> dict[str, Any]:
         watermark = {"extracted_updated_at": session_doc.get("updated_at")}
         if outcome.status == "failed":
             attempts = int(job.get("attempts") or 0)
+            non_retryable = not outcome.retryable or outcome.error in _NON_RETRYABLE_ERRORS
             update: dict[str, Any] = {
                 "$set": {
                     "status": "failed",
@@ -676,8 +687,9 @@ async def run_extraction_pass(user_id: str, *, backend=None) -> dict[str, Any]:
                     **watermark,
                 }
             }
-            if attempts >= cfg["max_attempts"]:
+            if attempts >= cfg["max_attempts"] or non_retryable:
                 update["$set"]["status"] = "exhausted"
+                update["$set"]["next_retry_at"] = None
             result = await jobs.update_one(fence, update)
             if not int(getattr(result, "matched_count", 1) or 0):
                 logger.warning(

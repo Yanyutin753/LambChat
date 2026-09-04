@@ -136,7 +136,7 @@ class NativeMemoryBackend(MemoryBackend):
         default model. Provider credentials and base URL come from the model
         provider configuration.
         """
-        max_tokens = int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 2000))
+        max_tokens = int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 0) or 0)
         from src.infra.llm.client import LLMClient
         from src.infra.llm.models_service import resolve_model_reference
 
@@ -146,8 +146,11 @@ class NativeMemoryBackend(MemoryBackend):
         model_kwargs: dict[str, Any] = {
             "model_id": model_id,
             "temperature": 0.1,
-            "max_tokens": max_tokens,
         }
+        # 0 = 不限制（默认）：思考型模型 thinking 块先吃预算，固定小上限
+        # 会把结构化输出截断；不传时用模型默认上限
+        if max_tokens > 0:
+            model_kwargs["max_tokens"] = max_tokens
         if model_value:
             model_kwargs["model"] = model_value
         return await LLMClient.get_model(

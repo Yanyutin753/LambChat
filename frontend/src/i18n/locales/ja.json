@@ -2604,7 +2604,7 @@
     "NATIVE_MEMORY_INDEX_ENABLED": "コンパクトなメモリインデックスを memory_recall ツールの説明に追加し、モデルのリコール判断を支援します。インデックス自体は回答の根拠ではありません。",
     "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS": "完全なメモリ本文をストレージバックエンドにオフロードする前に、MongoDBにインラインで保持する最大文字数。",
     "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "ユーザーあたりの1日自動メモリ評価上限（0=無制限、デフォルト 20）",
-    "NATIVE_MEMORY_MAX_TOKENS": "メモリLLMレスポンスの最大トークン数（抽出、統合、再ランキング）。高い値は長い要約を生成するがコストが増加。",
+    "NATIVE_MEMORY_MAX_TOKENS": "メモリLLM呼び出し（抽出・統合・再ランキング）の出力トークン上限。0 = 無制限（デフォルト、モデルの既定上限を使用）。思考型モデルは無制限を推奨（思考ブロックが予算を圧迫し出力が途切れるため）。",
     "NATIVE_MEMORY_MODEL": "メモリ抽出、統合、再ランキング用のモデル設定。空の場合はデフォルトモデルを使用します。従来のモデル値も引き続きサポートされます。",
     "NATIVE_MEMORY_PRUNE_THRESHOLD": "アクセスされていないメモリが統合時に削除されるまでの日数",
     "NATIVE_MEMORY_QDRANT_API_KEY": "Qdrant APIキー（認証なしなら空欄）",
