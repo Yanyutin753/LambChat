@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
+from src.infra.memory.client.native.search import build_scope_clause
 from src.infra.memory.client.types import MemoryType
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
@@ -38,7 +40,20 @@ def choose_index_memories(
     return ranked[:per_type_limit]
 
 
-def evict_index_cache(index_cache: dict[str, tuple[float, str]], max_size: int) -> None:
+def compute_index_revision(docs: list[dict[str, Any]]) -> str:
+    """内容派生 revision：相同候选集 → 相同 revision（→ 相同索引字节）。
+
+    不维护计数器：计数器需要跨副本原子递增 + 失效广播，而内容 hash 天然
+    满足"相同数据 → 相同字节"，且可直接观测"索引是否真的变了"。
+    """
+    parts = sorted(
+        f"{doc.get('memory_id', '')}:{ensure_utc(doc.get('updated_at', ensure_utc(utc_now()))).isoformat()}"
+        for doc in docs
+    )
+    return hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:12]
+
+
+def evict_index_cache(index_cache: dict[tuple[str, str], tuple[float, str]], max_size: int) -> None:
     now = time.monotonic()
     cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
     expired = [uid for uid, (t, _) in index_cache.items() if (now - t) >= cache_ttl]
@@ -51,9 +66,10 @@ def evict_index_cache(index_cache: dict[str, tuple[float, str]], max_size: int) 
             del index_cache[uid]
 
 
-async def build_memory_index(backend, user_id: str) -> str:
+async def build_memory_index(backend, user_id: str, project_id: Optional[str] = None) -> str:
+    cache_key = (user_id, project_id or "")
     cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
-    cached = backend._index_cache.get(user_id)
+    cached = backend._index_cache.get(cache_key)
     if cached:
         built_at, cached_str = cached
         if (time.monotonic() - built_at) < cache_ttl:
@@ -68,10 +84,15 @@ async def build_memory_index(backend, user_id: str) -> str:
         "memory_type": 1,
         "source": 1,
         "context": 1,
+        "memory_id": 1,
     }
     docs = (
         await backend._collection.find(
-            {"user_id": user_id, "source": {"$ne": "session_summary"}},
+            {
+                "user_id": user_id,
+                "source": {"$ne": "session_summary"},
+                **build_scope_clause(project_id),
+            },
             projection,
         )
         .sort("updated_at", -1)
@@ -82,6 +103,7 @@ async def build_memory_index(backend, user_id: str) -> str:
     if not docs:
         return ""
 
+    revision = compute_index_revision(docs)
     now = utc_now()
     grouped: dict[str, list[dict[str, Any]]] = {}
     for doc in docs:
@@ -111,7 +133,7 @@ async def build_memory_index(backend, user_id: str) -> str:
     lesson_docs.sort(key=lambda d: str(d.get("updated_at") or ""), reverse=True)
     lesson_docs = lesson_docs[:3]
 
-    lines = ["<memory_index>", "# Cross-Session Memory Index"]
+    lines = [f'<memory_index revision="{revision}">', "# Cross-Session Memory Index"]
     if lesson_docs:
         lesson_lines: list[str] = ["\n## Lessons"]
         for d in lesson_docs:
@@ -146,6 +168,6 @@ async def build_memory_index(backend, user_id: str) -> str:
 
     lines.append("\n</memory_index>")
     result = "\n".join(lines)
-    backend._index_cache[user_id] = (time.monotonic(), result)
+    backend._index_cache[cache_key] = (time.monotonic(), result)
     evict_index_cache(backend._index_cache, backend._INDEX_CACHE_MAX_SIZE)
     return result

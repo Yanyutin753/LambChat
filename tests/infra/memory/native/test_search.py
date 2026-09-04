@@ -148,16 +148,27 @@ async def test_recall_memories_threads_context_filter(monkeypatch):
     captured = {}
 
     async def fake_text_search(
-        collection, logger, user_id, query, limit, memory_types, context_filter=None
+        collection,
+        logger,
+        user_id,
+        query,
+        limit,
+        memory_types,
+        context_filter=None,
+        project_id=None,
     ):
         captured["text"] = context_filter
         return []
 
-    async def fake_vector_search(backend, user_id, query, limit, memory_types, context_filter=None):
+    async def fake_vector_search(
+        backend, user_id, query, limit, memory_types, context_filter=None, project_id=None
+    ):
         captured["vector"] = context_filter
         return []
 
-    async def fake_fallback(collection, user_id, limit, memory_types, context_filter=None):
+    async def fake_fallback(
+        collection, user_id, limit, memory_types, context_filter=None, project_id=None
+    ):
         captured["fallback"] = context_filter
         return []
 
@@ -471,15 +482,24 @@ async def test_recall_memories_filters_min_score_before_truncation(monkeypatch):
     from src.infra.memory.client.native.search import recall_memories
 
     async def fake_text_search(
-        collection, logger, user_id, query, limit, memory_types, context_filter=None
+        collection,
+        logger,
+        user_id,
+        query,
+        limit,
+        memory_types,
+        context_filter=None,
+        project_id=None,
     ):
         return []
 
-    async def fake_vector_search(backend, user_id, query, limit, memory_types, context_filter=None):
+    async def fake_vector_search(
+        backend, user_id, query, limit, memory_types, context_filter=None, project_id=None
+    ):
         return []
 
     async def fake_recent_context_fallback(
-        collection, user_id, limit, memory_types, context_filter=None
+        collection, user_id, limit, memory_types, context_filter=None, project_id=None
     ):
         return []
 

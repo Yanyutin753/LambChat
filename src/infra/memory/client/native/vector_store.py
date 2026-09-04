@@ -112,6 +112,8 @@ class QdrantVectorIndex:
         memory_type: str,
         context: Optional[str],
         updated_at: int,
+        scope: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> bool:
         from qdrant_client.models import PointStruct
 
@@ -128,6 +130,10 @@ class QdrantVectorIndex:
                             "memory_type": memory_type,
                             "context": context,
                             "updated_at": updated_at,
+                            # scope 过滤的权威在 Mongo hydration；payload 携带
+                            # 归属字段供未来精确下推与排查
+                            "scope": scope or "user",
+                            "project_id": project_id,
                         },
                     )
                 ],
@@ -311,6 +317,8 @@ async def index_write_through(
     memory_type: str,
     context: Optional[str],
     updated_at_ts: int,
+    scope: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> bool:
     idx = await get_vector_index()
     if idx is None or not embedding:
@@ -322,6 +330,8 @@ async def index_write_through(
         memory_type=memory_type,
         context=context,
         updated_at=updated_at_ts,
+        scope=scope,
+        project_id=project_id,
     )
 
 
@@ -370,6 +380,8 @@ async def backfill_from_mongo(collection, batch_size: int = 100) -> dict:
             "memory_type": 1,
             "context": 1,
             "updated_at": 1,
+            "scope": 1,
+            "project_id": 1,
         },
     )
     batch: list[PointStruct] = []
@@ -387,6 +399,8 @@ async def backfill_from_mongo(collection, batch_size: int = 100) -> dict:
                         if hasattr(doc.get("updated_at"), "timestamp")
                         else (doc.get("updated_at") or 0)
                     ),
+                    "scope": doc.get("scope") or "user",
+                    "project_id": doc.get("project_id"),
                 },
             )
         )
