@@ -26,6 +26,7 @@ import {
   prepareMessagesForRunningRun,
   extractGoalFromEvents,
   extractGoalsByRunFromEvents,
+  createScheduledTaskApprovalLookup,
 } from "./useAgent/historyLoader";
 import { clearAllLoadingStates } from "./useAgent/messageParts";
 import { type EventHandlerContext } from "./useAgent/eventHandlers";
@@ -165,6 +166,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     messagesRef.current = messages;
   }, [messages]);
 
+  // 历史回放查到已决的 scheduled-task 审批时，补收尾对应 ask_human pill（详见 historyLoader）
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 工厂仅依赖 useState 的稳定 setter
+  const onApprovalLookup = useCallback(createScheduledTaskApprovalLookup(setMessages), []);
+
   // History trace-window pagination (older pages prepend on scroll)
   const {
     hasMoreHistoryTraces,
@@ -182,6 +187,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     streamingMessageIdRef,
     setMessages,
     setGoalsByRunId,
+    onApprovalLookup,
   });
 
   // Create event handler context
@@ -355,7 +361,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           let reconstructedMessages = reconstructMessagesFromEvents(
             historyEvents,
             processedEventIdsRef.current,
-            { options, activeSubagentStack: activeSubagentStackRef.current },
+            {
+              options,
+              activeSubagentStack: activeSubagentStackRef.current,
+              onApprovalLookup,
+            },
           );
           const lastTimestamp = getLastEventTimestamp(historyEvents);
           lastHistoryTimestampRef.current = lastTimestamp;

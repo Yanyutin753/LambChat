@@ -125,10 +125,26 @@ async def _send_scheduled_task_approval_event(
     run_id: str | None,
     timeout: int,
     trace_id: str | None = None,
+    preview: dict[str, Any] | None = None,
 ) -> None:
     if not session_id:
         logger.warning("[ScheduledTask] Cannot send approval event: no session_id")
         return
+
+    data: dict[str, Any] = {
+        "id": approval_id,
+        "message": message,
+        "type": "confirm",
+        "fields": [],
+        "timeout": timeout,
+    }
+    if preview is not None:
+        # 前端实时路径只从事件 data 取 metadata；缺失会退回通用 Markdown
+        # 渲染，把确认文案（表格/代码块标记）整段平铺出来。
+        data["metadata"] = {
+            "approval_type": "scheduled_task_create",
+            "preview": preview,
+        }
 
     try:
         from src.infra.session.dual_writer import get_dual_writer
@@ -136,18 +152,56 @@ async def _send_scheduled_task_approval_event(
         await get_dual_writer().write_event(
             session_id=session_id,
             event_type="approval_required",
-            data={
-                "id": approval_id,
-                "message": message,
-                "type": "confirm",
-                "fields": [],
-                "timeout": timeout,
-            },
+            data=data,
             run_id=run_id,
             trace_id=trace_id,
         )
     except Exception as e:
         logger.error("[ScheduledTask] Failed to send approval event: %s", e, exc_info=True)
+
+
+async def _send_scheduled_task_resolved_event(
+    *,
+    approval_id: str,
+    status: str,
+    session_id: str | None,
+    run_id: str | None,
+    trace_id: str | None = None,
+) -> None:
+    """确认结束后写 approval_resolved，收尾前端 approval_required 生成的 ask_human pill。
+
+    scheduled_task_create 的 tool:result 与该 pill 的 id（审批 id）对不上，
+    没有这个事件 pill 会永远停在「加载中」。
+    """
+    if not session_id:
+        return
+
+    success = status == "approved"
+    result_status = "success" if success else ("timeout" if status == "timeout" else "rejected")
+    try:
+        from src.infra.session.dual_writer import get_dual_writer
+        from src.infra.utils.datetime import utc_now_iso
+
+        await get_dual_writer().write_event(
+            session_id=session_id,
+            event_type="approval_resolved",
+            data={
+                "id": approval_id,
+                "approval_id": approval_id,
+                "status": status,
+                "success": success,
+                "result": {
+                    "status": result_status,
+                    "message": f"Scheduled task creation {status}.",
+                    "values": {},
+                },
+                "timestamp": utc_now_iso(),
+            },
+            run_id=run_id,
+            trace_id=trace_id,
+        )
+    except Exception as e:
+        logger.error("[ScheduledTask] Failed to send approval resolved event: %s", e, exc_info=True)
 
 
 async def _confirm_scheduled_task_creation(
@@ -200,10 +254,18 @@ async def _confirm_scheduled_task_creation(
         run_id=ctx.run_id or None,
         timeout=timeout,
         trace_id=ctx.trace_id,
+        preview=preview,
     )
 
     response = await wait_for_response(approval.id, timeout=timeout)
     if response is None:
+        await _send_scheduled_task_resolved_event(
+            approval_id=approval.id,
+            status="timeout",
+            session_id=ctx.session_id or None,
+            run_id=ctx.run_id or None,
+            trace_id=ctx.trace_id,
+        )
         return {
             "approved": False,
             "status": "timeout",
@@ -211,12 +273,26 @@ async def _confirm_scheduled_task_creation(
             "message": f"Scheduled task creation timed out waiting for user confirmation ({timeout}s).",
         }
     if not response.approved:
+        await _send_scheduled_task_resolved_event(
+            approval_id=approval.id,
+            status="rejected",
+            session_id=ctx.session_id or None,
+            run_id=ctx.run_id or None,
+            trace_id=ctx.trace_id,
+        )
         return {
             "approved": False,
             "status": "rejected",
             "approval_id": approval.id,
             "message": "User rejected scheduled task creation.",
         }
+    await _send_scheduled_task_resolved_event(
+        approval_id=approval.id,
+        status="approved",
+        session_id=ctx.session_id or None,
+        run_id=ctx.run_id or None,
+        trace_id=ctx.trace_id,
+    )
     return {
         "approved": True,
         "status": "approved",

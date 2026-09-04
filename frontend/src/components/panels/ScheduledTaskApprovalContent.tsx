@@ -83,7 +83,7 @@ export function ScheduledTaskApprovalContent({
       <p>
         <strong>{t("approvals.scheduledTask.promptSent")}</strong>
       </p>
-      <pre>
+      <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
         <code>{preview.message}</code>
       </pre>
     </div>
