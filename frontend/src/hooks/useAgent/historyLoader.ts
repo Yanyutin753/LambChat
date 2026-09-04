@@ -46,6 +46,12 @@ interface ProcessHistoryOptions {
       metadata?: Record<string, unknown>;
     }) => void;
   };
+  /** 审批状态查询回调：无论 pending 与否都会收到，用于补收尾历史幽灵 pill。 */
+  onApprovalLookup?: (approval: {
+    id: string;
+    status: string;
+    metadata?: Record<string, unknown> | null;
+  }) => void;
   activeSubagentStack: SubagentStackItem[];
 }
 
@@ -210,8 +216,12 @@ function processHistoryEvent(
         ],
       };
     }
-    if (approvalData.id && opts.options?.onApprovalRequired) {
+    if (
+      approvalData.id &&
+      (opts.options?.onApprovalRequired || opts.onApprovalLookup)
+    ) {
       authFetch<{
+        id?: string;
         status: string;
         message?: string;
         type?: string;
@@ -220,6 +230,15 @@ function processHistoryEvent(
       }>(buildApiUrl(`/human/${approvalData.id}`))
         .then((data) => data ?? null)
         .then((approval) => {
+          if (approval?.id) {
+            // 无论 pending 与否都上报：已决的 scheduled-task 审批要在此
+            // 补收尾历史幽灵 pill（旧版事件没有 approval_resolved 可回放）
+            opts.onApprovalLookup?.({
+              id: approval.id,
+              status: approval.status,
+              metadata: approval.metadata ?? null,
+            });
+          }
           if (approval?.status === "pending") {
             opts.options?.onApprovalRequired?.({
               id: approvalData.id!,
@@ -839,4 +858,79 @@ export function extractGoalsByRunFromEvents(
   }
 
   return goalsByRunId;
+}
+
+/**
+ * 补收尾历史幽灵 ask_human pill：scheduled_task_create 的确认审批
+ * （approval_required 事件）会生成 ask_human pill，但工具结果带的是
+ * scheduled_task_create 自己的 tool_call_id，pill 永远停在「加载中」。
+ * 新版后端会写 approval_resolved 事件；旧数据靠审批终态查询在此兜底。
+ */
+export function resolveLegacyScheduledTaskApproval(
+  messages: Message[],
+  approval: {
+    id: string;
+    status: string;
+    metadata?: Record<string, unknown> | null;
+  },
+): Message[] {
+  if (
+    !approval?.id ||
+    approval.status === "pending" ||
+    approval.metadata?.approval_type !== "scheduled_task_create"
+  ) {
+    return messages;
+  }
+
+  const approved = approval.status === "approved";
+  const resultStatus = approved
+    ? "success"
+    : approval.status === "expired" || approval.status === "timeout"
+      ? "timeout"
+      : "rejected";
+
+  let changed = false;
+  const next = messages.map((message) => {
+    const hasPhantom = message.parts?.some(
+      (part) =>
+        part.type === "tool" &&
+        part.name === "ask_human" &&
+        part.id === approval.id &&
+        part.isPending,
+    );
+    if (!hasPhantom) return message;
+    changed = true;
+    return {
+      ...message,
+      parts: message.parts?.map((part) =>
+        part.type === "tool" &&
+        part.name === "ask_human" &&
+        part.id === approval.id &&
+        part.isPending
+          ? {
+              ...part,
+              isPending: false,
+              success: approved,
+              result: {
+                status: resultStatus,
+                message: `Scheduled task creation ${approval.status}.`,
+                values: {},
+              },
+            }
+          : part,
+      ),
+    };
+  });
+  return changed ? next : messages;
+}
+
+/** 构造 onApprovalLookup 回调：查到已决 scheduled-task 审批时补收尾幽灵 pill。 */
+export function createScheduledTaskApprovalLookup(
+  setMessages: (updater: (previous: Message[]) => Message[]) => void,
+) {
+  return (approval: {
+    id: string;
+    status: string;
+    metadata?: Record<string, unknown> | null;
+  }) => setMessages((previous) => resolveLegacyScheduledTaskApproval(previous, approval));
 }

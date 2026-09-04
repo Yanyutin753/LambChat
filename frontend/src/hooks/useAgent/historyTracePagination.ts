@@ -32,6 +32,11 @@ interface HistoryTracePaginationDeps {
   streamingMessageIdRef: RefObject<string | null>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setGoalsByRunId: Dispatch<SetStateAction<Record<string, ActiveGoalSpec>>>;
+  onApprovalLookup?: (approval: {
+    id: string;
+    status: string;
+    metadata?: Record<string, unknown> | null;
+  }) => void;
 }
 
 export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
@@ -44,6 +49,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     streamingMessageIdRef,
     setMessages,
     setGoalsByRunId,
+    onApprovalLookup,
   } = deps;
 
   const [hasMoreHistoryTraces, setHasMoreHistoryTraces] = useState(false);
@@ -141,7 +147,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
       let reconstructedMessages = reconstructMessagesFromEvents(
         mergedEvents,
         processedEventIdsRef.current,
-        { options, activeSubagentStack: [] },
+        { options, activeSubagentStack: [], onApprovalLookup },
       );
       const streamingRunId =
         messagesRef.current.find(
@@ -183,6 +189,7 @@ export function useHistoryTracePagination(deps: HistoryTracePaginationDeps) {
     streamingMessageIdRef,
     setMessages,
     setGoalsByRunId,
+    onApprovalLookup,
   ]);
 
   return {

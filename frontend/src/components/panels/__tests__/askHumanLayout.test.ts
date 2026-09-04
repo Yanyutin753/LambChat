@@ -165,7 +165,6 @@ test("aligns the ask-human title group on one vertically centered row", () => {
 
 test("keeps approval text readable without truncation", () => {
   expect(approvalSource).not.toMatch(/approval-summary block truncate/);
-  expect(approvalCss).not.toMatch(/text-overflow:\s*ellipsis;/);
   expect(approvalCss).not.toMatch(
     /\.approval-ask-human-question\s*\{[^}]*white-space:\s*nowrap;/,
   );
@@ -174,6 +173,14 @@ test("keeps approval text readable without truncation", () => {
   );
   expect(approvalCss).toMatch(
     /\.approval-form--ask-human \.approval-input[\s\S]*?font-size:\s*1rem;/,
+  );
+});
+
+test("clamps the collapsed approval summary to two lines", () => {
+  // 折叠态摘要把整段确认文案压成一行且不截断，长消息（如定时任务确认）
+  // 会撑爆卡片；限制为两行省略。
+  expect(approvalCss).toMatch(
+    /\.approval-summary\s*\{[\s\S]*?-webkit-line-clamp:\s*2;[\s\S]*?overflow:\s*hidden;/,
   );
 });
 
