@@ -1663,6 +1663,7 @@ git commit -m "docs(sandbox): M1 服务端中继落地标记"
 - results 端点 payload 上限（服务端校验优先，daemon 侧兜底；stdout/stderr base64 体积不可控）
 - daemon 契约明确：exec 成功时 `stderr` 必须为空（或 download 走独立字段，避免错误文本混入 base64 输出被误分类）
 - 文件工具命令依赖 python3/POSIX（`mkdir -p`、`python3 -c`），Windows 矩阵发布前需 daemon 侧兜底实现
+- 原子 register：delete→hset→expire 三步与旧流心跳 hset 存在毫秒级竞态（可能"反踢"新连接、get_active 取首字段），改 Lua/单键原子写或属主校验按字段成员判定
 
 ## Self-Review 记录
 
