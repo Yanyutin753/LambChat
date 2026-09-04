@@ -237,6 +237,8 @@ class Settings(BaseSettings):
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
     SANDBOX_PLATFORM: str = "daytona"
+    SANDBOX_LOCAL_ACK_TIMEOUT: int = 30  # 本地沙箱 daemon ACK 超时（秒）
+    SANDBOX_LOCAL_EXEC_TIMEOUT: int = 120  # 本地沙箱执行总超时（秒）
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180
