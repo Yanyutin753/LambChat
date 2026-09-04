@@ -87,19 +87,19 @@ async def memory_retain(
     content: Annotated[str, "The memory content to store (facts, observations, experiences)"],
     title: Annotated[
         Optional[str],
-        "Short title for this memory (max 25 chars, e.g. 'Go expert new to React', 'prefers raw SQL')",
+        "Short title (max 25 chars)",
     ] = None,
     summary: Annotated[
         Optional[str],
-        "Brief summary of this memory (max 80 chars)",
+        "Brief summary (max 80 chars)",
     ] = None,
     context: Annotated[
         Optional[str],
-        "Optional context or category for this memory (e.g., 'user_identity', 'project_constraint', 'feedback_rule', 'reference_link')",
+        "Optional context label, e.g. 'user_identity' or 'feedback_rule'",
     ] = None,
     tags: Annotated[
         Optional[list[str]],
-        "Optional keyword tags for this memory (e.g., ['Go', 'React', 'newcomer']). Max 5 tags.",
+        "Optional keyword tags. Max 5.",
     ] = None,
     existing_memory_id: Annotated[
         Optional[str],
@@ -121,19 +121,16 @@ async def memory_retain(
 ) -> str:
     """
     Store a memory for cross-session persistence. STRICT: only genuinely useful,
-    non-temporary information is accepted. Content that is too short or resembles
-    code/commands will be rejected. If a semantically similar memory already exists
-    it is merged and updated automatically (result `updated_existing` is true), so
-    write the FULL refreshed content including previously known details, not just
-    the delta. Prefer storing high-signal facts like user preferences, project
-    context, feedback, or external references. Use explicit context labels such as
-    `user_identity`, `project_constraint`, `project_status`, `feedback_rule`, or
-    `reference_link` instead of vague buckets like `user_preferences`.
-    Scope follows ownership: project knowledge is only visible to sessions of that
-    project; cross-project facts belong in 'user' or 'reference' scope.
-    When a durable fact came from conversation history, preserve its authorized
-    `source_refs`. Later, memory_recall returns these pointers and the SOP is to call
-    get_conversation_detail for the original final answer.
+    non-temporary information is accepted — follow the Cross-Session Memory
+    guide's Remember/Skip policy. Content that is too short or resembles
+    code/commands will be rejected. If a semantically similar memory already
+    exists it is merged and updated automatically (result `updated_existing`
+    is true), so write the FULL refreshed content including previously known
+    details, not just the delta. Use explicit context labels such as
+    `user_identity`, `project_constraint`, `project_status`, `feedback_rule`,
+    or `reference_link`. For durable facts from conversation history, preserve
+    their authorized `source_refs`; memory_recall returns them for the
+    get_conversation_detail evidence SOP.
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -183,7 +180,7 @@ async def memory_recall(
     max_results: Annotated[int, "Maximum number of memories to return (default: 5)"] = 5,
     memory_types: Annotated[
         Optional[list[str]],
-        "Filter by memory types (backend-specific), or None for all types",
+        "Filter by memory types, or None for all",
     ] = None,
     context: Annotated[
         Optional[str],
@@ -196,22 +193,17 @@ async def memory_recall(
     Search and retrieve relevant memories from cross-session storage.
 
     Memories are not injected into user messages. When prior facts, preferences,
-    project state, suppliers, prices, decisions, or corrections may matter, call this tool
-    with a focused query instead of guessing from the compact index.
-    Scope isolation is automatic: results include user-level and reference memories
-    plus project memories bound to the current session's project; other projects'
-    memories are never returned. Each result carries a `scope` (and `project_id`
-    when project-scoped) — do not generalize a project constraint to other contexts.
-    Each result returns complete `text` whenever storage is available; read it in
-    full and do not omit fine-grained facts. `preview` is only a shortened view.
-    Check `text_complete`: if false, say the detail is incomplete and search the
-    cited source instead of treating the preview as complete evidence.
-
-    SOP for evidence: when a recalled memory contains `source_refs`, use each
-    authorized `session_id` and `run_id` with get_conversation_detail to inspect
-    the original final answer. Treat the memory as a locator and the conversation
-    detail as the source of truth. Assert an attribution only when the retrieved
-    text or source states it explicitly.
+    project state, decisions, or corrections may matter, call this tool with a
+    focused query instead of guessing from the compact index.
+    Scope isolation is automatic: results include user/reference memories plus
+    the current session's project memories; other projects' memories are
+    never returned — do not generalize a project constraint to other contexts.
+    Each result returns complete `text`: read it in full and do not omit
+    fine-grained facts. If `text_complete` is false, `preview` is truncated —
+    search the cited source instead of treating it as complete evidence.
+    With `source_refs`, call `get_conversation_detail` (`session_id`, `run_id`)
+    for the original final answer: the memory is a locator, the conversation
+    detail is the source of truth.
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:

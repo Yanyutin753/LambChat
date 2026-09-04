@@ -7,6 +7,7 @@ from src.agents.core.prompt_policy import (
     SAFETY_POLICY,
     SUBAGENT_DISPATCH_POLICY,
     WORKFLOW_POLICY,
+    WORKFLOW_READ_ONLY_POLICY,
     WORKSPACE_POLICY,
 )
 from src.kernel.config.base import settings
@@ -95,6 +96,17 @@ DETAILED_SUBAGENT_PROMPT = "\n\n".join(
 )
 SUBAGENT_PROMPT = DETAILED_SUBAGENT_PROMPT
 
+# 只读角色（不写用户可见文件、不负责交付）用裁掉 Artifact 段的工作流变体，
+# 每次 spawn 省约 500 字符；交付纪律由主 agent 承担（Handoff Notes 保留）。
+DETAILED_SUBAGENT_READ_ONLY_PROMPT = "\n\n".join(
+    (
+        _SUBAGENT_BASE,
+        "Your activity is recorded. Investigate thoroughly enough for a reliable handoff.",
+        WORKFLOW_READ_ONLY_POLICY,
+        HANDOFF_POLICY,
+    )
+)
+
 
 def build_subagent_system_prompt(base_prompt: str, *sections: str | None) -> str:
     parts = [base_prompt.strip()]
@@ -117,7 +129,7 @@ SPECIALIZED_SUBAGENT_DESCRIPTIONS: dict[str, str] = {
 }
 
 CODEBASE_INVESTIGATOR_PROMPT = build_subagent_system_prompt(
-    DETAILED_SUBAGENT_PROMPT,
+    DETAILED_SUBAGENT_READ_ONLY_PROMPT,
     "## Codebase Investigator\nDo not edit. Report relevant files, current behavior, patterns, risks, and investigation gaps.",
 )
 IMPLEMENTATION_WORKER_PROMPT = build_subagent_system_prompt(
@@ -125,11 +137,11 @@ IMPLEMENTATION_WORKER_PROMPT = build_subagent_system_prompt(
     "## Implementation Worker\nMake only the scoped change. Preserve architecture and report files changed, verification, and risks.",
 )
 VERIFICATION_RUNNER_PROMPT = build_subagent_system_prompt(
-    DETAILED_SUBAGENT_PROMPT,
+    DETAILED_SUBAGENT_READ_ONLY_PROMPT,
     "## Verification Runner\nDo not change production files. Report commands, pass/fail status, failure analysis, blockers, and next diagnostic.",
 )
 RESEARCH_SUBAGENT_PROMPT = build_subagent_system_prompt(
-    DETAILED_SUBAGENT_PROMPT,
+    DETAILED_SUBAGENT_READ_ONLY_PROMPT,
     "## Researcher\nUse primary sources where possible. Report source-backed findings, date/version caveats, confidence, and implications.",
 )
 
