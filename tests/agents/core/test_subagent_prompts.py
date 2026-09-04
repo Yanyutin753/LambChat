@@ -223,6 +223,36 @@ def test_specialist_prompts_keep_distinct_scopes() -> None:
     _assert_markers(RESEARCH_SUBAGENT_PROMPT, ("primary sources", "date/version"))
 
 
+def test_read_only_specialists_omit_artifact_delivery_policy() -> None:
+    """只读子代理（investigator/verification/researcher）不向用户交付产物，
+    Artifact Delivery/Completion Gate 是主 agent 与文件写入角色的职责——
+    裁掉可省每次 spawn 约 500 字符；安全/工作区/进度纪律保留。
+    """
+    for prompt in (CODEBASE_INVESTIGATOR_PROMPT, VERIFICATION_RUNNER_PROMPT, RESEARCH_SUBAGENT_PROMPT):
+        assert "auto-staged" not in prompt
+        assert "reveal_file" not in prompt
+        assert "reveal_project" not in prompt
+        assert "Artifact Completion Gate" not in prompt
+        # 保留的纪律：工作区边界 + 安全（untrusted/隐私）+ 进度
+        _assert_markers(
+            prompt,
+            (
+                "current session workspace",
+                "target exists",
+                "untrusted",
+                "privacy",
+                "Handoff Notes",
+            ),
+        )
+        assert len(prompt) <= 2500
+
+
+def test_writer_subagents_keep_artifact_delivery_policy() -> None:
+    """文件写入角色（general-purpose / implementation-worker）保留交付纪律。"""
+    for prompt in (SUBAGENT_PROMPT, IMPLEMENTATION_WORKER_PROMPT):
+        _assert_markers(prompt, ("auto-staged", "reveal_project", "Artifact Completion Gate"))
+
+
 def test_dynamic_prompt_middleware_order_is_canonical() -> None:
     from inspect import getsource
 

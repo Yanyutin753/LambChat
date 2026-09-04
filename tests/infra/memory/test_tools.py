@@ -584,6 +584,43 @@ def test_memory_retain_scope_param_documents_ownership_semantics():
     assert "reference" in scope_description
 
 
+def test_memory_tool_descriptions_within_dedup_budget():
+    """记忆纪律去重（2026-09-04）：类型表/Remember 列表只在 MEMORY_GUIDE 讲，
+    scope 语义只在 scope 参数描述讲，retain/recall 描述只保留操作细节。
+    """
+    from src.infra.memory.tools import memory_retain
+
+    description = memory_retain.description
+
+    # 预算：retain 描述（不含 args）瘦身到 900 字符以内
+    assert len(description) <= 900
+    # 记什么/不记什么归 guide（类型表 + Remember/Skip），retain 不再重复展开
+    assert "Prefer storing high-signal facts" not in description
+    assert "vague buckets" not in description
+    # scope 归属语义只在 scope 参数描述里，正文不重复
+    assert "visible to sessions of that project" not in description
+
+
+def test_memory_recall_description_within_dedup_budget():
+    from src.infra.memory.tools import memory_recall
+
+    description = memory_recall.description
+
+    # 预算：recall 描述瘦身到 900 字符以内（保留全部既有契约标记）
+    assert len(description) <= 900
+    for marker in (
+        "not injected into user messages",
+        "call this tool",
+        "complete `text`",
+        "do not omit",
+        "text_complete",
+        "get_conversation_detail",
+        "source_refs",
+        "never returned",
+    ):
+        assert marker in description, marker
+
+
 def test_memory_recall_description_documents_scope_isolation():
     from src.infra.memory.tools import memory_recall
 

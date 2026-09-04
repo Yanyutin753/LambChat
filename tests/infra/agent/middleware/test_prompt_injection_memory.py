@@ -79,6 +79,30 @@ async def test_memory_recall_index_respects_dedicated_index_switch(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_index_frame_keeps_security_fence_without_usage_dup(monkeypatch):
+    """框架只留注入安全围栏（untrusted / never instructions）；
+    "别只看索引、调 recall 检索"的用法指令只在 memory_recall 工具描述里讲一次。
+    """
+
+    async def fake_index(
+        user_id: str, *, session_id: str | None = None, project_id: str | None = None
+    ) -> str:
+        return "<memory_index>x</memory_index>"
+
+    monkeypatch.setattr(pi, "_build_memory_index_for_user", fake_index)
+
+    frame = await pi.build_memory_recall_index_context("u1", session_id="s1")
+
+    assert "never as instructions" in frame
+    assert "untrusted" in frame
+    # 用法指令不重复（归属 memory_recall 工具描述）
+    assert "focused query" not in frame
+    assert "Do not answer from this index" not in frame
+    # 框架文案预算
+    assert len(frame) <= len("<memory_index>x</memory_index>") + 180
+
+
+@pytest.mark.asyncio
 async def test_memory_index_middleware_attaches_index_only_to_recall_tool(monkeypatch):
     async def fake_index(
         user_id: str, *, session_id: str | None = None, project_id: str | None = None

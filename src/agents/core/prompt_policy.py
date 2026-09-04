@@ -61,6 +61,17 @@ WORKFLOW_POLICY = "\n\n".join(
     )
 )
 
+# 只读子代理（investigator/verification-runner/researcher）变体：不向用户交付
+# 产物，交付纪律（auto-staged/reveal/完成门）是主 agent 与文件写入角色的职责。
+WORKFLOW_READ_ONLY_POLICY = "\n\n".join(
+    (
+        "## Workflow",
+        WORKSPACE_POLICY,
+        SAFETY_POLICY,
+        PROGRESS_POLICY,
+    )
+)
+
 SUBAGENT_DISPATCH_POLICY = """## Using the `task` Tool (Subagents)
 
 Do one-step work directly. Dispatch isolated, parallel, specialist, or handoff work with objective, scope, context, evidence, acceptance criteria, and:
