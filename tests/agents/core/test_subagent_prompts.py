@@ -228,7 +228,11 @@ def test_read_only_specialists_omit_artifact_delivery_policy() -> None:
     Artifact Delivery/Completion Gate 是主 agent 与文件写入角色的职责——
     裁掉可省每次 spawn 约 500 字符；安全/工作区/进度纪律保留。
     """
-    for prompt in (CODEBASE_INVESTIGATOR_PROMPT, VERIFICATION_RUNNER_PROMPT, RESEARCH_SUBAGENT_PROMPT):
+    for prompt in (
+        CODEBASE_INVESTIGATOR_PROMPT,
+        VERIFICATION_RUNNER_PROMPT,
+        RESEARCH_SUBAGENT_PROMPT,
+    ):
         assert "auto-staged" not in prompt
         assert "reveal_file" not in prompt
         assert "reveal_project" not in prompt
