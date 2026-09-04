@@ -1309,3 +1309,62 @@ async def test_extract_session_memory_degrades_to_user_without_project(monkeypat
     assert outcome.status == "succeeded"
     call = backend.retain_calls[0]
     assert call["project_id"] is None
+
+
+# ---------------------------------------------------------------------------
+# 思考型提取模型的输出预算与确定性失败不重试（生产第二次事故：截断型失败
+# 3 次重试全部白烧主对话同 key 的配额）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_extraction_model_budget_fits_thinking_models(monkeypatch):
+    """主模型为思考型（thinking 块吃预算）时 2000 token 必然截断 JSON。
+    提取预算必须不小于 6000。"""
+
+    async def fake_resolve(ref):
+        return ("m-id", None)
+
+    captured: dict = {}
+
+    async def fake_get_model(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    import src.infra.llm.models_service as models_service
+    from src.infra.llm.client import LLMClient
+
+    monkeypatch.setattr(models_service, "resolve_model_reference", fake_resolve)
+    monkeypatch.setattr(LLMClient, "get_model", staticmethod(fake_get_model))
+
+    from src.infra.memory.extraction import _get_extraction_model
+
+    await _get_extraction_model()
+
+    assert captured["max_tokens"] >= 6000
+
+
+@pytest.mark.asyncio
+async def test_unparseable_output_is_not_retried(monkeypatch):
+    """解析失败是确定性失败：重试只会重复烧配额，直接判 exhausted。"""
+    session = {"session_id": "s1", "updated_at": _now() - timedelta(hours=1)}
+    job = {
+        "_id": "j1",
+        "session_id": "s1",
+        "status": "claimed",
+        "attempts": 1,
+        "lease_expires_at": _now() + timedelta(minutes=15),
+    }
+
+    jobs, recorded = _patch_pass_env(monkeypatch, claimed=[(session, job)], job_docs=[dict(job)])
+
+    async def fake_extract(backend, db, uid, session_doc):
+        return extraction.ExtractionOutcome("failed", error="unparseable_output")
+
+    monkeypatch.setattr(extraction, "extract_session_memory", fake_extract)
+
+    await extraction.run_extraction_pass("u1", backend=object())
+
+    # attempts=1 < max_attempts=3，但确定性失败直接终态，不进退避重试
+    assert jobs.docs["j1"]["status"] == "exhausted"
+    assert jobs.docs["j1"]["next_retry_at"] is None

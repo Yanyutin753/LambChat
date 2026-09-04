@@ -200,7 +200,9 @@ async def _get_judge_model() -> Any:
     model_kwargs: dict[str, Any] = {
         "model_id": model_id,
         "temperature": 0.0,
-        "max_tokens": 200,
+        # 思考型模型 thinking 块会先吃预算：单行判定也保底 1000，否则
+        # KEEP/JUNK 行根本轮不到生成（保守 KEEP 掩盖了故障）
+        "max_tokens": 1000,
     }
     if model_value:
         model_kwargs["model"] = model_value
