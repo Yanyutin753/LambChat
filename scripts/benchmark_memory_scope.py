@@ -153,7 +153,6 @@ async def run_isolation_benchmark(backend, collection) -> dict[str, Any]:
                 if mid.startswith("m-proj-") and not mid.startswith(f"m-{pid}-")
             }
             own = f"m-{pid}-{topic}" in hit_ids
-            user_visible = any(mid.startswith("m-user-") or mid == "m-legacy-1" for mid in hit_ids)
             if foreign:
                 results["violations"].append(
                     {"project": pid, "query": topic, "foreign": sorted(foreign)}
