@@ -1102,6 +1102,7 @@ async def dispatch_local_call(
     try:
         while time.monotonic() < exec_deadline:
             raw = await redis.get(resp_key)
+            resp = None
             if raw is not None:
                 resp = json.loads(raw)
                 if resp.get("user_id") != user_id:
@@ -1316,8 +1317,8 @@ async def channel_frames(
 ) -> AsyncIterator[str]:
     """SSE 帧生成器：hello -> (tool_call | 心跳) 循环；连接期心跳注册表。"""
     yield f"event: hello\ndata: {json.dumps({'client_id': client_id})}\n\n"
-    last_beat = 0.0
     loop = asyncio.get_event_loop()
+    last_beat = loop.time()  # 首个心跳在间隔之后到点，保证 hello 后紧跟的是 tool_call
     while not stop.is_set():
         now = loop.time()
         if now - last_beat >= _HEARTBEAT_SECONDS:
