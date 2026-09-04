@@ -54,11 +54,18 @@ def _run_coro_sync(coro: Coroutine[Any, Any, T]) -> T:
 
 
 def _classify_file_error(text: str) -> ExtendedFileError:
-    """把 daemon 返回的错误文本映射为标准 FileOperationError 字面量。"""
+    """把 daemon 返回的错误文本映射为标准 FileOperationError 字面量。
+
+    ENOENT 的真实输出（`[Errno 2] No such file or directory: '...'`）包含
+    "directory" 子串，必须先于 is-a-directory 判定，否则误分类；errno 编号
+    用 `]` 收尾匹配，避免 "errno 2" 撞上 "errno 21" 的前缀。
+    """
     lowered = text.lower()
+    if "no such file" in lowered or "errno 2]" in lowered:
+        return "file_not_found"
     if "permission" in lowered:
         return "permission_denied"
-    if "directory" in lowered:
+    if "is a directory" in lowered or "errno 21]" in lowered or "eisdir" in lowered:
         return "is_directory"
     return "file_not_found"
 
@@ -94,9 +101,11 @@ class LocalSandboxBackend(BaseSandbox):
         stderr = result.get("stderr") or ""
         # ExecuteResponse 只有合并 output 字段（protocol.py），照 E2BBackend 的拼接方式
         output = f"{stdout}\n{stderr}" if stdout and stderr else (stdout or stderr)
+        exit_code = result.get("exit_code")
+        # 缺失 exit_code 透传 None（协议：未确定），不伪装成 0 成功
         return ExecuteResponse(
             output=output,
-            exit_code=int(result.get("exit_code") or 0),
+            exit_code=int(exit_code) if exit_code is not None else None,
             truncated=False,
         )
 

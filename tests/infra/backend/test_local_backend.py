@@ -101,14 +101,51 @@ def test_download_files_decodes_base64(monkeypatch):
 
 
 def test_download_files_maps_missing_to_error(monkeypatch):
+    # 真实 daemon 的 ENOENT 输出（python3 open() 抛出后经 stderr 回传）
+    enoent = "[Errno 2] No such file or directory: '/workspace/s1/missing.txt'"
+
     async def fake_dispatch(user_id, op, payload, *, timeout=None):
-        return _ok_response(stdout="No such file", exit_code=1)
+        return _ok_response(stdout=enoent, exit_code=1)
 
     monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
     backend = LocalSandboxBackend(user_id="u1", session_id="s1")
     responses = backend.download_files(["/workspace/s1/missing.txt"])
+    # ENOENT 文本含 "directory" 子串，不能被误分类为 is_directory
     assert responses[0].error == "file_not_found"
     assert responses[0].content is None
+
+
+def test_download_files_maps_is_directory_error(monkeypatch):
+    eisdir = "[Errno 21] Is a directory: '/workspace/s1'"
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        return _ok_response(stdout=eisdir, exit_code=1)
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = backend.download_files(["/workspace/s1"])
+    assert responses[0].error == "is_directory"
+
+
+def test_classify_file_error_real_daemon_strings():
+    classify = local_module._classify_file_error
+    assert classify("[Errno 2] No such file or directory: '/workspace/x'") == "file_not_found"
+    assert classify("/bin/sh: cat: /workspace/x: No such file or directory") == "file_not_found"
+    assert classify("[Errno 21] Is a directory: '/workspace/x'") == "is_directory"
+    assert classify("[Errno 13] Permission denied: '/root/x'") == "permission_denied"
+    assert classify("mkdir: cannot create directory '/x': Permission denied") == "permission_denied"
+
+
+async def test_aexecute_missing_exit_code_is_undetermined(monkeypatch):
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        return {"status": "ok", "stdout": "partial"}
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    resp = await backend.aexecute("cmd")
+    # 缺失 exit_code 透传 None（协议：None = 未确定），不得伪装成 0 成功
+    assert resp.output == "partial"
+    assert resp.exit_code is None
 
 
 def test_upload_files_writes_via_exec(monkeypatch):
