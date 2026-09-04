@@ -56,6 +56,7 @@ async def test_roundtrip_ack_then_done(fake, monkeypatch):
     async def daemon():
         await asyncio.sleep(0.02)
         req = json.loads(await fake.lpop("sandbox:req:u1"))
+        assert req["timeout"] == 5  # 帧契约（spec §3.2）：daemon 按 timeout 掐表
         await fake.set(
             f"sandbox:resp:{req['call_id']}", json.dumps({"user_id": "u1", "stage": "ack"})
         )

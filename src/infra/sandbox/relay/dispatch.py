@@ -28,7 +28,13 @@ async def dispatch_local_call(
         raise AppError(ErrorCode.DAEMON_OFFLINE)
     exec_timeout = timeout if timeout is not None else float(settings.SANDBOX_LOCAL_EXEC_TIMEOUT)
     call_id = uuid.uuid4().hex
-    req = {"call_id": call_id, "user_id": user_id, "op": op, "payload": payload}
+    req = {
+        "call_id": call_id,
+        "user_id": user_id,
+        "op": op,
+        "payload": payload,
+        "timeout": exec_timeout,
+    }
     redis = _redis()
     resp_key = f"sandbox:resp:{call_id}"
     await redis.rpush(f"sandbox:req:{user_id}", json.dumps(req))

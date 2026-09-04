@@ -30,6 +30,9 @@ NODES_SOURCE = (
         ({"sandbox": "local"}, "local"),
         ({"sandbox": "cloud"}, "cloud"),
         ({"sandbox": "bogus"}, "daytona"),
+        # 非字符串（不可哈希）不得让 `in {"local", "cloud"}` 抛 TypeError
+        ({"sandbox": ["local"]}, "daytona"),
+        ({"sandbox": {"local": True}}, "daytona"),
         ({}, "daytona"),
         (None, "daytona"),
     ],

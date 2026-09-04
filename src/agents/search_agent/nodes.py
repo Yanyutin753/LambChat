@@ -512,7 +512,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 def _resolve_sandbox_platform(agent_options: Dict[str, Any] | None, default_platform: str) -> str:
     """会话级沙箱选择：agent_options.sandbox 覆盖全局平台（spec §3.4）。"""
     choice = (agent_options or {}).get("sandbox")
-    return choice if choice in {"local", "cloud"} else default_platform
+    # 非字符串值（如列表/字典，不可哈希）不能进 set 成员判断，回退默认平台
+    return choice if isinstance(choice, str) and choice in {"local", "cloud"} else default_platform
 
 
 async def _create_backend_and_prompt(
