@@ -161,6 +161,8 @@ async def judge_memory_durability(model: Any, doc: dict[str, Any]) -> dict[str, 
     """单条 durable 判定；异常时保守 KEEP（清理是删数据，宁可漏删不可误删）。"""
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    from src.infra.memory.extraction import response_text
+
     content = str(doc.get("content") or doc.get("summary") or "")[:4000]
     user_prompt = (
         f"title: {doc.get('title') or ''}\nsummary: {doc.get('summary') or ''}\ncontent: {content}"
@@ -172,7 +174,7 @@ async def judge_memory_durability(model: Any, doc: dict[str, Any]) -> dict[str, 
                 HumanMessage(content=user_prompt),
             ]
         )
-        keep, reason = parse_judge_reply(str(getattr(response, "content", "") or ""))
+        keep, reason = parse_judge_reply(response_text(response))
     except Exception as exc:
         # 只记异常类型：异常原文可能携带用户记忆内容
         logger.warning(

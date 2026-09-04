@@ -131,6 +131,8 @@ class MemoryBackend(ABC):
         tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
         source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
+        scope: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Store a memory."""
         ...
@@ -143,6 +145,7 @@ class MemoryBackend(ABC):
         max_results: int = 5,
         memory_types: Optional[list[str]] = None,
         context_filter: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Recall memories matching the query."""
         ...
@@ -210,6 +213,29 @@ def get_user_id_from_runtime(runtime: Any) -> Optional[str]:
                 context = configurable.get("context")
                 if context and hasattr(context, "user_id"):
                     return context.user_id
+    except Exception:
+        pass
+    return None
+
+
+def get_session_id_from_runtime(runtime: Any) -> Optional[str]:
+    """Extract session_id from ToolRuntime context (agent context object)."""
+    if not runtime:
+        return None
+    try:
+        if hasattr(runtime, "config"):
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                context = configurable.get("context")
+                if context and hasattr(context, "session_id"):
+                    session_id = context.session_id
+                    if session_id:
+                        return str(session_id)
+                # sub-agent / fallback: LangGraph config 自带 session_id
+                session_id = configurable.get("session_id")
+                if session_id:
+                    return str(session_id)
     except Exception:
         pass
     return None
