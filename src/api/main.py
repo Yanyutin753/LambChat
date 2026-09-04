@@ -40,6 +40,7 @@ from src.api.routes import (
     push,
     revealed_file,
     role,
+    sandbox,
     scheduled_task,
     session,
     session_queue,
@@ -747,6 +748,8 @@ def create_app() -> FastAPI:
     app.include_router(
         scheduled_task.router, prefix="/api/scheduled-tasks", tags=["Scheduled Tasks"]
     )
+    # Sandbox daemon 中继: /api/sandbox channel/results/status
+    app.include_router(sandbox.router, prefix="/api/sandbox", tags=["Sandbox"])
     # WebSocket 路由: /ws 用于实时通知
     app.include_router(websocket.router, tags=["WebSocket"])
 
