@@ -43,7 +43,9 @@ async def test_pat_token_builds_payload(monkeypatch):
     async def _no_touch(_self, _pat_id):
         return None
 
-    monkeypatch.setattr(pat_module.PATStorage, "verify", lambda self, token: _async_return(record))
+    monkeypatch.setattr(
+        pat_module.PATStorage, "verify", lambda self, token: _async_return((record, None))
+    )
     monkeypatch.setattr(pat_module.PATStorage, "touch_last_used", _no_touch)
     monkeypatch.setattr(
         api_deps,
@@ -73,7 +75,9 @@ async def test_pat_missing_scope_denied(monkeypatch):
     async def _no_touch(_self, _pat_id):
         return None
 
-    monkeypatch.setattr(pat_module.PATStorage, "verify", lambda self, token: _async_return(record))
+    monkeypatch.setattr(
+        pat_module.PATStorage, "verify", lambda self, token: _async_return((record, None))
+    )
     monkeypatch.setattr(pat_module.PATStorage, "touch_last_used", _no_touch)
     monkeypatch.setattr(
         api_deps,
@@ -98,7 +102,7 @@ async def test_pat_missing_scope_denied(monkeypatch):
 
 async def test_invalid_pat_rejected(monkeypatch):
     async def _none(_self, _token):
-        return None
+        return None, "unknown"
 
     monkeypatch.setattr(pat_module.PATStorage, "verify", _none)
     app = FastAPI()
@@ -115,12 +119,33 @@ async def test_invalid_pat_rejected(monkeypatch):
     assert resp.json()["detail"]["code"] == "pat_not_found"
 
 
+async def test_expired_pat_rejected(monkeypatch):
+    """verify 返回 reason=expired 时激活 PAT_EXPIRED，与未找到/已撤销区分。"""
+
+    async def _expired(_self, _token):
+        return None, "expired"
+
+    monkeypatch.setattr(pat_module.PATStorage, "verify", _expired)
+    app = FastAPI()
+    register_error_handlers(app)
+
+    @app.get("/probe")
+    async def probe(user=Depends(api_deps.get_current_user_pat_or_jwt)):
+        return {"sub": user.sub}
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get("/probe", headers={"Authorization": "Bearer lc_pat_old"})
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "pat_expired"
+
+
 async def test_pat_touch_last_used_throttled_per_pat_id(monkeypatch):
     record = _pat_record(["sandbox:execute"])
     touched: list[str] = []
 
     async def _verify(_self, _token):
-        return record
+        return record, None
 
     async def _touch(_self, pat_id):
         touched.append(pat_id)

@@ -336,8 +336,10 @@ async def get_current_user_pat_or_jwt(
     if token.startswith(PAT_PREFIX):
         from src.infra.auth.pat import PATStorage
 
-        record = await PATStorage().verify(token)
+        record, reason = await PATStorage().verify(token)
         if record is None:
+            if reason == "expired":
+                raise AppError(ErrorCode.PAT_EXPIRED)
             raise AppError(ErrorCode.PAT_NOT_FOUND)
         payload = await _load_user_payload(record.user_id)
         request.state.pat_scopes = record.scopes

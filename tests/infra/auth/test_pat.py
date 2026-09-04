@@ -53,19 +53,22 @@ def storage(monkeypatch) -> PATStorage:
 async def test_create_returns_token_and_verifies(storage):
     token, record = await storage.create(user_id="u1", name="桌面端", scopes=["sandbox:execute"])
     assert token.startswith(PAT_PREFIX) and len(token) > 40
-    verified = await storage.verify(token)
-    assert verified is not None and verified.user_id == "u1"
+    verified, reason = await storage.verify(token)
+    assert verified is not None and reason is None
+    assert verified.user_id == "u1"
     assert verified.scopes == ["sandbox:execute"]
 
 
 async def test_verify_rejects_unknown_token(storage):
-    assert await storage.verify(f"{PAT_PREFIX}nope") is None
+    verified, reason = await storage.verify(f"{PAT_PREFIX}nope")
+    assert verified is None and reason == "unknown"
 
 
 async def test_revoke_makes_token_invalid(storage):
     token, record = await storage.create(user_id="u1", name="a", scopes=["sandbox:execute"])
     assert await storage.revoke(user_id="u1", pat_id=record.pat_id) is True
-    assert await storage.verify(token) is None
+    verified, reason = await storage.verify(token)
+    assert verified is None and reason == "revoked"
 
 
 async def test_expired_token_rejected(storage):
@@ -75,7 +78,8 @@ async def test_expired_token_rejected(storage):
         scopes=["sandbox:execute"],
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
-    assert await storage.verify(token) is None
+    verified, reason = await storage.verify(token)
+    assert verified is None and reason == "expired"
 
 
 async def test_list_for_user_excludes_revoked(storage):
@@ -89,5 +93,5 @@ async def test_list_for_user_excludes_revoked(storage):
 async def test_touch_last_used(storage):
     token, record = await storage.create(user_id="u1", name="a", scopes=["sandbox:execute"])
     await storage.touch_last_used(record.pat_id)
-    verified = await storage.verify(token)
+    verified, _reason = await storage.verify(token)
     assert verified.last_used_at is not None

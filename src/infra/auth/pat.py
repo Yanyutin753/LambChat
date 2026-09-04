@@ -76,14 +76,21 @@ class PATStorage:
         await self._get_collection().insert_one(record.model_dump())
         return token, record
 
-    async def verify(self, token: str) -> Optional[PATRecord]:
+    async def verify(self, token: str) -> tuple[Optional[PATRecord], Optional[str]]:
+        """校验 token。
+
+        有效 -> ``(record, None)``；失败 -> ``(None, reason)``，
+        reason ∈ {"unknown", "revoked", "expired"}（调用方据此区分 PAT_EXPIRED 等错误码）。
+        """
         doc = await self._get_collection().find_one({"token_hash": _hash_token(token)})
-        if doc is None or doc.get("revoked"):
-            return None
+        if doc is None:
+            return None, "unknown"
+        if doc.get("revoked"):
+            return None, "revoked"
         expires_at = doc.get("expires_at")
         if expires_at is not None and expires_at <= _utcnow():
-            return None
-        return PATRecord(**doc)
+            return None, "expired"
+        return PATRecord(**doc), None
 
     async def list_for_user(self, user_id: str) -> list[PATRecord]:
         cursor = self._get_collection().find({"user_id": user_id, "revoked": False})
