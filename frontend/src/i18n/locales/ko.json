@@ -2604,7 +2604,7 @@
     "NATIVE_MEMORY_INDEX_ENABLED": "간결한 메모리 인덱스를 memory_recall 도구 설명에 추가하여 모델의 리콜 판단을 돕습니다. 인덱스 자체는 답변 근거가 아닙니다.",
     "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS": "전체 메모리 본문을 스토리지 백엔드로 오프로드하기 전에 MongoDB에 인라인으로 유지할 최대 문자 수.",
     "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": "사용자당 일일 자동 메모리 평가 상한 (0=무제한, 기본 20)",
-    "NATIVE_MEMORY_MAX_TOKENS": "메모리 LLM 응답의 최대 토큰 수(추출, 통합, 재순위화). 값이 높을수록 긴 요약을 생성하지만 비용 증가.",
+    "NATIVE_MEMORY_MAX_TOKENS": "메모리 LLM 호출(추출, 통합, 재순위화)의 출력 토큰 상한. 0 = 제한 없음(기본값, 모델 기본 상한 사용). 추론형 모델은 제한 없음 권장(추론 블록이 예산을 점유해 출력이 잘리므로).",
     "NATIVE_MEMORY_MODEL": "메모리 추출, 통합, 재순위화에 사용할 모델 설정입니다. 비워두면 기본 모델을 사용합니다. 기존 모델 값도 계속 지원됩니다.",
     "NATIVE_MEMORY_PRUNE_THRESHOLD": "접근되지 않은 메모리가 통합 중에 정리되기까지의 일수",
     "NATIVE_MEMORY_QDRANT_API_KEY": "Qdrant API 키 (인증 없으면 비워두기)",

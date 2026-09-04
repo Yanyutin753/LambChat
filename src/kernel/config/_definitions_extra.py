@@ -826,7 +826,7 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.MEMORY_SEARCH,
         "subcategory": "limits",
         "description": "settingDesc.NATIVE_MEMORY_MAX_TOKENS",
-        "default": 2000,
+        "default": 0,
         "depends_on": "ENABLE_MEMORY",
     },
     "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS": {

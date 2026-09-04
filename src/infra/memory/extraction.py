@@ -470,10 +470,12 @@ async def _get_extraction_model() -> Any:
     model_kwargs: dict[str, Any] = {
         "model_id": model_id,
         "temperature": 0.1,
-        # 思考型模型（thinking 块吃输出预算）下 2000 token 会把结构化 JSON
-        # 截断成必然解析失败（生产 188 job 全挂的另一半根因）：提取预算保底 6000
-        "max_tokens": max(6000, int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 6000))),
     }
+    # 0 = 不限制（默认）：思考型模型的 thinking 块会先吃输出预算，固定小
+    # 上限会把结构化 JSON 截断成必然解析失败；不传时用模型默认上限
+    max_tokens = int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 0) or 0)
+    if max_tokens > 0:
+        model_kwargs["max_tokens"] = max_tokens
     if model_value:
         model_kwargs["model"] = model_value
     return await LLMClient.get_model(**model_kwargs)

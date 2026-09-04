@@ -135,6 +135,34 @@ async def test_get_memory_model_uses_native_model_id(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
+async def test_get_memory_model_no_cap_when_max_tokens_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """NATIVE_MEMORY_MAX_TOKENS=0（默认）= 不限制：不传 max_tokens。"""
+
+    calls: list[dict] = []
+
+    async def fake_get_model(**kwargs):
+        calls.append(kwargs)
+        return object()
+
+    async def fake_resolve_model_reference(_value):
+        return "default-id", None
+
+    monkeypatch.setattr("src.infra.llm.client.LLMClient.get_model", fake_get_model)
+    monkeypatch.setattr(
+        "src.infra.llm.models_service.resolve_model_reference",
+        fake_resolve_model_reference,
+    )
+    monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_MODEL", "")
+    monkeypatch.setattr(backend_module.settings, "NATIVE_MEMORY_MAX_TOKENS", 0)
+
+    await NativeMemoryBackend._get_memory_model()
+
+    assert calls and "max_tokens" not in calls[0]
+
+
+@pytest.mark.asyncio
 async def test_get_memory_model_uses_default_model_when_native_model_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
