@@ -100,6 +100,8 @@ YubbChat/
 !/scripts/codemod_error_literals.py
 !/scripts/cleanup_junk_memories.py
 !/scripts/sync_error_locales.py
+!/scripts/backfill_memory_scope.py
+!/scripts/benchmark_memory_scope.py
 docs/docs/.vitepress/
 k8s/lambchat-secret.yaml
 k8s/lambchat.yaml
