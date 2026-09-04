@@ -1658,6 +1658,11 @@ git commit -m "docs(sandbox): M1 服务端中继落地标记"
 - HITL 确认（spec §3.5：`local_run_command`/写确认经 ask_human 中断，服务端工具内 interrupt 后才 dispatch）
 - `SANDBOX_PAYLOAD_TOO_LARGE` 的 payload 上限校验（daemon 侧产出 + results 端点侧双向）
 - frontend：会话沙箱选择器、设置分区、本地工具专属 Item
+- team_agent 的 sandbox 路由（当前仅 search_agent 生效，team 会话选 local 仍走云端）
+- 陈旧请求重放防护：req 加 `ts` 字段，channel 侧丢弃下发时已超过 ack 超时的请求（旧流退场窗口内残留的 lpop 竞争）
+- results 端点 payload 上限（服务端校验优先，daemon 侧兜底；stdout/stderr base64 体积不可控）
+- daemon 契约明确：exec 成功时 `stderr` 必须为空（或 download 走独立字段，避免错误文本混入 base64 输出被误分类）
+- 文件工具命令依赖 python3/POSIX（`mkdir -p`、`python3 -c`），Windows 矩阵发布前需 daemon 侧兜底实现
 
 ## Self-Review 记录
 
