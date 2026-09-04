@@ -1318,9 +1318,9 @@ async def test_extract_session_memory_degrades_to_user_without_project(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_extraction_model_budget_fits_thinking_models(monkeypatch):
-    """主模型为思考型（thinking 块吃预算）时 2000 token 必然截断 JSON。
-    提取预算必须不小于 6000。"""
+async def test_extraction_model_default_has_no_token_cap(monkeypatch):
+    """默认不限制输出预算（思考型模型 thinking 块先吃预算，固定小上限会把
+    结构化 JSON 截断成必然解析失败）；显式配置 >0 时才透传上限。"""
 
     async def fake_resolve(ref):
         return ("m-id", None)
@@ -1336,12 +1336,16 @@ async def test_extraction_model_budget_fits_thinking_models(monkeypatch):
 
     monkeypatch.setattr(models_service, "resolve_model_reference", fake_resolve)
     monkeypatch.setattr(LLMClient, "get_model", staticmethod(fake_get_model))
+    monkeypatch.setattr(extraction.settings, "NATIVE_MEMORY_MAX_TOKENS", 0)
 
     from src.infra.memory.extraction import _get_extraction_model
 
     await _get_extraction_model()
+    assert "max_tokens" not in captured  # 0 = 不限制：不传，用模型默认上限
 
-    assert captured["max_tokens"] >= 6000
+    monkeypatch.setattr(extraction.settings, "NATIVE_MEMORY_MAX_TOKENS", 4000)
+    await _get_extraction_model()
+    assert captured["max_tokens"] == 4000  # 显式上限透传
 
 
 @pytest.mark.asyncio
