@@ -1171,3 +1171,141 @@ def test_start_memory_extraction_agent_registers_even_when_memory_disabled(monke
     # job 无条件注册：热开启 ENABLE_MEMORY 后由 enabled lambda 动态放行
     assert len(recorded) == 1
     assert recorded[0].id == "memory.extraction"
+
+
+# ---------------------------------------------------------------------------
+# provider content blocks 归一化（Anthropic 协议 content 是块列表而非字符串）
+# ---------------------------------------------------------------------------
+
+
+def test_response_text_joins_text_blocks_and_skips_reasoning():
+    from src.infra.memory.extraction import response_text
+
+    blocks = [
+        {"type": "reasoning", "content": [], "encrypted_content": "gAAAA"},
+        {"type": "text", "text": '{"raw_memory":"皮蛋丁九只鸭15元/kg"'},
+        {"type": "text", "text": ',"rollout_summary":"汇报"}'},
+        {"type": "tool_use", "name": "x"},
+    ]
+    assert response_text(type("R", (), {"content": blocks})()) == (
+        '{"raw_memory":"皮蛋丁九只鸭15元/kg","rollout_summary":"汇报"}'
+    )
+    # 字符串 content 透传；空/异常 content 返回空串
+    assert response_text(type("R", (), {"content": "plain"})()) == "plain"
+    assert response_text(type("R", (), {"content": []})()) == ""
+    assert response_text(type("R", (), {"content": None})()) == ""
+
+
+@pytest.mark.asyncio
+async def test_extract_session_memory_parses_anthropic_content_blocks(monkeypatch):
+    """生产事故：提取模型 content 为块列表，str(list) 后 100% unparseable_output。"""
+
+    async def fake_model():
+        return object()
+
+    class FakeResponse:
+        content = [
+            {"type": "reasoning", "encrypted_content": "gAAAA", "content": []},
+            {
+                "type": "text",
+                "text": '{"raw_memory":"卤蛋现用旭日16元/kg","rollout_summary":"报价汇报",'
+                '"rollout_slug":"ludan","title":"卤蛋报价","summary":"旭日16元/kg",'
+                '"tags":["卤蛋"],"context":"project"}',
+            },
+        ]
+
+    async def fake_ainvoke(model, messages, operation=None):
+        return FakeResponse()
+
+    monkeypatch.setattr(extraction, "_get_extraction_model", fake_model)
+    import src.infra.llm.retry as retry_module
+
+    monkeypatch.setattr(retry_module, "ainvoke_with_retry", fake_ainvoke)
+
+    outcome = await extract_session_memory(
+        FakeBackend(),
+        _fake_db([_trace_doc("run-1", "卤蛋报价多少", "旭日16元/kg")]),
+        "u1",
+        {"session_id": "s1", "metadata": {}},
+    )
+
+    assert outcome.status == "succeeded"
+    assert outcome.memory_id == "m-1"
+
+
+@pytest.mark.asyncio
+async def test_extract_session_memory_inherits_session_project_id(monkeypatch):
+    """提取的项目知识继承源会话的 metadata.project_id。"""
+    base = _now()
+    trace_docs = [
+        _started_trace("run-1", base, "LambChat 部署方式是什么？", "k8s 滚动更新，失败自动回滚。")
+    ]
+
+    async def fake_model():
+        return object()
+
+    class FakeResponse:
+        content = (
+            '{"raw_memory":"LambChat 生产部署走 k8s，滚动失败自动回滚。",'
+            '"rollout_summary":"部署方式问询","rollout_slug":"lambchat-deploy",'
+            '"title":"k8s 部署","summary":"k8s 滚动+自动回滚",'
+            '"tags":["k8s","deploy"],"context":"project"}'
+        )
+
+    async def fake_ainvoke(model, messages, operation=None):
+        return FakeResponse()
+
+    monkeypatch.setattr(extraction, "_get_extraction_model", fake_model)
+    import src.infra.llm.retry as retry_module
+
+    monkeypatch.setattr(retry_module, "ainvoke_with_retry", fake_ainvoke)
+
+    backend = FakeBackend()
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db(trace_docs),
+        "u1",
+        {"session_id": "s1", "name": "部署", "metadata": {"project_id": "proj-9"}},
+    )
+
+    assert outcome.status == "succeeded"
+    call = backend.retain_calls[0]
+    assert call["project_id"] == "proj-9"
+
+
+@pytest.mark.asyncio
+async def test_extract_session_memory_degrades_to_user_without_project(monkeypatch):
+    """无项目归属的会话：project_id=None 传入，由 retain 侧降级 user scope。"""
+    base = _now()
+    trace_docs = [_started_trace("run-1", base, "我喜欢什么样的回复风格？", "简洁、直接、带证据。")]
+
+    async def fake_model():
+        return object()
+
+    class FakeResponse:
+        content = (
+            '{"raw_memory":"用户偏好简洁直接带证据的回复。",'
+            '"rollout_summary":"风格偏好","rollout_slug":"reply-style",'
+            '"title":"回复风格","summary":"简洁直接带证据",'
+            '"tags":["style"],"context":"user"}'
+        )
+
+    async def fake_ainvoke(model, messages, operation=None):
+        return FakeResponse()
+
+    monkeypatch.setattr(extraction, "_get_extraction_model", fake_model)
+    import src.infra.llm.retry as retry_module
+
+    monkeypatch.setattr(retry_module, "ainvoke_with_retry", fake_ainvoke)
+
+    backend = FakeBackend()
+    outcome = await extract_session_memory(
+        backend,
+        _fake_db(trace_docs),
+        "u1",
+        {"session_id": "s2", "name": "风格", "metadata": {}},
+    )
+
+    assert outcome.status == "succeeded"
+    call = backend.retain_calls[0]
+    assert call["project_id"] is None

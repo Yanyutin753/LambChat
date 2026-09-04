@@ -18,6 +18,7 @@ from src.infra.logging import get_logger
 from src.infra.memory.client.base import (
     MemoryBackend,
     create_memory_backend,
+    get_session_id_from_runtime,
     get_user_id_from_runtime,
 )
 from src.infra.memory.compaction_agent import (
@@ -104,6 +105,13 @@ async def memory_retain(
         Optional[str],
         "Optional existing memory ID to update instead of relying on fuzzy deduplication.",
     ] = None,
+    scope: Annotated[
+        Optional[str],
+        "Ownership scope: 'user' (cross-project personal preference, default), "
+        "'project' (bound to the current session's project), or 'reference' "
+        "(external docs/links). Project ownership is inherited from the current "
+        "session; scope='project' is rejected when the session has no project.",
+    ] = None,
     source_refs: Annotated[
         Optional[list[ConversationSourceRef]],
         "Conversation sources for this memory. Use only session_id/run_id pairs returned by conversation history tools or memory_recall; never invent IDs.",
@@ -120,6 +128,8 @@ async def memory_retain(
     context, feedback, or external references. Use explicit context labels such as
     `user_identity`, `project_constraint`, `project_status`, `feedback_rule`, or
     `reference_link` instead of vague buckets like `user_preferences`.
+    Scope follows ownership: project knowledge is only visible to sessions of that
+    project; cross-project facts belong in 'user' or 'reference' scope.
     When a durable fact came from conversation history, preserve its authorized
     `source_refs`. Later, memory_recall returns these pointers and the SOP is to call
     get_conversation_detail for the original final answer.
@@ -135,6 +145,9 @@ async def memory_retain(
         return await _json_dumps_result({"success": False, "error": "Memory service not available"})
 
     try:
+        from src.infra.memory.scope import resolve_session_project_id
+
+        project_id = await resolve_session_project_id(get_session_id_from_runtime(runtime))
         result = await backend.retain(
             user_id,
             content,
@@ -144,6 +157,8 @@ async def memory_retain(
             tags=tags,
             existing_memory_id=existing_memory_id,
             source_refs=source_refs,
+            scope=scope,
+            project_id=project_id,
         )
         return await _json_dumps_result(result)
     except Exception as e:
@@ -172,6 +187,10 @@ async def memory_recall(
     Memories are not injected into user messages. When prior facts, preferences,
     project state, suppliers, prices, decisions, or corrections may matter, call this tool
     with a focused query instead of guessing from the compact index.
+    Scope isolation is automatic: results include user-level and reference memories
+    plus project memories bound to the current session's project; other projects'
+    memories are never returned. Each result carries a `scope` (and `project_id`
+    when project-scoped) — do not generalize a project constraint to other contexts.
     Each result returns complete `text` whenever storage is available; read it in
     full and do not omit fine-grained facts. `preview` is only a shortened view.
     Check `text_complete`: if false, say the detail is incomplete and search the
@@ -194,7 +213,12 @@ async def memory_recall(
         return await _json_dumps_result({"success": False, "error": "Memory service not available"})
 
     try:
-        result = await backend.recall(user_id, query, max_results, memory_types, context)
+        from src.infra.memory.scope import resolve_session_project_id
+
+        project_id = await resolve_session_project_id(get_session_id_from_runtime(runtime))
+        result = await backend.recall(
+            user_id, query, max_results, memory_types, context, project_id=project_id
+        )
         return await _json_dumps_result(result)
     except Exception as e:
         logger.error(f"[Memory] Failed to recall memories: {e}")

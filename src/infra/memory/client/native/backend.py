@@ -67,8 +67,8 @@ class NativeMemoryBackend(MemoryBackend):
         self._httpx_client: Any = None  # keep ref for proper cleanup
         self._store: Any = None
         self._logger = logger
-        # In-memory cache for memory index: {user_id: (built_at, index_str)}
-        self._index_cache: dict[str, tuple[float, str]] = {}
+        # In-memory cache for memory index: {(user_id, project_id): (built_at, index_str)}
+        self._index_cache: dict[tuple[str, str], tuple[float, str]] = {}
 
     @property
     def name(self) -> str:
@@ -80,7 +80,8 @@ class NativeMemoryBackend(MemoryBackend):
 
     async def _invalidate_cache(self, user_id: str) -> None:
         """Invalidate local index cache and publish invalidation to other instances."""
-        self._index_cache.pop(user_id, None)
+        for key in [k for k in self._index_cache if k[0] == user_id]:
+            self._index_cache.pop(key, None)
         try:
             from src.infra.memory.distributed import publish_memory_invalidation
 
@@ -163,6 +164,8 @@ class NativeMemoryBackend(MemoryBackend):
         tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
         source_refs: Optional[Sequence[ConversationSourceRef | dict[str, str]]] = None,
+        scope: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> dict[str, Any]:
         # --- Validation (relaxed for manual retention — trust user intent) ---
         if len(content.strip()) < 5:
@@ -170,6 +173,13 @@ class NativeMemoryBackend(MemoryBackend):
                 "success": False,
                 "error": "Content too short (minimum 5 characters)",
             }
+
+        from src.infra.memory.scope import ScopeResolutionError, resolve_retain_scope
+
+        try:
+            scope, project_id = resolve_retain_scope(scope=scope, project_id=project_id)
+        except ScopeResolutionError as exc:
+            return {"success": False, "error": str(exc)}
 
         if not is_manual_memory_worthy(content, context):
             return {
@@ -194,10 +204,18 @@ class NativeMemoryBackend(MemoryBackend):
             enriched = await llm_enrich_memory(self, content)
             tags = enriched["tags"]
 
+        from src.infra.memory.scope import build_dedup_scope_clause
+
+        dedup_scope_clause = build_dedup_scope_clause(scope, project_id)
+
         async def fetch_recent_memories(target_user_id: str) -> list[dict[str, Any]]:
             seven_days_ago = utc_now() - timedelta(days=7)
             return await self._collection.find(
-                {"user_id": target_user_id, "updated_at": {"$gte": seven_days_ago}},
+                {
+                    "user_id": target_user_id,
+                    "updated_at": {"$gte": seven_days_ago},
+                    **dedup_scope_clause,
+                },
                 {"summary": 1, "memory_id": 1, "memory_type": 1},
             ).to_list(length=50)
 
@@ -207,6 +225,7 @@ class NativeMemoryBackend(MemoryBackend):
                     "user_id": target_user_id,
                     "embedding": {"$exists": True, "$ne": None},
                     "source": {"$ne": "session_summary"},
+                    **dedup_scope_clause,
                 },
                 {"memory_id": 1, "memory_type": 1, "summary": 1, "embedding": 1},
             ).to_list(length=200)
@@ -290,6 +309,8 @@ class NativeMemoryBackend(MemoryBackend):
                         "index_label": build_index_label(title, summary, content),
                         "context": context,
                         "tags": tags,
+                        "scope": scope,
+                        "project_id": project_id,
                         "embedding": embedding,
                         "updated_at": now,
                         "source_refs": source_ref_docs,
@@ -313,11 +334,15 @@ class NativeMemoryBackend(MemoryBackend):
                 memory_type=memory_type,
                 context=context,
                 updated_at_ts=int(now.timestamp()),
+                scope=scope,
+                project_id=project_id,
             )
             return {
                 "success": True,
                 "memory_id": _existing["memory_id"],
                 "memory_type": memory_type,
+                "scope": scope,
+                "project_id": project_id,
                 "updated_existing": True,
                 "message": "Memory updated successfully",
             }
@@ -331,6 +356,8 @@ class NativeMemoryBackend(MemoryBackend):
             "memory_type": memory_type,
             "context": context,
             "tags": tags,
+            "scope": scope,
+            "project_id": project_id,
             "source": "manual",
             "embedding": embedding,
             "created_at": now,
@@ -353,12 +380,16 @@ class NativeMemoryBackend(MemoryBackend):
             memory_type=memory_type,
             context=context,
             updated_at_ts=int(now.timestamp()),
+            scope=scope,
+            project_id=project_id,
         )
 
         return {
             "success": True,
             "memory_id": memory_id,
             "memory_type": memory_type,
+            "scope": scope,
+            "project_id": project_id,
             "message": "Memory stored successfully",
         }
 
@@ -369,9 +400,16 @@ class NativeMemoryBackend(MemoryBackend):
         max_results: int = 5,
         memory_types: Optional[list[str]] = None,
         context_filter: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> dict[str, Any]:
         return await recall_memories(
-            self, user_id, query, max_results, memory_types, context_filter=context_filter
+            self,
+            user_id,
+            query,
+            max_results,
+            memory_types,
+            context_filter=context_filter,
+            project_id=project_id,
         )
 
     async def delete(
@@ -394,8 +432,8 @@ class NativeMemoryBackend(MemoryBackend):
             return {"success": True, "message": f"Memory {memory_id} deleted"}
         return {"success": False, "error": "Memory not found"}
 
-    async def build_memory_index(self, user_id: str) -> str:
-        return await build_memory_index(self, user_id)
+    async def build_memory_index(self, user_id: str, project_id: Optional[str] = None) -> str:
+        return await build_memory_index(self, user_id, project_id=project_id)
 
     async def _update_access_stats(self, memory_ids: list[str], user_id: str = "") -> None:
         query: dict[str, Any] = {"memory_id": {"$in": memory_ids}}
@@ -470,6 +508,13 @@ class NativeMemoryBackend(MemoryBackend):
             )
         except Exception as e:
             logger.warning(f"[NativeMemory] Session context index creation skipped: {e}")
+        try:
+            col.create_index(
+                [("user_id", 1), ("scope", 1), ("project_id", 1)],
+                name="native_mem_scope_idx",
+            )
+        except Exception as e:
+            logger.warning(f"[NativeMemory] Scope index creation skipped: {e}")
 
     async def _maybe_create_vector_index(self) -> None:
         """Best-effort 创建 vectorSearch 索引（MongoDB 8.2+ 社区版内置）。

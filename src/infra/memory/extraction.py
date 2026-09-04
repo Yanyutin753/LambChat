@@ -119,7 +119,13 @@ async def find_candidate_sessions(db, user_id: str, *, limit: int) -> list[dict[
                 idle_seconds=cfg["idle_seconds"],
                 max_age_days=cfg["max_age_days"],
             ),
-            {"session_id": 1, "name": 1, "updated_at": 1, "metadata.agent_id": 1},
+            {
+                "session_id": 1,
+                "name": 1,
+                "updated_at": 1,
+                "metadata.agent_id": 1,
+                "metadata.project_id": 1,
+            },
         )
         .sort("updated_at", -1)
         .limit(limit)
@@ -386,6 +392,25 @@ def render_stage_one_input(
     return redact_secrets("\n".join(parts))
 
 
+def response_text(response: Any) -> str:
+    """归一化 provider 响应 content 为纯文本。
+
+    Anthropic 协议的 content 是块列表（reasoning/text/tool_use 混排），直接
+    str(list) 会得到 Python repr 导致 JSON 解析 100% 失败（生产 188 个 job
+    全部 unparseable_output 的事故根因）。字符串 content 原样返回。
+    """
+    content = getattr(response, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(block.get("text") or "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
+
+
 def parse_stage_one_output(text: str) -> dict[str, Any] | None:
     """解析模型输出：裸 JSON（codex 契约：无 markdown 包装、无 JSON 外散文）。
 
@@ -500,7 +525,7 @@ async def extract_session_memory(
         logger.warning("[MemoryExtraction] LLM call failed for session %s: %s", session_id, exc)
         return ExtractionOutcome("failed", error=str(exc))
 
-    payload = parse_stage_one_output(str(getattr(response, "content", "") or ""))
+    payload = parse_stage_one_output(response_text(response))
     if payload is None:
         return ExtractionOutcome("failed", error="unparseable_output")
     if payload.get("noop"):
@@ -517,6 +542,9 @@ async def extract_session_memory(
     source_refs = [
         {"session_id": session_id, "run_id": turn["run_id"]} for turn in turns if turn.get("run_id")
     ][:20]
+    # 项目归属继承源会话（metadata.project_id）：拿不到可靠归属时 retain 侧
+    # 自动降级 user scope，不猜测
+    session_project_id = str((metadata or {}).get("project_id") or "").strip() or None
     try:
         result = await backend.retain(
             user_id,
@@ -526,6 +554,7 @@ async def extract_session_memory(
             summary=index_fields["summary"],
             tags=index_fields["tags"],
             source_refs=source_refs,
+            project_id=session_project_id,
         )
     except Exception as exc:
         # 只记异常类型：异常原文可能携带用户记忆内容（详细原因进 job.error）

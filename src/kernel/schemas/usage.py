@@ -98,6 +98,7 @@ class UsageDailyPoint(BaseModel):
     failed_requests: int = 0
     tool_calls: int = 0
     input_tokens: int = 0
+    cache_creation_tokens: int = 0
     cache_read_tokens: int = 0
     cache_read_share: float = 0.0
 

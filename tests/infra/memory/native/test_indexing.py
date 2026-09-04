@@ -2,7 +2,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.infra.memory.client.native.indexing import build_memory_index, choose_index_memories
+from src.infra.memory.client.native.indexing import (
+    build_memory_index,
+    choose_index_memories,
+    compute_index_revision,
+)
 
 
 def test_choose_index_memories_is_deterministic_without_access_count():
@@ -165,8 +169,9 @@ async def test_build_memory_index_renders_markdown_dates_and_summaries_without_i
 
     index = await build_memory_index(FakeBackend(docs), user_id="u1")
 
+    assert index.startswith('<memory_index revision="')
     assert index == (
-        "<memory_index>\n"
+        f'<memory_index revision="{compute_index_revision(docs)}">\n'
         "# Cross-Session Memory Index\n\n"
         "## User\n\n"
         "- **Current preference**\n"

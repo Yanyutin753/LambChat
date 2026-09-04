@@ -44,6 +44,23 @@ def build_context_clause(context_filter: str) -> dict[str, Any]:
     return {"$regex": f"^{re.escape(context_filter.strip())}"}
 
 
+def build_scope_clause(project_id: Optional[str]) -> dict[str, Any]:
+    """scope 硬过滤子句：归属边界先于相关性。
+
+    - 无项目会话：只见 user/reference（含 legacy 无 scope 文档）
+    - 项目会话：user/reference + 本项目 project 记忆；其他项目一律不可见
+    """
+    visible = {"$in": [None, "user", "reference"]}
+    if project_id:
+        return {
+            "$or": [
+                {"scope": visible},
+                {"scope": "project", "project_id": project_id},
+            ]
+        }
+    return {"scope": visible}
+
+
 async def _hydrate_memories_limited(
     backend, memories: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -117,6 +134,8 @@ def format_memory(doc: dict, score: float, now: datetime | None = None) -> dict:
         "summary": doc["summary"],
         "title": doc.get("title", ""),
         "type": doc["memory_type"],
+        "scope": doc.get("scope") or "user",
+        "project_id": doc.get("project_id"),
         "source": doc.get("source", "manual"),
         "storage_mode": doc.get("content_storage_mode", "inline"),
         "content_store_key": doc.get("content_store_key"),
@@ -140,10 +159,17 @@ def prioritize_sources(memories: list[dict]) -> list[dict]:
         "consolidated": 2,
         "session_summary": 99,
     }
+    # 同 source 同分时当前项目上下文优先于用户级泛化记忆
+    scope_order = {
+        "project": 0,
+        "user": 1,
+        "reference": 1,
+    }
     return sorted(
         memories,
         key=lambda memory: (
             source_order.get(str(memory.get("source", "")), 50),
+            scope_order.get(str(memory.get("scope") or "user"), 1),
             -float(memory.get("score", 0.0) or 0.0),
         ),
     )
@@ -168,12 +194,14 @@ async def recent_context_fallback(
     limit: int,
     memory_types: Optional[list[str]],
     context_filter: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> list[dict]:
     base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
         base["context"] = build_context_clause(context_filter)
+    base.update(build_scope_clause(project_id))
     cursor = (
         collection.find(
             base,
@@ -207,12 +235,14 @@ async def text_search(
     limit: int,
     memory_types: Optional[list[str]],
     context_filter: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> list[dict]:
     base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
         base["context"] = build_context_clause(context_filter)
+    base.update(build_scope_clause(project_id))
     base["$text"] = {"$search": query}
 
     try:
@@ -225,12 +255,12 @@ async def text_search(
     except Exception:
         logger.debug("[NativeMemory] Text search failed, falling back to keyword match")
         docs = await keyword_fallback(
-            collection, user_id, query, limit, memory_types, context_filter
+            collection, user_id, query, limit, memory_types, context_filter, project_id
         )
     else:
         if not docs:
             docs = await keyword_fallback(
-                collection, user_id, query, limit, memory_types, context_filter
+                collection, user_id, query, limit, memory_types, context_filter, project_id
             )
 
     return [format_memory(doc, doc.get("score", 0)) for doc in docs]
@@ -243,6 +273,7 @@ async def keyword_fallback(
     limit: int,
     memory_types: Optional[list[str]],
     context_filter: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> list[dict]:
     clauses = build_keyword_clauses(query)
     if not clauses:
@@ -257,6 +288,11 @@ async def keyword_fallback(
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
         base["context"] = build_context_clause(context_filter)
+    scope_clause = build_scope_clause(project_id)
+    if "$or" in scope_clause:
+        base["$and"] = [scope_clause]
+    else:
+        base.update(scope_clause)
 
     _projection = {
         "memory_id": 1,
@@ -287,6 +323,7 @@ async def vector_search(
     limit: int,
     memory_types: Optional[list[str]],
     context_filter: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> list[dict]:
     query_vec = await backend._maybe_embed(query)
     if not query_vec:
@@ -315,6 +352,8 @@ async def vector_search(
 
     qdrant_hits = None
     if not context_prefetch_failed:
+        # scope 过滤不在 Qdrant 下推（旧 point 缺 scope 字段的语义不可靠），
+        # 由下方 Mongo hydration 查询做权威过滤；limit 已放大缓解召回不足
         qdrant_hits = await index_search(
             vector=query_vec,
             user_id=user_id,
@@ -331,6 +370,7 @@ async def vector_search(
                 "user_id": user_id,
                 "memory_id": {"$in": list(order)},
                 "source": {"$ne": "session_summary"},
+                **build_scope_clause(project_id),
             },
             {"embedding": 0},
         )
@@ -347,6 +387,7 @@ async def vector_search(
         base["memory_type"] = {"$in": memory_types}
     if context_filter:
         base["context"] = build_context_clause(context_filter)
+    base.update(build_scope_clause(project_id))
 
     try:
         pipeline = [
@@ -598,6 +639,7 @@ async def recall_memories(
     touch_access: bool = True,
     enable_rerank: bool = True,
     context_filter: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> dict[str, Any]:
     max_results = max(1, min(int(max_results or 1), NATIVE_MEMORY_RECALL_MAX_RESULTS))
     query = _clip_recall_query(query)
@@ -609,12 +651,15 @@ async def recall_memories(
         max_results * 2,
         memory_types,
         context_filter,
+        project_id,
     )
 
     if backend._embedding_fn:
         text_results, vector_results = await asyncio.gather(
             text_coro,
-            vector_search(backend, user_id, query, max_results * 2, memory_types, context_filter),
+            vector_search(
+                backend, user_id, query, max_results * 2, memory_types, context_filter, project_id
+            ),
         )
     else:
         text_results = await text_coro
@@ -624,7 +669,7 @@ async def recall_memories(
 
     if not memories and is_context_overview_query(query):
         memories = await recent_context_fallback(
-            backend._collection, user_id, max_results * 2, memory_types, context_filter
+            backend._collection, user_id, max_results * 2, memory_types, context_filter, project_id
         )
 
     # rerank 全池排序（不提前截断），让 min_score 过滤后仍有足额候选回填 top-N

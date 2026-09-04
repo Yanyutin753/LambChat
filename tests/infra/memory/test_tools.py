@@ -6,8 +6,10 @@ import pytest
 
 
 class _Runtime:
-    def __init__(self, user_id: str | None) -> None:
-        context = SimpleNamespace(user_id=user_id) if user_id is not None else None
+    def __init__(self, user_id: str | None, session_id: str | None = None) -> None:
+        context = (
+            SimpleNamespace(user_id=user_id, session_id=session_id) if user_id is not None else None
+        )
         self.config = {"configurable": {"context": context}}
 
 
@@ -105,7 +107,13 @@ async def test_memory_recall_offloads_result_json(monkeypatch):
 
     class FakeBackend:
         async def recall(
-            self, user_id: str, query: str, max_results: int, memory_types, context_filter=None
+            self,
+            user_id: str,
+            query: str,
+            max_results: int,
+            memory_types,
+            context_filter=None,
+            project_id=None,
         ):
             assert user_id == "u1"
             assert query == "project"
@@ -376,3 +384,127 @@ def test_get_memory_guide_lists_delete_inline_when_deferred_loading_disabled(mon
     guide = subagent_prompts.get_memory_guide()
     assert "search_tools" not in guide
     assert "`memory_delete` (remove)" in guide
+
+
+@pytest.mark.asyncio
+async def test_memory_retain_resolves_project_from_runtime_session(monkeypatch):
+    """retain 工具经 runtime session 反查 project_id 并透传 scope。"""
+    from src.infra.memory import scope as scope_module
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def retain(self, *args, **kwargs):
+            seen["args"] = args
+            seen["kwargs"] = kwargs
+            return {"success": True}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_resolve(session_id):
+        seen["resolved_session"] = session_id
+        return "proj-1"
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(scope_module, "resolve_session_project_id", fake_resolve)
+
+    result = json.loads(
+        await memory_tools.memory_retain.coroutine(
+            "The LambChat project deploys via k8s with auto rollback.",
+            scope="project",
+            runtime=_Runtime("u1", session_id="sess-1"),
+        )
+    )
+
+    assert result == {"success": True}
+    assert seen["resolved_session"] == "sess-1"
+    assert seen["kwargs"]["scope"] == "project"
+    assert seen["kwargs"]["project_id"] == "proj-1"
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_applies_session_project_scope(monkeypatch):
+    """recall 工具把 session 归属项目作为硬过滤参数传入 backend。"""
+    from src.infra.memory import scope as scope_module
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def recall(self, *args, **kwargs):
+            seen["args"] = args
+            seen["kwargs"] = kwargs
+            return {"success": True, "memories": []}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_resolve(session_id):
+        seen["resolved_session"] = session_id
+        return "proj-2"
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(scope_module, "resolve_session_project_id", fake_resolve)
+
+    result = json.loads(
+        await memory_tools.memory_recall.coroutine(
+            "k8s rollback policy",
+            runtime=_Runtime("u1", session_id="sess-2"),
+        )
+    )
+
+    assert result["success"] is True
+    assert seen["resolved_session"] == "sess-2"
+    assert seen["kwargs"]["project_id"] == "proj-2"
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_without_session_uses_user_scope(monkeypatch):
+    """无 session 上下文（sub-agent 无 context 等）→ project_id=None，全用户域检索。"""
+    from src.infra.memory import scope as scope_module
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def recall(self, *args, **kwargs):
+            seen["kwargs"] = kwargs
+            return {"success": True, "memories": []}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_resolve(session_id):
+        return None
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(scope_module, "resolve_session_project_id", fake_resolve)
+
+    result = json.loads(
+        await memory_tools.memory_recall.coroutine(
+            "user preferences",
+            runtime=_Runtime("u1"),
+        )
+    )
+
+    assert result["success"] is True
+    assert seen["kwargs"]["project_id"] is None
+
+
+def test_memory_retain_scope_param_documents_ownership_semantics():
+    from src.infra.memory.tools import memory_retain
+
+    scope_description = str(memory_retain.args["scope"].get("description") or "")
+    assert "project" in scope_description
+    assert "user" in scope_description
+    assert "reference" in scope_description
+
+
+def test_memory_recall_description_documents_scope_isolation():
+    from src.infra.memory.tools import memory_recall
+
+    description = memory_recall.description
+    assert "Scope isolation" in description
+    assert "never returned" in description

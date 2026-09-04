@@ -106,9 +106,15 @@ class MemoryRecallIndexMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         if not self._loaded:
+            # 项目归属在会话首构建时解析一次并随快照固化：会话内归属不变，
+            # 前缀字节保持稳定（解析本身也受 2s 硬超时保护）
+            from src.infra.memory.scope import resolve_session_project_id
+
+            project_id = await resolve_session_project_id(self._session_id)
             self._index_context = await build_memory_recall_index_context(
                 self._user_id,
                 session_id=self._session_id,
+                project_id=project_id,
             )
             self._loaded = True
         if not self._index_context:
@@ -140,13 +146,16 @@ async def build_memory_recall_index_context(
     user_id: str,
     *,
     session_id: str | None,
+    project_id: str | None = None,
 ) -> str:
     """Build a navigation index for the recall tool without touching user messages."""
     from src.kernel.config import settings
 
     if not user_id or not getattr(settings, "NATIVE_MEMORY_INDEX_ENABLED", True):
         return ""
-    index_str = await _build_memory_index_for_user(user_id, session_id=session_id)
+    index_str = await _build_memory_index_for_user(
+        user_id, session_id=session_id, project_id=project_id
+    )
     if not index_str:
         return ""
     return (
@@ -160,14 +169,19 @@ async def build_memory_recall_index_context(
     )
 
 
-async def _build_memory_index_for_user(user_id: str, *, session_id: str | None = None) -> str:
+async def _build_memory_index_for_user(
+    user_id: str,
+    *,
+    session_id: str | None = None,
+    project_id: str | None = None,
+) -> str:
     """Build memory index string for a user. Returns empty string on any failure.
 
     Session-scoped snapshot (user_id, session_id): consecutive turns on any
     replica get identical bytes for the session lifetime. Empty results are
-    cached with a short TTL. The whole build (user-pref check + Mongo) is
-    hard-capped at 2s — on timeout, degrade to no injection (never block
-    the model call).
+    cached with a short TTL. The whole build (user-pref check + project
+    resolution + Mongo) is hard-capped at 2s — on timeout, degrade to no
+    injection (never block the model call).
     """
     import time as _time
 
@@ -195,7 +209,8 @@ async def _build_memory_index_for_user(user_id: str, *, session_id: str | None =
     # 硬超时：user_pref 检查 + 索引构建全链路 ≤ 2s，超时降级为不注入
     try:
         index = await asyncio.wait_for(
-            _build_memory_index_full(user_id), timeout=_MEMORY_INDEX_BUILD_TIMEOUT_SECONDS
+            _build_memory_index_full(user_id, project_id=project_id),
+            timeout=_MEMORY_INDEX_BUILD_TIMEOUT_SECONDS,
         )
     except (asyncio.TimeoutError, Exception):
         logger.debug("[Memory] Index build timed out/failed for %s, degrading", user_id)
@@ -227,16 +242,16 @@ def _evict_oldest_snapshots() -> None:
             _MEMORY_INDEX_SNAPSHOTS.pop(k, None)
 
 
-async def _build_memory_index_full(user_id: str) -> str:
+async def _build_memory_index_full(user_id: str, *, project_id: str | None = None) -> str:
     """User-pref check + actual index build (called under wait_for)."""
     from src.infra.memory.user_pref import user_memory_enabled
 
     if not await user_memory_enabled(user_id):
         return ""
-    return await _build_memory_index_uncached(user_id)
+    return await _build_memory_index_uncached(user_id, project_id=project_id)
 
 
-async def _build_memory_index_uncached(user_id: str) -> str:
+async def _build_memory_index_uncached(user_id: str, *, project_id: str | None = None) -> str:
     try:
         from src.infra.memory.tools import _get_backend
 
@@ -248,7 +263,7 @@ async def _build_memory_index_uncached(user_id: str) -> str:
 
         if not isinstance(backend, NativeMemoryBackend):
             return ""
-        index = await backend.build_memory_index(user_id)
+        index = await backend.build_memory_index(user_id, project_id=project_id)
         return index if index else ""
     except Exception:
         logger.warning("[Memory] Failed to build memory index for user %s", user_id, exc_info=True)

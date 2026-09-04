@@ -373,6 +373,7 @@ async def test_dashboard_exposes_cache_read_share(monkeypatch) -> None:
                     "failed_requests": 0,
                     "tool_calls": 1,
                     "input_tokens": 300,
+                    "cache_creation_tokens": 50,
                     "cache_read_tokens": 250,
                 }
             ],
