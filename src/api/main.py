@@ -55,6 +55,7 @@ from src.api.routes import (
 from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
 from src.api.routes.agent import model as agent_model
+from src.api.routes.auth import pat as auth_pat
 from src.frontend_resolution import resolve_frontend_target
 from src.infra.async_utils import run_blocking_io
 from src.infra.distributed_validation import validate_distributed_runtime_settings
@@ -468,6 +469,12 @@ def _startup_index_initializers():
         await FileRecordStorage().initialize_indexes()
         logger.info("FileRecordStorage indexes initialized")
 
+    async def _init_pat_storage() -> None:
+        from src.infra.auth.pat import PATStorage
+
+        await PATStorage().ensure_indexes()
+        logger.info("PATStorage indexes initialized")
+
     return [
         ("agent_config_storage", _init_agent_config_storage),
         ("model_storage", _init_model_storage),
@@ -488,6 +495,7 @@ def _startup_index_initializers():
         ("file_record_storage", _init_file_record_storage),
         ("pricing_storage", _init_pricing_storage),
         ("bookmark_storage", _init_bookmark_storage),
+        ("pat_storage", _init_pat_storage),
     ]
 
 
@@ -842,6 +850,8 @@ def create_app() -> FastAPI:
     # Model 配置路由: /api/agent/models CRUD
     app.include_router(agent_model.router, prefix="/api/agent/models", tags=["Models"])
     app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+    # PAT 个人访问令牌管理: /api/auth/pat CRUD
+    app.include_router(auth_pat.router, prefix="/api/auth/pat", tags=["Auth"])
     app.include_router(user.router, prefix="/api/users", tags=["Users"])
     app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
     app.include_router(
