@@ -110,7 +110,8 @@ async def memory_retain(
         "Ownership scope: 'user' (cross-project personal preference, default), "
         "'project' (bound to the current session's project), or 'reference' "
         "(external docs/links). Project ownership is inherited from the current "
-        "session; scope='project' is rejected when the session has no project.",
+        "session; when the session has no project, project-scoped content is "
+        "automatically stored as 'user' scope (see result note).",
     ] = None,
     source_refs: Annotated[
         Optional[list[ConversationSourceRef]],
@@ -148,6 +149,10 @@ async def memory_retain(
         from src.infra.memory.scope import resolve_session_project_id
 
         project_id = await resolve_session_project_id(get_session_id_from_runtime(runtime))
+        # 无项目会话里 LLM 显式要 scope='project'：backend 会硬拒绝（生产上
+        # 表现为前端红色报错 + agent 重试一轮）。工具层先降级为自动推导
+        # （无归属 → user），不丢数据；结果里带 note 告知实际归属。
+        scope_downgraded = scope == "project" and not project_id
         result = await backend.retain(
             user_id,
             content,
@@ -157,9 +162,15 @@ async def memory_retain(
             tags=tags,
             existing_memory_id=existing_memory_id,
             source_refs=source_refs,
-            scope=scope,
+            scope=None if scope_downgraded else scope,
             project_id=project_id,
         )
+        if scope_downgraded and isinstance(result, dict) and result.get("success"):
+            result.setdefault("scope", "user")
+            result["note"] = (
+                "session has no project context; stored as 'user' scope "
+                "(assign the session to a project to keep it project-scoped)"
+            )
         return await _json_dumps_result(result)
     except Exception as e:
         logger.error(f"[Memory] Failed to retain memory: {e}")

@@ -70,7 +70,7 @@ async def resolve_session_project_id(session_id: str | None) -> str | None
 
 - 校验：`scope` ∈ {user, project, reference}，非法值拒绝。
 - 推导顺序（写入侧绝不猜测归属）：
-  1. 显式 `scope=project` 且无 `project_id` → 拒绝（`success=False`，错误说明需要项目上下文）；
+  1. 显式 `scope=project` 且无 `project_id` → backend 拒绝（`success=False`，错误说明需要项目上下文）；`memory_retain` 工具层在此基础上先降级——无项目会话直接按自动推导存储（→ `user`）并在结果 note 里说明，避免 LLM 误传导致前端报错（2026-09-04 生产回归）；
   2. 显式 `project_id` 无 `scope` → `scope=project`；
   3. `scope` 未传：`context` 以 `project_` 开头 **且** 能解析到 `project_id` → `project`；否则 `user`。拿不到可靠 `project_id` 时项目类内容降级 `user`（与旧行为一致，不丢数据）。
 - 新字段落库：`scope`、`project_id`（仅 project scope 时非空）。
@@ -130,7 +130,7 @@ def build_scope_clause(project_id: str | None) -> dict:
 | 无项目会话 recall | 只见 user/reference（含旧数据），见不到任何 project 记忆 |
 | 项目会话 recall | user + reference + 本项目 project |
 | `memory_retain` 旧调用（不传 scope） | 推导：context=project_* 且会话有 project → project；否则 user |
-| `scope=project` 但无 project_id（无项目会话手动指定） | 拒绝并说明原因 |
+| `scope=project` 但无 project_id（无项目会话手动指定） | 工具层降级存为 `user` 并带 note；backend 直连调用仍拒绝并说明原因 |
 | 跨项目语义去重 | 互不匹配（各自演化，合并交给本项目内的 consolidation） |
 
 ## KV 缓存与 benchmark 验收
