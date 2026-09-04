@@ -361,3 +361,23 @@ def require_pat_scope(scope: str):
         return user
 
     return _checker
+
+
+def require_pat_only(scope: str):
+    """仅 PAT 可访问（daemon 端点）：PAT 照常校验 scope，JWT 一律 401。"""
+
+    async def _checker(
+        request: Request,
+        user: TokenPayload = Depends(get_current_user_pat_or_jwt),
+    ) -> TokenPayload:
+        scopes = getattr(request.state, "pat_scopes", None)
+        if scopes is None:
+            raise AppError(
+                ErrorCode.UNAUTHORIZED,
+                message="This endpoint requires a personal access token (PAT)",
+            )
+        if scope not in scopes:
+            raise AppError(ErrorCode.PAT_SCOPE_DENIED, args={"scope": scope})
+        return user
+
+    return _checker

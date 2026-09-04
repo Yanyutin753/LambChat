@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from src.api.deps import get_current_user_pat_or_jwt, require_pat_scope
+from src.api.deps import get_current_user_pat_or_jwt, require_pat_only
 from src.infra.sandbox.relay.registry import SandboxClientRegistry
 from src.infra.storage.redis import get_redis_client
 from src.kernel.schemas.user import TokenPayload
@@ -33,13 +33,21 @@ def _registry() -> SandboxClientRegistry:
 async def channel_frames(
     redis, registry: SandboxClientRegistry, user_id: str, client_id: str, *, stop: asyncio.Event
 ) -> AsyncIterator[str]:
-    """SSE 帧生成器：hello -> (tool_call | 心跳) 循环；连接期心跳注册表。"""
+    """SSE 帧生成器：hello -> (tool_call | 心跳) 循环；连接期心跳注册表。
+
+    心跳前校验属主：新连接 register 清空注册表后，旧流在此退场（后连踢前连），
+    踢旧窗口收敛到一个心跳周期（15s）。旧流结束时 finally 的 unregister 只
+    hdel 自己的字段，不会破坏新连接的注册。
+    """
     yield f"event: hello\ndata: {json.dumps({'client_id': client_id})}\n\n"
     loop = asyncio.get_event_loop()
     last_beat = loop.time()  # 首个心跳在间隔之后到点，保证 hello 后紧跟的是 tool_call
     while not stop.is_set():
         now = loop.time()
         if now - last_beat >= _HEARTBEAT_SECONDS:
+            active = await registry.get_active(user_id)
+            if active is None or active[0] != client_id:
+                return  # 已被新连接取代（或注册表失效），旧流退场
             await registry.heartbeat(user_id, client_id, _NODE_ID)
             last_beat = now
             yield ": heartbeat\n\n"
@@ -51,7 +59,7 @@ async def channel_frames(
 
 
 @router.get("/channel")
-async def sandbox_channel(user: TokenPayload = Depends(require_pat_scope("sandbox:execute"))):
+async def sandbox_channel(user: TokenPayload = Depends(require_pat_only("sandbox:execute"))):
     registry = _registry()
     client_id = uuid.uuid4().hex[:12]
     await registry.register(user.sub, client_id, _NODE_ID)
@@ -88,7 +96,7 @@ class SandboxResultRequest(BaseModel):
 async def sandbox_result(
     call_id: str,
     body: SandboxResultRequest,
-    user: TokenPayload = Depends(require_pat_scope("sandbox:execute")),
+    user: TokenPayload = Depends(require_pat_only("sandbox:execute")),
 ):
     payload = {"user_id": user.sub, **body.model_dump(exclude_none=True)}
     await _redis().set(f"sandbox:resp:{call_id}", json.dumps(payload), ex=120)
