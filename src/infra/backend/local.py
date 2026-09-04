@@ -86,6 +86,22 @@ class LocalSandboxBackend(BaseSandbox):
     def id(self) -> str:
         return f"local-{self._session_id}"
 
+    @property
+    def work_dir(self) -> str:
+        """沙箱工作目录（daemon 侧 cwd 契约，spec §3.3，与 aexecute 的 cwd 一致）。
+
+        create_sandbox_backend 以 getattr(backend, "work_dir") 锚定 artifacts 根，
+        缺失会退化到云端默认 "/home/user"，在用户本机上不存在。
+        """
+        return f"/workspace/{self._session_id}"
+
+    async def before_tool_start(self, tool_name: str, tool_input: dict[str, object]) -> None:
+        """LazySandboxBackend 同名契约的对等实现（agent_node 事件处理器 wiring）。
+
+        本地 daemon 常驻用户机器，无需懒初始化与生命周期事件，空实现即可。
+        """
+        del tool_name, tool_input
+
     # =========================================================================
     # Command execution（BaseSandbox 的抽象成员，其余文件操作由此自动继承）
     # =========================================================================
@@ -94,7 +110,7 @@ class LocalSandboxBackend(BaseSandbox):
         result = await dispatch_local_call(
             self._user_id,
             "exec",
-            {"command": command, "cwd": f"/workspace/{self._session_id}"},
+            {"command": command, "cwd": self.work_dir},
             timeout=float(timeout or self._exec_timeout),
         )
         stdout = result.get("stdout") or ""

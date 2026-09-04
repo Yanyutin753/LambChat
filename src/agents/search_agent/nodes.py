@@ -153,6 +153,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             context=context,
             presenter=presenter,
             assistant_id=assistant_id,
+            agent_options=agent_options,
         )
         logger.debug(f"[Agent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
         return result
@@ -508,11 +509,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     return {"output": output_text}
 
 
+def _resolve_sandbox_platform(agent_options: Dict[str, Any] | None, default_platform: str) -> str:
+    """会话级沙箱选择：agent_options.sandbox 覆盖全局平台（spec §3.4）。"""
+    choice = (agent_options or {}).get("sandbox")
+    return choice if choice in {"local", "cloud"} else default_platform
+
+
 async def _create_backend_and_prompt(
     state: Dict[str, Any],
     context: SearchAgentContext,
     presenter: Presenter,
     assistant_id: str,
+    agent_options: Dict[str, Any] | None = None,
 ) -> tuple[Any, str, Any, Any, str | None]:
     """
     创建 Backend 实例和系统提示
@@ -525,10 +533,12 @@ async def _create_backend_and_prompt(
         context: Agent 上下文
         presenter: 输出处理器
         assistant_id: 助手 ID
+        agent_options: 会话级选项；sandbox=local 时路由到本地沙箱后端
 
     Returns:
         (backend, system_prompt, store, sandbox_backend, sandbox_work_dir) 元组。
-        sandbox_backend 在沙箱模式下为 LazySandboxBackend 实例，否则为 None。
+        sandbox_backend 在沙箱模式下为 LazySandboxBackend（云端）或
+        LocalSandboxBackend（agent_options.sandbox=local）实例，否则为 None。
     """
     # 创建 store（优先 PostgreSQL → MongoDB fallback）
     store = await acreate_store()
@@ -552,6 +562,23 @@ async def _create_backend_and_prompt(
         raise ValueError("Sandbox requires authenticated user (user_id is required)")
 
     session_id = state.get("session_id") or context.session_id
+    platform = _resolve_sandbox_platform(agent_options, settings.SANDBOX_PLATFORM.lower())
+    if platform == "local":
+        from src.infra.backend.local import LocalSandboxBackend
+
+        local_backend = LocalSandboxBackend(user_id=user_id, session_id=session_id)
+        logger.info(
+            f"Sandbox enabled (local), using local sandbox backend for assistant: {assistant_id}"
+        )
+        # 本地 daemon 常驻用户机器：无云端沙箱需要懒初始化/释放，
+        # 因此不走 LazySandboxBackend，也不注册 context.run_sandbox。
+        return (
+            create_sandbox_backend(local_backend, assistant_id, user_id=user_id),
+            SANDBOX_SYSTEM_PROMPT,
+            store,
+            local_backend,
+            local_backend.work_dir,
+        )
     sandbox_backend = LazySandboxBackend(
         session_id=session_id,
         user_id=context.user_id,
