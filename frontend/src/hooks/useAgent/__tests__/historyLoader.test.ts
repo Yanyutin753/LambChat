@@ -2,7 +2,9 @@ import {
   normalizeEventRunIds,
   prepareMessagesForRunningRun,
   reconstructMessagesFromEvents,
+  resolveLegacyScheduledTaskApproval,
 } from "../historyLoader.ts";
+import { vi } from "vitest";
 import type { Message } from "../../../types";
 import type { HistoryEvent } from "../types.ts";
 
@@ -1482,4 +1484,164 @@ test("restores run modes on user messages from history events", () => {
 
   expect(messages.length).toBe(1);
   expect(messages[0]?.runModes).toEqual(["auto", "goal"]);
+});
+
+test("resolves a scheduled-task approval pill from an approval_resolved event without tool_call_id", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-st-confirm",
+        timestamp: "2026-09-01T00:00:00.000Z",
+        data: { content: "创建定时任务", message_id: "run-st-confirm:user" },
+      },
+      {
+        event_type: "approval_required",
+        run_id: "run-st-confirm",
+        timestamp: "2026-09-01T00:00:01.000Z",
+        data: {
+          id: "approval-st-1",
+          message: "Please confirm creation of this scheduled task.",
+          type: "confirm",
+          fields: [],
+          timeout: 300,
+        },
+      },
+      {
+        event_type: "approval_resolved",
+        run_id: "run-st-confirm",
+        timestamp: "2026-09-01T00:00:02.000Z",
+        data: {
+          id: "approval-st-1",
+          approval_id: "approval-st-1",
+          status: "approved",
+          success: true,
+          result: { status: "success", message: "ok", values: {} },
+        },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  const askHuman = messages[1]?.parts?.find(
+    (part) => part.type === "tool" && part.name === "ask_human",
+  );
+  expect(askHuman).toMatchObject({ isPending: false, success: true });
+});
+
+test("reports fetched scheduled-task approvals via onApprovalLookup", async () => {
+  const onApprovalLookup = vi.fn();
+  vi.stubGlobal("localStorage", {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "approval-legacy-1",
+          status: "approved",
+          message: "Please confirm creation of this scheduled task.",
+          type: "confirm",
+          fields: [],
+          metadata: { approval_type: "scheduled_task_create" },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    ),
+  );
+
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "approval_required",
+        run_id: "run-legacy",
+        timestamp: "2026-09-01T00:00:00.000Z",
+        data: {
+          id: "approval-legacy-1",
+          message: "Please confirm creation of this scheduled task.",
+          type: "confirm",
+          fields: [],
+          timeout: 300,
+        },
+      } satisfies HistoryEvent,
+    ],
+    new Set<string>(),
+    { activeSubagentStack: [], onApprovalLookup },
+  );
+
+  // 事件本身不带 metadata（旧版后端），先按 pending 重建 pill
+  expect(messages[0]?.parts?.[0]).toMatchObject({
+    type: "tool",
+    name: "ask_human",
+    id: "approval-legacy-1",
+    isPending: true,
+  });
+
+  await vi.waitFor(() => expect(onApprovalLookup).toHaveBeenCalled());
+  const approval = onApprovalLookup.mock.calls[0]?.[0] as {
+    id: string;
+    status: string;
+    metadata?: Record<string, unknown>;
+  };
+
+  const resolved = resolveLegacyScheduledTaskApproval(messages, approval);
+  expect(resolved[0]?.parts?.[0]).toMatchObject({
+    isPending: false,
+    success: true,
+  });
+  vi.unstubAllGlobals();
+});
+
+test("resolveLegacyScheduledTaskApproval only touches terminal scheduled-task approvals", () => {
+  const buildMessages = () => [
+    {
+      id: "m1",
+      role: "assistant" as const,
+      content: "",
+      timestamp: new Date(),
+      parts: [
+        {
+          type: "tool" as const,
+          name: "ask_human",
+          id: "approval-x",
+          args: { message: "confirm?", fields: [] },
+          isPending: true,
+          depth: 0,
+        },
+      ],
+    },
+  ];
+
+  // pending 审批不动（卡片还要继续交互）
+  expect(
+    resolveLegacyScheduledTaskApproval(buildMessages(), {
+      id: "approval-x",
+      status: "pending",
+      metadata: { approval_type: "scheduled_task_create" },
+    })[0]?.parts?.[0],
+  ).toMatchObject({ isPending: true });
+
+  // 非 scheduled-task 审批不动（真实 ask_human 走 interrupt 恢复路径）
+  const untouched = buildMessages();
+  const result = resolveLegacyScheduledTaskApproval(untouched, {
+    id: "approval-x",
+    status: "approved",
+    metadata: { mode: "interrupt" },
+  });
+  expect(result[0]?.parts?.[0]).toMatchObject({ isPending: true });
+
+  // scheduled-task 已决审批：补收尾，避免幽灵 pill 永远转圈
+  const resolved = resolveLegacyScheduledTaskApproval(buildMessages(), {
+    id: "approval-x",
+    status: "rejected",
+    metadata: { approval_type: "scheduled_task_create" },
+  });
+  expect(resolved[0]?.parts?.[0]).toMatchObject({
+    isPending: false,
+    success: false,
+  });
 });

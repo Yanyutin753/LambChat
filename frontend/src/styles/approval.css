@@ -484,6 +484,11 @@
   color: var(--approval-text-dim);
   font-size: 0.75rem;
   line-height: 1.25;
+  /* 折叠态摘要最多两行：长确认文案（如定时任务创建）不再撑爆卡片 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .approval-expand-icon {

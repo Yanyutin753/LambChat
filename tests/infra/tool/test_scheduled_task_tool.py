@@ -215,7 +215,9 @@ async def test_create_interval_task(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["approved"] is True
     assert result["status"] == "approved"
     assert result["preview"]["schedule"] == "every 5 minute(s)"
-    assert "Clean up expired cache entries" in result["preview"]["effect"]
+    # effect 不再内联完整 prompt（确认文案里 prompt 只在代码块出现一次）
+    assert "Clean up expired cache entries" in result["preview"]["message"]
+    assert "Clean up expired cache entries" not in result["preview"]["effect"]
 
     # Verify service was called with correct trigger config
     request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
@@ -862,6 +864,7 @@ async def test_create_confirmation_shows_preview_and_waits(monkeypatch: pytest.M
         run_id="run-1",
         timeout=120,
         trace_id=None,
+        preview=preview,
     )
     wait_for_response.assert_awaited_once_with("approval-3", timeout=120)
 

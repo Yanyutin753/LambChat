@@ -182,7 +182,7 @@ def _build_task_preview(
         "run_on_start": run_on_start,
         "effect": (
             f"After creation, agent '{agent_id}' will run on {schedule}. "
-            f"Each run will start a new session and send this prompt to the agent: {message!r}."
+            "Each run will start a new session and send the prompt listed below to the agent."
             + (" The task will also run immediately after creation." if run_on_start else "")
         ),
     }
