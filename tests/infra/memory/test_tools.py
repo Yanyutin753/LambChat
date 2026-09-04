@@ -493,6 +493,88 @@ async def test_memory_recall_without_session_uses_user_scope(monkeypatch):
     assert seen["kwargs"]["project_id"] is None
 
 
+@pytest.mark.asyncio
+async def test_memory_retain_degrades_project_scope_without_project_context(monkeypatch):
+    """无项目会话中 agent 显式 scope='project' → 降级 user 存储，不再硬拒绝。
+
+    生产回归（2026-09-04）：LLM 在无项目会话里传 scope='project'，backend
+    拒绝导致工具返回 success=false，前端渲染红色错误。工具层先解析项目上下文，
+    拿不到就把归属降级为 user（写入侧不猜归属、不丢数据），并在结果里说明。
+    """
+    from src.infra.memory import scope as scope_module
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def retain(self, *args, **kwargs):
+            seen["kwargs"] = kwargs
+            return {"success": True, "scope": kwargs.get("scope") or "user"}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_resolve(session_id):
+        seen["resolved_session"] = session_id
+        return None
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(scope_module, "resolve_session_project_id", fake_resolve)
+
+    result = json.loads(
+        await memory_tools.memory_retain.coroutine(
+            "The daily news digest job pushes at 08:00 every morning.",
+            scope="project",
+            runtime=_Runtime("u1", session_id="sess-no-proj"),
+        )
+    )
+
+    assert result["success"] is True
+    assert "error" not in result
+    assert seen["resolved_session"] == "sess-no-proj"
+    # 不能把 scope='project' 原样传给 backend（backend 会拒绝）
+    assert seen["kwargs"].get("scope") != "project"
+    # 结果必须告知 LLM 实际归属与原因
+    assert result.get("scope") == "user"
+    assert "user" in str(result.get("note", "")).lower()
+
+
+@pytest.mark.asyncio
+async def test_memory_retain_keeps_project_scope_when_session_has_project(monkeypatch):
+    """有项目会话中 scope='project' 原样透传，不降级。"""
+    from src.infra.memory import scope as scope_module
+    from src.infra.memory import tools as memory_tools
+
+    seen = {}
+
+    class FakeBackend:
+        async def retain(self, *args, **kwargs):
+            seen["kwargs"] = kwargs
+            return {"success": True, "scope": "project"}
+
+    async def fake_get_backend():
+        return FakeBackend()
+
+    async def fake_resolve(_session_id):
+        return "proj-1"
+
+    monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
+    monkeypatch.setattr(scope_module, "resolve_session_project_id", fake_resolve)
+
+    result = json.loads(
+        await memory_tools.memory_retain.coroutine(
+            "The project deploys via k8s.",
+            scope="project",
+            runtime=_Runtime("u1", session_id="sess-proj"),
+        )
+    )
+
+    assert result["success"] is True
+    assert seen["kwargs"]["scope"] == "project"
+    assert seen["kwargs"]["project_id"] == "proj-1"
+    assert "note" not in result
+
+
 def test_memory_retain_scope_param_documents_ownership_semantics():
     from src.infra.memory.tools import memory_retain
 
