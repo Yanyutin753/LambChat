@@ -628,7 +628,13 @@
     "systemRoleProtected": "系统角色不可修改或删除",
     "agentNotRegistered": "Agent '{{agent}}' 未注册",
     "bookmarkUpdateFailed": "书签状态更新失败",
-    "modelEmptyResponse": "模型在多次重试后仍返回了空回复，请重试或更换模型"
+    "modelEmptyResponse": "模型在多次重试后仍返回了空回复，请重试或更换模型",
+    "patNotFound": "个人访问令牌不存在或已撤销",
+    "patExpired": "个人访问令牌已过期",
+    "patScopeDenied": "令牌缺少所需权限 {{scope}}",
+    "daemonOffline": "本地沙箱守护进程离线",
+    "sandboxTimeout": "本地沙箱调用超时（{{seconds}} 秒）",
+    "sandboxPayloadTooLarge": "本地沙箱载荷超限"
   },
   "categories": {
     "agent": "代理",

@@ -628,7 +628,13 @@
     "systemRoleProtected": "システムロールは変更・削除できません",
     "agentNotRegistered": "エージェント '{{agent}}' は登録されていません",
     "bookmarkUpdateFailed": "ブックマーク状態の更新に失敗しました",
-    "modelEmptyResponse": "モデルは再試行後も空の応答を返しました。再試行するか、モデルを変更してください"
+    "modelEmptyResponse": "モデルは再試行後も空の応答を返しました。再試行するか、モデルを変更してください",
+    "patNotFound": "パーソナルアクセストークンが見つからないか失効しています",
+    "patExpired": "パーソナルアクセストークンの有効期限が切れました",
+    "patScopeDenied": "トークンに必要なスコープ {{scope}} がありません",
+    "daemonOffline": "ローカルサンドボックスデーモンはオフラインです",
+    "sandboxTimeout": "ローカルサンドボックス呼び出しがタイムアウトしました（{{seconds}}秒）",
+    "sandboxPayloadTooLarge": "ローカルサンドボックスのペイロードが大きすぎます"
   },
   "categories": {
     "agent": "エージェント",

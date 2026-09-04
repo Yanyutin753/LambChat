@@ -85,6 +85,18 @@ class ErrorCode(Enum):
         "OAuth provider '{{provider}}' is not enabled",
     )
 
+    # ---------- sandbox：本地沙箱 PAT 与守护进程 ----------
+    PAT_NOT_FOUND = ("pat_not_found", 401, "Personal access token not found or revoked")
+    PAT_EXPIRED = ("pat_expired", 401, "Personal access token expired")
+    PAT_SCOPE_DENIED = ("pat_scope_denied", 403, "Token missing required scope '{{scope}}'")
+    DAEMON_OFFLINE = ("daemon_offline", 409, "Local sandbox daemon is offline")
+    SANDBOX_TIMEOUT = ("sandbox_timeout", 504, "Local sandbox call timed out after {{seconds}}s")
+    SANDBOX_PAYLOAD_TOO_LARGE = (
+        "sandbox_payload_too_large",
+        413,
+        "Local sandbox payload exceeds limit",
+    )
+
     # ---------- push：推送订阅 ----------
     PUSH_UNAVAILABLE = (
         "push_unavailable",

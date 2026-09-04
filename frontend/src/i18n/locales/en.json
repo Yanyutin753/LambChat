@@ -628,7 +628,13 @@
     "systemRoleProtected": "System roles cannot be modified or deleted",
     "agentNotRegistered": "Agent '{{agent}}' is not registered",
     "bookmarkUpdateFailed": "Failed to update bookmark state",
-    "modelEmptyResponse": "The model returned an empty response after retries, please try again or switch models"
+    "modelEmptyResponse": "The model returned an empty response after retries, please try again or switch models",
+    "patNotFound": "Personal access token not found or revoked",
+    "patExpired": "Personal access token expired",
+    "patScopeDenied": "Token missing required scope '{{scope}}'",
+    "daemonOffline": "Local sandbox daemon is offline",
+    "sandboxTimeout": "Local sandbox call timed out after {{seconds}}s",
+    "sandboxPayloadTooLarge": "Local sandbox payload exceeds limit"
   },
   "categories": {
     "agent": "Agent",
