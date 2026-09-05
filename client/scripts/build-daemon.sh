@@ -3,8 +3,9 @@
 #
 # 产物链：
 #   client/pyinstaller.spec（入口 __main__.py，= python -m lambchat_sandbox）
-#     → client/dist/lambchat-daemon（单文件二进制）
-#     → frontend/src-tauri/binaries/lambchat-daemon-<host-triple>（Tauri externalBin 约定）
+#     → client/dist/lambchat-daemon（单文件二进制；Windows 为 lambchat-daemon.exe）
+#     → frontend/src-tauri/binaries/lambchat-daemon-<host-triple>
+#       （Tauri externalBin 约定；Windows 要求 <triple>.exe 后缀）
 #
 # host triple 探测：优先 rustc -vV 的 host: 行（与 Tauri 打包机一致），
 # 无 rustc 时按 uname -m 映射 linux-gnu triple。
@@ -31,9 +32,16 @@ detect_host_triple() {
 }
 
 TRIPLE="$(detect_host_triple)"
-DIST_ARTIFACT="$REPO_ROOT/client/dist/lambchat-daemon"
-# Tauri sidecar 约定命名：binaries/lambchat-daemon-<triple>
-TARGET="$REPO_ROOT/frontend/src-tauri/binaries/lambchat-daemon-$TRIPLE"
+# Windows 产物带 .exe 后缀：PyInstaller 产出 lambchat-daemon.exe，且 Tauri
+# externalBin 在 Windows 上按 <name>-<triple>.exe 解析（CI windows runner 的
+# triple 探测走 rustc -vV host → x86_64-pc-windows-msvc）
+case "$TRIPLE" in
+    *-windows-*) EXE_SUFFIX=".exe" ;;
+    *) EXE_SUFFIX="" ;;
+esac
+DIST_ARTIFACT="$REPO_ROOT/client/dist/lambchat-daemon${EXE_SUFFIX}"
+# Tauri sidecar 约定命名：binaries/lambchat-daemon-<triple><suffix>
+TARGET="$REPO_ROOT/frontend/src-tauri/binaries/lambchat-daemon-${TRIPLE}${EXE_SUFFIX}"
 EXPECTED_VERSION="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' \
     "$REPO_ROOT/client/lambchat_sandbox/__init__.py")"
 

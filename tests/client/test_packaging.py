@@ -90,3 +90,81 @@ def test_cargo_lock_is_committed_for_reproducible_shell_builds() -> None:
     gi = _source(".gitignore")
     assert "frontend/src-tauri/Cargo.lock" not in gi, "Cargo.lock 不应被 .gitignore 忽略"
     assert Path("frontend/src-tauri/Cargo.lock").exists(), "Cargo.lock 必须入库"
+
+
+# ---------------------------------------------------------------------------
+# app-release.yml 三平台矩阵（M4 T9）：win/mac 恢复 + daemon/PBS 步全平台
+# ---------------------------------------------------------------------------
+
+
+def _release_workflow() -> dict:
+    import yaml
+
+    data = yaml.safe_load(_source(".github/workflows/app-release.yml"))
+    assert isinstance(data, dict), "app-release.yml must parse as a mapping"
+    return data
+
+
+def _desktop_job() -> dict:
+    return _release_workflow()["jobs"]["desktop"]
+
+
+def test_release_workflow_matrix_covers_three_platforms() -> None:
+    matrix = _desktop_job()["strategy"]["matrix"]["include"]
+    by_runner = {entry["runner"]: entry for entry in matrix}
+    # M3 下线的 Windows/macOS 条目已恢复；macOS M4 裁决为 arm64 单架构
+    assert set(by_runner) == {
+        "ubuntu-latest",
+        "ubuntu-24.04-arm",
+        "windows-2022",
+        "macos-14",
+    }
+    assert by_runner["macos-14"]["target"] == "aarch64-apple-darwin"
+    assert by_runner["macos-14"]["bundles"] == "dmg"
+    assert by_runner["windows-2022"]["bundles"] == "msi"
+    # PBS 平台标签与 fetch-pbs.py 的 PLATFORM_TRIPLES 键一致
+    assert {entry["pbs_platform"] for entry in matrix} == {
+        "linux-x86_64",
+        "linux-aarch64",
+        "windows-x86_64",
+        "macos-arm64",
+    }
+
+
+def test_release_workflow_daemon_steps_run_on_all_platforms() -> None:
+    steps = {step["name"]: step for step in _desktop_job()["steps"]}
+    daemon_step = steps["Build sandbox daemon sidecar (PyInstaller)"]
+    # 三平台同链路：不得再用 runner.os == 'Linux' 收窄
+    assert "if" not in daemon_step
+    assert "if" not in steps["Install uv"]
+    assert "if" not in steps["Set up Python"]
+    # bash shell（Windows 默认 pwsh 跑不了 bash 脚本）；直调脚本而非 make
+    # （windows-2022 镜像不预装 GNU make）
+    assert daemon_step.get("shell") == "bash"
+    assert "client/scripts/build-daemon.sh" in daemon_step["run"]
+    assert "make client-build-daemon" not in daemon_step["run"]
+
+
+def test_release_workflow_fetches_pbs_per_platform_after_daemon() -> None:
+    steps = _desktop_job()["steps"]
+    names = [step["name"] for step in steps]
+    daemon_idx = names.index("Build sandbox daemon sidecar (PyInstaller)")
+    pbs_idx = names.index("Fetch embedded Python runtime (PBS)")
+    # PBS 归档在 daemon 步之后、tauri 打包之前按当前平台拉取
+    assert pbs_idx > daemon_idx
+    assert pbs_idx < names.index("Build desktop package with Tauri")
+    pbs_step = steps[pbs_idx]
+    assert "if" not in pbs_step  # 全平台
+    assert "client/scripts/fetch-pbs.py" in pbs_step["run"]
+    assert "${{ matrix.pbs_platform }}" in pbs_step["run"]
+
+
+def test_build_script_appends_exe_suffix_on_windows_sidecar() -> None:
+    script = _source("client/scripts/build-daemon.sh")
+
+    # Windows triple → .exe 后缀（PyInstaller 产物与 Tauri externalBin 双侧约定）
+    assert "*-windows-*)" in script
+    assert 'EXE_SUFFIX=".exe"' in script
+    assert 'EXE_SUFFIX=""' in script
+    assert "lambchat-daemon${EXE_SUFFIX}" in script
+    assert "lambchat-daemon-${TRIPLE}${EXE_SUFFIX}" in script

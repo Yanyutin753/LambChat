@@ -25,10 +25,6 @@ env:
   LAMBCHAT_APP_URL: ${{ inputs.app_url || vars.LAMBCHAT_APP_URL || secrets.LAMBCHAT_APP_URL }}
 
 jobs:
-  # 注意：Windows/macOS 桌面打包暂时下线（M4 恢复）——externalBin 已声明
-  # binaries/lambchat-daemon，但 win/mac 的 PyInstaller daemon 构建步属 M4，
-  # triple 缺失会让打包必败。恢复前先为对应平台补 daemon 构建步，再取消
-  # 下方矩阵中 Windows/macOS 条目的注释。打 tag 前务必确认此点。
   desktop:
     name: Desktop (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
@@ -37,26 +33,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # pbs_platform：fetch-pbs.py 的 --platform 取值（内嵌 Python 运行时
+          # 归档按平台落 resources/python/<tag>/，与 daemon 平台一一对应）
           - label: Linux x86_64
             runner: ubuntu-latest
             bundles: appimage,deb,rpm
             artifact_slug: linux-x86_64
             arch: x86_64
+            pbs_platform: linux-x86_64
           - label: Linux ARM64
             runner: ubuntu-24.04-arm
             bundles: appimage,deb,rpm
             artifact_slug: linux-arm64
             arch: arm64
-          # M4 恢复以下两项（需先补 win/mac 的 daemon 构建步，见 job 顶部注释）：
-          # - label: Windows
-          #   runner: windows-2022
-          #   bundles: msi
-          #   artifact_slug: windows
-          # - label: macOS
-          #   runner: macos-14
-          #   bundles: dmg
-          #   artifact_slug: macos
-          #   target: universal-apple-darwin
+            pbs_platform: linux-aarch64
+          - label: Windows
+            runner: windows-2022
+            bundles: msi
+            artifact_slug: windows
+            pbs_platform: windows-x86_64
+          # M4 裁决：macOS 先 arm64 单架构（macos-14 原生），universal + lipo 属 M5
+          - label: macOS
+            runner: macos-14
+            bundles: dmg
+            artifact_slug: macos
+            target: aarch64-apple-darwin
+            pbs_platform: macos-arm64
 
     steps:
       - name: Checkout repository
@@ -100,10 +102,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add macOS universal Rust targets
+      - name: Add macOS Rust target
         if: runner.os == 'macOS'
-        run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        run: rustup target add aarch64-apple-darwin
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -123,27 +124,34 @@ jobs:
           "TMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
           New-Item -ItemType Directory -Force D:\pnpm-store,D:\npm-cache,D:\temp | Out-Null
 
-      # M3：daemon sidecar（PyInstaller onefile → binaries/lambchat-daemon-<triple>）。
-      # externalBin 声明了该产物且 binaries/ 被 gitignore，缺此步 Tauri 打包必败。
-      # 仅 Linux 加此步；win/mac 的 daemon 构建属 M4（见 job 顶部注释）。
+      # M4：daemon sidecar（PyInstaller onefile → binaries/lambchat-daemon-<triple>，
+      # Windows 为 <triple>.exe）三平台同链路。externalBin 声明了该产物且
+      # binaries/ 被 gitignore，缺此步 Tauri 打包必败。直调 build-daemon.sh
+      # 而非 make client-build-daemon：windows-2022 镜像不预装 GNU make。
       # uv 安装方式与 lint.yml 保持一致。
       - name: Install uv
-        if: runner.os == 'Linux'
         uses: astral-sh/setup-uv@v4
 
       - name: Set up Python
-        if: runner.os == 'Linux'
         run: uv python install 3.12
 
       - name: Build sandbox daemon sidecar (PyInstaller)
-        if: runner.os == 'Linux'
+        shell: bash
         env:
           # uv.lock pins a CN mirror; GH-hosted runners throttle under
           # uv's 50 parallel downloads (same mitigation as lint.yml).
           UV_CONCURRENT_DOWNLOADS: "8"
         run: |
           uv sync --group dev || (sleep 15 && uv sync --group dev)
-          make client-build-daemon
+          bash client/scripts/build-daemon.sh
+
+      # M4：内嵌 Python 运行时（python-build-standalone install_only 归档，
+      # ~111MB/平台）落到 tauri resources 约定位置，使 bundle.resources 有货。
+      # tar.gz 由 daemon 首启解压（lambchat_sandbox.pbs.ensure_runtime）。
+      # 产物体积大且随 PBS_TAG 锁定可复现，CI 缓存后加（本任务不做）。
+      - name: Fetch embedded Python runtime (PBS)
+        shell: bash
+        run: uv run python client/scripts/fetch-pbs.py --platform ${{ matrix.pbs_platform }}
 
       - name: Build desktop package with Tauri
         env:
