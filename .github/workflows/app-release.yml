@@ -81,6 +81,8 @@ jobs:
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
+          # xdg-utils：tauri deb 打包要拷贝 /usr/bin/xdg-open 入包；x86_64 官方
+          # 镜像预装、ubuntu-24.04-arm 不带（缺失时 deb bundle 直接失败）
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
@@ -90,7 +92,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            rpm
+            rpm \
+            xdg-utils
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
