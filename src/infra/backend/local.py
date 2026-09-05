@@ -29,6 +29,7 @@ import base64
 import posixpath
 import re
 import shlex
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Coroutine, TypeVar, cast
 
@@ -59,6 +60,7 @@ from src.infra.backend.protocol_compat import (
     file_upload_response,
 )
 from src.infra.logging import get_logger
+from src.infra.sandbox.confirm import confirm_local_op
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
 from src.infra.sandbox.relay.registry import SandboxClientRegistry
 from src.kernel.config import settings
@@ -186,6 +188,38 @@ async def _lookup_daemon_platform(user_id: str) -> str:
         return ""
 
 
+async def _lookup_confirm_policy(user_id: str) -> str:
+    """经注册表查当前活跃 daemon 上报的确认策略（value 第四段）。
+
+    缺失/旧格式/查询失败一律归一 ``"all"``（保守）——策略权威来源在 daemon
+    配置（~/.lambchat/sandbox.json），未上报时宁可多确认；registry 故障不
+    阻断沙箱（只是退化为全确认）。
+    """
+    try:
+        policy = await SandboxClientRegistry().get_confirm_policy(user_id)
+        return policy if policy in ("all", "commands", "none") else "all"
+    except Exception:  # noqa: BLE001 - 策略查询尽力而为，失败保守归 all
+        logger.warning("confirm policy lookup failed for user %s; defaulting to all", user_id)
+        return "all"
+
+
+# 读类操作（read/ls/glob/grep 及写/上传内部的 plumbing 命令）绕过确认门：
+# 一方面它们只读、无安全确认需求；另一方面 deepagents 的 glob/grep 工具
+# 内有 except Exception 边界（同步版还跑线程池），GraphInterrupt 会被吞掉
+# 挂不起图。门只在模型可见的执行/写/上传操作入口（各 override 的 try 之前）
+# 触发；override 委托 super()（内部经 aexecute/aupload_files 生成命令）时
+# 以本标记豁免，防止双重确认。
+_gate_bypassed: ContextVar[bool] = ContextVar("sandbox_gate_bypassed", default=False)
+
+_EXEC_DECLINED_OUTPUT = (
+    "Execution declined by user (declined_by_user). "
+    "Do not re-run the same command unless the user explicitly asks."
+)
+
+# 文件写类操作的确认文案动词（op → 中文）
+_FS_OP_VERBS = {"write": "写入", "edit": "编辑", "delete": "删除"}
+
+
 def _run_coro_sync(coro: Coroutine[Any, Any, T]) -> T:
     """在同步上下文中运行异步协程（照 _skills_path_utils._run_async 模式）。
 
@@ -280,7 +314,37 @@ class LocalSandboxBackend(BaseSandbox):
     # Command execution（BaseSandbox 的抽象成员，其余文件操作由此自动继承）
     # =========================================================================
 
+    async def _confirm_exec(self, command: str) -> bool:
+        """执行确认门：按 daemon 上报策略判定，未批准时 False（不 dispatch）。"""
+        policy = await _lookup_confirm_policy(self._user_id)
+        clipped = command if len(command) <= 800 else command[:800] + "…"
+        return confirm_local_op(
+            command, policy, description=f"确认在本机执行命令：\n{clipped}"
+        )
+
+    async def _confirm_fs_op(self, op: str, display_path: str) -> bool:
+        """文件写类操作确认门：rm 前缀哨兵送判（commands 策略下天然命中）。"""
+        policy = await _lookup_confirm_policy(self._user_id)
+        verb = _FS_OP_VERBS.get(op, op)
+        return confirm_local_op(
+            f"rm {op} {display_path}",
+            policy,
+            description=f"确认在本机{verb}文件：{display_path}",
+        )
+
+    async def _confirm_upload(self, files: list[tuple[str, bytes]]) -> bool:
+        """上传确认门：每批一次（分块命令不再逐块确认）。"""
+        policy = await _lookup_confirm_policy(self._user_id)
+        names = ", ".join(path for path, _ in files[:5])
+        return confirm_local_op(
+            f"rm upload {len(files)} files",
+            policy,
+            description=f"确认上传 {len(files)} 个文件到本机工作区：{names}",
+        )
+
     async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
+        if not _gate_bypassed.get() and not await self._confirm_exec(command):
+            return ExecuteResponse(output=_EXEC_DECLINED_OUTPUT, exit_code=1, truncated=False)
         result = await dispatch_local_call(
             self._user_id,
             "exec",
@@ -462,17 +526,32 @@ class LocalSandboxBackend(BaseSandbox):
         return self._download_response(path, result)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        # 平台解析一次供整批命令使用（照 execute 的 asyncio.run 桥接约束）
+        # 平台解析一次供整批命令使用（照 execute 的 asyncio.run 桥接约束）；
+        # 门在前（每批一次），分块命令经绕过标记豁免逐块确认
+        if not _run_coro_sync(self._confirm_upload(files)):
+            return [file_upload_response(path=path, error="declined_by_user") for path, _ in files]
         platform = _run_coro_sync(self._resolve_platform())
-        return [self._upload_one(path, content, platform=platform) for path, content in files]
+        token = _gate_bypassed.set(True)
+        try:
+            return [self._upload_one(path, content, platform=platform) for path, content in files]
+        finally:
+            _gate_bypassed.reset(token)
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         # 覆盖协议默认（to_thread 同步版）：直接走 aexecute，避免事件循环桥接；
-        # 平台解析一次供整批命令使用（一次注册表读，容错默认 posix）
+        # 平台解析一次供整批命令使用（一次注册表读，容错默认 posix）；
+        # 门在前（每批一次——BaseSandbox 的 write/edit 在 posix 下也经此路径，
+        # 那些调用方已在 override 级确认并设置绕过标记，不会双重确认）
+        if not _gate_bypassed.get() and not await self._confirm_upload(files):
+            return [file_upload_response(path=path, error="declined_by_user") for path, _ in files]
         platform = await self._resolve_platform()
         responses: list[FileUploadResponse] = []
-        for path, content in files:
-            responses.append(await self._aupload_one(path, content, platform=platform))
+        token = _gate_bypassed.set(True)
+        try:
+            for path, content in files:
+                responses.append(await self._aupload_one(path, content, platform=platform))
+        finally:
+            _gate_bypassed.reset(token)
         return responses
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
@@ -668,7 +747,11 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         if self._daemon_platform_is_win32():
             data = self._fs_call("fs_read", {"path": stripped, "offset": offset, "limit": limit})
             return self._fs_read_result(data, stripped)
-        return super().read(stripped, offset, limit)
+        token = _gate_bypassed.set(True)
+        try:
+            return super().read(stripped, offset, limit)
+        finally:
+            _gate_bypassed.reset(token)
 
     async def aread(self, file_path: str, offset: int = 0, limit: int = 2000):
         stripped = self._strip_required(file_path)
@@ -677,7 +760,11 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
                 "fs_read", {"path": stripped, "offset": offset, "limit": limit}
             )
             return self._fs_read_result(data, stripped)
-        return await super().aread(stripped, offset, limit)
+        token = _gate_bypassed.set(True)
+        try:
+            return await super().aread(stripped, offset, limit)
+        finally:
+            _gate_bypassed.reset(token)
 
     # ---- 列目录：剥离 + 条目路径回填 ----
 
@@ -694,7 +781,11 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         return await self._als_via_exec(stripped)
 
     def _ls_via_exec(self, stripped: str) -> LsResult:
-        result = super().ls(stripped)
+        token = _gate_bypassed.set(True)
+        try:
+            result = super().ls(stripped)
+        finally:
+            _gate_bypassed.reset(token)
         if result.error or not result.entries:
             return result
         return LsResult(
@@ -702,7 +793,11 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         )
 
     async def _als_via_exec(self, stripped: str) -> LsResult:
-        result = await super().als(stripped)
+        token = _gate_bypassed.set(True)
+        try:
+            result = await super().als(stripped)
+        finally:
+            _gate_bypassed.reset(token)
         if result.error or not result.entries:
             return result
         return LsResult(
@@ -744,7 +839,11 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
             virtual_root = "." if search_path == "/" else search_path
             data = self._fs_call("fs_glob", {"pattern": pattern, "path": virtual_root})
             return self._fs_glob_result(data, search_path, virtual_root)
-        result = super().execute(_build_glob_cmd(pattern, search_path))
+        token = _gate_bypassed.set(True)
+        try:
+            result = super().execute(_build_glob_cmd(pattern, search_path))
+        finally:
+            _gate_bypassed.reset(token)
         return self._restore_glob(_parse_glob_output(result, search_path))
 
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
@@ -753,6 +852,7 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
             virtual_root = "." if search_path == "/" else search_path
             data = await self._afs_call("fs_glob", {"pattern": pattern, "path": virtual_root})
             return self._fs_glob_result(data, search_path, virtual_root)
+        token = _gate_bypassed.set(True)
         try:
             result = await asyncio.wait_for(
                 super().aexecute(_build_glob_cmd(pattern, search_path)),
@@ -765,6 +865,8 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
                     "Try a more specific pattern or a narrower path."
                 )
             )
+        finally:
+            _gate_bypassed.reset(token)
         return self._restore_glob(_parse_glob_output(result, search_path))
 
     # ---- grep：剥离搜索根 + 匹配路径回填 ----
@@ -791,7 +893,11 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         if self._daemon_platform_is_win32():
             data = self._fs_call("fs_grep", self._fs_grep_payload(pattern, path, glob, max_count))
             return self._fs_grep_result(data, path)
-        result = super().grep(pattern, self._strip_path(path), glob, max_count=max_count)
+        token = _gate_bypassed.set(True)
+        try:
+            result = super().grep(pattern, self._strip_path(path), glob, max_count=max_count)
+        finally:
+            _gate_bypassed.reset(token)
         return self._restore_grep(result)
 
     async def agrep(
@@ -807,7 +913,11 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
                 "fs_grep", self._fs_grep_payload(pattern, path, glob, max_count)
             )
             return self._fs_grep_result(data, path)
-        result = await super().agrep(pattern, self._strip_path(path), glob, max_count=max_count)
+        token = _gate_bypassed.set(True)
+        try:
+            result = await super().agrep(pattern, self._strip_path(path), glob, max_count=max_count)
+        finally:
+            _gate_bypassed.reset(token)
         return self._restore_grep(result)
 
     def _fs_grep_payload(
@@ -848,18 +958,30 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
 
     def write(self, file_path: str, content: str) -> WriteResult:
         stripped = self._strip_required(file_path)
+        if not _run_coro_sync(self._confirm_fs_op("write", file_path)):
+            return WriteResult(error=f"Failed to write file '{file_path}': declined_by_user")
         if self._daemon_platform_is_win32():
             return self._fs_write(stripped, content, file_path)
-        result = super().write(stripped, content)
+        token = _gate_bypassed.set(True)
+        try:
+            result = super().write(stripped, content)
+        finally:
+            _gate_bypassed.reset(token)
         if result.path is not None and result.error is None:
             return WriteResult(error=None, path=file_path)
         return result
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
         stripped = self._strip_required(file_path)
+        if not await self._confirm_fs_op("write", file_path):
+            return WriteResult(error=f"Failed to write file '{file_path}': declined_by_user")
         if await self._adaemon_platform_is_win32():
             return await self._afs_write(stripped, content, file_path)
-        result = await super().awrite(stripped, content)
+        token = _gate_bypassed.set(True)
+        try:
+            result = await super().awrite(stripped, content)
+        finally:
+            _gate_bypassed.reset(token)
         if result.path is not None and result.error is None:
             return WriteResult(error=None, path=file_path)
         return result
@@ -895,12 +1017,18 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
 
     def edit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False):
         stripped = self._strip_required(file_path)
+        if not _run_coro_sync(self._confirm_fs_op("edit", file_path)):
+            return EditResult(error=f"Failed to edit file '{file_path}': declined_by_user")
         if self._daemon_platform_is_win32():
             payload = self._fs_edit_payload(stripped, old_string, new_string, replace_all)
             return self._fs_edit_result(
                 self._fs_call("fs_edit", payload), stripped, old_string, file_path
             )
-        result = super().edit(stripped, old_string, new_string, replace_all)
+        token = _gate_bypassed.set(True)
+        try:
+            result = super().edit(stripped, old_string, new_string, replace_all)
+        finally:
+            _gate_bypassed.reset(token)
         if result.path is not None:
             return EditResult(error=result.error, path=file_path, occurrences=result.occurrences)
         return result
@@ -909,11 +1037,17 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
         self, file_path: str, old_string: str, new_string: str, replace_all: bool = False
     ):
         stripped = self._strip_required(file_path)
+        if not await self._confirm_fs_op("edit", file_path):
+            return EditResult(error=f"Failed to edit file '{file_path}': declined_by_user")
         if await self._adaemon_platform_is_win32():
             payload = self._fs_edit_payload(stripped, old_string, new_string, replace_all)
             data = await self._afs_call("fs_edit", payload)
             return self._fs_edit_result(data, stripped, old_string, file_path)
-        result = await super().aedit(stripped, old_string, new_string, replace_all)
+        token = _gate_bypassed.set(True)
+        try:
+            result = await super().aedit(stripped, old_string, new_string, replace_all)
+        finally:
+            _gate_bypassed.reset(token)
         if result.path is not None:
             return EditResult(error=result.error, path=file_path, occurrences=result.occurrences)
         return result
@@ -931,21 +1065,33 @@ class WorkspaceAliasBackend(LocalSandboxBackend):
 
     def delete(self, file_path: str) -> DeleteResult:
         stripped = self._strip_required(file_path)
+        if not _run_coro_sync(self._confirm_fs_op("delete", file_path)):
+            return DeleteResult(error=f"Error deleting file '{file_path}': declined_by_user")
         if self._daemon_platform_is_win32():
             return self._fs_delete_result(
                 self._fs_call("fs_delete", {"path": stripped}), stripped, file_path
             )
-        result = super().delete(stripped)
+        token = _gate_bypassed.set(True)
+        try:
+            result = super().delete(stripped)
+        finally:
+            _gate_bypassed.reset(token)
         if result.path is not None:
             return DeleteResult(path=file_path)
         return result
 
     async def adelete(self, file_path: str) -> DeleteResult:
         stripped = self._strip_required(file_path)
+        if not await self._confirm_fs_op("delete", file_path):
+            return DeleteResult(error=f"Error deleting file '{file_path}': declined_by_user")
         if await self._adaemon_platform_is_win32():
             data = await self._afs_call("fs_delete", {"path": stripped})
             return self._fs_delete_result(data, stripped, file_path)
-        result = await super().adelete(stripped)
+        token = _gate_bypassed.set(True)
+        try:
+            result = await super().adelete(stripped)
+        finally:
+            _gate_bypassed.reset(token)
         if result.path is not None:
             return DeleteResult(path=file_path)
         return result
