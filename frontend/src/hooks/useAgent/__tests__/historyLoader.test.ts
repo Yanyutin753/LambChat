@@ -1645,3 +1645,97 @@ test("resolveLegacyScheduledTaskApproval only touches terminal scheduled-task ap
     success: false,
   });
 });
+
+test("steer delivered marks the pre-steer assistant turn as cancelled", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:00.000Z",
+        data: { content: "任务", message_id: "run-1:user" },
+      },
+      {
+        event_type: "message:chunk",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:01.000Z",
+        data: { content: "第一轮部分输出" },
+      },
+      {
+        event_type: "steer:message",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:02.000Z",
+        data: {
+          content: "加点中国的",
+          message_id: "steer-1",
+          created_at: "2026-09-05T00:00:01.500Z",
+        },
+      },
+      {
+        event_type: "message:chunk",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:03.000Z",
+        data: { content: "插话后的回答" },
+      },
+      {
+        event_type: "done",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:04.000Z",
+        data: { status: "completed" },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  // [user, assistant(已停止), steer-user, assistant(final)]
+  expect(messages).toHaveLength(4);
+  const sealed = messages[1];
+  expect(sealed.role).toBe("assistant");
+  expect(sealed.cancelled).toBe(true);
+  expect(sealed.parts?.some((part) => part.type === "cancelled")).toBe(true);
+  const final = messages[3];
+  expect(final.cancelled).toBeUndefined();
+  expect(final.parts?.some((part) => part.type === "cancelled")).toBe(false);
+});
+
+test("steer with no prior assistant output adds no cancelled marker", () => {
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        event_type: "user:message",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:00.000Z",
+        data: { content: "任务", message_id: "run-1:user" },
+      },
+      {
+        event_type: "steer:message",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:02.000Z",
+        data: {
+          content: "快点",
+          message_id: "steer-1",
+          created_at: "2026-09-05T00:00:01.500Z",
+        },
+      },
+      {
+        event_type: "message:chunk",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:03.000Z",
+        data: { content: "插话后的回答" },
+      },
+      {
+        event_type: "done",
+        run_id: "run-1",
+        timestamp: "2026-09-05T00:00:04.000Z",
+        data: { status: "completed" },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  // [user, steer-user, assistant(final)] —— 没有封存的空气泡
+  expect(messages).toHaveLength(3);
+  expect(messages.some((message) => message.cancelled)).toBe(false);
+});
