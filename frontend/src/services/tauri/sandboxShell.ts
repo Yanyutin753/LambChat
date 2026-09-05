@@ -7,11 +7,40 @@
  * 注意：`@tauri-apps/api/core` 只在壳内存在注入，这里用动态 import
  * 避免网页构建期解析失败。
  */
-import { isNativeAppRuntime } from "../api/config";
 
-/** 当前是否运行在桌面壳内（复用运行时探测，不缓存以便测试注入）。 */
+interface ShellLocationLike {
+  protocol?: string;
+  hostname?: string;
+}
+
+interface ShellGlobalLike {
+  __TAURI__?: unknown;
+  __TAURI_INTERNALS__?: unknown;
+}
+
+/**
+ * 当前是否运行在 Tauri 桌面壳内。
+ *
+ * 只认 Tauri 标记（`__TAURI__` / `__TAURI_INTERNALS__` 注入，或
+ * `tauri:` 协议 / `tauri.localhost` origin），不能复用 isNativeAppRuntime()——
+ * 后者对 Capacitor 移动端同样返回 true，会导致移动端渲染壳内配对表单，
+ * 提交后服务端已铸出 PAT 而 savePairing invoke 必然失败（PAT 泄漏累积）。
+ * 不缓存结果以便测试注入。
+ */
 export function isShellAvailable(): boolean {
-  return isNativeAppRuntime();
+  const globalObject =
+    typeof globalThis !== "undefined"
+      ? (globalThis as unknown as ShellGlobalLike)
+      : null;
+  if (globalObject?.__TAURI__ || globalObject?.__TAURI_INTERNALS__) {
+    return true;
+  }
+
+  const location: ShellLocationLike | null | undefined =
+    typeof window !== "undefined" ? window.location : null;
+  const protocol = location?.protocol?.toLowerCase() || "";
+  const hostname = location?.hostname?.toLowerCase() || "";
+  return protocol === "tauri:" || hostname === "tauri.localhost";
 }
 
 async function invokeInShell<T>(

@@ -16,21 +16,37 @@ import {
   savePairing,
 } from "../sandboxShell.ts";
 
-function enterTauriShell() {
-  (globalThis as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+function enterTauriShell(marker: "__TAURI__" | "__TAURI_INTERNALS__" = "__TAURI_INTERNALS__") {
+  (globalThis as Record<string, unknown>)[marker] = {};
 }
 
 function leaveTauriShell() {
+  delete (globalThis as Record<string, unknown>).__TAURI__;
   delete (globalThis as Record<string, unknown>).__TAURI_INTERNALS__;
+}
+
+/** 模拟 Capacitor 移动端原生运行时（isNativeAppRuntime 对其返回 true）。 */
+function enterCapacitorNative(platform: "android" | "ios" = "android") {
+  (globalThis as Record<string, unknown>).Capacitor = {
+    isNativePlatform: () => true,
+    getPlatform: () => platform,
+  };
+}
+
+function leaveCapacitorNative() {
+  delete (globalThis as Record<string, unknown>).Capacitor;
 }
 
 beforeEach(() => {
   mocks.invoke.mockReset();
   leaveTauriShell();
+  leaveCapacitorNative();
 });
 
 afterEach(() => {
   leaveTauriShell();
+  leaveCapacitorNative();
+  vi.unstubAllGlobals();
 });
 
 test("isShellAvailable is false outside the desktop shell", () => {
@@ -40,6 +56,49 @@ test("isShellAvailable is false outside the desktop shell", () => {
 test("isShellAvailable is true inside the Tauri shell", () => {
   enterTauriShell();
   expect(isShellAvailable()).toBe(true);
+});
+
+test("isShellAvailable is true with the __TAURI__ marker", () => {
+  enterTauriShell("__TAURI__");
+  expect(isShellAvailable()).toBe(true);
+});
+
+test("isShellAvailable is false inside the Capacitor android app", () => {
+  enterCapacitorNative("android");
+  expect(isShellAvailable()).toBe(false);
+});
+
+test("isShellAvailable is false inside the Capacitor iOS app", () => {
+  enterCapacitorNative("ios");
+  expect(isShellAvailable()).toBe(false);
+});
+
+test("isShellAvailable is false on a capacitor: webview origin", () => {
+  vi.stubGlobal("window", {
+    location: { protocol: "capacitor:", host: "localhost", hostname: "localhost" },
+  });
+  expect(isShellAvailable()).toBe(false);
+});
+
+test("isShellAvailable is true on a tauri: webview origin", () => {
+  vi.stubGlobal("window", {
+    location: { protocol: "tauri:", host: "localhost", hostname: "localhost" },
+  });
+  expect(isShellAvailable()).toBe(true);
+});
+
+test("isShellAvailable is true on the tauri.localhost origin (Windows)", () => {
+  vi.stubGlobal("window", {
+    location: { protocol: "https:", host: "tauri.localhost", hostname: "tauri.localhost" },
+  });
+  expect(isShellAvailable()).toBe(true);
+});
+
+test("isShellAvailable is false on a plain web origin", () => {
+  vi.stubGlobal("window", {
+    location: { protocol: "https:", host: "app.example.com", hostname: "app.example.com" },
+  });
+  expect(isShellAvailable()).toBe(false);
 });
 
 test("savePairing rejects with an explicit error outside the shell", async () => {
