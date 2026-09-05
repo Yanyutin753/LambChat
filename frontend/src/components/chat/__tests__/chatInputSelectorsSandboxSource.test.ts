@@ -5,6 +5,10 @@ const source = readFileSync(
   join(process.cwd(), "src/components/chat/ChatInputSelectors.tsx"),
   "utf8",
 );
+const runModePopoverSource = readFileSync(
+  join(process.cwd(), "src/components/chat/RunModePopover.tsx"),
+  "utf8",
+);
 
 test("selectors adapt the sandbox option to shell and daemon availability", () => {
   // 双条件渲染分支：壳检测 + useSandboxStatus 在线状态
@@ -12,6 +16,11 @@ test("selectors adapt the sandbox option to shell and daemon availability", () =
   expect(source).toMatch(/useSandboxStatus/);
   expect(source).toMatch(/adaptSandboxAgentOption/);
   expect(source).toMatch(/SANDBOX_AGENT_OPTION_KEY/);
+});
+
+test("sandbox selector opens on its own panel key, never the thinking panel", () => {
+  // 独立 panel key：避免与思考档模态同帧双开（fix round 1 的 Critical 回归）
+  expect(source).toMatch(/activePanel === "sandbox"/);
 });
 
 test("offline local selection warns without blocking the change", () => {
@@ -24,6 +33,9 @@ test("restored local value carries an offline note on pure web", () => {
   expect(source).toMatch(/agentOptions\.sandbox\.restoredOffline/);
 });
 
-test("sandbox button carries a daemon online status dot", () => {
-  expect(source).toMatch(/data-sandbox-status-dot/);
+test("sandbox status dot anchors to the visible popover entry, not a closed-state wrapper", () => {
+  // 状态点锚定在 RunModePopover 的可见"沙箱"条目上；不再挂在 external 模式关闭态
+  // 渲染为 null 的 0×0 包装 span 里（否则永远不可见）。
+  expect(runModePopoverSource).toMatch(/data-sandbox-status-dot/);
+  expect(source).not.toMatch(/data-sandbox-status-dot/);
 });

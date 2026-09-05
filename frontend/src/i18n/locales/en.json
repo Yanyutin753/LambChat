@@ -1007,6 +1007,9 @@
     "sendLongTextAsText": "Send as text instead",
     "sessionUnavailable": "Session not found or deleted",
     "shiftEnterNewLine": "for new line",
+    "runMode": {
+      "sandbox": "Sandbox"
+    },
     "skillCreated": "Skill created",
     "skillUpdated": "Skill updated",
     "slashCommands": {

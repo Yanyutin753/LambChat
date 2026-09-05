@@ -257,28 +257,21 @@ export function ChatInputSelectors({
                   : !sandboxOnline && storedValue === SANDBOX_LOCAL_VALUE
                     ? t("agentOptions.sandbox.restoredOffline")
                     : undefined;
+              // 独立 panel key：与思考档模态互斥，同帧只开一个选项模态；
+              // 触发入口在 RunModePopover 的"沙箱"条目（含 daemon 状态点）。
               return (
-                <span key={key} className="relative inline-flex">
-                  <AgentOptionButton
-                    optionKey={key}
-                    option={adapted.option}
-                    value={adapted.value}
-                    onChange={handleChange}
-                    note={note}
-                    isOpen={activePanel === "thinking"}
-                    onOpenChange={(open) =>
-                      onActivePanelChange(open ? "thinking" : null)
-                    }
-                  />
-                  {/* daemon 在线状态点：绿=在线，灰=离线 */}
-                  <span
-                    data-sandbox-status-dot
-                    className="pointer-events-none absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full"
-                    style={{
-                      background: sandboxOnline ? "#22c55e" : "#a8a29e",
-                    }}
-                  />
-                </span>
+                <AgentOptionButton
+                  key={key}
+                  optionKey={key}
+                  option={adapted.option}
+                  value={adapted.value}
+                  onChange={handleChange}
+                  note={note}
+                  isOpen={activePanel === "sandbox"}
+                  onOpenChange={(open) =>
+                    onActivePanelChange(open ? "sandbox" : null)
+                  }
+                />
               );
             }
 

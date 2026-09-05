@@ -1007,6 +1007,9 @@
     "sendLongTextAsText": "Отправить как текст",
     "sessionUnavailable": "Сессия не найдена или удалена",
     "shiftEnterNewLine": "для новой строки",
+    "runMode": {
+      "sandbox": "Песочница"
+    },
     "skillCreated": "Навык создан",
     "skillUpdated": "Навык обновлён",
     "slashCommands": {

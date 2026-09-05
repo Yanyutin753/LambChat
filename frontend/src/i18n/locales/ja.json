@@ -1007,6 +1007,9 @@
     "sendLongTextAsText": "テキストのまま送信",
     "sessionUnavailable": "セッションが存在しないか、削除されました",
     "shiftEnterNewLine": "で改行",
+    "runMode": {
+      "sandbox": "サンドボックス"
+    },
     "skillCreated": "スキルが作成されました",
     "skillUpdated": "スキルが更新されました",
     "slashCommands": {

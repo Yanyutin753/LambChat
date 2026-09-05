@@ -1007,6 +1007,9 @@
     "sendLongTextAsText": "仍以文本发送",
     "sessionUnavailable": "会话不存在或已被删除",
     "shiftEnterNewLine": "换行",
+    "runMode": {
+      "sandbox": "沙箱"
+    },
     "skillCreated": "技能已创建",
     "skillUpdated": "技能已更新",
     "slashCommands": {

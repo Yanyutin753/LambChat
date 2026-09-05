@@ -1007,6 +1007,9 @@
     "sendLongTextAsText": "텍스트로 보내기",
     "sessionUnavailable": "세션이 없거나 삭제되었습니다",
     "shiftEnterNewLine": "로 줄바꿈",
+    "runMode": {
+      "sandbox": "샌드박스"
+    },
     "skillCreated": "스킬이 생성되었습니다",
     "skillUpdated": "스킬이 업데이트되었습니다",
     "slashCommands": {

@@ -7,6 +7,7 @@
  *   useSandboxStatus 报 online 时渲染（用户可能在本机手动跑 CLI daemon）；
  * - 会话恢复到 local 但当前无 daemon：回退显示云端档，不静默改已存值。
  */
+import type { TFunction } from "i18next";
 import type { AgentOption } from "../../types";
 
 export const SANDBOX_AGENT_OPTION_KEY = "sandbox";
@@ -54,4 +55,26 @@ export function adaptSandboxAgentOption(
       : value;
 
   return { option: { ...option, options }, value: displayValue };
+}
+
+/**
+ * 沙箱选择器在 RunModePopover 入口条目上的呈现信息：
+ * has = 会话是否存在沙箱选项；label = 当前档位（云端/本地）的已翻译名。
+ * label 取已存值（未存时回落 default），与面板内选中态同源。
+ */
+export function resolveSandboxPresentation(
+  agentOptions: Record<string, AgentOption> | undefined,
+  agentOptionValues: Record<string, boolean | string | number>,
+  t: TFunction,
+): { has: boolean; label?: string } {
+  const option = agentOptions?.[SANDBOX_AGENT_OPTION_KEY];
+  if (!option) return { has: false };
+  const value = agentOptionValues[SANDBOX_AGENT_OPTION_KEY] ?? option.default;
+  const selected = option.options?.find((item) => item.value === value);
+  return {
+    has: true,
+    label: selected?.label_key
+      ? t(selected.label_key)
+      : selected?.label || String(value),
+  };
 }
