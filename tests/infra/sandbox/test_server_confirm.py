@@ -122,3 +122,22 @@ def test_interrupt_unsupported_fails_closed(monkeypatch):
 
     monkeypatch.setattr(langgraph.types, "interrupt", _boom)
     assert confirm_local_op("rm x", "all", description="d") is False
+
+
+def test_interrupt_payload_carries_sandbox_confirm_origin(interrupt_supported, monkeypatch):
+    """origin 标记：历史回放据此跳过 ask_human 工具卡合成（执行卡+审批面板已足够）。"""
+    import langgraph.types
+    from langgraph.errors import GraphInterrupt
+
+    captured: list[dict] = []
+
+    def fake_interrupt(payload):
+        captured.append(payload)
+        raise GraphInterrupt(payload)
+
+    monkeypatch.setattr(langgraph.types, "interrupt", fake_interrupt)
+    try:
+        confirm_local_op("rm x", "all", description="确认在本机执行命令：\nrm x")
+    except GraphInterrupt:
+        pass
+    assert captured[0]["origin"] == "sandbox_confirm"

@@ -70,6 +70,7 @@ async def _send_approval_sse(
     session_id: str,
     run_id: Optional[str],
     trace_id: Optional[str] = None,
+    origin: Optional[str] = None,
 ) -> None:
     """挂起后发送 approval_required 事件到 SSE 流。
 
@@ -89,6 +90,7 @@ async def _send_approval_sse(
                 "fields": fields,
                 "tool_call_id": (getattr(approval, "metadata", None) or {}).get("tool_call_id"),
                 "interrupt_id": (getattr(approval, "metadata", None) or {}).get("interrupt_id"),
+                "origin": origin,
             },
             run_id=run_id,
             trace_id=trace_id,
@@ -164,6 +166,9 @@ async def materialize_ask_human_approvals(
         tool_call_id = payload.get("tool_call_id")
         if tool_call_id:
             metadata["tool_call_id"] = str(tool_call_id)
+        origin = payload.get("origin")
+        if origin:
+            metadata["origin"] = str(origin)
         approval = await create_approval(
             message=message,
             approval_type="form",
@@ -177,7 +182,9 @@ async def materialize_ask_human_approvals(
             existing_interrupt_ids.add(interrupt_id)
         created += 1
         if session_id:
-            await _send_approval_sse(approval, fields, session_id, run_id, trace_id)
+            await _send_approval_sse(
+                approval, fields, session_id, run_id, trace_id, origin=origin
+            )
         logger.info(
             "[HITL] approval_id=%s Materialized from interrupt: session=%s run_id=%s",
             approval.id,

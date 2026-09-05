@@ -73,5 +73,14 @@ def confirm_local_op(command: str, policy: str, *, description: str) -> bool:
 
     from langgraph.types import interrupt
 
-    resume_value = interrupt({"kind": "ask_human", "message": description, "fields": []})
+    resume_value = interrupt(
+        {
+            "kind": "ask_human",
+            # 沙箱确认门标记：历史回放据此跳过 ask_human 工具卡合成——
+            # 执行卡（等待确认→结果）+ 审批面板已完整表达，避免双卡
+            "origin": "sandbox_confirm",
+            "message": description,
+            "fields": [],
+        }
+    )
     return bool(isinstance(resume_value, dict) and resume_value.get("approved"))
