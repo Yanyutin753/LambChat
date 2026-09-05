@@ -150,6 +150,36 @@ async def test_run_without_assistant_text_fails_instead_of_completing(
     assert error_events[0]["data"]["code"] == "model_empty_response"
 
 
+async def test_run_with_presenter_delivered_text_completes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """处理器直发路径回归（2026-09-05 生产事故）：正文经 presenter.emit 落库、
+    不经过 executor 事件循环，守卫必须读 presenter.produced_main_text 判定，
+    不得把交付过内容的 run 误判失败。"""
+    executor, writer, holder, status_updates = _executor_fixture(monkeypatch)
+
+    async def _stream_with_direct_delivery(*_args, **kwargs):
+        # 模拟 AgentEventProcessor 缓冲 flush：正文直发 presenter，循环里看不到
+        kwargs["presenter"].produced_main_text = True
+        yield {"event": "thinking", "data": {"content": "思考"}}
+        yield {"event": "done", "data": {"status": "completed"}}
+
+    result = await executor.run_task(
+        session_id="session-1",
+        run_id="run-1",
+        agent_id="fast",
+        message="hi",
+        user_id="user-1",
+        executor=_stream_with_direct_delivery,
+        user_message_written=True,
+    )
+
+    assert result is False  # completed path
+    assert holder["presenter"].completions == ["completed"]
+    assert "completed" in status_updates
+    assert [e for e in writer.written if e.get("event_type") == "error"] == []
+
+
 async def test_run_with_main_agent_text_completes(monkeypatch: pytest.MonkeyPatch) -> None:
     """有主代理 message:chunk 的 run 保持原行为：completed。"""
     executor, writer, holder, status_updates = _executor_fixture(monkeypatch)
