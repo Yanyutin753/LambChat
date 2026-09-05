@@ -13,6 +13,7 @@ vi.mock("react-i18next", () => ({
         "chat.message.runStepsCount": "{{count}} steps",
         "chat.message.runStepsWorking": "Working… {{duration}}",
         "chat.message.runStepsWorkingNoTimer": "Working…",
+        "chat.message.runStepsStopped": "Stopped",
       };
       let out = templates[key] ?? key;
       if (opts && typeof opts === "object") {
@@ -60,6 +61,34 @@ describe("RunStepsCollapse", () => {
       />,
     );
     expect(SummaryRow().textContent).toContain("2");
+  });
+
+  test("shows the stopped label instead of the working/summary text when stopped", () => {
+    render(
+      <RunStepsCollapse
+        stopped
+        steps={3}
+        durationMs={90000}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    // 已停止不带时长，也不回落到步骤数/已工作摘要
+    expect(SummaryRow().textContent).toBe("Stopped");
+    expect(SummaryRow().textContent).not.toContain("1m 30s");
+    expect(SummaryRow().textContent).not.toContain("Worked for");
+    expect(SummaryRow().textContent).not.toContain("steps");
+  });
+
+  test("shows the bare stopped label when duration is unknown", () => {
+    render(
+      <RunStepsCollapse
+        stopped
+        steps={3}
+        durationMs={null}
+        renderExpanded={() => <div>step-details</div>}
+      />,
+    );
+    expect(SummaryRow().textContent).toBe("Stopped");
   });
 
   test("shows the live timer and full details while active, with no expand/collapse toggle", () => {

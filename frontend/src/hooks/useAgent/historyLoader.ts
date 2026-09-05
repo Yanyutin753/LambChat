@@ -523,6 +523,9 @@ export function reconstructMessagesFromEvents(
 
     // Handle user cancel
     if (eventType === "user:cancel") {
+      // reason=steer：插话打断 ask_human 挂起。已停止是状态行文字切换
+      // （cancelled 标志 → RunStepsCollapse「已停止」），不追加已取消胶囊。
+      const steerInterrupted = eventData.reason === "steer";
       if (currentAssistantMessage) {
         const clearedParts = clearAllLoadingStates(
           currentAssistantMessage.parts || [],
@@ -542,10 +545,12 @@ export function reconstructMessagesFromEvents(
           ...currentAssistantMessage,
           isStreaming: false,
           cancelled: true,
-          parts: [...updatedParts, { type: "cancelled" as const }],
+          parts: steerInterrupted
+            ? updatedParts
+            : [...updatedParts, { type: "cancelled" as const }],
         };
         pushMessage(updatedMessage);
-      } else {
+      } else if (!steerInterrupted) {
         pushMessage({
           id: uuid(),
           role: "assistant",

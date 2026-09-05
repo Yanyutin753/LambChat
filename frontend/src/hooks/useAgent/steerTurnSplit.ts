@@ -2,19 +2,15 @@ import type { Message } from "../../types/message";
 import { clearAllLoadingStates } from "./messageParts";
 
 /**
- * 插话打断了这段生成：给封存轮次补「已停止」视觉（cancelled 标志 +
- * cancelled part，与用户主动取消同款）。没有任何内容的空轮次不加，
- * 避免空气泡上凭空出现已停止标记。
+ * 插话打断了这段生成：封存轮次标 cancelled，状态行「工作中」切换为
+ * 「已停止」（RunStepsCollapse 文字切换，不追加 cancelled part 组件）。
+ * 没有任何内容的空轮次不加，避免空气泡上凭空出现已停止标记。
  */
 export function markInterruptedBySteer(message: Message): Message {
   const hasContent =
     (message.parts?.length ?? 0) > 0 || Boolean(message.content?.trim());
   if (!hasContent) return message;
-  const parts = message.parts || [];
-  if (parts.some((part) => part.type === "cancelled")) {
-    return { ...message, cancelled: true };
-  }
-  return { ...message, cancelled: true, parts: [...parts, { type: "cancelled" }] };
+  return { ...message, cancelled: true };
 }
 
 /**

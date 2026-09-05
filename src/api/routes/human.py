@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, Query
 from src.api.deps import require_permissions
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
+from src.infra.session.manager import SessionManager
 from src.infra.storage.mongodb import (
     APPROVAL_TTL,
     ApprovalResponse,
@@ -250,6 +251,26 @@ def _cleanup_approval(approval_id: str) -> None:
     _local_events.pop(approval_id, None)
 
 
+async def resolve_approval_owner_id(approval: PendingApproval) -> Optional[str]:
+    """解析审批记录归属：优先 user_id，缺失时回退会话属主，皆缺返回 None。"""
+    owner_id = getattr(approval, "user_id", None)
+    if owner_id:
+        return owner_id
+    session_id = getattr(approval, "session_id", None)
+    if session_id:
+        session = await SessionManager().get_session(session_id)
+        if session is not None:
+            return getattr(session, "user_id", None)
+    return None
+
+
+async def _ensure_approval_access(approval: PendingApproval, user: TokenPayload) -> None:
+    """审批归属校验：非本人的审批一律按不存在处理（404 语义，避免存在性枚举）。"""
+    owner_id = await resolve_approval_owner_id(approval)
+    if owner_id is None or owner_id != user.sub:
+        raise AppError(ErrorCode.APPROVAL_NOT_FOUND)
+
+
 def _cleanup_stale_events(max_age: float = 3600) -> int:
     """清理超时的本地 Event（防止遗弃的审批泄漏内存）"""
     now = time.time()
@@ -279,11 +300,12 @@ async def get_pending_approvals(
     return {"approvals": [a.model_dump() for a in pending], "count": len(pending)}
 
 
-@router.post("/{approval_id}/respond", dependencies=[Depends(require_permissions("chat:write"))])
+@router.post("/{approval_id}/respond")
 async def respond_to_approval(
     approval_id: str,
     approved: bool = Query(..., description="是否批准"),
     response: str = Query("{}", description="响应数据（JSON 字符串）"),
+    user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
     """
     响应审批请求
@@ -298,6 +320,7 @@ async def respond_to_approval(
     approval = await _approval_storage.get(approval_id)
     if not approval:
         raise AppError(ErrorCode.APPROVAL_NOT_FOUND)
+    await _ensure_approval_access(approval, user)
 
     if approval.status != "pending":
         logger.info(
@@ -402,10 +425,11 @@ async def respond_to_approval(
     return result
 
 
-@router.post("/{approval_id}/extend", dependencies=[Depends(require_permissions("chat:write"))])
+@router.post("/{approval_id}/extend")
 async def extend_approval_timeout(
     approval_id: str,
     extra_seconds: int = Query(60, ge=10, le=300, description="延长的秒数"),
+    user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
     """
     延长审批超时时间（用户交互时触发，支持分布式）
@@ -414,8 +438,10 @@ async def extend_approval_timeout(
     对无截止时间的审批不生效）。
     """
     approval = await _approval_storage.get(approval_id)
-    if approval and (getattr(approval, "metadata", None) or {}).get("mode") == "interrupt":
-        return {"status": "success", "expires_at": None}
+    if approval:
+        await _ensure_approval_access(approval, user)
+        if (getattr(approval, "metadata", None) or {}).get("mode") == "interrupt":
+            return {"status": "success", "expires_at": None}
 
     new_expires = await _approval_storage.extend_expires_at(
         approval_id,
@@ -430,8 +456,10 @@ async def extend_approval_timeout(
     }
 
 
-@router.get("/{approval_id}", dependencies=[Depends(require_permissions("chat:write"))])
-async def get_approval(approval_id: str):
+@router.get("/{approval_id}")
+async def get_approval(
+    approval_id: str, user: TokenPayload = Depends(require_permissions("chat:write"))
+):
     """获取单个审批详情"""
     approval = await _approval_storage.get(approval_id)
     if not approval:
@@ -439,15 +467,24 @@ async def get_approval(approval_id: str):
         # 这样前端处理更简洁，不需要 catch 404 错误
         return {"id": approval_id, "status": "not_found"}
 
+    # 非本人审批与"不存在"同形返回，避免存在性枚举
+    try:
+        await _ensure_approval_access(approval, user)
+    except AppError:
+        return {"id": approval_id, "status": "not_found"}
+
     return approval.model_dump()
 
 
-@router.delete("/{approval_id}", dependencies=[Depends(require_permissions("chat:write"))])
-async def cancel_approval(approval_id: str):
+@router.delete("/{approval_id}")
+async def cancel_approval(
+    approval_id: str, user: TokenPayload = Depends(require_permissions("chat:write"))
+):
     """取消审批请求"""
     approval = await _approval_storage.get(approval_id)
     if not approval:
         raise AppError(ErrorCode.APPROVAL_NOT_FOUND)
+    await _ensure_approval_access(approval, user)
 
     # 删除 MongoDB 记录
     await _approval_storage.delete(approval_id)

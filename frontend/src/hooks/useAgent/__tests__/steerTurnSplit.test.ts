@@ -67,7 +67,7 @@ describe("splitAssistantTurn", () => {
     expect(splitAssistantTurn(base, "missing")).toBe(base);
   });
 
-  test("封存轮次标记为已停止（cancelled 标志 + cancelled part）——插话打断了这段生成", () => {
+  test("封存轮次标记 cancelled（状态行切换已停止），不追加 cancelled part 组件", () => {
     const base: Message[] = [
       msg({ id: "u1", role: "user", content: "任务" }),
       msg({
@@ -85,7 +85,8 @@ describe("splitAssistantTurn", () => {
     expect(sealed.id).toBe("a1#t1");
     expect(sealed.cancelled).toBe(true);
     expect(sealed.isStreaming).toBe(false);
-    expect(sealed.parts?.some((part) => part.type === "cancelled")).toBe(true);
+    // 已停止是状态行文字切换（RunStepsCollapse），不是独立组件
+    expect(sealed.parts?.some((part) => part.type === "cancelled")).toBe(false);
     // 新轮次不受影响
     expect(result[2].cancelled).toBeUndefined();
     expect(result[2].parts).toEqual([]);
@@ -103,7 +104,7 @@ describe("splitAssistantTurn", () => {
     expect(result[1].parts?.some((part) => part.type === "cancelled")).toBe(false);
   });
 
-  test("封存轮次已有 cancelled part 时不重复追加", () => {
+  test("封存轮次已有 cancelled part 时保留原状，仅补 cancelled 标志", () => {
     const base: Message[] = [
       msg({ id: "u1", role: "user", content: "任务" }),
       msg({
@@ -117,6 +118,7 @@ describe("splitAssistantTurn", () => {
 
     const result = splitAssistantTurn(base, "a1");
 
+    expect(result[1].cancelled).toBe(true);
     const cancelledCount = result[1].parts?.filter(
       (part) => part.type === "cancelled",
     ).length;

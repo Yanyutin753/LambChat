@@ -300,7 +300,12 @@ export function handleStreamEvent(
     }
 
     case "user:cancel": {
-      handleError(data, messageId, ctx, true, { keepConnectionOpen: true });
+      // reason=steer：插话打断 ask_human 挂起。已停止是状态行文字切换
+      // （cancelled 标志 → RunStepsCollapse「已停止」），不追加已取消胶囊。
+      handleError(data, messageId, ctx, true, {
+        keepConnectionOpen: true,
+        skipCancelledPart: data.reason === "steer",
+      });
       return;
     }
 
@@ -655,7 +660,7 @@ function handleError(
   messageId: string,
   ctx: EventHandlerContext,
   forceCancelled?: boolean,
-  options?: { keepConnectionOpen?: boolean },
+  options?: { keepConnectionOpen?: boolean; skipCancelledPart?: boolean },
 ): void {
   const errorMsg = data.error
     ? translateApiError(data.code, data.error, undefined, i18n.t.bind(i18n))
@@ -666,11 +671,14 @@ function handleError(
     prev.map((m) => {
       if (m.id !== messageId) return m;
       if (isCancelled) {
+        const clearedParts = clearAllLoadingStates(m.parts || []);
         return {
           ...m,
           isStreaming: false,
           cancelled: true,
-          parts: appendCancelledPart(clearAllLoadingStates(m.parts || [])),
+          parts: options?.skipCancelledPart
+            ? clearedParts
+            : appendCancelledPart(clearedParts),
         };
       }
       return {

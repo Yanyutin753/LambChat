@@ -49,6 +49,8 @@ export interface StreamEvent {
 
 export interface EventData {
   session_id?: string;
+  /** user:cancel 的中断原因（"steer" = 插话打断 ask_human 挂起） */
+  reason?: string;
   agent_id?: string;
   agent_name?: string;
   agent_avatar?: string;
@@ -205,6 +207,8 @@ export interface SubagentStackItem {
 // History event data structure
 export interface HistoryEventData {
   content?: string;
+  /** user:cancel 的中断原因（"steer" = 插话打断 ask_human 挂起） */
+  reason?: string;
   tool?: string;
   tool_call_id?: string;
   id?: string;
