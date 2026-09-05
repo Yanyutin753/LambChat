@@ -170,6 +170,8 @@ export interface ToolPart {
   success?: boolean;
   error?: string;
   isPending?: boolean;
+  /** 图因确认门（ask_human/沙箱确认）挂起：工具卡转「等待确认」而非运行中 */
+  awaitingConfirmation?: boolean;
   cancelled?: boolean;
   depth?: number;
   agent_id?: string;

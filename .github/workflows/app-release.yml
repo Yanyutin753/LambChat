@@ -33,42 +33,56 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # pbs_platform：fetch-pbs.py 的 --platform 取值（内嵌 Python 运行时
+          # 归档按平台落 resources/python/<tag>/，与 daemon 平台一一对应）
           - label: Linux x86_64
             runner: ubuntu-latest
             bundles: appimage,deb,rpm
             artifact_slug: linux-x86_64
             arch: x86_64
+            pbs_platform: linux-x86_64
           - label: Linux ARM64
             runner: ubuntu-24.04-arm
             bundles: appimage,deb,rpm
             artifact_slug: linux-arm64
             arch: arm64
+            pbs_platform: linux-aarch64
           - label: Windows
             runner: windows-2022
             bundles: msi
             artifact_slug: windows
+            pbs_platform: windows-x86_64
+          # M4 裁决：macOS 先 arm64 单架构（macos-14 原生），universal + lipo 属 M5
           - label: macOS
             runner: macos-14
             bundles: dmg
             artifact_slug: macos
-            target: universal-apple-darwin
+            target: aarch64-apple-darwin
+            pbs_platform: macos-arm64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate app URL
+      - name: Validate app URL (optional)
+        # app_url 可选：提供则构建期烘焙为默认服务器（VITE_API_BASE）；
+        # 缺省打「运行时配置」包——安装后首启设置屏填 base_url 即可用。
         shell: bash
         run: |
-          test -n "$LAMBCHAT_APP_URL"
-          case "$LAMBCHAT_APP_URL" in
-            https://*) ;;
-            *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
-          esac
+          if [ -n "$LAMBCHAT_APP_URL" ]; then
+            case "$LAMBCHAT_APP_URL" in
+              https://*) ;;
+              *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
+            esac
+          else
+            echo "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run setup)"
+          fi
 
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
+          # xdg-utils：tauri deb 打包要拷贝 /usr/bin/xdg-open 入包；x86_64 官方
+          # 镜像预装、ubuntu-24.04-arm 不带（缺失时 deb bundle 直接失败）
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
@@ -78,7 +92,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            rpm
+            rpm \
+            xdg-utils
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -95,10 +110,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add macOS universal Rust targets
+      - name: Add macOS Rust target
         if: runner.os == 'macOS'
-        run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        run: rustup target add aarch64-apple-darwin
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
@@ -117,6 +131,35 @@ jobs:
           "TEMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
           New-Item -ItemType Directory -Force D:\pnpm-store,D:\npm-cache,D:\temp | Out-Null
+
+      # M4：daemon sidecar（PyInstaller onefile → binaries/lambchat-daemon-<triple>，
+      # Windows 为 <triple>.exe）三平台同链路。externalBin 声明了该产物且
+      # binaries/ 被 gitignore，缺此步 Tauri 打包必败。直调 build-daemon.sh
+      # 而非 make client-build-daemon：windows-2022 镜像不预装 GNU make。
+      # uv 安装方式与 lint.yml 保持一致。
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Build sandbox daemon sidecar (PyInstaller)
+        shell: bash
+        env:
+          # uv.lock pins a CN mirror; GH-hosted runners throttle under
+          # uv's 50 parallel downloads (same mitigation as lint.yml).
+          UV_CONCURRENT_DOWNLOADS: "8"
+        run: |
+          uv sync --group dev || (sleep 15 && uv sync --group dev)
+          bash client/scripts/build-daemon.sh
+
+      # M4：内嵌 Python 运行时（python-build-standalone install_only 归档，
+      # ~111MB/平台）落到 tauri resources 约定位置，使 bundle.resources 有货。
+      # tar.gz 由 daemon 首启解压（lambchat_sandbox.pbs.ensure_runtime）。
+      # 产物体积大且随 PBS_TAG 锁定可复现，CI 缓存后加（本任务不做）。
+      - name: Fetch embedded Python runtime (PBS)
+        shell: bash
+        run: uv run python client/scripts/fetch-pbs.py --platform ${{ matrix.pbs_platform }}
 
       - name: Build desktop package with Tauri
         env:
@@ -156,6 +199,8 @@ jobs:
             echo "No Linux desktop artifacts found"
             exit 1
           fi
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          cp frontend/src-tauri/binaries/lambchat-daemon-* release-assets/
 
       - name: Collect Windows desktop artifacts
         if: runner.os == 'Windows'
@@ -186,6 +231,8 @@ jobs:
           ) -Encoding UTF8
           Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/LambChat-$env:RELEASE_TAG-Windows-Portable.zip" -Force
           Remove-Item -Recurse -Force $portableDir
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          Copy-Item 'frontend/src-tauri/binaries/lambchat-daemon-*.exe' 'release-assets/'
 
       - name: Collect macOS desktop artifacts
         if: runner.os == 'macOS'
@@ -211,6 +258,8 @@ jobs:
             echo "No macOS .app bundle found; uploading DMG only."
           fi
           cp "$dmg_path" "release-assets/LambChat-${RELEASE_TAG}-macOS.dmg"
+          # daemon sidecar 资产：保留 triple 原名（selfupdate 按 lambchat-daemon-<triple> 前缀匹配）
+          cp frontend/src-tauri/binaries/lambchat-daemon-* release-assets/
 
       - name: Collect updater manifest artifacts
         shell: bash
@@ -328,14 +377,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate app URL
+      - name: Validate app URL (optional)
+        # app_url 可选：提供则构建期烘焙为默认服务器（VITE_API_BASE）；
+        # 缺省打「运行时配置」包——安装后首启设置屏填 base_url 即可用。
         shell: bash
         run: |
-          test -n "$LAMBCHAT_APP_URL"
-          case "$LAMBCHAT_APP_URL" in
-            https://*) ;;
-            *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
-          esac
+          if [ -n "$LAMBCHAT_APP_URL" ]; then
+            case "$LAMBCHAT_APP_URL" in
+              https://*) ;;
+              *) echo "LAMBCHAT_APP_URL must be an https:// URL"; exit 1 ;;
+            esac
+          else
+            echo "LAMBCHAT_APP_URL not set: building runtime-configured package (first-run setup)"
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -420,31 +474,60 @@ jobs:
           find release-assets -type f -print
           test "$(find release-assets -type f | wc -l)" -gt 0
 
-      - name: Merge updater manifests into latest.json
+      - name: Checkout repository (app version for updater manifest)
+        uses: actions/checkout@v4
+
+      - name: Generate latest.json updater manifest
+        # Tauri v2 CLI 只产出 .sig 签名文件，不再自动生成更新清单（v1 行为已
+        # 移除）；这里按平台 sig 组装 latest.json（端点见 tauri.conf.json
+        # updater.endpoints）。macOS 暂缺 updater 产物：dmg 不参与自动更新，
+        # .app.tar.gz 归 M5，故 platforms 暂无 darwin-aarch64。
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          python3 -c "
-          import json, glob, os
-          platform_files = glob.glob('release-assets/latest*.json') or glob.glob('release-assets/*-latest.json')
-          if not platform_files:
-              print('No updater manifests found')
-              exit(0)
-          merged = {}
-          for f in sorted(platform_files):
-              data = json.load(open(f))
-              if 'platforms' in data:
-                  merged['platforms'] = merged.get('platforms', {})
-                  merged['platforms'].update(data['platforms'])
-              if 'version' not in merged and 'version' in data:
-                  merged['version'] = data['version']
-              if 'notes' not in merged and 'notes' in data:
-                  merged['notes'] = data['notes']
-              if 'pub_date' not in merged and 'pub_date' in data:
-                  merged['pub_date'] = data['pub_date']
-          if merged:
-              with open('release-assets/latest.json', 'w') as out:
-                  json.dump(merged, out, indent=2)
-              print(f'Merged {len(platform_files)} manifests into latest.json')
-          "
+          python3 - <<'EOF'
+          import datetime
+          import glob
+          import json
+          import os
+          import pathlib
+
+          tag = os.environ["RELEASE_TAG"]
+          base = f"https://github.com/Yanyutin753/LambChat/releases/download/{tag}"
+          version = json.loads(
+              pathlib.Path("frontend/src-tauri/tauri.conf.json").read_text()
+          )["version"]
+
+          def sig(pattern: str) -> str | None:
+              files = sorted(glob.glob(f"release-assets/{pattern}"))
+              return pathlib.Path(files[0]).read_text().strip() if files else None
+
+          mapping = [
+              ("windows-x86_64", "*_x64_en-US.msi.sig", f"LambChat-{tag}-Windows.msi"),
+              ("linux-x86_64", "*_amd64.AppImage.sig", f"LambChat-{tag}-Linux-x86_64.AppImage"),
+              ("linux-aarch64", "*_aarch64.AppImage.sig", f"LambChat-{tag}-Linux-arm64.AppImage"),
+          ]
+          platforms = {}
+          for key, pattern, asset in mapping:
+              signature = sig(pattern)
+              if signature:
+                  platforms[key] = {"signature": signature, "url": f"{base}/{asset}"}
+              else:
+                  print(f"WARN: no sig file matches {pattern}, platform {key} omitted")
+
+          manifest = {
+              "version": version,
+              "notes": f"LambChat {tag}",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime(
+                  "%Y-%m-%dT%H:%M:%SZ"
+              ),
+              "platforms": platforms,
+          }
+          pathlib.Path("release-assets/latest.json").write_text(
+              json.dumps(manifest, indent=2)
+          )
+          print(f"latest.json platforms: {sorted(platforms)}")
+          EOF
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

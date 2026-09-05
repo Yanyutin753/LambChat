@@ -244,6 +244,16 @@
         "max": "超强",
         "medium": "中"
       }
+    },
+    "sandbox": {
+      "label": "沙箱",
+      "description": "选择代码沙箱的运行位置",
+      "options": {
+        "cloud": "云端",
+        "local": "本地"
+      },
+      "offlineHint": "本地沙箱离线，请先在设置中配对",
+      "restoredOffline": "已保存的本地沙箱档当前离线"
     }
   },
   "agents": {
@@ -628,7 +638,15 @@
     "systemRoleProtected": "系统角色不可修改或删除",
     "agentNotRegistered": "Agent '{{agent}}' 未注册",
     "bookmarkUpdateFailed": "书签状态更新失败",
-    "modelEmptyResponse": "模型在多次重试后仍返回了空回复，请重试或更换模型"
+    "modelEmptyResponse": "模型在多次重试后仍返回了空回复，请重试或更换模型",
+    "patNotFound": "个人访问令牌不存在或已撤销",
+    "patExpired": "个人访问令牌已过期",
+    "patScopeDenied": "令牌缺少所需权限 {{scope}}",
+    "daemonOffline": "本地沙箱守护进程离线",
+    "sandboxTimeout": "本地沙箱调用超时（{{seconds}} 秒）",
+    "sandboxPayloadTooLarge": "本地沙箱载荷超限",
+    "sandboxExecFailed": "本地沙箱执行失败：{{detail}}",
+    "daemonVersionUnsupported": "本地沙箱守护进程版本 {{version}} 低于最低要求 {{min}}，请升级"
   },
   "categories": {
     "agent": "代理",
@@ -824,6 +842,7 @@
       "runStepsWorkingNoTimer": "工作中",
       "runStepsStopped": "已停止",
       "running": "运行中...",
+      "waitingConfirm": "等待确认",
       "startTime": "开始时间",
       "starterPrompts": "开场提示词",
       "subagentProgress": "子代理进度",
@@ -990,6 +1009,9 @@
     "sendLongTextAsText": "仍以文本发送",
     "sessionUnavailable": "会话不存在或已被删除",
     "shiftEnterNewLine": "换行",
+    "runMode": {
+      "sandbox": "沙箱"
+    },
     "skillCreated": "技能已创建",
     "skillUpdated": "技能已更新",
     "slashCommands": {
@@ -2090,6 +2112,8 @@
     "changeAvatar": "更换头像",
     "changePassword": "修改密码",
     "confirmPassword": "确认密码",
+    "cloudSandbox": "云端沙箱",
+    "cloudSandboxDesc": "Agent 在云端沙箱运行代码前，按此策略向你确认",
     "darkTheme": "深色",
     "defaultModel": "默认模型",
     "defaultModelDesc": "选择新对话的默认模型",
@@ -2111,6 +2135,31 @@
     "lightTheme": "浅色",
     "limitedSupport": "部分支持",
     "loading": "加载中...",
+    "localSandbox": {
+      "title": "本地沙箱",
+      "desc": "Agent 通过桌面端在你自己的电脑上执行命令与文件读写",
+      "statusOnline": "在线",
+      "statusOffline": "离线",
+      "version": "daemon {{version}}",
+      "processRunning": "运行中",
+      "processStopped": "已停止",
+      "pairTitle": "用 LambChat 账号配对本地沙箱，即可在本机运行代码。",
+      "pairButton": "配对并启动",
+      "paired": "配对完成",
+      "policy": "执行确认策略",
+      "policyOptions": {
+        "all": "全部操作需确认",
+        "commands": "仅命令需确认",
+        "none": "无需确认"
+      },
+      "openWorkspaces": "打开工作区目录",
+      "openAudit": "打开审计目录",
+      "restartDaemon": "重启 daemon",
+      "needDesktop": "本地沙箱需要 LambChat 桌面端，网页端仅支持云端沙箱。",
+      "pairFailed": "配对失败，请检查账号密码后重试",
+      "unpair": "取消配对",
+      "unpaired": "已取消配对"
+    },
     "maxPinnedModels": "最多置顶 {{max}} 个模型",
     "memoryToggle": "跨会话记忆",
     "mobileNotification": "手机通知",
@@ -2139,6 +2188,7 @@
     "realtimeNotificationDesc": "通过 WebSocket 接收任务完成通知",
     "retry": "重试",
     "roles": "角色",
+    "sandbox": "沙箱",
     "searchModels": "搜索模型",
     "sendBehavior": "发送行为",
     "sendOnEnter": "发送消息",
@@ -2435,6 +2485,16 @@
       "description": "收藏会话中的重要消息（大纲、总结、方案），随时一键跳转回顾。",
       "title": "消息书签"
     }
+  },
+  "serverSetup": {
+    "title": "连接你的 LambChat 服务器",
+    "desc": "输入服务端地址，连接后即可开始使用",
+    "label": "服务器地址",
+    "connect": "连接",
+    "testing": "正在连接…",
+    "fail": "服务器响应异常（HTTP {{status}}），请检查地址",
+    "unreachable": "无法连接到该地址，请确认服务已启动且可访问",
+    "invalid": "地址格式不正确"
   },
   "session": {
     "deleteFailed": "删除会话失败",
@@ -3483,5 +3543,13 @@
     "sessionTitle": "本会话书签",
     "locating": "正在定位书签…",
     "messageMissing": "书签指向的消息不在历史中，可能已被删除"
+  },
+  "update": {
+    "aboutTitle": "关于",
+    "checkNow": "检查更新",
+    "notificationBody": "新版本 {{version}} 已发布，可在设置中检查更新",
+    "notificationTitle": "发现新版本",
+    "upToDate": "已是最新版本",
+    "updateRelaunchInstall": "重启并安装"
   }
 }

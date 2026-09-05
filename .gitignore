@@ -62,6 +62,16 @@ frontend/src-tauri/icons/
 # tsc incremental build cache — regenerated on every build, must not be tracked
 frontend/tsconfig.tsbuildinfo
 frontend/**/*.tsbuildinfo
+
+# Local sandbox daemon build artifacts (PyInstaller onefile + Tauri sidecar binaries)
+frontend/src-tauri/binaries/
+# Embedded python-build-standalone tarballs (build-time fetch-pbs.py download, ~100MB each)
+frontend/src-tauri/resources/python/
+# Tauri Rust 构建产物（Cargo.lock 入库：壳的可复现构建依赖锁文件，M4 T8）
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+client/dist/
+client/build/
 mcp.json
 
 # DeepAgent workspace

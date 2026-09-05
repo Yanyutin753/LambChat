@@ -35,5 +35,7 @@ export interface UpdateState {
   progress: number;
   contentLength: number;
   downloaded: number;
+  /** 后台静默下载已完成，待用户确认重启安装 */
+  readyToInstall: boolean;
   error: string | null;
 }

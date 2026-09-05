@@ -188,6 +188,11 @@ export default defineConfig({
   server: {
     host: true, // 监听所有地址 (0.0.0.0)，允许 127.0.0.1 和 localhost 访问
     port: 3001,
+    watch: {
+      // tauri dev 下 vite 默认会监听 src-tauri/target（数万构建产物文件），
+      // 耗尽系统 inotify watch 上限（ENOSPC）——按 Tauri 官方建议忽略整个 src-tauri。
+      ignored: ["**/src-tauri/**"],
+    },
     proxy: {
       // Long-running chat event stream
       "^/api/chat/sessions/[^/]+/stream$": {

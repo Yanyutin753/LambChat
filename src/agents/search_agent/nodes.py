@@ -66,6 +66,7 @@ from src.infra.backend import (
     create_persistent_backend,
     create_sandbox_backend,
 )
+from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.goal import (
     build_goal_input,
     create_goal_rubric_middleware,
@@ -153,6 +154,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             context=context,
             presenter=presenter,
             assistant_id=assistant_id,
+            agent_options=agent_options,
         )
         logger.debug(f"[Agent] Backend init: {(time.time() - backend_start) * 1000:.3f}ms")
         return result
@@ -302,6 +304,24 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         )
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+        # 沙箱统一确认门（本地 + 云端）：整批单次 interrupt，本地读 daemon
+        # 上报策略，云端读用户 metadata 偏好（未设置归 none 保持云上历史行为）
+        from src.infra.agent.middleware.sandbox_confirm import (
+            SandboxConfirmMiddleware,
+            _CloudPolicyResolver,
+        )
+        from src.infra.backend.local import WorkspaceAliasBackend
+
+        user_middleware.append(
+            SandboxConfirmMiddleware(
+                user_id=context.user_id or "default",
+                policy_resolver=(
+                    None
+                    if isinstance(sandbox_backend, WorkspaceAliasBackend)
+                    else _CloudPolicyResolver(context.user_id or "default")
+                ),
+            )
+        )
         if sandbox_work_dir:
             from src.infra.agent.middleware import SandboxWorkspaceMiddleware
 
@@ -382,7 +402,16 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     if hitl_resume is not None:
         from langgraph.types import Command
 
-        graph_input: Any = Command(resume=hitl_resume.get("resume_value"))
+        resume_map = hitl_resume.get("resume_value")
+        sandbox_message = hitl_resume.get("sandbox_confirm_message")
+        if sandbox_message and isinstance(resume_map, dict):
+            # 沙箱确认门整批：同批全部中断共享批复值（并行工具各任务各中断）
+            from src.infra.task.hitl import expand_sandbox_confirm_resume
+
+            resume_map = await expand_sandbox_confirm_resume(
+                inner_graph, inner_config, resume_map, message=sandbox_message
+            )
+        graph_input: Any = Command(resume=resume_map)
     else:
         if supports_vision:
             attachments = await inline_image_attachments_as_data_urls(
@@ -508,11 +537,19 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     return {"output": output_text}
 
 
+def _resolve_sandbox_platform(agent_options: Dict[str, Any] | None, default_platform: str) -> str:
+    """会话级沙箱选择：agent_options.sandbox 覆盖全局平台（spec §3.4）。"""
+    choice = (agent_options or {}).get("sandbox")
+    # 非字符串值（如列表/字典，不可哈希）不能进 set 成员判断，回退默认平台
+    return choice if isinstance(choice, str) and choice in {"local", "cloud"} else default_platform
+
+
 async def _create_backend_and_prompt(
     state: Dict[str, Any],
     context: SearchAgentContext,
     presenter: Presenter,
     assistant_id: str,
+    agent_options: Dict[str, Any] | None = None,
 ) -> tuple[Any, str, Any, Any, str | None]:
     """
     创建 Backend 实例和系统提示
@@ -525,10 +562,13 @@ async def _create_backend_and_prompt(
         context: Agent 上下文
         presenter: 输出处理器
         assistant_id: 助手 ID
+        agent_options: 会话级选项；sandbox=local 时路由到本地沙箱后端
 
     Returns:
         (backend, system_prompt, store, sandbox_backend, sandbox_work_dir) 元组。
-        sandbox_backend 在沙箱模式下为 LazySandboxBackend 实例，否则为 None。
+        sandbox_backend 在沙箱模式下为 LazySandboxBackend（云端）或
+        WorkspaceAliasBackend（agent_options.sandbox=local，别名剥离器）实例，
+        否则为 None。
     """
     # 创建 store（优先 PostgreSQL → MongoDB fallback）
     store = await acreate_store()
@@ -552,6 +592,28 @@ async def _create_backend_and_prompt(
         raise ValueError("Sandbox requires authenticated user (user_id is required)")
 
     session_id = state.get("session_id") or context.session_id
+    platform = _resolve_sandbox_platform(agent_options, settings.SANDBOX_PLATFORM.lower())
+    if platform == "local":
+        from src.infra.backend.local import WorkspaceAliasBackend
+
+        # WorkspaceAliasBackend：prompt_policy 让模型用 /workspace/{sid}/x 别名
+        # 路径调文件工具，别名剥离层把路径翻译回相对路径再构造命令（F1）。
+        local_backend = WorkspaceAliasBackend(user_id=user_id, session_id=session_id)
+        # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；
+        # env_var 工具运行中改动经 sync_envvar_change 实时刷新同一属性
+        await sync_sandbox_env_vars(local_backend, user_id)
+        logger.info(
+            f"Sandbox enabled (local), using local sandbox backend for assistant: {assistant_id}"
+        )
+        # 本地 daemon 常驻用户机器：无云端沙箱需要懒初始化/释放，
+        # 因此不走 LazySandboxBackend，也不注册 context.run_sandbox。
+        return (
+            create_sandbox_backend(local_backend, assistant_id, user_id=user_id),
+            SANDBOX_SYSTEM_PROMPT,
+            store,
+            local_backend,
+            local_backend.work_dir,
+        )
     sandbox_backend = LazySandboxBackend(
         session_id=session_id,
         user_id=context.user_id,

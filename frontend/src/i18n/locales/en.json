@@ -244,6 +244,16 @@
         "max": "Max",
         "medium": "Medium"
       }
+    },
+    "sandbox": {
+      "label": "Sandbox",
+      "description": "Choose where sandboxed commands run",
+      "options": {
+        "cloud": "Cloud",
+        "local": "Local"
+      },
+      "offlineHint": "Local sandbox is offline. Pair it in Settings first.",
+      "restoredOffline": "The saved local sandbox tier is currently offline."
     }
   },
   "agents": {
@@ -628,7 +638,15 @@
     "systemRoleProtected": "System roles cannot be modified or deleted",
     "agentNotRegistered": "Agent '{{agent}}' is not registered",
     "bookmarkUpdateFailed": "Failed to update bookmark state",
-    "modelEmptyResponse": "The model returned an empty response after retries, please try again or switch models"
+    "modelEmptyResponse": "The model returned an empty response after retries, please try again or switch models",
+    "patNotFound": "Personal access token not found or revoked",
+    "patExpired": "Personal access token expired",
+    "patScopeDenied": "Token missing required scope '{{scope}}'",
+    "daemonOffline": "Local sandbox daemon is offline",
+    "sandboxTimeout": "Local sandbox call timed out after {{seconds}}s",
+    "sandboxPayloadTooLarge": "Local sandbox payload exceeds limit",
+    "sandboxExecFailed": "Local sandbox execution failed: {{detail}}",
+    "daemonVersionUnsupported": "Daemon version {{version}} is below minimum {{min}}; please update"
   },
   "categories": {
     "agent": "Agent",
@@ -824,6 +842,7 @@
       "runStepsWorkingNoTimer": "Working",
       "runStepsStopped": "Stopped",
       "running": "Running...",
+      "waitingConfirm": "Waiting for confirmation",
       "startTime": "Start time",
       "starterPrompts": "Starter Prompts",
       "subagentProgress": "Subagent progress",
@@ -990,6 +1009,9 @@
     "sendLongTextAsText": "Send as text instead",
     "sessionUnavailable": "Session not found or deleted",
     "shiftEnterNewLine": "for new line",
+    "runMode": {
+      "sandbox": "Sandbox"
+    },
     "skillCreated": "Skill created",
     "skillUpdated": "Skill updated",
     "slashCommands": {
@@ -2090,6 +2112,8 @@
     "changeAvatar": "Change Avatar",
     "changePassword": "Change Password",
     "confirmPassword": "Confirm Password",
+    "cloudSandbox": "Cloud Sandbox",
+    "cloudSandboxDesc": "How the agent asks for your confirmation before running code in the cloud sandbox",
     "darkTheme": "Dark",
     "defaultModel": "Default Model",
     "defaultModelDesc": "Select your default model for new conversations",
@@ -2111,6 +2135,31 @@
     "lightTheme": "Light",
     "limitedSupport": "Limited",
     "loading": "Loading...",
+    "localSandbox": {
+      "title": "Local Sandbox",
+      "desc": "The agent runs commands and file edits on your own machine through the desktop app",
+      "statusOnline": "Online",
+      "statusOffline": "Offline",
+      "version": "daemon {{version}}",
+      "processRunning": "Running",
+      "processStopped": "Stopped",
+      "pairTitle": "Pair the local sandbox with your LambChat account to run code on this device.",
+      "pairButton": "Pair and start",
+      "paired": "Paired",
+      "policy": "Confirmation policy",
+      "policyOptions": {
+        "all": "Confirm all actions",
+        "commands": "Confirm commands only",
+        "none": "No confirmation"
+      },
+      "openWorkspaces": "Open workspaces",
+      "openAudit": "Open audit log",
+      "restartDaemon": "Restart daemon",
+      "needDesktop": "The local sandbox requires the LambChat desktop app. Only the cloud sandbox is available on the web.",
+      "pairFailed": "Pairing failed. Check your credentials and try again.",
+      "unpair": "Unpair",
+      "unpaired": "Pairing removed"
+    },
     "maxPinnedModels": "Pin up to {{max}} models",
     "memoryToggle": "Cross-session memory",
     "mobileNotification": "Mobile Notifications",
@@ -2139,6 +2188,7 @@
     "realtimeNotificationDesc": "Receive task completion notifications via WebSocket",
     "retry": "Retry",
     "roles": "Roles",
+    "sandbox": "Sandbox",
     "searchModels": "Search models",
     "sendBehavior": "Send Behavior",
     "sendOnEnter": "Send Message",
@@ -2435,6 +2485,16 @@
       "description": "Save important chat messages such as outlines and summaries, and jump back to them anytime.",
       "title": "Message Bookmarks"
     }
+  },
+  "serverSetup": {
+    "title": "Connect to your LambChat server",
+    "desc": "Enter your server address to get started",
+    "label": "Server address",
+    "connect": "Connect",
+    "testing": "Connecting…",
+    "fail": "Server responded abnormally (HTTP {{status}}), please check the address",
+    "unreachable": "Cannot reach this address. Make sure the server is running and accessible",
+    "invalid": "Invalid address format"
   },
   "session": {
     "deleteFailed": "Failed to delete session",
@@ -3483,5 +3543,13 @@
     "sessionTitle": "Session bookmarks",
     "locating": "Locating the bookmarked message…",
     "messageMissing": "The bookmarked message is no longer in the history; it may have been deleted"
+  },
+  "update": {
+    "aboutTitle": "About",
+    "checkNow": "Check for updates",
+    "notificationBody": "Version {{version}} is available. Check for updates in settings",
+    "notificationTitle": "Update available",
+    "upToDate": "You are on the latest version",
+    "updateRelaunchInstall": "Restart & install"
   }
 }

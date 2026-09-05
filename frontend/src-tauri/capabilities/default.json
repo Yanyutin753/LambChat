@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default desktop capability",
+  "description": "Default desktop capability. process:default 供更新完成后 relaunch 重启壳",
   "windows": ["main"],
-  "permissions": ["core:default", "notification:default", "updater:default"]
+  "permissions": [
+    "core:default",
+    "notification:default",
+    "updater:default",
+    "process:default"
+  ]
 }

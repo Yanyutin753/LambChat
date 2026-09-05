@@ -30,10 +30,8 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   expect(workflow).toMatch(/label: Linux ARM64/);
   expect(workflow).toMatch(/runner: ubuntu-24\.04-arm/);
   expect(workflow).toMatch(/bundles: appimage,deb,rpm/);
-  expect(workflow).toMatch(/target: universal-apple-darwin/);
-  expect(workflow).toMatch(
-    /rustup target add aarch64-apple-darwin x86_64-apple-darwin/,
-  );
+  expect(workflow).toMatch(/target: aarch64-apple-darwin/);
+  expect(workflow).toMatch(/rustup target add aarch64-apple-darwin/);
   expect(workflow).toMatch(/frontend\/src-tauri\/target\/release\/bundle/);
   expect(workflow).toMatch(
     /LambChat-\$\{RELEASE_TAG\}-Linux-\$\{arch\}\.AppImage/,

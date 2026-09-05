@@ -1,4 +1,4 @@
-.PHONY: help install install-pnpm install-all dev dev-all build build-all clean clean-all docker-up docker-down docker-logs docker-build docker-restart test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-install frontend-test
+.PHONY: help install install-pnpm install-all dev dev-all build build-all client-build-daemon client-fetch-pbs clean clean-all docker-up docker-down docker-logs docker-build docker-restart test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-install frontend-test
 
 # 默认目标
 help:
@@ -19,6 +19,8 @@ help:
 	@echo "  make build            - 构建后端"
 	@echo "  make frontend-build   - 构建前端"
 	@echo "  make build-all        - 构建前后端"
+	@echo "  make client-build-daemon - 打包本地沙箱 daemon（PyInstaller → Tauri sidecar 二进制）"
+	@echo "  make client-fetch-pbs    - 下载内嵌 Python 运行时归档（PBS → Tauri resources，桌面打包前跑一次）"
 	@echo ""
 	@echo "Docker:"
 	@echo "  make docker-up        - 启动 Docker 容器"
@@ -84,6 +86,18 @@ frontend-build:
 
 build-all: build frontend-build
 	@echo "✅ 构建完成"
+
+# 本地沙箱 daemon：PyInstaller onefile → frontend/src-tauri/binaries/lambchat-daemon-<triple>
+client-build-daemon:
+	@echo "🔨 打包本地沙箱 daemon（PyInstaller onefile → Tauri sidecar）..."
+	bash client/scripts/build-daemon.sh
+
+# 内嵌 Python 运行时：下载锁定的 python-build-standalone install_only 归档到
+# frontend/src-tauri/resources/python/<platform>/python.tar.gz（tag 锁定保可复现；
+# 桌面壳打包前跑一次，产物随 Tauri resources 分发）
+client-fetch-pbs:
+	@echo "📦 下载内嵌 Python 运行时（python-build-standalone）..."
+	uv run python client/scripts/fetch-pbs.py --platform host
 
 # Docker 操作
 docker-up:

@@ -10,6 +10,36 @@ const THINKING_LEVEL_OPTION_DEFS = [
   { value: "max", label_key: "agentOptions.enableThinking.options.max" },
 ] as const;
 
+const SANDBOX_OPTION_DEFS = [
+  { value: "cloud", label_key: "agentOptions.sandbox.options.cloud" },
+  { value: "local", label_key: "agentOptions.sandbox.options.local" },
+] as const;
+
+/**
+ * 注入会话沙箱选项（M3）：所有 agent 统一注入，云端档为既有默认行为；
+ * 后端将来自行下发 sandbox 选项时尊重后端定义，不覆盖。
+ */
+export function injectSandboxOption(
+  options: AgentInfo["options"],
+): AgentInfo["options"] {
+  if (!options || options.sandbox) {
+    return options;
+  }
+  return {
+    ...options,
+    sandbox: {
+      type: "string",
+      default: "cloud",
+      label: "Sandbox",
+      label_key: "agentOptions.sandbox.label",
+      description: "Choose where sandboxed commands run",
+      description_key: "agentOptions.sandbox.description",
+      icon: "Monitor",
+      options: [...SANDBOX_OPTION_DEFS],
+    },
+  };
+}
+
 /** 归一思考档位值："off" 时代已下线，历史 off 值统一降级到 low */
 export function normalizeThinkingOptionValue(value: boolean | string | number) {
   if (value === true) return "medium";
@@ -49,32 +79,34 @@ export function normalizeAgentOptions(
 ): AgentInfo["options"] | undefined {
   if (!options) return options;
 
-  return Object.fromEntries(
-    Object.entries(options).map(([key, option]) => {
-      if (key !== "enable_thinking") {
-        return [key, option];
-      }
+  return injectSandboxOption(
+    Object.fromEntries(
+      Object.entries(options).map(([key, option]) => {
+        if (key !== "enable_thinking") {
+          return [key, option];
+        }
 
-      return [
-        key,
-        {
-          ...option,
-          type: "string",
-          default: normalizeThinkingOptionValue(option.default),
-          label: option.label || "Thinking",
-          label_key: option.label_key || "agentOptions.enableThinking.label",
-          description:
-            option.description ||
-            "Control thinking intensity (supported models only)",
-          description_key:
-            option.description_key || "agentOptions.enableThinking.description",
-          icon: option.icon || "Brain",
-          options: option.options?.length
-            ? option.options
-            : [...THINKING_LEVEL_OPTION_DEFS],
-        },
-      ];
-    }),
+        return [
+          key,
+          {
+            ...option,
+            type: "string",
+            default: normalizeThinkingOptionValue(option.default),
+            label: option.label || "Thinking",
+            label_key: option.label_key || "agentOptions.enableThinking.label",
+            description:
+              option.description ||
+              "Control thinking intensity (supported models only)",
+            description_key:
+              option.description_key || "agentOptions.enableThinking.description",
+            icon: option.icon || "Brain",
+            options: option.options?.length
+              ? option.options
+              : [...THINKING_LEVEL_OPTION_DEFS],
+          },
+        ];
+      }),
+    ),
   );
 }
 

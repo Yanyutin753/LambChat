@@ -15,6 +15,7 @@ from src.infra.agent.middleware.retry import (
     _is_empty_content,
     create_retry_middleware,
 )
+from src.infra.agent.middleware.sandbox_confirm import SandboxConfirmMiddleware
 from src.infra.agent.middleware.sandbox_workspace import SandboxWorkspaceMiddleware
 from src.infra.agent.middleware.steer import SteerMiddleware
 from src.infra.agent.middleware.subagent_activity import SubagentActivityMiddleware
@@ -26,6 +27,7 @@ from src.infra.agent.middleware.tool_interception import (
 )
 
 __all__ = [
+    "SandboxConfirmMiddleware",
     "create_retry_middleware",
     "create_code_interpreter_middleware",
     "ArtifactDeliveryMiddleware",
