@@ -2,6 +2,7 @@ use std::fs;
 use tauri::Manager;
 
 mod daemon;
+mod tray;
 
 /// On version upgrade, clean webview data so the user starts fresh.
 fn clean_on_version_upgrade(app_handle: &tauri::AppHandle) {
@@ -58,6 +59,8 @@ pub fn run() {
                     eprintln!("[lambchat-daemon] failed to start daemon: {e}");
                 }
             });
+            // 托盘：构建失败（如缺 appindicator 运行库）仅告警，不影响主窗口。
+            tray::init(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
