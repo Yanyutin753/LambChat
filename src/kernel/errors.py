@@ -616,6 +616,11 @@ class ErrorCode(Enum):
     MODEL_NOT_FOUND = ("model_not_found", 404, "Model not found")
     MODEL_DISABLED = ("model_disabled", 400, "Model is disabled")
     MODEL_NOT_ALLOWED = ("model_not_allowed", 403, "Model not allowed")
+    MODEL_EMPTY_RESPONSE = (
+        "model_empty_response",
+        500,
+        "The model returned an empty response after retries, please try again or switch models",
+    )
 
     # ---------- team：团队 ----------
     TEAM_NOT_FOUND = ("team_not_found", 404, "Team not found")

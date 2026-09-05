@@ -25,6 +25,7 @@ from src.infra.agent.middleware.dead_attachment import (
 )
 from src.infra.llm.retry import is_retryable_model_error
 from src.kernel.config import settings
+from src.kernel.errors import AppError, ErrorCode
 
 if TYPE_CHECKING:
     from langchain.agents.middleware.types import ExtendedModelResponse
@@ -155,7 +156,7 @@ class ModelFallbackMiddleware(AgentMiddleware):
         fallback_llm = await self._get_fallback_llm()
         new_request = request.override(model=fallback_llm)
         try:
-            return await handler(new_request)
+            response = await handler(new_request)
         except Exception as fallback_exc:
             logger.error(
                 "[ModelFallback] Fallback model %s also failed: %s",
@@ -163,6 +164,20 @@ class ModelFallbackMiddleware(AgentMiddleware):
                 fallback_exc,
             )
             raise
+        # 防御：兜底结果若仍是空正文（内层 EmptyContentRetry 负责上抛，这里
+        # 兜住中间件栈被重构后的漏网路径），同样按失败上抛，绝不静默放行。
+        fallback_messages = _extract_messages(response)
+        if (
+            fallback_messages
+            and isinstance(fallback_messages[0], AIMessage)
+            and _is_empty_content(fallback_messages[0])
+        ):
+            logger.error(
+                "[ModelFallback] Fallback model %s also returned empty content",
+                self._fallback_model,
+            )
+            raise AppError(ErrorCode.MODEL_EMPTY_RESPONSE)
+        return response
 
     async def awrap_model_call(
         self,
@@ -218,6 +233,18 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
             if attempt < self.max_retries:
                 await asyncio.sleep(self.retry_delay)
 
+        # 重试耗尽仍是空正文（thinking-only / 完全空）→ 按模型调用失败上抛：
+        # 外层 ModelFallback 换兜底模型重放；兜底也空时任务进入 error 终态。
+        # 绝不静默返回空回答把 run 假装 completed（2026-09-05 生产事故：
+        # 续跑后 4 次空正文被放行，done(completed) 但用户拿不到答案）。
+        # 截断启发式命中的半截回答不上抛——部分内容已流出，保留给用户。
+        final_messages = _extract_messages(last_response)
+        if (
+            final_messages
+            and isinstance(final_messages[0], AIMessage)
+            and _is_empty_content(final_messages[0])
+        ):
+            raise AppError(ErrorCode.MODEL_EMPTY_RESPONSE)
         return last_response  # type: ignore[return-value]
 
 

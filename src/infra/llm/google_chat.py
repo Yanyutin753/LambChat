@@ -19,6 +19,7 @@ class LambChatGoogleChatModel(ChatGoogleGenerativeAI):
 
     first_event_timeout: float | None = Field(default=None, exclude=True)
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
+    stream_idle_timeout: float | None = Field(default=None, exclude=True)
 
     async def _astream(
         self,
@@ -32,6 +33,7 @@ class LambChatGoogleChatModel(ChatGoogleGenerativeAI):
         async for chunk in aiter_with_first_event_timeout(
             source,
             timeout=self.first_event_timeout,
+            idle_timeout=self.stream_idle_timeout,
         ):
             yield chunk
 

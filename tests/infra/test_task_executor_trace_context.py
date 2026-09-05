@@ -71,8 +71,8 @@ async def test_task_executor_sets_run_trace_into_trace_context(
         assert req_ctx.run_id == "run-1"
         assert req_ctx.user_id == "user-1"
         assert req_ctx.trace_id == "trace-run-level"
-        if False:
-            yield None
+        # 带一条主代理正文，绕过 executor 零正文兜底守卫（本组用例只测上下文透传）
+        yield {"event": "message:chunk", "data": {"content": "ok"}}
 
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
     monkeypatch.setattr(
@@ -137,8 +137,8 @@ async def test_task_executor_passes_resolved_agent_name_to_presenter(
     async def fake_agent_executor(*args, **kwargs):
         presenter = kwargs["presenter"]
         assert presenter.config.agent_name == "Search Agent"
-        if False:
-            yield None
+        # 带一条主代理正文，绕过 executor 零正文兜底守卫（本组用例只测上下文透传）
+        yield {"event": "message:chunk", "data": {"content": "ok"}}
 
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
     monkeypatch.setattr(
@@ -193,8 +193,8 @@ async def test_task_executor_passes_model_options_to_presenter_config(
 
     async def fake_agent_executor(*args, **kwargs):
         captured["config"] = kwargs["presenter"].config
-        if False:
-            yield None
+        # 带一条主代理正文，绕过 executor 零正文兜底守卫（本组用例只测上下文透传）
+        yield {"event": "message:chunk", "data": {"content": "ok"}}
 
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
     monkeypatch.setattr(
@@ -240,8 +240,8 @@ async def test_task_executor_passes_auto_mode_to_agent_executor(
 
     async def fake_agent_executor(*args, **kwargs):
         assert kwargs["auto_mode"] is True
-        if False:
-            yield None
+        # 带一条主代理正文，绕过 executor 零正文兜底守卫（本组用例只测上下文透传）
+        yield {"event": "message:chunk", "data": {"content": "ok"}}
 
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
     monkeypatch.setattr(
@@ -280,8 +280,8 @@ async def test_task_executor_passes_enabled_skills_to_user_message(
         return None
 
     async def fake_agent_executor(*args, **kwargs):
-        if False:
-            yield None
+        # 带一条主代理正文，绕过 executor 零正文兜底守卫（本组用例只测上下文透传）
+        yield {"event": "message:chunk", "data": {"content": "ok"}}
 
     monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
     monkeypatch.setattr(

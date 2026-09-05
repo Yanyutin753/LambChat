@@ -209,6 +209,7 @@ def _make_cache_key(
         max_retries,
         _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
         _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
+        _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
         api_format,
         header_overrides,
     )
@@ -540,6 +541,7 @@ class LLMClient:
                 "timeout": None,
                 "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
                 "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
+                "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
             }
             if api_key:
                 anthropic_kwargs["api_key"] = SecretStr(api_key)
@@ -562,6 +564,7 @@ class LLMClient:
                 "timeout": None,
                 "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
                 "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
+                "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
             }
             if api_key:
                 google_kwargs["google_api_key"] = SecretStr(api_key)
@@ -580,6 +583,7 @@ class LLMClient:
             "stream_chunk_timeout": None,
             "first_event_timeout": _effective_timeout(settings.LLM_FIRST_EVENT_TIMEOUT),
             "non_streaming_timeout": _effective_timeout(settings.LLM_REQUEST_TIMEOUT),
+            "stream_idle_timeout": _effective_timeout(settings.LLM_STREAM_IDLE_TIMEOUT),
         }
         # /v1/responses 线格式开关（模型级 api_format > 全局默认）。
         # 显式传 bool：None 会让 langchain-openai 自动探测，不满足确定性。

@@ -14,6 +14,7 @@ test("all locales describe the split LLM timeout settings", () => {
 
     expect(messages.settingDesc.LLM_REQUEST_TIMEOUT).toBeTruthy();
     expect(messages.settingDesc.LLM_FIRST_EVENT_TIMEOUT).toBeTruthy();
+    expect(messages.settingDesc.LLM_STREAM_IDLE_TIMEOUT).toBeTruthy();
     expect(messages.settingDesc.LLM_REQUEST_TIMEOUT).not.toMatch(
       /first streaming event|流式首事件|最初のストリーミングイベント|첫 스트리밍 이벤트|первого события потока/i,
     );

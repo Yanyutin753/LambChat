@@ -21,6 +21,7 @@ import type {
 } from "./types";
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { clearAllLoadingStates, createToolPart } from "./messageParts";
+import { markInterruptedBySteer } from "./steerTurnSplit";
 import { parseDate } from "../../utils/datetime";
 
 function resolveUserMessageId(
@@ -432,7 +433,8 @@ export function reconstructMessagesFromEvents(
     // Handle steer message separately（独立事件，不参与用户消息去重）
     if (eventType === "steer:message") {
       if (currentAssistantMessage) {
-        pushMessage(currentAssistantMessage);
+        // 插话即打断：封存的前一段回答标记「已停止」，与实时分割视觉一致
+        pushMessage(markInterruptedBySteer(currentAssistantMessage));
         currentAssistantMessage = null;
       }
       const steerData = eventData as HistoryEventData & {
