@@ -26,6 +26,12 @@ from lambchat_sandbox.platform import daemon_platform
 BACKOFF_MAX_S = 60.0
 BACKOFF_JITTER = 0.2  # ±20%
 
+# 通道 SSE 的读超时（秒）：服务端每 15s 发 `: heartbeat`，45s = 3 次心跳
+# 容错。后端重启/中间代理吞掉断开时连接会静默僵死——读超时把它判定为
+# TransportError 进入退避重连，而不是永远挂在 read 上。
+_CHANNEL_READ_TIMEOUT_S = 45.0
+_CHANNEL_CONNECT_TIMEOUT_S = 10.0
+
 # 结果回传/offline 通知的 per-request 超时（秒）。client 全局 timeout=None 是给
 # SSE 长连接用的（心跳流不能被读超时切断），POST 沿用同一默认时服务端半死会让
 # 回传永久挂起，拖垮 daemon 主循环。
@@ -131,7 +137,14 @@ class ChannelClient:
         self._base = server_url.rstrip("/")
         self._pat = pat
         self._confirm_policy = confirm_policy
-        self._client = client if client is not None else httpx.AsyncClient(timeout=None)
+        self._client = client if client is not None else httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=_CHANNEL_CONNECT_TIMEOUT_S,
+                read=_CHANNEL_READ_TIMEOUT_S,
+                write=30.0,
+                pool=30.0,
+            )
+        )
 
     async def connect(self) -> tuple[dict[str, Any], AsyncIterator[ToolCall]]:
         """建立 SSE 通道，读到 hello 帧后返回 (hello 数据, tool_call 迭代器)。

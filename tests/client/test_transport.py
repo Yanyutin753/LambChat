@@ -540,3 +540,15 @@ async def test_connect_url_omits_confirm_policy_when_empty():
     _, _ = await client.connect()
 
     assert "confirm_policy=" not in str(log[0].url)
+
+
+# ---------- 通道读超时：心跳静默挂死防护 ----------
+
+
+def test_channel_client_builds_heartbeat_aware_read_timeout():
+    """默认客户端不再是 timeout=None：SSE 读超时对齐心跳节奏（15s 心跳 ×3
+    容错=45s）——后端重启/代理吞掉断开时，静默通道在 45s 内判定断线进入
+    退避重连，而不是永远挂在 read 上。"""
+    client = ChannelClient(SERVER, PAT)
+    assert client._client.timeout.connect == 10.0
+    assert client._client.timeout.read == 45.0
