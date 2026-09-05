@@ -285,9 +285,14 @@ class TaskExecutor:
                 )
                 return True
 
-            # 兜底守卫：run 正常走到终点却没有任何主代理正文（中间件空正文静默
-            # 放行的漏网路径）→ 按 error 终结，绝不假装 completed 让用户对着
-            # 空气泡（2026-09-05 生产事故：续跑后 done(completed) 无答案）。
+            # 兜底守卫：run 正常走到终点却没有任何主代理正文 → 按 error 终结，
+            # 绝不假装 completed 让用户对着空气泡。判定信号有两个来源：
+            # ① 本循环里流过的事件；② presenter.produced_main_text——
+            # AgentEventProcessor 的缓冲 flush 走 presenter.emit 直连路径，
+            # message:chunk 往往不经过本循环（2026-09-05 生产事故教训），
+            # 两条路径都在 presenter.save_event 汇聚并统一标记。
+            if not produced_main_text and presenter is not None:
+                produced_main_text = bool(getattr(presenter, "produced_main_text", False))
             if not produced_main_text:
                 raise AppError(ErrorCode.MODEL_EMPTY_RESPONSE)
 
