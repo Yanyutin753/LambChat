@@ -41,3 +41,37 @@ def needs_confirm(command: str, policy: str) -> bool:
     if policy == "none":
         return False
     raise ValueError(f"未知确认策略: {policy!r}（可选: {'/'.join(POLICIES)}）")
+
+
+def confirm_local_op(command: str, policy: str, *, description: str) -> bool:
+    """统一确认门：needs_confirm 判定 + ask_human interrupt（服务端，spec §3.5）。
+
+    必须在图任务内的工具调用栈中同步调用（与 AskHumanTool interrupt 模式同
+    语义）：挂起时经 materialize_ask_human_approvals 物化审批卡，用户响应后
+    图以 Command(resume) 重放本调用栈，interrupt() 返回
+    ``{"approved": bool, "values": {...}}``。
+
+    - policy=none 或 needs_confirm 未命中：直接放行，不触碰 interrupt；
+    - 图不支持 interrupt（无 checkpointer）：fail-closed 拒绝；
+    - 用户拒绝 / resume 值异常：False。
+
+    ``command`` 是送 needs_confirm 判定的哨兵命令（exec 传原始命令，文件写
+    传 ``rm {op} {path}`` 前缀哨兵）；``description`` 是审批卡展示文案。
+    """
+    if not needs_confirm(command, policy):
+        return True
+
+    from src.infra.logging import get_logger
+    from src.infra.tool.human_tool.runtime import hitl_interrupt_supported
+
+    if not hitl_interrupt_supported.get():
+        get_logger(__name__).warning(
+            "[SandboxConfirm] interrupt 不可用，按拒绝收敛（fail-closed）: %s",
+            description[:120],
+        )
+        return False
+
+    from langgraph.types import interrupt
+
+    resume_value = interrupt({"kind": "ask_human", "message": description, "fields": []})
+    return bool(isinstance(resume_value, dict) and resume_value.get("approved"))
