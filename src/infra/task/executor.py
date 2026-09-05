@@ -567,7 +567,7 @@ class TaskExecutor:
         presenter: Any,
     ) -> None:
         """处理通用异常"""
-        error_msg = str(error) or type(error).__name__
+        error_msg = getattr(error, "display_message", None) or str(error) or type(error).__name__
         await self._update_session_status(session_id, TaskStatus.FAILED, error_msg, run_id=run_id)
         logger.error(
             f"Task failed: session={session_id}, run_id={run_id}, error={error}", exc_info=True
@@ -594,7 +594,7 @@ class TaskExecutor:
             session_id=session_id,
             event_type="error",
             data={
-                "error": str(error),
+                "error": getattr(error, "display_message", str(error)),
                 "code": error_code.code if error_code else "internal_error",
                 "type": type(error).__name__,
                 "run_id": run_id,

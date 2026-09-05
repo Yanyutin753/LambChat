@@ -304,6 +304,24 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         )
     if sandbox_backend:
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
+        # 沙箱统一确认门（本地 + 云端）：整批单次 interrupt，本地读 daemon
+        # 上报策略，云端读部署配置（默认 none 保持云上历史行为）
+        from src.infra.agent.middleware.sandbox_confirm import (
+            SandboxConfirmMiddleware,
+            _cloud_confirm_policy,
+        )
+        from src.infra.backend.local import WorkspaceAliasBackend
+
+        user_middleware.append(
+            SandboxConfirmMiddleware(
+                user_id=context.user_id or "default",
+                policy_resolver=(
+                    None
+                    if isinstance(sandbox_backend, WorkspaceAliasBackend)
+                    else _cloud_confirm_policy
+                ),
+            )
+        )
         if sandbox_work_dir:
             from src.infra.agent.middleware import SandboxWorkspaceMiddleware
 

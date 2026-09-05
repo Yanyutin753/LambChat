@@ -109,3 +109,19 @@ def test_retrofit_account_not_active():
     assert err.email == "a@b.c"
     assert err.error_code.code == "account_not_active"
     assert err.http_status == 403
+
+
+def test_app_error_display_message_interpolates_args():
+    """SSE/面向用户的错误文案要插值参数（{{detail}} 等占位符不留原文）。"""
+    from src.kernel.errors import AppError, ErrorCode
+
+    err = AppError(ErrorCode.SANDBOX_EXEC_FAILED, args={"detail": "expired"})
+    assert err.display_message == "Local sandbox execution failed: expired"
+    assert "{{" not in err.display_message
+
+
+def test_app_error_display_message_without_args_returns_template():
+    from src.kernel.errors import AppError, ErrorCode
+
+    err = AppError(ErrorCode.SANDBOX_EXEC_FAILED)
+    assert err.display_message == ErrorCode.SANDBOX_EXEC_FAILED.default_message

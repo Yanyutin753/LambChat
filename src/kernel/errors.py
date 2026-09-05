@@ -721,3 +721,17 @@ class AppError(Exception):
     @property
     def http_status(self) -> int:
         return self.error_code.status
+
+    @property
+    def display_message(self) -> str:
+        """插值 ``{{param}}`` 后的展示文案（SSE 等直接面向用户的场景）。
+
+        HTTP 契约走 code+message+args 三段式由前端插值；SSE 错误事件只带
+        单条文本，这里先行插值，不留 ``{{detail}}`` 原文。
+        """
+        import re
+
+        def _sub(match: "re.Match[str]") -> str:
+            return str(self.args_data.get(match.group(1), match.group(0)))
+
+        return re.sub(r"\{\{(\w+)\}\}", _sub, self.message)
