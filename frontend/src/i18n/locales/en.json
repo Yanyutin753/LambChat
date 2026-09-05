@@ -244,6 +244,16 @@
         "max": "Max",
         "medium": "Medium"
       }
+    },
+    "sandbox": {
+      "label": "Sandbox",
+      "description": "Choose where sandboxed commands run",
+      "options": {
+        "cloud": "Cloud",
+        "local": "Local"
+      },
+      "offlineHint": "Local sandbox is offline. Pair it in Settings first.",
+      "restoredOffline": "The saved local sandbox tier is currently offline."
     }
   },
   "agents": {

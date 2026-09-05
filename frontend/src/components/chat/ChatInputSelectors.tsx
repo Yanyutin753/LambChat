@@ -1,10 +1,19 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { toast } from "react-hot-toast";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import { TeamPickerModal } from "../team/TeamPickerModal";
 import { AgentOptionButton } from "./AgentOptionButton";
+import { useSandboxStatus } from "../../hooks/useSandboxStatus";
+import { isShellAvailable } from "../../services/tauri/sandboxShell";
+import {
+  SANDBOX_AGENT_OPTION_KEY,
+  SANDBOX_LOCAL_VALUE,
+  adaptSandboxAgentOption,
+} from "./sandboxOption";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
 import type {
   ToolState,
@@ -123,6 +132,10 @@ export function ChatInputSelectors({
   modelSupportsThinking,
 }: ChatInputSelectorsProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  // 沙箱选择器动态适配：壳检测 + daemon 在线状态双条件
+  const { online: sandboxOnline } = useSandboxStatus();
+  const sandboxShell = isShellAvailable();
 
   return (
     <>
@@ -216,19 +229,73 @@ export function ChatInputSelectors({
               // 仅思考选项按模型能力隐藏；未来其他枚举型选项不受连带影响
               (key !== "enable_thinking" || modelSupportsThinking !== false),
           )
-          .map(([key, option]) => (
-            <AgentOptionButton
-              key={key}
-              optionKey={key}
-              option={option}
-              value={agentOptionValues[key] ?? option.default}
-              onChange={(value) => onToggleAgentOption(key, value)}
-              isOpen={activePanel === "thinking"}
-              onOpenChange={(open) =>
-                onActivePanelChange(open ? "thinking" : null)
+          .map(([key, option]) => {
+            const storedValue = agentOptionValues[key] ?? option.default;
+            const isSandbox = key === SANDBOX_AGENT_OPTION_KEY;
+
+            // 沙箱选项：按壳/在线状态裁剪档位并回退显示值（不篡改已存会话值）
+            const adapted = isSandbox
+              ? adaptSandboxAgentOption(
+                  option,
+                  { shell: sandboxShell, online: sandboxOnline },
+                  storedValue,
+                )
+              : { option, value: storedValue };
+
+            const handleChange = (value: boolean | string | number) => {
+              if (isSandbox && value === "local" && !sandboxOnline) {
+                // 离线选本地档：五语提示，但选择仍然生效（不拦截用户意图）
+                toast.error(t("agentOptions.sandbox.offlineHint"));
               }
-            />
-          ))}
+              onToggleAgentOption(key, value);
+            };
+
+            if (isSandbox) {
+              const note =
+                !sandboxOnline && sandboxShell
+                  ? t("agentOptions.sandbox.offlineHint")
+                  : !sandboxOnline && storedValue === SANDBOX_LOCAL_VALUE
+                    ? t("agentOptions.sandbox.restoredOffline")
+                    : undefined;
+              return (
+                <span key={key} className="relative inline-flex">
+                  <AgentOptionButton
+                    optionKey={key}
+                    option={adapted.option}
+                    value={adapted.value}
+                    onChange={handleChange}
+                    note={note}
+                    isOpen={activePanel === "thinking"}
+                    onOpenChange={(open) =>
+                      onActivePanelChange(open ? "thinking" : null)
+                    }
+                  />
+                  {/* daemon 在线状态点：绿=在线，灰=离线 */}
+                  <span
+                    data-sandbox-status-dot
+                    className="pointer-events-none absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full"
+                    style={{
+                      background: sandboxOnline ? "#22c55e" : "#a8a29e",
+                    }}
+                  />
+                </span>
+              );
+            }
+
+            return (
+              <AgentOptionButton
+                key={key}
+                optionKey={key}
+                option={adapted.option}
+                value={adapted.value}
+                onChange={handleChange}
+                isOpen={activePanel === "thinking"}
+                onOpenChange={(open) =>
+                  onActivePanelChange(open ? "thinking" : null)
+                }
+              />
+            );
+          })}
     </>
   );
 }

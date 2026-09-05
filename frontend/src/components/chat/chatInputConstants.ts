@@ -1,4 +1,4 @@
-import { Brain, Zap, Settings, type LucideIcon } from "lucide-react";
+import { Brain, Zap, Settings, Monitor, type LucideIcon } from "lucide-react";
 import { Permission, type FileCategory } from "../../types";
 
 export const FILE_CATEGORY_PERMISSIONS: Record<FileCategory, Permission> = {
@@ -12,6 +12,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Brain,
   Zap,
   Settings,
+  Monitor,
 };
 
 /** When pasted text exceeds this length, auto-convert to a .txt file upload. */

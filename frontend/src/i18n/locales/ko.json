@@ -244,6 +244,16 @@
         "max": "최강",
         "medium": "중간"
       }
+    },
+    "sandbox": {
+      "label": "샌드박스",
+      "description": "샌드박스 명령 실행 위치를 선택합니다",
+      "options": {
+        "cloud": "클라우드",
+        "local": "로컬"
+      },
+      "offlineHint": "로컬 샌드박스가 오프라인입니다. 먼저 설정에서 페어링하세요.",
+      "restoredOffline": "저장된 로컬 샌드박스 설정이 현재 오프라인입니다."
     }
   },
   "agents": {

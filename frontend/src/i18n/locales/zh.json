@@ -244,6 +244,16 @@
         "max": "超强",
         "medium": "中"
       }
+    },
+    "sandbox": {
+      "label": "沙箱",
+      "description": "选择代码沙箱的运行位置",
+      "options": {
+        "cloud": "云端",
+        "local": "本地"
+      },
+      "offlineHint": "本地沙箱离线，请先在设置中配对",
+      "restoredOffline": "已保存的本地沙箱档当前离线"
     }
   },
   "agents": {

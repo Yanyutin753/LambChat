@@ -6,7 +6,8 @@ import {
 } from "../useAgentOptions";
 
 test("applies backend boolean option defaults to initial values", () => {
-  // 代码解释器默认开启：后端 schema 的 default 流转到初始选项值（并随 agent_options 提交）
+  // 代码解释器默认开启：后端 schema 的 default 流转到初始选项值（并随 agent_options 提交）；
+  // M3 起统一注入的 sandbox 选项也带出默认云端档
   expect(
     buildAgentOptionValues({
       enable_code_interpreter: {
@@ -15,7 +16,7 @@ test("applies backend boolean option defaults to initial values", () => {
         label: "Code Interpreter",
       },
     }),
-  ).toEqual({ enable_code_interpreter: true });
+  ).toEqual({ enable_code_interpreter: true, sandbox: "cloud" });
 });
 
 test("normalizes legacy thinking off values to low", () => {
@@ -104,4 +105,55 @@ test("preserves overlapping values only when the same agent schema changes", () 
       hasPendingRestoredOptions: false,
     }),
   ).toBe("preserve");
+});
+
+// ---- 会话沙箱选项注入（M3）----
+
+const OPTION_INPUT = {
+  enable_thinking: { type: "string" as const, default: "low", label: "Thinking" },
+};
+
+test("injects a cloud-default sandbox option alongside thinking", () => {
+  const options = normalizeAgentOptions(OPTION_INPUT);
+  expect(options?.sandbox).toMatchObject({
+    type: "string",
+    default: "cloud",
+    label_key: "agentOptions.sandbox.label",
+    description_key: "agentOptions.sandbox.description",
+    icon: "Monitor",
+  });
+  expect(options?.sandbox?.options?.map((o) => o.value)).toEqual([
+    "cloud",
+    "local",
+  ]);
+});
+
+test("keeps a backend-provided sandbox option untouched", () => {
+  const options = normalizeAgentOptions({
+    ...OPTION_INPUT,
+    sandbox: { type: "string", default: "local", label: "Custom" },
+  });
+  expect(options?.sandbox).toEqual({
+    type: "string",
+    default: "local",
+    label: "Custom",
+  });
+});
+
+test("does not inject sandbox when the agent defines no options", () => {
+  expect(normalizeAgentOptions(undefined)).toBeUndefined();
+});
+
+test("buildAgentOptionValues seeds sandbox=cloud and preserves restored local", () => {
+  // 新会话：默认云端档（随 agent_options 提交）
+  expect(buildAgentOptionValues(normalizeAgentOptions(OPTION_INPUT))).toMatchObject({
+    enable_thinking: "low",
+    sandbox: "cloud",
+  });
+  // 会话恢复：已存 local 原样保留，前端不静默改写
+  expect(
+    buildAgentOptionValues(normalizeAgentOptions(OPTION_INPUT), {
+      sandbox: "local",
+    }),
+  ).toMatchObject({ sandbox: "local" });
 });
