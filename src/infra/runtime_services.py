@@ -198,6 +198,12 @@ def register_orphan_recovery_job() -> None:
     register_orphan_recovery_job()
 
 
+def register_stale_trace_recovery_job() -> None:
+    from src.infra.task.stale_trace_recovery import register_stale_trace_recovery_job
+
+    register_stale_trace_recovery_job()
+
+
 def register_scheduled_task_reconcile_job(
     scheduled_task_service: ScheduledTaskService,
 ) -> None:
@@ -255,6 +261,7 @@ async def start_runtime_services() -> None:
         start_memory_evolution_scheduler()
 
     register_orphan_recovery_job()
+    register_stale_trace_recovery_job()
 
     if settings.ENABLE_SCHEDULED_TASK:
         # Load dynamically-created scheduled tasks from DB only when the feature is enabled.

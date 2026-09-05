@@ -19,6 +19,9 @@ ATTACHMENT_CLEAR_TERMINAL_STATUSES = ("completed", "error")
 # reach a terminal status on its own and would block session deletion forever.
 STALE_RUNNING_TRACE_TTL = timedelta(minutes=10)
 
+# 全局兜底扫描的单批上限：防止一次扫掉过多文档长时间占用库，下一轮继续。
+GLOBAL_STALE_TRACE_EXPIRY_BATCH_LIMIT = 200
+
 logger = get_logger("src.infra.session.trace_storage")
 
 
@@ -28,6 +31,58 @@ class TraceAttachmentCleanupMixin:
     if TYPE_CHECKING:
         collection: Any
         chunks_collection: Any
+
+    async def expire_stale_running_traces_globally(
+        self,
+        *,
+        now: Optional[Any] = None,
+        ttl: timedelta = STALE_RUNNING_TRACE_TTL,
+        limit: int = GLOBAL_STALE_TRACE_EXPIRY_BATCH_LIMIT,
+    ) -> int:
+        """把心跳过期的 running trace 全局兜底终结为 error（不限 session）。
+
+        直连 SSE run 与挂死的 run 不写 task_status / heartbeat，
+        startup_cleanup 扫不到它们的 trace；``updated_at`` 在两条事件追加
+        路径上都会刷新，是可靠的存活水位。多副本并发扫描时
+        update_many 复验 status 条件，天然幂等。
+        """
+        current = now if now is not None else utc_now()
+        stale_before = current - ttl
+        try:
+            cursor = (
+                self.collection.find(
+                    {"status": "running", "updated_at": {"$lte": stale_before}},
+                    {"_id": 1},
+                )
+                .sort("updated_at", 1)
+                .limit(limit)
+            )
+            docs = await cursor.to_list(length=limit)
+            if not docs:
+                return 0
+            result = await self.collection.update_many(
+                {
+                    "_id": {"$in": [doc["_id"] for doc in docs]},
+                    "status": "running",
+                    "updated_at": {"$lte": stale_before},
+                },
+                {
+                    "$set": {
+                        "status": "error",
+                        "completed_at": current,
+                        "metadata.error_code": "stale_run_recovery",
+                    }
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to expire stale running traces globally: %s", e)
+            return 0
+        if result.modified_count:
+            logger.info(
+                "Expired %d stale running trace(s) globally",
+                result.modified_count,
+            )
+        return result.modified_count
 
     async def iter_session_events_for_cleanup(
         self,

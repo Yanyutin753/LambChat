@@ -17,6 +17,7 @@ def _pin_llm_timeout_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     # 本地 .env 的 LLM_* 超时覆盖会泄漏进单例 settings；钉在默认值让断言与机器无关
     monkeypatch.setattr(settings, "LLM_REQUEST_TIMEOUT", 0.0)
     monkeypatch.setattr(settings, "LLM_FIRST_EVENT_TIMEOUT", 30.0)
+    monkeypatch.setattr(settings, "LLM_STREAM_IDLE_TIMEOUT", 120.0)
 
 
 class _ModelStorage:
@@ -44,15 +45,16 @@ def _cache_key() -> tuple:
     )
 
 
-def test_model_cache_key_includes_both_effective_timeouts(
+def test_model_cache_key_includes_all_effective_timeouts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "LLM_REQUEST_TIMEOUT", 45.0)
     monkeypatch.setattr(settings, "LLM_FIRST_EVENT_TIMEOUT", 15.0)
+    monkeypatch.setattr(settings, "LLM_STREAM_IDLE_TIMEOUT", 90.0)
 
     key = _cache_key()
 
-    assert key[-4:-1] == (45.0, 15.0, None)
+    assert key[-5:-2] == (45.0, 15.0, 90.0)
 
 
 def test_model_cache_key_normalizes_disabled_timeouts(
@@ -60,10 +62,11 @@ def test_model_cache_key_normalizes_disabled_timeouts(
 ) -> None:
     monkeypatch.setattr(settings, "LLM_REQUEST_TIMEOUT", 0.0)
     monkeypatch.setattr(settings, "LLM_FIRST_EVENT_TIMEOUT", -1.0)
+    monkeypatch.setattr(settings, "LLM_STREAM_IDLE_TIMEOUT", 0.0)
 
     key = _cache_key()
 
-    assert key[-4:-1] == (None, None, None)
+    assert key[-5:-2] == (None, None, None)
 
 
 @pytest.mark.parametrize(
@@ -89,6 +92,7 @@ def test_create_model_normalizes_non_positive_request_timeout(
 
     assert captured["non_streaming_timeout"] == expected
     assert captured["first_event_timeout"] == 30.0
+    assert captured["stream_idle_timeout"] == 120.0
     assert captured["stream_chunk_timeout"] is None
 
 

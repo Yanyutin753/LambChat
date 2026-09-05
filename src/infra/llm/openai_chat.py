@@ -22,6 +22,7 @@ class LambChatOpenAIChatModel(ChatOpenAI):
 
     first_event_timeout: float | None = Field(default=None, exclude=True)
     non_streaming_timeout: float | None = Field(default=None, exclude=True)
+    stream_idle_timeout: float | None = Field(default=None, exclude=True)
 
     def _get_request_payload(
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
@@ -43,6 +44,7 @@ class LambChatOpenAIChatModel(ChatOpenAI):
         async for chunk in aiter_with_first_event_timeout(
             source,
             timeout=self.first_event_timeout,
+            idle_timeout=self.stream_idle_timeout,
         ):
             yield chunk
 

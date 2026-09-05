@@ -701,7 +701,9 @@ export const ChatMessage = memo(function ChatMessage({
           onOpenPreview={onOpenPreview}
           onRecommendQuestionClick={onRecommendQuestionClick}
           onRetryCancelled={
-            group.part.type === "cancelled" && onRetryCancelledMessage
+            isLastMessage &&
+            group.part.type === "cancelled" &&
+            onRetryCancelledMessage
               ? () => void onRetryCancelledMessage(message.id)
               : undefined
           }

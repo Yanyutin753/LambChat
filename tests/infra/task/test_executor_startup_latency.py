@@ -48,8 +48,9 @@ class _FakePresenter:
 
 
 async def _empty_agent_stream(*_args, **_kwargs):
-    if False:
-        yield {}
+    # 空跑但带一条主代理正文，绕过 executor 的零正文兜底守卫
+    # （这些用例只关心启动时序，不测空 run 语义）
+    yield {"event": "message:chunk", "data": {"content": "ok"}}
 
 
 def _executor(monkeypatch: pytest.MonkeyPatch, heartbeat=None) -> TaskExecutor:
@@ -152,8 +153,7 @@ async def test_heartbeat_and_running_status_overlap_before_agent_execution(
 
     async def _agent_stream(*_args, **_kwargs):
         agent_started.set()
-        if False:
-            yield {}
+        yield {"event": "message:chunk", "data": {"content": "ok"}}
 
     monkeypatch.setattr(executor, "_update_session_status", _update_status)
 

@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Type
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
+from src.agents.core.trace_finalizer import complete_owned_presenter_trace
 from src.infra.agent import AgentEventProcessor
 from src.infra.async_utils import run_blocking_io
 from src.infra.llm.responses_cache import (
@@ -358,6 +359,9 @@ class BaseGraphAgent(ABC):
         # 优先使用传入的 presenter（来自 TaskManager，带有正确的 run_id）
         # 如果没有传入，则创建新的 Presenter
         presenter = kwargs.get("presenter")
+        # agent 自建 presenter 时由 _stream 负责终结 trace（executor 路径不代劳）
+        owns_presenter = presenter is None
+        terminal_error: BaseException | None = None
         if presenter is None:
             presenter = Presenter(
                 PresenterConfig(
@@ -545,7 +549,6 @@ class BaseGraphAgent(ABC):
                     drained += 1
 
             try:
-                terminal_error: BaseException | None = None
                 while True:
                     # 使用 wait_for 定期检查中断信号
                     # 即使 LLM 请求阻塞，也能响应取消
@@ -622,12 +625,23 @@ class BaseGraphAgent(ABC):
             # 发送完成
             yield presenter.done()
 
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as exc:
             # 任务被取消，yield 队列中剩余的事件（由 manager.py 保存）
+            if terminal_error is None:
+                terminal_error = exc
             raise
 
         # 其他异常（TaskInterruptedError, Exception）直接抛给 manager.py 处理
+        except BaseException as exc:  # noqa: BLE001 - 仅记录终态后原样上抛
+            if terminal_error is None:
+                terminal_error = exc
+            raise
+
         finally:
+            # agent 自建 presenter 时终结 trace，避免直连路径把 trace 永远
+            # 留在 running（executor 路径的 presenter 由 executor 终结）
+            if owns_presenter:
+                await complete_owned_presenter_trace(presenter, terminal_error)
             TraceContext.clear_request_context()
             TraceContext.clear()
 

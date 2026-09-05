@@ -206,6 +206,13 @@ CORE_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LLM_FIRST_EVENT_TIMEOUT",
         "default": 30.0,
     },
+    "LLM_STREAM_IDLE_TIMEOUT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LLM,
+        "subcategory": "retry",
+        "description": "settingDesc.LLM_STREAM_IDLE_TIMEOUT",
+        "default": 120.0,
+    },
     "LLM_FALLBACK_MODEL": {
         "type": SettingType.STRING,
         "category": SettingCategory.LLM,
