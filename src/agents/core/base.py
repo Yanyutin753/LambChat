@@ -105,6 +105,54 @@ def register_agent(agent_id: str):
     return decorator
 
 
+_OWNED_TRACE_FINALIZED_FLAG = "_lambchat_owned_trace_finalized"
+
+
+async def complete_owned_presenter_trace(
+    presenter: Presenter, terminal_error: BaseException | None
+) -> None:
+    """终结 agent 自建 presenter 的 trace（直连 ``/api/{agent_id}/stream`` 路径）。
+
+    TaskExecutor 传入的 presenter 由 executor 负责终结；本函数只服务于
+    ``BaseGraphAgent._stream`` 自建 presenter 的场景，保证成功 / 报错 /
+    取消三种出口都不把 trace 留在 status="running"（否则 run 挂死后
+    前端大纲永远显示进行中，且无任何清理路径能回收）。
+    """
+    if getattr(presenter, _OWNED_TRACE_FINALIZED_FLAG, False):
+        return
+    try:
+        if terminal_error is None:
+            await presenter.complete("completed")
+        else:
+            if isinstance(terminal_error, asyncio.CancelledError):
+                event = presenter.error(
+                    "Task cancelled", error_type="CancelledError", code="task_cancelled"
+                )
+            else:
+                from src.infra.task.manager import TaskInterruptedError
+
+                if isinstance(terminal_error, TaskInterruptedError):
+                    event = presenter.error(
+                        "Task cancelled",
+                        error_type="CancelledError",
+                        code="task_cancelled",
+                    )
+                else:
+                    event = presenter.error(
+                        str(terminal_error) or type(terminal_error).__name__,
+                        error_type=type(terminal_error).__name__,
+                    )
+            await presenter.emit(event)
+            await presenter.complete("error")
+        setattr(presenter, _OWNED_TRACE_FINALIZED_FLAG, True)
+    except Exception:
+        logger.warning(
+            "[Agent] Failed to finalize owned presenter trace: run_id=%s",
+            getattr(presenter, "run_id", None),
+            exc_info=True,
+        )
+
+
 # ============================================================================
 # BaseGraphAgent - Graph Agent 基类
 # ============================================================================
@@ -358,6 +406,9 @@ class BaseGraphAgent(ABC):
         # 优先使用传入的 presenter（来自 TaskManager，带有正确的 run_id）
         # 如果没有传入，则创建新的 Presenter
         presenter = kwargs.get("presenter")
+        # agent 自建 presenter 时由 _stream 负责终结 trace（executor 路径不代劳）
+        owns_presenter = presenter is None
+        terminal_error: BaseException | None = None
         if presenter is None:
             presenter = Presenter(
                 PresenterConfig(
@@ -545,7 +596,6 @@ class BaseGraphAgent(ABC):
                     drained += 1
 
             try:
-                terminal_error: BaseException | None = None
                 while True:
                     # 使用 wait_for 定期检查中断信号
                     # 即使 LLM 请求阻塞，也能响应取消
@@ -622,12 +672,23 @@ class BaseGraphAgent(ABC):
             # 发送完成
             yield presenter.done()
 
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as exc:
             # 任务被取消，yield 队列中剩余的事件（由 manager.py 保存）
+            if terminal_error is None:
+                terminal_error = exc
             raise
 
         # 其他异常（TaskInterruptedError, Exception）直接抛给 manager.py 处理
+        except BaseException as exc:  # noqa: BLE001 - 仅记录终态后原样上抛
+            if terminal_error is None:
+                terminal_error = exc
+            raise
+
         finally:
+            # agent 自建 presenter 时终结 trace，避免直连路径把 trace 永远
+            # 留在 running（executor 路径的 presenter 由 executor 终结）
+            if owns_presenter:
+                await complete_owned_presenter_trace(presenter, terminal_error)
             TraceContext.clear_request_context()
             TraceContext.clear()
 
