@@ -114,3 +114,8 @@ tests/api/routes/test_sandbox_routes.py   # 改：version 拒连
 - 覆盖：调研"必做清单"6 项=T1-T4/T9/T6；用户版本管理要求=T5/T6；M3 终审/递延收口=T7/T8；spec §9 签名证书仍开放（用户决策，不阻塞）。
 - 已裁决偏差：mac 先 arm64 单架构（universal M5）；CLI self-update 只管 CLI 形态（壳归 Tauri updater）；Linux 也启用内嵌解释器（统一可测，配置可关）。
 - 本地边界：win/mac 真机行为=mock 单测+CI 矩阵+人工后验（T10 记录），与用户"自测"要求的差距如实呈现。
+
+### Task 3.5: win32 结构化文件操作（fs op 直达 daemon）
+
+**Files:** Modify `src/infra/backend/local.py`（WorkspaceAliasBackend：daemon 平台 win32 时 read/ls/write/edit/delete/glob/grep 走结构化 dispatch，posix 保持 super() 零变化）、`client/lambchat_sandbox/daemon.py`+新 `client/lambchat_sandbox/fsops.py`（op=fs_read/fs_ls/fs_write/fs_edit/fs_delete/fs_glob/fs_grep 的原生实现：os/shutil/fnmatch/re，工作区根目录约束同 executor）；Test 双侧。
+**验收：** posix 全量回归零变化；win32 路径：fake dispatch 断言结构化载荷与结果形状（protocol_compat 各 Result 类型构造正确）；daemon 侧 fsops 真实文件系统测试（tmp_path：读写/ls/glob/grep/路径逃逸拒绝）；read 上限 2MB、write 分块（≥256KB 分多次 fs_write_append 或单次大载荷上限校验）。Commit `feat(sandbox): win32 结构化文件操作（fs op 直达 daemon）`
