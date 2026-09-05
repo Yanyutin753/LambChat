@@ -276,6 +276,7 @@ class LocalSandboxBackend(BaseSandbox):
         session_id: str,
         exec_timeout: int | None = None,
         platform_hint: str | None = None,
+        env_vars: dict[str, str] | None = None,
     ):
         self._user_id = user_id
         self._session_id = session_id
@@ -283,6 +284,10 @@ class LocalSandboxBackend(BaseSandbox):
         # 显式平台提示（构造期已知 daemon 平台的 wiring/测试用）；None = 每次
         # 文件操作前经注册表查当前活跃 daemon 的平台（一次 redis 读）。
         self._platform_hint = platform_hint
+        # 用户加密 env 变量（对齐云端 E2B/Daytona 的 backend.env_vars 契约）：
+        # 构造时由 wiring 经 sync_sandbox_env_vars 注入；env_var 工具运行中
+        # 改动时同一 helper 经 hasattr 探测写入，后续 exec 即时生效。
+        self.env_vars: dict[str, str] = dict(env_vars) if env_vars else {}
 
     async def _resolve_platform(self) -> str:
         """本次命令生成所用平台：显式 hint 优先，否则查注册表（容错 posix）。"""
@@ -345,10 +350,16 @@ class LocalSandboxBackend(BaseSandbox):
     async def aexecute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         if not _gate_bypassed.get() and not await self._confirm_exec(command):
             return ExecuteResponse(output=_EXEC_DECLINED_OUTPUT, exit_code=1, truncated=False)
+        payload: dict[str, Any] = {"command": command, "cwd": self.work_dir}
+        if self.env_vars:
+            # 用户 env 随 exec 下发 daemon 合并进子进程环境（对齐云端 envs= 语义）；
+            # 仅 exec 携带——fs_* 是 daemon 本机文件操作，upload/download 是
+            # plumbing 命令，均无环境需求。
+            payload["env"] = self.env_vars
         result = await dispatch_local_call(
             self._user_id,
             "exec",
-            {"command": command, "cwd": self.work_dir},
+            payload,
             timeout=float(timeout or self._exec_timeout),
         )
         stdout = result.get("stdout") or ""

@@ -234,15 +234,28 @@ class Executor:
         self._data_root = Path(data_root)
         self._extra_path = Path(extra_path) if extra_path is not None else None
 
-    def _spawn_env(self, workspace: Path | None = None) -> dict[str, str] | None:
-        """构建子进程环境：extra_path 前置进 PATH；workspace 非空时注入
-        LAMBCHAT_WORKSPACE（指向映射后的真实工作区目录——云端沙箱在每条
-        命令前 export 同名变量，系统提示词据此让模型用 $LAMBCHAT_WORKSPACE；
-        本地链路由这里等效提供，否则模型生成的 `"$LAMBCHAT_WORKSPACE/x"`
-        展开为 /x 而失败）。两者皆无返回 None（= 继承父环境）。"""
-        if self._extra_path is None and workspace is None:
+    def _spawn_env(
+        self,
+        workspace: Path | None = None,
+        env_extra: dict[str, str] | None = None,
+    ) -> dict[str, str] | None:
+        """构建子进程环境，落笔顺序固定：用户 env → PATH shim 前置 →
+        LAMBCHAT_WORKSPACE（契约变量最后写，不被用户 env 覆盖——PATH 被
+        覆盖会破坏内嵌 python3 shim 的解析）。
+
+        - ``env_extra``：服务端下发的用户 env 变量（对齐云端 envs= 语义，
+          来自用户加密存储，EnvVarStorage 已限 50 个/单值 16k/总量 64k）；
+        - ``extra_path`` 前置进 PATH（内嵌 Python shim 目录）；
+        - ``workspace`` 非空时注入 LAMBCHAT_WORKSPACE（指向映射后的真实
+          工作区目录——云端沙箱在每条命令前 export 同名变量，系统提示词
+          据此让模型用 $LAMBCHAT_WORKSPACE；本地链路由这里等效提供，否则
+          模型生成的 `"$LAMBCHAT_WORKSPACE/x"` 展开为 /x 而失败）。
+        """
+        if self._extra_path is None and workspace is None and not env_extra:
             return None
         env = dict(os.environ)
+        if env_extra:
+            env.update(env_extra)
         if self._extra_path is not None:
             path = env.get("PATH", "")
             env["PATH"] = (
@@ -254,12 +267,22 @@ class Executor:
             env["LAMBCHAT_WORKSPACE"] = str(workspace)
         return env
 
-    def execute(self, command: str, virtual_cwd: str, timeout: float) -> dict:
-        """执行 command，返回 {status, stdout, stderr, exit_code, error}。"""
+    def execute(
+        self,
+        command: str,
+        virtual_cwd: str,
+        timeout: float,
+        env_extra: dict[str, str] | None = None,
+    ) -> dict:
+        """执行 command，返回 {status, stdout, stderr, exit_code, error}。
+
+        ``env_extra``：服务端下发的用户 env（仅 exec op 携带），合并进子进程
+        环境（合并序见 :meth:`_spawn_env`）。
+        """
         workspace = map_workspace(virtual_cwd, self._data_root)
         workspace.mkdir(parents=True, exist_ok=True)
         if plat.is_windows():
-            return self._execute_windows(command, workspace, timeout)
+            return self._execute_windows(command, workspace, timeout, env_extra)
         proc = subprocess.Popen(
             command,
             shell=True,
@@ -267,7 +290,7 @@ class Executor:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,  # 子进程自成会话：pgid == pid，超时可整组击杀
-            env=self._spawn_env(workspace),
+            env=self._spawn_env(workspace, env_extra),
         )
         try:
             stdout_b, stderr_b = proc.communicate(timeout=timeout)
@@ -294,7 +317,13 @@ class Executor:
             "error": None,
         }
 
-    def _execute_windows(self, command: str, workspace: Path, timeout: float) -> dict:
+    def _execute_windows(
+        self,
+        command: str,
+        workspace: Path,
+        timeout: float,
+        env_extra: dict[str, str] | None = None,
+    ) -> dict:
         """Windows 路径：Job Object 圈住整棵进程树（KILL_ON_JOB_CLOSE）。
 
         生命周期：CreateJobObjectW → Set（KILL_ON_JOB_CLOSE）→ Popen（不传
@@ -320,7 +349,7 @@ class Executor:
                 cwd=workspace,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env=self._spawn_env(workspace),
+                env=self._spawn_env(workspace, env_extra),
             )
             try:
                 process = winapi.open_process(PROCESS_SET_QUOTA | PROCESS_TERMINATE, proc.pid)

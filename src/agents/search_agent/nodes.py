@@ -72,6 +72,7 @@ from src.infra.goal import (
 )
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
+from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.sandbox.session_manager import get_session_sandbox_manager
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
@@ -571,6 +572,9 @@ async def _create_backend_and_prompt(
         # WorkspaceAliasBackend：prompt_policy 让模型用 /workspace/{sid}/x 别名
         # 路径调文件工具，别名剥离层把路径翻译回相对路径再构造命令（F1）。
         local_backend = WorkspaceAliasBackend(user_id=user_id, session_id=session_id)
+        # 用户 env 变量注入（对齐云端：backend.env_vars → 执行时下发）；
+        # env_var 工具运行中改动经 sync_envvar_change 实时刷新同一属性
+        await sync_sandbox_env_vars(local_backend, user_id)
         logger.info(
             f"Sandbox enabled (local), using local sandbox backend for assistant: {assistant_id}"
         )

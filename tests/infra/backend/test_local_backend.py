@@ -1224,3 +1224,51 @@ async def test_download_never_gates(monkeypatch, _gate_policy, _interrupt):
     resp = await backend.adownload_files(["a.txt"])
     assert resp[0].error is None
     assert _interrupt["payloads"] == []
+
+
+# ============================================================================
+# env 变量注入（对齐云端沙箱：backend.env_vars → exec 载荷 env 字段）
+# ============================================================================
+
+
+async def test_aexecute_payload_carries_env_vars(monkeypatch):
+    payloads = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        payloads.append(payload)
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(
+        user_id="u1", session_id="s1", env_vars={"OPENAI_API_KEY": "sk-x"}
+    )
+    await backend.aexecute("echo hi")
+    assert payloads[0]["env"] == {"OPENAI_API_KEY": "sk-x"}
+
+
+async def test_aexecute_payload_omits_env_when_empty(monkeypatch):
+    payloads = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        payloads.append(payload)
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    await backend.aexecute("echo hi")
+    assert "env" not in payloads[0]
+
+
+async def test_sync_sandbox_env_vars_writes_local_backend(monkeypatch):
+    """env_var 工具运行中改动经 sync_sandbox_env_vars 实时写入 local backend。"""
+    from src.infra.envvar.sync import sync_sandbox_env_vars
+    from unittest.mock import AsyncMock
+
+    storage = AsyncMock()
+    storage.get_decrypted_vars = AsyncMock(return_value={"FOO": "bar"})
+    import src.infra.envvar.sync as envvar_sync
+
+    monkeypatch.setattr(envvar_sync, "EnvVarStorage", lambda: storage)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    await sync_sandbox_env_vars(backend, "u1")
+    assert backend.env_vars == {"FOO": "bar"}

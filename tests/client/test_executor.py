@@ -259,3 +259,42 @@ def test_execute_resolves_workspace_var_in_command(tmp_path):
     assert r["stdout"].strip() == str(map_workspace("/workspace/wsvar", tmp_path))
     r2 = ex.execute('echo hi > "$LAMBCHAT_WORKSPACE/note.txt" && cat "$LAMBCHAT_WORKSPACE/note.txt"', "/workspace/wsvar", timeout=10)
     assert r2["status"] == "ok" and r2["stdout"].strip() == "hi", r2
+
+
+# ---------- env 变量注入（服务端下发用户 env，对齐云端 envs= 语义） ----------
+
+
+def test_execute_env_extra_reaches_subprocess(tmp_path):
+    """env_extra 进子进程环境：命令内可见；不传时行为不变。"""
+    ex = Executor(tmp_path)
+    result = ex.execute(
+        'python3 -c "import os; print(os.environ.get(\'LC_TEST_FLAG\', \'missing\'))"',
+        "/workspace/s1",
+        timeout=10.0,
+        env_extra={"LC_TEST_FLAG": "yes"},
+    )
+    assert result["exit_code"] == 0
+    assert "yes" in result["stdout"]
+
+
+def test_spawn_env_merge_order_user_first_then_contract(tmp_path):
+    """合并序：用户 env 先落笔，PATH shim 前置与 LAMBCHAT_WORKSPACE 最后落笔
+    （契约变量不被用户覆盖——PATH 被covering会破坏内嵌 python3 shim 解析）。"""
+    ex = Executor(tmp_path, extra_path=tmp_path / "shim")
+    env = ex._spawn_env(
+        tmp_path,
+        {"LC_USER": "1", "LAMBCHAT_WORKSPACE": "/fake/should-not-win"},
+    )
+    assert env is not None
+    assert env["LC_USER"] == "1"
+    assert env["LAMBCHAT_WORKSPACE"] == str(tmp_path)  # 契约变量最后落笔
+    assert env["PATH"].startswith(str(tmp_path / "shim"))
+
+
+def test_spawn_env_user_only_without_extras(tmp_path):
+    """无 shim/workspace 但有用户 env：仍构建完整环境（而非继承 None）。"""
+    ex = Executor(tmp_path)
+    env = ex._spawn_env(None, {"LC_ONLY": "1"})
+    assert env is not None
+    assert env["LC_ONLY"] == "1"
+    assert "PATH" in env  # 基于父环境扩展

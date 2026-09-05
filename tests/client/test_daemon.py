@@ -129,9 +129,17 @@ class FakeExecutor:
         )
         self._error = error
         self.calls: list[tuple[str, str, float]] = []
+        self.env_extras: list[dict[str, str] | None] = []
 
-    def execute(self, command: str, virtual_cwd: str, timeout: float) -> dict:
+    def execute(
+        self,
+        command: str,
+        virtual_cwd: str,
+        timeout: float,
+        env_extra: dict[str, str] | None = None,
+    ) -> dict:
         self.calls.append((command, virtual_cwd, timeout))
+        self.env_extras.append(env_extra)
         if self._error is not None:
             raise self._error
         return dict(self._result)
@@ -259,6 +267,45 @@ async def test_allow_path_audits_received_allowed_executed_per_session():
     assert [e["event"] for e in auditor.records["s1"]] == ["received", "allowed", "executed"]
     assert [e["event"] for e in auditor.records["s2"]] == ["received", "allowed", "executed"]
     assert auditor.records["s1"][0]["command"] == "echo a"
+
+
+async def test_exec_payload_env_passed_to_executor_sanitized():
+    """exec 载荷的 env（服务端用户 env 变量）净化后透传 executor；非法条目丢弃。"""
+    client = FakeClient(
+        calls=[
+            _call(
+                payload={
+                    "command": "echo $LC_FLAG",
+                    "cwd": "/workspace/s6",
+                    "env": {"LC_FLAG": "1", "bad": 3, "nope": None},
+                }
+            )
+        ]
+    )
+    executor = FakeExecutor()
+
+    await _run(
+        _cfg("all"),
+        FakeFactory([client, _terminator()]),
+        executor=executor,
+        auditor=MemoryAuditor(),
+    )
+
+    assert executor.env_extras == [{"LC_FLAG": "1"}]
+
+
+async def test_exec_payload_env_absent_passes_none():
+    client = FakeClient(calls=[_call()])
+    executor = FakeExecutor()
+
+    await _run(
+        _cfg("all"),
+        FakeFactory([client, _terminator()]),
+        executor=executor,
+        auditor=MemoryAuditor(),
+    )
+
+    assert executor.env_extras == [None]
 
 
 async def test_exec_policy_all_executes_without_local_gate():

@@ -225,7 +225,12 @@ async def _process_exec_call(
     executor: Executor,
     auditor: Auditor,
 ) -> None:
-    """op=exec 的执行链：迟到检查 → executor → done → 审计（确认在服务端）。"""
+    """op=exec 的执行链：迟到检查 → executor → done → 审计（确认在服务端）。
+
+    ``payload["env"]``（服务端用户 env 变量，对齐云端 envs= 语义）净化后
+    透传 executor 合并进子进程环境——非 dict 载荷或非 str 条目静默丢弃，
+    坏 env 不让命令失败。
+    """
     auditor.log(
         session_id, {"event": "allowed", "call_id": call.call_id, "op": "exec", "command": command}
     )
@@ -240,7 +245,7 @@ async def _process_exec_call(
         )
         return
 
-    result = _execute(executor, command, virtual_cwd, effective)
+    result = _execute(executor, command, virtual_cwd, effective, _sanitize_env(call.payload))
     await client.post_result(
         call.call_id, {"stage": "done", **{k: result.get(k) for k in _DONE_KEYS}}
     )
@@ -337,12 +342,26 @@ def _session_id_from_cwd(virtual_cwd: str) -> str:
     return "unknown"
 
 
-def _execute(executor: Executor, command: str, virtual_cwd: str, timeout: float) -> dict:
+def _sanitize_env(payload: dict) -> dict[str, str] | None:
+    """载荷 env 净化：仅保留 str→str 条目；空/非法返回 None（继承语义）。"""
+    raw = payload.get("env")
+    if not isinstance(raw, dict) or not raw:
+        return None
+    return {str(k): v for k, v in raw.items() if isinstance(v, str)}
+
+
+def _execute(
+    executor: Executor,
+    command: str,
+    virtual_cwd: str,
+    timeout: float,
+    env_extra: dict[str, str] | None = None,
+) -> dict:
     """执行并保证返回 done 契约 dict：executor 异常（如非法 cwd 的 ExecutorError）
     收敛为 ``status=error`` 的结果而非断连。"""
     effective = timeout if timeout > 0 else DEFAULT_EXEC_TIMEOUT_S
     try:
-        return executor.execute(command, virtual_cwd, effective)
+        return executor.execute(command, virtual_cwd, effective, env_extra)
     except Exception as exc:  # noqa: BLE001 - 单条命令失败不拖垮通道
         return {"status": "error", "stdout": "", "stderr": "", "exit_code": None, "error": str(exc)}
 

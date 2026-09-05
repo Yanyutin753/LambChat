@@ -50,6 +50,8 @@ def test_local_branch_wired():
     """
     assert "_resolve_sandbox_platform(" in NODES_SOURCE
     assert "WorkspaceAliasBackend(" in NODES_SOURCE
+    # env 变量对齐云端：local 分支构造后必须经 sync_sandbox_env_vars 注入
+    assert "sync_sandbox_env_vars(local_backend, user_id)" in NODES_SOURCE
 
 
 def _patch_store_and_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
