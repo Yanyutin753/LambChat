@@ -43,9 +43,7 @@ async def test_save_event_main_text_chunk_marks_produced() -> None:
 async def test_subagent_chunk_does_not_mark() -> None:
     presenter = _presenter()
 
-    await presenter.emit(
-        {"event": "message:chunk", "data": {"content": "子代理输出", "depth": 1}}
-    )
+    await presenter.emit({"event": "message:chunk", "data": {"content": "子代理输出", "depth": 1}})
 
     assert presenter.produced_main_text is False
 
