@@ -46,11 +46,14 @@ function resolveServerUrl(): string {
  * 状态行 + 配对表单（无副作用 login → 铸 PAT → savePairing → restartDaemon）
  * 或策略/目录/重启/取消配对控制行。
  *
+ * ``embedded``：嵌入"沙箱"合并卡渲染——去掉自带卡片壳，只留分区头
+ * （带上分隔线）与内容；独立渲染（默认）保持原卡片形态供测试直接引用。
+ *
  * 凭据纪律（M4 T7）：配对登录直连 fetch（不 setTokens、不派发 auth:login，
  * 换账号配对不切换壳会话身份）；策略切换只写配置不重铸 PAT；取消配对用
  * 落盘 PAT 调服务端自删端点精准吊销后清理本地凭据。
  */
-export function LocalSandboxSection() {
+export function LocalSandboxSection({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation();
   const shell = isShellAvailable();
   const { status, statusError, online, refresh } = useSandboxStatus();
@@ -140,18 +143,51 @@ export function LocalSandboxSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell, loading, unpaired, unpairing]);
 
+  // 分区头：独立形态是卡片大标题（同其他卡）；嵌入形态是 tile 内的软标题
+  // （同通知页 h4 语言），带一句说明文案
+  const header = embedded ? (
+    <>
+      <div className="flex items-center gap-1.5">
+        <Monitor
+          size={13}
+          className="text-stone-400 dark:text-stone-500 shrink-0"
+        />
+        <span className="font-medium font-serif text-sm text-stone-900 dark:text-stone-100">
+          {t("profile.localSandbox.title")}
+        </span>
+      </div>
+      <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">
+        {t("profile.localSandbox.desc")}
+      </p>
+    </>
+  ) : (
+    <div className="flex items-center gap-2 mb-3">
+      <Monitor size={15} className="text-amber-500 dark:text-amber-400" />
+      <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+        {t("profile.localSandbox.title")}
+      </h3>
+    </div>
+  );
+
   if (!shell) {
-    return (
-      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
-        <div className="flex items-center gap-2 mb-2">
-          <Monitor size={15} className="text-amber-500 dark:text-amber-400" />
-          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
-            {t("profile.localSandbox.title")}
-          </h3>
-        </div>
+    const webHint = (
+      <>
+        {header}
         <p className="text-xs text-stone-500 dark:text-stone-400">
           {t("profile.localSandbox.needDesktop")}
         </p>
+      </>
+    );
+    if (embedded) {
+      return (
+        <div className="mt-3 rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+          {webHint}
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+        {webHint}
       </div>
     );
   }
@@ -264,16 +300,11 @@ export function LocalSandboxSection() {
     });
   };
 
-  return (
-    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
-      <div className="flex items-center gap-2 mb-3">
-        <Monitor size={15} className="text-amber-500 dark:text-amber-400" />
-        <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
-          {t("profile.localSandbox.title")}
-        </h3>
-      </div>
+  const body = (
+    <>
+      {header}
 
-      <div className="space-y-0">
+      <div className={embedded ? "mt-2 space-y-0" : "space-y-0"}>
         {/* 状态行：在线圆点 + daemon 版本 + 进程状态 */}
         {loading ? (
           <SkeletonLine width="w-full" />
@@ -387,6 +418,19 @@ export function LocalSandboxSection() {
           </>
         )}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="mt-3 rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+        {body}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+      {body}
     </div>
   );
 }

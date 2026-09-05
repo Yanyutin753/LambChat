@@ -59,7 +59,9 @@ def _op_description(tool_name: str, args: dict[str, Any]) -> tuple[str, str]:
     if tool_name == "execute":
         command = str(args.get("command", ""))
         clipped = (
-            command if len(command) <= _EXEC_DESC_MAX_CHARS else command[:_EXEC_DESC_MAX_CHARS] + "…"
+            command
+            if len(command) <= _EXEC_DESC_MAX_CHARS
+            else command[:_EXEC_DESC_MAX_CHARS] + "…"
         )
         return f"执行命令：{clipped}", command
     if tool_name == "upload":
@@ -98,9 +100,7 @@ async def _lookup_cloud_confirm_policy(user_id: str) -> str:
     try:
         user = await _user_storage().get_by_id(user_id)
     except Exception:  # noqa: BLE001 - 查询尽力而为，失败保守归 all
-        logger.warning(
-            "cloud confirm policy lookup failed for user %s; defaulting to all", user_id
-        )
+        logger.warning("cloud confirm policy lookup failed for user %s; defaulting to all", user_id)
         return "all"
     value = (getattr(user, "metadata", None) or {}).get("sandboxCloudConfirmPolicy")
     return value if value in ("all", "commands", "none") else "none"
@@ -239,9 +239,8 @@ class SandboxConfirmMiddleware(AgentMiddleware):
 
         from langgraph.types import interrupt
 
-        message = (
-            f"确认在本机执行 {len(batch_listing)} 项操作：\n"
-            + "\n".join(f"{i + 1}. {desc}" for i, desc in enumerate(batch_listing))
+        message = f"确认在本机执行 {len(batch_listing)} 项操作：\n" + "\n".join(
+            f"{i + 1}. {desc}" for i, desc in enumerate(batch_listing)
         )
         resume_value = interrupt(
             {

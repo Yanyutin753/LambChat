@@ -59,9 +59,7 @@ async def test_lookup_failure_fails_closed_to_all(monkeypatch):
 
 async def test_resolver_caches_lookup_per_instance(monkeypatch):
     calls: list[str] = []
-    _fake_user_storage(
-        monkeypatch, metadata={"sandboxCloudConfirmPolicy": "all"}, calls=calls
-    )
+    _fake_user_storage(monkeypatch, metadata={"sandboxCloudConfirmPolicy": "all"}, calls=calls)
     resolver = _CloudPolicyResolver("u1")
     assert await resolver() == "all"
     assert await resolver() == "all"

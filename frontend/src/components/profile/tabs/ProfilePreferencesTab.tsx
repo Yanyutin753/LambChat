@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Settings } from "lucide-react";
+import { Cloud, Container, Settings } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
@@ -51,6 +51,21 @@ const THEME_OPTIONS: { key: Theme; labelKey: string }[] = [
   { key: "sepia", labelKey: "profile.sepiaTheme" },
 ];
 
+/** 云端沙箱执行确认策略（与本地沙箱同一三档语义，选项文案共用） */
+const CLOUD_SANDBOX_POLICY_OPTIONS = [
+  { key: "all", labelKey: "profile.localSandbox.policyOptions.all" },
+  { key: "commands", labelKey: "profile.localSandbox.policyOptions.commands" },
+  { key: "none", labelKey: "profile.localSandbox.policyOptions.none" },
+] as const;
+
+type CloudSandboxPolicy = (typeof CLOUD_SANDBOX_POLICY_OPTIONS)[number]["key"];
+
+function parseCloudSandboxPolicy(value: unknown): CloudSandboxPolicy {
+  return CLOUD_SANDBOX_POLICY_OPTIONS.some((o) => o.key === value)
+    ? (value as CloudSandboxPolicy)
+    : "none";
+}
+
 const FONT_SCALE_OPTIONS: { key: FontScale; labelKey: string }[] = [
   { key: "small", labelKey: "profile.fontSizeSmall" },
   { key: "standard", labelKey: "profile.fontSizeStandard" },
@@ -74,6 +89,9 @@ export function ProfilePreferencesTab() {
   const [memoryEnabled, setMemoryEnabled] = useState(
     user?.metadata?.memoryEnabled !== false,
   );
+  const [cloudSandboxPolicy, setCloudSandboxPolicy] = useState(
+    parseCloudSandboxPolicy(user?.metadata?.sandboxCloudConfirmPolicy),
+  );
 
   const handleMemoryToggle = useCallback(() => {
     const next = !memoryEnabled;
@@ -88,6 +106,21 @@ export function ProfilePreferencesTab() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const toggle = (key: string) =>
     setOpenDropdown((prev) => (prev === key ? null : key));
+
+  // 云端沙箱确认策略：用户级偏好存 metadata，服务端确认门按 run 快照读取；
+  // 乐观更新，失败回滚（与 memoryToggle 同模式）
+  const handleCloudSandboxPolicyChange = useCallback(
+    (next: CloudSandboxPolicy) => {
+      const prev = cloudSandboxPolicy;
+      setCloudSandboxPolicy(next);
+      setOpenDropdown(null);
+      authApi.updateMetadata({ sandboxCloudConfirmPolicy: next }).catch(() => {
+        setCloudSandboxPolicy(prev);
+        toast.error(t("common.operationFailed"));
+      });
+    },
+    [cloudSandboxPolicy, t],
+  );
 
   // Send shortcut preference (Enter, Ctrl/⌘+Enter, or Shift+Enter sends)
   const [newlineModifier, setNewlineModifier] = useState<SendModifier>(() =>
@@ -373,9 +406,41 @@ export function ProfilePreferencesTab() {
         </div>
       </div>
 
-      <Suspense fallback={null}>
-        <LocalSandboxSection />
-      </Suspense>
+      {/* 沙箱：云端 + 本地合并一张卡（子区用内嵌 tile，同通知页分区语言）；
+          本地分区仍懒加载（M4 T8 PWA 预算） */}
+      <div className="rounded-2xl bg-theme-bg-subtle dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
+        <div className="flex items-center gap-2 mb-3">
+          <Container size={15} className="text-amber-500 dark:text-amber-400" />
+          <h3 className="font-semibold font-serif uppercase tracking-wide text-stone-400 dark:text-stone-500">
+            {t("profile.sandbox")}
+          </h3>
+        </div>
+
+        {/* 云端沙箱：执行确认策略（用户级偏好，存 metadata） */}
+        <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+          <div className="flex items-center gap-1.5">
+            <Cloud size={13} className="text-stone-400 dark:text-stone-500" />
+            <span className="font-medium font-serif text-sm text-stone-900 dark:text-stone-100">
+              {t("profile.cloudSandbox")}
+            </span>
+          </div>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">
+            {t("profile.cloudSandboxDesc")}
+          </p>
+          <SelectRow
+            label={t("profile.localSandbox.policy")}
+            value={cloudSandboxPolicy}
+            options={CLOUD_SANDBOX_POLICY_OPTIONS}
+            open={openDropdown === "cloudSandboxPolicy"}
+            onToggle={() => toggle("cloudSandboxPolicy")}
+            onSelect={handleCloudSandboxPolicyChange}
+          />
+        </div>
+
+        <Suspense fallback={null}>
+          <LocalSandboxSection embedded />
+        </Suspense>
+      </div>
     </div>
   );
 }
