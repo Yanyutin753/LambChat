@@ -148,10 +148,11 @@ pub fn status(manager: &State<DaemonManager>) -> String  // "running"|"stopped"|
 
 **Files:** Modify `frontend/src/hooks/useAgentOptions.ts`（normalizeAgentOptions 注入 `sandbox` string 型选项：default "cloud"，options cloud/local——**仅当前 agent 是 search agent 或存在 code interpreter 能力时注入**，简化：统一注入，云端沙箱不可用时服务端自然回退既有行为）、`ChatInputSelectors.tsx`（string 型选项已有面板渲染路径？若 sandbox 需要 icon/label_key 则在 locales 补 agentOptions.sandbox.*）
 
-**行为契约：**
-- 选择器出现在聊天输入区选项按钮组（与思考档位并列），云端/本地两档
-- 本地档时按钮旁挂在线状态点（useSandboxStatus），离线时点击弹提示（五语："本地沙箱离线，命令将执行失败/请先在设置中配对"）但仍允许选择（服务端会报 daemon_offline）
-- agent_options.sandbox 随既有链路自动持久化/恢复（session metadata，无需额外代码——已核实 useSessionConfig 恢复 agent_options）
+**行为契约（动态适配：按 壳检测 + daemon 在线状态 双条件渲染，用户 2026-09-05 确认的显示矩阵）：**
+- 选择器出现在聊天输入区选项按钮组（与思考档位并列），云端档始终可选
+- **桌面壳内**：本地档始终显示 + 在线状态点；离线时置灰但可选择（点击提示五语"本地沙箱离线，请先在设置中配对"）
+- **纯网页（浏览器）**：本地档**仅当 useSandboxStatus 报 online 时渲染**（用户可能在本机手动跑 CLI daemon）；离线则整个本地档不出现——网页用户看不到任何桌面专属 UI
+- agent_options.sandbox 随既有链路自动持久化/恢复（session metadata，无需额外代码——已核实 useSessionConfig 恢复 agent_options）；**会话恢复到 local 但当前环境无 daemon 时**：选项回退显示云端档并在恢复值上挂"离线"标记，不静默篡改已存值
 
 **Steps:**
 - [ ] Step 1: 写失败测试（useAgentOptions 纯函数：注入后 default/options 形状；ChatInputSelectors 源码结构断言 sandbox key 与状态点渲染分支）
