@@ -66,13 +66,13 @@ from src.infra.backend import (
     create_persistent_backend,
     create_sandbox_backend,
 )
+from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.goal import (
     build_goal_input,
     create_goal_rubric_middleware,
 )
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
-from src.infra.envvar.sync import sync_sandbox_env_vars
 from src.infra.sandbox.session_manager import get_session_sandbox_manager
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store

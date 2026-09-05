@@ -46,6 +46,8 @@ ExtendedFileError = Literal[
     "invalid_path",
     "too_many_files",
     "file_too_large",
+    # 服务端统一确认门拒绝（用户未批准上传，非文件系统错误）
+    "declined_by_user",
 ]
 
 

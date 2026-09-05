@@ -1261,8 +1261,9 @@ async def test_aexecute_payload_omits_env_when_empty(monkeypatch):
 
 async def test_sync_sandbox_env_vars_writes_local_backend(monkeypatch):
     """env_var 工具运行中改动经 sync_sandbox_env_vars 实时写入 local backend。"""
-    from src.infra.envvar.sync import sync_sandbox_env_vars
     from unittest.mock import AsyncMock
+
+    from src.infra.envvar.sync import sync_sandbox_env_vars
 
     storage = AsyncMock()
     storage.get_decrypted_vars = AsyncMock(return_value={"FOO": "bar"})

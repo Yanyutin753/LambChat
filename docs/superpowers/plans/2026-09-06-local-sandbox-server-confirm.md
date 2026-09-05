@@ -38,7 +38,7 @@
 **Interfaces:**
 - Produces: `POLICIES: tuple[str, ...]`、`MUTATING_PATTERN`、`needs_confirm(command: str, policy: str) -> bool`（Task 2/3 消费；语义与 client 版逐字节一致：all 恒确认 / commands 按 `MUTATING_PATTERN` / none 恒放行，未知 policy raise ValueError）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 """服务端确认策略：needs_confirm 三档判定（自 client/lambchat_sandbox/confirm.py 移植，语义互锁）。"""
@@ -90,12 +90,12 @@ def test_policies_tuple():
     assert POLICIES == ("all", "commands", "none")
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/infra/sandbox/test_confirm.py -v`
 Expected: FAIL（ModuleNotFoundError: src.infra.sandbox.confirm）
 
-- [ ] **Step 3: 最小实现（自 client/lambchat_sandbox/confirm.py 移植正则与判定，docstring 改述服务端语义）**
+- [x] **Step 3: 最小实现（自 client/lambchat_sandbox/confirm.py 移植正则与判定，docstring 改述服务端语义）**
 
 ```python
 """沙箱执行确认策略：needs_confirm 三档判定。
@@ -143,12 +143,12 @@ def needs_confirm(command: str, policy: str) -> bool:
     raise ValueError(f"未知确认策略: {policy!r}（可选: {'/'.join(POLICIES)}）")
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `uv run pytest tests/infra/sandbox/test_confirm.py -v`
 Expected: PASS（全部）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/infra/sandbox/confirm.py tests/infra/sandbox/test_confirm.py
@@ -167,7 +167,7 @@ git commit -m "feat(sandbox): 服务端确认策略 needs_confirm 三档判定�
 - Consumes: `hitl_interrupt_supported`（`src/infra/tool/human_tool/runtime.py` 的 ContextVar[bool]，agent 节点在图执行期设置）。
 - Produces: `confirm_local_op(command: str, policy: str, *, description: str) -> bool`——同步函数，必须在图任务内的工具调用栈中执行；True=放行，False=用户拒绝或确认不可用（fail-closed）。interrupt payload 为 `{"kind": "ask_human", "message": description, "fields": []}`，resume 值形如 `{"approved": bool, "values": {...}}`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 追加到 `tests/infra/sandbox/test_confirm.py`：
 
@@ -231,12 +231,12 @@ def test_interrupt_unsupported_fails_closed(monkeypatch):
 
 注意：`confirm_local_op` 内部用 `from langgraph.types import interrupt`（函数内导入，与 AskHumanTool `_run_interrupt_mode` 同模式），monkeypatch `langgraph.types.interrupt` 即可生效。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/infra/sandbox/test_confirm.py -v -k confirm_local_op`
 Expected: FAIL（ImportError: confirm_local_op）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 追加到 `src/infra/sandbox/confirm.py`：
 
@@ -275,12 +275,12 @@ def confirm_local_op(command: str, policy: str, *, description: str) -> bool:
     return bool(isinstance(resume_value, dict) and resume_value.get("approved"))
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `uv run pytest tests/infra/sandbox/test_confirm.py -v`
 Expected: PASS（含 Task 1 全部）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/infra/sandbox/confirm.py tests/infra/sandbox/test_confirm.py
@@ -303,7 +303,7 @@ git commit -m "feat(sandbox): 统一确认门 confirm_local_op——复用 ask_h
   - 门语义：`aexecute`（未被绕过时）门原始命令；`WorkspaceAliasBackend` 的 write/edit/delete 在 override 入口门 `rm {op} {path}` 哨兵；upload_files/aupload_files 每批一次门 `rm upload {n} files`；read/ls/glob/grep/download 不门（内部经 `_gate_bypassed` 绕过）。
   - 拒绝文案：exec → `ExecuteResponse(output=..., exit_code=1)`；写类 → 各 Result 的 error 字段带 `declined_by_user`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 追加到 `tests/infra/backend/test_local_backend.py`（沿用该文件现有 fixture 风格——查看现有 monkeypatch dispatch_local_call 的方式；以下为新测试体，dispatch 打桩记录调用）：
 
@@ -479,12 +479,12 @@ async def test_download_never_gates(fake_dispatch, policy, interrupt_ok):
     assert fake_dispatch
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/infra/backend/test_local_backend.py -v -k gate或confirm或bypass`
 Expected: FAIL（`_lookup_confirm_policy` 不存在 / 无门行为）
 
-- [ ] **Step 3: 实现 local.py 变更**
+- [x] **Step 3: 实现 local.py 变更**
 
 3a. 模块级（imports 区后）：
 
@@ -611,12 +611,12 @@ async def _lookup_confirm_policy(user_id: str) -> str:
 
 3f. 下载不加门（`_download_one` 直发 dispatch，不经 aexecute，天然无门——加注释说明只读不门）。
 
-- [ ] **Step 4: 跑测试确认通过 + 既有 local backend 测试不回归**
+- [x] **Step 4: 跑测试确认通过 + 既有 local backend 测试不回归**
 
 Run: `uv run pytest tests/infra/backend/test_local_backend.py -v`
 Expected: 新增全 PASS；**既有测试若因默认策略 "all" 触发门而挂**，在其 fixture/用例里 monkeypatch `_lookup_confirm_policy` 返回 "none"（打桩 dispatch 的既有测试均属此类，统一在文件顶部加 autouse fixture：默认 policy=none，门相关测试显式覆盖）。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/infra/backend/local.py tests/infra/backend/test_local_backend.py
@@ -639,7 +639,7 @@ git commit -m "feat(sandbox): 本地沙箱执行/写/上传统一过服务端确
   - `client __version__ = "0.2.0"`；`settings.SANDBOX_MIN_DAEMON_VERSION = "0.2.0"`
 - Consumes: Task 3 的 `_lookup_confirm_policy`（本任务让 `get_confirm_policy` 真实存在，替换其兜底实现内的导入为直接调用）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `tests/infra/sandbox/relay/test_registry.py` 追加（沿用现有 fake redis 风格）：
 
@@ -679,12 +679,12 @@ async def test_connect_url_carries_confirm_policy(...):
     # 既有 connect 测试的 httpx 打桩方式，断言请求 URL 含 confirm_policy=none
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/infra/sandbox/relay/test_registry.py tests/api/routes/test_sandbox_routes.py tests/client/test_transport.py -v`
 Expected: 新用例 FAIL
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 registry.py：`encode_node_value` 追加第四段（有值才拼，保旧形态）、`parse_confirm_policy`、`register/heartbeat` 加参透传、`get_confirm_policy`（照 `get_platform` 模式）。
 
@@ -696,12 +696,12 @@ daemon.py：`run_daemon` 里构造 `ChannelClient(...)` 处传 `confirm_policy=c
 
 版本：`client/lambchat_sandbox/__init__.py` `__version__ = "0.2.0"`（docstring 补一句：0.2.0 = 确认门搬服务端 + 上报策略）；`src/kernel/config/base.py` `SANDBOX_MIN_DAEMON_VERSION: str = "0.2.0"`（注释说明：旧版带 daemon 侧确认门，拒连防双重确认）。
 
-- [ ] **Step 4: 跑测试确认通过（含既有版本门测试）**
+- [x] **Step 4: 跑测试确认通过（含既有版本门测试）**
 
 Run: `uv run pytest tests/infra/sandbox/relay/ tests/api/routes/test_sandbox_routes.py tests/client/test_transport.py tests/client/test_daemon.py -v`
 Expected: PASS（若既有版本门测试硬编码 0.1.0 断言，同步更新为 0.2.0）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -720,7 +720,7 @@ git commit -m "feat(sandbox): daemon 上报确认策略四段式入注册表，�
 - Consumes: 无。
 - Produces: daemon 为纯执行器（确认已在服务端完成，spec §3.5「daemon 只收到已确认的执行请求」）；`run_daemon` 签名移除 `confirm_fn`；`SandboxConfig.confirm_policy` 保留（Task 4 上报用）。
 
-- [ ] **Step 1: 更新测试（先改测试定义新契约）**
+- [x] **Step 1: 更新测试（先改测试定义新契约）**
 
 `tests/client/test_daemon.py`：
 - 删除 `confirm_fn` 注入参数与所有确认门用例（`test_confirm_true_passes_gate_with_policy_all`、`_boom_confirm` 相关、policy=all/commands 的 declined 用例等）。
@@ -737,12 +737,12 @@ async def test_exec_executes_without_local_gate(...):
 
 - fs 写 op 同理（`fs_write` 直接执行）。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/client/test_daemon.py -v`
 Expected: FAIL（confirm_fn 参数仍存在/门仍拦截）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 daemon.py：
 - 删 import `needs_confirm, terminal_confirm`；删 `WRITE_OPS` import（仅门哨兵使用；`FS_OPS` 保留）。
@@ -754,12 +754,12 @@ daemon.py：
 - 删除文件：`client/lambchat_sandbox/confirm.py`、`tests/client/test_confirm.py`（服务端 Task 1 副本为唯一权威）。
 - `client/lambchat_sandbox/config.py` 不动（confirm_policy 仍校验+上报）。
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `uv run pytest tests/client/ -v`
 Expected: PASS（全 client 套件）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
@@ -777,22 +777,22 @@ git commit -m "refactor(sandbox): 拆除 daemon 侧终端确认门——确认�
 **Interfaces:**
 - Produces: `SandboxStatus.daemon_confirm_policy?: string | null`；LocalSandboxSection 策略 SelectRow 初值跟随在线 daemon 上报值（用户未主动切换时）。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `sandbox.test.ts`：status 响应含 `daemon_confirm_policy: "commands"` 时类型/透传断言（照现有 status 测试）。
 `localSandboxSection.test.tsx`：渲染已配对分区 + status 带 `daemon_confirm_policy: "none"` → SelectRow 显示「免确认」档文案。
 
-- [ ] **Step 2: 确认失败** — `cd frontend && pnpm test -- --run sandbox localSandboxSection`（照仓库实际命令 `pnpm test <pattern>`）
+- [x] **Step 2: 确认失败** — `cd frontend && pnpm test -- --run sandbox localSandboxSection`（照仓库实际命令 `pnpm test <pattern>`）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 - `SandboxStatus` 接口加 `daemon_confirm_policy?: string | null`。
 - LocalSandboxSection：`const [policy, setPolicy] = useState<ConfirmPolicy>("all")` + `useEffect(() => { if (status?.daemon_confirm_policy && POLICY_KEYS.includes(...)) setPolicy(status.daemon_confirm_policy) }, [status?.daemon_confirm_policy])`（POLICY_KEYS 由 CONFIRM_POLICY_OPTIONS 派生）；用户手动切换仍即时写配置（现有 handlePolicyChange 不变）。
 - 设计文档 §3.5 更新：标注服务端统一门已实施（2026-09-06），daemon 仅执行已确认请求、三档策略经 registry 四段式上报；§10 里程碑补一行实施记录。
 
-- [ ] **Step 4: 前端相关测试通过** — `cd frontend && pnpm test`（sandbox 相关 + 该文件既有用例不回归）
+- [x] **Step 4: 前端相关测试通过** — `cd frontend && pnpm test`（sandbox 相关 + 该文件既有用例不回归）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src docs/superpowers/specs/2026-09-01-local-sandbox-design.md
