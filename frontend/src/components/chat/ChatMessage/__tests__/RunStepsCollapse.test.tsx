@@ -13,8 +13,7 @@ vi.mock("react-i18next", () => ({
         "chat.message.runStepsCount": "{{count}} steps",
         "chat.message.runStepsWorking": "Working… {{duration}}",
         "chat.message.runStepsWorkingNoTimer": "Working…",
-        "chat.message.runStepsStopped": "Stopped {{duration}}",
-        "chat.message.runStepsStoppedNoTimer": "Stopped",
+        "chat.message.runStepsStopped": "Stopped",
       };
       let out = templates[key] ?? key;
       if (opts && typeof opts === "object") {
@@ -73,8 +72,9 @@ describe("RunStepsCollapse", () => {
         renderExpanded={() => <div>step-details</div>}
       />,
     );
-    expect(SummaryRow().textContent).toContain("Stopped");
-    expect(SummaryRow().textContent).toContain("1m 30s");
+    // 已停止不带时长，也不回落到步骤数/已工作摘要
+    expect(SummaryRow().textContent).toBe("Stopped");
+    expect(SummaryRow().textContent).not.toContain("1m 30s");
     expect(SummaryRow().textContent).not.toContain("Worked for");
     expect(SummaryRow().textContent).not.toContain("steps");
   });

@@ -86,9 +86,7 @@ export function RunStepsCollapse({
       ? t("chat.message.runStepsWorking", { duration: durationLabel })
       : t("chat.message.runStepsWorkingNoTimer")
     : stopped
-      ? durationLabel
-        ? t("chat.message.runStepsStopped", { duration: durationLabel })
-        : t("chat.message.runStepsStoppedNoTimer")
+      ? t("chat.message.runStepsStopped")
       : durationLabel
         ? t("chat.message.runStepsSummary", { duration: durationLabel })
         : t("chat.message.runStepsCount", { count: steps });
