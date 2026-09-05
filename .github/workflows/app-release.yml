@@ -25,6 +25,10 @@ env:
   LAMBCHAT_APP_URL: ${{ inputs.app_url || vars.LAMBCHAT_APP_URL || secrets.LAMBCHAT_APP_URL }}
 
 jobs:
+  # 注意：Windows/macOS 桌面打包暂时下线（M4 恢复）——externalBin 已声明
+  # binaries/lambchat-daemon，但 win/mac 的 PyInstaller daemon 构建步属 M4，
+  # triple 缺失会让打包必败。恢复前先为对应平台补 daemon 构建步，再取消
+  # 下方矩阵中 Windows/macOS 条目的注释。打 tag 前务必确认此点。
   desktop:
     name: Desktop (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
@@ -43,15 +47,16 @@ jobs:
             bundles: appimage,deb,rpm
             artifact_slug: linux-arm64
             arch: arm64
-          - label: Windows
-            runner: windows-2022
-            bundles: msi
-            artifact_slug: windows
-          - label: macOS
-            runner: macos-14
-            bundles: dmg
-            artifact_slug: macos
-            target: universal-apple-darwin
+          # M4 恢复以下两项（需先补 win/mac 的 daemon 构建步，见 job 顶部注释）：
+          # - label: Windows
+          #   runner: windows-2022
+          #   bundles: msi
+          #   artifact_slug: windows
+          # - label: macOS
+          #   runner: macos-14
+          #   bundles: dmg
+          #   artifact_slug: macos
+          #   target: universal-apple-darwin
 
     steps:
       - name: Checkout repository
@@ -117,6 +122,28 @@ jobs:
           "TEMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
           New-Item -ItemType Directory -Force D:\pnpm-store,D:\npm-cache,D:\temp | Out-Null
+
+      # M3：daemon sidecar（PyInstaller onefile → binaries/lambchat-daemon-<triple>）。
+      # externalBin 声明了该产物且 binaries/ 被 gitignore，缺此步 Tauri 打包必败。
+      # 仅 Linux 加此步；win/mac 的 daemon 构建属 M4（见 job 顶部注释）。
+      # uv 安装方式与 lint.yml 保持一致。
+      - name: Install uv
+        if: runner.os == 'Linux'
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        if: runner.os == 'Linux'
+        run: uv python install 3.12
+
+      - name: Build sandbox daemon sidecar (PyInstaller)
+        if: runner.os == 'Linux'
+        env:
+          # uv.lock pins a CN mirror; GH-hosted runners throttle under
+          # uv's 50 parallel downloads (same mitigation as lint.yml).
+          UV_CONCURRENT_DOWNLOADS: "8"
+        run: |
+          uv sync --group dev || (sleep 15 && uv sync --group dev)
+          make client-build-daemon
 
       - name: Build desktop package with Tauri
         env:

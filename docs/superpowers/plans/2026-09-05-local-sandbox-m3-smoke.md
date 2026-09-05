@@ -24,7 +24,7 @@
 
 - **SIGTERM 直杀壳进程不走退出清理**：daemon 树被 systemd 收养并稍后重连恢复在线（实测 offline 54s 后回 online）。正常路径（关窗口→Exit 事件→stop）已验证可用；M4 加 SIGTERM 处理器收敛此路径。
 - 故意 stop 走 SIGKILL 无 post_offline：offline 靠服务端 TTL（≤35s）；M4 可改 SIGTERM+宽限再收尸。
-- PDEATHSIG 仅 Linux（当前发布矩阵 unix/Linux；macOS/Windows 的孤儿治理随 M4 平台扩展处理）。
+- PDEATHSIG 仅 Linux（勘误：初记"当前发布矩阵 unix/Linux"不成立——app-release.yml 本就含 Windows/macOS 桌面矩阵；实况是 win/mac 缺 daemon 构建步（属 M4），desktop 子矩阵已临时注释下线至 M4 恢复，macOS/Windows 的孤儿治理届时一并处理）。
 - RunModePopover 常挂第二个状态轮询实例（流量浪费，M4 门控）；badge 显示原值的 cosmetic 差。
 - tauri.conf.json devUrl=5173 与仓库 vite 实际端口不匹配（仓库从未跑过 tauri dev）：本记录用 --config 覆盖；M4 打包链路走 packaged build 不受影响，dev 脚本可固化此覆盖。
 
