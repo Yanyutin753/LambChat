@@ -67,10 +67,9 @@ frontend/**/*.tsbuildinfo
 frontend/src-tauri/binaries/
 # Embedded python-build-standalone tarballs (build-time fetch-pbs.py download, ~100MB each)
 frontend/src-tauri/resources/python/
-# Tauri Rust 构建产物与锁文件（遵循 uv.lock 不入库的既有约定）
+# Tauri Rust 构建产物（Cargo.lock 入库：壳的可复现构建依赖锁文件，M4 T8）
 frontend/src-tauri/target/
 frontend/src-tauri/gen/
-frontend/src-tauri/Cargo.lock
 client/dist/
 client/build/
 mcp.json

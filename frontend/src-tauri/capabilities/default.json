@@ -6,9 +6,6 @@
   "permissions": [
     "core:default",
     "notification:default",
-    "updater:default",
-    "shell:default",
-    "shell:allow-execute",
-    "opener:default"
+    "updater:default"
   ]
 }

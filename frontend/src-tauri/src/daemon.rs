@@ -25,6 +25,14 @@ const MAX_RESTARTS: u8 = 3;
 /// 监视线轮询间隔（env 直启 try_wait / sidecar kill(pid,0) 探活共用）。
 const ENV_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
+/// 主动 stop 的优雅宽限：SIGTERM 后等待 daemon 自行退出的上限（daemon 侧
+/// 走 post_offline + 审计落盘的优雅退出路径，M4 T8）；超时仍存活由调用方
+/// SIGKILL 兜底。
+const STOP_GRACE: Duration = Duration::from_secs(3);
+
+/// 宽限期内的探活间隔。
+const STOP_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
 macro_rules! warn_log {
     ($($arg:tt)*) => {
         eprintln!("[lambchat-daemon] {}", format!($($arg)*))
@@ -165,30 +173,101 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// 停止 daemon：kill 子进程、清理句柄、重启计数归零。幂等。
+/// 停止 daemon：SIGTERM 优雅终止（宽限 [`STOP_GRACE`]）→ 仍存活再 SIGKILL
+/// 兜底 → 清理句柄、重启计数归零。幂等。
+///
+/// 优雅序（M4 T8）：daemon 侧 SIGTERM → post_offline（服务端注册表即刻
+/// 下线，status 窗口从心跳/TTL 的 15-35s 收敛到一次 RTT）→ 审计 shutdown
+/// → 退出。旧实现的直接 SIGKILL 让 daemon 无从优雅下线。
 pub fn stop(app: &AppHandle) {
     let manager = app.state::<DaemonManager>();
-    let mut slot = manager.child.lock().unwrap();
-    // 持锁递增 generation（与 start 一致）：generation 的全部变更点都在
-    // child 锁内，handle_exit 的持锁复检（take_if_current）才能成立。递增后，
+    // 持锁递增 generation 并取走槽位（与 start 一致）：generation 的全部变更点
+    // 都在 child 锁内，handle_exit 的持锁复检（take_if_current）才能成立。递增后，
     // 在飞行的监视线即便刚通过锁外的快速检查，也会在 handle_exit 的锁内
     // 复检被拦下，不会把这次主动 stop 误判为意外退出而触发重启。
-    manager.generation.fetch_add(1, Ordering::SeqCst);
-    match slot.take() {
+    //
+    // 锁在击杀等待**之前**释放：优雅宽限最长 3s，持锁等待会把
+    // daemon_process_status / restart_daemon 等 IPC 一并卡住；generation 与
+    // 槽位的变更已在临界区内完成，锁外等待不破坏归属判定（restart_daemon
+    // 的 stop→start 仍在同一线程串行，不会新旧进程交叠）。
+    let child = {
+        let mut slot = manager.child.lock().unwrap();
+        manager.generation.fetch_add(1, Ordering::SeqCst);
+        slot.take()
+    };
+    match child {
         Some(DaemonChild::Env(mut child)) => {
             warn_log!("stopping daemon (pid {})", child.id());
-            let _ = child.kill();
-            let _ = child.wait();
+            // env 直启用 try_wait 探活（持有子进程句柄，无 pid 复用误判）：
+            // 退出即被收割，宽限内收敛。非 unix 无 SIGTERM，直落 kill 兜底。
+            #[cfg(unix)]
+            {
+                let _ = unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGTERM) };
+                let deadline = std::time::Instant::now() + STOP_GRACE;
+                while std::time::Instant::now() < deadline {
+                    match child.try_wait() {
+                        Ok(Some(_)) | Err(_) => break,
+                        Ok(None) => std::thread::sleep(STOP_POLL_INTERVAL),
+                    }
+                }
+            }
+            if !matches!(child.try_wait(), Ok(Some(_))) {
+                let _ = child.kill(); // 宽限超时/非 unix：SIGKILL 兜底
+            }
+            let _ = child.wait(); // 收尸，防僵尸
         }
         Some(DaemonChild::Sidecar(child)) => {
             warn_log!("stopping daemon sidecar (pid {})", child.pid());
-            if let Err(e) = child.kill() {
-                warn_log!("failed to kill daemon sidecar: {e}");
+            graceful_terminate_sidecar(child.pid());
+            if process_alive(child.pid()) {
+                if let Err(e) = child.kill() {
+                    warn_log!("failed to kill daemon sidecar: {e}");
+                }
             }
         }
         None => {}
     }
     manager.restarts.store(0, Ordering::SeqCst);
+}
+
+/// sidecar 形态的优雅终止：SIGTERM → 宽限内 `kill(pid, 0)` 探活。
+///
+/// plugin-shell 的 [`CommandChild`] 没有信号 API（只有 kill = SIGKILL），故
+/// 绕过句柄直接 `libc::kill(pid, SIGTERM)`（pid 已知）。PyInstaller onefile
+/// 的外层 wrapper 收到 SIGTERM 后随内层 daemon 退出而退出（内层 PDEATHSIG
+/// 兜底）；插件内部 wait 线程先行 `child.wait()` 收尸，探活随即 ESRCH——
+/// pid 复用误判窗口极小且后果与既有 kill 路径一致（见 [`process_alive`]）。
+/// 超时返回后由调用方 `child.kill()` SIGKILL 兜底。
+fn graceful_terminate_sidecar(pid: u32) {
+    #[cfg(unix)]
+    {
+        let rc = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
+        if rc != 0 {
+            let err = std::io::Error::last_os_error();
+            // ESRCH：进程已不在（视为已终止）；其余发送失败交 SIGKILL 兜底。
+            if err.raw_os_error() != Some(libc::ESRCH) {
+                warn_log!("failed to SIGTERM daemon sidecar (pid {pid}): {err}");
+            }
+            return;
+        }
+        let deadline = std::time::Instant::now() + STOP_GRACE;
+        while std::time::Instant::now() < deadline {
+            if !process_alive(pid) {
+                return;
+            }
+            std::thread::sleep(STOP_POLL_INTERVAL);
+        }
+        warn_log!(
+            "daemon sidecar (pid {pid}) still alive {}s after SIGTERM; falling back to SIGKILL",
+            STOP_GRACE.as_secs()
+        );
+    }
+    #[cfg(not(unix))]
+    {
+        // TODO(M4): Windows 侧优雅终止（GenerateConsoleCtrlEvent / taskkill）；
+        // 当前发布矩阵仅 unix，先直落调用方的 kill 兜底。
+        let _ = pid;
+    }
 }
 
 /// 进程状态：`"running" | "stopped" | "unsupported"`。
@@ -308,11 +387,11 @@ fn handle_exit(app: &AppHandle, generation: u64) {
 // invoke 命令（配对 / 配置 / 启停 / 开目录）
 // ---------------------------------------------------------------------------
 
-/// daemon 数据根 `~/.lambchat`。
+/// daemon 数据根 `~/.lambchat`（lib.rs 的 PBS 归档落位也复用）。
 ///
 /// TODO(M4): Windows 下 `$HOME` 通常不存在，改用已知目录 API（如 `dirs::home_dir`
 /// 或 `%USERPROFILE%`）后再放开 Windows 打包。
-fn sandbox_home() -> Result<PathBuf, String> {
+pub(crate) fn sandbox_home() -> Result<PathBuf, String> {
     std::env::var_os("HOME")
         .map(|home| PathBuf::from(home).join(".lambchat"))
         .ok_or_else(|| "$HOME is not set; cannot locate ~/.lambchat".to_string())
