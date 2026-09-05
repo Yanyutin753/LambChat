@@ -9,6 +9,8 @@ export interface SandboxStatus {
   online: boolean;
   client_id?: string;
   daemon_version?: string | null;
+  /** daemon 上报平台（linux/darwin/win32，M4 T3；旧 daemon 为 null） */
+  daemon_platform?: string | null;
 }
 
 export interface PatCreateResult {

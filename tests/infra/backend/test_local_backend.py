@@ -2,9 +2,14 @@
 
 ExecuteResponse 真实字段为 output/exit_code/truncated（protocol.py:810），
 无 stdout/stderr 字段——stdout/stderr 在 aexecute 内合并进 output。
+
+M4 T3 追加：文件命令生成的平台分支——posix 命令串逐字节锁定（Linux 零
+回归）、win32 上报后无 POSIX 语法（无 mkdir -p、cmd 双引号引用、单行脚本）、
+服务端 _cmd_quote 与 client platform.shell_quote 同组 torture 用例互锁。
 """
 
 import base64
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -13,6 +18,22 @@ import pytest
 from src.infra.backend import local as local_module
 from src.infra.backend.local import LocalSandboxBackend
 from src.kernel.errors import AppError, ErrorCode
+
+
+@pytest.fixture(autouse=True)
+def _default_daemon_platform(monkeypatch):
+    """既有用例默认「无平台信息」（空串 → posix 现状），平台查询不触真实 redis。
+
+    返回 state dict，win32 用例把它翻成 "win32" 即可让同一次 upload/download
+    全链按 Windows 分支生成命令。
+    """
+    state = {"platform": ""}
+
+    async def fake_lookup(user_id):
+        return state["platform"]
+
+    monkeypatch.setattr(local_module, "_lookup_daemon_platform", fake_lookup)
+    return state
 
 
 def _ok_response(stdout: str = "", stderr: str = "", exit_code: int = 0) -> dict:
@@ -390,3 +411,290 @@ async def test_adownload_decode_failure_carries_original_output(monkeypatch):
     assert responses[0].error != "file_not_found"
     assert garbage in str(responses[0].error)
     assert responses[0].content is None
+
+
+# =========================================================================
+# M4 T3: 文件命令生成平台分支
+# - posix（含无平台信息）：命令串逐字节锁定——Linux daemon 全链零变化
+# - win32：无 mkdir -p（makedirs 并进脚本）、cmd 双引号引用、单行无 %
+# - 服务端 _cmd_quote 与 client platform.shell_quote 同组 torture 互锁
+# =========================================================================
+
+
+def test_upload_command_posix_bytes_locked():
+    """Linux daemon 零回归锁：posix 命令串逐字节快照（mkdir -p + shlex + python3）。"""
+    assert LocalSandboxBackend._upload_command("sub/dir/f.bin", b"hello") == (
+        'mkdir -p sub/dir && python3 -c "import base64, sys; '
+        "open(sys.argv[1], 'wb').write(base64.b64decode(sys.argv[2]))\" "
+        "sub/dir/f.bin aGVsbG8="
+    )
+    # 含空格路径：shlex 单引号包裹（posix 引用形态）；b64 含 = 属 shlex 安全字符，不引用
+    assert LocalSandboxBackend._upload_command("my dir/a b.txt", b"x") == (
+        "mkdir -p 'my dir' && python3 -c \"import base64, sys; "
+        "open(sys.argv[1], 'wb').write(base64.b64decode(sys.argv[2]))\" "
+        "'my dir/a b.txt' eA=="
+    )
+
+
+def test_upload_command_posix_append_bytes_locked():
+    """追加块：无 mkdir 前缀（父目录必已存在），模式 'ab'。"""
+    assert LocalSandboxBackend._upload_command("sub/dir/f.bin", b"x", append=True) == (
+        'python3 -c "import base64, sys; '
+        "open(sys.argv[1], 'ab').write(base64.b64decode(sys.argv[2]))\" "
+        "sub/dir/f.bin eA=="
+    )
+
+
+def test_download_command_posix_bytes_locked():
+    """Linux daemon 零回归锁：posix 下载命令逐字节快照（多行脚本 + %d 文本）。"""
+    assert LocalSandboxBackend._download_command("a b.txt") == (
+        "python3 -c \"import os, sys, base64\n"
+        "size = os.path.getsize(sys.argv[1])\n"
+        "if size > 2097152:\n"
+        "    sys.stderr.write('file_too_large: %d bytes exceeds 2097152 limit'\n"
+        "                  ' (download cap)')\n"
+        "    sys.exit(1)\n"
+        "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))\" "
+        "'a b.txt'"
+    )
+
+
+def test_platform_ctx_only_win32_branches_windows():
+    """平台归一：win32/windows 之外（含空=未上报、linux/darwin、未知串）一律 posix。"""
+    assert local_module._platform_ctx("win32").is_windows is True
+    assert local_module._platform_ctx("windows").is_windows is True
+    for plat in ("", "linux", "darwin", "unknown-xyz"):
+        assert local_module._platform_ctx(plat).is_windows is False
+
+
+def test_platform_ctx_posix_quote_matches_shlex():
+    ctx = local_module._platform_ctx("linux")
+    for s in ["a b", 'he said "hi"', "trailing\\", "$HOME", "a;b", ""]:
+        assert ctx.quote(s) == shlex.quote(s)
+
+
+def test_upload_command_windows_omits_mkdir_and_cmd_quotes():
+    """win32 首块：无 mkdir -p 前缀（makedirs 并进脚本）、参数为 cmd 双引号引用。"""
+    cmd = LocalSandboxBackend._upload_command("sub/dir/f.bin", b"hello", platform="win32")
+    assert cmd == (
+        'python3 -c "import base64, os, sys; '
+        "d = os.path.dirname(sys.argv[1]); "
+        "os.makedirs(d, exist_ok=True) if d else None; "
+        "open(sys.argv[1], 'wb').write(base64.b64decode(sys.argv[2]))\" "
+        '"sub/dir/f.bin" "aGVsbG8="'
+    )
+    assert "mkdir -p" not in cmd
+    assert "\n" not in cmd  # cmd.exe 逐行解析：脚本必须单行
+
+
+def test_upload_command_windows_append_skips_makedirs():
+    """win32 追加块：与 posix 对仗——父目录必已存在，脚本不含 makedirs 子句。"""
+    cmd = LocalSandboxBackend._upload_command("f.bin", b"x", append=True, platform="win32")
+    assert cmd == (
+        'python3 -c "import base64, sys; '
+        "open(sys.argv[1], 'ab').write(base64.b64decode(sys.argv[2]))\" "
+        '"f.bin" "eA=="'
+    )
+
+
+def test_download_command_windows_single_line_no_percent():
+    """win32 下载：单行脚本、无 % （cmd 双引号内 %VAR% 会被展开）、无 /dev/null。"""
+    cmd = LocalSandboxBackend._download_command("a b.txt", platform="win32")
+    assert cmd == (
+        'python3 -c "import os, sys, base64; '
+        "size = os.path.getsize(sys.argv[1]); "
+        "size > 2097152 and (sys.stderr.write("
+        "'file_too_large: ' + str(size) + ' bytes exceeds 2097152 limit (download cap)'), "
+        "sys.exit(1)); "
+        "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))\" "
+        '"a b.txt"'
+    )
+    assert "\n" not in cmd
+    assert "%" not in cmd
+    assert "/dev/null" not in cmd
+
+
+def test_upload_files_windows_via_registry_platform(monkeypatch, _default_daemon_platform):
+    """fake 注册表平台=win32 → 全链生成 Windows 命令：无 mkdir -p、cmd 引用。"""
+    _default_daemon_platform["platform"] = "win32"
+    commands: list[str] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        commands.append(payload["command"])
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = backend.upload_files([("/workspace/s1/dir/note.txt", b"hello")])
+    assert responses[0].error is None
+    assert len(commands) == 1
+    assert "mkdir -p" not in commands[0]
+    assert "os.makedirs" in commands[0]
+    assert '"/workspace/s1/dir/note.txt"' in commands[0]  # cmd 双引号引用（完整路径）
+
+
+async def test_aupload_files_windows_chunked_commands(monkeypatch, _default_daemon_platform):
+    """win32 分块上传：首块带 makedirs、后续块无（对仗 posix 分块语义）。"""
+    _default_daemon_platform["platform"] = "win32"
+    commands: list[str] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        commands.append(payload["command"])
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    content = b"x" * (local_module._UPLOAD_CHUNK_RAW_BYTES + 1)
+    responses = await backend.aupload_files([("/workspace/s1/big.bin", content)])
+    assert responses[0].error is None
+    assert len(commands) == 2
+    assert "os.makedirs" in commands[0] and "'wb'" in commands[0]
+    assert "os.makedirs" not in commands[1] and "'ab'" in commands[1]
+    assert all("mkdir -p" not in c for c in commands)
+
+
+async def test_adownload_files_windows_command_shape(monkeypatch, _default_daemon_platform):
+    """win32 下载全链：下发命令为单行 cmd 形态、路径 cmd 引用。"""
+    _default_daemon_platform["platform"] = "win32"
+    captured: dict[str, str] = {}
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        captured["command"] = payload["command"]
+        return _ok_response(stdout=base64.b64encode(b"body").decode())
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    responses = await backend.adownload_files(["/workspace/s1/a b.txt"])
+    assert responses[0].error is None
+    assert captured["command"].endswith('"/workspace/s1/a b.txt"')  # cmd 引用含空格路径
+    assert "\n" not in captured["command"]
+
+
+def test_platform_hint_overrides_registry(monkeypatch):
+    """显式 platform_hint 优先于注册表查询（构造期已知平台的 wiring/测试用）。"""
+    commands: list[str] = []
+
+    async def failing_lookup(user_id):
+        raise AssertionError("hint 在场时不应查注册表")
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        commands.append(payload["command"])
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "_lookup_daemon_platform", failing_lookup)
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1", platform_hint="win32")
+    backend.upload_files([("/workspace/s1/a.txt", b"x")])
+    assert "mkdir -p" not in commands[0]
+
+
+async def test_lookup_daemon_platform_defaults_posix_on_error(monkeypatch):
+    """注册表查询失败（redis 不可达等）容错回落空串 → posix（现状零变化）。"""
+
+    class _BrokenRegistry:
+        def __init__(self, *args, **kwargs):
+            raise ConnectionError("redis down")
+
+    monkeypatch.setattr(local_module, "SandboxClientRegistry", _BrokenRegistry)
+    assert await local_module._lookup_daemon_platform("u1") == ""
+
+
+def test_upload_files_default_platform_keeps_posix_commands(monkeypatch):
+    """无平台信息（旧格式 value/查询失败）→ 命令串与现状逐字节一致。"""
+    commands: list[str] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        commands.append(payload["command"])
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1")
+    backend.upload_files([("/workspace/s1/dir/note.txt", b"hello")])
+    assert commands[0] == (
+        'mkdir -p /workspace/s1/dir && python3 -c "import base64, sys; '
+        "open(sys.argv[1], 'wb').write(base64.b64decode(sys.argv[2]))\" "
+        "/workspace/s1/dir/note.txt aGVsbG8="
+    )
+
+
+# ---------- % 拒绝策略：cmd.exe 双引号内 %VAR% 展开无法可靠转义 ----------
+
+
+def test_cmd_quote_rejects_percent_arguments():
+    """含 % 的参数拒绝（ValueError）——命令行上下文（非 batch）没有可靠的
+    % 转义（%% 仅 batch 生效），引用静默放行等于任由 cmd 展开改写路径。"""
+    with pytest.raises(ValueError, match="%"):
+        local_module._cmd_quote("a%PATH%b")
+    with pytest.raises(ValueError, match="%"):
+        local_module._cmd_quote("50%off.txt")
+
+
+def test_upload_windows_percent_path_maps_to_error(monkeypatch):
+    """win32 上传含 % 路径：ValueError 落进 _upload_one 既有兜底 → invalid_path，
+    不崩链路也不下发会被 cmd 改写的命令。"""
+    commands: list[str] = []
+
+    async def fake_dispatch(user_id, op, payload, *, timeout=None):
+        commands.append(payload["command"])
+        return _ok_response()
+
+    monkeypatch.setattr(local_module, "dispatch_local_call", fake_dispatch)
+    backend = LocalSandboxBackend(user_id="u1", session_id="s1", platform_hint="win32")
+    responses = backend.upload_files([("dir/50%off.txt", b"x")])
+    assert responses[0].error == "invalid_path"
+    assert commands == []  # 拒绝发生在命令生成期，未下发任何命令
+
+
+# ---------- 双侧引用互锁：服务端 _cmd_quote vs client platform.shell_quote ----------
+
+# 与 tests/client/test_platform.py 的 _WIN_TORTURE 同一组 torture 用例（不含 %，
+# % 拒绝是服务端侧的有意差异，见 test_cmd_quote_rejects_percent_arguments）。
+_INTERLOCK_TORTURE = [
+    "a b",
+    'he said "hi"',
+    "trailing\\",
+    'a\\"b\\\\',
+    "",
+    "plain",
+    "a\\b",
+    "\\",
+    "\\\\",
+    '"',
+    '""',
+    '\\"',
+    "space at end ",
+    "\ttab",
+    'mix \\" tail\\\\',
+    "C:\\Program Files\\LambChat\\daemon.exe",
+]
+
+
+def test_cmd_quote_interlocks_with_client_windows_quote():
+    """同一组输入同输出：服务端生成命令的引用与 client 平台层逐字节一致。"""
+    from lambchat_sandbox.platform import shell_quote as client_quote
+
+    for s in _INTERLOCK_TORTURE:
+        assert local_module._cmd_quote(s) == client_quote(s, platform="windows"), (
+            f"server/client 引用规则漂移: {s!r}"
+        )
+
+
+def test_platform_ctx_posix_interlocks_with_client_posix_quote():
+    from lambchat_sandbox.platform import shell_quote as client_quote
+
+    for s in _INTERLOCK_TORTURE:
+        assert local_module._platform_ctx("linux").quote(s) == client_quote(s, platform="posix")
+
+
+# ---------- 继承的 read/ls 命令平台中立性（验收项：无 mkdir -p / 无 shell 引用参数） ----------
+
+
+def test_inherited_read_commands_are_platform_neutral():
+    """deepagents 继承的 read/ls 把路径 base64 进脚本、无 mkdir 前缀、无 shell
+    引用参数位——命令形态与 daemon 平台无关（引用之争不存在于这两族命令）。"""
+    from deepagents.backends.sandbox import _build_ls_cmd, _build_read_cmd
+
+    for cmd in (_build_read_cmd('weird "path" b.txt', 0, 10), _build_ls_cmd("a b/c.txt")):
+        assert "mkdir -p" not in cmd
+    # 路径以 base64 进脚本，不作为 shell 参数出现（无 shlex/cmd 引用形态）
+    assert base64.b64encode(b"a b/c.txt").decode() in _build_ls_cmd("a b/c.txt")

@@ -52,6 +52,20 @@ def current_platform() -> str:
     return "windows" if is_windows() else "posix"
 
 
+def daemon_platform() -> str:
+    """上报用平台串：``sys.platform`` 归一为 ``linux``/``darwin``/``win32``。
+
+    服务端（文件命令生成平台分支）只对 ``win32`` 改用 cmd 引用与无 mkdir
+    前缀，其余一律 posix（现状）；未知平台（如 freebsd）保守归 ``linux``，
+    绝不错入 windows 分支。
+    """
+    if _sys_platform == "win32":
+        return "win32"
+    if _sys_platform == "darwin":
+        return "darwin"
+    return "linux"
+
+
 def _quote_windows(s: str) -> str:
     """按微软 cmdline 规则给单个参数加引号（规则条款见模块 docstring）。"""
     out: list[str] = ['"']

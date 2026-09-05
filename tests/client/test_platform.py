@@ -86,6 +86,25 @@ def test_is_posix_true_on_linux(monkeypatch) -> None:
     assert plat.is_macos() is False
 
 
+# ---------- daemon_platform：上报用平台归一（M4 T3） ----------
+
+
+def test_daemon_platform_normalizes_to_three_values(monkeypatch) -> None:
+    """sys.platform 归一为 linux/darwin/win32 三值（服务端只对 win32 分支）。"""
+    monkeypatch.setattr(plat, "_sys_platform", "win32")
+    assert plat.daemon_platform() == "win32"
+    monkeypatch.setattr(plat, "_sys_platform", "darwin")
+    assert plat.daemon_platform() == "darwin"
+    monkeypatch.setattr(plat, "_sys_platform", "linux")
+    assert plat.daemon_platform() == "linux"
+
+
+def test_daemon_platform_unknown_falls_back_to_linux(monkeypatch) -> None:
+    """未知平台保守归 linux：服务端按 posix（现状）处理，绝不错入 win32 分支。"""
+    monkeypatch.setattr(plat, "_sys_platform", "freebsd14")
+    assert plat.daemon_platform() == "linux"
+
+
 # ---------- posix 引用 ----------
 
 

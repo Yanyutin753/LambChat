@@ -5,6 +5,12 @@ execute()/aexecute() 自动继承，无需在本类重写；upload/download 是
 BaseSandbox 的抽象成员，这里以单条 python3 + base64 命令往返实现，
 仍走同一条中继链路（daemon 协议在 M1 仅有 exec 一个 op）。
 
+平台分支（M4 T3）：daemon 经 connect URL 上报平台（注册表 value 第三段），
+本后端每次 upload/download 操作前查一次活跃 daemon 的平台——win32 时命令
+生成改用 cmd.exe 引用（:func:`_cmd_quote`，与 client platform.py 同则互锁）、
+省略 ``mkdir -p`` 前缀（makedirs 并进脚本）、脚本单行化且无 ``%``；
+其余（含无平台信息）保持 posix 现状，命令串逐字节不变。
+
 注意（与 E2BBackend 相反的方向）：本后端的原生原语是异步的
 （dispatch_local_call 轮询 Redis），因此 aexecute 是主路径，同步
 execute 通过 asyncio.run 桥接（照 _skills_path_utils._run_async 模式）；
@@ -16,6 +22,7 @@ import base64
 import posixpath
 import re
 import shlex
+from dataclasses import dataclass
 from typing import Any, Coroutine, TypeVar, cast
 
 from deepagents.backends.protocol import ASYNC_GLOB_TIMEOUT
@@ -38,6 +45,7 @@ from src.infra.backend.protocol_compat import (
 )
 from src.infra.logging import get_logger
 from src.infra.sandbox.relay.dispatch import dispatch_local_call
+from src.infra.sandbox.relay.registry import SandboxClientRegistry
 from src.kernel.config import settings
 from src.kernel.errors import AppError
 
@@ -54,6 +62,108 @@ _UPLOAD_CHUNK_RAW_BYTES = 48 * 1024
 # 无预检时超限文件会整读 base64 回传，轻则链路中途炸出含糊错误、重则撑爆
 # results 回传 body——stat 预检在 daemon 侧给显式 file_too_large 而非 base64。
 _DOWNLOAD_MAX_BYTES = 2 * 1024 * 1024
+
+
+# =========================================================================
+# 文件命令生成的平台分支（M4 T3）
+# =========================================================================
+
+
+def _cmd_quote(s: str) -> str:
+    """Windows cmd.exe 参数引用：与 client ``platform._quote_windows`` 完全同则。
+
+    规则出处（微软 cmdline 解析文档 "Parsing C++ command-line arguments"，
+    learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments）：
+
+    - 规则 2：双引号包裹的字符串被解析为单个参数，其中的空白不断词；
+    - 规则 4：反斜杠仅当紧邻双引号时才有转义含义，其余场合按字面量；
+    - 规则 5/6（引号/反斜杠交互）：引号前有 N 个反斜杠——N 为偶数时 N/2 个
+      是字面量、该引号作字符串定界符；N 为奇数时 (N-1)/2 个是字面量、且该
+      引号本身是字面引号。
+
+    据此把任意参数编码为安全命令行片段：外层始终双引号包裹；参数内每个字面
+    ``"`` 前置 ``2N+1`` 个反斜杠（N 为其前紧邻的字面反斜杠数——先加倍原有
+    反斜杠，再补一个转义引号的反斜杠）；收尾引号前若有 N 个字面反斜杠，加倍
+    为 2N（否则按规则 5 会被吃掉一半并提前闭合引号）。双侧（client/platform.py
+    与本函数）用同一组 torture 用例单测互锁，防规则漂移。
+
+    与 client 版的**有意差异**：daemon 的 Windows 执行器是 ``shell=True`` 经
+    cmd.exe，双引号内 ``%VAR%`` 仍会被环境变量展开，而命令行上下文（非
+    batch 文件）没有可靠的 ``%`` 转义（``%%`` 只在 batch 生效）——含 ``%``
+    的参数退化为**拒绝**（ValueError），由 ``_upload_one``/``download_files``
+    的既有兜底映射为文件错误，杜绝静默注入/静默错路径。
+    """
+    if "%" in s:
+        raise ValueError(f"argument contains '%' which cannot be safely quoted for cmd.exe: {s!r}")
+    out: list[str] = ['"']
+    backslashes = 0
+    for ch in s:
+        if ch == "\\":
+            backslashes += 1
+            continue
+        if ch == '"':
+            # 字面引号前置 2N+1 个反斜杠（规则 5/6 的逆向编码）
+            out.append("\\" * (backslashes * 2 + 1))
+            out.append('"')
+        else:
+            # 不紧邻引号的反斜杠是字面量（规则 4），按原样透传
+            out.append("\\" * backslashes)
+            out.append(ch)
+        backslashes = 0
+    # 收尾引号前的 N 个字面反斜杠加倍为 2N，避免被解析成“转义掉闭合引号”
+    out.append("\\" * (backslashes * 2))
+    out.append('"')
+    return "".join(out)
+
+
+@dataclass(frozen=True)
+class _PlatformCmdCtx:
+    """文件命令生成的平台分支上下文。
+
+    - posix（含空/未知/darwin/linux）：现状——shlex.quote 引用、shell 侧
+      ``mkdir -p`` 前缀、``python3`` 解释器；
+    - win32（daemon 上报）：``_cmd_quote`` cmd 引用、mkdir 前缀省略（makedirs
+      并进 python 脚本——cmd.exe 无 ``mkdir -p``，多级父目录创建在 python 里
+      幂等）、``python3`` 不变（daemon 侧 PATH 有内嵌 shim，M4 T4）。
+    """
+
+    is_windows: bool
+
+    def quote(self, s: str) -> str:
+        """单个参数的 shell 引用：posix→shlex，win32→cmd 双引号规则。"""
+        return _cmd_quote(s) if self.is_windows else shlex.quote(s)
+
+    def mkdir_prefix(self, parent: str, *, append: bool) -> str:
+        """首块上传的父目录创建前缀：win32 省略（makedirs 在脚本内），posix 现状。
+
+        追加块父目录必已存在（首块已建），两者都不建。
+        """
+        if self.is_windows or not parent or append:
+            return ""
+        return f"mkdir -p {shlex.quote(parent)} && "
+
+
+def _platform_ctx(platform: str) -> _PlatformCmdCtx:
+    """按 daemon 上报平台取命令生成上下文。
+
+    只有 win32/windows 走 Windows 分支；其余任何值（空串=未上报/旧格式 value、
+    linux/darwin、未知串）一律 posix——「无平台信息 → 现状零变化」。
+    """
+    return _PlatformCmdCtx(is_windows=platform in ("win32", "windows"))
+
+
+async def _lookup_daemon_platform(user_id: str) -> str:
+    """经注册表查当前活跃 daemon 的上报平台（win32/linux/darwin）。
+
+    一次 redis 读（注册表 value 第三段，M4 T3）；离线/旧格式/未上报返回
+    空串，任何故障（redis 不可达等）也回落空串——空串在 :func:`_platform_ctx`
+    归一为 posix，文件操作不因平台查询失败而中断。
+    """
+    try:
+        return await SandboxClientRegistry().get_platform(user_id)
+    except Exception:  # noqa: BLE001 - 平台查询尽力而为，失败回落 posix
+        logger.warning("daemon platform lookup failed for user %s; falling back to posix", user_id)
+        return ""
 
 
 def _run_coro_sync(coro: Coroutine[Any, Any, T]) -> T:
@@ -105,10 +215,26 @@ class LocalSandboxBackend(BaseSandbox):
     切换；执行超时默认取 settings.SANDBOX_LOCAL_EXEC_TIMEOUT。
     """
 
-    def __init__(self, *, user_id: str, session_id: str, exec_timeout: int | None = None):
+    def __init__(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        exec_timeout: int | None = None,
+        platform_hint: str | None = None,
+    ):
         self._user_id = user_id
         self._session_id = session_id
         self._exec_timeout = exec_timeout or settings.SANDBOX_LOCAL_EXEC_TIMEOUT
+        # 显式平台提示（构造期已知 daemon 平台的 wiring/测试用）；None = 每次
+        # 文件操作前经注册表查当前活跃 daemon 的平台（一次 redis 读）。
+        self._platform_hint = platform_hint
+
+    async def _resolve_platform(self) -> str:
+        """本次命令生成所用平台：显式 hint 优先，否则查注册表（容错 posix）。"""
+        if self._platform_hint is not None:
+            return self._platform_hint
+        return await _lookup_daemon_platform(self._user_id)
 
     @property
     def id(self) -> str:
@@ -161,12 +287,31 @@ class LocalSandboxBackend(BaseSandbox):
     # =========================================================================
 
     @staticmethod
-    def _upload_command(path: str, content: bytes, *, append: bool = False) -> str:
+    def _upload_command(
+        path: str, content: bytes, *, append: bool = False, platform: str = ""
+    ) -> str:
+        ctx = _platform_ctx(platform)
         mode = "ab" if append else "wb"
         parent = posixpath.dirname(path)
-        # 追加块落位时父目录必已存在（首块已 mkdir），无需重复创建
-        mkdir = f"mkdir -p {shlex.quote(parent)} && " if parent and not append else ""
         b64_content = base64.standard_b64encode(content).decode("ascii")
+        if ctx.is_windows:
+            # win32：无 mkdir 前缀——首块把 os.makedirs 并进脚本（parent 从
+            # argv[1] 现场推导，正/反斜杠与绝对/相对路径都按 daemon 本机
+            # os.path 语义处理）；引用走 cmd 双引号规则；脚本保持单行
+            # （cmd.exe 逐行解析，多行 python -c 会在换行处截断）。
+            makedirs = (
+                "d = os.path.dirname(sys.argv[1]); os.makedirs(d, exist_ok=True) if d else None; "
+                if not append
+                else ""
+            )
+            imports = "import base64, os, sys; " if makedirs else "import base64, sys; "
+            return (
+                f'python3 -c "{imports}{makedirs}'
+                f"open(sys.argv[1], '{mode}').write(base64.b64decode(sys.argv[2]))\" "
+                f"{_cmd_quote(path)} {_cmd_quote(b64_content)}"
+            )
+        # posix：与既有字节形态完全一致（mkdir -p 前缀 + shlex 引用）
+        mkdir = ctx.mkdir_prefix(parent, append=append)
         return (
             f'{mkdir}python3 -c "import base64, sys; '
             f"open(sys.argv[1], '{mode}').write(base64.b64decode(sys.argv[2]))\" "
@@ -174,25 +319,42 @@ class LocalSandboxBackend(BaseSandbox):
         )
 
     @classmethod
-    def _upload_chunk_commands(cls, path: str, content: bytes) -> list[str]:
+    def _upload_chunk_commands(cls, path: str, content: bytes, *, platform: str = "") -> list[str]:
         """上传命令序列：≤48KB 单命令直写；更大分块——首块 `wb` 截断创建，后续块 `ab` 追加。
 
         整个 b64 塞单个 argv 会撞内核 MAX_ARG_STRLEN（E2BIG，见
         _UPLOAD_CHUNK_RAW_BYTES 注释），分片后每条命令的 argv 都留足余量。
         """
         if len(content) <= _UPLOAD_CHUNK_RAW_BYTES:
-            return [cls._upload_command(path, content)]
-        commands = [cls._upload_command(path, content[:_UPLOAD_CHUNK_RAW_BYTES])]
+            return [cls._upload_command(path, content, platform=platform)]
+        commands = [cls._upload_command(path, content[:_UPLOAD_CHUNK_RAW_BYTES], platform=platform)]
         for offset in range(_UPLOAD_CHUNK_RAW_BYTES, len(content), _UPLOAD_CHUNK_RAW_BYTES):
             commands.append(
                 cls._upload_command(
-                    path, content[offset : offset + _UPLOAD_CHUNK_RAW_BYTES], append=True
+                    path,
+                    content[offset : offset + _UPLOAD_CHUNK_RAW_BYTES],
+                    append=True,
+                    platform=platform,
                 )
             )
         return commands
 
     @staticmethod
-    def _download_command(path: str) -> str:
+    def _download_command(path: str, *, platform: str = "") -> str:
+        ctx = _platform_ctx(platform)
+        if ctx.is_windows:
+            # win32：单行脚本（cmd.exe 逐行解析）；错误消息不用 % 格式化——
+            # cmd 在双引号内展开 %VAR%，两个 % 定界即被吞改，改用字符串拼接；
+            # 超限短路退出（`and` 短路 + sys.exit）与 posix 分支同语义。
+            script = (
+                "import os, sys, base64; "
+                "size = os.path.getsize(sys.argv[1]); "
+                f"size > {_DOWNLOAD_MAX_BYTES} and (sys.stderr.write("
+                f"'file_too_large: ' + str(size) + ' bytes exceeds {_DOWNLOAD_MAX_BYTES} limit"
+                " (download cap)'), sys.exit(1)); "
+                "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))"
+            )
+            return f'python3 -c "{script}" {ctx.quote(path)}'
         # stat 预检：超限打印显式 error（exit 1，stderr 带 file_too_large 标记与
         # 字节数）而非输出 base64；不存在的路径仍由 python 抛 ENOENT 走原分类。
         script = (
@@ -204,11 +366,11 @@ class LocalSandboxBackend(BaseSandbox):
             "    sys.exit(1)\n"
             "sys.stdout.buffer.write(base64.b64encode(open(sys.argv[1], 'rb').read()))"
         )
-        return f'python3 -c "{script}" {shlex.quote(path)}'
+        return f'python3 -c "{script}" {ctx.quote(path)}'
 
-    def _upload_one(self, path: str, content: bytes) -> FileUploadResponse:
+    def _upload_one(self, path: str, content: bytes, *, platform: str = "") -> FileUploadResponse:
         try:
-            for command in self._upload_chunk_commands(path, content):
+            for command in self._upload_chunk_commands(path, content, platform=platform):
                 result = self.execute(command)
                 if result.exit_code != 0:
                     return self._upload_response(path, result)
@@ -216,13 +378,17 @@ class LocalSandboxBackend(BaseSandbox):
             # 中继级故障（离线/超时）不属于单文件错误，向上透传给统一错误处理
             raise
         except Exception:
+            # 含 win32 分支对 % 路径的拒绝（_cmd_quote ValueError）：命令尚未
+            # 下发，落进本兜底映射为 invalid_path
             logger.exception("local upload_files(%s) failed", path)
             return file_upload_response(path=path, error="invalid_path")
         return FileUploadResponse(path=path, error=None)
 
-    async def _aupload_one(self, path: str, content: bytes) -> FileUploadResponse:
+    async def _aupload_one(
+        self, path: str, content: bytes, *, platform: str = ""
+    ) -> FileUploadResponse:
         try:
-            for command in self._upload_chunk_commands(path, content):
+            for command in self._upload_chunk_commands(path, content, platform=platform):
                 result = await self.aexecute(command)
                 if result.exit_code != 0:
                     return self._upload_response(path, result)
@@ -261,7 +427,7 @@ class LocalSandboxBackend(BaseSandbox):
             )
         return FileDownloadResponse(path=path, content=content, error=None)
 
-    async def _download_one(self, path: str) -> FileDownloadResponse:
+    async def _download_one(self, path: str, *, platform: str = "") -> FileDownloadResponse:
         """单文件下载：直接经 dispatch 取原始 dict，只解码 stdout 字段。
 
         不走 aexecute——它把 stdout+stderr 合并进 output，stderr 告警文本会
@@ -270,26 +436,31 @@ class LocalSandboxBackend(BaseSandbox):
         result = await dispatch_local_call(
             self._user_id,
             "exec",
-            {"command": self._download_command(path), "cwd": self.work_dir},
+            {"command": self._download_command(path, platform=platform), "cwd": self.work_dir},
             timeout=float(self._exec_timeout),
         )
         return self._download_response(path, result)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        return [self._upload_one(path, content) for path, content in files]
+        # 平台解析一次供整批命令使用（照 execute 的 asyncio.run 桥接约束）
+        platform = _run_coro_sync(self._resolve_platform())
+        return [self._upload_one(path, content, platform=platform) for path, content in files]
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        # 覆盖协议默认（to_thread 同步版）：直接走 aexecute，避免事件循环桥接
+        # 覆盖协议默认（to_thread 同步版）：直接走 aexecute，避免事件循环桥接；
+        # 平台解析一次供整批命令使用（一次注册表读，容错默认 posix）
+        platform = await self._resolve_platform()
         responses: list[FileUploadResponse] = []
         for path, content in files:
-            responses.append(await self._aupload_one(path, content))
+            responses.append(await self._aupload_one(path, content, platform=platform))
         return responses
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        platform = _run_coro_sync(self._resolve_platform())
         responses: list[FileDownloadResponse] = []
         for path in paths:
             try:
-                responses.append(_run_coro_sync(self._download_one(path)))
+                responses.append(_run_coro_sync(self._download_one(path, platform=platform)))
             except AppError:
                 raise
             except Exception:
@@ -300,11 +471,13 @@ class LocalSandboxBackend(BaseSandbox):
         return responses
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        # 覆盖协议默认（to_thread 同步版）：直接走 dispatch，避免事件循环桥接
+        # 覆盖协议默认（to_thread 同步版）：直接走 dispatch，避免事件循环桥接；
+        # 平台解析一次供整批命令使用（一次注册表读，容错默认 posix）
+        platform = await self._resolve_platform()
         responses: list[FileDownloadResponse] = []
         for path in paths:
             try:
-                responses.append(await self._download_one(path))
+                responses.append(await self._download_one(path, platform=platform))
             except AppError:
                 raise
             except Exception:

@@ -1,8 +1,12 @@
-"""daemon 注册表测试：注册/心跳/TTL/踢旧连/摘除/版本值编码。"""
+"""daemon 注册表测试：注册/心跳/TTL/踢旧连/摘除/版本与平台值编码。"""
 
 import pytest
 
-from src.infra.sandbox.relay.registry import SandboxClientRegistry, parse_daemon_version
+from src.infra.sandbox.relay.registry import (
+    SandboxClientRegistry,
+    parse_daemon_platform,
+    parse_daemon_version,
+)
 
 
 class _FakeRedis:
@@ -99,3 +103,54 @@ def test_parse_daemon_version_both_formats():
     assert parse_daemon_version("node-a|0.1.0") == "0.1.0"
     assert parse_daemon_version("node-a") == ""  # 旧格式（无版本写入方）
     assert parse_daemon_version("node-a|") == ""  # 空版本与无版本等价
+
+
+# ---------- 平台上报（M4 T3）：hash value 扩展 node_id|version|platform ----------
+
+
+async def test_register_with_platform_stores_third_segment(registry):
+    """版本+平台注册：value 为 ``node_id|version|platform`` 三段。"""
+    await registry.register("u1", "c1", "node-a", version="0.1.0", platform="win32")
+    assert await registry.get_active("u1") == ("c1", "node-a|0.1.0|win32")
+
+
+async def test_register_platform_without_version_keeps_placeholder(registry):
+    """仅平台（无版本）：空版本段占位 ``node_id||platform``——保住第三段可解析。"""
+    await registry.register("u1", "c1", "node-a", platform="darwin")
+    assert await registry.get_active("u1") == ("c1", "node-a||darwin")
+
+
+async def test_register_version_without_platform_keeps_two_segments(registry):
+    """仅版本（旧调用方）：value 字节形态保持 M2 的 ``node_id|version`` 不变。"""
+    await registry.register("u1", "c1", "node-a", version="0.1.0")
+    assert await registry.get_active("u1") == ("c1", "node-a|0.1.0")
+
+
+async def test_heartbeat_with_platform_rewrites_encoded_value(registry):
+    """心跳带平台重写同格式值：不随心跳把平台降级丢失（对齐版本语义）。"""
+    await registry.register("u1", "c1", "node-a", version="0.1.0", platform="win32")
+    await registry.heartbeat("u1", "c1", "node-a", version="0.1.0", platform="win32")
+    assert await registry.get_active("u1") == ("c1", "node-a|0.1.0|win32")
+
+
+async def test_get_platform_returns_active_daemon_platform(registry):
+    await registry.register("u1", "c1", "node-a", version="0.1.0", platform="win32")
+    assert await registry.get_platform("u1") == "win32"
+
+
+async def test_get_platform_empty_when_offline_or_legacy(registry):
+    """离线、旧格式 value、未上报平台（第三段缺失/为空）都返回空串——
+    调用方（local.py 命令生成分支）按空串归一 posix。"""
+    assert await registry.get_platform("nobody") == ""  # 离线
+    await registry.register("u1", "c1", "node-a")
+    assert await registry.get_platform("u1") == ""  # M1 纯 node_id
+    await registry.register("u1", "c2", "node-b", version="0.1.0")
+    assert await registry.get_platform("u1") == ""  # M2 node|version
+
+
+def test_parse_daemon_platform_all_formats():
+    assert parse_daemon_platform("node-a|0.1.0|win32") == "win32"
+    assert parse_daemon_platform("node-a||darwin") == "darwin"
+    assert parse_daemon_platform("node-a|0.1.0") == ""  # 两段：平台段缺失
+    assert parse_daemon_platform("node-a") == ""  # 旧格式（无版本写入方）
+    assert parse_daemon_platform("node-a|0.1.0|") == ""  # 空平台与未上报等价

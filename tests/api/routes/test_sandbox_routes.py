@@ -51,16 +51,16 @@ class _FakeRegistry:
         self.beats = 0
         self.active: tuple[str, str] | None = ("c1", "node-a")
         self.unregistered: list[tuple[str, str]] = []
-        self.registered: list[tuple[str, str, str, str]] = []
-        self.heartbeats: list[tuple[str, str, str, str]] = []
+        self.registered: list[tuple[str, str, str, str, str]] = []
+        self.heartbeats: list[tuple[str, str, str, str, str]] = []
 
-    async def register(self, user_id, client_id, node_id, *, version=""):
+    async def register(self, user_id, client_id, node_id, *, version="", platform=""):
         self.active = (client_id, node_id)
-        self.registered.append((user_id, client_id, node_id, version))
+        self.registered.append((user_id, client_id, node_id, version, platform))
 
-    async def heartbeat(self, user_id, client_id, node_id, *, version=""):
+    async def heartbeat(self, user_id, client_id, node_id, *, version="", platform=""):
         self.beats += 1
-        self.heartbeats.append((user_id, client_id, node_id, version))
+        self.heartbeats.append((user_id, client_id, node_id, version, platform))
 
     async def unregister(self, user_id, client_id):
         self.unregistered.append((user_id, client_id))
@@ -287,8 +287,13 @@ async def test_status_endpoint(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
-    # 旧格式 value（无版本上报的 daemon）：daemon_version 为 null
-    assert resp.json() == {"online": True, "client_id": "c1", "daemon_version": None}
+    # 旧格式 value（无版本/平台上报的 daemon）：daemon_version/daemon_platform 为 null
+    assert resp.json() == {
+        "online": True,
+        "client_id": "c1",
+        "daemon_version": None,
+        "daemon_platform": None,
+    }
 
 
 async def test_status_endpoint_reports_daemon_version(monkeypatch):
@@ -305,7 +310,34 @@ async def test_status_endpoint_reports_daemon_version(monkeypatch):
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get("/api/sandbox/status")
     assert resp.status_code == 200
-    assert resp.json() == {"online": True, "client_id": "c1", "daemon_version": "0.1.0"}
+    assert resp.json() == {
+        "online": True,
+        "client_id": "c1",
+        "daemon_version": "0.1.0",
+        "daemon_platform": None,  # M2 两段格式：无平台段
+    }
+
+
+async def test_status_endpoint_reports_daemon_platform(monkeypatch):
+    """平台地基（M4 T3）：三段 value 的第三段解析成 daemon_platform 返回。"""
+    registry = _FakeRegistry()
+    registry.active = ("c1", "node-a|0.1.0|win32")
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get("/api/sandbox/status")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "online": True,
+        "client_id": "c1",
+        "daemon_version": "0.1.0",
+        "daemon_platform": "win32",
+    }
 
 
 async def test_channel_registers_version_from_query(monkeypatch):
@@ -314,8 +346,9 @@ async def test_channel_registers_version_from_query(monkeypatch):
     registry = _FakeRegistry()
     seen: dict[str, object] = {}
 
-    async def fake_frames(redis, reg, user_id, client_id, *, stop, version=""):
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
         seen["version"] = version
+        seen["platform"] = platform
         seen["registered"] = list(registry.registered)
         if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
             yield ""
@@ -334,8 +367,39 @@ async def test_channel_registers_version_from_query(monkeypatch):
     assert resp.status_code == 200
     assert seen["version"] == "0.1.0"
     assert len(registry.registered) == 1
-    user_id, _client_id, node_id, version = registry.registered[0]
+    user_id, _client_id, node_id, version, platform = registry.registered[0]
     assert (user_id, version) == ("u1", "0.1.0")
+    assert node_id == sandbox_route._NODE_ID
+    assert platform == ""  # 未上报平台：保持空（旧 daemon 兼容）
+
+
+async def test_channel_registers_platform_from_query(monkeypatch):
+    """平台地基（M4 T3）：channel 从 query 读 platform 随 register 存入；心跳
+    帧生成器收到同一 platform（不带则 15s 后注册值降级丢平台，对齐 version）。"""
+    registry = _FakeRegistry()
+    seen: dict[str, object] = {}
+
+    async def fake_frames(redis, reg, user_id, client_id, *, stop, version="", platform=""):
+        seen["platform"] = platform
+        if False:  # pragma: no cover - 使其成为 async generator（空流即结束）
+            yield ""
+
+    monkeypatch.setattr(sandbox_route, "channel_frames", fake_frames)
+    app = FastAPI()
+    register_error_handlers(app)
+    app.include_router(sandbox_route.router, prefix="/api/sandbox", tags=["Sandbox"])
+    app.dependency_overrides[api_deps.get_current_user_pat_or_jwt] = _fake_pat_user
+    monkeypatch.setattr(sandbox_route, "_registry", lambda: registry)
+    monkeypatch.setattr(sandbox_route, "_redis", lambda: _FakeRedis())
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get("/api/sandbox/channel?version=0.1.0&platform=win32")
+    assert resp.status_code == 200
+    assert seen["platform"] == "win32"
+    assert len(registry.registered) == 1
+    user_id, _client_id, node_id, version, platform = registry.registered[0]
+    assert (user_id, version, platform) == ("u1", "0.1.0", "win32")
     assert node_id == sandbox_route._NODE_ID
 
 

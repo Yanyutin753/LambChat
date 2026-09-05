@@ -372,6 +372,23 @@ async def test_connect_url_carries_version_query():
     await client.close()
 
 
+async def test_connect_url_carries_platform_query(monkeypatch):
+    """平台地基（M4 T3）：connect 的 URL 带 ?platform=<归一平台>——服务端随
+    register/heartbeat 存入注册表第三段，文件命令生成分支据此选引用规则。"""
+    from lambchat_sandbox import platform as plat
+
+    monkeypatch.setattr(plat, "_sys_platform", "win32")
+    log: list[httpx.Request] = []
+    client = _channel_client(_sse_transport(log, GOOD_STREAM.encode("utf-8")))
+    hello, calls = await client.connect()
+    assert hello is not None
+    async for _ in calls:
+        pass
+
+    assert log[0].url.params["platform"] == "win32"
+    await client.close()
+
+
 async def test_close_closes_underlying_client():
     raw = httpx.AsyncClient(transport=_api_transport([]), timeout=None)
     client = ChannelClient(SERVER, PAT, client=raw)

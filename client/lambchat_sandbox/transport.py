@@ -21,6 +21,7 @@ from urllib.parse import quote
 import httpx
 
 from lambchat_sandbox import __version__
+from lambchat_sandbox.platform import daemon_platform
 
 BACKOFF_MAX_S = 60.0
 BACKOFF_JITTER = 0.2  # ±20%
@@ -120,12 +121,14 @@ class ChannelClient:
     async def connect(self) -> tuple[dict[str, Any], AsyncIterator[ToolCall]]:
         """建立 SSE 通道，读到 hello 帧后返回 (hello 数据, tool_call 迭代器)。
 
-        URL 携带 ``?version={__version__}``：客户端版本随每次建连上报（服务端
-        访问日志与注册表均可见），是版本互通地基的第一跳。
+        URL 携带 ``?version={__version__}&platform={归一平台}``：客户端版本与
+        平台随每次建连上报（服务端访问日志与注册表均可见）——平台是服务端
+        文件命令生成分支（M4 T3）的依据，与版本同链路扩展。
         """
         cm = self._client.stream(
             "GET",
-            f"{self._base}/api/sandbox/channel?version={quote(__version__)}",
+            f"{self._base}/api/sandbox/channel"
+            f"?version={quote(__version__)}&platform={quote(daemon_platform())}",
             headers={"Authorization": f"Bearer {self._pat}", "Accept": "text/event-stream"},
         )
         response = await cm.__aenter__()
