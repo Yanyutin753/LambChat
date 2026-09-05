@@ -49,11 +49,35 @@ def _current_version(explicit: str | None) -> str:
 
 
 def _parse_version(version: str) -> tuple[int, ...]:
-    """版本串（容忍 ``v`` 前缀）→ int 元组；非数字段容错按 0。"""
+    """版本串（容忍 ``v`` 前缀）→ int 元组；非数字段容错按 0。
+
+    数字判定必须 ``isascii() and isdigit()``：Unicode 数字（如阿拉伯-印度数字
+    "٥"）``isdigit()`` 为真且 ``int()`` 可转成 5——伪造 tag "٥.٠" 会被当成
+    (5,0) 高于一切正常版本。非 ASCII 数字一律按非数字段容错 0。
+    """
     v = version.strip()
     if v[:1] in ("v", "V"):
         v = v[1:]
-    return tuple(int(part) if part.isdigit() else 0 for part in v.split(".")) if v else (0,)
+    return (
+        tuple(int(part) if part.isascii() and part.isdigit() else 0 for part in v.split("."))
+        if v
+        else (0,)
+    )
+
+
+def _ensure_packaged_target(target: Path) -> None:
+    """自更新护栏：仅打包后的二进制可自替换（M4 T8）。
+
+    ``python -m lambchat_sandbox update`` / 源码直跑时，argv[0] 是 .py 入口或
+    解释器非 frozen（无 ``sys.frozen`` 标记）——把 release 资产 ``os.replace``
+    到这种目标会砖化安装源（.py 被换成二进制、site-packages 树被换掉一半）。
+    直接拒绝，提示改走原安装渠道。fail-fast：先于网络查询，不浪费请求。
+    """
+    if target.suffix == ".py" or not bool(getattr(sys, "frozen", False)):
+        raise SelfUpdateError(
+            f"仅支持打包后的二进制自更新（目标 {target} 不是打包产物）；"
+            "python -m / 源码运行请通过原安装渠道升级"
+        )
 
 
 def host_triple(*, sys_platform: str | None = None, machine: str | None = None) -> str:
@@ -160,13 +184,16 @@ def perform_update(
     """执行自更新，返回面向用户的描述串（CLI 直出）。
 
     ``target_path`` 缺省取 ``Path(sys.argv[0]).resolve()``（替换自体），
-    供测试注入假目标文件。
+    供测试注入假目标文件。护栏先行（:func:`_ensure_packaged_target`）：
+    非打包形态（.py 目标 / 非 frozen 解释器）在查网络之前就被拒绝。
     """
+    target = target_path if target_path is not None else Path(sys.argv[0]).resolve()
+    _ensure_packaged_target(target)
+
     latest = _fetch_latest(repo, current_version=current_version, transport=transport)
     if latest is None:
         return f"已是最新（{_current_version(current_version)}），或最新 release 无当前平台资产，无需更新"
     version, url, digest = latest
-    target = target_path if target_path is not None else Path(sys.argv[0]).resolve()
     new_path = target.with_name(target.name + ".new")
 
     actual_hex, _ = _download_to(url, new_path, transport=transport)

@@ -17,6 +17,7 @@ from lambchat_sandbox.transport import (
     ToolCall,
     TransportAuthError,
     TransportError,
+    UpdateRequiredError,
     _FrameParser,
     backoff_delay,
 )
@@ -223,6 +224,66 @@ async def test_connect_non_2xx_raises_transport_error():
         await client.connect()
     assert not isinstance(excinfo.value, TransportAuthError)
     assert "500" in str(excinfo.value)
+    await client.close()
+
+
+# ---------- 426 版本门（服务端最低版本拒连，M4 T8 客户端消费） ----------
+
+
+def _version_gate_body(message: str = "daemon version 0.0.1 is below minimum 0.1.0") -> bytes:
+    return json.dumps(
+        {
+            "detail": {
+                "code": "daemon_version_unsupported",
+                "message": message,
+                "args": {"version": "0.0.1", "min": "0.1.0"},
+            }
+        }
+    ).encode("utf-8")
+
+
+async def test_connect_426_version_gate_raises_update_required():
+    """426 + body 错误码 daemon_version_unsupported → UpdateRequiredError，
+    异常串携带服务端 message（daemon 据此提示升级并停机，不退避重连）。"""
+    log: list[httpx.Request] = []
+    client = _channel_client(_sse_transport(log, _version_gate_body(), status=426))
+    with pytest.raises(UpdateRequiredError) as excinfo:
+        await client.connect()
+    assert "0.0.1" in str(excinfo.value)  # 服务端 message 透传
+    assert isinstance(excinfo.value, TransportError)  # 仍是 TransportError 子类
+    assert len(log) == 1
+    await client.close()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"Upgrade Required",  # 纯文本（非 JSON）
+        b'{"detail": {"code": "other_code", "message": "x"}}',  # 非版本门错误码
+        b'{"detail": "flat string"}',  # detail 非对象
+        b"not json at all",
+    ],
+)
+async def test_connect_426_without_version_gate_code_stays_transport_error(body):
+    """426 但 body 不是 daemon_version_unsupported（或不可解析）：普通
+    TransportError——升级判定宁缺毋滥，交给调用方按普通断连处理。"""
+    log: list[httpx.Request] = []
+    client = _channel_client(_sse_transport(log, body, status=426))
+    with pytest.raises(TransportError) as excinfo:
+        await client.connect()
+    assert not isinstance(excinfo.value, UpdateRequiredError)
+    await client.close()
+
+
+async def test_connect_426_without_message_falls_back_to_generic_text():
+    """错误码对但 message 缺失/空白：兜底文案，仍是 UpdateRequiredError。"""
+    client = _channel_client(
+        _sse_transport(
+            [], json.dumps({"detail": {"code": "daemon_version_unsupported"}}).encode(), status=426
+        )
+    )
+    with pytest.raises(UpdateRequiredError):
+        await client.connect()
     await client.close()
 
 

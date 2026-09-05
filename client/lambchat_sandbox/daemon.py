@@ -15,7 +15,10 @@
 - **退出**（SIGTERM/SIGINT/任务取消）→ :func:`_graceful_shutdown`：尽力
   ``post_offline`` → ``close`` → 审计 ``shutdown``；
 - :class:`TransportAuthError`（401/403）直接上抛不重连、不 offline——
-  PAT 已失效，offline 也只会再吃一次 401；CLI 捕获后提示重新 login。
+  PAT 已失效，offline 也只会再吃一次 401；CLI 捕获后提示重新 login；
+- :class:`UpdateRequiredError`（426 版本门）同样上抛不重连、不 offline——
+  版本过低时重连毫无意义，CLI 捕获后以退出码 1 停机（daemon 侧已打印
+  ``lambchat_sandbox update`` 升级指引）。
 
 信号取舍：SIGTERM 经 ``add_signal_handler`` 取消当前任务（Unix；Windows/
 非主线程无此实现则静默跳过）；SIGINT 保持解释器默认——asyncio.Runner 会把
@@ -47,6 +50,7 @@ from lambchat_sandbox.transport import (
     ChannelClient,
     ToolCall,
     TransportAuthError,
+    UpdateRequiredError,
     backoff_delay,
 )
 
@@ -108,6 +112,19 @@ async def run_daemon(
                 await _silently_close(client)
                 client = None
                 raise  # PAT 失效：不重连、不 offline，交给 CLI 提示重新 login
+            except UpdateRequiredError as exc:
+                # 版本门拒连（426）：打印升级指引后停机退出——退避重连没有
+                # 意义（版本不会自己变新）；本 daemon 从未 register，不
+                # post_offline（offline 会误踢同账号在线的新版本 daemon）。
+                await _silently_close(client)
+                client = None
+                print(
+                    f"[sandbox] 客户端版本过低，服务端拒绝连接（{exc}）；"
+                    "请运行 lambchat_sandbox update 升级后重启",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                raise
             except Exception as exc:  # noqa: BLE001 - 任何单连接失败都退避重连
                 print(f"[sandbox] 通道断开: {exc}；退避后重连…", file=sys.stderr, flush=True)
             attempt += 1

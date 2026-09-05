@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,7 +63,12 @@ def load_config(path: Path | None = None) -> SandboxConfig:
 
 
 def save_config(cfg: SandboxConfig, path: Path | None = None) -> None:
-    """写 JSON（mkdir -p 父目录）。"""
+    """原子写 JSON（M4 T8）：临时文件落同目录 + ``os.replace`` 原子换位。
+
+    直接对目标文件落笔时进程中途死掉会留下半份 JSON——daemon 下次启动直接
+    ConfigError 拒绝服务。临时文件在目标同目录创建（跨文件系统无法
+    ``os.replace``）；失败清理半成品，成功后无残留。
+    """
     p = path if path is not None else config_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -72,7 +79,15 @@ def save_config(cfg: SandboxConfig, path: Path | None = None) -> None:
     }
     if cfg.pat_id is not None:  # 未设置不落键，保持旧配置文件形态
         payload["pat_id"] = cfg.pat_id
-    p.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    body = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    fd, tmp_name = tempfile.mkstemp(dir=p.parent, prefix=f".{p.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        os.replace(tmp_name, p)
+    except BaseException:
+        os.unlink(tmp_name)
+        raise
 
 
 def _validate(cfg: SandboxConfig, source: Path) -> None:

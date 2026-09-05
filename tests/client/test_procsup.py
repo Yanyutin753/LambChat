@@ -131,6 +131,51 @@ def test_watch_parent_returns_daemon_thread() -> None:
         parent.wait()
 
 
+def test_watch_parent_probe_failure_degrades_to_alive(monkeypatch) -> None:
+    """探活异常降级（对齐 Linux PDEATHSIG 的静默降级风格）：psutil.pid_exists
+    抛错（如权限/资源异常）按"父仍存活"处理——绝不误杀，也不让监视线程崩溃。"""
+    parent = _spawn_fake_parent()
+    try:
+        def boom_pid_exists(pid: int) -> bool:
+            raise PermissionError(f"probe denied for {pid}")
+
+        monkeypatch.setattr(procsup.psutil, "pid_exists", boom_pid_exists)
+        recorder = _ExitRecorder()
+        thread = procsup.watch_parent(recorder, poll_s=0.05, pid_of=lambda: parent.pid)
+        time.sleep(0.3)  # ≥5 个周期全部探活失败
+        assert recorder.count == 0, "探活失败（非父亡）被误判为父死"
+        assert thread.is_alive(), "探活异常不应拖垮监视线程"
+    finally:
+        parent.kill()
+        parent.wait()
+
+
+def test_watch_parent_pid_of_failure_degrades_to_alive() -> None:
+    """pid_of 抛错同样按存活降级：之后恢复（父真死）仍能触发，恰好一次。"""
+    parent = _spawn_fake_parent()
+    parent.kill()
+    parent.wait()  # 真死：恢复后首个周期即触发
+    try:
+        fail = {"on": True}
+
+        def flaky_pid_of() -> int:
+            if fail["on"]:
+                raise RuntimeError("getppid unavailable")
+            return parent.pid
+
+        recorder = _ExitRecorder()
+        procsup.watch_parent(recorder, poll_s=0.05, pid_of=flaky_pid_of)
+        time.sleep(0.2)
+        assert recorder.count == 0, "pid_of 异常期间被误判为父死"
+        fail["on"] = False  # 恢复：下个周期应看到 pid 消失
+        assert recorder.fired.wait(5.0), "恢复后父死未触发 exit_fn"
+        assert recorder.count == 1
+    finally:
+        if parent.poll() is None:
+            parent.kill()
+            parent.wait()
+
+
 # ---------------------------------------------------------------------------
 # __main__ 挂载结构：仅 Windows 挂 watch_parent，Linux PDEATHSIG 保持不双挂
 # ---------------------------------------------------------------------------

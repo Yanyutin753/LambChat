@@ -22,7 +22,12 @@ from lambchat_sandbox.audit import Auditor
 from lambchat_sandbox.config import SandboxConfig
 from lambchat_sandbox.daemon import DEFAULT_EXEC_TIMEOUT_S, _graceful_shutdown, run_daemon
 from lambchat_sandbox.executor import ExecutorError
-from lambchat_sandbox.transport import ToolCall, TransportAuthError, TransportError
+from lambchat_sandbox.transport import (
+    ToolCall,
+    TransportAuthError,
+    TransportError,
+    UpdateRequiredError,
+)
 
 PAT = "pat-secret-1"
 
@@ -617,6 +622,57 @@ def test_cmd_run_auth_error_returns_1_with_relogin_hint(monkeypatch, capsys):
     assert "login" in capsys.readouterr().err
 
 
+# ---------- 426 版本门消费（M4 T8：UpdateRequiredError 停机退出） ----------
+
+
+async def test_run_daemon_update_required_stops_without_backoff_or_offline(capsys):
+    """服务端 426 拒连（UpdateRequiredError）：打印升级提示后上抛停机——
+    不退避重连（版本不会自己变新）、不 post_offline（本 daemon 从未注册，
+    offline 只会误踢同账号在线的新版本 daemon）。"""
+    client = FakeClient(
+        connect_error=UpdateRequiredError("channel: daemon version 0.0.1 is below minimum 0.1.0")
+    )
+    factory = FakeFactory([client])
+    sleep_fn = SleepRecorder()
+    auditor = MemoryAuditor()
+
+    with pytest.raises(UpdateRequiredError):
+        await run_daemon(
+            _cfg("none"),
+            pat=PAT,
+            confirm_fn=_boom_confirm,
+            client_factory=factory,
+            executor=FakeExecutor(),
+            auditor=auditor,
+            sleep_fn=sleep_fn,
+        )
+
+    assert sleep_fn.delays == []  # 不退避
+    assert len(factory.created) == 1  # 不重连：只创建过一次 client
+    assert client.offline_count == 0  # 不 offline（防误踢在线 daemon）
+    assert client.close_count == 1  # 但连接池仍被关闭
+    assert not auditor.records.get("daemon")  # 无 shutdown 审计（从未上线）
+    err = capsys.readouterr().err
+    assert "lambchat_sandbox update" in err
+
+
+def test_cmd_run_update_required_returns_1_with_update_hint(monkeypatch, capsys):
+    """CLI 消费：UpdateRequiredError → 退出码 1（升级指引由 daemon 主循环打印，
+    CLI 不重复刷屏）；不得误报成 login 提示或优雅下线。"""
+    monkeypatch.setattr(cli, "load_pat", lambda: PAT)
+    monkeypatch.setattr(cli, "load_config", lambda: SandboxConfig())
+
+    async def fake_daemon(cfg, *, pat):
+        raise UpdateRequiredError("channel: daemon version 0.0.1 is below minimum 0.1.0")
+
+    monkeypatch.setattr(cli, "run_daemon", fake_daemon)
+    assert cli.cmd_run(_ns()) == 1
+    captured = capsys.readouterr()
+    assert "login" not in captured.err  # 不是 PAT 问题
+    assert "下线" not in captured.out  # 不是优雅中断
+    assert "Traceback" not in captured.err
+
+
 @pytest.mark.parametrize("exc", [KeyboardInterrupt, asyncio.CancelledError])
 def test_cmd_run_interrupt_flavors_return_0(monkeypatch, capsys, exc):
     """SIGINT→KeyboardInterrupt、SIGTERM→CancelledError：都视为优雅下线。"""
@@ -644,6 +700,23 @@ def test_cmd_run_invokes_run_daemon_with_loaded_config_and_pat(monkeypatch):
     monkeypatch.setattr(cli, "run_daemon", fake_daemon)
     assert cli.cmd_run(_ns()) == 0
     assert seen == {"cfg": cfg, "pat": PAT}
+
+
+def test_main_config_error_is_friendly(monkeypatch, capsys):
+    """顶层 ConfigError 捕获（M4 T8）：坏配置 → stderr 一行友好提示 +
+    退出码 1，不吐 traceback（对齐 SelfUpdateError/网络错误的既有口径）。"""
+    from lambchat_sandbox.config import ConfigError
+
+    def boom_load():
+        raise ConfigError("invalid JSON in /tmp/x/sandbox.json: Expecting value")
+
+    monkeypatch.setattr(cli, "load_pat", lambda: PAT)
+    monkeypatch.setattr(cli, "load_config", boom_load)
+    assert cli.main(["run"]) == 1
+    err = capsys.readouterr().err
+    assert "配置" in err
+    assert "sandbox.json" in err
+    assert "Traceback" not in err
 
 
 def test_cmd_version_prints_package_version(capsys):

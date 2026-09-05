@@ -497,6 +497,16 @@ async def test_channel_version_gate_defaults(monkeypatch):
     assert resp.json()["detail"]["code"] == "daemon_version_unsupported"
 
 
+def test_version_tuple_treats_unicode_digits_as_nonnumeric():
+    """Unicode 数字加固（M4 T8）："٥".isdigit() 为真且 int() 可转成 5——伪造
+    version "٥.0" 必须按非数字段容错 0（拒连），不能被解析成 (5,0) 放行。"""
+    assert sandbox_route._version_tuple("٥.0") == (0, 0)
+    assert sandbox_route._version_tuple("1.٥") == (1, 0)
+    assert sandbox_route._version_tuple("١٢.٣") == (0, 0)  # 全 Unicode 段
+    # ASCII 数字行为不变
+    assert sandbox_route._version_tuple("0.10.2") == (0, 10, 2)
+
+
 async def test_offline_endpoint_unregisters_active_client(monkeypatch):
     """daemon 主动下线：从 get_active 取当前 client_id 注销，收敛断连检测窗口。"""
     registry = _FakeRegistry()

@@ -82,3 +82,11 @@ def test_gitignore_excludes_pbs_resource_artifacts() -> None:
 
     # tar.gz 产物不入库（构建期 fetch-pbs.py 现场下载，tag 锁定保可复现）
     assert "frontend/src-tauri/resources/python/" in gi
+
+
+def test_cargo_lock_is_committed_for_reproducible_shell_builds() -> None:
+    """Cargo.lock 入库（M4 T8）：壳（lambchat crate）的可复现构建依赖锁文件，
+    .gitignore 不得再忽略它，且文件必须真实存在于工作树。"""
+    gi = _source(".gitignore")
+    assert "frontend/src-tauri/Cargo.lock" not in gi, "Cargo.lock 不应被 .gitignore 忽略"
+    assert Path("frontend/src-tauri/Cargo.lock").exists(), "Cargo.lock 必须入库"

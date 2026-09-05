@@ -68,10 +68,12 @@ _ASSET_NAME = f"lambchat-daemon-{_TRIPLE}" + (".exe" if _TRIPLE.endswith("msvc")
 @pytest.fixture(autouse=True)
 def _fake_argv0(monkeypatch, tmp_path):
     """安全带：把 argv[0] 钉到 tmp 假文件——perform_update 默认替换
-    ``Path(sys.argv[0])``，不钉住会让测试把 pytest 自己换掉（真发生过）。"""
+    ``Path(sys.argv[0])``，不钉住会让测试把 pytest 自己换掉（真发生过）。
+    同时模拟 PyInstaller 打包形态（sys.frozen=True）：护栏只放行打包二进制。"""
     fake = tmp_path / "lambchat-daemon"
     fake.write_bytes(b"OLD-BINARY")
     monkeypatch.setattr(selfupdate.sys, "argv", [str(fake)])
+    monkeypatch.setattr(selfupdate.sys, "frozen", True, raising=False)
     return fake
 
 
@@ -303,3 +305,48 @@ def test_current_version_defaults_to_package_version():
     """未显式传 current_version 时用 lambchat_sandbox.__version__ 兜底。"""
     assert selfupdate._current_version(None) == lambchat_sandbox.__version__
     assert selfupdate._current_version("9.9.9") == "9.9.9"
+
+
+# ---------- 自更新护栏（M4 T8：防 python -m / 源码运行砖化源码） ----------
+
+
+def test_perform_update_refuses_python_source_target(monkeypatch, tmp_path):
+    """目标以 .py 结尾（python -m lambchat_sandbox 的 argv[0]）：拒绝替换，
+    即便 frozen=True——防止把 .py 源文件换成二进制砖化安装源。"""
+    fake = tmp_path / "__main__.py"
+    fake.write_text("# source entry\n", encoding="utf-8")
+    monkeypatch.setattr(selfupdate.sys, "argv", [str(fake)])
+    monkeypatch.setattr(selfupdate.sys, "frozen", True, raising=False)
+
+    log: list[httpx.Request] = []
+    with pytest.raises(selfupdate.SelfUpdateError, match="仅支持打包后的二进制"):
+        selfupdate.perform_update("Yanyutin753/LambChat", transport=_good_transport(log=log))
+
+    assert fake.read_text(encoding="utf-8") == "# source entry\n"
+    assert log == []  # 护栏先于网络查询：不浪费请求
+    assert not (tmp_path / "__main__.py.new").exists()
+
+
+def test_perform_update_refuses_unfrozen_interpreter(monkeypatch, _fake_argv0):
+    """解释器非 frozen（python -m / 源码直跑）：目标即便是普通文件也拒绝。"""
+    monkeypatch.delattr(selfupdate.sys, "frozen", raising=False)
+    log: list[httpx.Request] = []
+
+    with pytest.raises(selfupdate.SelfUpdateError, match="仅支持打包后的二进制"):
+        selfupdate.perform_update("Yanyutin753/LambChat", transport=_good_transport(log=log))
+
+    assert _fake_argv0.read_bytes() == b"OLD-BINARY"
+    assert log == []
+
+
+# ---------- 版本解析加固（Unicode 数字） ----------
+
+
+def test_parse_version_treats_unicode_digits_as_nonnumeric():
+    """Unicode 数字（如阿拉伯-印度数字 ٥）isdigit() 为真且 int() 可转成 5——
+    必须按非数字段容错 0，否则伪造 tag "٥.٠" 会被当成 (5,0) 高于一切。"""
+    assert selfupdate._parse_version("٥.0") == (0, 0)
+    assert selfupdate._parse_version("1.٥") == (1, 0)
+    assert selfupdate._parse_version("١٢.٣.٤") == (0, 0, 0)  # 全 Unicode 段
+    # ASCII 数字行为不变（回归锚点）
+    assert selfupdate._parse_version("v0.10.2") == (0, 10, 2)

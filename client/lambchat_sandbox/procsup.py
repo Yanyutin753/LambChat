@@ -36,17 +36,29 @@ def watch_parent(
 ) -> threading.Thread:
     """启动 daemon 线程监视父进程；父亡时调用 ``exit_fn`` 一次后线程退出。
 
-    - 快照在启动时取一次（``pid_of()``）；之后每个周期先判死再睡——
+    - 快照在监视线内取首个成功值（``pid_of()``）；之后每个周期先判死再睡——
       父在快照前已死则首个周期立即触发，不空等一个 ``poll_s``；
+    - 快照/探活异常（``pid_of``/``psutil.pid_exists`` 抛错，如权限/资源异常）
+      按"父仍存活"降级（M4 T8，对齐 Linux PDEATHSIG 的静默降级风格）——
+      探测失败绝不误判父亡触发误杀，也不拖垮监视线程；快照持续失败则每周期
+      重试，恢复（拿到首个成功值）后照常监视；
     - ``exit_fn`` 恰好调用一次（触发即 return，线程退出）；
     - ``pid_of`` 可注入：测试用短命子进程的 pid 伪造"父"；
     - 线程为 daemon：监视本身绝不阻塞解释器退出。
     """
-    parent = pid_of()
+    parent: int | None = None
 
     def _watch() -> None:
+        nonlocal parent
         while True:
-            if pid_of() != parent or not psutil.pid_exists(parent):
+            try:
+                current = pid_of()
+                if parent is None:
+                    parent = current  # 首个成功快照（此前持续失败则本周期补拍）
+                gone = current != parent or not psutil.pid_exists(parent)
+            except Exception:  # noqa: BLE001 - 快照/探活失败按存活降级，绝不误杀
+                gone = False
+            if gone:
                 exit_fn()
                 return
             time.sleep(poll_s)

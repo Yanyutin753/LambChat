@@ -67,8 +67,14 @@ def _interpreter_names() -> tuple[str, ...]:
 
 
 def _find_interpreter(install_dir: Path) -> Path | None:
-    """在解压目录里定位解释器：PBS 布局 ``python/bin/…``，扁平布局 ``bin/…``。"""
-    for base in ("python/bin", "bin"):
+    """在解压目录里定位解释器，按优先级查找：
+
+    1. ``python/bin/…`` —— PBS install_only POSIX 布局；
+    2. ``python/…`` —— PBS Windows install_only 真实布局（顶层 ``python``
+       目录直接放 ``python.exe``，无 bin 子目录，M4 T4 审查补）；
+    3. ``bin/…`` —— 扁平布局（测试与自定义归档）。
+    """
+    for base in ("python/bin", "python", "bin"):
         for name in _interpreter_names():
             cand = install_dir / base / name
             if cand.is_file():

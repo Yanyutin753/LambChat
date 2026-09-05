@@ -108,10 +108,17 @@ def _version_tuple(version: str) -> tuple[int, ...]:
     空串 → ``(0,)``（最低）：M1 旧 daemon 不上报 version，按最低版本拒连，
     倒逼升级到带版本上报与 self-update 的新客户端。段数不齐时短元组直接
     比较（``(0, 1) < (0, 1, 0)``），与直觉一致。
+
+    数字判定必须 ``isascii() and isdigit()``（M4 T8 加固）：Unicode 数字
+    （如 "٥"）``isdigit()`` 为真且 ``int()`` 可转成 5——伪造 version "٥.0"
+    若被解析成 (5,0) 就绕过了版本门。非 ASCII 数字一律按 0（拒连侧）。
     """
     if not version:
         return (0,)
-    return tuple(int(part) if part.isdigit() else 0 for part in version.strip().split("."))
+    return tuple(
+        int(part) if part.isascii() and part.isdigit() else 0
+        for part in version.strip().split(".")
+    )
 
 
 @router.get("/channel")

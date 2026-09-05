@@ -12,10 +12,15 @@ import httpx
 
 from lambchat_sandbox import __version__, selfupdate
 from lambchat_sandbox.auth import AuthError, clear_pat, load_pat, pair
-from lambchat_sandbox.config import SandboxConfig, load_config, save_config
+from lambchat_sandbox.config import (
+    ConfigError,
+    SandboxConfig,
+    load_config,
+    save_config,
+)
 from lambchat_sandbox.daemon import run_daemon
 from lambchat_sandbox.selfupdate import SelfUpdateError
-from lambchat_sandbox.transport import TransportAuthError
+from lambchat_sandbox.transport import TransportAuthError, UpdateRequiredError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -112,6 +117,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     except TransportAuthError as exc:
         print(f"PAT 已失效（{exc}），请重新 lambchat_sandbox login", file=sys.stderr)
         return 1
+    except UpdateRequiredError:
+        # 版本过低：daemon 主循环已打印升级指引（lambchat_sandbox update），
+        # 这里只保证停机退出码非零，不重复刷屏
+        return 1
     except (KeyboardInterrupt, asyncio.CancelledError):
         # SIGINT→KeyboardInterrupt、SIGTERM→CancelledError，殊途同归：
         # run_daemon 的 finally 已完成 post_offline + close + 审计 shutdown
@@ -148,4 +157,9 @@ def main(argv: list[str] | None = None) -> int:
         "version": cmd_version,
         "update": cmd_update,
     }
-    return handlers[args.command](args)
+    try:
+        return handlers[args.command](args)
+    except ConfigError as exc:
+        # 坏配置友好输出（M4 T8）：stderr 一行提示 + 退出码 1，不吐 traceback
+        print(f"配置错误: {exc}", file=sys.stderr)
+        return 1

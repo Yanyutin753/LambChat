@@ -44,6 +44,15 @@ class TransportAuthError(TransportError):
     """PAT 失效或无权限（401/403）；调用方不应重连，应提示重新 login。"""
 
 
+class UpdateRequiredError(TransportError):
+    """服务端 426 版本门拒连（body 错误码 ``daemon_version_unsupported``）。
+
+    daemon 版本低于 ``SANDBOX_MIN_DAEMON_VERSION``：调用方应提示升级
+    （``lambchat_sandbox update``）并停机退出——退避重连没有意义，版本
+    不会自己变新。异常串携带服务端 message。
+    """
+
+
 @dataclass
 class ToolCall:
     """一条 tool_call 帧（data 单行 JSON 的结构化形态）。"""
@@ -138,7 +147,7 @@ class ChannelClient:
         # aiter_lines() 在真实（不可重放）流上会抛 StreamConsumed。
         lines = response.aiter_lines()
         try:
-            _raise_for_status(response, "channel")
+            await _raise_for_status(response, "channel")
             hello: dict[str, Any] | None = None
             async for line in lines:
                 frame = parser.feed(line)
@@ -180,7 +189,7 @@ class ChannelClient:
             headers=self._auth_headers(),
             timeout=POST_TIMEOUT_S,
         )
-        _raise_for_status(response, "post_result")
+        await _raise_for_status(response, "post_result")
 
     async def post_offline(self) -> None:
         """优雅退出通知（服务端 offline 端点）。"""
@@ -189,7 +198,7 @@ class ChannelClient:
             headers=self._auth_headers(),
             timeout=POST_TIMEOUT_S,
         )
-        _raise_for_status(response, "post_offline")
+        await _raise_for_status(response, "post_offline")
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -198,9 +207,35 @@ class ChannelClient:
         return {"Authorization": f"Bearer {self._pat}"}
 
 
-def _raise_for_status(response: httpx.Response, context: str) -> None:
+async def _version_gate_message(response: httpx.Response) -> str | None:
+    """426 响应体解析服务端错误码：``daemon_version_unsupported`` 时返回 message。
+
+    非 JSON / code 不匹配 / detail 形态不符 → None（宁缺毋滥：升级停机是重
+    决策，只认明确的服务端契约，普通 426 走 TransportError 退避路径）。真实
+    流响应先 ``aread()`` 落缓冲再解析；已缓冲响应 ``aread()`` 是 no-op。
+    message 缺失/空白时兜底通用文案。
+    """
+    try:
+        await response.aread()
+        payload = response.json()
+    except Exception:  # noqa: BLE001 - 解析尽力而为，失败按普通 426 处理
+        return None
+    detail = payload.get("detail") if isinstance(payload, dict) else None
+    if not isinstance(detail, dict) or detail.get("code") != "daemon_version_unsupported":
+        return None
+    message = detail.get("message")
+    if isinstance(message, str) and message.strip():
+        return message
+    return "daemon version unsupported"
+
+
+async def _raise_for_status(response: httpx.Response, context: str) -> None:
     if response.is_success:
         return
+    if response.status_code == 426:
+        message = await _version_gate_message(response)
+        if message is not None:
+            raise UpdateRequiredError(f"{context}: {message}")
     if response.status_code in AUTH_STATUSES:
         raise TransportAuthError(
             f"{context}: HTTP {response.status_code}（PAT 失效或无权限，请重新 login）"

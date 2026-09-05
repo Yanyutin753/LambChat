@@ -146,6 +146,46 @@ def test_ensure_runtime_windows_shim_is_exe_copy(tmp_path, monkeypatch):
     assert shim.read_text(encoding="utf-8") == "MZ fake exe"
 
 
+def test_ensure_runtime_windows_install_only_layout(tmp_path, monkeypatch):
+    """PBS Windows install_only 真实布局：解释器在 ``python/python.exe``
+    （顶层 python 目录直接放 exe，无 bin 子目录）——同样认（M4 T4 审查）。"""
+    monkeypatch.setattr(plat, "_sys_platform", "win32")
+    resources, install_root = _setup(
+        tmp_path, {"python/python.exe": "MZ root exe"}, {"python/python.exe"}
+    )
+    bin_dir = pbs.ensure_runtime(resources, install_root)
+
+    assert bin_dir == tmp_path / "bin"
+    shim = bin_dir / "python3.exe"
+    assert shim.exists()
+    assert shim.read_text(encoding="utf-8") == "MZ root exe"
+
+
+def test_find_interpreter_prefers_python_bin_over_root_level(tmp_path, monkeypatch):
+    """查找优先级：``python/bin`` > ``python``（Windows 根布局）> ``bin``（扁平），
+    归档同时含多种布局时命中优先级最高的解释器。"""
+    monkeypatch.setattr(plat, "_sys_platform", "win32")
+    install_dir = tmp_path / "install"
+    for base in ("python/bin", "python", "bin"):
+        d = install_dir / base
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "python.exe").write_text(f"MZ {base}", encoding="utf-8")
+
+    found = pbs._find_interpreter(install_dir)
+    assert found == install_dir / "python" / "bin" / "python.exe"
+
+
+def test_find_interpreter_accepts_windows_root_layout_without_bin(tmp_path, monkeypatch):
+    """只有 ``python/python.exe``（无任何 bin 目录）的归档也能定位解释器。"""
+    monkeypatch.setattr(plat, "_sys_platform", "win32")
+    install_dir = tmp_path / "install"
+    d = install_dir / "python"
+    d.mkdir(parents=True)
+    (d / "python.exe").write_text("MZ only-root", encoding="utf-8")
+
+    assert pbs._find_interpreter(install_dir) == d / "python.exe"
+
+
 # ---------------------------------------------------------------------------
 # 回退：无归档 / 归档缺解释器
 # ---------------------------------------------------------------------------

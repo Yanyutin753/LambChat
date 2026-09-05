@@ -20,6 +20,45 @@ def test_save_then_load_roundtrip(tmp_path):
     assert load_config(p).confirm_policy == "none"
 
 
+def test_save_is_atomic_and_leaves_no_temp_files(tmp_path):
+    """原子写（M4 T8）：写盘走临时文件 + os.replace——覆盖既有配置时读者
+    永远只看到完整旧版或完整新版，且落定后目录里无临时残留。"""
+    p = tmp_path / "sandbox.json"
+    save_config(SandboxConfig(server_url="https://first"), p)
+    save_config(SandboxConfig(server_url="https://second", pat_id="pat-1"), p)
+
+    data = json.loads(p.read_text())
+    assert data["server_url"] == "https://second"
+    assert data["pat_id"] == "pat-1"
+    leftovers = [f for f in tmp_path.iterdir() if f.name != "sandbox.json"]
+    assert leftovers == [], f"save_config 留下临时文件: {leftovers}"
+
+
+def test_save_config_replaces_existing_file_content_fully(tmp_path):
+    """旧配置有未来字段/更长内容：替换后无旧内容残留（truncate 语义）。"""
+    p = tmp_path / "sandbox.json"
+    p.write_text(json.dumps({"server_url": "https://old", "future_field": "x" * 500}))
+    save_config(SandboxConfig(server_url="https://new"), p)
+    raw = p.read_text()
+    assert "future_field" not in raw
+    assert json.loads(raw)["server_url"] == "https://new"
+
+
+def test_save_config_writes_atomically_source_guard():
+    """原子写结构（M4 T8）：save_config 必须走临时文件 + os.replace——直接
+    write_text 目标文件时进程中途死掉会留下半份 JSON，daemon 下次启动直接
+    ConfigError 拒绝服务。结构断言锁实现形态（行为无法确定性模拟半写崩溃）。"""
+    from pathlib import Path
+
+    import lambchat_sandbox.config as config_module
+
+    src = Path(config_module.__file__).read_text(encoding="utf-8")
+    body = src.split("def save_config", 1)[1].split("\ndef ", 1)[0]
+    assert "os.replace" in body, "save_config 必须用 os.replace 原子落位"
+    assert "mkstemp" in body, "临时文件必须在目标同目录创建（同文件系统才可 replace）"
+    assert "write_text" not in body, "save_config 不得直接 write_text 目标文件"
+
+
 def test_load_invalid_confirm_policy_rejected(tmp_path):
     p = tmp_path / "sandbox.json"
     p.write_text(json.dumps({"confirm_policy": "yolo"}))
