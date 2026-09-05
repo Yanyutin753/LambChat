@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import { sessionApi } from "../../services/api";
@@ -42,6 +42,14 @@ export interface PromoteSteerFollowUpsDeps {
   sendMessage: (content: string, attachments?: MessageAttachment[]) => Promise<unknown>;
   isCancelled?: (messageId: string) => boolean;
   clearSteer?: (content: string, messageId: string) => void;
+  /** 会话仍有运行中的 run 时返回 true：插话留在队列等注入，不补发 */
+  isSessionActive?: () => Promise<boolean>;
+}
+
+export interface PromoteSteerFollowUpsResult {
+  promoted: number;
+  /** 因会话仍在运行而暂缓补发的条数（调用方稍后重试） */
+  skippedActive: number;
 }
 
 /**
@@ -51,13 +59,33 @@ export interface PromoteSteerFollowUpsDeps {
  * 后端队列按会话共享，若只补发不取消，新 run 的首次模型调用会把同
  * 一条插话再次注入（同内容投递两次）。取消失败不阻塞补发——后端在
  * 新 run 提交时也会兜底清空残留队列。
+ *
+ * 补发前先探测会话是否仍在运行（重进/断连恢复场景）：运行中的 run
+ * 仍可能在下一次模型调用注入这条插话，此时补发会造出同会话并发 run
+ * （两路事件按时间交错落库，历史不可读）。探测失败按运行中处理——
+ * 宁可让补发稍后再试，也不冒双发并发 run 的险。
  */
 export async function promoteSteerFollowUps(
   items: SteerItem[],
   deps: PromoteSteerFollowUpsDeps,
-): Promise<void> {
+): Promise<PromoteSteerFollowUpsResult> {
   const { sessionId } = deps;
-  if (!sessionId) return;
+  if (!sessionId) return { promoted: 0, skippedActive: 0 };
+  if (deps.isSessionActive) {
+    let active = true;
+    try {
+      active = await deps.isSessionActive();
+    } catch {
+      active = true;
+    }
+    if (active) {
+      const skippedActive = items.filter(
+        (item) => !deps.isCancelled?.(item.id),
+      ).length;
+      return { promoted: 0, skippedActive };
+    }
+  }
+  let promoted = 0;
   for (const item of items) {
     if (deps.isCancelled?.(item.id)) continue;
     deps.clearSteer?.(item.content, item.id);
@@ -67,7 +95,114 @@ export async function promoteSteerFollowUps(
       // 取消失败继续补发；新 run 提交时的后端兜底清理会移除残留项
     }
     await deps.sendMessage(item.content, item.attachments);
+    promoted += 1;
   }
+  return { promoted, skippedActive: 0 };
+}
+
+/** 补发插话前视为「会话仍在运行」的任务状态（终态之外的都算） */
+const ACTIVE_RUN_STATUSES = new Set([
+  "pending",
+  "queued",
+  "starting",
+  "running",
+  "cancelling",
+  "waiting_human",
+  "recovering",
+]);
+
+const PROMOTE_RETRY_INTERVAL_MS = 5000;
+
+export interface SteerFollowUpPromotionOptions {
+  isLoading: boolean;
+  isSendingRef: RefObject<boolean>;
+  steerMessages: SteerItem[];
+  clearSteer: (content: string, messageId?: string) => void;
+  cancelledSteerIdsRef: RefObject<Set<string>>;
+  followUpSteerIdsRef: RefObject<Set<string>>;
+  sessionIdRef: RefObject<string | null>;
+  sendMessageRef: RefObject<
+    ((content: string, attachments?: MessageAttachment[]) => Promise<void>) | null
+  >;
+}
+
+/**
+ * 未送达插话的自动补发（run 结束后转为普通消息）。
+ *
+ * 触发条件只看本地发送态——重进/断连恢复时它恒为 false，因此补发前
+ * 必须探测会话实际状态：运行中则插话留在原 run 队列等注入，稍后重试
+ * （避免补发造出同会话并发 run、两路事件按时间交错落库）。
+ */
+export function useSteerFollowUpPromotion(
+  options: SteerFollowUpPromotionOptions,
+): void {
+  const {
+    isLoading,
+    isSendingRef,
+    steerMessages,
+    clearSteer,
+    cancelledSteerIdsRef,
+    followUpSteerIdsRef,
+    sessionIdRef,
+    sendMessageRef,
+  } = options;
+  // 重试时校验插话是否仍在队列（已被注入/送达的不重发，防同内容双投）
+  const steerMessagesRef = useRef(steerMessages);
+  useEffect(() => {
+    steerMessagesRef.current = steerMessages;
+  }, [steerMessages]);
+
+  useEffect(() => {
+    if (isLoading || isSendingRef.current) return;
+    const followUps = selectSteersForFollowUp(steerMessages).filter(
+      (item) => !followUpSteerIdsRef.current.has(item.id),
+    );
+    if (followUps.length === 0) return;
+    for (const item of followUps) {
+      followUpSteerIdsRef.current.add(item.id);
+    }
+    let cancelled = false;
+    let retryTimer: number | undefined;
+    const promote = async () => {
+      // 先取消后端队列中的残留项再补发，否则新 run 的首次模型调用会把
+      // 同一条插话再次注入（同内容投递两次）。FIFO 逐条等待补发，避免
+      // 单 run 守卫丢弃后续条目。
+      const result = await promoteSteerFollowUps(followUps, {
+        sessionId: sessionIdRef.current,
+        cancelSteer: (sessionId, content, messageId) =>
+          sessionApi.cancelSteer(sessionId, content, messageId),
+        sendMessage: async (content, attachments) => {
+          await sendMessageRef.current?.(content, attachments);
+        },
+        // cancelled：effect 卸载或用户撤销；不在队列：已被注入/送达
+        isCancelled: (id) =>
+          cancelled ||
+          cancelledSteerIdsRef.current.has(id) ||
+          !steerMessagesRef.current.some((item) => item.id === id),
+        clearSteer,
+        isSessionActive: async () => {
+          const sessionId = sessionIdRef.current;
+          if (!sessionId) return false;
+          const { status } = await sessionApi.getStatus(sessionId);
+          return ACTIVE_RUN_STATUSES.has(status);
+        },
+      });
+      // 会话仍在运行：插话留在原 run 队列等注入，稍后再探测
+      if (result.skippedActive > 0 && !cancelled) {
+        retryTimer = window.setTimeout(() => {
+          void promote();
+        }, PROMOTE_RETRY_INTERVAL_MS);
+      }
+    };
+    const timer = window.setTimeout(() => {
+      void promote();
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
+  }, [clearSteer, isLoading, isSendingRef, steerMessages, cancelledSteerIdsRef, followUpSteerIdsRef, sessionIdRef, sendMessageRef]);
 }
 
 export interface PendingSteerSnapshot {

@@ -39,9 +39,8 @@ import {
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
 import { startQueuePositionPolling } from "./useAgent/queuePolling";
 import {
-  promoteSteerFollowUps,
-  selectSteersForFollowUp,
   useSteerQueue,
+  useSteerFollowUpPromotion,
 } from "./useAgent/steerQueue";
 import { getValidAccessToken } from "../services/api/tokenManager";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
@@ -790,37 +789,18 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   // If the run finishes after the API accepted a steer but before the next
   // model boundary, promote it to a normal follow-up instead of leaving it
-  // stranded above the composer.
-  useEffect(() => {
-    if (isLoading || isSendingRef.current) return;
-    const followUps = selectSteersForFollowUp(steerQueue.steerMessages).filter(
-      (item) => !followUpSteerIdsRef.current.has(item.id),
-    );
-    if (followUps.length === 0) return;
-    for (const item of followUps) {
-      followUpSteerIdsRef.current.add(item.id);
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      // 先取消后端队列中的残留项再补发，否则新 run 的首次模型调用会把
-      // 同一条插话再次注入（同内容投递两次）。FIFO 逐条等待补发，避免
-      // 单 run 守卫丢弃后续条目。
-      void promoteSteerFollowUps(followUps, {
-        sessionId: sessionIdRef.current,
-        cancelSteer: (sessionId, content, messageId) =>
-          sessionApi.cancelSteer(sessionId, content, messageId),
-        sendMessage: async (content, attachments) => {
-          await sendMessageRef.current?.(content, attachments);
-        },
-        isCancelled: (id) => cancelled || cancelledSteerIdsRef.current.has(id),
-        clearSteer,
-      });
-    }, 0);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [clearSteer, isLoading, steerQueue.steerMessages]);
+  // stranded above the composer.（运行中探测/重试在 hook 内部，见
+  // useSteerFollowUpPromotion）
+  useSteerFollowUpPromotion({
+    isLoading,
+    isSendingRef,
+    steerMessages: steerQueue.steerMessages,
+    clearSteer,
+    cancelledSteerIdsRef,
+    followUpSteerIdsRef,
+    sessionIdRef,
+    sendMessageRef,
+  });
 
   const stopGeneration = useCallback(async () => {
     isSendingRef.current = false;
