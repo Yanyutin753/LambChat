@@ -65,38 +65,45 @@ impl Default for DaemonManager {
 /// 启动 daemon。已在运行时为幂等 no-op。
 ///
 /// 需在 tokio 运行时上下文中调用（sidecar spawn 依赖 runtime）。
+///
+/// 并发正确性（单一临界区）：「空槽检查 + spawn + 记录 + 启动监视线」全程
+/// 持有 `child` 锁。若只在检查时短暂持锁（曾经的写法），`restart_daemon`
+/// 命令（IPC 线程）与意外退出的监视线（tokio worker）可能同时进入 start、
+/// 都观察到空槽而各自 spawn——后写者覆盖先写者的 `CommandChild` 句柄，
+/// 被覆盖的 daemon 进程从此无人 stop，成为孤儿。锁内没有任何 await 或
+/// 长阻塞：spawn 是同步调用，两个监视线（async / spawn_blocking）都是
+/// fire-and-forget，且它们回到这把锁之前必须先观察到进程退出事件，
+/// 最多在锁上短暂等待本临界区返回，不会死锁。
 pub fn start(app: &AppHandle) -> Result<(), String> {
     let manager = app.state::<DaemonManager>();
-    {
-        let child = manager.child.lock().unwrap();
-        if child.is_some() {
-            return Ok(());
-        }
+    let mut slot = manager.child.lock().unwrap();
+    if slot.is_some() {
+        return Ok(());
     }
     let generation = manager.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
     // 优先 dev 回退：外部可执行（如 uv 包装脚本）。子命令 `run` = 常驻 daemon 模式。
     if let Some(env_bin) = std::env::var_os("LAMBCHAT_DAEMON_BIN") {
-        match std::process::Command::new(&env_bin).arg("run").spawn() {
+        return match std::process::Command::new(&env_bin).arg("run").spawn() {
             Ok(child) => {
                 warn_log!(
                     "daemon started from LAMBCHAT_DAEMON_BIN={} (pid {})",
                     env_bin.to_string_lossy(),
                     child.id()
                 );
-                *manager.child.lock().unwrap() = Some(DaemonChild::Env(child));
+                *slot = Some(DaemonChild::Env(child));
                 manager.unsupported.store(false, Ordering::SeqCst);
                 spawn_env_monitor(app.clone(), generation);
-                return Ok(());
+                Ok(())
             }
             Err(e) => {
                 manager.unsupported.store(true, Ordering::SeqCst);
-                return Err(format!(
+                Err(format!(
                     "failed to spawn LAMBCHAT_DAEMON_BIN={}: {e}",
                     env_bin.to_string_lossy()
-                ));
+                ))
             }
-        }
+        };
     }
 
     // 常规路径：随壳分发的 sidecar（经 shell 插件解析 target-triple 后 spawn）。
@@ -116,7 +123,7 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
         }
     };
     warn_log!("daemon sidecar started (pid {})", child.pid());
-    *manager.child.lock().unwrap() = Some(DaemonChild::Sidecar(child));
+    *slot = Some(DaemonChild::Sidecar(child));
     manager.unsupported.store(false, Ordering::SeqCst);
 
     let monitor_app = app.clone();
@@ -227,16 +234,35 @@ fn sandbox_home() -> Result<PathBuf, String> {
         .ok_or_else(|| "$HOME is not set; cannot locate ~/.lambchat".to_string())
 }
 
-/// 限制文件仅属主可读写（0600）。
-fn restrict_to_owner(path: &Path) {
+/// 写入敏感文件：unix 下以 0600 模式原子创建（`OpenOptions::mode` 在 create
+/// 时生效，消除 write→chmod 之间的宽松权限窗口）。
+fn write_private_file(path: &Path, contents: &[u8]) -> Result<(), String> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(path)
+        .map_err(|e| format!("failed to open {}: {e}", path.display()))?;
+    std::io::Write::write_all(&mut file, contents)
+        .map_err(|e| format!("failed to write {}: {e}", path.display()))
+}
+
+/// 收紧既有文件权限到 0600（用于纠正 create 之前就已存在的旧文件）。
+fn restrict_to_owner(path: &Path) -> Result<(), String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("failed to chmod 0600 {}: {e}", path.display()))?;
     }
     // TODO(M4): Windows 侧等价 ACL 收紧。
     #[cfg(not(unix))]
     let _ = path;
+    Ok(())
 }
 
 /// 校验并写入配对凭据与 daemon 配置。
@@ -267,9 +293,9 @@ pub fn save_pairing(
         .map_err(|e| format!("failed to create {}: {e}", home.display()))?;
 
     let pat_file = home.join("pat");
-    std::fs::write(&pat_file, &pat)
-        .map_err(|e| format!("failed to write {}: {e}", pat_file.display()))?;
-    restrict_to_owner(&pat_file);
+    // 新建即 0600；若 pat 已存在（历史遗留宽松权限）再显式收紧一次，失败上抛。
+    write_private_file(&pat_file, pat.as_bytes())?;
+    restrict_to_owner(&pat_file)?;
 
     // 保留既有 data_root（配置文件可能被用户手工定制过）。
     let config_path = home.join("sandbox.json");
@@ -331,31 +357,40 @@ fn normalize_lexically(path: &Path) -> PathBuf {
 /// 白名单：`~/.lambchat/workspaces` 与 `~/.lambchat/audit` 之下（含目录本身）。
 /// 接受两种输入：
 /// - 逻辑名 `"workspaces"` / `"audit"`（托盘与设置页按钮使用）；
-/// - 绝对路径（词法规范化 + 存在时 canonicalize，双重前缀校验防 `..` 与符号链接逃逸）。
+/// - 绝对路径。
+///
+/// 校验顺序（防符号链接逃逸的关键）：
+/// 1. **存在的路径先 canonicalize，对 canonical 结果做前缀校验**——白名单
+///    目录内的符号链接若指向任意路径（如 `/etc/passwd`），其 canonical
+///    路径不在白名单前缀之下，直接拒绝（`Path::starts_with` 按组件比较，
+///    `workspaces-evil` 这类兄弟目录也不会误过）。
+/// 2. 仅当目标不存在（canonicalize 失败）时回退词法校验：此时路径尚未被
+///    创建，opener 打开它只会报错，词法前缀放行是安全的。
 pub(crate) fn resolve_openable_path(raw: &str) -> Result<PathBuf, String> {
     let home = sandbox_home()?;
     let expanded = match raw {
         "workspaces" | "audit" => home.join(raw),
         _ => PathBuf::from(raw),
     };
+    let bases = [home.join("workspaces"), home.join("audit")];
 
-    // 词法规范化后做前缀校验（`Path::starts_with` 按组件比较，
-    // `workspaces-evil` 这类兄弟目录不会误过）。
-    let normalized = normalize_lexically(&expanded);
-    let lexical_bases = [home.join("workspaces"), home.join("audit")];
-    if lexical_bases.iter().any(|base| normalized.starts_with(base)) {
-        return Ok(normalized);
-    }
-
-    // 目标存在时再 canonicalize 校验一次（防符号链接指向白名单外）。
     if let Ok(canonical_target) = std::fs::canonicalize(&expanded) {
-        for base in &lexical_bases {
+        for base in &bases {
             if let Ok(canonical_base) = std::fs::canonicalize(base) {
-                if canonical_target.starts_with(canonical_base) {
+                if canonical_target.starts_with(&canonical_base) {
                     return Ok(canonical_target);
                 }
             }
         }
+        return Err(format!(
+            "path must be inside ~/.lambchat/workspaces or ~/.lambchat/audit, got: {raw}"
+        ));
+    }
+
+    // 回退：目标不存在，词法规范化（解析 `..` 与 `.`，不触碰文件系统）后校验。
+    let normalized = normalize_lexically(&expanded);
+    if bases.iter().any(|base| normalized.starts_with(base)) {
+        return Ok(normalized);
     }
 
     Err(format!(
@@ -370,4 +405,71 @@ pub fn open_local_path(app: AppHandle, path: String) -> Result<(), String> {
     app.opener()
         .open_path(resolved.to_string_lossy(), None::<&str>)
         .map_err(|e| format!("failed to open {}: {e}", resolved.display()))
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    /// 白名单路径解析：真实路径放行、符号链接逃逸与 `..` 逃逸拒绝。
+    ///
+    /// 注意：本仓库 Rust 侧以 `cargo build` 为验证主线，此测试是
+    /// `resolve_openable_path` 安全语义的回归锚点（`cargo test` 本地跑，未接 CI）。
+    /// 单一测试函数内串行断言，避免 `$HOME` 环境变量并发竞争。
+    #[test]
+    fn resolve_openable_path_blocks_symlink_escape_and_dotdot() {
+        let tmp = std::env::temp_dir().join(format!(
+            "lambchat-daemon-path-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let home = tmp.join("home");
+        let sandbox = home.join(".lambchat");
+        std::fs::create_dir_all(sandbox.join("workspaces")).unwrap();
+        std::fs::create_dir_all(sandbox.join("audit")).unwrap();
+        std::fs::write(sandbox.join("workspaces").join("note.txt"), "x").unwrap();
+        // 白名单内的符号链接指向敏感路径——逃逸载体。
+        std::os::unix::fs::symlink("/etc/passwd", sandbox.join("workspaces").join("evil"))
+            .unwrap();
+
+        let original_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &home);
+
+        // 白名单内的真实路径放行（canonicalize 后前缀校验通过）。
+        assert!(resolve_openable_path("workspaces").is_ok());
+        assert!(resolve_openable_path("audit").is_ok());
+        assert!(
+            resolve_openable_path(&sandbox.join("audit").to_string_lossy()).is_ok()
+        );
+        assert!(
+            resolve_openable_path(&sandbox.join("workspaces/note.txt").to_string_lossy())
+                .is_ok()
+        );
+
+        // 符号链接逃逸：词法上在 workspaces 内，canonical 指向 /etc/passwd——必须拒绝。
+        // （词法校验优先的旧实现在此会错误放行。）
+        assert!(
+            resolve_openable_path(&sandbox.join("workspaces/evil").to_string_lossy())
+                .is_err()
+        );
+
+        // `..` 词法逃逸拒绝。
+        assert!(
+            resolve_openable_path(&sandbox.join("workspaces/../../etc").to_string_lossy())
+                .is_err()
+        );
+        // 兄弟目录前缀（组件级 starts_with）拒绝。
+        assert!(
+            resolve_openable_path(&sandbox.join("workspaces-evil").to_string_lossy())
+                .is_err()
+        );
+        // 白名单外绝对路径拒绝。
+        assert!(resolve_openable_path("/etc/passwd").is_err());
+
+        match original_home {
+            Some(h) => std::env::set_var("HOME", h),
+            None => std::env::remove_var("HOME"),
+        }
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }

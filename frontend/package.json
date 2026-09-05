@@ -57,6 +57,7 @@
     "@lobehub/icons-static-svg": "^1.94.0",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@stackblitz/sdk": "^1.11.1",
+    "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
